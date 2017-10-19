@@ -1,3 +1,18 @@
+/*
+   Copyright [2017] [IBM Corporation]
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
 #include <sstream>
 #include <core/physical_memory.h>
 #include "append_store.h"
@@ -242,7 +257,11 @@ status_t Append_store::put(std::string key,
   uint64_t off = offset;
   while(remaining_blocks > _max_io_blocks) {
     
-    _block->async_write(iob, off, curr_lba, _max_io_blocks, queue_id);
+    _block->async_write(iob,
+                        off,
+                        curr_lba + 1, /* append store header */
+                        _max_io_blocks,
+                        queue_id);
     off += _max_io_bytes;
     remaining_blocks -= _max_io_blocks;
     curr_lba += _max_io_blocks;
@@ -251,7 +270,11 @@ status_t Append_store::put(std::string key,
   assert(remaining_blocks <= _max_io_blocks);
   /* write remainder if anything left */
   if(remaining_blocks > 0) {   
-    _block->async_write(iob, off, curr_lba, remaining_blocks, queue_id);
+    _block->async_write(iob,
+                        off,
+                        curr_lba + 1, /* append store header */
+                        remaining_blocks,
+                        queue_id);
   }
 
   /* write metadata */
@@ -331,7 +354,7 @@ status_t Append_store::iterator_get(IStore::iterator_t iter,
 
   _lower_layer->read(iob,
                      offset,
-                     record.lba,
+                     record.lba + 1, /* add one for store header */
                      record.len,
                      queue_id);
 
