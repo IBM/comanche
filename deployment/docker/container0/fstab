@@ -1,0 +1,1 @@
+hugetlbfs  /dev/hugepages  hugetlbfs  defaults 0 0

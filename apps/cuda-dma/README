@@ -1,0 +1,4 @@
+# Block device performance test using optionally shared polling thread.  Client threads
+# only access a single device.
+#
+./block-perf  --pci 11:00.0 --pci 8b:00.0 --pci 86:00.0 --iothreads 1

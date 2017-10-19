@@ -1,0 +1,211 @@
+INSTALL_DIR=@prefix@
+COMANCHE_DIR := $(HOME)/comanche
+COMANCHE_LIBS := $(COMANCHE_DIR)/lib
+LIBCOMMON_DIR := $(HOME)/comanche/src/lib/common
+DPDK_DIR := $(HOME)/comanche/deps/dpdk
+SPDK_ROOT_DIR := $(HOME)/comanche/deps/spdk
+RTE_SDK=$(DPDK_DIR)
+RTE_TARGET=x86_64-native-linuxapp-gcc
+LWIPDIR := ./src/lwip/src
+
+# PROFILING_FLAGS = -pg -fno-inline
+COMMON_FLAGS = -fPIC $(PROFILING_FLAGS) 
+
+# debug flags picked up from SPDK
+COMMON_FLAGS += -DCONFIG_DEBUG 
+
+ifeq ($(RTE_SDK),)
+$(error "Please define RTE_SDK environment variable")
+endif
+
+#include ../../../mk/global.mk
+include $(RTE_SDK)/mk/rte.vars.mk
+include $(SPDK_ROOT_DIR)/mk/spdk.common.mk
+
+DLL=libcomanche-blk.so
+
+BASE_INCLUDES := -I./src -I../ -I./  # -I./state_machine
+BASE_INCLUDES += -I./src/lwip/src/include -I./src/lwip -I$(LIBCOMMON_DIR)/include
+INCLUDES += $(BASE_INCLUDES)
+INCLUDES += -I$(DPDK_DIR)/include/dpdk -I$(SPDK_ROOT_DIR)/include 
+
+CXXFLAGS += -Wno-attributes $(COMMON_FLAGS) $(INCLUDES)
+CFLAGS += $(COMMON_FLAGS) $(INCLUDES)
+
+LIBNAME = comanche-blk
+
+# LWIP files
+
+include $(LWIPDIR)/Filelists.mk
+#LWIP_OBJS := $(subst .c,.o,$(COREFILES) $(CORE4FILES) $(NETIFFILES))
+#LWIP_OBJS := $(subst .c,.o,$(subst lwip-2.0.1,lwip-objs,$(LWIPAPPFILES) $(SNMPFILES))) $(APIFILES) 
+#LWIP_OBJS += $(subst .c,.o,$(subst lwip-2.0.1,lwip-objs,))
+
+# local sources
+CXX_SRCS += src/block_service.cpp src/block_service_session.cpp src/comanche-blk.cpp src/channel.cpp
+CXX_SRCS += src/volume_agent.cpp src/volume_agent_session.cpp src/json_config.cpp src/storage_device.cpp
+CXX_SRCS += src/logical_volume.cpp src/policy_local.cpp src/policy_mirror.cpp
+CXX_SRCS += src/agent.cpp src/storage_agent.cpp src/storage_agent_session.cpp
+CXX_SRCS += src/rdma_helper.cpp src/buffer_manager.cpp
+CXX_SRCS += src/eal_init.cpp src/nvme_device.cpp src/nvme_queue.cpp src/nvme_buffer.cpp
+CXX_SRCS += src/self_tests.cpp
+CXX_SRCS += src/block_device_component.cpp
+C_SRCS += src/nvme_init.c
+
+#CXX_SRCS += state_machine/sa_proto_sm.cpp
+# dpdk net
+#CXX_SRCS += $(wildcard src/dpdk/*.cpp)
+
+
+#C_SRCS += nvme_init.c net/arp.c  net/counters.c net/debug.c net/ether.c net/etherin.c net/etherout.c
+#C_SRCS += net/ip.c net/logger.c  net/socket_interface.c net/tcp_in.c net/tcp_out.c net/tcp_states.c
+#C_SRCS += net/tcp_tcb.c net/tcp_windows.c net/timer.c net/mainloop.c
+
+# get rid of warnings that don't apply to C++ (SPDK needs fixing)
+#
+TMP_CXXFLAGS := $(filter-out -Wnested-externs,$(CXXFLAGS))
+TMP2_CXXFLAGS := $(filter-out -Wmissing-declarations,$(TMP_CXXFLAGS))
+TMP3_CXXFLAGS := $(filter-out -Wold-style-definition,$(TMP2_CXXFLAGS))
+TMP4_CXXFLAGS := $(filter-out -Wstrict-prototypes,$(TMP3_CXXFLAGS))
+TMP5_CXXFLAGS := $(filter-out -Wcast-qual,$(TMP4_CXXFLAGS))
+CXXFLAGS = $(filter-out -Wmissing-prototypes,$(TMP5_CXXFLAGS))
+
+# SPDK is compiled with -fPIC
+# DPDK is compiled with -fPIC (use EXTRA_CFLAGS="-fPIC")
+# order here matters!
+#
+EXTERNAL_LIBS ?= $(SPDK_ROOT_DIR)/build/lib/libspdk_env_dpdk.a
+EXTERNAL_LIBS += $(SPDK_ROOT_DIR)/build/lib/libspdk_nvme.a
+EXTERNAL_LIBS += $(SPDK_ROOT_DIR)/build/lib/libspdk_util.a
+EXTERNAL_LIBS += $(SPDK_ROOT_DIR)/build/lib/libspdk_event.a
+EXTERNAL_LIBS += $(SPDK_ROOT_DIR)/build/lib/libspdk_log.a
+EXTERNAL_LIBS += $(SPDK_ROOT_DIR)/build/lib/libspdk_conf.a
+EXTERNAL_LIBS += $(SPDK_ROOT_DIR)/build/lib/libspdk_trace.a
+EXTERNAL_LIBS += $(DPDK_DIR)/lib/librte_eal.a
+EXTERNAL_LIBS += $(DPDK_DIR)/lib/librte_ethdev.a
+EXTERNAL_LIBS += $(DPDK_DIR)/lib/librte_mbuf.a
+EXTERNAL_LIBS += $(DPDK_DIR)/lib/librte_mempool.a
+EXTERNAL_LIBS += $(DPDK_DIR)/lib/librte_net.a
+EXTERNAL_LIBS += $(DPDK_DIR)/lib/librte_hash.a
+EXTERNAL_LIBS += $(DPDK_DIR)/lib/librte_ring.a
+EXTERNAL_LIBS += $(DPDK_DIR)/lib/librte_sched.a
+EXTERNAL_LIBS += $(DPDK_DIR)/lib/librte_kvargs.a
+EXTERNAL_LIBS += $(DPDK_DIR)/lib/librte_vhost.a
+EXTERNAL_LIBS += $(DPDK_DIR)/lib/librte_pmd_i40e.a
+EXTERNAL_LIBS += $(DPDK_DIR)/lib/librte_pmd_ixgbe.a
+EXTERNAL_LIBS += $(DPDK_DIR)/lib/librte_pmd_e1000.a
+EXTERNAL_LIBS += $(DPDK_DIR)/lib/librte_pmd_ring.a
+EXTERNAL_LIBS += $(DPDK_DIR)/lib/librte_pmd_vhost.a
+EXTERNAL_LIBS += $(DPDK_DIR)/lib/librte_pmd_virtio.a
+EXTERNAL_LIBS += $(DPDK_DIR)/lib/librte_pmd_qede.a
+EXTERNAL_LIBS += $(DPDK_DIR)/lib/librte_pmd_ena.a
+EXTERNAL_LIBS += $(DPDK_DIR)/lib/librte_pmd_cxgbe.a
+EXTERNAL_LIBS += $(if $(shell which ibdev2netdev),-lrdmacm -libverbs,)
+EXTERNAL_LIBS += -lpthread -lzmq -lczmq -lzyre 
+EXTERNAL_LIBS += $(COMANCHE_LIBS)/libcommon.a
+
+# optional Mellanox support (--enable-mlnx on configure)
+#
+ifeq (@use_mlnx@,true)
+EXTERNAL_LIBS += $(if $(shell which ibdev2netdev),$(DPDK_DIR)/lib/librte_pmd_mlx4.a,)
+EXTERNAL_LIBS += $(if $(shell which ibdev2netdev),$(DPDK_DIR)/lib/librte_pmd_mlx5.a,)
+endif
+
+
+
+all: $(DLL) $(DIRS-y)
+
+clean: $(DIRS-y)
+	$(CLEAN_C) $(LIB)
+	rm -f lib$(LIBNAME)*
+	rm -f src/*.o 
+
+mrproper: clean
+	rm -Rf `find . -name "*~"`
+	rm -Rf autom4te.cache
+
+static-lib: $(OBJS)
+	ar rcs lib$(LIBNAME).a $(OBJS)
+
+$(DLL) : $(OBJS) $(LWIP_OBJS)
+	g++ -shared -g $(OBJS) -L/usr/local/lib -Wl,-soname,lib$(LIBNAME).so.0 -o lib$(LIBNAME).so.0.0 -Wl,--whole-archive $(EXTERNAL_LIBS) $(LWIP_OBJS) -Wl,--no-whole-archive -Wl,--no-undefined -ldl -lnuma -lrt
+	ln -sf lib$(LIBNAME).so.0.0 lib$(LIBNAME).so
+	ln -sf lib$(LIBNAME).so.0.0 lib$(LIBNAME).so.0
+
+dist: $(DLL)
+	rm -Rf dist
+	mkdir -p dist
+	cp -R ./include/* ./dist
+	cp -R ./*.h ./dist
+	rm -f ./Makefile
+	mkdir -p dist/libs
+	cp libcomanche-blk* ./dist/libs
+	cp -R ./test_client ./dist
+	rm -Rf ./dist/*~
+
+
+sm: state_machine/va_proto_sm.cpp state_machine/sa_proto_sm.cpp
+
+# rules
+state_machine/%_sm.cpp: state_machine/%.sm
+	java -jar $(SMCJAR) -c++ -d ./state_machine  $<
+
+state_machine/%_sm.h: state_machine/%.sm
+	java -jar $(SMCJAR) -c++ -d ./state_machine  $<
+
+
+$(LWIPDIR)/core/%.o: $(LWIPDIR)/src/core/%.c
+	gcc -I$(LWIPDIR)/src/include $(CFLAGS) -c -o $@ $<
+
+$(LWIPDIR)/api/%.o: $(LWIPDIR)/src/api/%.c
+	gcc -I$(LWIPDIR)/src/include $(CFLAGS) -c -o $@ $<
+
+$(LWIPDIR)/netif/%.o: $(LWIPDIR)/src/netif/%.c
+	gcc -I$(LWIPDIR)/src/include $(CFLAGS) -c -o $@ $<
+
+$(LWIPDIR)/arch/%.o: $(LWIPDIR)/src/arch/%.c
+	gcc -I$(LWIPDIR)/src/include $(CFLAGS) -c -o $@ $<
+
+lwip: $(LWIP_OBJS)
+	echo $(LWIP_OBJS)
+
+
+depend:
+	makedepend $(INCLUDES) -I/usr/include -I. src/*.c src/*.cpp net/*.c net/*.cpp
+
+test:
+	make -C ./test
+
+install:
+	rm -f @prefix@/lib/libcomanche-blk*
+	install ./include/comanche-blk.h @prefix@/include
+	install libcomanche-blk.so.0.0 @prefix@/lib
+	ln -s @prefix@/lib/libcomanche-blk.so.0.0 @prefix@/lib/libcomanche-blk.so
+	ln -s @prefix@/lib/libcomanche-blk.so.0.0 @prefix@/lib/libcomanche-blk.so.0
+
+install-sys:
+	rm -f /usr/local/lib/libcomanche-blk*
+	install ./include/comanche-blk.h /usr/local/include
+	install libcomanche-blk.so.0.0 /usr/local/lib
+	ln -s /usr/local/lib/libcomanche-blk.so.0.0 /usr/local/lib/libcomanche-blk.so
+	ln -s /usr/local/lib/libcomanche-blk.so.0.0 /usr/local/lib/libcomanche-blk.so.0
+
+
+# clang verification
+
+HEADER_FILES=$(filter-out ./sm%,$(shell find . -type f -name '*.h'))
+
+SKEL:=$(foreach hdr,$(HEADER_FILES),"\#include \"$(hdr)\"\\n")
+
+check: # needs clang to compile DPDK
+	clang-tidy src/volume_agent.cpp -checks='-*,clang-analyzer-*,clang-analyzer-cplusplus*,-clang-analyzer-optin.performance.Padding' -- -std=c++11 $(INCLUDES)
+#	echo $(SKEL) > .tmp.cc
+#	clang-tidy --header-filter=./ -checks='+*,-clang-analyzer-optin.performance.Padding' .tmp.cc -- -std=c++11 $(BASE_INCLUDES)
+
+# this will use COMANCHE_HOME/.clang-format file
+# see https://clang.llvm.org/docs/ClangFormatStyleOptions.html for format file info
+#
+pretty:
+	clang-format -i $(HEADER_FILES) $(C_SRCS) $(CXX_SRCS)
+
+.PHONY: all clean $(DIRS-y) dist install install-sys check pretty sm test

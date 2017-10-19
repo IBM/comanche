@@ -1,0 +1,19 @@
+-*- mode: compilation; default-directory: "~/kivati/src/lib/comanche-dd/src/" -*-
+Compilation started at Fri Jul 14 13:52:03
+
+make -C ~/kivati/src/lib/comanche-dd/src/ -j 
+make: Entering directory '/media/raid1/danielwaddington/git/kivati/src/lib/comanche-dd/src'
+make -C ../
+make[1]: Entering directory '/media/raid1/danielwaddington/git/kivati/src/lib/comanche-dd'
+g++ -g -fno-omit-frame-pointer -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -fno-strict-aliasing -march=native -m64 -I/home/danielwaddington/kivati/deps/spdk/include -include /home/danielwaddington/kivati/deps/spdk/config.h -Wformat -Wformat-security -D_GNU_SOURCE -fPIC -fstack-protector -fno-common -DDEBUG -O0 -pthread -std=c++14 -Wno-attributes -fPIC -DCONFIG_DEBUG -I./src -I./api -I./ -I./src/lwip/src/include -I./src/lwip -I/home/danielwaddington/kivati/src/lib/common/include -I/home/danielwaddington/kivati/deps/dpdk/include/dpdk -I/home/danielwaddington/kivati/deps/spdk/include   -c -o src/block_device.o src/block_device.cpp
+src/block_device.cpp:13:9: error: ‘block_t’ does not name a type
+ virtual block_t size() const noexcept
+         ^
+<builtin>: recipe for target 'src/block_device.o' failed
+make[1]: *** [src/block_device.o] Error 1
+make[1]: Leaving directory '/media/raid1/danielwaddington/git/kivati/src/lib/comanche-dd'
+Makefile:2: recipe for target 'all' failed
+make: *** [all] Error 2
+make: Leaving directory '/media/raid1/danielwaddington/git/kivati/src/lib/comanche-dd/src'
+
+Compilation exited abnormally with code 2 at Fri Jul 14 13:52:03

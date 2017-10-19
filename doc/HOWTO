@@ -1,0 +1,6 @@
+# Compile DPDK tests
+
+make config T=x86_64-native-linuxapp-gcc
+make test T=x86_64-native-linuxapp-gcc EXTRA_CLAGS="-g"
+
+

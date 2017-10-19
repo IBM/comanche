@@ -1,0 +1,38 @@
+include ../../../../mk/global.mk
+
+# Flags passed to the preprocessor.
+# Set Google Test's header directory as a system directory, such that
+# the compiler doesn't generate warnings in Google Test headers.
+CPPFLAGS += -isystem /usr/local/include
+
+# Flags passed to the C++ compiler.
+CXXFLAGS += -g -DDEBUG -DCONFIG_DEBUG -Wall -Wextra -pthread -I../ -I../src/
+
+LDFLAGS += -Wl,-rpath=$(KIVATI_HOME)/src/lib/comanche-dd -lpthread -lzyre
+
+TESTS := test_volume_agent test_storage_agent test_client test_device test_channel
+
+all: $(TESTS)
+
+test_client: test_client.cpp
+	$(CXX) -o $@ $(CPPFLAGS) $(CXXFLAGS) $< -lgtest -L../ -lcomanche-dd $(KIVATI_LIBS) $(COMANCHE_EXT_LIBS) $(LDFLAGS)
+
+test_volume_agent: test_volume_agent.cpp
+	$(CXX) -o $@ $(CPPFLAGS) $(CXXFLAGS) $< -lgtest -L../ -lcomanche-dd $(KIVATI_LIBS) $(COMANCHE_EXT_LIBS) $(LDFLAGS)
+
+test_storage_agent: test_storage_agent.cpp
+	$(CXX) -o $@ $(CPPFLAGS) $(CXXFLAGS) $< -lgtest -L../ -lcomanche-dd $(KIVATI_LIBS) $(COMANCHE_EXT_LIBS) $(LDFLAGS)
+
+test_channel: test_channel.cpp
+	$(CXX) -o $@ $(CPPFLAGS) $(CXXFLAGS) $< -lgtest -L../ -lcomanche-dd $(KIVATI_LIBS) $(COMANCHE_EXT_LIBS) $(LDFLAGS)
+
+test_device: test_device.cpp
+	$(CXX) -o $@ $(CPPFLAGS) $(CXXFLAGS) -I$(KIVATI_HOME)/src/lib/comanche/include -I$(KIVATI_HOME)/src/lib/comanche/src $< -lgtest -L../ -lcomanche-dd $(KIVATI_LIBS) $(COMANCHE_EXT_LIBS) $(LDFLAGS)
+
+clean:
+	rm -f test_volume_agent test_storage_agent test_device
+
+depend:
+	makedepend $(INCLUDES) -I/usr/include -I/usr/local/include -I. -I../ *.cpp
+
+.PHONY: clean depend

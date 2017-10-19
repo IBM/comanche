@@ -1,0 +1,28 @@
+cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
+
+include(${CMAKE_CURRENT_SOURCE_DIR}/../../../mk/common.cmake)
+
+project(common CXX)
+enable_language(CXX C ASM)
+  
+if (DEFINED ENV{COMANCHE_HOME})
+else()
+  set(COMANCHE_HOME ${CMAKE_SOURCE_DIR})
+endif()
+
+set(CMAKE_INCLUDE_CURRENT_DIR true)
+include_directories(./include)
+
+add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -msse4.2)
+add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
+#add_library(nanomsg SHARED IMPORTED GLOBAL)
+
+add_library(common SHARED cpu.cc rand.cc utils.cc dump_utils.cc str_utils.cc memory.cc crc32.cc city.cc component.cc)
+
+target_compile_features(common PRIVATE cxx_range_for)
+
+# Including extra cmake rules
+#include(../../../mk/clang-dev-tools.cmake)
+
+
+

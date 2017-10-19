@@ -1,0 +1,150 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<title>Linux/tools/testing/selftests/vm/hugepage-mmap.c - Linux Cross Reference - Free Electrons</title>
+<link rel="stylesheet" href="/style.css" type="text/css" media="screen" />
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<meta description="Linux Cross-Reference (LXR) service by Free Electrons. The easiest way to study Linux kernel sources. Available for all recent releases." />
+<base href="http://lxr.free-electrons.com/"/>
+</head>
+
+<body>
+
+<div id="wrapper">
+<div id="wrapper2">
+<div id="header">
+
+	<div id="logo">
+		<h1>Linux Cross Reference</h1>
+		<h2><a href="http://free-electrons.com">Free Electrons</a></h2>
+		<h2>Embedded Linux Experts</h2>
+		<p>
+		 &nbsp;&bull;&nbsp;<b><i>source navigation</i></b> &nbsp;&bull;&nbsp;<a href="diff/tools/testing/selftests/vm/hugepage-mmap.c">diff markup</a> &nbsp;&bull;&nbsp;<a href="ident">identifier search</a> &nbsp;&bull;&nbsp;<a href="search">freetext search</a> &nbsp;&bull;&nbsp;
+		</p>
+	</div>
+</div>
+
+<div id="topbar">
+  
+  <p>Version: &nbsp;<a href="source/tools/testing/selftests/vm/hugepage-mmap.c?v=2.0.40">2.0.40</a>&nbsp;<a href="source/tools/testing/selftests/vm/hugepage-mmap.c?v=2.2.26">2.2.26</a>&nbsp;<a href="source/tools/testing/selftests/vm/hugepage-mmap.c?v=2.4.37">2.4.37</a>&nbsp;<a href="source/tools/testing/selftests/vm/hugepage-mmap.c?v=3.10">3.10</a>&nbsp;<a href="source/tools/testing/selftests/vm/hugepage-mmap.c?v=3.11">3.11</a>&nbsp;<a href="source/tools/testing/selftests/vm/hugepage-mmap.c?v=3.12">3.12</a>&nbsp;<a href="source/tools/testing/selftests/vm/hugepage-mmap.c?v=3.13">3.13</a>&nbsp;<a href="source/tools/testing/selftests/vm/hugepage-mmap.c?v=3.14">3.14</a>&nbsp;<a href="source/tools/testing/selftests/vm/hugepage-mmap.c?v=3.15">3.15</a>&nbsp;<a href="source/tools/testing/selftests/vm/hugepage-mmap.c?v=3.16">3.16</a>&nbsp;<a href="source/tools/testing/selftests/vm/hugepage-mmap.c?v=3.17">3.17</a>&nbsp;<a href="source/tools/testing/selftests/vm/hugepage-mmap.c?v=3.18">3.18</a>&nbsp;<a href="source/tools/testing/selftests/vm/hugepage-mmap.c?v=3.19">3.19</a>&nbsp;<a href="source/tools/testing/selftests/vm/hugepage-mmap.c?v=4.0">4.0</a>&nbsp;<a href="source/tools/testing/selftests/vm/hugepage-mmap.c?v=4.1">4.1</a>&nbsp;<a href="source/tools/testing/selftests/vm/hugepage-mmap.c?v=4.2">4.2</a>&nbsp;<a href="source/tools/testing/selftests/vm/hugepage-mmap.c?v=4.3">4.3</a>&nbsp;<a href="source/tools/testing/selftests/vm/hugepage-mmap.c?v=4.4">4.4</a>&nbsp;<a href="source/tools/testing/selftests/vm/hugepage-mmap.c?v=4.5">4.5</a>&nbsp;<a href="source/tools/testing/selftests/vm/hugepage-mmap.c?v=4.6">4.6</a>&nbsp;<b><i>4.7</i></b></p>
+  
+</div>
+
+<h1><a href="source/">Linux</a>/<a href="source/tools/">tools</a>/<a href="source/tools/testing/">testing</a>/<a href="source/tools/testing/selftests/">selftests</a>/<a href="source/tools/testing/selftests/vm/">vm</a>/<a href="source/tools/testing/selftests/vm/hugepage-mmap.c">hugepage-mmap.c</a></h1>
+<div id="lxrcode"><pre>  <a name="L1" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L1">1</a> <b><i>/*</i></b>
+  <a name="L2" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L2">2</a> <b><i> * hugepage-mmap:</i></b>
+  <a name="L3" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L3">3</a> <b><i> *</i></b>
+  <a name="L4" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L4">4</a> <b><i> * Example of using huge page memory in a user application using the mmap</i></b>
+  <a name="L5" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L5">5</a> <b><i> * system call.  Before running this application, make sure that the</i></b>
+  <a name="L6" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L6">6</a> <b><i> * administrator has mounted the hugetlbfs filesystem (on some directory</i></b>
+  <a name="L7" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L7">7</a> <b><i> * like /mnt) using the command mount -t hugetlbfs nodev /mnt. In this</i></b>
+  <a name="L8" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L8">8</a> <b><i> * example, the app is requesting memory of size 256MB that is backed by</i></b>
+  <a name="L9" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L9">9</a> <b><i> * huge pages.</i></b>
+ <a name="L10" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L10">10</a> <b><i> *</i></b>
+ <a name="L11" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L11">11</a> <b><i> * For the ia64 architecture, the Linux kernel reserves Region number 4 for</i></b>
+ <a name="L12" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L12">12</a> <b><i> * huge pages.  That means that if one requires a fixed address, a huge page</i></b>
+ <a name="L13" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L13">13</a> <b><i> * aligned address starting with 0x800000... will be required.  If a fixed</i></b>
+ <a name="L14" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L14">14</a> <b><i> * address is not required, the kernel will select an address in the proper</i></b>
+ <a name="L15" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L15">15</a> <b><i> * range.</i></b>
+ <a name="L16" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L16">16</a> <b><i> * Other architectures, such as ppc64, i386 or x86_64 are not so constrained.</i></b>
+ <a name="L17" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L17">17</a> <b><i> */</i></b>
+ <a name="L18" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L18">18</a> 
+ <a name="L19" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L19">19</a> #include &lt;stdlib.h&gt;
+ <a name="L20" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L20">20</a> #include &lt;stdio.h&gt;
+ <a name="L21" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L21">21</a> #include &lt;unistd.h&gt;
+ <a name="L22" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L22">22</a> #include &lt;sys/mman.h&gt;
+ <a name="L23" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L23">23</a> #include &lt;fcntl.h&gt;
+ <a name="L24" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L24">24</a> 
+ <a name="L25" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L25">25</a> #define <a href="ident?i=FILE_NAME">FILE_NAME</a> <i>"huge/hugepagefile"</i>
+ <a name="L26" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L26">26</a> #define <a href="ident?i=LENGTH">LENGTH</a> (256UL*1024*1024)
+ <a name="L27" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L27">27</a> #define <a href="ident?i=PROTECTION">PROTECTION</a> (<a href="ident?i=PROT_READ">PROT_READ</a> | <a href="ident?i=PROT_WRITE">PROT_WRITE</a>)
+ <a name="L28" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L28">28</a> 
+ <a name="L29" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L29">29</a> <b><i>/* Only ia64 requires this */</i></b>
+ <a name="L30" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L30">30</a> #ifdef __ia64__
+ <a name="L31" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L31">31</a> #define <a href="ident?i=ADDR">ADDR</a> (void *)(0x8000000000000000UL)
+ <a name="L32" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L32">32</a> #define <a href="ident?i=FLAGS">FLAGS</a> (<a href="ident?i=MAP_SHARED">MAP_SHARED</a> | <a href="ident?i=MAP_FIXED">MAP_FIXED</a>)
+ <a name="L33" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L33">33</a> #else
+ <a name="L34" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L34">34</a> #define <a href="ident?i=ADDR">ADDR</a> (void *)(0x0UL)
+ <a name="L35" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L35">35</a> #define <a href="ident?i=FLAGS">FLAGS</a> (<a href="ident?i=MAP_SHARED">MAP_SHARED</a>)
+ <a name="L36" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L36">36</a> #endif
+ <a name="L37" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L37">37</a> 
+ <a name="L38" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L38">38</a> static void <a href="ident?i=check_bytes">check_bytes</a>(char *<a href="ident?i=addr">addr</a>)
+ <a name="L39" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L39">39</a> {
+ <a name="L40" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L40">40</a>         <a href="ident?i=printf">printf</a>(<i>"First hex is %x\n"</i>, *((unsigned int *)<a href="ident?i=addr">addr</a>));
+ <a name="L41" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L41">41</a> }
+ <a name="L42" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L42">42</a> 
+ <a name="L43" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L43">43</a> static void <a href="ident?i=write_bytes">write_bytes</a>(char *<a href="ident?i=addr">addr</a>)
+ <a name="L44" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L44">44</a> {
+ <a name="L45" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L45">45</a>         unsigned long <a href="ident?i=i">i</a>;
+ <a name="L46" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L46">46</a> 
+ <a name="L47" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L47">47</a>         for (<a href="ident?i=i">i</a> = 0; <a href="ident?i=i">i</a> &lt; <a href="ident?i=LENGTH">LENGTH</a>; <a href="ident?i=i">i</a>++)
+ <a name="L48" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L48">48</a>                 *(<a href="ident?i=addr">addr</a> + <a href="ident?i=i">i</a>) = (char)<a href="ident?i=i">i</a>;
+ <a name="L49" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L49">49</a> }
+ <a name="L50" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L50">50</a> 
+ <a name="L51" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L51">51</a> static int <a href="ident?i=read_bytes">read_bytes</a>(char *<a href="ident?i=addr">addr</a>)
+ <a name="L52" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L52">52</a> {
+ <a name="L53" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L53">53</a>         unsigned long <a href="ident?i=i">i</a>;
+ <a name="L54" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L54">54</a> 
+ <a name="L55" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L55">55</a>         <a href="ident?i=check_bytes">check_bytes</a>(<a href="ident?i=addr">addr</a>);
+ <a name="L56" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L56">56</a>         for (<a href="ident?i=i">i</a> = 0; <a href="ident?i=i">i</a> &lt; <a href="ident?i=LENGTH">LENGTH</a>; <a href="ident?i=i">i</a>++)
+ <a name="L57" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L57">57</a>                 if (*(<a href="ident?i=addr">addr</a> + <a href="ident?i=i">i</a>) != (char)<a href="ident?i=i">i</a>) {
+ <a name="L58" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L58">58</a>                         <a href="ident?i=printf">printf</a>(<i>"Mismatch at %lu\n"</i>, <a href="ident?i=i">i</a>);
+ <a name="L59" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L59">59</a>                         return 1;
+ <a name="L60" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L60">60</a>                 }
+ <a name="L61" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L61">61</a>         return 0;
+ <a name="L62" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L62">62</a> }
+ <a name="L63" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L63">63</a> 
+ <a name="L64" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L64">64</a> int <a href="ident?i=main">main</a>(void)
+ <a name="L65" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L65">65</a> {
+ <a name="L66" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L66">66</a>         void *<a href="ident?i=addr">addr</a>;
+ <a name="L67" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L67">67</a>         int <a href="ident?i=fd">fd</a>, <a href="ident?i=ret">ret</a>;
+ <a name="L68" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L68">68</a> 
+ <a name="L69" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L69">69</a>         <a href="ident?i=fd">fd</a> = <a href="ident?i=open">open</a>(<a href="ident?i=FILE_NAME">FILE_NAME</a>, <a href="ident?i=O_CREAT">O_CREAT</a> | <a href="ident?i=O_RDWR">O_RDWR</a>, 0755);
+ <a name="L70" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L70">70</a>         if (<a href="ident?i=fd">fd</a> &lt; 0) {
+ <a name="L71" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L71">71</a>                 perror(<i>"Open failed"</i>);
+ <a name="L72" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L72">72</a>                 <a href="ident?i=exit">exit</a>(1);
+ <a name="L73" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L73">73</a>         }
+ <a name="L74" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L74">74</a> 
+ <a name="L75" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L75">75</a>         <a href="ident?i=addr">addr</a> = mmap(<a href="ident?i=ADDR">ADDR</a>, <a href="ident?i=LENGTH">LENGTH</a>, <a href="ident?i=PROTECTION">PROTECTION</a>, <a href="ident?i=FLAGS">FLAGS</a>, <a href="ident?i=fd">fd</a>, 0);
+ <a name="L76" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L76">76</a>         if (<a href="ident?i=addr">addr</a> == MAP_FAILED) {
+ <a name="L77" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L77">77</a>                 perror(<i>"mmap"</i>);
+ <a name="L78" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L78">78</a>                 unlink(<a href="ident?i=FILE_NAME">FILE_NAME</a>);
+ <a name="L79" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L79">79</a>                 <a href="ident?i=exit">exit</a>(1);
+ <a name="L80" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L80">80</a>         }
+ <a name="L81" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L81">81</a> 
+ <a name="L82" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L82">82</a>         <a href="ident?i=printf">printf</a>(<i>"Returned address is %p\n"</i>, <a href="ident?i=addr">addr</a>);
+ <a name="L83" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L83">83</a>         <a href="ident?i=check_bytes">check_bytes</a>(<a href="ident?i=addr">addr</a>);
+ <a name="L84" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L84">84</a>         <a href="ident?i=write_bytes">write_bytes</a>(<a href="ident?i=addr">addr</a>);
+ <a name="L85" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L85">85</a>         <a href="ident?i=ret">ret</a> = <a href="ident?i=read_bytes">read_bytes</a>(<a href="ident?i=addr">addr</a>);
+ <a name="L86" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L86">86</a> 
+ <a name="L87" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L87">87</a>         munmap(<a href="ident?i=addr">addr</a>, <a href="ident?i=LENGTH">LENGTH</a>);
+ <a name="L88" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L88">88</a>         <a href="ident?i=close">close</a>(<a href="ident?i=fd">fd</a>);
+ <a name="L89" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L89">89</a>         unlink(<a href="ident?i=FILE_NAME">FILE_NAME</a>);
+ <a name="L90" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L90">90</a> 
+ <a name="L91" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L91">91</a>         return <a href="ident?i=ret">ret</a>;
+ <a name="L92" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L92">92</a> }
+ <a name="L93" href="source/tools/testing/selftests/vm/hugepage-mmap.c#L93">93</a> </pre></div><p>
+This page was automatically generated by <a href="https://sourceforge.net/projects/lxr/">LXR</a> 0.3.1 (<a href="http://free-electrons.com/pub/source/lxr-0.3.1-fe1.tar.bz2">source</a>).
+&nbsp;&bull;&nbsp;
+Linux is a registered trademark of Linus Torvalds
+&nbsp;&bull;&nbsp;
+<a href="http://free-electrons.com/company/contact/">Contact us</a>
+</p>
+
+<div id="menu">
+<ul>
+   <li><a href="http://free-electrons.com/">Home</a></li>
+   <li><a href="http://free-electrons.com/development/" title="Development">Development</a></li>
+   <li><a href="http://free-electrons.com/services/" title="Services">Services</a></li>
+   <li><a href="http://free-electrons.com/training/" title="Training">Training</a></li>
+   <li><a href="http://free-electrons.com/docs/" title="Docs">Docs</a></li>
+   <li><a href="http://free-electrons.com/community/" title="Community">Community</a></li>
+   <li><a href="http://free-electrons.com/company/" title="Company">Company</a></li>
+   <li><a href="http://free-electrons.com/blog/" title="Blog">Blog</a></li>
+</ul>
+</div>
+
+</div>
+</div>
+</body>
+</html>

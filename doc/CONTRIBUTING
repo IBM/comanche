@@ -1,0 +1,13 @@
+-----------------
+Design Guidelines
+-----------------
+
+* Use factory pattern for component instantiation with parameters.
+* Factory method should be 'create' with varying parametes.
+* Use references (&) for out parameters
+* Parameter ordering
+  - owner, name
+
+
+
+

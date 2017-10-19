@@ -1,0 +1,22 @@
+{
+    "policy" : "mirror",
+    "volume_info" :
+    {
+        "volume_id" : "myVolumeId",
+        "storage_nodes" : ["kivati2"],
+        "leader_pref" : ["kivati2"],
+        "volume_capacity_mb" : 128,
+        "nvme_device_index"  : 0
+    },
+    "cluster_info" :
+    {
+        "kivati2" : ["81:00.0"],
+        "kivati1" : ["0b:00.0"],
+        "ribbit1" : ["8b:00.0"]
+    },
+    "session_cores" :
+    {
+        "kivati2" : [2,3,4,5],
+        "kivati1" : [2,3,4,5]
+    }
+}
