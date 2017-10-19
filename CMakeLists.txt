@@ -7,6 +7,7 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/lib/common)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/lib/core)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/components)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/apps)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/kernel/modules)
 
 
 # add a target to generate API documentation with Doxygen
