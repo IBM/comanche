@@ -1,4 +1,4 @@
-# comanche
+# Comanche
 Framework for user-level compositional storage systems development. See [wiki](https://github.com/IBM/comanche/wiki) for more information.
 
 HowTo
