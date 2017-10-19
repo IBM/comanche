@@ -38,8 +38,14 @@ cmake -DCMAKE_BUILD_TYPE=RELEASE .
 Compiling for debug
 -------------------
 
-DPDK: export EXTRA_CFLAGS='-O0 -g'
-SPDK: CONFIG_DEBUG=y (command line or CONFIG file)
+DPDK
+```bash
+export EXTRA_CFLAGS='-O0 -g'
+```
+SPDK
+```bash
+CONFIG_DEBUG=y (command line or CONFIG file)
+```
 
 
 Conventions
