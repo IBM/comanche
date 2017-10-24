@@ -162,13 +162,13 @@ void eal_init(size_t memory_limit_MB, unsigned master_core, bool primary)
     assert(rc == 0);
 
     DPDK::_g_eal_initialized = true;
+    PINF("# DPDK EAL initialized ok (%s).", proc_type_option.c_str());
   }
   else {
-    PINF("DPDK already initialized");
+    PINF("# DPDK already initialized");
   }
   //  meminfo_display();
 
-  PINF("# DPDK EAL initialized ok (%s).", proc_type_option.c_str());
 }
 
 void eal_show_info(void)
