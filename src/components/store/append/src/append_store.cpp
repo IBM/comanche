@@ -289,9 +289,12 @@ struct __record_desc
   int64_t lba;
   int64_t len;
 };
-  
+
+static constexpr uint32_t APPEND_STORE_ITERATOR_MAGIC = 0x11110000;
+
 struct __iterator_t
 {
+  uint32_t magic;
   uint64_t current_idx;
   uint64_t exceeded_idx;
   std::vector<__record_desc> records;
@@ -304,6 +307,7 @@ IStore::iterator_t Append_store::open_iterator(uint64_t rowid_start,
   __iterator_t *iter = new __iterator_t;
   assert(iter);
   iter->current_idx = 0;
+  iter->magic = APPEND_STORE_ITERATOR_MAGIC;
   
   std::stringstream sqlss;
   sqlss << "SELECT LBA,LEN FROM " << _table_name << " WHERE ROWID >= " << rowid_start <<
@@ -337,14 +341,19 @@ void Append_store::close_iterator(IStore::iterator_t iter)
 }
 
 
-status_t Append_store::iterator_get(IStore::iterator_t iter,
-                                    Component::io_buffer_t iob,
-                                    size_t offset,
-                                    int queue_id)
+size_t Append_store::iterator_get(IStore::iterator_t iter,
+                                  Component::io_buffer_t iob,
+                                  size_t offset,
+                                  int queue_id)
 {
   auto i = static_cast<__iterator_t*>(iter);
   assert(i);
-  if(i->current_idx == i->exceeded_idx) return E_NOT_FOUND;
+
+  if(i->magic != APPEND_STORE_ITERATOR_MAGIC)
+    throw API_exception("Append_store::iterator_get - bad iterator");
+  
+  if(i->current_idx == i->exceeded_idx)
+    return 0;
 
   auto& record = i->records[i->current_idx];
 
@@ -359,7 +368,7 @@ status_t Append_store::iterator_get(IStore::iterator_t iter,
                      queue_id);
 
   i->current_idx++;  
-  return S_OK;
+  return record.len * _vi.block_size;
 }
 
 

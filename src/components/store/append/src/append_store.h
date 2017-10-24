@@ -27,7 +27,6 @@
 class Append_store : public Core::Zerocopy_passthrough_impl<Component::IStore>
 {  
 private:
-  static constexpr bool option_DEBUG            = false;
   static constexpr unsigned DMA_ALIGNMENT_BYTES = 8;
   
 public:
@@ -157,12 +156,12 @@ public:
    * @param offset Offset in IO buffer
    * @param queue_id [optional] Queue identifier
    * 
-   * @return S_OK or E_NOT_FOUND at end of iterator
+   * @return Number of bytes transferred
    */
-  virtual status_t iterator_get(iterator_t iter,
-                                Component::io_buffer_t iob,
-                                size_t offset,
-                                int queue_id = 0) override;
+  virtual size_t iterator_get(iterator_t iter,
+                              Component::io_buffer_t iob,
+                              size_t offset,
+                              int queue_id = 0) override;
 
 
   /** 
