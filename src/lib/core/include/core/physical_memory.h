@@ -111,7 +111,7 @@ public:
    * 
    * @param buffer IO memory buffer handle
    * 
-   * @return 
+   * @return Size in bytes of the IOB
    */
   virtual size_t get_size(Component::io_buffer_t buffer);
   

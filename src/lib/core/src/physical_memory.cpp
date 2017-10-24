@@ -182,7 +182,7 @@ phys_addr(Component::io_buffer_t buffer)
  * 
  * @param buffer IO memory buffer handle
  * 
- * @return 
+ * @return Size in bytes of the IOB
  */
 size_t
 Physical_memory::
