@@ -122,12 +122,12 @@ public:
    * @param offset Offset in IO buffer
    * @param queue_id [optional] Queue identifier
    * 
-   * @return S_OK or E_NOT_FOUND at end of iterator
+   * @return Number of bytes transferred
    */
-  virtual status_t iterator_get(iterator_t iter,
-                                Component::io_buffer_t iob,
-                                size_t offset,
-                                int queue_id = 0) = 0;
+  virtual size_t iterator_get(iterator_t iter,
+                              Component::io_buffer_t iob,
+                              size_t offset,
+                              int queue_id = 0) = 0;
 
   /** 
    * Dump debugging information
