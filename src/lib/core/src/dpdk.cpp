@@ -43,12 +43,13 @@ extern "C" uint32_t rte_net_get_ptype(const struct rte_mbuf *m,
 namespace DPDK
 {
 
-void eal_init(size_t memory_limit_MB, unsigned master_core)
+void eal_init(size_t memory_limit_MB, unsigned master_core, bool primary)
 {
+  std::string proc_type_option  = primary ? "--proc-type=primary" : "--proc-type=secondary";
+  
   if (!DPDK::_g_eal_initialized) {
     int rc;
 
-    PINF("# DPDK EAL initialized ok.");
     char default_prefix[] = "nvme_comanche";
     char fprefix_[32], wl0_[32], wl1_[32], wl2_[32], wl3_[32];
     char memory_option[32];
@@ -120,11 +121,11 @@ void eal_init(size_t memory_limit_MB, unsigned master_core)
                                     "-l",
                                     lcores.c_str(),  // cores to run on
                                     "-n",
-                                    "2",  // number of memory channels
+                                    "4",  // number of memory channels
                                     "--master-lcore",
                                     std::to_string(master_core).c_str(),
                                     memory_option,
-                                    "--proc-type=primary",
+                                    proc_type_option.c_str(),
                                     "--log-level=5",
                                     fprefix_,
                                     wl0_,
@@ -166,6 +167,13 @@ void eal_init(size_t memory_limit_MB, unsigned master_core)
     PINF("DPDK already initialized");
   }
   //  meminfo_display();
+
+  PINF("# DPDK EAL initialized ok (%s).", proc_type_option.c_str());
+}
+
+void eal_show_info(void)
+{
+  rte_malloc_dump_stats(stderr, NULL);
 }
 
 void meminfo_display(void)

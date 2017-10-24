@@ -50,8 +50,8 @@ static bool _g_eal_initialized = false;
 
 void meminfo_display(void);
 
-void eal_init(size_t memory_limit_MB, unsigned master_core = 0);
-
+void eal_init(size_t memory_limit_MB, unsigned master_core = 0, bool primary=true);
+void eal_show_info();
 
 
 }  // namespace DPDK
