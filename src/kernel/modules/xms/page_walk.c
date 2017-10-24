@@ -118,7 +118,7 @@ pte_t* walk_page_table(u64 addr, unsigned long * huge_pfn)
     
     pud = pud_offset(pgd, addr);
     if (pud_none(*pud) || pud_bad(*pud)) {
-      printk(KERN_ERR "xms: pud not found\n");
+      printk(KERN_ERR "xms: pud not found (0x%.16llx)\n", addr);
       return NULL;
     }
     /* When huge pages are enabled on x86-64 (providing for 2MiB
