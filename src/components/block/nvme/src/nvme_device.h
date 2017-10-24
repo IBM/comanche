@@ -56,6 +56,8 @@ class Nvme_device
 public:
   static constexpr unsigned IO_SW_QUEUE_DEPTH    = 2048; /**< must be power of 2 */
   static constexpr unsigned DEFAULT_NAMESPACE_ID = 1;
+  static constexpr bool option_DEBUG = false;
+  
   /**
    * General exception type
    *

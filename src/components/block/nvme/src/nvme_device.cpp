@@ -59,7 +59,7 @@ static void do_work(struct rte_ring * ring,
 {
   IO_descriptor * desc = nullptr;
   Nvme_device * device = queue->device();
-  
+
   /* active completion polling */
   queue->process_completions();
 
@@ -69,10 +69,11 @@ static void do_work(struct rte_ring * ring,
   }
 
   if(desc == nullptr) return;
+
   desc->queue = queue;
     
   assert(desc);
-
+    
   /** check completion request */
   if(unlikely(desc->op == COMANCHE_OP_CHECK_COMPLETION)) {
 
@@ -84,7 +85,8 @@ static void do_work(struct rte_ring * ring,
     }
   }
   /** submission request */
-  else { 
+  else {
+    assert(check_aligned(desc->buffer, 32));
     queue->push_pending_fifo(desc);      
     assert(desc->buffer);
 #ifndef DISABLE_IO
@@ -721,6 +723,11 @@ void Nvme_device::queue_submit_async_op(void *buffer,
   struct rte_ring * ring = _qm_state.ring_list[queue_id];
 
   if(!ring) throw Logic_exception("invalid queue_id: qm_state[%d] not set up", queue_id);
+
+  if(option_DEBUG) {
+    PINF("[-->FIFO] submit async op buffer:%p lba:%lu lbacount:%lu", buffer, lba, lba_count);
+    assert(!((uint64_t)buffer & 0x1ULL));
+  }
 
   /* build descriptor */
   IO_descriptor * desc = alloc_desc();
