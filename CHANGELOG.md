@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 Daniel Waddington (daniel.waddington@ibm.com)
 
+	## 2017-10-25
+	### Changed
+	- Default read/write sync operations on IBlock_device now use a semaphore and thus do a sleep-based wait.
 	## 2017-10-17
 	### Changed
 	- Added second call back argument to IBlock_device asynchronous methods.  This allows this pointer passing.
