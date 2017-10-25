@@ -103,8 +103,10 @@ bool
 Block_device_component::
 check_completion(uint64_t gwid, int queue_id)
 {
-  if(unlikely(gwid > issued_gwid))
-    throw API_exception("%s: bad tag", __PRETTY_FUNCTION__);
+  if(unlikely(gwid > issued_gwid)) { /* may have not got through FIFO yet */
+    cpu_relax();
+    return false;
+  }
   
   return _device->check_completion(gwid, queue_id);
 }
