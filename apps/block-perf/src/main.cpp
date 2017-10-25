@@ -94,7 +94,7 @@ int main(int argc, char * argv[])
     }
   }
   catch(...) {
-    PERR("unhandled exception!");
+    printf("block-perf [--pci 8b:00.0 --pci 86:00.0 ] --threads 4\n");
     return -1;
   }
 
