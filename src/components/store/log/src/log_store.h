@@ -93,7 +93,7 @@ public:
    * 
    * @return S_OK on success
    */
-  virtual status_t flush() override;
+  virtual status_t flush(unsigned queue_id) override;
 
   /** 
    * Get last point of used storage

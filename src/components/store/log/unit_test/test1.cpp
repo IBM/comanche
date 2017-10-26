@@ -132,10 +132,11 @@ TEST_F(Log_store_test, Instantiate)
   fact->release_ref();
 }
 
+#if 0
 TEST_F(Log_store_test, CreateEntries)
 {
   void* p = malloc(RECORD_LEN);
-  strcpy((char*)p, "Hello!");
+
   size_t len = RECORD_LEN;
 
   auto started = std::chrono::high_resolution_clock::now();
@@ -147,7 +148,9 @@ TEST_F(Log_store_test, CreateEntries)
   unsigned long items = 0;
   for(unsigned i=0;i<GB(1)/len;i++) {
     //    _log->write(p, len, (omp_get_thread_num() % 2)+12);
+    sprintf((char*)p,"Hello-%u",i);
     idx = _log->write(p, len); //, IO_QUEUE_CORE_BASE);//(i % 2) + 12);
+
     if(idx != (last_index + RECORD_LEN))
       throw General_exception("CreateEntries test failed; bad index (%ld expect %ld)",
                               idx, last_index+RECORD_LEN);
@@ -159,12 +162,14 @@ TEST_F(Log_store_test, CreateEntries)
   auto secs = ((float)ms)/1000.0f;
   PINF("Duration %f seconds", secs);
   PINF("Rate: %f M items per second", (items / secs)/1000000.0);
+  _log->flush();
   free(p);
 }
+#endif
 
 TEST_F(Log_store_test, ReadEntries)
 {
-  auto iob = _log->allocate_io_buffer(2*KB(4),8,NUMA_NODE_ANY);
+  auto iob = _log->allocate_io_buffer(MB(4),KB(4),NUMA_NODE_ANY);
   void * iob_p = _log->virt_addr(iob);
   memset(iob_p,0,RECORD_LEN+1);
   
@@ -216,7 +221,7 @@ int main(int argc, char **argv) {
   if(argc > 1)
     device_name_arg = argv[1];
   else
-    device_name_arg = "8b:00.0";
+    device_name_arg = "0b:00.0";
   
   ::testing::InitGoogleTest(&argc, argv);
   auto r = RUN_ALL_TESTS();

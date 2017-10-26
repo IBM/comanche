@@ -66,11 +66,12 @@ public:
   
   /** 
    * Flush queued IO and wait for completion
-   * 
+   *
+   * @param queue_id Optional queue ide
    * 
    * @return S_OK on success
    */
-  virtual status_t flush() = 0;
+  virtual status_t flush(unsigned queue_id = 0) = 0;
 
   /** 
    * Dump debugging information

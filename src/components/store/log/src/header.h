@@ -144,12 +144,12 @@ private:
 
   void write_mb() {
     std::lock_guard<std::mutex> g(_lock);
-    _block->write(_iob,0,1,1);
+    _block->write(_iob,0,0/*lba*/,1);
   }
 
   void read_mb() {
     std::lock_guard<std::mutex> g(_lock);
-    _block->read(_iob,0,1,1);
+    _block->read(_iob,0,0/*lba*/,1);
   }
 
 private:

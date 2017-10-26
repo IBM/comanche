@@ -230,56 +230,43 @@ status_t Append_store::put(std::string key,
   lba_t start_lba;
 
   try {
-    _hdr.allocate(data_len, n_blocks); /* allocate contiguous segment of blocks */
+    start_lba = _hdr.allocate(data_len, n_blocks); /* allocate contiguous segment of blocks */
   }
-  catch(...) {
-    PERR("Fatal condition");
-    exit(-1);
-  }
-  
-  lba_t curr_lba = start_lba;
-  size_t remaining_blocks = n_blocks;
+  catch(...) { panic("unexpected condition"); }
+
 
   if(option_DEBUG)
     PLOG("[+] Append-store: append %ld bytes. Used blocks=%ld/%ld", data_len,
          start_lba+n_blocks, _vi.max_lba); 
+
+  auto iob = _phys_mem_allocator.allocate_io_buffer(round_up(data_len,_vi.block_size),
+                                                    DMA_ALIGNMENT_BYTES,
+                                                    NUMA_NODE_ANY);
+  assert(iob);
   
+  memcpy(_phys_mem_allocator.virt_addr(iob), data, data_len);
 
-  /* write max IO size segments */
-  while(remaining_blocks > _max_io_blocks) {
-    
-    auto iob = _phys_mem_allocator.allocate_io_buffer(_max_io_bytes,
-                                                      DMA_ALIGNMENT_BYTES,
-                                                      NUMA_NODE_ANY);
+  static __thread Semaphore sem;
   
-    memcpy(_phys_mem_allocator.virt_addr(iob), p, _max_io_bytes);
-
-    _block->async_write(iob, 0, curr_lba, _max_io_blocks, queue_id /* qid */,
-                        &memory_free_cb, this, reinterpret_cast<void*>(iob));
-    p+=_max_io_bytes;
-    remaining_blocks -= _max_io_blocks;
-    curr_lba += _max_io_blocks;
-  }
-
-  /* write remainder if anything left */
-  if(remaining_blocks > 0) {
-    auto bytes_left = remaining_blocks * _vi.block_size;
-    auto iob = _phys_mem_allocator.allocate_io_buffer(bytes_left,
-                                                      DMA_ALIGNMENT_BYTES,
-                                                      NUMA_NODE_ANY);
-    size_t n_blocks = 0;
-    char * v = reinterpret_cast<char*>(_phys_mem_allocator.virt_addr(iob));
-    v += (remaining_blocks - 1) * _vi.block_size;
-    memset(v, 0, _vi.block_size - (data_len % _vi.block_size)); // zero trailer
-    memcpy(_phys_mem_allocator.virt_addr(iob), p, bytes_left);
-    
-    /* issue async write */
-    _block->async_write(iob, 0, curr_lba, remaining_blocks, queue_id /* qid */,
-                        &memory_free_cb, this, reinterpret_cast<void*>(iob));
-  }
+  /* issue aync */
+  _block->async_write(iob,
+                      0,
+                      start_lba, /* append store header */
+                      n_blocks,
+                      queue_id,
+                      [](uint64_t gwid, void* arg0, void* arg1)
+                      {
+                        ((Semaphore *)arg0)->post();
+                      },
+                      (void*) &sem);
 
   /* write metadata */
   insert_row(key, metadata, start_lba, n_blocks);
+
+  /* wait for io to complete */
+  sem.wait();
+
+  _phys_mem_allocator.free_io_buffer(iob);
   
   return S_OK;
 }
@@ -294,9 +281,11 @@ status_t Append_store::put(std::string key,
   assert(_block);
 
   size_t n_blocks;
-  lba_t start_lba = _hdr.allocate(data_len, n_blocks); /* allocate contiguous segment of blocks */
-  // lba_t curr_lba = start_lba;
-  // size_t remaining_blocks = n_blocks;
+  lba_t start_lba;
+  try {
+    start_lba = _hdr.allocate(data_len, n_blocks); /* allocate contiguous segment of blocks */
+  }
+  catch(...) { panic("unexpected condition"); }
 
   if(option_DEBUG)
     PLOG("[+] Append-store: append %ld bytes. Used blocks=%ld/%ld", data_len,

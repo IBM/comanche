@@ -68,6 +68,8 @@ public:
     lba_t lba = _hdr.allocate(IO_BUFFER_SIZE, n_blocks, index);
     assert(_current_buffer_index <= NUM_IO_BUFFERS);
 
+    //PLOG("$$>(%s) @ %ld", (char*)_block->virt_addr(_iob_buffer), lba);
+
 #ifndef DISABLE_IO
     _block->async_write(_iob_buffer,
                         (_current_buffer_index-1) * IO_BUFFER_SIZE, /* buffer offset */

@@ -50,7 +50,9 @@ Log_store::~Log_store()
 }
 
 
-index_t Log_store::write(const void * data, const size_t data_len, unsigned queue_id)
+index_t Log_store::write(const void * data,
+                         const size_t data_len,
+                         unsigned queue_id)
 {
   index_t index;
   
@@ -99,11 +101,14 @@ index_t Log_store::write(const void * data, const size_t data_len, unsigned queu
     }
     
   }
+
   return index;
 }
 
 
-byte * Log_store::read(const index_t index, Component::io_buffer_t iob, unsigned queue_id)
+byte * Log_store::read(const index_t index,
+                       Component::io_buffer_t iob,
+                       unsigned queue_id)
 {
   addr_t record_pos;
   if(_fixed_size) record_pos = index * _fixed_size;    
@@ -120,10 +125,11 @@ byte * Log_store::read(const index_t index, Component::io_buffer_t iob, unsigned
   unsigned total_blocks = top_lba - bottom_lba + 1;
   unsigned offset_in_lba = record_pos % _vi.block_size;
 
-  if(option_DEBUG)
+  if(option_DEBUG||1)
     PLOG("bottom_lba=%u, top_lba=%u, total_blocks=%u offset=%u",
-         bottom_lba, top_lba, total_blocks, offset_in_lba);
+         bottom_lba+1, top_lba+1, total_blocks, offset_in_lba);
 
+  
   _lower_layer->read(iob,
                      0, /* offset in IOB */
                      bottom_lba + 1, /* add one block because of header */
@@ -135,9 +141,9 @@ byte * Log_store::read(const index_t index, Component::io_buffer_t iob, unsigned
 }
 
 
-status_t Log_store::flush()
+status_t Log_store::flush(unsigned queue_id)
 {
-  _lower_layer->check_completion(0,0); /* wait for all pending */
+  _lower_layer->check_completion(0, queue_id); /* wait for all pending */
   return S_OK;
 }
 
