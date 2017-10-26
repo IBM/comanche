@@ -34,8 +34,8 @@ Log_store::Log_store(std::string owner,
   _lower_layer->add_ref();
 
   block->get_volume_info(_vi);
-  PLOG("Log-store: block device capacity=%lu max_dma_block=%ld",
-       _vi.max_lba, _vi.max_dma_len / _vi.block_size);
+  PLOG("Log-store: block device capacity=%lu",
+       _vi.max_lba);
 
   _max_io_blocks = _vi.max_dma_len / _vi.block_size;
   _max_io_bytes  = _vi.max_dma_len;
