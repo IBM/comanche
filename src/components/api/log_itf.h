@@ -54,7 +54,7 @@ public:
    * 
    * @return Pointer to record
    */
-  virtual void * read(const index_t index, Component::io_buffer_t iob, unsigned queue_id = 0) = 0;
+  virtual byte * read(const index_t index, Component::io_buffer_t iob, unsigned queue_id = 0) = 0;
 
   /** 
    * Get last point of used storage
