@@ -45,7 +45,7 @@ Log_store::Log_store(std::string owner,
 }
 
 Log_store::~Log_store()
-{
+{  
   _lower_layer->release_ref();
 }
 
@@ -63,7 +63,7 @@ index_t Log_store::write(const void * data,
   if(_fixed_size > 0 && data_len > _fixed_size)
     throw API_exception("mismatched size in write call (expect=%ld request=%ld)", _fixed_size, data_len);
 
-  if(option_DEBUG)
+  if(option_DEBUG||1)
     PLOG("Log_store: write %s", (char*)data);
   
   uint32_t crc;
@@ -125,7 +125,7 @@ byte * Log_store::read(const index_t index,
   unsigned total_blocks = top_lba - bottom_lba + 1;
   unsigned offset_in_lba = record_pos % _vi.block_size;
 
-  if(option_DEBUG||1)
+  if(option_DEBUG)
     PLOG("bottom_lba=%u, top_lba=%u, total_blocks=%u offset=%u",
          bottom_lba+1, top_lba+1, total_blocks, offset_in_lba);
 

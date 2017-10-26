@@ -38,6 +38,7 @@ public:
   }
 
   ~Buffer_manager() {
+    flush_buffer();
   }
 
   static void release_buffer(uint64_t guid, void * arg0, void* arg1)
@@ -85,6 +86,28 @@ public:
     ready_buffer();
     return index;
   }
+
+  index_t flush_buffer()
+  {
+    size_t n_blocks = 0;
+    index_t index;
+    lba_t lba = _hdr.allocate(IO_BUFFER_SIZE, n_blocks, index);
+    assert(_current_buffer_index <= NUM_IO_BUFFERS);
+
+    //PLOG("$$>(%s) @ %ld", (char*)_block->virt_addr(_iob_buffer), lba);
+
+#ifndef DISABLE_IO
+    _block->write(_iob_buffer,
+                  (_current_buffer_index-1) * IO_BUFFER_SIZE, /* buffer offset */
+                  lba,
+                  n_blocks,
+                  0);
+#else
+    free_index(_current_buffer_index);
+#endif
+    return index;
+  }
+
 
 
   index_t write_out(uint32_t value, unsigned queue_id)
