@@ -354,7 +354,7 @@ IStore::iterator_t Append_store::open_iterator(uint64_t rowid_start,
   sqlite3_finalize(stmt);
   iter->exceeded_idx = iter->record_vector.size();
 
-  if(option_DEBUG||1) 
+  if(option_DEBUG) 
     PLOG("opened iterator (%p): records=%ld prefetch buffers=%u",
          iter, iter->exceeded_idx, prefetch_buffers);
     
@@ -376,7 +376,7 @@ void Append_store::close_iterator(IStore::iterator_t iter)
   auto iteritf = static_cast<__iterator_t*>(iter);
   assert(iteritf != nullptr);
   
-  if(option_DEBUG||1) 
+  if(option_DEBUG) 
     PLOG("closing iterator (%p) iob-count=%ld", iteritf, iteritf->iob_vector.size());
 
   // broken
@@ -414,7 +414,7 @@ size_t Append_store::iterator_get(IStore::iterator_t iter,
 
   _lower_layer->read(iob,
                      offset,
-                     record.lba + 1, /* add one for store header */
+                     record.lba, /* add one for store header */
                      record.len,
                      queue_id);
 
@@ -459,7 +459,7 @@ size_t Append_store::iterator_get(iterator_t iter,
     
     _lower_layer->read(iob,
                        0, // offset
-                       record.lba + 1, /* add one for store header */
+                       record.lba, /* add one for store header */
                        record.len,
                        queue_id);    
   }

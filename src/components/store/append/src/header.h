@@ -125,11 +125,11 @@ public:
 private:
 
   void write_mb() {
-    _block->write(_iob,0,1,1);
+    _block->write(_iob,0,0,1);
   }
 
   void read_mb() {
-    _block->read(_iob,0,1,1);
+    _block->read(_iob,0,0,1);
   }
 
 private:
