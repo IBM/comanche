@@ -19,6 +19,42 @@
 
 using namespace Component;
 
+
+class Semaphore {
+public:
+  Semaphore() { sem_init(&_sem,0,0); }
+  inline void post() { sem_post(&_sem); }
+  inline void wait() { sem_wait(&_sem); }
+private:
+  sem_t _sem;
+};
+
+struct __record_desc
+{
+  int64_t lba;
+  int64_t len;
+};
+
+struct __prefetch_desc
+{
+  uint64_t gwid;
+  Component::io_buffer_t iob;
+};
+
+static constexpr uint32_t APPEND_STORE_ITERATOR_MAGIC = 0x11110000;
+
+struct __iterator_t
+{
+  uint32_t                            magic;
+  uint64_t                            current_idx;
+  uint64_t                            exceeded_idx;
+  __prefetch_desc                     prefetch_desc;
+  std::vector<__record_desc>          record_vector;
+  std::vector<Component::io_buffer_t> iob_vector;
+};
+  
+
+
 static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
    int i;
    for(i = 0; i<argc; i++) {
@@ -41,10 +77,15 @@ static int print_callback(void *NotUsed, int argc, char **argv, char **azColName
    return 0;
 }
 
-static Component::IBlock_allocator *   create_block_allocator(Component::IPersistent_memory * pmem,
-                                                              size_t n_blocks,
-                                                              std::string name,
-                                                              bool force_init);
+// forward decls
+//
+static Component::IBlock_allocator *
+create_block_allocator(Component::IPersistent_memory * pmem,
+                       size_t n_blocks,
+                       std::string name,
+                       bool force_init);
+
+
 
 Append_store::Append_store(std::string owner,
                            std::string name,
@@ -186,7 +227,16 @@ status_t Append_store::put(std::string key,
 
   char * p = static_cast<char *>(data);
   size_t n_blocks;
-  lba_t start_lba = _hdr.allocate(data_len, n_blocks); /* allocate contiguous segment of blocks */
+  lba_t start_lba;
+
+  try {
+    _hdr.allocate(data_len, n_blocks); /* allocate contiguous segment of blocks */
+  }
+  catch(...) {
+    PERR("Fatal condition");
+    exit(-1);
+  }
+  
   lba_t curr_lba = start_lba;
   size_t remaining_blocks = n_blocks;
 
@@ -245,69 +295,50 @@ status_t Append_store::put(std::string key,
 
   size_t n_blocks;
   lba_t start_lba = _hdr.allocate(data_len, n_blocks); /* allocate contiguous segment of blocks */
-  lba_t curr_lba = start_lba;
-  size_t remaining_blocks = n_blocks;
+  // lba_t curr_lba = start_lba;
+  // size_t remaining_blocks = n_blocks;
 
   if(option_DEBUG)
     PLOG("[+] Append-store: append %ld bytes. Used blocks=%ld/%ld", data_len,
          start_lba+n_blocks, _vi.max_lba); 
-  
 
-  /* write max IO size segments */
-  uint64_t off = offset;
-  while(remaining_blocks > _max_io_blocks) {
-    
-    _block->async_write(iob,
-                        off,
-                        curr_lba + 1, /* append store header */
-                        _max_io_blocks,
-                        queue_id);
-    off += _max_io_bytes;
-    remaining_blocks -= _max_io_blocks;
-    curr_lba += _max_io_blocks;
-  }
+  static __thread Semaphore sem;
 
-  assert(remaining_blocks <= _max_io_blocks);
-  /* write remainder if anything left */
-  if(remaining_blocks > 0) {   
-    _block->async_write(iob,
-                        off,
-                        curr_lba + 1, /* append store header */
-                        remaining_blocks,
-                        queue_id);
-  }
+  /* issue aync */
+  _block->async_write(iob,
+                      offset,
+                      start_lba, /* append store header */
+                      n_blocks,
+                      queue_id,
+                      [](uint64_t gwid, void* arg0, void* arg1)
+                      {
+                        ((Semaphore *)arg0)->post();
+                      },
+                      (void*) &sem);
 
   /* write metadata */
   insert_row(key, metadata, start_lba, n_blocks);
 
-  _block->check_completion(0);
+  /* wait for io to complete */
+  sem.wait();
+
   return S_OK;
 }
 
-struct __record_desc
-{
-  int64_t lba;
-  int64_t len;
-};
-
-static constexpr uint32_t APPEND_STORE_ITERATOR_MAGIC = 0x11110000;
-
-struct __iterator_t
-{
-  uint32_t magic;
-  uint64_t current_idx;
-  uint64_t exceeded_idx;
-  std::vector<__record_desc> records;
-};
-  
 
 IStore::iterator_t Append_store::open_iterator(uint64_t rowid_start,
-                                               uint64_t rowid_end)
+                                               uint64_t rowid_end,
+                                               unsigned prefetch_buffers)
 {
   __iterator_t *iter = new __iterator_t;
   assert(iter);
+
+  if(rowid_end < rowid_start)
+    throw API_exception("open_iterator bad params");
+  
   iter->current_idx = 0;
   iter->magic = APPEND_STORE_ITERATOR_MAGIC;
+  iter->prefetch_desc = {0};
   
   std::stringstream sqlss;
   sqlss << "SELECT LBA,LEN FROM " << _table_name << " WHERE ROWID >= " << rowid_start <<
@@ -318,13 +349,19 @@ IStore::iterator_t Append_store::open_iterator(uint64_t rowid_start,
   sqlite3_prepare_v2(_db, sql.c_str(), sql.size(), &stmt, nullptr);
   int s;
   while((s = sqlite3_step(stmt)) != SQLITE_DONE) {
-    iter->records.push_back({sqlite3_column_int64(stmt, 0),sqlite3_column_int64(stmt, 1)});
+    iter->record_vector.push_back({sqlite3_column_int64(stmt, 0),sqlite3_column_int64(stmt, 1)});
   }
   sqlite3_finalize(stmt);
-  iter->exceeded_idx = iter->records.size();
+  iter->exceeded_idx = iter->record_vector.size();
 
-  if(option_DEBUG)
-    PLOG("opened iterator: records = %ld", iter->exceeded_idx);
+  if(option_DEBUG||1) 
+    PLOG("opened iterator (%p): records=%ld prefetch buffers=%u",
+         iter, iter->exceeded_idx, prefetch_buffers);
+    
+  for(unsigned i=0;i<prefetch_buffers;i++) {
+    auto iob = _lower_layer->allocate_io_buffer(MB(8),KB(4),NUMA_NODE_ANY);
+    iter->iob_vector.push_back(iob);
+  }
     
   return iter;
 }
@@ -336,8 +373,17 @@ IStore::iterator_t Append_store::open_iterator(uint64_t rowid_start,
  */
 void Append_store::close_iterator(IStore::iterator_t iter)
 {
-  assert(iter != nullptr);
-  delete static_cast<__iterator_t*>(iter);
+  auto iteritf = static_cast<__iterator_t*>(iter);
+  assert(iteritf != nullptr);
+  
+  if(option_DEBUG||1) 
+    PLOG("closing iterator (%p) iob-count=%ld", iteritf, iteritf->iob_vector.size());
+
+  // broken
+  //  for(auto& e: iteritf->iob_vector)
+  //    _lower_layer->free_io_buffer(e);
+  
+  delete iteritf;
 }
 
 
@@ -349,17 +395,22 @@ size_t Append_store::iterator_get(IStore::iterator_t iter,
   auto i = static_cast<__iterator_t*>(iter);
   assert(i);
 
-  if(i->magic != APPEND_STORE_ITERATOR_MAGIC)
+  if(unlikely(i->magic != APPEND_STORE_ITERATOR_MAGIC))
     throw API_exception("Append_store::iterator_get - bad iterator");
   
-  if(i->current_idx == i->exceeded_idx)
+  if(i->current_idx == i->exceeded_idx) {
+    PWRN("last record exceeded");
     return 0;
+  }
 
-  auto& record = i->records[i->current_idx];
+  auto& record = i->record_vector[i->current_idx];
 
   if(option_DEBUG) {
     PLOG("Append_store::iterator_get lba=%lu len=%lu", record.lba, record.len);
   }
+
+  if(unlikely(get_size(iob) < record.len))
+    throw API_exception("insufficient space in iob for record len");
 
   _lower_layer->read(iob,
                      offset,
@@ -367,10 +418,78 @@ size_t Append_store::iterator_get(IStore::iterator_t iter,
                      record.len,
                      queue_id);
 
-  i->current_idx++;  
+  i->current_idx++;
   return record.len * _vi.block_size;
 }
 
+
+size_t Append_store::iterator_get(iterator_t iter,
+                                  Component::io_buffer_t& iob,
+                                  int queue_id)
+{
+  auto i = static_cast<__iterator_t*>(iter);
+  assert(i);
+
+  if(i->magic != APPEND_STORE_ITERATOR_MAGIC)
+    throw API_exception("Append_store::iterator_get - bad iterator");
+
+  if(i->iob_vector.empty())
+    throw API_exception("over-called Append_store::iterator_get with freeing IOB");
+
+  if(i->current_idx == i->exceeded_idx) {
+    PWRN("last record exceeded");
+    return 0;
+  }
+
+  auto& record = i->record_vector[i->current_idx];
+  
+  if(option_DEBUG)
+    PLOG("Append_store::iterator_get lba=%lu len=%lu", record.lba, record.len);
+
+  if(likely(i->prefetch_desc.gwid > 0)) { /* prefetch underway */
+    while(!_lower_layer->check_completion(i->prefetch_desc.gwid))  cpu_relax();
+    iob = i->prefetch_desc.iob;
+  }
+  else { /* no prefetch underway */    
+    iob = i->iob_vector.back();
+    i->iob_vector.pop_back();
+
+    if(get_size(iob) < record.len)
+      throw API_exception("insufficient space in IOB for record len");
+    
+    _lower_layer->read(iob,
+                       0, // offset
+                       record.lba + 1, /* add one for store header */
+                       record.len,
+                       queue_id);    
+  }
+  
+  i->current_idx++;      
+
+  /* start asynchronous prefetch if possible */
+  {
+    if(i->current_idx != i->exceeded_idx) {
+      auto& next_record = i->record_vector[i->current_idx];
+      i->prefetch_desc.iob = i->iob_vector.back();
+      i->iob_vector.pop_back();
+      i->prefetch_desc.gwid = _lower_layer->async_read(i->prefetch_desc.iob,
+                                                       0, // offset
+                                                       next_record.lba + 1, /* add one for store header */
+                                                       next_record.len,
+                                                       queue_id);
+    }    
+  }
+  
+  return record.len * _vi.block_size;
+}
+
+void Append_store::free_iterator_buffer(iterator_t iter,
+                                        Component::io_buffer_t iob)
+{
+  auto i = static_cast<__iterator_t*>(iter);
+  assert(i);
+  i->iob_vector.push_back(iob);
+}
 
 
 

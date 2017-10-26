@@ -28,7 +28,7 @@ class Append_store : public Core::Zerocopy_passthrough_impl<Component::IStore>
 {  
 private:
   static constexpr unsigned DMA_ALIGNMENT_BYTES = 8;
-  
+  static constexpr bool option_DEBUG = false;
 public:
 
   /** 
@@ -134,11 +134,13 @@ public:
    * 
    * @param rowid_start Start row
    * @param rowid_end End row
+   * @param prefetch_buffers Number of prefetch buffers
    * 
    * @return Iterator
    */
   virtual iterator_t open_iterator(uint64_t rowid_start,
-                                   uint64_t rowid_end) override;
+                                   uint64_t rowid_end,
+                                   unsigned prefetch_buffers) override;
 
   /** 
    * Close iterator
@@ -163,7 +165,27 @@ public:
                               size_t offset,
                               int queue_id = 0) override;
 
+ /** 
+   * Read from an iterator.  Does not require database access.
+   * 
+   * @param iter Iterator
+   * @param iob [out] IO buffer
+   * @param queue_id [optional] Queue identifier
+   * 
+   * @return Number of bytes transferred
+   */
+  virtual size_t iterator_get(iterator_t iter,
+                              Component::io_buffer_t& iob,
+                              int queue_id = 0) override;
 
+  /** 
+   * Free buffer previously returned from iterator_get method
+   * 
+   * @param iter Iterator
+   * @param iob IO buffer
+   */
+  virtual void free_iterator_buffer(iterator_t iter, Component::io_buffer_t iob) override;
+  
   /** 
    * Dump debugging information
    * 

@@ -91,12 +91,15 @@ public:
 
   void dump_info() {
     std::lock_guard<std::mutex> g(_lock);
+    PINF("Append-Store");
     PINF("Header: magic=0x%x", _mb->magic);
     PINF("      : flags=0x%x", _mb->flags);
     PINF("      : next_free_lba=%lu", _mb->next_free_lba);
     PINF("      : owner=%s", _mb->owner);
     PINF("      : name=%s", _mb->name);
-    PINF("      : used capacity %f%%", 100.0f - ((float)(_mb->max_lba - _mb->next_free_lba) / ((float) _mb->max_lba))*100.0);    
+    PINF("      : used blocks %lu / %lu (%f %%)",
+         _mb->next_free_lba, _mb->max_lba,
+         (((float)_mb->next_free_lba)/((float)_mb->max_lba))*100.0);
   }
       
   void flush() {
