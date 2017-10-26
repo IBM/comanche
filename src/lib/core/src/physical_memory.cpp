@@ -67,9 +67,10 @@ allocate_io_buffer(size_t size, unsigned alignment, int numa_node)
 {
   void* ptr = rte_malloc_socket(NULL, size, alignment, numa_node);
   if(!ptr) {
-    //    if(option_DEBUG)
-    rte_dump_physmem_layout(stderr);
-    rte_malloc_dump_stats(stderr, NULL);
+    if(option_DEBUG) {
+      rte_dump_physmem_layout(stderr);
+      rte_malloc_dump_stats(stderr, NULL);
+    }
     
     throw General_exception("RTE out of memory (request size=%ld alignment=%u numa_node=%d)", size, alignment, numa_node);
   }

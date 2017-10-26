@@ -85,7 +85,7 @@ public:
    * 
    * @return Pointer to record in iob
    */
-  virtual void * read(const index_t index, Component::io_buffer_t iob, unsigned queue_id) override;
+  virtual byte * read(const index_t index, Component::io_buffer_t iob, unsigned queue_id) override;
   
   /** 
    * Flush queued IO and wait for completion

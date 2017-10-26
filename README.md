@@ -23,7 +23,7 @@ make
 * Build components in debug mode (e.g., with asan)
 
 ```bash
-cmake -DCMAKE_BUILD_TYPE=DEBUG .
+cmake -DCMAKE_BUILD_TYPE=Debug .
 ```
 
 For mem leak checking - ASAN may hang block-nvme:
@@ -31,7 +31,7 @@ For mem leak checking - ASAN may hang block-nvme:
 ```bash
 cmake -DCMAKE_BUILD_TYPE=ASAN .
 
-cmake -DCMAKE_BUILD_TYPE=RELEASE .
+cmake -DCMAKE_BUILD_TYPE=Release .
 ```
 
 

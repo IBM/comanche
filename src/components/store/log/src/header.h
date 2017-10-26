@@ -109,7 +109,10 @@ public:
     PINF("      : name=%s", _mb->name);
     PINF("      : tail=%lu", _mb->tail);
     PINF("      : fixed_size=%lu", _mb->fixed_size);
-    PINF("      : used capacity %f%%", 100.0f - ((float)(_mb->max_lba - _mb->next_free_lba) / ((float) _mb->max_lba))*100.0);    
+    PINF("      : used blocks %lu / %lu (%f %%)",
+         _mb->next_free_lba, _mb->max_lba,
+         (((float)_mb->next_free_lba)/((float)_mb->max_lba))*100.0);
+
   }
       
   void flush() {

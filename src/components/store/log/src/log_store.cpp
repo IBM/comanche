@@ -103,7 +103,7 @@ index_t Log_store::write(const void * data, const size_t data_len, unsigned queu
 }
 
 
-void * Log_store::read(const index_t index, Component::io_buffer_t iob, unsigned queue_id)
+byte * Log_store::read(const index_t index, Component::io_buffer_t iob, unsigned queue_id)
 {
   addr_t record_pos;
   if(_fixed_size) record_pos = index * _fixed_size;    
@@ -119,10 +119,13 @@ void * Log_store::read(const index_t index, Component::io_buffer_t iob, unsigned
   unsigned top_lba = round_up(record_pos + _fixed_size, _vi.block_size) / _vi.block_size;
   unsigned total_blocks = top_lba - bottom_lba + 1;
   unsigned offset_in_lba = record_pos % _vi.block_size;
-  PLOG("bottom_lba=%u, top_lba=%u, total_blocks=%u offset=%u", bottom_lba, top_lba, total_blocks, offset_in_lba);
+
+  if(option_DEBUG)
+    PLOG("bottom_lba=%u, top_lba=%u, total_blocks=%u offset=%u",
+         bottom_lba, top_lba, total_blocks, offset_in_lba);
 
   _lower_layer->read(iob,
-                     0,
+                     0, /* offset in IOB */
                      bottom_lba + 1, /* add one block because of header */
                      total_blocks,
                      queue_id);
