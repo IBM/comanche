@@ -48,6 +48,7 @@ void hexdump(void* data, unsigned len) {
     printf("%x%x ", 0xf & (d[i] >> 4), 0xf & d[i]);
   }
   printf("\n");
+  fflush(0);
 }
 
 void asciidump(void* data, unsigned len) {

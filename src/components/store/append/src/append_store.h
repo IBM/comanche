@@ -130,6 +130,15 @@ public:
                    int queue_id = 0) override;
 
   /** 
+   * Get metadata for a record
+   * 
+   * @param rowid Row identifier counting from 1
+   * 
+   * @return String form of metadata
+   */
+  virtual std::string get_metadata(uint64_t rowid) override;
+
+  /** 
    * Open a sequential record iterator. Requires database access.
    * 
    * @param rowid_start Start row
@@ -161,7 +170,7 @@ public:
    * @return Number of bytes transferred
    */
   virtual size_t iterator_get(iterator_t iter,
-                              Component::io_buffer_t iob,
+                              Component::io_buffer_t* iob,
                               size_t offset,
                               int queue_id = 0) override;
 

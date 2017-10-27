@@ -250,4 +250,34 @@ class Program_exception : public Exception
   status_t _err_code;
 };
 
+class Data_exception : public Exception
+{
+ public:
+  Data_exception() : Exception("Data error"), _err_code(E_FAIL)
+  {
+  }
+
+  Data_exception(int err) : Exception("Data error"), _err_code(err)
+  {
+  }
+
+  __attribute__((__format__(__printf__, 2, 0))) Data_exception(const char* fmt, ...) : Exception()
+  {
+    va_list args;
+    va_start(args, fmt);
+    char msg[255] = {0};
+    vsnprintf(msg, 254, fmt, args);
+    set_cause(msg);
+  }
+
+  status_t error_code()
+  {
+    return _err_code;
+  }
+
+ private:
+  status_t _err_code;
+};
+
+
 #endif

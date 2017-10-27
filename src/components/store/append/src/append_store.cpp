@@ -133,7 +133,7 @@ Append_store::Append_store(std::string owner,
   /* create table if needed */
   std::stringstream sqlss;
   sqlss << "CREATE TABLE IF NOT EXISTS " << name;
-  sqlss << "(ID TEXT PRIMARY KEY NOT NULL, LBA INT8, NLBA INT8, METADATA TEXT);";
+  sqlss << "(ID TEXT PRIMARY KEY NOT NULL, LBA INT8, NBLOCKS INT8, METADATA TEXT);";
    
   execute_sql(sqlss.str());
 
@@ -330,7 +330,7 @@ IStore::iterator_t Append_store::open_iterator(uint64_t rowid_start,
   iter->prefetch_desc = {0};
   
   std::stringstream sqlss;
-  sqlss << "SELECT LBA,NLBA FROM " << _table_name << " WHERE ROWID >= " << rowid_start <<
+  sqlss << "SELECT LBA,NBLOCKS FROM " << _table_name << " WHERE ROWID >= " << rowid_start <<
     " AND ROWID <= " << rowid_end << ";";
   std::string sql = sqlss.str();
 
@@ -338,6 +338,10 @@ IStore::iterator_t Append_store::open_iterator(uint64_t rowid_start,
   sqlite3_prepare_v2(_db, sql.c_str(), sql.size(), &stmt, nullptr);
   int s;
   while((s = sqlite3_step(stmt)) != SQLITE_DONE) {
+
+    if(s == SQLITE_ERROR || s == SQLITE_MISUSE)
+      throw API_exception("failed to open iterator: SQL statement failed (%s)", sql.c_str());
+    
     iter->record_vector.push_back({sqlite3_column_int64(stmt, 0),sqlite3_column_int64(stmt, 1)});
   }
   sqlite3_finalize(stmt);
@@ -376,11 +380,12 @@ void Append_store::close_iterator(IStore::iterator_t iter)
 }
 
 
-size_t Append_store::iterator_get(IStore::iterator_t iter,
-                                  Component::io_buffer_t iob,
+size_t Append_store::iterator_get(iterator_t iter,
+                                  Component::io_buffer_t* iob,
                                   size_t offset,
                                   int queue_id)
 {
+  assert(iob);
   auto i = static_cast<__iterator_t*>(iter);
   assert(i);
 
@@ -398,10 +403,10 @@ size_t Append_store::iterator_get(IStore::iterator_t iter,
     PLOG("Append_store::iterator_get lba=%lu len=%lu", record.lba, record.len);
   }
 
-  if(unlikely(get_size(iob) < record.len))
+  if(unlikely(get_size(*iob) < record.len))
     throw API_exception("insufficient space in iob for record len");
 
-  _lower_layer->read(iob,
+  _lower_layer->read(*iob,
                      offset,
                      record.lba, /* add one for store header */
                      record.len,
@@ -575,6 +580,25 @@ status_t Append_store::get(uint64_t rowid,
   return S_OK;
 }
 
+
+std::string Append_store::get_metadata(uint64_t rowid)
+{
+  std::stringstream sqlss;
+  sqlss << "SELECT ID FROM " << _table_name << " WHERE ROWID=" << rowid << ";";
+  std::string sql = sqlss.str();
+
+  sqlite3_stmt * stmt;
+  sqlite3_prepare_v2(_db, sql.c_str(), sql.size(), &stmt, nullptr);
+  int s = sqlite3_step(stmt);
+
+  if(s == SQLITE_ERROR)
+    throw API_exception("unable to get metadata for row %lu", rowid);
+  std::string result;
+  result = (char*) sqlite3_column_text(stmt, 0);
+  sqlite3_finalize(stmt);
+
+  return result;
+}
 
 
 /** 

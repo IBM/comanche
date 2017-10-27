@@ -96,6 +96,15 @@ public:
                    int queue_id = 0) = 0;
 
   /** 
+   * Get metadata for a record
+   * 
+   * @param rowid Row identifier counting from 1
+   * 
+   * @return String form of metadata
+   */
+  virtual std::string get_metadata(uint64_t rowid) = 0;
+  
+  /** 
    * Open a sequential record iterator. Requires database access.
    * 
    * @param rowid_start Start row
@@ -117,7 +126,7 @@ public:
 
 
   /** 
-   * Read from an iterator.  Does not require database access.
+   * Read from an iterator.  Does not require database access. Use callee allocated iob.
    * 
    * @param iter Iterator
    * @param iob IO buffer
@@ -127,7 +136,7 @@ public:
    * @return Number of bytes transferred
    */
   virtual size_t iterator_get(iterator_t iter,
-                              Component::io_buffer_t iob,
+                              Component::io_buffer_t* iob,
                               size_t offset,
                               int queue_id = 0) = 0;
 
@@ -142,7 +151,7 @@ public:
    */
   virtual size_t iterator_get(iterator_t iter,
                               Component::io_buffer_t& iob,
-                              int queue_id = 0) = 0;
+                              int queue_id = 0) = 0;  
 
   /** 
    * Free buffer previously returned from iterator_get method
