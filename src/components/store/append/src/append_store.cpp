@@ -133,7 +133,7 @@ Append_store::Append_store(std::string owner,
   /* create table if needed */
   std::stringstream sqlss;
   sqlss << "CREATE TABLE IF NOT EXISTS " << name;
-  sqlss << "(ID TEXT PRIMARY KEY NOT NULL, LBA INT8, LEN INT8, METADATA TEXT);";
+  sqlss << "(ID TEXT PRIMARY KEY NOT NULL, LBA INT8, NLBA INT8, METADATA TEXT);";
    
   execute_sql(sqlss.str());
 
@@ -330,7 +330,7 @@ IStore::iterator_t Append_store::open_iterator(uint64_t rowid_start,
   iter->prefetch_desc = {0};
   
   std::stringstream sqlss;
-  sqlss << "SELECT LBA,LEN FROM " << _table_name << " WHERE ROWID >= " << rowid_start <<
+  sqlss << "SELECT LBA,NLBA FROM " << _table_name << " WHERE ROWID >= " << rowid_start <<
     " AND ROWID <= " << rowid_end << ";";
   std::string sql = sqlss.str();
 
