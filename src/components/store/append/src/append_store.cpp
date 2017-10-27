@@ -229,13 +229,9 @@ status_t Append_store::put(std::string key,
   size_t n_blocks;
   lba_t start_lba;
 
-  try {
-    start_lba = _hdr.allocate(data_len, n_blocks); /* allocate contiguous segment of blocks */
-  }
-  catch(...) { panic("unexpected condition"); }
+  start_lba = _hdr.allocate(data_len, n_blocks); /* allocate contiguous segment of blocks */
 
-
-  if(option_DEBUG||1)
+  if(option_DEBUG)
     PLOG("[+] Append-store: append %ld bytes at block=%ld Used blocks=%ld/%ld", data_len,
          start_lba,
          start_lba+n_blocks,
@@ -283,11 +279,7 @@ status_t Append_store::put(std::string key,
   assert(_block);
 
   size_t n_blocks;
-  lba_t start_lba;
-  try {
-    start_lba = _hdr.allocate(data_len, n_blocks); /* allocate contiguous segment of blocks */
-  }
-  catch(...) { panic("unexpected condition"); }
+  lba_t start_lba = _hdr.allocate(data_len, n_blocks); /* allocate contiguous segment of blocks */
 
   if(option_DEBUG)
     PLOG("[+] Append-store: append %ld bytes. Used blocks=%ld/%ld", data_len,

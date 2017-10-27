@@ -113,12 +113,15 @@ public:
 
     if(n_bytes % _vi.block_size)
       n_blocks++;
-    
-    std::lock_guard<std::mutex> g(_lock);
-    if((_mb->max_lba - _mb->next_free_lba) < n_blocks)
-      throw API_exception("Append-store: no more blocks");
-    auto result = _mb->next_free_lba;
-    _mb->next_free_lba += n_blocks;
+
+    lba_t result;
+    {
+      std::lock_guard<std::mutex> g(_lock);
+      if((_mb->max_lba - _mb->next_free_lba) < n_blocks)
+        throw API_exception("Append-store: no more blocks");
+      result = _mb->next_free_lba;
+      _mb->next_free_lba += n_blocks;
+    }
     return result;
   }
 
