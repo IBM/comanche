@@ -116,12 +116,77 @@ TEST_F(Append_store_test, Instantiate)
   IStore_factory * fact = (IStore_factory *) comp->query_interface(IStore_factory::iid());
 
   ASSERT_TRUE(_block);
-  _store = fact->create("testowner","teststore",_block, 0);
+  _store = fact->create("testowner","teststore",_block, FLAGS_FORMAT);
   ASSERT_TRUE(_store);
   
   fact->release_ref();
 }
 
+TEST_F(Append_store_test, SanityTest)
+{
+  size_t count = 10000;
+  size_t buffer_size = count * sizeof(uint64_t);
+  uint64_t * val =(uint64_t*) malloc(buffer_size);
+  for(uint64_t i=0;i<count;i++) {
+    val[i] = i;
+  }
+  _store->put("key0", "---METADATA--", val, sizeof(uint64_t)*count);
+  _store->put("key1", "---METADATA--", val, sizeof(uint64_t)*count);
+
+  _store->flush();
+
+  io_buffer_t iob = _store->allocate_io_buffer(MB(2), KB(4), NUMA_NODE_ANY);
+  void * viob = _store->virt_addr(iob);
+
+  {
+    memset(viob, 0xe, buffer_size);
+    _store->get(1, iob, 0, 0);
+
+    uint64_t * val2 = (uint64_t*) viob;
+    for(uint64_t i=0;i<count;i++) {
+      if(val2[i] != i) {
+        PERR("val2[i] = %lx expecting %lx", val2[i], i);
+        ASSERT_TRUE(false);
+      }
+    }
+  }
+  
+  {
+    memset(viob, 0xe, buffer_size);
+    _store->get(2, iob, 0, 0);
+
+    uint64_t * val2 = (uint64_t*) viob;
+    for(uint64_t i=0;i<count;i++) {
+      if(val2[i] != i) {
+        PERR("val2[i] = %lx expecting %lx", val2[i], i);
+        ASSERT_TRUE(false);
+      }
+    }
+  }
+  
+  /* test iterator */
+  {
+    IStore::iterator_t iter = _store->open_iterator(1,2);
+    _store->iterator_get(iter, &iob, 0, 0);
+    uint64_t * val = (uint64_t*) viob;
+    for(uint64_t i=0;i<count;i++) {
+      if(val[i] != i)
+        ASSERT_TRUE(false);
+    }
+
+    _store->iterator_get(iter, &iob, 0, 0);
+    for(uint64_t i=0;i<count;i++) {
+      if(val[i] != i)
+        ASSERT_TRUE(false);
+    }
+
+    ASSERT_TRUE(_store->iterator_get(iter, &iob, 0, 0)==0);
+
+    _store->close_iterator(iter);
+  }
+  
+}
+#if 0
 TEST_F(Append_store_test, CreateEntries)
 {
   size_t total_write_size = GB(2);
@@ -144,6 +209,7 @@ TEST_F(Append_store_test, CreateEntries)
   auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(done-started).count();
   PLOG("Duration %f seconds: %lu transactions", ((float)ms)/1000.0, total_write_size/MB(1));
 }
+#endif
 
 TEST_F(Append_store_test, ReleaseBlockDevice)
 {

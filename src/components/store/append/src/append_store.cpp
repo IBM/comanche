@@ -235,9 +235,11 @@ status_t Append_store::put(std::string key,
   catch(...) { panic("unexpected condition"); }
 
 
-  if(option_DEBUG)
-    PLOG("[+] Append-store: append %ld bytes. Used blocks=%ld/%ld", data_len,
-         start_lba+n_blocks, _vi.max_lba); 
+  if(option_DEBUG||1)
+    PLOG("[+] Append-store: append %ld bytes at block=%ld Used blocks=%ld/%ld", data_len,
+         start_lba,
+         start_lba+n_blocks,
+         _vi.max_lba); 
 
   auto iob = _phys_mem_allocator.allocate_io_buffer(round_up(data_len,_vi.block_size),
                                                     DMA_ALIGNMENT_BYTES,
@@ -560,14 +562,12 @@ status_t Append_store::get(uint64_t rowid,
   int64_t data_lba = sqlite3_column_int64(stmt, 1);
   int64_t data_len = sqlite3_column_int64(stmt, 2);
   sqlite3_finalize(stmt);
-  if(option_DEBUG) {
+  if(option_DEBUG||1) {
     PLOG("get(rowid=%lu) --> lba=%ld len=%ld", rowid, data_lba, data_len);
   }
 
   if((_lower_layer->get_size(iob) - offset) < (data_len * _vi.block_size)) {
-    if(option_DEBUG)
-      PWRN("Append_store:get call with too smaller IO buffer");
-    
+    PWRN("Append_store:get call with too smaller IO buffer");    
     return E_INSUFFICIENT_SPACE;
   }
 
