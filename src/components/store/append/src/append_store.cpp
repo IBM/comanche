@@ -388,7 +388,7 @@ size_t Append_store::iterator_get(IStore::iterator_t iter,
     throw API_exception("Append_store::iterator_get - bad iterator");
   
   if(i->current_idx == i->exceeded_idx) {
-    PWRN("last record exceeded");
+    PWRN("last record exceeded (%lu)", i->current_idx);
     return 0;
   }
 

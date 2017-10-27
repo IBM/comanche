@@ -63,7 +63,7 @@ index_t Log_store::write(const void * data,
   if(_fixed_size > 0 && data_len > _fixed_size)
     throw API_exception("mismatched size in write call (expect=%ld request=%ld)", _fixed_size, data_len);
 
-  if(option_DEBUG||1)
+  if(option_DEBUG)
     PLOG("Log_store: write %s", (char*)data);
   
   uint32_t crc;
@@ -102,7 +102,7 @@ index_t Log_store::write(const void * data,
     
   }
 
-  return index;
+  return index / _fixed_size;
 }
 
 
