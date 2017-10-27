@@ -4,3 +4,12 @@ CMakeFiles
 *.cmake
 CMakeCache.txt
 deps
+*.cmd
+*.symvers
+*.so
+*.db
+.tmp_versions
+GPATH
+GRTAGS
+GSYMS
+GTAGS
