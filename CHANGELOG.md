@@ -6,20 +6,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 Daniel Waddington (daniel.waddington@ibm.com)
 
-## [unstable]
-## 2017-10-25
+## [v0.2]
+## 2017-10
 ### Changed
 - Default read/write sync operations on IBlock_device now use a semaphore and thus do a sleep-based wait.
-## 2017-10-17
-### Changed
 - Added second call back argument to IBlock_device asynchronous methods.  This allows this pointer passing.
-### Added
-- Zero-copy read iterator to Append-Store
-## 2017-10-10
-### Changed
 - Rework of CMakeLists.txt for components to improve common.cmake and use COMANCHE_HOME env variable
 - Break out components into family directories
 ### Added
+- Initial RAID0 component. Untested.
+- Zero-copy read iterator to Append-Store
 - Support for callbacks to async_read/write methods on IBlock_device
 - Sample component
 ## 2017-9-29
