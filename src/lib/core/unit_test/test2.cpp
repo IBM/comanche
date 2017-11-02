@@ -40,14 +40,10 @@ TEST_F(Core_test, UIPC)
 {
   
   if(!client_side) {
-    int fd;
-    PLOG("server side:");
-    void * addr = uipc_create_shared_memory("/tmp/foobar", 4096, &fd);
+    Core::UIPC::Shared_memory sm("/tmp/foobar", 4096);
   }
   else {
-    int fd;
-    PLOG("client side:");
-    void * addr = uipc_connect_shared_memory("/tmp/foobar", &fd);
+    Core::UIPC::Shared_memory sm("/tmp/foobar");
   }
 }
 
