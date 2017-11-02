@@ -28,17 +28,127 @@
 #include <string>
 #include <mutex>
 
-/* expose as C because we want other programming languages to interface
-   onto this API */
+/* Expose as C because we want other programming languages to
+   interface onto this API */
+
 extern "C"
 {
-  void * uipc_create_shared_memory(const char * path_name, size_t size_in_bytes, int* fd);
-  void * uipc_connect_shared_memory(const char * path_name, int* fd);
-  void   uipc_close_shared_memory(int fd);
+  typedef void * channel_t;
+
+  /** 
+   * Channel is bi-directional, user-level, lock-free exchange of
+   * fixed sized messages.  Receiving is polling-based. It does not
+   * define the message protocol which can be Protobuf etc.  Channel
+   * is a lock-free FIFO in shared memory for passing pointers
+   * together with a slab allocator (also lock-free and thread-safe
+   * across both sides) for fixed sized messages.  Both sides map to
+   * the same virtual address; this is negogiated.
+   * 
+   */
+
+  /** 
+   * Create a channel and wait for client to connect
+   * 
+   * @param path_name Unique name (e.g., /tmp/myChannel)
+   * @param message_size Message size in bytes.
+   * @param queue_size Max elements in FIFO
+   * 
+   * @return Handle to channel or NULL on failure
+   */
+  channel_t uipc_create_channel(const char * path_name,
+                                size_t message_size,
+                                size_t queue_size);
+
+  /** 
+   * Connect to a channel
+   * 
+   * @param path_name Name of channel (e.g., /tmp/myChannel)
+   * @param 
+   * 
+   * @return Handle to channel or NULL on failure
+   */
+  channel_t uipc_connect_channel(const char * path_name);
+
+  /** 
+   * Close a channel
+   * 
+   * @param channel Channel handle
+   *
+   * @return S_OK or E_INVAL
+   */
+  status_t uipc_close_channel(channel_t channel);
+
+  /** 
+   * Allocate a fixed size message
+   * 
+   * @param channel Associated channel
+   *
+   * @return Pointer to message in shared memory or NULL on failure
+   */
+  void * uipc_alloc_message(channel_t channel);
+
+  /** 
+   * Free message
+   * 
+   * @param channel Associated channel
+   * @param message Message
+   * 
+   * @return 
+   */
+  status_t uipc_free_message(channel_t channel, void * message);
+
+
+  /** 
+   * Send a message 
+   * 
+   * @param channel Channel handle
+   * @param data Pointer to data in channel memory
+   * 
+   * @return S_OK or E_FULL
+   */
+  status_t uipc_send(channel_t channel, void* data);
+
+  /** 
+   * Recv a message
+   * 
+   * @param channel Channel handle 
+   * @param data_out Pointer too data popped off FIFO
+   * 
+   * @return S_OK or E_EMPTY
+   */
+  status_t uipc_pop(channel_t channel, void*& data_out);
 }
 
-// namespace Core {
-// namespace UIPC {
+namespace Core {
+namespace UIPC {
+
+class Shared_memory
+{
+private:
+  static constexpr bool option_DEBUG = true;
+  
+public:
+  Shared_memory(std::string name, size_t n_pages); /*< initiator constructor */
+  Shared_memory(std::string name); /*< target constructor */
+  
+  virtual ~Shared_memory();
+
+  void * get_addr();
+
+private:
+  static void * __negotiate_addr_create(const char * path_name,
+                                        size_t size_in_bytes);
+  
+  static void * __negotiate_addr_connect(const char * path_name,
+                                         size_t * size_in_bytes_out);
+
+private:
+  void * _vaddr;
+  size_t _size_in_pages;
+};
+
+
+}} // Core::UIPC
 
 // class Base
 // {

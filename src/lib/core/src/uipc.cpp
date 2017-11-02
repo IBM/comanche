@@ -28,15 +28,43 @@
 #include <unistd.h>
 #include <string>
 #include <mutex>
+#include <common/utils.h>
 #include <common/exceptions.h>
 
 #include "uipc.h"
 
+namespace Core {
+namespace UIPC {
+
+Shared_memory::Shared_memory(std::string name, size_t n_pages)
+{
+  _vaddr =  __negotiate_addr_create(name.c_str(),
+                                    n_pages * PAGE_SIZE);
+  assert(_vaddr);
+  _size_in_pages = n_pages * PAGE_SIZE;
+}
+
+Shared_memory::Shared_memory(std::string name)
+{
+  _vaddr =  __negotiate_addr_connect(name.c_str(),&_size_in_pages);
+  assert(_vaddr);
+}
+
+
+Shared_memory::~Shared_memory()
+{
+}
+
+void * Shared_memory::get_addr()
+{
+}
+
+
 static addr_t VADDR_BASE=0x8000000000;
 
-static constexpr bool option_DEBUG = true;
-
-static void * __negotiate_addr_create(const char * path_name,
+void *
+Shared_memory::
+__negotiate_addr_create(const char * path_name,
                                       size_t size_in_bytes)
 {
   /* create FIFO - used to negotiate memory address) */
@@ -81,9 +109,14 @@ static void * __negotiate_addr_create(const char * path_name,
     
     if(option_DEBUG)
       PLOG("waiting for response..");
+    
+    char response;
+    do {
+      usleep(1000);
+      response = fgetc(fd_c2s);
+    }
+    while(!response);
 
-    char response = fgetc(fd_c2s);
-    assert(response);
     if(response == 'Y') break;  /* 'Y' signals agreement */
     
     /* remove previous mapping and slide along */
@@ -99,8 +132,10 @@ static void * __negotiate_addr_create(const char * path_name,
   return ptr;
 }
 
-static void * __negotiate_addr_connect(const char * path_name,
-                                       size_t * size_in_bytes_out)
+void *
+Shared_memory::
+__negotiate_addr_connect(const char * path_name,
+                         size_t * size_in_bytes_out)
 {
   umask(0);
     
@@ -155,31 +190,44 @@ static void * __negotiate_addr_connect(const char * path_name,
   return ptr;
 }
 
+}} // Core::UIPC
 
 
-  
-extern "C" void * uipc_create_shared_memory(const char * path_name,
-                                            size_t size_in_bytes,
-                                            int* fd_out)
+/** 
+ * 'C' exported functions
+ * 
+ */
+extern "C" channel_t uipc_create_channel(const char * path_name,
+                                         size_t message_size,
+                                         size_t queue_size)
 {
-
-  /* now open up shared memory and map to the negotiated address */
-  void * ptr = __negotiate_addr_create(path_name, size_in_bytes);
-  PLOG("agreed on shared memory %p", ptr);
-  return nullptr;
-}
-  
-extern "C" void * uipc_connect_shared_memory(const char * path_name, int* fd_out)
-{
-  size_t size;
-  void * ptr = __negotiate_addr_connect(path_name, &size);
-  PLOG("agreed on shared memory %p", ptr);
-  return nullptr;
-}
-  
-extern "C" void uipc_close_shared_memory(int fd)
-{
-  return;
+  return NULL;
 }
 
+extern "C" channel_t uipc_connect_channel(const char * path_name)
+{
+  return NULL;
+}
+
+extern "C" status_t uipc_close_channel(channel_t channel)
+{
+  return E_NOT_IMPL;
+}
+
+extern "C" void * uipc_alloc_message(channel_t channel)
+{
+  return NULL;
+}
+
+extern "C" status_t uipc_free_message(channel_t channel, void * message)
+{
+}
+
+extern "C" status_t uipc_send(channel_t channel, void* data)
+{
+}
+
+extern "C" status_t uipc_pop(channel_t channel, void*& data_out)
+{
+}
 
