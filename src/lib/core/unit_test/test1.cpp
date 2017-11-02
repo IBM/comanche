@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <string>
+#include <unistd.h>
 #include <common/cycles.h>
 #include <common/utils.h>
 #include <common/exceptions.h>
@@ -8,6 +9,7 @@
 #include <core/conc_avl_tree.h>
 #include <core/dpdk.h>
 #include <core/physical_memory.h>
+#include <core/uipc.h>
 
 namespace {
 

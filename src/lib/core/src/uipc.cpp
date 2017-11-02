@@ -36,9 +36,8 @@ static addr_t VADDR_BASE=0x8000000000;
 
 static constexpr bool option_DEBUG = true;
 
-extern "C" void * uipc_create_shared_memory(const char * path_name,
-                                            size_t size_in_bytes,
-                                            int* fd_out)
+static void * __negotiate_addr_create(const char * path_name,
+                                      size_t size_in_bytes)
 {
   /* create FIFO - used to negotiate memory address) */
   umask(0);
@@ -46,6 +45,7 @@ extern "C" void * uipc_create_shared_memory(const char * path_name,
   std::string name = path_name;
   name += "-bootstrap";
 
+  unlink(name.c_str());
   mkfifo(name.c_str(), 0666);
 
   FILE * fd_s2c = fopen(name.c_str(), "w");
@@ -53,12 +53,15 @@ extern "C" void * uipc_create_shared_memory(const char * path_name,
   assert(fd_c2s && fd_s2c);
   
   addr_t vaddr = VADDR_BASE;
+  void * ptr = nullptr;
+  
   do {
-    void * ptr = mmap((void*) vaddr,
-                      size_in_bytes,
-                      PROT_NONE,
-                      MAP_SHARED | MAP_ANONYMOUS | MAP_FIXED,
-                      0, 0);
+    ptr = mmap((void*) vaddr,
+               size_in_bytes,
+               PROT_NONE,
+               MAP_SHARED | MAP_ANONYMOUS | MAP_FIXED,
+               0, 0);
+    
     if(ptr == (void*) -1) {
       vaddr += size_in_bytes;
       continue;
@@ -89,18 +92,18 @@ extern "C" void * uipc_create_shared_memory(const char * path_name,
     
   } while(1);
 
-  PLOG("acceptor agreed on shared memory %lx", vaddr);
   fclose(fd_c2s);
   fclose(fd_s2c);
   unlink(name.c_str());
-    
-  return nullptr;
+
+  return ptr;
 }
-  
-extern "C" void * uipc_connect_shared_memory(const char * path_name, int* fd_out)
+
+static void * __negotiate_addr_connect(const char * path_name,
+                                       size_t * size_in_bytes_out)
 {
   umask(0);
-  
+    
   std::string name = path_name;
   name += "-bootstrap";
 
@@ -110,6 +113,8 @@ extern "C" void * uipc_connect_shared_memory(const char * path_name, int* fd_out
 
   addr_t vaddr = 0;
   size_t size_in_bytes;
+  void * ptr = nullptr;
+  
   do {
     vaddr = 0;
     if(fread(&vaddr, sizeof(void*), 1, fd_s2c) != 1) {
@@ -120,11 +125,11 @@ extern "C" void * uipc_connect_shared_memory(const char * path_name, int* fd_out
     if(fread(&size_in_bytes, sizeof(size_t),1,fd_s2c) != 1) 
       throw General_exception("fread failed (size_in_bytes) in uipc_connect_shared_memory");
 
-    void * ptr = mmap((void*) vaddr,
-                      size_in_bytes,
-                      PROT_NONE,
-                      MAP_SHARED | MAP_ANON | MAP_FIXED,
-                      0, 0);
+    ptr = mmap((void*) vaddr,
+               size_in_bytes,
+               PROT_NONE,
+               MAP_SHARED | MAP_ANON | MAP_FIXED,
+               0, 0);
 
     char answer;
     if(ptr == (void*)-1) {
@@ -143,11 +148,32 @@ extern "C" void * uipc_connect_shared_memory(const char * path_name, int* fd_out
   }
   while(1);
   
-  PLOG("agreed on shared memory %lx", vaddr);
   fclose(fd_c2s);
   fclose(fd_s2c);
-  unlink(name.c_str());
+
+  *size_in_bytes_out = size_in_bytes;
+  return ptr;
+}
+
+
+
   
+extern "C" void * uipc_create_shared_memory(const char * path_name,
+                                            size_t size_in_bytes,
+                                            int* fd_out)
+{
+
+  /* now open up shared memory and map to the negotiated address */
+  void * ptr = __negotiate_addr_create(path_name, size_in_bytes);
+  PLOG("agreed on shared memory %p", ptr);
+  return nullptr;
+}
+  
+extern "C" void * uipc_connect_shared_memory(const char * path_name, int* fd_out)
+{
+  size_t size;
+  void * ptr = __negotiate_addr_connect(path_name, &size);
+  PLOG("agreed on shared memory %p", ptr);
   return nullptr;
 }
   
