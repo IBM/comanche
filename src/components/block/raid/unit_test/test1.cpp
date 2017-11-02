@@ -27,7 +27,8 @@
 #include <api/raid_itf.h>
 #include <api/fs_itf.h>
 
-#define IO_CORE 2
+#define IO_CORE 24
+#define QUEUE_ID IO_CORE
 
 using namespace Component;
 
@@ -111,7 +112,6 @@ TEST_F(Block_raid_test, ConfigureRaidComponent)
 }
 
 unsigned ITERATIONS = 1000000;
-unsigned QUEUE_ID = 2;
 
 TEST_F(Block_raid_test, TestReadThroughput)
 {  
@@ -127,13 +127,13 @@ TEST_F(Block_raid_test, TestReadThroughput)
   
   for(unsigned i=0;i<ITERATIONS;i++) {
     tag = raid->async_read(mem, 0, i, 1, QUEUE_ID);    
-    if(((tag & 0x00FFFFFFFFFFFFFFUL) - last_checked) > water_mark) {
+    if((raid->gwid_to_seq(tag) - last_checked) > water_mark) {
       if(raid->check_completion(last_checked+water_mark, QUEUE_ID)) {
         last_checked+=water_mark;
       }
     }
   }
-  while(!raid->check_completion(tag & 0x00FFFFFFFFFFFFFFUL, QUEUE_ID)) cpu_relax();
+  while(!raid->check_completion(raid->gwid_to_seq(tag), QUEUE_ID)) cpu_relax();
 
 
   cpu_time_t cycles_per_iop = (rdtsc() - start)/(ITERATIONS);
@@ -158,13 +158,13 @@ TEST_F(Block_raid_test, TestReadThroughput2)
   
   for(unsigned i=0;i<ITERATIONS;i++) {
     tag = raid->async_read(mem, 0, i, 1, QUEUE_ID);    
-    if(((tag & 0x00FFFFFFFFFFFFFFUL) - last_checked) > water_mark) {
+    if((raid->gwid_to_seq(tag) - last_checked) > water_mark) {
       if(raid->check_completion(last_checked+water_mark, QUEUE_ID)) {
         last_checked+=water_mark;
       }
     }
   }
-  while(!raid->check_completion(tag & 0x00FFFFFFFFFFFFFFUL, QUEUE_ID)) cpu_relax();
+  while(!raid->check_completion(raid->gwid_to_seq(tag), QUEUE_ID)) cpu_relax();
 
 
   cpu_time_t cycles_per_iop = (rdtsc() - start)/(ITERATIONS);
@@ -191,13 +191,13 @@ TEST_F(Block_raid_test, TestRandomReadThroughput)
   
   for(unsigned i=0;i<ITERATIONS;i++) {
     tag = raid->async_read(mem, 0, genrand64_int64() % vi.max_lba, 1, QUEUE_ID);    
-    if(((tag & 0x00FFFFFFFFFFFFFFUL) - last_checked) > water_mark) {
+    if((raid->gwid_to_seq(tag) - last_checked) > water_mark) {
       if(raid->check_completion(last_checked+water_mark, QUEUE_ID)) {
         last_checked+=water_mark;
       }
     }
   }
-  while(!raid->check_completion(tag & 0x00FFFFFFFFFFFFFFUL, QUEUE_ID)) cpu_relax();
+  while(!raid->check_completion(raid->gwid_to_seq(tag), QUEUE_ID)) cpu_relax();
 
 
   cpu_time_t cycles_per_iop = (rdtsc() - start)/(ITERATIONS);
@@ -266,7 +266,30 @@ TEST_F(Block_raid_test, TestRandomWriteThroughput)
 
 }
 
+#if 0
+TEST_F(Block_raid_test, WriteLatency)
+{
+  io_buffer_t mem = raid->allocate_io_buffer(4096,4096,Component::NUMA_NODE_ANY);
 
+  unsigned ITERATIONS = 1000;
+  uint64_t tag;
+
+  /* warm up */
+  for(unsigned i=0;i<10000;i++) 
+    tag = raid->async_write(mem, 0, i, 1, QUEUE_ID);
+  while(!raid->check_completion(raid->gwid_to_seq(tag), QUEUE_ID)); /* we only have to check the last completion */
+  
+
+  for(unsigned i=0;i<ITERATIONS;i++) {
+    cpu_time_t start = rdtsc();
+    raid->write(mem, 0, i, 1, QUEUE_ID);
+    cpu_time_t cycles_for_iop = rdtsc() - start;
+    PINF("write latency took %ld cycles (%f usec) per IOP", cycles_for_iop,  cycles_for_iop / 2400.0f);
+  }
+
+  raid->free_io_buffer(mem);
+}
+#endif
 
 TEST_F(Block_raid_test, ReleaseBlockDevice)
 {
