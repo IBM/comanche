@@ -76,7 +76,7 @@ namespace Common {
  * requires polling during empty conditions.
  *
  */
-template <typename T>
+template <typename T = void*>
 class Mpmc_bounded_lfq
 {
  private:
@@ -316,6 +316,12 @@ class Mpmc_bounded_lfq
     return false;
   }
 
+  static size_t memory_footprint(size_t queue_size)
+  {
+    return sizeof(Common::Mpmc_bounded_lfq<void*>) +
+      (sizeof(aligned_node_t) * queue_size);
+  }
+
  private:
   typedef typename std::aligned_storage<sizeof(node_t), std::alignment_of<node_t>::value>::type
                aligned_node_t;
@@ -339,9 +345,9 @@ class Mpmc_bounded_lfq
 };
 
 /**
- * Multi-producer, multi-consumer class based on Vyukov's algorithm.  This
- * version
- * implements a sleep on the consumer when the queue is empty.
+ * Multi-producer, multi-consumer class based on Vyukov's algorithm.
+ * This version implements a sleep on the consumer when the queue is
+ * empty.
  *
  */
 template <typename T>

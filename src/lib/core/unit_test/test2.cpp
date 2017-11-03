@@ -40,10 +40,10 @@ TEST_F(Core_test, UIPC)
 {
   
   if(!client_side) {
-    Core::UIPC::Shared_memory sm("/tmp/foobar", 4096);
+    Core::UIPC::Channel sm("foobar2", 4096, 32);
   }
   else {
-    Core::UIPC::Shared_memory sm("/tmp/foobar");
+    Core::UIPC::Channel sm("foobar2");
   }
 }
 
