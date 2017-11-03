@@ -20,65 +20,179 @@
  * Daniel G. Waddington (daniel.waddington@ibm.com)
  *
  */
-
+#include <libgen.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
+#include <sys/ioctl.h>
 #include <fcntl.h>
 #include <assert.h>
 #include <unistd.h>
 #include <string>
 #include <mutex>
+#include <core/slab.h>
 #include <common/utils.h>
 #include <common/exceptions.h>
+#include <common/mpmc_bounded_queue.h>
 
 #include "uipc.h"
 
 namespace Core {
 namespace UIPC {
 
-Shared_memory::Shared_memory(std::string name, size_t n_pages)
+struct addr_size_pair {
+  addr_t addr;
+  size_t size;
+};
+
+//typedef Common::Spsc_bounded_lfq_sleeping<Dataplane::Command_t, 32 /* queue size */>
+//command_queue_t;
+
+Channel::Channel(std::string name, size_t message_size, size_t queue_size)
 {
-  _vaddr =  __negotiate_addr_create(name.c_str(),
-                                    n_pages * PAGE_SIZE);
+  size_t queue_footprint = Common::Mpmc_bounded_lfq<>::memory_footprint(queue_size);
+  unsigned pages_per_queue = round_up(queue_footprint, PAGE_SIZE) / PAGE_SIZE;
+  
+  PLOG("pages per FIFO queue: %u", pages_per_queue);
+
+  size_t slab_queue_pages = round_up(Common::Mpmc_bounded_lfq<>::memory_footprint(queue_size * 2),
+                                     PAGE_SIZE) / PAGE_SIZE;
+  
+  PLOG("slab_queue_pages: %ld", slab_queue_pages);
+  
+  size_t slab_pages = round_up(message_size * queue_size * 2, PAGE_SIZE) / PAGE_SIZE;
+  PLOG("slab_pages: %ld", slab_pages);
+
+  size_t total_pages = ((pages_per_queue * 2) + slab_queue_pages + slab_pages);
+  PLOG("total_pages: %ld", total_pages);
+  
+  _shmem_fifo = new Shared_memory(name, pages_per_queue * 2);
+  _shmem_slab_ring = new Shared_memory(name + "-slabring", slab_queue_pages);
+  _shmem_slab = new Shared_memory(name + "-slab", slab_pages);
+}
+
+Channel::Channel(std::string name)
+{
+  _shmem_fifo = new Shared_memory(name);
+  PMAJOR("got fifo @ %p - %lu bytes", _shmem_fifo->get_addr(), _shmem_fifo->get_size());
+
+  usleep(1000); /* hack, but needed to get ordering */
+  _shmem_slab_ring = new Shared_memory(name + "-slabring");
+  PMAJOR("got slab ring @ %p - %lu bytes", _shmem_slab_ring->get_addr(), _shmem_slab_ring->get_size());
+
+  usleep(1000); /* hack, but needed to get ordering */
+  _shmem_slab = new Shared_memory(name + "-slab");
+  PMAJOR("got slab @ %p - %lu bytes", _shmem_slab->get_addr(), _shmem_slab->get_size());
+}
+
+Channel::~Channel()
+{
+  delete _shmem_fifo;
+  delete _shmem_slab_ring;
+  delete _shmem_slab;  
+}
+    
+
+/** 
+ * Shared_memory class
+ * 
+ * @param name 
+ * @param n_pages 
+ */
+
+Shared_memory::Shared_memory(std::string name, size_t n_pages) : _name(name)
+{
+  std::string fifo_name = "fifo." + name;
+  _vaddr = negotiate_addr_create(fifo_name.c_str(),
+                                 n_pages * PAGE_SIZE);
   assert(_vaddr);
   _size_in_pages = n_pages * PAGE_SIZE;
+
+  open_shared_memory(name.c_str());
 }
 
-Shared_memory::Shared_memory(std::string name)
+Shared_memory::Shared_memory(std::string name) : _name(name), _size_in_pages(0)
 {
-  _vaddr =  __negotiate_addr_connect(name.c_str(),&_size_in_pages);
+  std::string fifo_name = "fifo." + name;
+  _vaddr =  negotiate_addr_connect(fifo_name.c_str(), &_size_in_pages);
   assert(_vaddr);
+  
+  open_shared_memory(name.c_str());
 }
-
 
 Shared_memory::~Shared_memory()
 {
+  if(munmap(_vaddr, _size_in_pages))
+    throw General_exception("unmap failed");
+  shm_unlink(_name.c_str());
 }
 
 void * Shared_memory::get_addr()
 {
+  return _vaddr;
 }
 
+void Shared_memory::open_shared_memory(std::string name)
+{
+  umask(0);
+  int fd = shm_open(name.c_str(),
+                    O_CREAT | O_TRUNC | O_RDWR,
+                    S_IRUSR | S_IWUSR | S_IROTH | S_IWOTH | S_IRGRP | S_IWGRP);
+  if(fd == -1)
+    throw Constructor_exception("shm_open failed to open/create %s", name.c_str());
+
+  if(ftruncate(fd, _size_in_pages))
+    throw General_exception("unable to allocate shared memory IPC");
+
+  void * ptr = mmap(_vaddr,
+                    _size_in_pages,
+                    PROT_READ | PROT_WRITE,
+                    MAP_SHARED | MAP_FIXED, fd, 0);
+  if(ptr != _vaddr)
+    throw Constructor_exception("mmap failed in Shared_memory");
+
+  close(fd);
+}
 
 static addr_t VADDR_BASE=0x8000000000;
 
+static void wait_for_read(int fd, size_t s)
+{
+  assert(s > 0);
+  
+  int count = 0;
+  do {
+    ioctl(fd, FIONREAD, &count);
+  } while(count < s);
+}
+
 void *
 Shared_memory::
-__negotiate_addr_create(const char * path_name,
-                                      size_t size_in_bytes)
+negotiate_addr_create(std::string name,
+                      size_t size_in_bytes)
 {
-  /* create FIFO - used to negotiate memory address) */
+  /* create FIFO - used to negotiate memory address */
   umask(0);
 
-  std::string name = path_name;
-  name += "-bootstrap";
+  std::string name_s2c = name + ".s2c";
+  std::string name_c2s = name + ".c2s";
 
-  unlink(name.c_str());
-  mkfifo(name.c_str(), 0666);
+  if(option_DEBUG) {
+    PLOG("mkfifo %s", name_s2c.c_str());
+    PLOG("mkfifo %s", name_c2s.c_str());
+  }
 
-  FILE * fd_s2c = fopen(name.c_str(), "w");
-  FILE * fd_c2s = fopen(name.c_str(), "r");
-  assert(fd_c2s && fd_s2c);
+  unlink(name_s2c.c_str());
+  unlink(name_c2s.c_str());
+  if(mkfifo(name_c2s.c_str(), 0666) ||
+     mkfifo(name_s2c.c_str(), 0666)) {
+    perror("mkfifo:");
+    throw General_exception("mkfifo failed in negotiate_addr_create");
+  }
+
+  int fd_s2c = open(name_s2c.c_str(), O_WRONLY);
+  int fd_c2s = open(name_c2s.c_str(), O_RDONLY);
+
+  assert(fd_c2s >= 0 && fd_s2c >= 0);
   
   addr_t vaddr = VADDR_BASE;
   void * ptr = nullptr;
@@ -87,106 +201,100 @@ __negotiate_addr_create(const char * path_name,
     ptr = mmap((void*) vaddr,
                size_in_bytes,
                PROT_NONE,
-               MAP_SHARED | MAP_ANONYMOUS | MAP_FIXED,
+               MAP_SHARED | MAP_ANONYMOUS,
                0, 0);
     
     if(ptr == (void*) -1) {
       vaddr += size_in_bytes;
-      continue;
+      continue; /* slide and retry */
     }
                
     /* send proposal */
     if(option_DEBUG)
-      PLOG("sending vaddr proposal: %p", ptr);
+      PLOG("sending vaddr proposal: %p - %ld bytes", ptr, size_in_bytes);
 
-    if(fwrite(&ptr, sizeof(void*), 1, fd_s2c) != 1)
-      throw General_exception("write failed in uipc_accept_shared_memory (ptr)");
-
-    if(fwrite(&size_in_bytes, sizeof(size_t), 1, fd_s2c) != 1)
-      throw General_exception("write failed in uipc_accept_shared_memory (size)");
-
-    fflush(fd_s2c);
+    addr_size_pair offer = {vaddr, size_in_bytes};
+    if(write(fd_s2c, &offer, sizeof(addr_size_pair)) != sizeof(addr_size_pair))
+      throw General_exception("write failed in uipc_accept_shared_memory (offer)");
     
     if(option_DEBUG)
       PLOG("waiting for response..");
-    
-    char response;
-    do {
-      usleep(1000);
-      response = fgetc(fd_c2s);
-    }
-    while(!response);
 
-    if(response == 'Y') break;  /* 'Y' signals agreement */
+    wait_for_read(fd_c2s, 1);
     
+    char response = 0;
+    if(read(fd_c2s, &response, 1) != 1)
+      throw General_exception("read failed in uipc_accept_shared_memory (response)");
+    assert(response);
+
+    if(response == 'Y') { /* 'Y' signals agreement */
+      break;  
+    }
+
     /* remove previous mapping and slide along */
     munmap(ptr, size_in_bytes);
     vaddr += size_in_bytes;
-    
   } while(1);
 
-  fclose(fd_c2s);
-  fclose(fd_s2c);
-  unlink(name.c_str());
+  close(fd_c2s);
+  close(fd_s2c);
 
   return ptr;
 }
 
 void *
 Shared_memory::
-__negotiate_addr_connect(const char * path_name,
-                         size_t * size_in_bytes_out)
+negotiate_addr_connect(std::string name,
+                         size_t * size_in_pages_out)
 {
   umask(0);
-    
-  std::string name = path_name;
-  name += "-bootstrap";
+  
+  std::string name_s2c = name + ".s2c";
+  std::string name_c2s = name + ".c2s";
 
-  FILE * fd_s2c = fopen(name.c_str(), "r");
-  FILE * fd_c2s = fopen(name.c_str(), "w");
+  int fd_s2c = open(name_s2c.c_str(), O_RDONLY);
+  int fd_c2s = open(name_c2s.c_str(), O_WRONLY);
   assert(fd_c2s && fd_s2c);
+  assert(fd_c2s != ENXIO);
 
-  addr_t vaddr = 0;
-  size_t size_in_bytes;
   void * ptr = nullptr;
+  addr_size_pair offer = {0};
   
   do {
-    vaddr = 0;
-    if(fread(&vaddr, sizeof(void*), 1, fd_s2c) != 1) {
-      perror("");
-      throw General_exception("fread failed (vaddr) in uipc_connect_shared_memory");
-    }
+    wait_for_read(fd_s2c, sizeof(addr_size_pair)); //sizeof(void*) + sizeof(size_t));
+    if(read(fd_s2c, &offer, sizeof(addr_size_pair)) != sizeof(addr_size_pair))
+      throw General_exception("fread failed (offer) in uipc_connect_shared_memory");
 
-    if(fread(&size_in_bytes, sizeof(size_t),1,fd_s2c) != 1) 
-      throw General_exception("fread failed (size_in_bytes) in uipc_connect_shared_memory");
+    if(option_DEBUG)
+      PLOG("got offer %lx - %ld bytes", offer.addr, offer.size);
 
-    ptr = mmap((void*) vaddr,
-               size_in_bytes,
+    assert(offer.size > 0);
+    
+    ptr = mmap((void*) offer.addr,
+               offer.size,
                PROT_NONE,
-               MAP_SHARED | MAP_ANON | MAP_FIXED,
-               0, 0);
+               MAP_SHARED | MAP_ANON,
+               0, 0);   
 
     char answer;
-    if(ptr == (void*)-1) {
+    if(ptr != (void*)offer.addr) {
       answer = 'N';
-      if(fwrite(&answer, sizeof(answer), 1, fd_c2s) != 1)
+      if(write(fd_c2s, &answer, sizeof(answer)) != sizeof(answer))
         throw General_exception("write failed");
-      fflush(fd_c2s);
     }
     else {
       answer = 'Y';
-      if(fwrite(&answer, sizeof(answer),1,fd_c2s) != 1)
+      if(write(fd_c2s, &answer, sizeof(answer)) != sizeof(answer))
         throw General_exception("write failed");
-      fflush(fd_c2s);
       break;
     }    
   }
   while(1);
-  
-  fclose(fd_c2s);
-  fclose(fd_s2c);
 
-  *size_in_bytes_out = size_in_bytes;
+  close(fd_s2c);
+  close(fd_c2s);
+  
+  *size_in_pages_out = offer.size / PAGE_SIZE;
   return ptr;
 }
 
