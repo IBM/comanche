@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 Daniel Waddington (daniel.waddington@ibm.com)
 
 ## [v0.2.0]
+
+## 2017-11
+### Added
+- Initial implementation of Core::UIPC
 ## 2017-10
 ### Changed
 - Default read/write sync operations on IBlock_device now use a semaphore and thus do a sleep-based wait.

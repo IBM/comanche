@@ -38,13 +38,43 @@ bool client_side = false;
 
 TEST_F(Core_test, UIPC)
 {
-  
-  if(!client_side) {
+  unsigned long ITERATIONS = 10000000;
+  //  if(!client_side) {
+  if(fork()) {
     Core::UIPC::Channel sm("foobar2", 4096, 32);
+    
+    for(unsigned long i=0;i<ITERATIONS;i++) {
+      void * msg = sm.alloc_msg();
+      while(sm.send(msg) != S_OK) {
+        //        usleep(1000);
+      }
+      if(i % 1000000 == 0) PLOG("sent %lu", i);
+    }
+    PLOG("%lu sent", ITERATIONS);
   }
   else {
     Core::UIPC::Channel sm("foobar2");
+    
+    void * incoming = nullptr;
+
+    auto started = std::chrono::high_resolution_clock::now();
+
+    for(unsigned long i=0;i<ITERATIONS;i++) {
+      incoming = nullptr;
+      while(sm.recv(incoming)==E_EMPTY);
+      sm.free_msg(incoming);
+      if(i % 1000000 == 0) PLOG("sent %lu", i);
+    }
+    PLOG("%lu received", ITERATIONS);
+    auto done = std::chrono::high_resolution_clock::now();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(done-started).count();
+    auto secs = ((float)ms)/1000.0f;
+    PINF("Duration %f seconds", secs);
+    PINF("Rate: %f M items per second", (ITERATIONS / secs)/1000000.0);
+
   }
+  void* status;
+  wait(&status);
 }
 
 
