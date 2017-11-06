@@ -126,7 +126,7 @@ class Allocator : public Common::Base_slab_allocator
    * 
    * @param region Pointer to region (owner to clean up).
    * @param region_size Size of region in bytes
-   * @param label Label to safe in header
+   * @param label Label to save in header
    * @param as_new Force new instantiation if set to true
    * @param page_shift Shift for IO blocks
    * 

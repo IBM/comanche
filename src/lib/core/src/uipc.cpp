@@ -32,7 +32,6 @@
 #include <core/slab.h>
 #include <common/utils.h>
 #include <common/exceptions.h>
-#include <common/mpmc_bounded_queue.h>
 
 #include "uipc.h"
 
@@ -47,14 +46,17 @@ struct addr_size_pair {
 //typedef Common::Spsc_bounded_lfq_sleeping<Dataplane::Command_t, 32 /* queue size */>
 //command_queue_t;
 
-Channel::Channel(std::string name, size_t message_size, size_t queue_size)
+Channel::Channel(std::string name, size_t message_size, size_t queue_size) : _master(true)
 {
-  size_t queue_footprint = Common::Mpmc_bounded_lfq<>::memory_footprint(queue_size);
+  size_t queue_footprint = queue_t::memory_footprint(queue_size);
   unsigned pages_per_queue = round_up(queue_footprint, PAGE_SIZE) / PAGE_SIZE;
+
+  assert((queue_size != 0) && ((queue_size & (~queue_size + 1)) == queue_size)); // queue len is a power of 2
+  assert(message_size % 8 == 0);
   
   PLOG("pages per FIFO queue: %u", pages_per_queue);
 
-  size_t slab_queue_pages = round_up(Common::Mpmc_bounded_lfq<>::memory_footprint(queue_size * 2),
+  size_t slab_queue_pages = round_up(queue_t::memory_footprint(queue_size * 2),
                                      PAGE_SIZE) / PAGE_SIZE;
   
   PLOG("slab_queue_pages: %ld", slab_queue_pages);
@@ -65,32 +67,104 @@ Channel::Channel(std::string name, size_t message_size, size_t queue_size)
   size_t total_pages = ((pages_per_queue * 2) + slab_queue_pages + slab_pages);
   PLOG("total_pages: %ld", total_pages);
   
-  _shmem_fifo = new Shared_memory(name, pages_per_queue * 2);
+  _shmem_fifo_m2s = new Shared_memory(name + "-m2s", pages_per_queue);
+  _shmem_fifo_s2m = new Shared_memory(name + "-s2m", pages_per_queue);
   _shmem_slab_ring = new Shared_memory(name + "-slabring", slab_queue_pages);
   _shmem_slab = new Shared_memory(name + "-slab", slab_pages);
+
+  _out_queue = new (_shmem_fifo_m2s->get_addr()) queue_t(queue_size,
+                                                        ((char*)_shmem_fifo_m2s->get_addr()) + sizeof(queue_t));
+  
+  _in_queue = new (_shmem_fifo_s2m->get_addr()) queue_t(queue_size,
+                                                        ((char*)_shmem_fifo_s2m->get_addr()) + sizeof(queue_t));
+
+  unsigned slab_slots = queue_size * 2;
+  _slab_ring = new (_shmem_slab_ring->get_addr()) queue_t(slab_slots,
+                                                          ((char*)_shmem_slab_ring->get_addr()) + sizeof(queue_t));
+  byte * slot_addr = (byte*) _shmem_slab->get_addr();
+  for(unsigned i=0;i<slab_slots;i++) {
+    _slab_ring->enqueue(slot_addr);
+    slot_addr += message_size;
+  }
+  
 }
 
-Channel::Channel(std::string name)
+Channel::Channel(std::string name) : _master(false)
 {
-  _shmem_fifo = new Shared_memory(name);
-  PMAJOR("got fifo @ %p - %lu bytes", _shmem_fifo->get_addr(), _shmem_fifo->get_size());
+  _shmem_fifo_m2s = new Shared_memory(name + "-m2s");
+  PMAJOR("got fifo (m2s) @ %p - %lu bytes", _shmem_fifo_m2s->get_addr(), _shmem_fifo_m2s->get_size());
 
-  usleep(1000); /* hack, but needed to get ordering */
+
+  _shmem_fifo_s2m = new Shared_memory(name + "-s2m");
+  PMAJOR("got fifo (s2m) @ %p - %lu bytes", _shmem_fifo_s2m->get_addr(), _shmem_fifo_s2m->get_size());  
+
   _shmem_slab_ring = new Shared_memory(name + "-slabring");
   PMAJOR("got slab ring @ %p - %lu bytes", _shmem_slab_ring->get_addr(), _shmem_slab_ring->get_size());
 
-  usleep(1000); /* hack, but needed to get ordering */
   _shmem_slab = new Shared_memory(name + "-slab");
   PMAJOR("got slab @ %p - %lu bytes", _shmem_slab->get_addr(), _shmem_slab->get_size());
+
+  _in_queue = reinterpret_cast<queue_t*> (_shmem_fifo_m2s->get_addr());
+  _out_queue = reinterpret_cast<queue_t*> (_shmem_fifo_s2m->get_addr());
+  _slab_ring = reinterpret_cast<queue_t*> (_shmem_slab_ring->get_addr());
+
+  usleep(500000); /* hack to let master get ready - could improve with state in shared memory */
 }
+
 
 Channel::~Channel()
 {
-  delete _shmem_fifo;
+  /* don't delete queues since they were constructed on shared memory */
+  
+  delete _shmem_fifo_m2s;
+  delete _shmem_fifo_s2m;
   delete _shmem_slab_ring;
   delete _shmem_slab;  
 }
-    
+
+
+status_t Channel::send(void* msg)
+{
+  assert(_out_queue);
+  if(_out_queue->enqueue(msg)) {
+    return S_OK;
+  }
+  else {
+    return E_FULL;
+  }
+}
+
+status_t Channel::recv(void*& out_msg)
+{
+  assert(_in_queue);
+  if(_in_queue->dequeue(out_msg)) {
+    return S_OK;
+  }
+  else {
+    return E_EMPTY;
+  }
+}
+
+ 
+void * Channel::alloc_msg()
+{
+  assert(_slab_ring);
+  void * msg = nullptr;
+  _slab_ring->dequeue(msg);
+  assert(msg);
+  return msg;
+}
+
+status_t Channel::free_msg(void* msg)
+{
+  assert(_slab_ring);
+  assert(msg);
+  /* currently no checks for validity */
+  _slab_ring->enqueue(msg);
+  return S_OK;
+}
+
+
 
 /** 
  * Shared_memory class
@@ -106,8 +180,9 @@ Shared_memory::Shared_memory(std::string name, size_t n_pages) : _name(name)
                                  n_pages * PAGE_SIZE);
   assert(_vaddr);
   _size_in_pages = n_pages * PAGE_SIZE;
-
-  open_shared_memory(name.c_str());
+  
+  open_shared_memory(name.c_str(), true);
+  
 }
 
 Shared_memory::Shared_memory(std::string name) : _name(name), _size_in_pages(0)
@@ -116,7 +191,7 @@ Shared_memory::Shared_memory(std::string name) : _name(name), _size_in_pages(0)
   _vaddr =  negotiate_addr_connect(fifo_name.c_str(), &_size_in_pages);
   assert(_vaddr);
   
-  open_shared_memory(name.c_str());
+  open_shared_memory(name.c_str(), false);
 }
 
 Shared_memory::~Shared_memory()
@@ -124,6 +199,10 @@ Shared_memory::~Shared_memory()
   if(munmap(_vaddr, _size_in_pages))
     throw General_exception("unmap failed");
   shm_unlink(_name.c_str());
+
+  for(auto& n: _fifo_names) {
+    unlink(n.c_str());
+  }
 }
 
 void * Shared_memory::get_addr()
@@ -131,12 +210,25 @@ void * Shared_memory::get_addr()
   return _vaddr;
 }
 
-void Shared_memory::open_shared_memory(std::string name)
+void Shared_memory::open_shared_memory(std::string name, bool master)
 {
   umask(0);
-  int fd = shm_open(name.c_str(),
-                    O_CREAT | O_TRUNC | O_RDWR,
+  int fd = -1;
+
+  if(master) {
+    fd = shm_open(name.c_str(),
+                  O_CREAT | O_TRUNC | O_RDWR,
+                  S_IRUSR | S_IWUSR | S_IROTH | S_IWOTH | S_IRGRP | S_IWGRP);
+  }
+  else {
+    while(fd == -1) {
+      fd = shm_open(name.c_str(),
+                    O_RDWR,
                     S_IRUSR | S_IWUSR | S_IROTH | S_IWOTH | S_IRGRP | S_IWGRP);
+      usleep(100000);
+    }
+  }
+  
   if(fd == -1)
     throw Constructor_exception("shm_open failed to open/create %s", name.c_str());
 
@@ -193,7 +285,10 @@ negotiate_addr_create(std::string name,
   int fd_c2s = open(name_c2s.c_str(), O_RDONLY);
 
   assert(fd_c2s >= 0 && fd_s2c >= 0);
-  
+
+  _fifo_names.push_back(name_c2s);
+  _fifo_names.push_back(name_s2c);
+
   addr_t vaddr = VADDR_BASE;
   void * ptr = nullptr;
   
@@ -257,6 +352,9 @@ negotiate_addr_connect(std::string name,
   assert(fd_c2s && fd_s2c);
   assert(fd_c2s != ENXIO);
 
+  _fifo_names.push_back(name_c2s);
+  _fifo_names.push_back(name_s2c);
+
   void * ptr = nullptr;
   addr_size_pair offer = {0};
   
@@ -309,33 +407,49 @@ extern "C" channel_t uipc_create_channel(const char * path_name,
                                          size_t message_size,
                                          size_t queue_size)
 {
-  return NULL;
+  return new Core::UIPC::Channel(path_name, message_size, queue_size);
 }
 
 extern "C" channel_t uipc_connect_channel(const char * path_name)
 {
-  return NULL;
+  return new Core::UIPC::Channel(path_name);
 }
 
 extern "C" status_t uipc_close_channel(channel_t channel)
 {
-  return E_NOT_IMPL;
+  try {
+    delete reinterpret_cast<Core::UIPC::Channel*>(channel);
+  }
+  catch(...) {
+    return E_FAIL;
+  }
 }
 
 extern "C" void * uipc_alloc_message(channel_t channel)
 {
-  return NULL;
+  auto ch = static_cast<Core::UIPC::Channel*>(channel);
+  assert(ch);
+  return ch->alloc_msg();
 }
 
-extern "C" status_t uipc_free_message(channel_t channel, void * message)
+extern "C" status_t uipc_free_message(channel_t channel, void * message)  
 {
+  auto ch = static_cast<Core::UIPC::Channel*>(channel);
+  assert(ch);
+  return ch->free_msg(message);
 }
 
 extern "C" status_t uipc_send(channel_t channel, void* data)
 {
+  auto ch = static_cast<Core::UIPC::Channel*>(channel);
+  assert(ch);
+  return ch->send(data);
 }
 
-extern "C" status_t uipc_pop(channel_t channel, void*& data_out)
+extern "C" status_t uipc_recv(channel_t channel, void*& data_out)  
 {
+  auto ch = static_cast<Core::UIPC::Channel*>(channel);
+  assert(ch);
+  return ch->recv(data_out);
 }
 

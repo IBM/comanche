@@ -60,5 +60,5 @@ set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--no-whole-archi
 
 target_link_libraries(${PROJECT_NAME} ${ASAN_LIB} common rt pthread numa pcap uuid rdmacm ibverbs dl)
 
-target_compile_features(comanche-core PRIVATE cxx_range_for)
+#target_compile_features(comanche-core PRIVATE cxx_range_for)
 
