@@ -68,6 +68,9 @@
 #include <semaphore.h>
 #include "memory.h"
 
+#define DCACHE1_LINESIZE 64
+#define __cacheline_aligned	__attribute__((aligned(DCACHE1_LINESIZE)))
+
 namespace Common {
 
 /**
@@ -326,19 +329,16 @@ public:
   typedef typename std::aligned_storage<sizeof(node_t), std::alignment_of<node_t>::value>::type
                aligned_node_t;
 private:
-  typedef char cache_line_pad_t[64];  // it's either 32 or 64 so 64 is good enough
 
-  cache_line_pad_t             _pad0;
+  std::atomic<size_t>          _head_seq __cacheline_aligned;
+  std::atomic<size_t>          _tail_seq __cacheline_aligned;
+
+  byte                         _padding[DCACHE1_LINESIZE];
+  std::string                  _memory_id;
+  Base_memory_allocator*       _allocator = nullptr;
   const size_t                 _size;
   const size_t                 _mask;
   node_t*                      _buffer;
-  cache_line_pad_t             _pad1;
-  volatile std::atomic<size_t> _head_seq;
-  cache_line_pad_t             _pad2;
-  volatile std::atomic<size_t> _tail_seq;
-  cache_line_pad_t             _pad3;
-  std::string                  _memory_id;
-  Base_memory_allocator*       _allocator = nullptr;
 
 };
 
