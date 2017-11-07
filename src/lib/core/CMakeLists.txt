@@ -50,7 +50,7 @@ include_directories(../../../deps/spdk/include)
 
 add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 
-file(GLOB SOURCES src/*.cpp)
+file(GLOB SOURCES src/*.c*)
 
 add_library(comanche-core SHARED ${SOURCES})
 set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--no-undefined -Wl,--whole-archive")
