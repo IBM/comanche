@@ -11,6 +11,7 @@ Daniel Waddington (daniel.waddington@ibm.com)
 ## 2017-11
 ### Added
 - Initial implementation of Core::UIPC
+- Initial implementation of MPMC postbox; unverified.	
 ## 2017-10
 ### Changed
 - Default read/write sync operations on IBlock_device now use a semaphore and thus do a sleep-based wait.

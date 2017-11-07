@@ -10,6 +10,7 @@
 #include <core/dpdk.h>
 #include <core/physical_memory.h>
 #include <core/uipc.h>
+#include <core/postbox.h>
 
 namespace {
 
@@ -36,6 +37,7 @@ class Core_test : public ::testing::Test {
 
 bool client_side = false;
 
+#if 0
 TEST_F(Core_test, UIPC)
 {
   unsigned long ITERATIONS = 10000000;
@@ -76,6 +78,73 @@ TEST_F(Core_test, UIPC)
   void* status;
   wait(&status);
 }
+#endif
+
+TEST_F(Core_test, Postbox)
+{
+  //#define CHECK
+#ifdef CHECK
+  unsigned long ITERATIONS = 1000;
+#else
+  unsigned long ITERATIONS = 10000000;
+#endif
+  if(fork()) {
+    Core::UIPC::Shared_memory sm("zimbar", 1);
+    sleep(1);
+    Core::Mpmc_postbox<uint64_t> pbox(sm.get_addr(), sizeof(uint64_t) * 64, true);
+
+    auto started = std::chrono::high_resolution_clock::now();
+    for(uint64_t i=0;i<ITERATIONS;i++) {
+      if(pbox.post(i+1)) {
+        //        PLOG("posted %lu", i+1);
+      }
+      else {
+        i--;
+      }
+    }
+
+#ifndef CHECK
+    auto done = std::chrono::high_resolution_clock::now();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(done-started).count();
+    auto secs = ((float)ms)/1000.0f;
+    PINF("Duration %f seconds", secs);
+    PINF("Rate: %f M items per second", (ITERATIONS / secs)/1000000.0);
+#endif
+  }
+  else {
+    usleep(100000);
+    Core::UIPC::Shared_memory sm("zimbar");
+    Core::Mpmc_postbox<uint64_t> pbox(sm.get_addr(), sizeof(uint64_t) * 64);
+#ifdef CHECK
+    std::list<uint64_t> collected;
+#endif
+    for(uint64_t i=0;i<ITERATIONS;i++) {
+      uint64_t val = 0;
+      if(pbox.collect(val)) {
+        //        PLOG("collected %lu", val);
+#ifdef CHECK
+        collected.push_back(val);
+#endif
+      }
+      else {
+        i--;
+      }      
+    }
+
+#ifdef CHECK
+    collected.sort();
+    uint64_t expect = 1;
+    for(auto& e: collected) {
+      ASSERT_TRUE(e == expect);
+      expect++;
+    }
+#endif
+  }
+  void* status;
+  wait(&status);
+  
+}
+
 
 
 } // namespace
