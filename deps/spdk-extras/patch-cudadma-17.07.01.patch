@@ -1,0 +1,48 @@
+diff --git a/lib/env_dpdk/vtophys.c b/lib/env_dpdk/vtophys.c
+index 25233c2..602c999 100644
+--- a/lib/env_dpdk/vtophys.c
++++ b/lib/env_dpdk/vtophys.c
+@@ -70,6 +70,8 @@ static struct vfio_cfg g_vfio = {
+ #endif
+ #endif
+ 
++#define DEBUG 1
++
+ #if DEBUG
+ #define DEBUG_PRINT(...) fprintf(stderr, __VA_ARGS__)
+ #else
+@@ -79,12 +81,13 @@ static struct vfio_cfg g_vfio = {
+ static struct spdk_mem_map *g_vtophys_map;
+ 
+ #if SPDK_VFIO_ENABLED
+-static int
++static
++int
+ vtophys_iommu_map_dma(uint64_t vaddr, uint64_t iova, uint64_t size)
+ {
+ 	struct vfio_iommu_type1_dma_map dma_map;
+ 	int ret;
+-
++        DEBUG_PRINT("calling ---> vtophys_iommu_map_dma vaddr=%lx iova=%lx\n", vaddr, iova);
+ 	dma_map.argsz = sizeof(dma_map);
+ 	dma_map.flags = VFIO_DMA_MAP_FLAG_READ | VFIO_DMA_MAP_FLAG_WRITE;
+ 	dma_map.vaddr = vaddr;
+@@ -94,7 +97,7 @@ vtophys_iommu_map_dma(uint64_t vaddr, uint64_t iova, uint64_t size)
+ 	ret = ioctl(g_vfio.fd, VFIO_IOMMU_MAP_DMA, &dma_map);
+ 
+ 	if (ret) {
+-		DEBUG_PRINT("Cannot set up DMA mapping, error %d\n", errno);
++          DEBUG_PRINT("Cannot set up DMA mapping, error %d\n", errno);
+ 	}
+ 
+ 	return ret;
+@@ -207,7 +210,8 @@ spdk_vtophys_notify(void *cb_ctx, struct spdk_mem_map *map,
+ 					 * the range of user space virtual addresses and physical
+ 					 * addresses will never overlap.
+ 					 */
+-					paddr = (uint64_t)vaddr;
++                                        //paddr = (uint64_t)vaddr;
++                                        paddr = vtophys_get_paddr_pagemap((uint64_t)vaddr); // hack to make p2p dma work
+ 					rc = vtophys_iommu_map_dma((uint64_t)vaddr, paddr, VALUE_2MB);
+ 					if (rc) {
+ 						return -EFAULT;
