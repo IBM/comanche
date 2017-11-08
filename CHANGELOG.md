@@ -10,6 +10,7 @@ Daniel Waddington (daniel.waddington@ibm.com)
 
 ## 2017-11
 ### Added
+- Mechanics test for SSD to GPU DMA.  Requires patch to SPDK see deps/spdk-extra.
 - Initial implementation of Core::UIPC
 - Initial implementation of MPMC postbox; unverified.	
 ## 2017-10
