@@ -29,7 +29,7 @@ private:
   sem_t _sem;
 };
 
-struct __record_desc
+struct __record_t
 {
   int64_t lba;
   int64_t len;
@@ -45,12 +45,10 @@ static constexpr uint32_t APPEND_STORE_ITERATOR_MAGIC = 0x11110000;
 
 struct __iterator_t
 {
-  uint32_t                            magic;
-  uint64_t                            current_idx;
-  uint64_t                            exceeded_idx;
-  __prefetch_desc                     prefetch_desc;
-  std::vector<__record_desc>          record_vector;
-  std::vector<Component::io_buffer_t> iob_vector;
+  uint32_t                magic;
+  uint64_t                current_idx;
+  uint64_t                exceeded_idx;
+  std::vector<__record_t> record_vector;
 };
   
 
@@ -308,10 +306,49 @@ status_t Append_store::put(std::string key,
   return S_OK;
 }
 
+size_t Append_store::record_count(iterator_t iter)
+{
+  auto iteritf = static_cast<__iterator_t*>(iter);
+  assert(iteritf != nullptr);
+  return iteritf->record_vector.size();
+}
+
+IStore::iterator_t Append_store::open_iterator(std::string expr,
+                                               unsigned long flags)
+{
+  __iterator_t *iter = new __iterator_t;
+  assert(iter);
+
+  iter->current_idx = 0;
+  iter->magic = APPEND_STORE_ITERATOR_MAGIC;
+  
+  std::stringstream sqlss;
+  sqlss << "SELECT LBA,NBLOCKS FROM " << _table_name << " WHERE ID LIKE '" << expr << "';";
+  std::string sql = sqlss.str();
+
+  sqlite3_stmt * stmt;
+  sqlite3_prepare_v2(_db, sql.c_str(), sql.size(), &stmt, nullptr);
+  int s;
+  while((s = sqlite3_step(stmt)) != SQLITE_DONE) {
+
+    if(s == SQLITE_ERROR || s == SQLITE_MISUSE)
+      throw API_exception("failed to open iterator: SQL statement failed (%s)", sql.c_str());
+    
+    iter->record_vector.push_back({sqlite3_column_int64(stmt, 0),sqlite3_column_int64(stmt, 1)});
+  }
+  sqlite3_finalize(stmt);
+  iter->exceeded_idx = iter->record_vector.size();
+
+  if(option_DEBUG) 
+    PLOG("opened expr iterator (%p): records=%ld",
+         iter, iter->exceeded_idx);
+
+  return iter;
+}
 
 IStore::iterator_t Append_store::open_iterator(uint64_t rowid_start,
                                                uint64_t rowid_end,
-                                               unsigned prefetch_buffers)
+                                               unsigned long flags)
 {
   __iterator_t *iter = new __iterator_t;
   assert(iter);
@@ -321,7 +358,6 @@ IStore::iterator_t Append_store::open_iterator(uint64_t rowid_start,
   
   iter->current_idx = 0;
   iter->magic = APPEND_STORE_ITERATOR_MAGIC;
-  iter->prefetch_desc = {0};
   
   std::stringstream sqlss;
   sqlss << "SELECT LBA,NBLOCKS FROM " << _table_name << " WHERE ROWID >= " << rowid_start <<
@@ -342,13 +378,8 @@ IStore::iterator_t Append_store::open_iterator(uint64_t rowid_start,
   iter->exceeded_idx = iter->record_vector.size();
 
   if(option_DEBUG) 
-    PLOG("opened iterator (%p): records=%ld prefetch buffers=%u",
-         iter, iter->exceeded_idx, prefetch_buffers);
-    
-  for(unsigned i=0;i<prefetch_buffers;i++) {
-    auto iob = _lower_layer->allocate_io_buffer(MB(8),KB(4),NUMA_NODE_ANY);
-    iter->iob_vector.push_back(iob);
-  }
+    PLOG("opened iterator (%p): records=%ld",
+         iter, iter->exceeded_idx);
     
   return iter;
 }
@@ -362,14 +393,7 @@ void Append_store::close_iterator(IStore::iterator_t iter)
 {
   auto iteritf = static_cast<__iterator_t*>(iter);
   assert(iteritf != nullptr);
-  
-  if(option_DEBUG) 
-    PLOG("closing iterator (%p) iob-count=%ld", iteritf, iteritf->iob_vector.size());
-
-  // broken
-  //  for(auto& e: iteritf->iob_vector)
-  //    _lower_layer->free_io_buffer(e);
-  
+    
   delete iteritf;
 }
 
@@ -384,7 +408,7 @@ size_t Append_store::iterator_get(iterator_t iter,
   assert(i);
 
   if(unlikely(i->magic != APPEND_STORE_ITERATOR_MAGIC))
-    throw API_exception("Append_store::iterator_get - bad iterator");
+    throw API_exception("Append_store::iterator_get - bad iterator (magic mismatch)");
   
   if(i->current_idx == i->exceeded_idx) {
     PWRN("last record exceeded (%lu)", i->current_idx);
@@ -419,10 +443,7 @@ size_t Append_store::iterator_get(iterator_t iter,
   assert(i);
 
   if(i->magic != APPEND_STORE_ITERATOR_MAGIC)
-    throw API_exception("Append_store::iterator_get - bad iterator");
-
-  if(i->iob_vector.empty())
-    throw API_exception("over-called Append_store::iterator_get with freeing IOB");
+    throw API_exception("Append_store::iterator_get - bad iterator (magic incorrect)");
 
   if(i->current_idx == i->exceeded_idx) {
     PWRN("last record exceeded");
@@ -433,53 +454,56 @@ size_t Append_store::iterator_get(iterator_t iter,
   
   if(option_DEBUG)
     PLOG("Append_store::iterator_get lba=%lu len=%lu", record.lba, record.len);
-
-  if(likely(i->prefetch_desc.gwid > 0)) { /* prefetch underway */
-    while(!_lower_layer->check_completion(i->prefetch_desc.gwid))  cpu_relax();
-    iob = i->prefetch_desc.iob;
-  }
-  else { /* no prefetch underway */    
-    iob = i->iob_vector.back();
-    i->iob_vector.pop_back();
-
-    if(get_size(iob) < record.len)
-      throw API_exception("insufficient space in IOB for record len");
-    
-    _lower_layer->read(iob,
-                       0, // offset
-                       record.lba, /* add one for store header */
-                       record.len,
-                       queue_id);    
-  }
   
   i->current_idx++;      
-
-  /* start asynchronous prefetch if possible */
-  {
-    if(i->current_idx != i->exceeded_idx) {
-      auto& next_record = i->record_vector[i->current_idx];
-      i->prefetch_desc.iob = i->iob_vector.back();
-      i->iob_vector.pop_back();
-      i->prefetch_desc.gwid = _lower_layer->async_read(i->prefetch_desc.iob,
-                                                       0, // offset
-                                                       next_record.lba + 1, /* add one for store header */
-                                                       next_record.len,
-                                                       queue_id);
-    }    
-  }
-  
+ 
   return record.len * _vi.block_size;
 }
 
-void Append_store::free_iterator_buffer(iterator_t iter,
-                                        Component::io_buffer_t iob)
+
+// struct __iterator_t
+// {
+//   uint32_t                magic;
+//   uint64_t                current_idx;
+//   uint64_t                exceeded_idx;
+//   std::vector<__record_t> record_vector;
+// };
+  
+
+void Append_store::split_iterator(iterator_t iter,
+                                  size_t ways,
+                                  std::vector<iterator_t>& out_iter_vector)
 {
-  auto i = static_cast<__iterator_t*>(iter);
-  assert(i);
-  i->iob_vector.push_back(iob);
+  auto source_iter = static_cast<__iterator_t*>(iter);
+
+  if(ways < 2 || source_iter == nullptr)
+    throw API_exception("invalid parameter to split_iterator");
+
+  out_iter_vector.clear();
+
+  std::vector<__iterator_t*> iv;
+  
+  for(unsigned i=0;i<ways;i++) {
+    auto m = new __iterator_t;
+    m->current_idx = 0;
+    m->magic = APPEND_STORE_ITERATOR_MAGIC;
+    iv.push_back(m);
+  }
+    
+  for(unsigned j=0;j<source_iter->record_vector.size();j++)
+    iv[j % ways]->record_vector.push_back(source_iter->record_vector[j]);
+
+  for(auto& e: iv)
+    out_iter_vector.push_back(static_cast<void*>(e));
+  
+  delete source_iter;
 }
 
-
+void Append_store::reset_iterator(iterator_t iter)
+{
+  auto i = static_cast<__iterator_t*>(iter);
+  i->current_idx = 0;
+}
 
 status_t Append_store::flush()
 {

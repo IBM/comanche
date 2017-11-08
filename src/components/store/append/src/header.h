@@ -109,10 +109,8 @@ public:
   lba_t allocate(size_t n_bytes, size_t& n_blocks) {
 
     assert(n_bytes > 0);
-    n_blocks = n_bytes / _vi.block_size;
-
-    if(n_bytes % _vi.block_size)
-      n_blocks++;
+    /* smallest multiple of blocksize >= nbytes */
+    n_blocks = (n_bytes + _vi.block_size - 1) / _vi.block_size; 
 
     lba_t result;
     {
