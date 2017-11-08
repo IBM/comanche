@@ -78,7 +78,7 @@ public:
    * @param vaddr 
    * @param len 
    */
-  virtual void register_memory_for_io(void* vaddr, size_t len);
+  virtual Component::io_buffer_t register_memory_for_io(void* vaddr, addr_t paddr, size_t len);
 
   /** 
    * Unregister memory for DMA with the SPDK subsystem.
@@ -141,8 +141,8 @@ public:
     return Physical_memory::free_io_buffer(io_mem);                     \
   }                                                                     \
                                                                         \
-  inline virtual void register_memory_for_io(void * vaddr, size_t len) { \
-    Physical_memory::register_memory_for_io(vaddr, len);                \
+  inline virtual Component::io_buffer_t register_memory_for_io(void * vaddr, addr_t paddr, size_t len) { \
+    Physical_memory::register_memory_for_io(vaddr, paddr, len);          \
   }                                                                     \
                                                                         \
   inline virtual void unregister_memory_for_io(void * vaddr, size_t len) { \
