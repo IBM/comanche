@@ -109,14 +109,35 @@ public:
    * 
    * @param rowid_start Start row
    * @param rowid_end End row
-   * @param prefetch_buffers Number of prefetch buffers
+   * @param flags Flags
    * 
    * @return Iterator
    */
   virtual iterator_t open_iterator(uint64_t rowid_start,
                                    uint64_t rowid_end,
-                                   unsigned prefetch_buffers = 0) = 0;
+                                   unsigned long flags = 0) = 0;
 
+  /** 
+   * Open a record iterator. Requires database access.
+   * 
+   * @param expr Selection expression
+   * @param flags Flags
+   * 
+   * @return Iterator
+   */
+  virtual iterator_t open_iterator(std::string expr,
+                                   unsigned long flags = 0) = 0;
+
+
+  /** 
+   * Get record count for an iterator
+   * 
+   * @param iter Iterator
+   * 
+   * @return Number of records
+   */
+  virtual size_t record_count(iterator_t iter) = 0;
+                              
   /** 
    * Close iterator
    * 
@@ -141,7 +162,8 @@ public:
                               int queue_id = 0) = 0;
 
   /** 
-   * Read from an iterator.  Does not require database access.
+   * Read from an iterator.  Does not require database access.  Iterators
+   * cannot be shared across threads.
    * 
    * @param iter Iterator
    * @param iob [out] IO buffer
@@ -151,17 +173,26 @@ public:
    */
   virtual size_t iterator_get(iterator_t iter,
                               Component::io_buffer_t& iob,
-                              int queue_id = 0) = 0;  
+                              int queue_id = 0) = 0;
 
   /** 
-   * Free buffer previously returned from iterator_get method
+   * Split iterator into multiple iterators (which can be passed to
+   * separate threads)
+   * 
+   * @param iter Iterator (which is implicitly released)
+   * @param ways Number of ways to split
+   */
+  virtual void split_iterator(iterator_t iter,
+                              size_t ways,
+                              std::vector<iterator_t>& out_iter_vector) = 0;
+
+  /** 
+   * Reset an interator to initial index
    * 
    * @param iter Iterator
-   * @param iob IO buffer
    */
-  virtual void free_iterator_buffer(iterator_t iter, Component::io_buffer_t iob) = 0;
+  virtual void reset_iterator(iterator_t iter) = 0;
   
-
   /** 
    * Dump debugging information
    * 
