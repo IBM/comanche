@@ -493,8 +493,10 @@ void Append_store::split_iterator(iterator_t iter,
   for(unsigned j=0;j<source_iter->record_vector.size();j++)
     iv[j % ways]->record_vector.push_back(source_iter->record_vector[j]);
 
-  for(auto& e: iv)
+  for(auto& e: iv) {
+    e->exceeded_idx = e->record_vector.size();
     out_iter_vector.push_back(static_cast<void*>(e));
+  }
   
   delete source_iter;
 }
