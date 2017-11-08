@@ -1,12 +1,15 @@
 #include <boost/program_options.hpp> 
 #include <common/exceptions.h>
 #include <common/logging.h>
+#include <common/dump_utils.h>
 #include <core/dpdk.h>
 #include <api/components.h>
 #include <api/block_itf.h>
 #include <string>
 #include <vector>
 #include <stdio.h>
+#include <gdrapi.h>
+#include <cuda.h>
 
 using namespace std;
 
@@ -17,7 +20,7 @@ struct {
   unsigned n_io_threads = 1;
 } Options;
 
-extern "C" void cuda_run_test(void * ptr, size_t len);
+extern "C" void cuda_run_test(Component::IBlock_device * block_device);
 
 class Main
 {
@@ -36,6 +39,8 @@ private:
 
 Main::Main(const std::string& pci_id_vector)
 {
+  DPDK::eal_init(64);
+
   create_block_component(pci_id_vector);
 }
 
@@ -47,7 +52,6 @@ Main::~Main()
 
 int main(int argc, char * argv[])
 {
-  DPDK::eal_init(32);
   Main * m = nullptr;
   
   try {
@@ -80,19 +84,30 @@ int main(int argc, char * argv[])
 
 void Main::run()
 {
-  Component::io_buffer_t iob;
-  size_t len = MB(8);
-  iob = _block->allocate_io_buffer(len,KB(4),Component::NUMA_NODE_ANY);
+  /* write some data onto device for testing */
+  Component::io_buffer_t iob = _block->allocate_io_buffer(KB(4),KB(4),Component::NUMA_NODE_ANY);
+  void * vaddr = _block->virt_addr(iob);
+  
+  memset(vaddr, 0xf, KB(4));
+  sleep(1);
+  _block->write(iob, 0, 1, 1, 0 /* qid */);
 
-  PMAJOR("Calling cuda code ...");
+  memset(vaddr, 0, KB(4));
+  _block->read(iob, 0, 1, 1, 0 /* qid */);
+  hexdump(vaddr, 32);
+  
+  cuda_run_test(_block);
+  
 
-  void * vptr = _block->virt_addr(iob);
-  memset(vptr, 'e', len);
-  cuda_run_test(vptr, len);
+  // PMAJOR("Calling cuda code ...");
 
-  _block->free_io_buffer(iob);
-  PMAJOR("Closing in 3 seconds ...");
-  sleep(3);
+  // void * vptr = _block->virt_addr(iob);
+  // memset(vptr, 'e', len);
+  // cuda_run_test(vptr, len);
+
+  // _block->free_io_buffer(iob);
+  // PMAJOR("Closing in 3 seconds ...");
+  // sleep(3);
 }
 
 void Main::create_block_component(std::string pci_id)
