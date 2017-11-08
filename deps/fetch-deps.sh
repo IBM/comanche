@@ -165,6 +165,15 @@ cd $BASE
 
 jumpto end
 
+gpu-bwtest:
+echo "Cloning Multi-GPU bandwidth test..."
+git clone https://github.com/enfiskutensykkel/multi-gpu-bwtest.git
+
+gpu:
+echo "Cloning NVIDIA GDRCOPY ..."
+git clone https://github.com/NVIDIA/gdrcopy.git
+jumpto end
+
 derecho:
 
 echo "Cloning derecho..."

@@ -93,10 +93,10 @@ class Zerocopy_passthrough_impl : public __Base
    * @param vaddr 
    * @param len 
    */
-  virtual void register_memory_for_io(void *vaddr, size_t len) override
+  virtual Component::io_buffer_t register_memory_for_io(void *vaddr, addr_t paddr, size_t len) override
   {
     assert(_lower_layer);
-    _lower_layer->register_memory_for_io(vaddr, len);
+    _lower_layer->register_memory_for_io(vaddr, paddr, len);
   }
 
   /** 

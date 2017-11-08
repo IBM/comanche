@@ -310,15 +310,19 @@ INLINE static double operator-(const struct timeval& t1, const struct timeval& t
   return (double)(t1.tv_sec - t2.tv_sec) + 1.0e-6f * (t1.tv_usec - t2.tv_usec);
 }
 
+#ifndef __CUDACC__
 INLINE unsigned min(unsigned x, unsigned y)
 {
   return x < y ? x : y;
 }
+#endif
 
+#ifndef __CUDACC__
 INLINE unsigned max(unsigned x, unsigned y)
 {
   return x > y ? x : y;
 }
+#endif
 
 /**
  * Touch memory at huge (2MB) page strides

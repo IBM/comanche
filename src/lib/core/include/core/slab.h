@@ -95,7 +95,7 @@ class __BasicElement
  * of memory (persistent or not)
  * 
  */
-template <typename T, template <typename U> class Element = Slab::__BasicElement>
+template <typename T = void*, template <typename U> class Element = Slab::__BasicElement>
 class Allocator : public Common::Base_slab_allocator
 {
  private:
@@ -126,7 +126,7 @@ class Allocator : public Common::Base_slab_allocator
    * 
    * @param region Pointer to region (owner to clean up).
    * @param region_size Size of region in bytes
-   * @param label Label to safe in header
+   * @param label Label to save in header
    * @param as_new Force new instantiation if set to true
    * @param page_shift Shift for IO blocks
    * 
@@ -203,6 +203,21 @@ class Allocator : public Common::Base_slab_allocator
     assert(num_slots > 0);
     return (sizeof(Header) + (sizeof(Element<T>) * (num_slots + 1)));
   }
+
+  /** 
+   * Determine how much memory is needed without type T
+   * 
+   * @param num_slots 
+   * @param slot_size 
+   * 
+   * @return 
+   */
+  static size_t determine_size(size_t num_slots, size_t slot_size)
+  {
+    assert(num_slots > 0);
+    return (sizeof(Header) + ((sizeof(__BasicElementHeader)+slot_size) * (num_slots + 1)));
+  }
+
 
   /** 
    * Get count of number of slots

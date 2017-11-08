@@ -73,7 +73,7 @@ public:
    * @param vaddr 
    * @param len 
    */
-  virtual void register_memory_for_io(void * vaddr, size_t len) = 0;
+  virtual io_buffer_t register_memory_for_io(void * vaddr, addr_t paddr, size_t len) = 0;
 
   /** 
    * Unregister memory for DMA with the SPDK subsystem.
