@@ -68,6 +68,9 @@
 #include <semaphore.h>
 #include "memory.h"
 
+#define DCACHE1_LINESIZE 64
+#define __cacheline_aligned	__attribute__((aligned(DCACHE1_LINESIZE)))
+
 namespace Common {
 
 /**
@@ -76,7 +79,7 @@ namespace Common {
  * requires polling during empty conditions.
  *
  */
-template <typename T>
+template <typename T = void*>
 class Mpmc_bounded_lfq
 {
  private:
@@ -143,10 +146,13 @@ class Mpmc_bounded_lfq
     ss << this;
     _memory_id = ss.str();
 
+    PINF("mpmc size=%ld buffer=%p", size, buf_addr);
+
+    assert(check_aligned(buf_addr, sizeof(aligned_node_t)));
     _buffer = reinterpret_cast<node_t*>(new (buf_addr) aligned_node_t[_size]);
     assert(_buffer);
 
-    assert((_size != 0) && ((_size & (~_size + 1)) == _size)); // make queue len is a power of 2
+    assert((_size != 0) && ((_size & (~_size + 1)) == _size)); // make sure queue len is a power of 2
 
     // populate the sequence initial values
     for (size_t i = 0; i < _size; ++i) {
@@ -161,9 +167,6 @@ class Mpmc_bounded_lfq
         ((aligned_node_t*)&_buffer[i])->~aligned_node_t(); /* manually call dtors */
 
       _allocator->free(_buffer);
-    }
-    else {
-      assert(0);
     }
   }
 
@@ -316,32 +319,33 @@ class Mpmc_bounded_lfq
     return false;
   }
 
- private:
+  static size_t memory_footprint(size_t queue_size)
+  {
+    return sizeof(Common::Mpmc_bounded_lfq<void*>) +
+      (sizeof(Common::Mpmc_bounded_lfq<void*>::aligned_node_t) * queue_size);
+  }
+
+public:
   typedef typename std::aligned_storage<sizeof(node_t), std::alignment_of<node_t>::value>::type
                aligned_node_t;
-  typedef char cache_line_pad_t[64];  // it's either 32 or 64 so 64 is good enough
+private:
 
-  cache_line_pad_t    _pad0;
-  const size_t        _size;
-  const size_t        _mask;
-  node_t*             _buffer;
-  cache_line_pad_t    _pad1;
-  volatile std::atomic<size_t> _head_seq;
-  cache_line_pad_t    _pad2;
-  volatile std::atomic<size_t> _tail_seq;
-  cache_line_pad_t    _pad3;
-  std::string         _memory_id;
+  std::atomic<size_t>          _head_seq __cacheline_aligned;
+  std::atomic<size_t>          _tail_seq __cacheline_aligned;
 
-  Base_memory_allocator*                            _allocator;
+  byte                         _padding[DCACHE1_LINESIZE];
+  std::string                  _memory_id;
+  Base_memory_allocator*       _allocator = nullptr;
+  const size_t                 _size;
+  const size_t                 _mask;
+  node_t*                      _buffer;
 
-  //    Mpmc_bounded_lfq(const Mpmc_bounded_lfq&) {}
-  //    void operator=(const Mpmc_bounded_lfq&) {}
 };
 
 /**
- * Multi-producer, multi-consumer class based on Vyukov's algorithm.  This
- * version
- * implements a sleep on the consumer when the queue is empty.
+ * Multi-producer, multi-consumer class based on Vyukov's algorithm.
+ * This version implements a sleep on the consumer when the queue is
+ * empty.
  *
  */
 template <typename T>
@@ -455,6 +459,13 @@ class Mpmc_bounded_lfq_sleeping
   {
     return queue_.empty();
   }
+
+  static size_t memory_footprint(size_t queue_size)
+  {
+    return sizeof(Common::Mpmc_bounded_lfq<void*>) +
+      (sizeof(Common::Mpmc_bounded_lfq<void*>::aligned_node_t) * queue_size);
+  }
+
 };
 
 /**
@@ -610,6 +621,13 @@ class Mpmc_bounded_lfq_sleeping_dual
   {
     return queue_.empty();
   }
+
+  static size_t memory_footprint(size_t queue_size)
+  {
+    return sizeof(Common::Mpmc_bounded_lfq<void*>) +
+      (sizeof(Common::Mpmc_bounded_lfq<void*>::aligned_node_t) * queue_size);
+  }
+
 };
 }
 

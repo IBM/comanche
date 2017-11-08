@@ -69,26 +69,29 @@ public:
   {
   }
   
-  IO_descriptor * prev;
-  IO_descriptor * next;
-  void * buffer;
-  union {
-    uint64_t lba;
+  IO_descriptor * prev;      // 8
+  IO_descriptor * next;      // 16
+  void * buffer;             // 24
+  union {                    // 32
+    uint64_t          lba;
     volatile uint64_t status;
   };
-  uint64_t lba_count;
-  io_callback_t cb;
-  void * arg0;
-  void * arg1;
-
-  int op;
-  uint64_t tag;
-  Nvme_queue * queue;
+  uint64_t       lba_count;  // 40
+  io_callback_t  cb;         // 48
+  void *         arg0;       // 56
+  void *         arg1;       // 64
+  uint64_t       tag;        // 72
+  Nvme_queue *   queue;      // 80
+  int            op;         // 88
 #ifdef CONFIG_QUEUE_STATS
-  cpu_time_t time_stamp;
+  cpu_time_t     time_stamp; // 92
+  byte           padding[128-92];
+#else
+  byte           padding[128-84];
 #endif
-};
+} __attribute__((aligned(64)));
 
+static_assert(sizeof(IO_descriptor) == 128,"not cacheline aligned");
 
 namespace DPDK
 {

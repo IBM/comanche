@@ -29,6 +29,7 @@
 #include <rte_malloc.h>
 
 #include <core/stacktrace.h>
+#include <common/utils.h>
 #include <common/exceptions.h>
 #include <api/memory_itf.h>
 
@@ -124,17 +125,57 @@ free_io_buffer(Component::io_buffer_t io_mem)
   return S_OK;
 }
 
+addr_t xms_get_phys(void * vaddr)
+{
+  enum {
+    IOCTL_CMD_GETBITMAP = 9,
+    IOCTL_CMD_GETPHYS = 10,
+  };
+
+  typedef struct
+  {
+    addr_t vaddr;
+    addr_t out_paddr;
+  } __attribute__((packed)) IOCTL_GETPHYS_param;
+
+  /* use xms to get physical memory address  */
+  IOCTL_GETPHYS_param ioparam = {0};
+  {
+    int fd = open("/dev/xms", O_RDWR);    
+
+    ioparam.vaddr = (addr_t) vaddr;
+
+    int rc = ioctl(fd, IOCTL_CMD_GETPHYS, &ioparam);  //ioctl call
+    if(rc != 0) {
+      PERR("%s(): ioctl failed on xms module: %s\n",
+              __func__, strerror(errno));
+    }
+    close(fd);
+  }
+  return ioparam.out_paddr;
+}
+
 /** 
  * Register memory for DMA with the SPDK subsystem.
  * 
  * @param vaddr 
  * @param len 
  */
-void
-Physical_memory::
-register_memory_for_io(void* vaddr, size_t len)
+
+Component::io_buffer_t Physical_memory::register_memory_for_io(void* vaddr, addr_t paddr, size_t len)
 {
+  if(!check_aligned(vaddr, MB(2)))
+    throw API_exception("register_memory_for_io requires vaddr be 2MB alignment");
+
+  if(!check_aligned(paddr, MB(2)))
+    throw API_exception("register_memory_for_io requires paddr be 2MB alignment");
+
   spdk_mem_register(vaddr, len);
+
+  if(spdk_vtophys(vaddr) !=  paddr)
+    throw General_exception("SPDK address registration check failed");
+  
+  return reinterpret_cast<Component::io_buffer_t>(vaddr);
 }
 
 /** 

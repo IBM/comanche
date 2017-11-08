@@ -36,3 +36,6 @@ include_directories($ENV{COMANCHE_HOME}/src/lib/common/include)
 include_directories($ENV{COMANCHE_HOME}/src/lib/core/include)
 link_directories($ENV{COMANCHE_HOME}/lib)
 
+#set(CMAKE_C_COMPILER "/opt/intel/compilers_and_libraries_2017.2.174/linux/bin/intel64/icc")
+#set(CMAKE_CXX_COMPILER "/opt/intel/compilers_and_libraries_2017.2.174/linux/bin/intel64/icc")
+
