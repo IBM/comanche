@@ -77,7 +77,7 @@ public:
   virtual index_t write(const void * data, const size_t data_len, unsigned queued_id) override;
 
   /** 
-   * Read data from a given offset (copy-based)
+   * Read data from a given offset
    * 
    * @param index Index of item
    * @param iob Target IO buffer
@@ -86,6 +86,15 @@ public:
    * @return Pointer to record in iob
    */
   virtual byte * read(const index_t index, Component::io_buffer_t iob, unsigned queue_id) override;
+
+  /** 
+   * Read blob into a string (copy based)
+   * 
+   * @param index Index of item
+   * 
+   * @return String
+   */
+  virtual std::string read(const index_t index) override;
   
   /** 
    * Flush queued IO and wait for completion
@@ -121,7 +130,7 @@ private:
   size_t _fixed_size;
   bool   _use_crc;
   Header _hdr;
-
+  Component::io_buffer_t _iob;
   std::mutex             _lock;
   Component::VOLUME_INFO _vi;
   Buffer_manager         _bm;

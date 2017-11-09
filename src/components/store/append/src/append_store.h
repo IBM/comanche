@@ -154,15 +154,6 @@ public:
                                    unsigned long flags = 0) override;
 
   /** 
-   * Get record count for an iterator
-   * 
-   * @param iter Iterator
-   * 
-   * @return Number of records
-   */
-  virtual size_t record_count(iterator_t iter) override;
-  
-  /** 
    * 
    * 
    * @param expr 
@@ -172,6 +163,33 @@ public:
    */
   virtual iterator_t open_iterator(std::string expr,
                                    unsigned long flags = 0) override;
+
+    /** 
+   * Get record count for an iterator
+   * 
+   * @param iter Iterator
+   * 
+   * @return Number of records
+   */
+  virtual size_t iterator_record_count(iterator_t iter) override;
+
+  /** 
+   * Get the data size for all data under an iterator
+   * 
+   * @param iter Iterator
+   * 
+   * @return Size in bytes
+   */
+  virtual size_t iterator_data_size(iterator_t iter) override;
+  
+  /** 
+   * Get data size for next record in iterator
+   * 
+   * @param iter Iterator
+   * 
+   * @return Size of record in bytes
+   */
+  virtual size_t iterator_next_record_size(iterator_t iter) override;
 
   /** 
    * Close iterator

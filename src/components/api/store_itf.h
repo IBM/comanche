@@ -136,7 +136,25 @@ public:
    * 
    * @return Number of records
    */
-  virtual size_t record_count(iterator_t iter) = 0;
+  virtual size_t iterator_record_count(iterator_t iter) = 0;
+
+  /** 
+   * Get the data size for all data under an iterator
+   * 
+   * @param iter Iterator
+   * 
+   * @return Size in bytes
+   */
+  virtual size_t iterator_data_size(iterator_t iter) = 0;
+
+  /** 
+   * Get data size for next record in iterator
+   * 
+   * @param iter Iterator
+   * 
+   * @return Size of record in bytes
+   */
+  virtual size_t iterator_next_record_size(iterator_t iter) = 0;
                               
   /** 
    * Close iterator
