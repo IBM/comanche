@@ -35,11 +35,6 @@ struct __record_t
   int64_t len;
 };
 
-struct __prefetch_desc
-{
-  uint64_t gwid;
-  Component::io_buffer_t iob;
-};
 
 static constexpr uint32_t APPEND_STORE_ITERATOR_MAGIC = 0x11110000;
 
@@ -306,13 +301,6 @@ status_t Append_store::put(std::string key,
   return S_OK;
 }
 
-size_t Append_store::record_count(iterator_t iter)
-{
-  auto iteritf = static_cast<__iterator_t*>(iter);
-  assert(iteritf != nullptr);
-  return iteritf->record_vector.size();
-}
-
 IStore::iterator_t Append_store::open_iterator(std::string expr,
                                                unsigned long flags)
 {
@@ -384,6 +372,36 @@ IStore::iterator_t Append_store::open_iterator(uint64_t rowid_start,
   return iter;
 }
 
+size_t Append_store::iterator_record_count(iterator_t iter)
+{
+  auto iteritf = static_cast<__iterator_t*>(iter);
+  assert(iteritf != nullptr);
+  return iteritf->record_vector.size();
+}
+
+size_t Append_store::iterator_data_size(iterator_t iter)
+{
+  auto iteritf = static_cast<__iterator_t*>(iter);
+
+  size_t total_blocks = 0;
+  for(auto& i: iteritf->record_vector) {
+    total_blocks += i.len;
+  }
+  return _vi.block_size * total_blocks;
+}
+
+size_t Append_store::iterator_next_record_size(iterator_t iter)
+{
+  auto i = static_cast<__iterator_t*>(iter);
+
+  if(i->current_idx == i->exceeded_idx)
+    return 0;
+
+  auto record = i->record_vector[i->current_idx];
+  return record.len * _vi.block_size;
+}
+
+
 /** 
  * Close iterator
  * 
@@ -410,10 +428,8 @@ size_t Append_store::iterator_get(iterator_t iter,
   if(unlikely(i->magic != APPEND_STORE_ITERATOR_MAGIC))
     throw API_exception("Append_store::iterator_get - bad iterator (magic mismatch)");
   
-  if(i->current_idx == i->exceeded_idx) {
-    PWRN("last record exceeded (%lu)", i->current_idx);
+  if(i->current_idx == i->exceeded_idx)
     return 0;
-  }
 
   auto& record = i->record_vector[i->current_idx];
 
@@ -446,18 +462,18 @@ size_t Append_store::iterator_get(iterator_t iter,
     throw API_exception("Append_store::iterator_get - bad iterator (magic incorrect)");
 
   if(i->current_idx == i->exceeded_idx) {
-    PWRN("last record exceeded");
     return 0;
   }
 
-  auto& record = i->record_vector[i->current_idx];
+  auto record = i->record_vector[i->current_idx];
+  auto record_size = record.len * _vi.block_size;
+
+  /* allocate IO buffer */
+  iob = _lower_layer->allocate_io_buffer(record_size, KB(4), Component::NUMA_NODE_ANY);
   
-  if(option_DEBUG)
-    PLOG("Append_store::iterator_get lba=%lu len=%lu", record.lba, record.len);
+  this->iterator_get(iter, &iob, 0, queue_id);
   
-  i->current_idx++;      
- 
-  return record.len * _vi.block_size;
+  return record_size;
 }
 
 
