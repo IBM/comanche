@@ -18,7 +18,7 @@
 #define __API_RDMA_ITF__
 
 #include <common/exceptions.h>
-#include <api/components.h>
+#include <api/rdma_itf.h>
 
 namespace Component
 {
@@ -32,12 +32,14 @@ public:
   virtual status_t disconnect() = 0;
 };
 
-class IRdma_factory : public Component::IBase
+class IRdma_factory : public Component::IBasek
 {
 public:
   DECLARE_INTERFACE_UUID(0xfac7b335,0x9309,0x4f6b,0x8b44,0x92,0x46,0x8b,0xb5,0x6f,0x31);
 
-  virtual status_t IRdma * create(const std::string& device_name) = 0;
+  virtual IRdma * create(const std::string& device_name) = 0;
 };
 
 } // Component
+
+#endif // __API_RDMA_ITF__
