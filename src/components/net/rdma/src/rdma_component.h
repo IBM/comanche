@@ -19,7 +19,7 @@
 
 #include <component/base.h>
 #include <api/rdma_itf.h>
-
+#include "rdma_transport.h"
 
 class Rdma_component : public Component::IRdma
 {  
@@ -61,11 +61,78 @@ public:
 
 public:
 
+  /** 
+   * Connect to a waiting peer
+   * 
+   * @param peer_name Name of peer
+   * @param port Port number
+   * 
+   * @return S_OK or E_FAIL
+   */
   virtual status_t connect(const std::string& peer_name, int port) override;
+
+  /** 
+   * Wait for a connect on a specific port
+   * 
+   * @param device_name Device name
+   * @param port Port number
+   * 
+   * @return S_OK or E_FAIL
+   */
+  virtual status_t wait_for_connect(int port) override;
+
+  /** 
+   * Register buffer for RDMA
+   * 
+   * @param contig_addr Pointer to contiguous region
+   * @param size Size of buffer in bytes
+   * 
+   * @return S_OK or E_FAIL
+   */
+  virtual struct ibv_mr * register_memory(void * contig_addr, size_t size) override;
+
+  /** 
+   * Post a buffer to the connection
+   * 
+   * @param mr0 Memory buffer (e.g., header)
+   * @param extra_mr Additional buffer (e.g., payload)
+   * 
+   * @return Work identifier
+   */
+  virtual uint64_t post_send(struct ibv_mr * mr0, struct ibv_mr * extra_mr) override;
+
+  /** 
+   * Post a buffer to receive data
+   * 
+   * @param mr0 RDMA buffer (from register_memory)
+   * 
+   * @return Work identifier
+   */
+  virtual uint64_t post_recv(struct ibv_mr * mr0) override;
+
+  /** 
+   * Poll completions with completion function
+   * 
+   * @param completion_func Completion function (called for each completion)
+   * 
+   * @return Number of completions
+   */
+  virtual int poll_completions(std::function<void(uint64_t)> completion_func) override;
+  
+  /** 
+   * Disconnect from peer
+   * 
+   * 
+   * @return S_OK or E_FAIL
+   */
   virtual status_t disconnect() override;
 
 private:
-
+  inline uint64_t next_gwid() { return _gwid++; }
+  
+  uint64_t       _gwid __attribute__((aligned(8))) = 0;
+  Rdma_transport _transport;
+  std::string    _device_name;
 };
 
 
