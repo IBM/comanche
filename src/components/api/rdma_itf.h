@@ -32,7 +32,7 @@ public:
   virtual status_t disconnect() = 0;
 };
 
-class IRdma_factory : public Component::IBasek
+class IRdma_factory : public Component::IBase
 {
 public:
   DECLARE_INTERFACE_UUID(0xfac7b335,0x9309,0x4f6b,0x8b44,0x92,0x46,0x8b,0xb5,0x6f,0x31);
