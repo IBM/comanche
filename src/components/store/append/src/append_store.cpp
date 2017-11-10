@@ -311,7 +311,12 @@ IStore::iterator_t Append_store::open_iterator(std::string expr,
   iter->magic = APPEND_STORE_ITERATOR_MAGIC;
   
   std::stringstream sqlss;
-  sqlss << "SELECT LBA,NBLOCKS FROM " << _table_name << " WHERE ID LIKE '" << expr << "';";
+
+  if(flags > 0) 
+    sqlss << "SELECT LBA,NBLOCKS FROM " << _table_name << " WHERE ID LIKE '" << expr << "'LIMIT 10000;";
+  else
+    sqlss << "SELECT LBA,NBLOCKS FROM " << _table_name << " WHERE ID LIKE '" << expr << "';";
+  
   std::string sql = sqlss.str();
 
   sqlite3_stmt * stmt;
@@ -477,15 +482,6 @@ size_t Append_store::iterator_get(iterator_t iter,
 }
 
 
-// struct __iterator_t
-// {
-//   uint32_t                magic;
-//   uint64_t                current_idx;
-//   uint64_t                exceeded_idx;
-//   std::vector<__record_t> record_vector;
-// };
-  
-
 void Append_store::split_iterator(iterator_t iter,
                                   size_t ways,
                                   std::vector<iterator_t>& out_iter_vector)
@@ -550,9 +546,6 @@ void Append_store::dump_info()
   }
   PLOG("...");
   sqlite3_finalize(stmt);
-
-  /* read from file */
-    
 }
 
 void Append_store::show_db()
