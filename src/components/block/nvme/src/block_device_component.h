@@ -39,7 +39,7 @@ public:
   DECLARE_VERSION(0.1);
   DECLARE_COMPONENT_UUID(0x24518582,0xd731,0x4406,0x9eb1,0x58,0x70,0x26,0x40,0x8e,0x23);
 
-  void * query_interface(Component::uuid_t& itf_uuid) {
+  void * query_interface(Component::uuid_t& itf_uuid) override {
     if(itf_uuid == IBlock_device::iid()) {
       return (void *) static_cast<IBlock_device *>(this);
     }
@@ -146,7 +146,7 @@ public:
    * 
    * @return S_OK on success
    */
-  virtual void get_volume_info(Component::VOLUME_INFO& devinfo);
+  virtual void get_volume_info(Component::VOLUME_INFO& devinfo) override;
 
 private:
 

@@ -34,7 +34,17 @@ cmake -DCMAKE_BUILD_TYPE=ASAN .
 cmake -DCMAKE_BUILD_TYPE=Release .
 ```
 
+Tested Compilers and OS
+------------------------
 
+Ubuntu 16.04.3 LTS (x86_64)
+gcc 5.4
+clang 3.8.0
+
+* Change compiler preference on Ubuntu with:
+    'sudo update-alternatives --config c++'
+    'sudo update-alternatives --config cc' 
+    
 Compiling for debug
 -------------------
 

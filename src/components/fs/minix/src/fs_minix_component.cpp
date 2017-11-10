@@ -48,6 +48,7 @@ status_t Minix_fs_component::start()
 
 status_t Minix_fs_component::stop()
 {
+  return E_NOT_IMPL;
 }
 
 

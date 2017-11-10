@@ -120,7 +120,7 @@ public:
   /**
    * Get underlying block device*
    */
-  virtual Component::IBlock_device * get_underlying_block_device() {
+  virtual Component::IBlock_device * get_underlying_block_device() override {
     assert(_lower_block_layer);
     return _lower_block_layer;
   }
