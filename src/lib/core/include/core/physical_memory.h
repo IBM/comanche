@@ -128,36 +128,36 @@ public:
 
 #define INLINE_FORWARDING_MEMORY_METHODS  \
   inline virtual Component::io_buffer_t                                 \
-  allocate_io_buffer(size_t size, unsigned alignment, int numa_node) {  \
+  allocate_io_buffer(size_t size, unsigned alignment, int numa_node) override {  \
     return Physical_memory::allocate_io_buffer(size,alignment,numa_node); \
   }                                                                     \
                                                                         \
   inline virtual status_t realloc_io_buffer(Component::io_buffer_t io_mem, size_t size, \
-                                    unsigned alignment) {               \
+                                    unsigned alignment) override {               \
     return Physical_memory::realloc_io_buffer(io_mem, size, alignment); \
   }                                                                     \
                                                                         \
-  inline virtual status_t free_io_buffer(Component::io_buffer_t io_mem) { \
+  inline virtual status_t free_io_buffer(Component::io_buffer_t io_mem) override { \
     return Physical_memory::free_io_buffer(io_mem);                     \
   }                                                                     \
                                                                         \
-  inline virtual Component::io_buffer_t register_memory_for_io(void * vaddr, addr_t paddr, size_t len) { \
-    Physical_memory::register_memory_for_io(vaddr, paddr, len);          \
+  inline virtual Component::io_buffer_t register_memory_for_io(void * vaddr, addr_t paddr, size_t len) override { \
+    return Physical_memory::register_memory_for_io(vaddr, paddr, len);          \
   }                                                                     \
                                                                         \
-  inline virtual void unregister_memory_for_io(void * vaddr, size_t len) { \
+  inline virtual void unregister_memory_for_io(void * vaddr, size_t len) override { \
     Physical_memory::unregister_memory_for_io(vaddr,len);               \
   }                                                                     \
                                                                         \
-  inline virtual void * virt_addr(Component::io_buffer_t buffer) {      \
+  inline virtual void * virt_addr(Component::io_buffer_t buffer) override {      \
     return Physical_memory::virt_addr(buffer);                          \
   }                                                                     \
                                                                         \
-  inline virtual addr_t phys_addr(Component::io_buffer_t buffer) {      \
+  inline virtual addr_t phys_addr(Component::io_buffer_t buffer) override {      \
     return Physical_memory::phys_addr(buffer);                          \
   }                                                                     \
                                                                         \
-  inline virtual size_t get_size(Component::io_buffer_t buffer) {      \
+  inline virtual size_t get_size(Component::io_buffer_t buffer) override {      \
     return Physical_memory::get_size(buffer);                          \
   }
 

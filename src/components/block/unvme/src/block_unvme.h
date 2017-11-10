@@ -176,6 +176,8 @@ public:
       throw API_exception("free_io_buffer: bad parameter");
     _len_map.erase(ptr);
     unvme_free(_ns, ptr);
+
+    return S_OK;
   }
 
   /** 
@@ -220,7 +222,7 @@ public:
    * 
    * @return physical address
    */
-  virtual addr_t phys_addr(Component::io_buffer_t buffer)
+  virtual addr_t phys_addr(Component::io_buffer_t buffer) override
   {
     throw API_exception("physical addressing not supported");
   }
@@ -232,7 +234,7 @@ public:
    * 
    * @return 
    */
-  virtual size_t get_size(Component::io_buffer_t buffer)
+  virtual size_t get_size(Component::io_buffer_t buffer) override
   {
     return _len_map[reinterpret_cast<void*>(buffer)];
   }

@@ -44,7 +44,7 @@ Block_device_component::Block_device_component(const char * pci_addr, cpu_mask_t
 
 
 
-Block_device_component::~Block_device_component()
+Block_device_component::~Block_device_component() noexcept
 {
   delete _device;
 }

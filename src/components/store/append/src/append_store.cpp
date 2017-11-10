@@ -166,8 +166,8 @@ bool Append_store::find_row(std::string& key, uint64_t& out_lba)
   }
   else if(s == SQLITE_DONE) {
     sqlite3_finalize(stmt);
-    return false;
   }
+  return false;
 }
 
 void Append_store::execute_sql(const std::string& sql, bool print_callback_flag)
@@ -237,7 +237,11 @@ status_t Append_store::put(std::string key,
   
   memcpy(_phys_mem_allocator.virt_addr(iob), data, data_len);
 
+#ifdef __clang__
+  static thread_local Semaphore sem;
+#else
   static __thread Semaphore sem;
+#endif
   
   /* issue aync */
   _block->async_write(iob,
@@ -278,7 +282,11 @@ status_t Append_store::put(std::string key,
     PLOG("[+] Append-store: append %ld bytes. Used blocks=%ld/%ld", data_len,
          start_lba+n_blocks, _vi.max_lba); 
 
+#ifdef __clang__
+  static thread_local Semaphore sem;
+#else  
   static __thread Semaphore sem;
+#endif
 
   /* issue aync */
   _block->async_write(iob,
