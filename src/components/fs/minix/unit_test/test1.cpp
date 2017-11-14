@@ -43,15 +43,17 @@ Component::IFile_system * Minix_fs_test::_fs;
 
 TEST_F(Minix_fs_test, InstantiateBlockDevice)
 {
-  std::string dll_path = getenv("HOME");
-  dll_path.append("/comanche/lib/libcomanche-blk.so");
-  Component::IBase * comp = Component::load_component(dll_path.c_str(),
+  Component::IBase * comp = Component::load_component("libcomanche-blknvme.so",
                                                       Component::block_nvme_factory);
   assert(comp);
   PLOG("Block_device factory loaded OK.");
 
   IBlock_device_factory * fact = (IBlock_device_factory *) comp->query_interface(IBlock_device_factory::iid());
-  _block = fact->create("./vol-config-local.json");
+  cpu_mask_t cpus;
+  cpus.add_core(2);
+  cpus.add_core(3);
+
+  _block = fact->create("01:00.0", &cpus);
   assert(_block);
   fact->release_ref();
   PINF("Lower block-layer component loaded OK.");
@@ -60,9 +62,8 @@ TEST_F(Minix_fs_test, InstantiateBlockDevice)
 TEST_F(Minix_fs_test, InstantiateFs)
 {
   assert(_block);
-  std::string dll_path = "../libcomanche-fsminix.so";
 
-  Component::IBase * comp = Component::load_component(dll_path.c_str(),
+  Component::IBase * comp = Component::load_component("libcomanche-fsminix.so",
                                                       Component::fs_minix);
   assert(comp);
   _fs = (IFile_system *) comp->query_interface(IFile_system::iid());
