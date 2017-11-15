@@ -10,9 +10,6 @@
 
 #include "gpt.h"
 
-namespace comanche
-{
-
 class GPT_component_factory : public Component::IPartitioned_device_factory
 {
 public:
@@ -121,5 +118,5 @@ public:
   std::list<Partition_session*> _sessions;
 };
 
-} // comanche
+
 #endif

@@ -19,6 +19,6 @@ file(GLOB SOURCES src/*.c*)
 set(CMAKE_SHARED_LINKER_FLAGS "-fPIC -shared -Wl,--no-undefined")
 
 add_library(${PROJECT_NAME} SHARED ${SOURCES})
-target_link_libraries(${PROJECT_NAME} numa pthread common dl rt sqlite3)
+target_link_libraries(${PROJECT_NAME} comanche-core numa pthread common dl rt sqlite3)
 
 

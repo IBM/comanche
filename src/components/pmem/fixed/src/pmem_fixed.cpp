@@ -102,7 +102,7 @@ Pmem_fixed_component::
 Pmem_fixed_component(std::string owner_id,
                      IBlock_device * block_device,
                      bool force_init) : _owner_id(owner_id),
-                                                     _block_device(block_device)
+                                        _block_device(block_device)
 {
   if(!block_device) throw API_exception("%s: IBlock_device interface param invalid", __PRETTY_FUNCTION__);
   block_device->add_ref();

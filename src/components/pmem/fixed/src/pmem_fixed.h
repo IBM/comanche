@@ -210,7 +210,7 @@ public:
     using namespace Component;
     IPersistent_memory * pm = static_cast<IPersistent_memory*>
       (new Pmem_fixed_component(owner_id, block_device, force_init));
-    
+    block_device->add_ref();
     pm->add_ref();
     return pm;
   }
@@ -222,7 +222,7 @@ public:
     using namespace Component;
     IPersistent_memory * pm = static_cast<IPersistent_memory*>
       (new Pmem_fixed_component(owner_id, rm, force_init));
-    
+
     pm->add_ref();
     return pm;
   }
