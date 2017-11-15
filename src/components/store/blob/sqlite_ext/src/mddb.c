@@ -309,12 +309,12 @@ static int tableColumn(sqlite3_vtab_cursor*,sqlite3_context*,int);
 static int tableRowid(sqlite3_vtab_cursor*,sqlite3_int64*);
 
 /* An instance of the MDDB virtual table */
-typedef struct Tablele {
-  sqlite3_vtab base;              /* Base class.  Must be first */
-  struct Metadata * mdobj;
-  int nCol;                       /* Number of columns in the MDDB file */
-  unsigned int tstFlags;          /* Bit values used for testing */
-} Tablele;
+/* typedef struct Tablele { */
+/*   sqlite3_vtab base;              /\* Base class.  Must be first *\/ */
+/*   struct Metadata * mdobj; */
+/*   int nCol;                       /\* Number of columns in the MDDB file *\/ */
+/*   unsigned int tstFlags;          /\* Bit values used for testing *\/ */
+/* } Tablele; */
 
 /* Allowed values for tstFlags */
 #define MDDBTEST_FIDX  0x0001      /* Pretend that constrained searchs cost less*/
@@ -322,17 +322,17 @@ typedef struct Tablele {
 /* A cursor for the MDDB virtual table */
 typedef struct MddbCursor {
   sqlite3_vtab_cursor base;       /* Base class.  Must be first */
-  MddbReader rdr;                  /* The MddbReader object */
+  MddbReader rdr;                 /* The MddbReader object */
   char **azVal;                   /* Value of the current row */
   int *aLen;                      /* Length of each entry */
   sqlite3_int64 iRowid;           /* The current rowid.  Negative for EOF */
 } MddbCursor;
 
-/* Transfer error message text from a reader into a Tablele */
-static void mddb_xfer_error(Tablele *pTab, MddbReader *pRdr){
-  sqlite3_free(pTab->base.zErrMsg);
-  pTab->base.zErrMsg = sqlite3_mprintf("%s", pRdr->zErr);
-}
+/* /\* Transfer error message text from a reader into a Tablele *\/ */
+/* static void mddb_xfer_error(Tablele *pTab, MddbReader *pRdr){ */
+/*   sqlite3_free(pTab->base.zErrMsg); */
+/*   pTab->base.zErrMsg = sqlite3_mprintf("%s", pRdr->zErr); */
+/* } */
 
 /*
 ** This method is the destructor fo a Tablele object.
@@ -340,6 +340,7 @@ static void mddb_xfer_error(Tablele *pTab, MddbReader *pRdr){
 static int tableDisconnect(sqlite3_vtab *pVtab){
   PLOG("Disconnecting %p", pVtab);
   mddb_free_instance(pVtab);
+  
   return SQLITE_OK;
 }
 
@@ -462,17 +463,19 @@ static int tableConnect(sqlite3 *db,
                         sqlite3_vtab **ppVtab,
                         char **pzErr)
 {
+  TRACE();
+  
   int rc = SQLITE_OK;        /* Result code from this routine */
   int nCol = -99;            /* Value of the columns= parameter */
   MddbReader sRdr;
   int i,j;
   static const char *azParam[] = {
-    "pci", "data", "schema", 
+    "pci", "partition", "schema", 
   };
   char *azPValue[3];         /* Parameter values */
-# define MDDB_PCI    (azPValue[0])
-# define MDDB_DATA   (azPValue[1])
-# define MDDB_SCHEMA (azPValue[2])
+# define MDDB_PCI       (azPValue[0])
+# define MDDB_PARTITION (azPValue[1])
+# define MDDB_SCHEMA    (azPValue[2])
   struct Metadata * mdptr = NULL;
   
   assert( sizeof(azPValue)==sizeof(azParam) );
@@ -488,47 +491,23 @@ static int tableConnect(sqlite3 *db,
       if(sRdr.zErr[0])
         goto table_connect_error;
     }
-    /* else if( (zValue = mddb_parameter("header",6,z))!=0 ){ */
-    /*   int x; */
-    /*   if( bHeader>=0 ){ */
-    /*     mddb_errmsg(&sRdr, "more than one 'header' parameter"); */
-    /*     goto table_connect_error; */
-    /*   } */
-    /*   x = mddb_boolean(zValue); */
-    /*   if( x==1 ){ */
-    /*     bHeader = 1; */
-    /*   }else if( x==0 ){ */
-    /*     bHeader = 0; */
-    /*   }else{ */
-    /*     mddb_errmsg(&sRdr, "unrecognized argument to 'header': %s", zValue); */
-    /*     goto table_connect_error; */
-    /*   } */
-    /* }else */
-    /*   if( (zValue = mddb_parameter("columns",7,z))!=0 ){ */
-    /*     if( nCol>0 ){ */
-    /*       mddb_errmsg(&sRdr, "more than one 'columns' parameter"); */
-    /*       goto table_connect_error; */
-    /*     } */
-    /*     nCol = atoi(zValue); */
-    /*     if( nCol<=0 ){ */
-    /*       mddb_errmsg(&sRdr, "must have at least one column"); */
-    /*       goto table_connect_error; */
-    /*     } */
-    /*   } */
-      else {
-        mddb_errmsg(&sRdr, "unrecognized parameter '%s'", z);
-        goto table_connect_error;
-      }
+    else {
+      mddb_errmsg(&sRdr, "unrecognized parameter '%s'", z);
+      goto table_connect_error;
+    }
   }
 
   PLOG("creating new mddb instance (%s)", MDDB_PCI);
-  mdptr = mddb_create_instance(MDDB_PCI, 1 /* io core */);
-  PLOG("mdptr=%p", mdptr);
-  mddb_foo(mdptr);
+  mdptr = mddb_create_instance(MDDB_PCI,
+                               strtol(MDDB_PARTITION,NULL,10),
+                               "dwaddington"/* owner */,
+                               1 /* io core */);
+  assert(mdptr);
+  
   *ppVtab = (sqlite3_vtab*) mdptr;
   PLOG("new mddb instance %p", *ppVtab);
 
-  mddb_reader_reset(&sRdr);
+  //  mddb_reader_reset(&sRdr);
 
   /* register schema */
   const char * schema = mddb_get_schema(mdptr);
@@ -538,9 +517,11 @@ static int tableConnect(sqlite3 *db,
 
 
   /* all done, clean up */
-  for(i=0; i<sizeof(azPValue)/sizeof(azPValue[0]); i++){
+  for(i=0; i<sizeof(azPValue)/sizeof(azPValue[0]); i++)
     sqlite3_free(azPValue[i]);
-  }    
+
+  mddb_check_canary(mdptr);
+
   return SQLITE_OK;
 
  table_connect_oom:
@@ -548,6 +529,7 @@ static int tableConnect(sqlite3 *db,
   mddb_errmsg(&sRdr, "out of memory");
 
  table_connect_error:
+  PERR("table connect error");
   if(mdptr)
     tableDisconnect((sqlite3_vtab *)mdptr);
   
@@ -568,27 +550,26 @@ static int tableConnect(sqlite3 *db,
 /*
 ** Reset the current row content held by a MddbCursor.
 */
-static void tableCursorRowReset(MddbCursor *pCur){
-  Tablele *pTab = (Tablele*)pCur->base.pVtab;
-  int i;
-  for(i=0; i<pTab->nCol; i++){
-    sqlite3_free(pCur->azVal[i]);
-    pCur->azVal[i] = 0;
-    pCur->aLen[i] = 0;
-  }
-}
+/* static void tableCursorRowReset(MddbCursor *pCur){ */
+/*   Tablele *pTab = (Tablele*)pCur->base.pVtab; */
+/*   int i; */
+/*   for(i=0; i<pTab->nCol; i++){ */
+/*     sqlite3_free(pCur->azVal[i]); */
+/*     pCur->azVal[i] = 0; */
+/*     pCur->aLen[i] = 0; */
+/*   } */
+/* } */
 
 /*
 ** The xConnect and xCreate methods do the same thing, but they must be
 ** different so that the virtual table is not an eponymous virtual table.
 */
-static int tableCreate(
-                        sqlite3 *db,
-                        void *pAux,
-                        int argc, const char *const*argv,
-                        sqlite3_vtab **ppVtab,
-                        char **pzErr
-                        ){
+static int tableCreate(sqlite3 *db,
+                       void *pAux,
+                       int argc, const char *const*argv,
+                       sqlite3_vtab **ppVtab,
+                       char **pzErr) {
+  TRACE();
   return tableConnect(db, pAux, argc, argv, ppVtab, pzErr);
 }
 
@@ -596,10 +577,10 @@ static int tableCreate(
 ** Destructor for a MddbCursor.
 */
 static int tableClose(sqlite3_vtab_cursor *cur){
-  MddbCursor *pCur = (MddbCursor*)cur;
-  tableCursorRowReset(pCur);
-  mddb_reader_reset(&pCur->rdr);
-  sqlite3_free(cur);
+  /* MddbCursor *pCur = (MddbCursor*)cur; */
+  /* tableCursorRowReset(pCur); */
+  /* mddb_reader_reset(&pCur->rdr); */
+  /* sqlite3_free(cur); */
   return SQLITE_OK;
 }
 
@@ -608,9 +589,9 @@ static int tableClose(sqlite3_vtab_cursor *cur){
 */
 static int tableOpen(sqlite3_vtab *p, sqlite3_vtab_cursor **ppCursor)
 {
-  Tablele *pTab = (Tablele*)p;
-  MddbCursor *pCur;
-  size_t nByte;
+  /* Tablele *pTab = (Tablele*)p; */
+  /* MddbCursor *pCur; */
+  /* size_t nByte; */
 
   PLOG("Opening...");
   
@@ -633,43 +614,44 @@ static int tableOpen(sqlite3_vtab *p, sqlite3_vtab_cursor **ppCursor)
 ** Advance a MddbCursor to its next row of input.
 ** Set the EOF marker if we reach the end of input.
 */
-static int tableNext(sqlite3_vtab_cursor *cur){
-  MddbCursor *pCur = (MddbCursor*)cur;
-  Tablele *pTab = (Tablele*)cur->pVtab;
-  int i = 0;
-  char *z;
-  do{
-    z = mddb_read_one_field(&pCur->rdr);
-    if( z==0 ){
-      mddb_xfer_error(pTab, &pCur->rdr);
-      break;
-    }
-    if( i<pTab->nCol ){
-      if( pCur->aLen[i] < pCur->rdr.n+1 ){
-        char *zNew = sqlite3_realloc64(pCur->azVal[i], pCur->rdr.n+1);
-        if( zNew==0 ){
-          mddb_errmsg(&pCur->rdr, "out of memory");
-          mddb_xfer_error(pTab, &pCur->rdr);
-          break;
-        }
-        pCur->azVal[i] = zNew;
-        pCur->aLen[i] = pCur->rdr.n+1;
-      }
-      memcpy(pCur->azVal[i], z, pCur->rdr.n+1);
-      i++;
-    }
-  }while( pCur->rdr.cTerm==',' );
-  if( z==0 || (pCur->rdr.cTerm==EOF && i<pTab->nCol) ){
-    pCur->iRowid = -1;
-  }else{
-    pCur->iRowid++;
-    while( i<pTab->nCol ){
-      sqlite3_free(pCur->azVal[i]);
-      pCur->azVal[i] = 0;
-      pCur->aLen[i] = 0;
-      i++;
-    }
-  }
+static int tableNext(sqlite3_vtab_cursor *cur)
+{
+  /* MddbCursor *pCur = (MddbCursor*)cur; */
+  /* Tablele *pTab = (Tablele*)cur->pVtab; */
+  /* int i = 0; */
+  /* char *z; */
+  /* do{ */
+  /*   z = mddb_read_one_field(&pCur->rdr); */
+  /*   if( z==0 ){ */
+  /*     mddb_xfer_error(pTab, &pCur->rdr); */
+  /*     break; */
+  /*   } */
+  /*   if( i<pTab->nCol ){ */
+  /*     if( pCur->aLen[i] < pCur->rdr.n+1 ){ */
+  /*       char *zNew = sqlite3_realloc64(pCur->azVal[i], pCur->rdr.n+1); */
+  /*       if( zNew==0 ){ */
+  /*         mddb_errmsg(&pCur->rdr, "out of memory"); */
+  /*         mddb_xfer_error(pTab, &pCur->rdr); */
+  /*         break; */
+  /*       } */
+  /*       pCur->azVal[i] = zNew; */
+  /*       pCur->aLen[i] = pCur->rdr.n+1; */
+  /*     } */
+  /*     memcpy(pCur->azVal[i], z, pCur->rdr.n+1); */
+  /*     i++; */
+  /*   } */
+  /* }while( pCur->rdr.cTerm==',' ); */
+  /* if( z==0 || (pCur->rdr.cTerm==EOF && i<pTab->nCol) ){ */
+  /*   pCur->iRowid = -1; */
+  /* }else{ */
+  /*   pCur->iRowid++; */
+  /*   while( i<pTab->nCol ){ */
+  /*     sqlite3_free(pCur->azVal[i]); */
+  /*     pCur->azVal[i] = 0; */
+  /*     pCur->aLen[i] = 0; */
+  /*     i++; */
+  /*   } */
+  /* } */
   return SQLITE_OK;
 }
 
@@ -677,25 +659,23 @@ static int tableNext(sqlite3_vtab_cursor *cur){
 ** Return values of columns for the row at which the MddbCursor
 ** is currently pointing.
 */
-static int tableColumn(
-                        sqlite3_vtab_cursor *cur,   /* The cursor */
-                        sqlite3_context *ctx,       /* First argument to sqlite3_result_...() */
-                        int i                       /* Which column to return */
-                        ){
-  MddbCursor *pCur = (MddbCursor*)cur;
-  Tablele *pTab = (Tablele*)cur->pVtab;
-  if( i>=0 && i<pTab->nCol && pCur->azVal[i]!=0 ){
-    sqlite3_result_text(ctx, pCur->azVal[i], -1, SQLITE_STATIC);
-  }
+static int tableColumn(sqlite3_vtab_cursor *cur,   /* The cursor */
+                       sqlite3_context *ctx,       /* First argument to sqlite3_result_...() */
+                       int i) {                       /* Which column to return */
+  /* MddbCursor *pCur = (MddbCursor*)cur; */
+  /* Tablele *pTab = (Tablele*)cur->pVtab; */
+  /* if( i>=0 && i<pTab->nCol && pCur->azVal[i]!=0 ){ */
+  /*   sqlite3_result_text(ctx, pCur->azVal[i], -1, SQLITE_STATIC); */
+  /* } */
   return SQLITE_OK;
 }
 
 /*
 ** Return the rowid for the current row.
 */
-static int tableRowid(sqlite3_vtab_cursor *cur, sqlite_int64 *pRowid){
-  MddbCursor *pCur = (MddbCursor*)cur;
-  *pRowid = pCur->iRowid;
+static int tableRowid(sqlite3_vtab_cursor *cur, sqlite_int64 *pRowid) {
+  /* MddbCursor *pCur = (MddbCursor*)cur; */
+  /* *pRowid = pCur->iRowid; */
   return SQLITE_OK;
 }
 
@@ -717,8 +697,8 @@ static int tableFilter(
                         int idxNum, const char *idxStr,
                         int argc, sqlite3_value **argv
                         ){
-  MddbCursor *pCur = (MddbCursor*)pVtabCursor;
-  Tablele *pTab = (Tablele*)pVtabCursor->pVtab;
+  //  MddbCursor *pCur = (MddbCursor*)pVtabCursor;
+  //  Tablele *pTab = (Tablele*)pVtabCursor->pVtab;
   /* pCur->iRowid = 0; */
   /* if( pCur->rdr.in==0 ){ */
   /*   assert( pCur->rdr.zIn==pTab->zData ); */
@@ -810,6 +790,8 @@ static sqlite3_module MddbModule = {
 static int tableUpdate(sqlite3_vtab *p,int n,sqlite3_value**v,sqlite3_int64*x){
   return SQLITE_READONLY;
 }
+
+
 static sqlite3_module MddbModuleFauxWrite = {
   0,                       /* iVersion */
   tableCreate,            /* xCreate */
