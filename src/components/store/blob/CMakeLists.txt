@@ -1,6 +1,6 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
-include(../../../mk/common.cmake)
+include($ENV{COMANCHE_HOME}/mk/common.cmake)
 
 add_subdirectory(./unit_test)
 
