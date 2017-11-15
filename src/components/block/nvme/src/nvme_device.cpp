@@ -801,7 +801,7 @@ bool
 Nvme_device::
 pending_remain()
 {
-  check_completion(0); // special gwid zero means check for all complete.
+  return check_completion(0); // special gwid zero means check for all complete.
 }
 
 const struct spdk_nvme_ctrlr_data *

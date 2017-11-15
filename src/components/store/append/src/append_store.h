@@ -17,6 +17,7 @@
 #define __APPEND_STORE_H__
 
 #include <sqlite3.h>
+#include <string>
 #include <core/zerocopy_passthrough.h>
 #include <api/store_itf.h>
 #include <api/region_itf.h>
@@ -29,6 +30,7 @@ class Append_store : public Core::Zerocopy_passthrough_impl<Component::IStore>
 private:
   static constexpr unsigned DMA_ALIGNMENT_BYTES = 8;
   static constexpr bool option_DEBUG = false;
+
 public:
 
   /** 
@@ -143,13 +145,51 @@ public:
    * 
    * @param rowid_start Start row
    * @param rowid_end End row
-   * @param prefetch_buffers Number of prefetch buffers
+   * @param flags Flags
    * 
    * @return Iterator
    */
   virtual iterator_t open_iterator(uint64_t rowid_start,
                                    uint64_t rowid_end,
-                                   unsigned prefetch_buffers) override;
+                                   unsigned long flags = 0) override;
+
+  /** 
+   * 
+   * 
+   * @param expr 
+   * @param prefetch_buffers 
+   * 
+   * @return 
+   */
+  virtual iterator_t open_iterator(std::string expr,
+                                   unsigned long flags = 0) override;
+
+    /** 
+   * Get record count for an iterator
+   * 
+   * @param iter Iterator
+   * 
+   * @return Number of records
+   */
+  virtual size_t iterator_record_count(iterator_t iter) override;
+
+  /** 
+   * Get the data size for all data under an iterator
+   * 
+   * @param iter Iterator
+   * 
+   * @return Size in bytes
+   */
+  virtual size_t iterator_data_size(iterator_t iter) override;
+  
+  /** 
+   * Get data size for next record in iterator
+   * 
+   * @param iter Iterator
+   * 
+   * @return Size of record in bytes
+   */
+  virtual size_t iterator_next_record_size(iterator_t iter) override;
 
   /** 
    * Close iterator
@@ -188,13 +228,24 @@ public:
                               int queue_id = 0) override;
 
   /** 
-   * Free buffer previously returned from iterator_get method
+   * Split iterator into multiple iterators (which can be passed to
+   * separate threads)
    * 
    * @param iter Iterator
-   * @param iob IO buffer
+   * @param ways Number of ways to split
    */
-  virtual void free_iterator_buffer(iterator_t iter, Component::io_buffer_t iob) override;
-  
+  virtual void split_iterator(iterator_t iter,
+                              size_t ways,
+                              std::vector<iterator_t>& out_iter_vector) override;
+
+  /** 
+   * Reset an interator to initial index
+   * 
+   * @param iter Iterator
+   */
+  virtual void reset_iterator(iterator_t iter) override;
+
+
   /** 
    * Dump debugging information
    * 
