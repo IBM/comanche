@@ -60,18 +60,18 @@ public:
   virtual status_t reset() override { return E_NOT_IMPL; }
 
   
-  Component::IFile* create_file(const std::string path, const std::string flags) {
+  Component::IFile* create_file(const std::string path, const std::string flags) override {
     return nullptr;
   }
   
-  Component::IFile* open(const std::string path, const std::string flags) {
+  Component::IFile* open(const std::string path, const std::string flags) override {
     return nullptr;
   }
   
-  void delete_file(const std::string path) {
+  void delete_file(const std::string path) override {
   }
   
-  void close(Component::IFile* handle) {
+  void close(Component::IFile* handle) override {
   }
               
 

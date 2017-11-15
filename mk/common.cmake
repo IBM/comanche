@@ -1,3 +1,4 @@
+
 if(CMAKE_BUILD_TYPE MATCHES Debug)
   message("-- ${CMAKE_CURRENT_SOURCE_DIR} > Debug build.")
 elseif(CMAKE_BUILD_TYPE MATCHES Release)
@@ -12,8 +13,8 @@ else()
 endif()
 
 set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 #set(GCC_COVERAGE_COMPILE_FLAGS "-fPIC -msse3")
-
 set(CMAKE_CXX_FLAGS_NOOPT "-O0 -g")
 set(CMAKE_C_FLAGS_NOOPT "-O0 -g")
 

@@ -109,16 +109,17 @@ public:
   lba_t allocate(size_t n_bytes, size_t& n_blocks) {
 
     assert(n_bytes > 0);
-    n_blocks = n_bytes / _vi.block_size;
+    /* smallest multiple of blocksize >= nbytes */
+    n_blocks = (n_bytes + _vi.block_size - 1) / _vi.block_size; 
 
-    if(n_bytes % _vi.block_size)
-      n_blocks++;
-    
-    std::lock_guard<std::mutex> g(_lock);
-    if((_mb->max_lba - _mb->next_free_lba) < n_blocks)
-      throw API_exception("Append-store: no more blocks");
-    auto result = _mb->next_free_lba;
-    _mb->next_free_lba += n_blocks;
+    lba_t result;
+    {
+      std::lock_guard<std::mutex> g(_lock);
+      if((_mb->max_lba - _mb->next_free_lba) < n_blocks)
+        throw API_exception("Append-store: no more blocks");
+      result = _mb->next_free_lba;
+      _mb->next_free_lba += n_blocks;
+    }
     return result;
   }
 

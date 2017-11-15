@@ -149,8 +149,12 @@ public:
                     uint64_t lba,
                     uint64_t lba_count,
                     int queue_id = 0) {
-    
-    static __thread Semaphore sem;
+
+#ifdef __clang__
+    static thread_local Semaphore sem;
+#else
+    static __thread Semaphore sem; // GCC
+#endif
     
     workid_t wid = async_read(buffer, buffer_offset, lba, lba_count, queue_id,
                               [](uint64_t gwid, void* arg0, void* arg1)
@@ -199,8 +203,12 @@ public:
                      uint64_t lba_count,
                      int queue_id = 0) {
 
-    static __thread Semaphore sem;
-        
+#ifdef __clang__
+    static thread_local Semaphore sem;
+#else
+    static __thread Semaphore sem; // GCC
+#endif
+    
     workid_t wid = async_write(buffer, buffer_offset, lba, lba_count, queue_id,
                               [](uint64_t gwid, void* arg0, void* arg1)
                               {

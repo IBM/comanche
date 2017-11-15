@@ -42,10 +42,18 @@ Log_store::Log_store(std::string owner,
   assert(_vi.max_dma_len % _vi.block_size == 0);
 
   assert(_vi.max_dma_len == 0 || Buffer_manager::IO_BUFFER_SIZE <= _vi.max_dma_len);
+
+  /* allocate buffer */
+  _iob = _lower_layer->allocate_io_buffer(round_up(_fixed_size,_vi.block_size)
+                                          + (_vi.block_size*2),
+                                          KB(4),
+                                          Component::NUMA_NODE_ANY);
+
 }
 
 Log_store::~Log_store()
-{  
+{
+  _lower_layer->free_io_buffer(_iob);
   _lower_layer->release_ref();
 }
 
@@ -140,6 +148,12 @@ byte * Log_store::read(const index_t index,
   return vaddr + offset_in_lba;
 }
 
+std::string Log_store::read(const index_t index)
+{
+  char * ptr = (char*) this->read(index, _iob, 0);
+  std::string result(ptr);
+  return result;
+}
 
 status_t Log_store::flush(unsigned queue_id)
 {

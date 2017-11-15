@@ -46,7 +46,7 @@ public:
   virtual index_t write(const void * data, const size_t data_len, unsigned queued_id = 0) = 0;
 
   /** 
-   * Read data from a given offset (copy-based)
+   * Read data from a given offset
    * 
    * @param index Index of item
    * @param data IO buffer (must be atleast record_size + block_size)
@@ -55,6 +55,15 @@ public:
    * @return Pointer to record
    */
   virtual byte * read(const index_t index, Component::io_buffer_t iob, unsigned queue_id = 0) = 0;
+
+  /** 
+   * Read blob into a string (copy based)
+   * 
+   * @param index Index of item
+   * 
+   * @return String
+   */
+  virtual std::string read(const index_t index) = 0;
 
   /** 
    * Get last point of used storage
