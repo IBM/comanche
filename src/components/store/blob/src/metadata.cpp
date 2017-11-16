@@ -27,6 +27,9 @@ Metadata::Metadata(Component::IBlock_device * block_device, bool force_init) : _
   if(force_init || !check_validity()) {
     initialize_space();
   }
+  else {
+    if(option_DEBUG) PLOG("using existing metadata space");
+  }
   
   // if(!check_aligned(buffer, page_size))
   //   throw Constructor_exception("Metadata: buffer must be page aligned");
