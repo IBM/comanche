@@ -52,7 +52,7 @@ struct __md_record
 
 } __attribute__((packed));
 
-static constexpr unsigned MD_MAGIC = 2017;
+static constexpr unsigned MD_MAGIC = 1972;
 
 enum {
   MD_STATUS_NOT_ASSIGN = 0,
