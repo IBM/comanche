@@ -147,16 +147,14 @@ public:
    * 
    * @param owner Owner identifier
    * @param name Store name
-   * @param region_device Underlying region manager
-   * @param value_space_mb Size of value-space in MB
+   * @param base_block_device Underlying block device
    * @param flags Instantiation flags
    * 
    * @return Pointer to IRange_manager interface
    */
   virtual IBlob * open(std::string owner,
                        std::string name,
-                       Component::IRegion_manager * region_device,
-                       size_t value_space_size_in_bytes,
+                       Component::IBlock_device * base_block_device,
                        int flags) = 0;
 
 };

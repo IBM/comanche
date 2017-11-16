@@ -94,7 +94,7 @@ class Ticket_lock
     struct {
       unsigned short ticket; /* little endian order */
       unsigned short users;
-    } s;
+    } s __attribute__((packed));
   };
 
  public:

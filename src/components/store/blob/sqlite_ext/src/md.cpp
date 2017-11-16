@@ -39,6 +39,12 @@
 
 using namespace Component;
 
+enum {
+  MDDB_RECORD_STATUS_FREE = 1,
+  MDDB_RECORD_STATUS_USED = 2,
+  MDDB_RECORD_STATUS_DELETED = 3,
+};
+
 /** 
  * Each entry is 512 bytes, 8 entries to a 4K storage block.  We can
  * play with these fields later as we see fit.
@@ -48,7 +54,7 @@ struct __mddb_record
 {
   uint32_t magic;
   uint32_t crc;
-  uint8_t  lock;
+  uint8_t  status; /* set to 1 if used */
   uint8_t  rlock;
   uint8_t  wlock;
   uint8_t  block_size;
@@ -57,7 +63,7 @@ struct __mddb_record
   
   unsigned char id[64];
   unsigned char owner[64];
-  unsigned char ns[252];
+
   unsigned char datatype[40];
   unsigned char utc_modified[32]; // e.g. 2017-11-16T00:08:24+00:00
   unsigned char utc_created[32]; // e.g. 2017-11-16T00:08:24+00:00
