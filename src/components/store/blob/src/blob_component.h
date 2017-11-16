@@ -7,12 +7,15 @@
 #include <api/region_itf.h>
 #include <api/pager_itf.h>
 #include <api/blob_itf.h>
+#include <api/block_allocator_itf.h>
 
 #include <core/avl_malloc.h>
 #include <mutex>
 #include <string>
 #include <list>
+
 #include "data_region.h"
+#include "metadata.h"
 
 class Blob_component_factory : public Component::IBlob_factory
 {
@@ -44,8 +47,7 @@ public:
    */
   virtual Component::IBlob * open(std::string owner,
                                   std::string name,
-                                  Component::IRegion_manager * rm,
-                                  size_t value_space_mb,
+                                  Component::IBlock_device * base_block_device,
                                   int flags) override;
 
 };
@@ -55,14 +57,14 @@ class Blob_component : public Component::IBlob
 {  
 private:
   static constexpr bool option_DEBUG = true;
-  static constexpr size_t NUM_BLOCKS_FOR_METADATA = 5;
   static constexpr size_t BLOCK_SIZE = 4096;
-    
+
+  static constexpr size_t ALLOCATOR_SIZE_BYTES = MB(128);
+  static constexpr size_t MD_SIZE_BYTES = MB(128);
 public:
   Blob_component(std::string owner,
                  std::string name,
-                 Component::IRegion_manager * region_manager,
-                 size_t value_space_mb,
+                 Component::IBlock_device * base_block_device,
                  int flags);
   
   /** 
@@ -203,20 +205,27 @@ public:
   virtual void show_state(std::string filter) override;
   
 private:
+  void instantiate_components(bool force_init, std::string& name);
   void flush_md();
   
 private:
-  Component::IRegion_manager *                 _rm;
-  
-  Component::IBlock_device *                   _block_md; /*< block device for metadata */
-  Component::VOLUME_INFO                       _block_md_vi;
-  Component::io_buffer_t                       _block_md_iob;
-  Core::Slab::Allocator<Blob::Data_region> *   _slab;
-  std::mutex                                   _md_lock;
+  std::string                                  _owner;
+  Component::IBlock_device *                   _base_block_device;
+  Component::VOLUME_INFO                       _base_block_device_vi;
+  Component::IRegion_manager *                 _base_rm;
 
-  Component::IBlock_device *                   _block_data; /*< block device for data */
-  Component::VOLUME_INFO                       _block_data_vi;
-  Blob::Data_region_tree<Blob::Data_region> *  _data_allocator;
+  /*------------------------------------------------------------------------*/
+  /* split block device into three regions: block allocator, metadata, data */
+  /*------------------------------------------------------------------------*/
+
+  Component::IBlock_device *                   _block_allocator; /*< block device for allocator */
+  Component::IBlock_device *                   _block_md; /*< block device for metadata */
+  Component::IBlock_device *                   _block_data; /*< block data */
+  Component::IPersistent_memory *              _pmem_allocator;
+  Component::IBlock_allocator *                _allocator;
+
+  Metadata * _md;
+
 
 };
 

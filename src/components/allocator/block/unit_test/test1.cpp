@@ -21,7 +21,7 @@
 #include <api/block_allocator_itf.h>
 
 //#define USE_PAGED_PMEM // used paged pmem
-#define USE_SPDK_NVME_DEVICE // use SPDK-NVME or POSIX-NVME
+//#define USE_SPDK_NVME_DEVICE // use SPDK-NVME or POSIX-NVME
 
 using namespace Component;
 
