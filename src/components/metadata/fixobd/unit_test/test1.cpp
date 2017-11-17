@@ -53,16 +53,7 @@ TEST_F(Fixobd_test, BlockdeviceInstantiate)
 
 TEST_F(Fixobd_test, Instantiate)
 {
-  /* create object instance through factory */
-  Component::IBase * comp = Component::load_component("libcomanche-mdfixobd.so",
-                                                      Component::metadata_fixobd_factory);
-
-  ASSERT_TRUE(comp);
-  IMetadata_factory * fact = (IMetadata_factory *) comp->query_interface(IMetadata_factory::iid());
-
-  _md = fact->create("testowner","myname", _block, 0);
-  
-  fact->release_ref();
+  _md = component_create_metadata_fixobd("testowner","myname", _block, 0);
 }
 
 

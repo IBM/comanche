@@ -44,7 +44,6 @@ void Metadata::close_iterator(iterator_t iterator)
 {
 }
 
-
 /** 
  * Factory entry point
  * 
