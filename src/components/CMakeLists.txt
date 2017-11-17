@@ -8,5 +8,6 @@ add_subdirectory (pmem)
 add_subdirectory (fs)
 add_subdirectory (allocator)
 add_subdirectory (store)
+add_subdirectory (metadata)
 
 

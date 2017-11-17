@@ -34,12 +34,23 @@ cmake -DCMAKE_BUILD_TYPE=ASAN .
 cmake -DCMAKE_BUILD_TYPE=Release .
 ```
 
-Tested Compilers and OS
-------------------------
+* Prepare to run (use tools scripts)
 
-Ubuntu 16.04.3 LTS (x86_64)
-gcc 5.4
-clang 3.8.0
+- SPDK/DPDK requires huge pages
+  e.g. # echo 2000 > /proc/sys/vm/nr_hugepages
+  
+
+Tested Compilers and OS/HW
+--------------------------
+
+* Software 
+- Ubuntu 16.04.3 LTS (x86_64)
+- gcc 5.4
+- clang 3.8.0
+
+* Hardware
+- Intel x86
+- Intel PC3700 and P4800X NVMe SSD
 
 * Change compiler preference on Ubuntu with:
     'sudo update-alternatives --config c++'

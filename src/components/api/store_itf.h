@@ -237,12 +237,11 @@ public:
    * 
    * @param owner Owner identifier
    * @param name Store name
-   * @param region_device Underlying region manager
-   * @param value_space_mb Size of value-space in MB
+   * @param block_device Underlying block device
    * @param flags Instantiation flags
    * 
-   * @return Pointer to IRange_manager interface
-   */
+   * @return Pointer to IStore interface
+   */  
   virtual IStore * create(std::string owner,
                           std::string name,
                           Component::IBlock_device * block_device,
