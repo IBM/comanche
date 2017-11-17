@@ -1,8 +1,16 @@
 # Comanche
 Framework for user-level compositional storage systems development. See [wiki](https://github.com/IBM/comanche/wiki) for more information.
 
+
 HowTo
 -----
+
+* DPDK/SPDK
+
+Comanche currently uses DPDK/SPDK.  You should install and test this
+first (see dpdk/usertools/dpdksetup.sh).  Note, it is possible to run
+in a virtual machine (using UIO) but you will need to run your
+programs as root.
 
 * Prepare (one time - although it may change across checkouts)
 
