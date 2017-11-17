@@ -131,7 +131,7 @@ class Ticket_lock
     xdk_barrier();
     return (s.ticket == s.users);
   }
-};
+} __attribute__((packed));
 
 
 /** 
