@@ -79,24 +79,6 @@ DECLARE_STATIC_COMPONENT_UUID(metadata_fixobd, 0xb2220906,0x1eec,0x48ec,0xa643,0
 DECLARE_STATIC_COMPONENT_UUID(metadata_fixobd_factory, 0xfac20906,0x1eec,0x48ec,0xa643,0x29,0xeb,0x6c,0x06,0x70,0xd2);
 
 
-/*< instantiation helpers */  
-inline IMetadata * component_create_metadata_fixobd(const char * owner,
-                                                    const char * name,
-                                                    Component::IBlock_device * block,
-                                                    int flags)
-{
-  auto comp = Component::load_component("libcomanche-mdfixobd.so",      
-                                        Component::metadata_fixobd_factory);
-  assert(comp);                                                         
-  auto fact = (IMetadata_factory *) comp->query_interface(IMetadata_factory::iid());                    
-  assert(fact);                                                         
-  auto inst = fact->create(owner, name, block, flags);
-  assert(inst);
-  fact->release_ref();
-  return inst;
-}                                                                       
-
-
 }
 
 
