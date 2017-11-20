@@ -143,7 +143,7 @@ public:
   virtual Component::IMetadata * create(std::string owner,
                                         std::string name,
                                         Component::IBlock_device * block_device,
-                                        int flags)
+                                        int flags) override
   {
     Component::IMetadata * obj = static_cast<Component::IMetadata*>(new Metadata(owner, name, block_device, flags));    
     obj->add_ref();

@@ -51,6 +51,22 @@ TEST_F(Fixobd_test, BlockdeviceInstantiate)
   PINF("Block-layer component loaded OK (itf=%p)", _block);
 }
 
+/*< instantiation helpers */  
+IMetadata * component_create_metadata_fixobd(const char * owner,
+                                             const char * name,
+                                             Component::IBlock_device * block,
+                                             int flags)
+{
+  auto comp = load_component("libcomanche-mdfixobd.so",Component::metadata_fixobd_factory);
+  assert(comp);                                                         
+  auto fact = (IMetadata_factory *) comp->query_interface(IMetadata_factory::iid());                    
+  assert(fact);                                                         
+  auto inst = fact->create(owner, name, block, flags);
+  assert(inst);
+  fact->release_ref();
+  return inst;
+}
+
 TEST_F(Fixobd_test, Instantiate)
 {
   _md = component_create_metadata_fixobd("testowner","myname", _block, 0);
