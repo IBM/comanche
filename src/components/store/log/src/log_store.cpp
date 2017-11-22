@@ -106,11 +106,10 @@ index_t Log_store::write(const void * data,
         index = _bm.write_out(data_len, queue_id);
         _bm.write_out(data, data_len, queue_id);
       }
-    }
-    
+    }    
   }
 
-  return index / _fixed_size;
+  return index / _fixed_size; /*< return record index */
 }
 
 
@@ -161,6 +160,10 @@ status_t Log_store::flush(unsigned queue_id)
   return S_OK;
 }
 
+void Log_store::dump_info()
+{
+  _bm.dump_info();
+}
 
 /** 
  * Factory entry point
