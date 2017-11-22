@@ -171,7 +171,7 @@ public:
       _current_buffer_remaining -= next_seg_len;
     }
     auto tmp = _tail;
-    assert(data_len == 64);
+
     _tail += data_len;
     return tmp;
   }
