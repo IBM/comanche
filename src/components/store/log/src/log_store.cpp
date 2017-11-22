@@ -68,7 +68,7 @@ index_t Log_store::write(const void * data,
   if(data_len > INT32_MAX)
     throw API_exception("length too large for 32bit representation");
 
-  if(_fixed_size > 0 && data_len > _fixed_size)
+  if(_fixed_size > 0 && data_len != _fixed_size)
     throw API_exception("mismatched size in write call (expect=%ld request=%ld)", _fixed_size, data_len);
 
   if(option_DEBUG)
@@ -156,6 +156,7 @@ std::string Log_store::read(const index_t index)
 
 status_t Log_store::flush(unsigned queue_id)
 {
+  _bm.flush_buffer();
   _lower_layer->check_completion(0, queue_id); /* wait for all pending */
   return S_OK;
 }

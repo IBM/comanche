@@ -130,12 +130,12 @@ private:
   
 private:
 
-  size_t _max_io_blocks;
-  size_t _max_io_bytes;
-  size_t _num_io_queues;
-  size_t _fixed_size;
-  bool   _use_crc;
-  Header _hdr;
+  size_t                 _max_io_blocks;
+  size_t                 _max_io_bytes;
+  size_t                 _num_io_queues;
+  size_t                 _fixed_size;
+  bool                   _use_crc;
+  Header                 _hdr;
   Component::io_buffer_t _iob;
   std::mutex             _lock;
   Component::VOLUME_INFO _vi;
