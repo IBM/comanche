@@ -8,7 +8,7 @@
 class Buffer_manager
 {
 public:
-  static constexpr size_t IO_BUFFER_SIZE        = KB(4)*32;
+  static constexpr size_t IO_BUFFER_SIZE        = KB(4); //*32;
 private:
   static constexpr size_t IO_BUFFER_ALIGNMENT   = KB(4);
   static constexpr size_t NUM_IO_BUFFERS        = 256;
@@ -18,7 +18,8 @@ public:
     : _block(block),
       _hdr(hdr),
       _queue_id(queue_id),
-      _index_ring(NUM_IO_BUFFERS)
+      _index_ring(NUM_IO_BUFFERS),
+      _tail(hdr.get_tail())
   {
     assert(block);
     /* create IO buffers */
@@ -33,12 +34,13 @@ public:
     for(uint64_t i=1;i<=NUM_IO_BUFFERS;i++)
       _index_ring.sp_enqueue(i);
 
-    _tail = _hdr.get_tail();
+    PLOG("buffer manager: tail=%lu", _tail);
     ready_buffer();
   }
 
   ~Buffer_manager() {
     flush_buffer();
+    _block->check_completion(0);
   }
 
   static void release_buffer(uint64_t guid, void * arg0, void* arg1)
@@ -67,13 +69,14 @@ public:
     _hdr.dump_info();
   }
 
+private:
   index_t post_buffer(unsigned queue_id)
   {
     size_t n_blocks = 0;
     index_t index;
     lba_t lba = _hdr.allocate(IO_BUFFER_SIZE, n_blocks, index);
     assert(_current_buffer_index <= NUM_IO_BUFFERS);
-
+    assert(_current_buffer_index > 0);
     //PLOG("$$>(%s) @ %ld", (char*)_block->virt_addr(_iob_buffer), lba);
 
 #ifndef DISABLE_IO
@@ -92,6 +95,7 @@ public:
     return index;
   }
 
+public:
   index_t flush_buffer()
   {
     size_t n_blocks = 0;
@@ -99,6 +103,9 @@ public:
     lba_t lba = _hdr.allocate(IO_BUFFER_SIZE, n_blocks, index);
     assert(_current_buffer_index <= NUM_IO_BUFFERS);
 
+    /* write zeros to excess tail */
+    memset(_current_buffer_ptr, 0,_current_buffer_remaining);
+    
     //PLOG("$$>(%s) @ %ld", (char*)_block->virt_addr(_iob_buffer), lba);
 
 #ifndef DISABLE_IO
@@ -112,7 +119,6 @@ public:
 #endif
     return index;
   }
-
 
 
   index_t write_out(uint32_t value, unsigned queue_id)
@@ -165,6 +171,7 @@ public:
       _current_buffer_remaining -= next_seg_len;
     }
     auto tmp = _tail;
+    assert(data_len == 64);
     _tail += data_len;
     return tmp;
   }
@@ -174,7 +181,7 @@ private:
   Component::IBlock_device *  _block;
   unsigned                    _queue_id;
   Header&                     _hdr;
-  uint64_t                    _tail;
+  index_t&                    _tail; /*< reference to tail in metadata */
   
   Core::Ring_buffer<uint64_t> _index_ring;
   Component::io_buffer_t      _iob_buffer = 0;

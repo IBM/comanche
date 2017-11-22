@@ -18,6 +18,7 @@
 #define __STORE_HEADER_H__
 
 #include <mutex>
+#include <common/cycles.h>
 #include <api/block_itf.h>
 
 class Header
@@ -34,6 +35,7 @@ class Header
     char     owner[512];
     char     name[512];
     index_t  tail;
+    uint64_t timestamp;
   } __attribute__((packed));
 
 public:
@@ -61,16 +63,14 @@ public:
       PLOG("Log-store: header magic mismatch, reinitializing");
       force_init = true;
     }
-    else if(force_init) {
-      PLOG("Log-store: forced init");
-    }
 
     if(force_init) {
+      PLOG("Log-store: forced initialization");
       memset(_mb, 0, _vi.block_size); /* zero whole first sector */
       _mb->magic = MAGIC;
       _mb->max_lba = _vi.max_lba;
       _mb->fixed_size = fixed_size;
-      _mb->next_free_lba = 1;
+      _mb->next_free_lba = 1; /* block 0 is used by the header */
       _mb->tail = 0;
       strncpy(_mb->name, name.c_str(), 511);
       strncpy(_mb->owner, owner.c_str(), 511);      
@@ -94,6 +94,7 @@ public:
   }
 
   ~Header() {
+    PLOG("Log-store: header destructor");
     dump_info();
     write_mb();
     _block->free_io_buffer(_iob);
@@ -104,6 +105,7 @@ public:
     std::lock_guard<std::mutex> g(_lock);
     PINF("Header: magic=0x%x", _mb->magic);
     PINF("      : flags=0x%x", _mb->flags);
+    PINF("      : timestamp %lx", _mb->timestamp);
     PINF("      : next_free_lba=%lu", _mb->next_free_lba);
     PINF("      : owner=%s", _mb->owner);
     PINF("      : name=%s", _mb->name);
@@ -113,22 +115,23 @@ public:
          _mb->next_free_lba, _mb->max_lba,
          (((float)_mb->next_free_lba)/((float)_mb->max_lba))*100.0);
     PINF("      : used capacity %lu MB", REDUCE_MB(_mb->next_free_lba * _vi.block_size));
-    PINF("      : %lu records", _mb->tail / _mb->fixed_size);
+    PINF("      : record count %lu (including tail excess) ", _mb->tail / _mb->fixed_size);
   }
       
   void flush() {
     write_mb();
   }
 
-  index_t get_tail() const { return _mb->tail; }
+  index_t& get_tail() const { return _mb->tail; }
   
   size_t block_size() const { return _vi.block_size; }
   
   lba_t allocate(size_t n_bytes, size_t& n_blocks, index_t& index) {
-    n_blocks = n_bytes / _vi.block_size;
 
     if(unlikely(n_bytes % _vi.block_size))
       throw API_exception("allocate must round to block size");
+
+    n_blocks = n_bytes / _vi.block_size;   
 
     lba_t result;
 
@@ -144,7 +147,9 @@ public:
 private:
 
   void write_mb() {
+    PLOG("Log-store: writing out header");
     std::lock_guard<std::mutex> g(_lock);
+    _mb->timestamp = rdtsc(); /* update timestamp */
     _block->write(_iob,0,0/*lba*/,1);
   }
 
