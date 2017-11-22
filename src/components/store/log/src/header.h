@@ -113,6 +113,7 @@ public:
          _mb->next_free_lba, _mb->max_lba,
          (((float)_mb->next_free_lba)/((float)_mb->max_lba))*100.0);
     PINF("      : used capacity %lu MB", REDUCE_MB(_mb->next_free_lba * _vi.block_size));
+    PINF("      : %lu records", _mb->tail / _mb->fixed_size);
   }
       
   void flush() {
