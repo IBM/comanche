@@ -359,6 +359,7 @@ private:
   bool                           _exit_io_threads;
   bool                           _activate_io_threads;
   std::vector<Nvme_queue *>      _queues;
+  std::vector<unsigned>          _cores;
   struct probed_device           _probed_device;
   unsigned                       _default_core = 0;
 };
