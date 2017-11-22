@@ -115,6 +115,12 @@ public:
     return _hdr.get_tail();
   }
 
+  /** 
+   * Output debugging information
+   * 
+   */
+  virtual void dump_info() override;
+  
 private:
 
   inline size_t header_size() {

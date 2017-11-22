@@ -62,6 +62,11 @@ public:
     _index_ring.mp_enqueue(index);
   }
 
+  void dump_info()
+  {
+    _hdr.dump_info();
+  }
+
   index_t post_buffer(unsigned queue_id)
   {
     size_t n_blocks = 0;
@@ -163,6 +168,7 @@ public:
     _tail += data_len;
     return tmp;
   }
+
 
 private:
   Component::IBlock_device *  _block;

@@ -112,7 +112,7 @@ public:
     PINF("      : used blocks %lu / %lu (%f %%)",
          _mb->next_free_lba, _mb->max_lba,
          (((float)_mb->next_free_lba)/((float)_mb->max_lba))*100.0);
-
+    PINF("      : used capacity %lu MB", REDUCE_MB(_mb->next_free_lba * _vi.block_size));
   }
       
   void flush() {
@@ -158,7 +158,6 @@ private:
   Component::io_buffer_t     _iob;
   Store_master_block *       _mb;
   std::mutex                 _lock;
-  index_t                    _current_pos = 0;
 
 };
 
