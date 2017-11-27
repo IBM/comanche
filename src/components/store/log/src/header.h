@@ -94,15 +94,13 @@ public:
   }
 
   ~Header() {
-    PLOG("Log-store: header destructor");
-    dump_info();
-    write_mb();
     _block->free_io_buffer(_iob);
     _block->release_ref();
   }
 
   void dump_info() {
     std::lock_guard<std::mutex> g(_lock);
+    PINF("Log-Store");
     PINF("Header: magic=0x%x", _mb->magic);
     PINF("      : flags=0x%x", _mb->flags);
     PINF("      : timestamp %lx", _mb->timestamp);
