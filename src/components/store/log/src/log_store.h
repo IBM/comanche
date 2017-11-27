@@ -112,7 +112,7 @@ public:
    */
   virtual index_t get_tail() override {
     std::lock_guard<std::mutex> g(_lock);
-    return _hdr.get_tail();
+    return *_hdr.get_tail();
   }
 
   /** 

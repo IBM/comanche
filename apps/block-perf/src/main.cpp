@@ -20,8 +20,8 @@ struct {
 } Options;
 
 
-#define START_IO_CORE 12
-#define START_CLIENT_CORE 18
+#define START_IO_CORE 2
+#define START_CLIENT_CORE 6
 
 class Main
 {

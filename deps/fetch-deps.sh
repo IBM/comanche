@@ -194,4 +194,10 @@ cd rocksdb && git checkout tags/v5.1.4
 
 jumpto end
 
+pmem:
+echo "Cloning pmem nvml..."
+git clone https://github.com/pmem/nvml.git
+cd nvml && git checkout tags/1.3
+jumpto end
+
 end:
