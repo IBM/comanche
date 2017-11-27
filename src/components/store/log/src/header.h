@@ -120,7 +120,7 @@ public:
     write_mb();
   }
 
-  index_t& get_tail() const { return _mb->tail; }
+  index_t * get_tail() const { return &_mb->tail; }
   
   size_t block_size() const { return _vi.block_size; }
   

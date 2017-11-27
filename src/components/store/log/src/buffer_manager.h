@@ -34,7 +34,7 @@ public:
     for(uint64_t i=1;i<=NUM_IO_BUFFERS;i++)
       _index_ring.sp_enqueue(i);
 
-    PLOG("buffer manager: tail=%lu", _tail);
+    PLOG("buffer manager: tail=%lu", *_tail);
     ready_buffer();
   }
 
@@ -144,8 +144,8 @@ public:
       assert(next_seg_len > _current_buffer_remaining);
       _current_buffer_remaining -= next_seg_len;
     }
-    auto tmp = _tail;
-    _tail += 4;
+    auto tmp = *_tail;
+    *_tail += 4;
     return tmp;
   }
   
@@ -170,9 +170,9 @@ public:
       _current_buffer_ptr += next_seg_len;
       _current_buffer_remaining -= next_seg_len;
     }
-    auto tmp = _tail;
+    auto tmp = *_tail;
 
-    _tail += data_len;
+    *_tail += data_len;
     return tmp;
   }
 
@@ -181,7 +181,7 @@ private:
   Component::IBlock_device *  _block;
   unsigned                    _queue_id;
   Header&                     _hdr;
-  index_t&                    _tail; /*< reference to tail in metadata */
+  index_t*                    _tail; /*< reference to tail in metadata */
   
   Core::Ring_buffer<uint64_t> _index_ring;
   Component::io_buffer_t      _iob_buffer = 0;
