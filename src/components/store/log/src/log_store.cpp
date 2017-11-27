@@ -157,6 +157,7 @@ std::string Log_store::read(const index_t index)
 status_t Log_store::flush(unsigned queue_id)
 {
   _bm.flush_buffer();
+  _hdr.flush(); /* flush metadata */
   _lower_layer->check_completion(0, queue_id); /* wait for all pending */
   return S_OK;
 }
