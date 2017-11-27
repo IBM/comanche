@@ -20,11 +20,11 @@
 #define RAND genrand64_int64
 
 
-class Atomic_8_rw_test : public Pmem_base
+class Byte_8_rw_test : public Pmem_base
 {
   static constexpr unsigned DATASIZE = MB(8);
 public:
-  Atomic_8_rw_test(std::string filename, size_t iterations) : Pmem_base(filename, MB(8)), _size(MB(8)) {
+  Byte_8_rw_test(std::string filename, size_t iterations) : Pmem_base(filename, MB(8)), _size(MB(8)) {
     write_test(iterations);
     read_test();
   }
@@ -39,7 +39,7 @@ public:
       pmem_persist(data, 1);
     }
     cpu_time_t end = rdtsc();
-    PLOG("Atomic_8_write: %ld cycles per iteration", (end - start)/iterations);
+    PLOG("Byte_8_write: %ld cycles per iteration", (end - start)/iterations);
   }
 
   void read_test()
@@ -60,7 +60,7 @@ public:
       asm("nop");
     }
     cpu_time_t end = rdtsc();
-    PLOG("Atomic_8_read: %ld cycles per iteration", (end - start)/iterations);
+    PLOG("Byte_8_read: %ld cycles per iteration", (end - start)/iterations);
   }
     
 
@@ -83,7 +83,7 @@ private:
 int main(int argc, char * argv[])
 {
   //  Pmem_base pmem("data.pmem", MB(8));
-  Atomic_8_rw_test t1("data.pmem", MB(8));
+  Byte_8_rw_test t1("data.pmem", MB(8));
   
 	return 0;
 }
