@@ -52,16 +52,14 @@ TEST_F(Fixobd_test, BlockdeviceInstantiate)
 }
 
 /*< instantiation helpers */  
-IMetadata * component_create_metadata_fixobd(const char * owner,
-                                             const char * name,
-                                             Component::IBlock_device * block,
+IMetadata * component_create_metadata_fixobd(Component::IBlock_device * block,
                                              int flags)
 {
   auto comp = load_component("libcomanche-mdfixobd.so",Component::metadata_fixobd_factory);
   assert(comp);                                                         
   auto fact = (IMetadata_factory *) comp->query_interface(IMetadata_factory::iid());                    
   assert(fact);                                                         
-  auto inst = fact->create(owner, name, block, flags);
+  auto inst = fact->create(block, 4096, flags);
   assert(inst);
   fact->release_ref();
   return inst;
@@ -69,9 +67,17 @@ IMetadata * component_create_metadata_fixobd(const char * owner,
 
 TEST_F(Fixobd_test, Instantiate)
 {
-  _md = component_create_metadata_fixobd("testowner","myname", _block, 0);
+  _md = component_create_metadata_fixobd(_block, 0);
 }
 
+TEST_F(Fixobd_test, Methods)
+{
+  _md->allocate(0,10,"foo", "dwaddington", ".kmer");
+  _md->allocate(11,20,"foo", "dwaddington", ".kmer");
+  _md->allocate(21,30,"foo", "dwaddington", ".kmer");
+
+  _md->dump_info();
+}
 
 TEST_F(Fixobd_test, Release)
 {

@@ -425,7 +425,7 @@ get_volume_info(VOLUME_INFO& devinfo)
   devinfo.block_size = IO_BLOCK_SIZE;
   devinfo.distributed = false;
   devinfo.hash_id = 0;
-  devinfo.max_lba = _size_in_blocks;
+  devinfo.max_lba = _size_in_blocks - 1;
   strncpy(devinfo.volume_name,_file_path.c_str(),VOLUME_INFO_MAX_NAME);
 }
 

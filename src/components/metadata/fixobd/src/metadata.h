@@ -14,13 +14,16 @@
 #define __METADATA_COMPONENT_H__
 
 #include <api/metadata_itf.h>
+#include "md_record.h"
+
+struct __md_record;
 
 
 class Metadata : public Component::IMetadata
 {  
 private:
   static constexpr bool option_DEBUG = true;
-
+  
 public:
   /** 
    * Constructor
@@ -28,9 +31,8 @@ public:
    * @param block_device Block device interface
    * 
    */
-  Metadata(std::string owner,
-           std::string name,
-           Component::IBlock_device * block_device,
+  Metadata(Component::IBlock_device * block_device,
+           unsigned block_size,
            int flags);
 
 
@@ -39,6 +41,14 @@ public:
    * 
    */
   virtual ~Metadata();
+
+  inline void lock(unsigned long index) {
+    _lock_array->lock(index);
+  }
+
+  inline void unlock(unsigned long index) {
+    _lock_array->unlock(index);
+  }
 
   /** 
    * Component/interface management
@@ -112,9 +122,64 @@ public:
    */
   virtual void close_iterator(iterator_t iterator) override;
 
+    /** 
+   * Allocate a free metadata entry
+   * 
+   */
+  virtual void allocate(uint64_t start_lba,
+                        uint64_t lba_count,
+                        const char * id,
+                        const char * owner,
+                        const char * datatype) override;
+
+  /** 
+   * Show metadata state
+   * 
+   */
+  void dump_info() override;
 
 private:
+  
+  /** 
+   * Check record integrity (without holding any locks)
+   * 
+   * 
+   * @return True on OK
+   */
+  bool scan_records_unsafe();
 
+  /** 
+   * Wipe and reinitialize 
+   * 
+   */
+  void reinitialize();
+
+
+  /** 
+   * Apply function to each record
+   * 
+   */
+  void apply(std::function<void(struct __md_record&, size_t index, bool& keep_going)>,
+             unsigned long start,
+             unsigned long count);
+
+  /** 
+   * Flush metadata record to storage
+   * 
+   * @param record 
+   */
+  void flush_record(struct __md_record* record);
+
+  
+private:
+  Component::IBlock_device * _block;
+  size_t                     _n_records; /*< number of records */
+  size_t                     _memory_size;
+  Component::VOLUME_INFO     _vi;
+  size_t                     _block_size; /*< may different than underlying block size */
+  Component::io_buffer_t     _iob;
+  struct __md_record *       _records;
+  Lock_array *               _lock_array;
 };
 
 
@@ -140,12 +205,13 @@ public:
     delete this;
   }
 
-  virtual Component::IMetadata * create(std::string owner,
-                                        std::string name,
-                                        Component::IBlock_device * block_device,
+  virtual Component::IMetadata * create(Component::IBlock_device * block_device,
+                                        unsigned block_size,
                                         int flags) override
   {
-    Component::IMetadata * obj = static_cast<Component::IMetadata*>(new Metadata(owner, name, block_device, flags));    
+    Component::IMetadata * obj = static_cast<Component::IMetadata*>
+      (new Metadata(block_device, block_size, flags));
+    
     obj->add_ref();
     return obj;
   }

@@ -80,6 +80,23 @@ public:
    */
   virtual void close_iterator(iterator_t iterator) = 0;
 
+  /** 
+   * Allocate a free metadata entry
+   * 
+   */
+  virtual void allocate(uint64_t start_lba,
+                        uint64_t lba_count,
+                        const char * id,
+                        const char * owner,
+                        const char * datatype) = 0;
+
+
+  /** 
+   * Output debugging information
+   * 
+   */
+  virtual void dump_info() = 0;
+
 };
 
 
@@ -92,16 +109,13 @@ public:
   /** 
    * Create blob store from a block device
    * 
-   * @param owner Owner identifier
-   * @param name Store name
    * @param block_device Underlying block device
    * @param flags Instantiation flags
    * 
    * @return Pointer to IStore interface
    */  
-  virtual IMetadata * create(std::string owner,
-                             std::string name,
-                             Component::IBlock_device * block_device,
+  virtual IMetadata * create(Component::IBlock_device * block_device,
+                             unsigned block_size,
                              int flags) = 0;
 
 };
