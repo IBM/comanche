@@ -23,6 +23,7 @@
 
 class Header
 {
+  static constexpr bool option_DEBUG = false;
   static constexpr uint32_t MAGIC = 0xAC1DBA5E;
 
   struct Store_master_block
@@ -124,7 +125,7 @@ public:
   
   size_t block_size() const { return _vi.block_size; }
   
-  lba_t allocate(size_t n_bytes, size_t& n_blocks, index_t& index) {
+  lba_t allocate(size_t n_bytes, size_t& n_blocks) {
 
     if(unlikely(n_bytes % _vi.block_size))
       throw API_exception("allocate must round to block size");
@@ -135,10 +136,13 @@ public:
 
     if((_mb->max_lba - _mb->next_free_lba) < n_blocks)
       throw API_exception("Log-store: no more blocks");
+    
     result = _mb->next_free_lba;
     _mb->next_free_lba += n_blocks;
-    index = _mb->tail;
-    _mb->tail += n_bytes;
+    _mb->tail += n_bytes; /* increment tail by number of written bytes */
+
+    if(option_DEBUG)
+      PLOG("header: allocating %lu", result);
     return result;
   }
 

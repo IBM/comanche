@@ -326,6 +326,7 @@ IStore::iterator_t Append_store::open_iterator(std::string expr,
     sqlss << "SELECT LBA,NBLOCKS FROM " << _table_name << " WHERE ID LIKE '" << expr << "';";
   
   std::string sql = sqlss.str();
+  PLOG("SQL: %s", sql.c_str());
 
   sqlite3_stmt * stmt;
   sqlite3_prepare_v2(_db, sql.c_str(), sql.size(), &stmt, nullptr);
