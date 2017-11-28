@@ -29,7 +29,8 @@ public:
 
 public:
   using iterator_t = void*;
-
+  using index_t = int64_t;
+  
   /** 
    * Get total number of records
    * 
@@ -83,12 +84,19 @@ public:
   /** 
    * Allocate a free metadata entry
    * 
+   * @param start_lba 
+   * @param lba_count 
+   * @param id 
+   * @param owner 
+   * @param datatype 
+   * 
+   * @return Index >= 0 or -E_EMPTY
    */
-  virtual void allocate(uint64_t start_lba,
-                        uint64_t lba_count,
-                        const char * id,
-                        const char * owner,
-                        const char * datatype) = 0;
+  virtual index_t allocate(uint64_t start_lba,
+                           uint64_t lba_count,
+                           const char * id,
+                           const char * owner,
+                           const char * datatype) = 0;
 
 
   /** 

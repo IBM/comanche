@@ -13,6 +13,7 @@
 #ifndef __METADATA_COMPONENT_H__
 #define __METADATA_COMPONENT_H__
 
+#include <tbb/concurrent_queue.h>
 #include <api/metadata_itf.h>
 #include "md_record.h"
 
@@ -126,12 +127,12 @@ public:
    * Allocate a free metadata entry
    * 
    */
-  virtual void allocate(uint64_t start_lba,
-                        uint64_t lba_count,
-                        const char * id,
-                        const char * owner,
-                        const char * datatype) override;
-
+  index_t allocate(uint64_t start_lba,
+                   uint64_t lba_count,
+                   const char * id,
+                   const char * owner,
+                   const char * datatype) override;
+  
   /** 
    * Show metadata state
    * 
@@ -152,7 +153,13 @@ private:
    * Wipe and reinitialize 
    * 
    */
-  void reinitialize();
+  void wipe_initialize();
+
+  /** 
+   * Initialize in-memory (non-persistent) state from existing records
+   * 
+   */
+  void initialize();
 
 
   /** 
@@ -170,17 +177,20 @@ private:
    */
   void flush_record(struct __md_record* record);
 
-  
 private:
   Component::IBlock_device * _block;
-  size_t                     _n_records; /*< number of records */
+  size_t                     _n_records;  /*< number of records */
   size_t                     _memory_size;
   Component::VOLUME_INFO     _vi;
   size_t                     _block_size; /*< may different than underlying block size */
   Component::io_buffer_t     _iob;
   struct __md_record *       _records;
-  Lock_array *               _lock_array;
+  Lock_array *               _lock_array; /*< manages per-record fine grained locking */
+
+  tbb::concurrent_queue<struct __md_record *> _free_list;
 };
+
+
 
 
 class Metadata_factory : public Component::IMetadata_factory

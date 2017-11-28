@@ -38,14 +38,16 @@ Metadata::Metadata(Component::IBlock_device * block_device,
                0, // lba
                _vi.max_lba + 1); // lba count
 
-  _records = static_cast<struct __md_record *>(_block->virt_addr(_iob));
+  _records = static_cast<struct __md_record *>(_block->virt_addr(_iob));  
+  _lock_array = new Lock_array(_n_records);
 
   if(!scan_records_unsafe() || (flags & FLAGS_FORMAT)) {
     PLOG("initializing metadata storage");
-    reinitialize(); /* TODO: partial rebuild */
+    wipe_initialize(); /* TODO: partial rebuild */
   }
-
-  _lock_array = new Lock_array(_n_records);
+  else {
+    initialize();
+  }
 
   if(option_DEBUG)
     dump_info();
@@ -59,30 +61,30 @@ Metadata::~Metadata()
   _block->release_ref();  
 }
 
-void Metadata::allocate(uint64_t start_lba,
-                        uint64_t lba_count,
-                        const char * id,
-                        const char * owner,
-                        const char * datatype)
+index_t Metadata::allocate(uint64_t start_lba,
+                           uint64_t lba_count,
+                           const char * id,
+                           const char * owner,
+                           const char * datatype)
 {
-  apply([=](struct __md_record& record, size_t index, bool& keep_going)
-        {
-          lock(index);
+  struct __md_record* precord;
+  if(!_free_list.try_pop(precord)) {
+    return -E_EMPTY;
+  }
 
-          if(record.is_free()) {
-            record.set_used();
-            record.start_lba = start_lba;
-            record.lba_count = lba_count;
-            record.set_id(id);
-            record.set_owner(owner);
-            record.set_datatype(datatype);
-            keep_going = false;
-            flush_record(&record);
-          }
-          unlock(index);
-        }
-        , 0, _n_records);
+  lock(precord->index);
 
+  precord->set_used();
+  precord->start_lba = start_lba;
+  precord->lba_count = lba_count;
+  precord->set_id(id);
+  precord->set_owner(owner);
+  precord->set_datatype(datatype);
+  flush_record(precord);
+
+  unlock(precord->index);
+
+  return precord->index;
 }
 
 void Metadata::flush_record(struct __md_record * record)
@@ -103,7 +105,7 @@ void Metadata::flush_record(struct __md_record * record)
                 
 }
 
-void Metadata::reinitialize()
+void Metadata::wipe_initialize()
 {
   assert(_vi.block_size == 512 ||
          _vi.block_size == 4096);
@@ -115,6 +117,9 @@ void Metadata::reinitialize()
             record.block_size = MD_BLOCK_SIZE_512;
           else
             record.block_size = MD_BLOCK_SIZE_4096;
+          record.index = index;
+
+          _free_list.push(&record);
         }
         , 0, _n_records);
   
@@ -123,6 +128,27 @@ void Metadata::reinitialize()
                 0, // lba
                 _vi.max_lba + 1); // lba count  
 }
+
+void Metadata::initialize()
+{
+  assert(_vi.block_size == 512 ||
+         _vi.block_size == 4096);
+  
+  apply([=](struct __md_record& record, size_t index, bool& keep_going)
+        {
+          if(record.is_free()) {
+            _free_list.push(&record);
+          }          
+        }
+        , 0, _n_records);
+  
+  _block->write(_iob,
+                0, // offset
+                0, // lba
+                _vi.max_lba + 1); // lba count  
+}
+
+
 
 bool Metadata::scan_records_unsafe()
 {

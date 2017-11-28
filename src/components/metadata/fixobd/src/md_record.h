@@ -16,6 +16,10 @@ enum {
   MD_BLOCK_SIZE_4096 = 1,
 };
 
+/** 
+ * Manage locks in a seperate array from the records
+ * 
+ */
 class Lock_array
 {
 public:
@@ -36,7 +40,6 @@ public:
     _locks[index].unlock();
   }
   
-
 private:
   size_t                _n_locks;
   Common::Ticket_lock * _locks;
@@ -50,9 +53,9 @@ struct __md_record
     unsigned status:     2;
     unsigned block_size: 1;
   };
-  uint32_t            crc;
-  uint64_t            resvd;
-
+  uint32_t index;
+  uint32_t crc;
+  uint32_t resvd;
   uint64_t start_lba;       
   uint64_t lba_count;
     
