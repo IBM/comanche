@@ -1,5 +1,6 @@
 #include <sstream>
 #include <core/physical_memory.h>
+#include <common/logging.h>
 #include "log_store.h"
 #include "buffer_manager.h"
 
@@ -76,9 +77,8 @@ index_t Log_store::write(const void * data,
   
   uint32_t crc;
 
-  if(_use_crc) {
-    crc = crc32(0UL, (const Bytef*) data, data_len);
-  }
+  if(_use_crc)
+    crc = crc32(0UL, (const Bytef*) data, data_len); /* don't hold lock doing this */
 
   {
     std::lock_guard<std::mutex> g(_lock);
@@ -88,28 +88,30 @@ index_t Log_store::write(const void * data,
         /* write crc and data */
         index = _bm.write_out(crc, queue_id);
         _bm.write_out(data, data_len, queue_id);
+        return index / _fixed_size; /*< return record index */
       }
       else {
         /* write len, crc, data */
         index = _bm.write_out(data_len, queue_id);
         _bm.write_out(crc, queue_id);
         _bm.write_out(data, data_len, queue_id);
+        return index;
       }
     }
     else { /* no CRC */
       if(_fixed_size > 0) {
         /* write data only */
         index = _bm.write_out(data, data_len, queue_id);
+        return index / _fixed_size; /*< return record index */
       }
       else {
         /* len + data */
         index = _bm.write_out(data_len, queue_id);
         _bm.write_out(data, data_len, queue_id);
+        return index;
       }
     }    
   }
-
-  return index / _fixed_size; /*< return record index */
 }
 
 

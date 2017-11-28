@@ -8,7 +8,7 @@
 class Buffer_manager
 {
 public:
-  static constexpr size_t IO_BUFFER_SIZE        = KB(4); //*32;
+  static constexpr size_t IO_BUFFER_SIZE        = KB(4);
 private:
   static constexpr size_t IO_BUFFER_ALIGNMENT   = KB(4);
   static constexpr size_t NUM_IO_BUFFERS        = 256;
@@ -70,11 +70,11 @@ public:
   }
 
 private:
-  index_t post_buffer(unsigned queue_id)
+  void post_buffer(unsigned queue_id)
   {
     size_t n_blocks = 0;
     index_t index;
-    lba_t lba = _hdr.allocate(IO_BUFFER_SIZE, n_blocks, index);
+    lba_t lba = _hdr.allocate(IO_BUFFER_SIZE, n_blocks);
     assert(_current_buffer_index <= NUM_IO_BUFFERS);
     assert(_current_buffer_index > 0);
     //PLOG("$$>(%s) @ %ld", (char*)_block->virt_addr(_iob_buffer), lba);
@@ -92,15 +92,13 @@ private:
     free_index(_current_buffer_index);
 #endif
     ready_buffer();
-    return index;
   }
 
 public:
   index_t flush_buffer()
   {
     size_t n_blocks = 0;
-    index_t index;
-    lba_t lba = _hdr.allocate(IO_BUFFER_SIZE, n_blocks, index);
+    lba_t lba = _hdr.allocate(IO_BUFFER_SIZE, n_blocks);
     assert(_current_buffer_index <= NUM_IO_BUFFERS);
 
     /* write zeros to excess tail */
@@ -117,7 +115,6 @@ public:
 #else
     free_index(_current_buffer_index);
 #endif
-    return index;
   }
 
 

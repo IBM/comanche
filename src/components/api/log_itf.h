@@ -66,12 +66,20 @@ public:
   virtual std::string read(const index_t index) = 0;
 
   /** 
-   * Get last point of used storage
+   * Get next free byte address of storage
    * 
    * 
    * @return Index (byte offset)
    */
   virtual index_t get_tail() = 0;
+
+  /** 
+   * Return fixed size
+   * 
+   * 
+   * @return 0 if not fixed size
+   */
+  virtual size_t fixed_size() = 0;
   
   /** 
    * Flush queued IO and wait for completion

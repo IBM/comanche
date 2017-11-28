@@ -112,9 +112,20 @@ public:
    */
   virtual index_t get_tail() override {
     std::lock_guard<std::mutex> g(_lock);
-    return *_hdr.get_tail();
+    if(_fixed_size) return ((*_hdr.get_tail()) / _fixed_size);
+    return (*_hdr.get_tail());
   }
 
+  /** 
+   * Get fixed size
+   * 
+   * 
+   * @return 0 if not fixed size
+   */
+  virtual size_t fixed_size() override {
+    return _fixed_size;
+  }
+  
   /** 
    * Output debugging information
    * 
