@@ -74,7 +74,7 @@ index_t Log_store::write(const void * data,
 
   if(option_DEBUG)
     PLOG("Log_store: write %s", (char*)data);
-  
+
   uint32_t crc;
 
   if(_use_crc)
@@ -111,7 +111,7 @@ index_t Log_store::write(const void * data,
         return index;
       }
     }    
-  }
+  }  
 }
 
 
