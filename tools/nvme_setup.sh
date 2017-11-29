@@ -1,10 +1,6 @@
 #!/usr/bin/env bash
 
-if [ "$#" -eq 1 ]; then
-    NRHUGE=$1
-else 
-    NRHUGE=2000
-fi
+# Modified to no longer set up huge pages
 
 set -e
 
@@ -79,7 +75,7 @@ function configure_linux {
 		mkdir -p /mnt/huge
 		mount -t hugetlbfs nodev /mnt/huge
 	fi
-	echo "$NRHUGE" > /proc/sys/vm/nr_hugepages
+#	echo "$NRHUGE" > /proc/sys/vm/nr_hugepages
 
 	if [ "$driver_name" = "vfio-pci" ]; then
 		chown "$username" /dev/hugepages
@@ -132,39 +128,6 @@ function reset_linux {
 	echo "1" > "/sys/bus/pci/rescan"
 }
 
-function configure_freebsd {
-	TMP=`mktemp`
-
-	# NVMe
-	GREP_STR="class=0x010802"
-
-	# IOAT
-	grep "PCI_DEVICE_ID_INTEL_IOAT" $rootdir/include/spdk/pci_ids.h \
-	| awk -F"x" '{print $2}' > $TMP
-	for dev_id in `cat $TMP`; do
-		GREP_STR="${GREP_STR}\|chip=0x${dev_id}8086"
-	done
-
-	AWK_PROG="{if (count > 0) printf \",\"; printf \"%s:%s:%s\",\$2,\$3,\$4; count++}"
-	echo $AWK_PROG > $TMP
-
-	BDFS=`pciconf -l | grep "${GREP_STR}" | awk -F: -f $TMP`
-
-	kldunload nic_uio.ko || true
-	kenv hw.nic_uio.bdfs=$BDFS
-	kldload nic_uio.ko
-	rm $TMP
-
-	kldunload contigmem.ko || true
-	kenv hw.contigmem.num_buffers=$((NRHUGE * 2 / 256))
-	kenv hw.contigmem.buffer_size=$((256 * 1024 * 1024))
-	kldload contigmem.ko
-}
-
-function reset_freebsd {
-	kldunload contigmem.ko || true
-	kldunload nic_uio.ko || true
-}
 
 username=$1
 mode=$2
