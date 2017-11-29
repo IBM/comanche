@@ -50,11 +50,12 @@ public:
    * 
    * @param index Index of item
    * @param data IO buffer (must be atleast record_size + block_size)
+   * @param n_records [optional] Number of records to read (defaults to 1)
    * @param queue_id [optional] Queue index
    * 
    * @return Pointer to record
    */
-  virtual byte * read(const index_t index, Component::io_buffer_t iob, unsigned queue_id = 0) = 0;
+  virtual byte * read(const index_t index, Component::io_buffer_t iob, size_t n_records = 1, unsigned queue_id = 0) = 0;
 
   /** 
    * Read blob into a string (copy based)

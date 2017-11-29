@@ -117,33 +117,54 @@ index_t Log_store::write(const void * data,
 
 byte * Log_store::read(const index_t index,
                        Component::io_buffer_t iob,
+                       size_t n_records,
                        unsigned queue_id)
 {
+  /* TODO bounds check params */
   addr_t record_pos;
   if(_fixed_size) record_pos = index * _fixed_size;    
   else throw API_exception("read on non-fixed size not implemented");
+
+  //  if((n_records*_fixed_size) < 
 
   auto required_size = _fixed_size + _vi.block_size;
     
   if(_lower_layer->get_size(iob) < required_size)
     throw API_exception("insufficiently sized buffer in Log_store::read call. len %ld bytes required", required_size);
 
-  unsigned blocks_to_read = 0;
-  unsigned bottom_lba = round_down(record_pos, _vi.block_size) / _vi.block_size;
-  unsigned top_lba = round_up(record_pos + _fixed_size, _vi.block_size) / _vi.block_size;
-  unsigned total_blocks = top_lba - bottom_lba + 1;
-  unsigned offset_in_lba = record_pos % _vi.block_size;
+  size_t blocks_to_read = 0;
+  size_t bottom_lba = round_down(record_pos, _vi.block_size) / _vi.block_size;
+  size_t top_lba = round_up(record_pos + (_fixed_size * n_records), _vi.block_size) / _vi.block_size;
+  size_t total_blocks = top_lba - bottom_lba + 1;
+  size_t offset_in_lba = record_pos % _vi.block_size;
 
   if(option_DEBUG)
     PLOG("bottom_lba=%u, top_lba=%u, total_blocks=%u offset=%u",
          bottom_lba+1, top_lba+1, total_blocks, offset_in_lba);
 
-  
-  _lower_layer->read(iob,
-                     0, /* offset in IOB */
-                     bottom_lba + 1, /* add one block because of header */
-                     total_blocks,
-                     queue_id);
+
+  size_t blocks_remaining = total_blocks;
+  size_t offset = 0;
+  size_t lba = bottom_lba + 1; /* add one block because of header */
+
+  /* chunk read - SPDK should do this but big reads dont seem to work */
+  while(blocks_remaining > 0) {
+
+    //    size_t blocks_this_read = _vi.max_dma_len / _vi.block_size; // MB(4)/4096;
+    size_t blocks_this_read = MB(4)/4096;
+    if(blocks_this_read > blocks_remaining)
+      blocks_this_read = blocks_remaining;
+    
+    _lower_layer->read(iob,
+                       offset, /* offset in IOB */
+                       lba, 
+                       blocks_this_read,
+                       queue_id);
+    
+    offset += blocks_this_read * _vi.block_size;
+    lba += blocks_this_read;
+    blocks_remaining -= blocks_this_read;
+  }
   
   byte * vaddr = static_cast<byte*>(_lower_layer->virt_addr(iob));
   return vaddr + offset_in_lba;
@@ -151,7 +172,7 @@ byte * Log_store::read(const index_t index,
 
 std::string Log_store::read(const index_t index)
 {
-  char * ptr = (char*) this->read(index, _iob, 0);
+  char * ptr = (char*) this->read(index, 1, _iob, 0);
   std::string result(ptr);
   return result;
 }
