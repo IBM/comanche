@@ -121,12 +121,13 @@ public:
     write_mb();
   }
 
-  index_t * get_tail() const { return &_mb->tail; }
+  index_t get_tail() const { return _mb->tail; }
   
   size_t block_size() const { return _vi.block_size; }
   
   lba_t allocate(size_t n_bytes, size_t& n_blocks) {
 
+    PLOG("allocate %lu", n_bytes);
     if(unlikely(n_bytes % _vi.block_size))
       throw API_exception("allocate must round to block size");
 
