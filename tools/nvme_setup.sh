@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 
-NRHUGE=2000
+if [ "$#" -eq 1 ]; then
+    NRHUGE=$1
+else 
+    NRHUGE=2000
+fi
 
 set -e
 
