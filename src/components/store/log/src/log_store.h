@@ -85,7 +85,7 @@ public:
    * 
    * @return Pointer to record in iob
    */
-  virtual byte * read(const index_t index, Component::io_buffer_t iob, unsigned queue_id) override;
+  virtual byte * read(const index_t index, Component::io_buffer_t iob, size_t n_records, unsigned queue_id) override;
 
   /** 
    * Read blob into a string (copy based)

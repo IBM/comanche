@@ -127,7 +127,6 @@ public:
   
   lba_t allocate(size_t n_bytes, size_t& n_blocks) {
 
-    PLOG("allocate %lu", n_bytes);
     if(unlikely(n_bytes % _vi.block_size))
       throw API_exception("allocate must round to block size");
 
