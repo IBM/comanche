@@ -321,12 +321,11 @@ IStore::iterator_t Append_store::open_iterator(std::string expr,
   std::stringstream sqlss;
 
   if(flags > 0) 
-    sqlss << "SELECT LBA,NBLOCKS FROM " << _table_name << " WHERE ID LIKE '" << expr << "'LIMIT 10000;";
+    sqlss << "SELECT LBA,NBLOCKS FROM " << _table_name << " WHERE " << expr << " LIMIT 10000;";
   else
-    sqlss << "SELECT LBA,NBLOCKS FROM " << _table_name << " WHERE ID LIKE '" << expr << "';";
+    sqlss << "SELECT LBA,NBLOCKS FROM " << _table_name << " WHERE " << expr << " ;";
   
   std::string sql = sqlss.str();
-  PLOG("SQL: %s", sql.c_str());
 
   sqlite3_stmt * stmt;
   sqlite3_prepare_v2(_db, sql.c_str(), sql.size(), &stmt, nullptr);
@@ -527,6 +526,29 @@ void Append_store::reset_iterator(iterator_t iter)
   auto i = static_cast<__iterator_t*>(iter);
   i->current_idx = 0;
 }
+
+void Append_store::fetch_metadata(std::string filter_expr,
+                                  std::vector<std::pair<std::string,std::string> >& out_metadata)
+{
+  std::stringstream sqlss;
+
+  sqlss << "SELECT ID,METADATA FROM " << _table_name << " WHERE " << filter_expr << ";";
+  std::string sql = sqlss.str();
+
+  sqlite3_stmt * stmt;
+  sqlite3_prepare_v2(_db, sql.c_str(), sql.size(), &stmt, nullptr);
+  int s;
+  while((s = sqlite3_step(stmt)) != SQLITE_DONE) {
+    auto key = sqlite3_column_text(stmt, 0);
+    auto metadata = sqlite3_column_text(stmt, 1);
+    std::pair<std::string,std::string> p;
+    p.first = (char *) key;
+    p.second = (char *) metadata;
+    out_metadata.push_back(p);
+  }
+  sqlite3_finalize(stmt);
+}
+
 
 status_t Append_store::flush()
 {

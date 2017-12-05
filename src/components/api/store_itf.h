@@ -210,6 +210,16 @@ public:
    * @param iter Iterator
    */
   virtual void reset_iterator(iterator_t iter) = 0;
+
+
+  /** 
+   * Get metadata from filter expression
+   * 
+   * @param filter_expr Filter expression
+   * @param out_metadata [out] metadata
+   */
+  virtual void fetch_metadata(std::string filter_expr,
+                              std::vector<std::pair<std::string,std::string> >& out_metadata) = 0;
   
   /** 
    * Dump debugging information
