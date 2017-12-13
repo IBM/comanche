@@ -41,7 +41,7 @@ class Header
 
 public:
   Header(std::string owner,
-         std::string name,
+         const std::string name,
          Component::IBlock_device * block,
          uint64_t fixed_size,
          bool force_init) : _block(block)
@@ -83,8 +83,10 @@ public:
     PLOG("Log-store: next=%ld max=%ld owner=%s name=%s",
          _mb->next_free_lba, _mb->max_lba, _mb->owner, _mb->name);
 
-    if(name.compare(_mb->name) != 0)
-      throw General_exception("Log-store: name does not match");
+    if(name != "any") {
+      if(name.compare(_mb->name) != 0)
+        throw General_exception("Log-store: name does not match");
+    }
 
     if(owner.compare(_mb->owner) != 0)
       throw General_exception("Log-store: owner does not match");
