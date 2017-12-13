@@ -139,7 +139,7 @@ byte * Log_store::read(const index_t index,
   size_t offset_in_lba = record_pos % _vi.block_size;
 
   if(option_DEBUG)
-    PLOG("bottom_lba=%u, top_lba=%u, total_blocks=%u offset=%u",
+    PLOG("bottom_lba=%lu, top_lba=%lu, total_blocks=%lu offset=%lu",
          bottom_lba+1, top_lba+1, total_blocks, offset_in_lba);
 
 
