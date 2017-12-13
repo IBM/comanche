@@ -22,6 +22,7 @@
  *
  */
 
+#define DISABLE_SIGPROF_ON_IO_THREAD /*< prevents IO thread from being profiled with gperftools */
 //#define FORMAT_ON_INIT
 //#define DISABLE_IO // TESTING only.
 
@@ -127,6 +128,17 @@ static int lcore_entry_point(void * arg)
   Nvme_queue * queue = static_cast<Nvme_queue*>(arg);
   assert(queue);
   assert(queue->device());
+
+  /* mask SIGPROF */
+#ifdef DISABLE_SIGPROF_ON_IO_THREAD
+  {
+    sigset_t set;
+    sigemptyset(&set);
+    sigaddset(&set, SIGPROF);
+    int s = pthread_sigmask(SIG_BLOCK, &set, NULL);
+    assert(s==0);
+  }
+#endif
 
   /* create and register work queue */
   struct rte_ring * ring = register_ring(current_core, queue->device());
