@@ -24,6 +24,7 @@
 #ifndef __CORE_POLLER_H__
 #define __CORE_POLLER_H__
 
+#include <signal.h>
 #include <numa.h>
 #include <unistd.h>
 #include <sched.h>
@@ -42,7 +43,8 @@ namespace Core
 class Poller
 {
   static constexpr unsigned MAX_CORES = 128;
-
+  static constexpr bool MASK_PROFILING_SIGNAL = true;
+  
  public:
   Poller(cpu_mask_t& cpus)
   {
@@ -90,6 +92,14 @@ class Poller
  private:
   void thread_entry(unsigned core)
   {
+    if(MASK_PROFILING_SIGNAL) {
+      sigset_t set;
+      sigemptyset(&set);
+      sigaddset(&set, SIGPROF);
+      int s = pthread_sigmask(SIG_BLOCK, &set, NULL);
+      assert(s==0);
+    }
+    
     set_cpu_affinity(1UL << core);
 
     /* simple round robin */
