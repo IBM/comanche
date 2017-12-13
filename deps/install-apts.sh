@@ -6,9 +6,10 @@ apt-get install -y gcc libpciaccess-dev make libcunit1-dev \
         libcunit1-dev libboost-system-dev libboost-program-options-dev \
         libssl-dev g++-multilib fabric libtool-bin autoconf automake \
         rapidjson-dev libfuse-dev libpcap-dev sqlite3 libsqlite3-dev libomp-dev \
-	uuid-dev libtbb-dev libtbb-doc
+	      uuid-dev libtbb-dev libtbb-doc 
 
 
 # optional
 #
-# apt-get install emacs elpa-company
+# apt-get install emacs elpa-company google-perftools libgoogle-perftools-dev
+#
