@@ -226,7 +226,6 @@ void Block_allocator::free(lba_t lba, void* handle)
     if(!s->free(lba)) {
       throw General_exception("block_allocator free failed unexpectedly");
     }
-    PLOG("fast free (%ld)", lba);
     return;
   }
 
@@ -237,7 +236,7 @@ void Block_allocator::free(lba_t lba, void* handle)
       return;
     s = s->adjacent();
   }
-  throw API_exception("unabel to locate lba: bad free");
+  throw API_exception("unable to locate lba: bad free");
 }
 
 /** 

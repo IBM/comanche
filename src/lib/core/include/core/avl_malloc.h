@@ -50,8 +50,8 @@ class Memory_region : public Core::AVL_node<Memory_region>
   addr_t         _addr;
   size_t         _size;
   bool           _free = true;
-  Memory_region* _next = NULL;
-  Memory_region* _prev = NULL;
+  Memory_region* _next = nullptr;
+  Memory_region* _prev = nullptr;
   char           _padding;
   //    size_t          _max_free = 0; // TODO: subtree pruning
 
@@ -173,7 +173,7 @@ class Memory_region : public Core::AVL_node<Memory_region>
    */
   Memory_region* find_region(Memory_region* node, addr_t addr)
   {
-    if (node == NULL) return NULL;
+    if (node == nullptr) return nullptr;
 
 #ifdef USE_RECURSION  // recursion breaks the stack for large trees
 
@@ -188,7 +188,7 @@ class Memory_region : public Core::AVL_node<Memory_region>
       if ((result = find_region(node->right(), addr))) {
         return result;
       }
-      return NULL;
+      return nullptr;
     }
 #else
     std::vector<Memory_region*> stack;
@@ -211,7 +211,7 @@ class Memory_region : public Core::AVL_node<Memory_region>
     }
 
 #endif
-    return NULL;
+    return nullptr;
   }
 
   /** 
@@ -226,7 +226,7 @@ class Memory_region : public Core::AVL_node<Memory_region>
    */
   Memory_region* find_free_region(Memory_region* node, size_t size, size_t alignment = 0)
   {
-    if (node == NULL) return NULL;
+    if (node == nullptr) return nullptr;
 
 #ifdef USE_RECURSION
 
@@ -242,9 +242,9 @@ class Memory_region : public Core::AVL_node<Memory_region>
     }
 
     Memory_region* result;
-    if ((result = find_free_region(node->left(), size)) != NULL)
+    if ((result = find_free_region(node->left(), size)) != nullptr)
       return result;
-    else if ((result = find_free_region(node->right(), size)) != NULL)
+    else if ((result = find_free_region(node->right(), size)) != nullptr)
       return result;
 
 #else
@@ -275,7 +275,7 @@ class Memory_region : public Core::AVL_node<Memory_region>
     }
 #endif
 
-    return NULL;
+    return nullptr;
   }
 
   /** 
@@ -283,12 +283,13 @@ class Memory_region : public Core::AVL_node<Memory_region>
    * 
    * @param addr Address that should be contained
    * 
-   * @return NULL if not found, otherwise containing region
+   * @return nullptr if not found, otherwise containing region
    */
   Memory_region* find_containing_region(Memory_region* node, addr_t addr)
   {
-    if (node == NULL) return NULL;
+    if (node == nullptr) return nullptr;
 
+#ifdef USE_RECURSION   
     if ((addr >= node->_addr) && (addr < (node->_addr + node->_size))) {  // to check
       return node;
     }
@@ -301,7 +302,26 @@ class Memory_region : public Core::AVL_node<Memory_region>
         return result;
       }
     }
-    return NULL;
+#else
+    Common::Fixed_stack<Memory_region*> stack;  // good for debugging
+    stack.push(node);
+
+    while (!stack.empty()) {
+      Memory_region* node = stack.pop();
+
+      if ((addr >= node->_addr) && (addr < (node->_addr + node->_size))) {  // to check
+        return node;
+      }
+      else {
+        Memory_region* l = node->left();
+        if (l) stack.push(l);
+
+        Memory_region* r = node->right();
+        if (r) stack.push(r);
+      }
+    }    
+#endif
+    return nullptr; /* not found */
   }
 
 } __attribute__((packed));
@@ -315,7 +335,7 @@ class Memory_region : public Core::AVL_node<Memory_region>
 class AVL_range_allocator
 {
  private:
-  static constexpr bool option_DEBUG = true;
+  static constexpr bool option_DEBUG = false;
 
   Core::Slab::CRuntime<Memory_region> __default_allocator;
   
@@ -452,6 +472,12 @@ class AVL_range_allocator
       _tree->insert_node(left_over);
     }
 
+    if(region->_addr == 0x5dc0000) {
+      PNOTICE("allocated at 5dc0000!!");
+    }
+    else {
+      PLOG("allocated at:%lx", region->_addr);
+    }
     return region;
   }
 
@@ -465,7 +491,7 @@ class AVL_range_allocator
   {
     assert(_tree);
     Memory_region* r = (Memory_region*) *(_tree->root());
-    if (r == nullptr) throw Logic_exception("AVL memory range tree root is NULL");
+    if (r == nullptr) throw Logic_exception("AVL memory range tree root is nullptr");
 
     while (r->left()) r = r->left();
     return r;
@@ -500,11 +526,13 @@ class AVL_range_allocator
     Memory_region* region = root->find_containing_region(root, addr);
 
     if (region == nullptr) {
+      PWRN("alloc_at: cannot find containing region (addr=%lx, size=%ld)", addr, size);
       assert(0);
       return nullptr;
     }
 
-    if (option_DEBUG) PLOG("alloc_at (addr=0x%lx,size=%ld) found fitting region %p:", addr, size, region);
+    if (option_DEBUG) PLOG("alloc_at (addr=0x%lx,size=%ld) found fitting region %lx-%lx:", addr, size,
+                           region->_addr, region->_addr + region->_size);
 
     assert(region->_size >= size);
 
@@ -556,7 +584,7 @@ class AVL_range_allocator
    * 
    * @param addr Start address
    * 
-   * @return Pointer to memory region if found, otherwise NULL
+   * @return Pointer to memory region if found, otherwise nullptr
    */
   Memory_region* find(addr_t addr)
   {
@@ -596,7 +624,7 @@ class AVL_range_allocator
   size_t free(addr_t addr)
   {
     Memory_region* region = find(addr);
-    if (region == NULL) {
+    if (region == nullptr) {
       PERR("invalid call to free: bad address");
       return -1;
     }
@@ -693,7 +721,7 @@ class Arena_allocator : public Common::Base_memory_allocator
   Arena_allocator(Common::Base_slab_allocator& metadata_slab, void* region, size_t region_size)
     : _range_allocator(metadata_slab, (addr_t) region, region_size)
   {
-    if (!region) throw Constructor_exception("NULL 'region' parameter in Arena_allocator");
+    if (!region) throw Constructor_exception("nullptr 'region' parameter in Arena_allocator");
 
     if (region_size == 0) throw Constructor_exception("Zero 'region_size' parameter in Arena_allocator");
   }

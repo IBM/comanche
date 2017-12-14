@@ -94,7 +94,7 @@ private:
   }
 
 public:
-  index_t flush_buffer()
+  void flush_buffer()
   {
     size_t n_blocks = 0;
     lba_t lba = _hdr.allocate(IO_BUFFER_SIZE, n_blocks);
