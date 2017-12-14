@@ -22,7 +22,7 @@ class Segment;
 class Block_allocator : public Component::IBlock_allocator
 {  
 private:
-  static constexpr bool option_DEBUG = true;
+  static constexpr bool option_DEBUG = false;
 
 public:
   /** 
