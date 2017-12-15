@@ -43,9 +43,9 @@ using addr_t       = uint64_t;
 
 static constexpr unsigned VOLUME_INFO_MAX_NAME = 64;
 
-class VOLUME_INFO;
+struct VOLUME_INFO;
 
-class VOLUME_INFO
+struct VOLUME_INFO
 {
 public:
   VOLUME_INFO() {
