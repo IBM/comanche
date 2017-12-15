@@ -81,7 +81,7 @@ public:
    * @param vaddr 
    * @param len 
    */
-  virtual void unregister_memory_for_io(void *, size_t len) = 0;
+  virtual void unregister_memory_for_io(void * vaddr, size_t len) = 0;
 
   /** 
    * Get pointer (virtual address) to start of IO buffer
