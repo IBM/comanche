@@ -19,7 +19,7 @@
 
 namespace Component {
 
-using io_buffer_t  = uint64_t;
+typedef uint64_t io_buffer_t;
 
 enum {
   NUMA_NODE_ANY = -1,
