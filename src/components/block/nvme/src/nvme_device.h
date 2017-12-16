@@ -326,6 +326,9 @@ public:
 #endif
   }
 
+  size_t queue_count() const {
+    return _queues.size();
+  }
 
 private:
   /* we managed descriptors at the device level because there is 
