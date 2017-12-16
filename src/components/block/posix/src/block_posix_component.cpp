@@ -21,7 +21,8 @@
  * Daniel G. Waddington (daniel.waddington@ibm.com)
  *
  */
-
+#include <functional>
+#include <utility>
 #include <signal.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -260,6 +261,20 @@ create(std::string config_string, cpu_mask_t * cpuset, Core::Poller * poller)
  * 
  */
 
+struct __callback_info {
+  uint64_t gwid;
+  IBlock_device::io_callback_t cb;
+  void * cb_arg0;
+  void * cb_arg1;
+};
+
+static void signal_completion(union sigval sv)
+{
+  __callback_info * cbinfo = static_cast<__callback_info *>(sv.sival_ptr);
+  cbinfo->cb(cbinfo->gwid, cbinfo->cb_arg0, cbinfo->cb_arg1);
+  delete cbinfo;
+}
+
 workid_t
 Block_posix::
 async_read(io_buffer_t buffer,
@@ -275,11 +290,9 @@ async_read(io_buffer_t buffer,
     PINF("[+] block-posix: async_read(buffer=%p, offset=%lu, lba=%lu, lba_count=%lu",
          (void*) buffer, buffer_offset, lba, lba_count);
 
-  if(cb || cb_arg0 || cb_arg1)
-    throw API_exception("posix-block device does not yet support callbacks");
-  
-  if(queue_id > 0)
-    throw API_exception("queue parameter not supported");
+  if(queue_id > 0) {
+    PWRN("queue parameter ignored in Block_posix");
+  }
 
   struct aiocb * desc = allocate_descriptor();
   memset(desc, 0, sizeof(struct aiocb));
@@ -288,15 +301,24 @@ async_read(io_buffer_t buffer,
   desc->aio_offset = lba * IO_BLOCK_SIZE;
   desc->aio_lio_opcode = LIO_READ; // ignored according to man page
   desc->aio_nbytes = lba_count * IO_BLOCK_SIZE;
-  desc->aio_sigevent.sigev_notify = SIGEV_NONE;
-  
-  if(aio_read(desc)!=0)
-    throw General_exception("aio_read failed");
 
   uint64_t gwid = add_outstanding(desc);
   if(option_DEBUG)
     PLOG("block-posix: async-read submitted %ld", gwid);
-  
+
+  /* set up optional call back */
+  if(cb) {
+    desc->aio_sigevent.sigev_notify = SIGEV_THREAD;
+    desc->aio_sigevent.sigev_value.sival_ptr = (void*) new __callback_info({gwid, cb, cb_arg0, cb_arg1});
+    desc->aio_sigevent.sigev_notify_function = signal_completion;
+  }
+  else {
+    desc->aio_sigevent.sigev_notify = SIGEV_NONE;
+  }
+    
+  if(aio_read(desc)!=0)
+    throw General_exception("aio_read failed");
+
   return gwid;
 }
  
@@ -315,9 +337,6 @@ async_write(io_buffer_t buffer,
     PINF("[+] block-posix: async_write(buffer=%p, offset=%lu, lba=%lu, lba_count=%lu",
          (void*)buffer, buffer_offset, lba, lba_count);
 
-  if(cb || cb_arg0 || cb_arg1)
-    throw API_exception("posix-block device does not yet support callbacks");
-  
   if(queue_id > 0)
     throw API_exception("queue parameter not supported");
 
@@ -329,13 +348,23 @@ async_write(io_buffer_t buffer,
   desc->aio_lio_opcode = LIO_WRITE; // ignored according to man page
   desc->aio_nbytes = lba_count * IO_BLOCK_SIZE;
   desc->aio_sigevent.sigev_notify = SIGEV_NONE;
-  
-  if(aio_write(desc)!=0)
-    throw General_exception("aio_write failed");
 
   uint64_t gwid = add_outstanding(desc);
   if(option_DEBUG)
     PLOG("block-posix: async-write submitted %ld", gwid);
+
+  /* set up optional call back */
+  if(cb) {
+    desc->aio_sigevent.sigev_notify = SIGEV_THREAD;
+    desc->aio_sigevent.sigev_value.sival_ptr = (void*) new __callback_info({gwid, cb, cb_arg0, cb_arg1});
+    desc->aio_sigevent.sigev_notify_function = signal_completion;
+  }
+  else {
+    desc->aio_sigevent.sigev_notify = SIGEV_NONE;
+  }
+    
+  if(aio_write(desc)!=0)
+    throw General_exception("aio_write failed");
   
   return gwid;
 }
