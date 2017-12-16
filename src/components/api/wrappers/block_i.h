@@ -14,6 +14,7 @@ typedef void (*io_callback_t)(uint64_t, void*, void*);
 
 class Block;
 
+/* Class to manage release of io_buffer_t */
 class IO_buffer
 {
 public:
@@ -22,17 +23,14 @@ public:
   ~IO_buffer();
   void show() const;
 
-  void operator=(const IO_buffer& obj);  
+  void operator=(const IO_buffer& obj);
+  
+  uint64_t get_iob() const { return _iob; }
   
 private:
   Component::IBlock_device * _owner;
   uint64_t _iob;
 };
-
-static void info(IO_buffer* iob) {
-  TRACE();
-  iob->show();
-}
 
 class Block
 {
@@ -46,11 +44,33 @@ public:
     return new IO_buffer(_obj,_obj->allocate_io_buffer(size, alignment, numa_node));
   }
 
+  std::string  get_volume_info() {
+    std::stringstream ss;
+    Component::VOLUME_INFO vi;
+    _obj->get_volume_info(vi);
+    ss << "{\"name\":\"" << vi.volume_name << "\"";
+    ss << ",\"block_size\":" << vi.block_size;
+    ss << ",\"max_lba\":" << vi.max_lba;
+    ss << ",\"max_dma_len\":" << vi.max_dma_len;
+    ss << ",\"hash_id\":" << vi.hash_id;
+    ss << ",\"sw_queue_count\":" << vi.sw_queue_count;
+    ss << "}";
+    return ss.str();
+  }
+
 protected:
   void free_io_buffer(io_buffer_t iob) { _obj->free_io_buffer(iob); }
 private:
   Component::IBlock_device * _obj;
 };
+/*
+  unsigned block_size;
+  uint64_t hash_id;
+  uint64_t max_lba;
+  uint64_t max_dma_len;
+  unsigned distributed : 1;
+  unsigned sw_queue_count
+*/
 
 // #ifdef __cplusplus
 // extern "C"
