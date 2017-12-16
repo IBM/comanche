@@ -129,6 +129,9 @@ get_volume_info(VOLUME_INFO& devinfo)
   devinfo.block_size = _device->get_block_size(DEFAULT_NAMESPACE_ID);
   devinfo.max_lba = _device->get_size_in_blocks(DEFAULT_NAMESPACE_ID) - 1;
   devinfo.max_dma_len = _device->get_max_io_xfer_size();
+  devinfo.sw_queue_count = _device->queue_count();
+  devinfo.distributed = false;
+  devinfo.hash_id = _device->get_serial_hash();
 }
 
 
