@@ -381,6 +381,9 @@ write(Component::io_buffer_t buffer,
     PINF("[+] block-posix: write(buffer=%p, offset=%lu, lba=%lu, lba_count=%lu",
          (void*)buffer, buffer_offset, lba, lba_count);
 
+  if(lba_count == 0)
+    throw API_exception("bad parameter");
+
   if(queue_id > 0)
     throw API_exception("queue parameter not supported");
 
@@ -390,11 +393,8 @@ write(Component::io_buffer_t buffer,
   if(rc != nbytes)
     throw General_exception("%s: pwrite failed", __PRETTY_FUNCTION__);
 
-  if(fsync(_fd))
-    throw General_exception("%s: fsync failed", __PRETTY_FUNCTION__);
-
-  if(option_DEBUG)
-    PINF("[block-posix] write: %p lba=%lu lba_count=%lu", ptr, lba, lba_count);
+  if(syncfs(_fd))
+    throw General_exception("%s: syncfs failed", __PRETTY_FUNCTION__);
 }
 
 void
@@ -409,6 +409,9 @@ read(Component::io_buffer_t buffer,
     PINF("[+] block-posix: read(buffer=%p, offset=%lu, lba=%lu, lba_count=%lu",
          (void*)buffer, buffer_offset, lba, lba_count);
 
+  if(lba_count == 0)
+    throw API_exception("bad parameter");
+  
   if(queue_id > 0)
     throw API_exception("queue parameter not supported");
 
@@ -418,8 +421,6 @@ read(Component::io_buffer_t buffer,
   if(rc != nbytes)
     throw General_exception("%s: pread failed", __PRETTY_FUNCTION__);
 
-  if(option_DEBUG)
-    PINF("[block-posix] read: %p lba=%lu lba_count=%lu", ptr, lba, lba_count);
 }
 
 
