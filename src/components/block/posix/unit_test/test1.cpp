@@ -234,14 +234,14 @@ TEST_F(Block_posix_test, PartitionIntegrity)
 #endif
 
 
-#if 0
+#if 1
 TEST_F(Block_posix_test, PartitionIntegritySync)
 {
   using namespace Component;
   
   io_buffer_t mem = _block->allocate_io_buffer(4096,4096,Component::NUMA_NODE_ANY);
   void * ptr = _block->virt_addr(mem);
-  unsigned ITERATIONS = 10000;
+  unsigned ITERATIONS = 100;
 
   VOLUME_INFO vinfo;
   _block->get_volume_info(vinfo);

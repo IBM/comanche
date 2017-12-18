@@ -42,7 +42,7 @@ class Block_posix : public Core::Physical_memory,
                     public Component::IBlock_device
 {
 private:
-  static constexpr bool   option_DEBUG = false;
+  static constexpr bool   option_DEBUG = true;
   static constexpr size_t AIO_THREADS = 8;
   static constexpr size_t AIO_SIMUL = 256;
   static constexpr size_t AIO_DESCRIPTOR_POOL_SIZE = 1024;
