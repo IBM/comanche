@@ -35,7 +35,7 @@ public:
    * Get total number of records
    * 
    * 
-   * @return Total number of records
+   * @return Total number of used records
    */
   virtual size_t get_record_count() = 0;
 
@@ -52,27 +52,19 @@ public:
    * Get next record in iteration
    * 
    * @param iter Iterator handle
+   * @param out_index Out index of the record (can be used to free etc.)
    * @param out_metadata Out metadata (e.g., JSON string)
-   * @param allocator_handle Out allocator handle (see allocator_itf.h)
    * @param lba [optional] Out logical block address
    * @param lba_count [optional] Out logical block count
    * 
    * @return S_OK or E_EMPTY
    */
   virtual status_t iterator_get(iterator_t iter,
+                                index_t& out_index,
                                 std::string& out_metadata,
-                                void *& allocator_handle,
                                 uint64_t* lba = nullptr,
                                 uint64_t* lba_count = nullptr) = 0;
 
-  /** 
-   * Get number of records in an iterator
-   * 
-   * @param iter Iterator handle
-   * 
-   * @return Number of records
-   */
-  virtual size_t iterator_record_count(iterator_t iter) = 0;
 
   /** 
    * Close an iterator and free memory
@@ -98,6 +90,26 @@ public:
                            const char * owner,
                            const char * datatype) = 0;
 
+  /** 
+   * Free/delete metadata entry
+   * 
+   * @param index 
+   */
+  virtual void free(index_t index) = 0;
+  
+  /** 
+   * Lock a metadata entry
+   * 
+   * @param index Entry index
+   */
+  virtual void lock_entry(index_t index) = 0;
+
+  /** 
+   * Unlock a metadata entry
+   * 
+   * @param index Entry index
+   */
+  virtual void unlock_entry(index_t index) = 0;
 
   /** 
    * Output debugging information

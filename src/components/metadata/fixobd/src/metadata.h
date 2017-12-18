@@ -20,6 +20,15 @@
 struct __md_record;
 
 
+/** 
+ * Simple metadata management based on fixed size records.  Allocation
+ * is concurren-safe. Iteration will perform a complete scan and is
+ * thus O(N).  Scan is dynamically evaluated so allocations can be
+ * made during scan - no locks are held.  Each metadata record is 256
+ * bits (32 bytes).  Locking is fine-grained (per metadata block)
+ * ticket-locks.
+ */
+
 class Metadata : public Component::IMetadata
 {  
 private:
@@ -94,27 +103,18 @@ public:
    * Get next record in iteration
    * 
    * @param iter Iterator handle
+   * @param out_index Out index of entry
    * @param out_metadata Out metadata (e.g., JSON string)
-   * @param allocator_handle Out allocator handle (see allocator_itf.h)
    * @param lba [optional] Out logical block address
    * @param lba_count [optional] Out logical block count
    * 
    * @return S_OK or E_EMPTY
    */
   virtual status_t iterator_get(iterator_t iter,
+                                index_t& out_index,
                                 std::string& out_metadata,
-                                void *& allocator_handle,
                                 uint64_t* lba = nullptr,
                                 uint64_t* lba_count = nullptr) override;
-
-  /** 
-   * Get number of records in an iterator
-   * 
-   * @param iter Iterator handle
-   * 
-   * @return Number of records
-   */
-  virtual size_t iterator_record_count(iterator_t iter) override;
 
   /** 
    * Close an iterator and free memory
@@ -127,17 +127,38 @@ public:
    * Allocate a free metadata entry
    * 
    */
-  index_t allocate(uint64_t start_lba,
-                   uint64_t lba_count,
-                   const char * id,
-                   const char * owner,
-                   const char * datatype) override;
+  virtual index_t allocate(uint64_t start_lba,
+                           uint64_t lba_count,
+                           const char * id,
+                           const char * owner,
+                           const char * datatype) override;
+
+  /** 
+   * Free/delete metadata entry
+   * 
+   * @param index 
+   */
+  virtual void free(index_t index) override;
   
+  /** 
+   * Lock a metadata entry
+   * 
+   * @param index Entry index
+   */
+  virtual void lock_entry(index_t index) override;
+
+  /** 
+   * Unlock a metadata entry
+   * 
+   * @param index Entry index
+   */
+  virtual void unlock_entry(index_t index) override;
+
   /** 
    * Show metadata state
    * 
    */
-  void dump_info() override;
+  virtual void dump_info() override;
 
 private:
   
@@ -182,9 +203,9 @@ private:
   size_t                     _n_records;  /*< number of records */
   size_t                     _memory_size;
   Component::VOLUME_INFO     _vi;
-  size_t                     _block_size; /*< may different than underlying block size */
+  size_t                     _block_size; /*< may be different than underlying block size */
   Component::io_buffer_t     _iob;
-  struct __md_record *       _records;
+  struct __md_record *       _records;    /*< in-memory copy of records */
   Lock_array *               _lock_array; /*< manages per-record fine grained locking */
 
   tbb::concurrent_queue<struct __md_record *> _free_list;
