@@ -1,9 +1,13 @@
 #include <iostream>
+#include <regex>
+#include <rapidjson/rapidjson.h>
+#include <rapidjson/document.h>
 #include <api/metadata_itf.h>
 #include "metadata.h"
 #include "md_record.h"
 
 using namespace Component;
+using namespace rapidjson;
 
 Metadata::Metadata(Component::IBlock_device * block_device,
                    unsigned block_size,
@@ -80,14 +84,15 @@ index_t Metadata::allocate(uint64_t start_lba,
   precord->set_id(id);
   precord->set_owner(owner);
   precord->set_datatype(datatype);
-  flush_record(precord);
 
   unlock(precord->index);
+
+  flush_record(precord);
 
   return precord->index;
 }
 
-void Metadata::flush_record(struct __md_record * record)
+void Metadata::flush_record(__md_record * record)
 {
   assert(record >= _records);
 
@@ -98,11 +103,22 @@ void Metadata::flush_record(struct __md_record * record)
   if(option_DEBUG) {    
     PLOG("flushing %p (in block 0x%lx)", record, lba);
   }
+
+  __md_record * record_batch_base = (struct __md_record *) block_addr;
+
+  /* grab all the locks for records in the same block */
+  size_t records_per_block = _vi.block_size / sizeof(__md_record);
+  for(unsigned i=0;i<records_per_block;i++)
+    lock(record_batch_base[i].index);
+  
   _block->write(_iob,
                 (addr_t)_records - block_addr, // offset
                 lba,
                 1); // lba_count
-                
+
+  for(unsigned i=0;i<records_per_block;i++)
+    unlock(record_batch_base[i].index);
+
 }
 
 void Metadata::wipe_initialize()
@@ -212,31 +228,135 @@ void Metadata::apply(std::function<void(struct __md_record&,
 
 size_t Metadata::get_record_count()
 {
-  return 0;
+  assert(_free_list.unsafe_size() <= _n_records);
+  return _n_records - _free_list.unsafe_size();
 }
+
+struct __iterator_t
+{
+  size_t     pos;
+  std::regex id_filter;
+  std::regex owner_filter;
+};
 
 IMetadata::iterator_t Metadata::open_iterator(std::string filter)
 {
-  return nullptr;
+  Document doc;
+  __iterator_t * i;
+  try {
+    doc.Parse(filter.c_str());
+
+    if(option_DEBUG)
+      PLOG("filter expr (%s)", filter.c_str());
+
+    if(doc.IsNull())
+      throw API_exception("invalid filter string");
+
+    i = new __iterator_t;
+    i->pos = 0;
+    
+    if(doc.HasMember("id") && doc["id"].IsString()) {
+      i->id_filter = std::regex(doc["id"].GetString());
+
+      if(option_DEBUG)
+        PLOG("id_filter (%s)", doc["id"].GetString());
+    }
+    
+  }
+  catch(...) {
+    throw API_exception("invalid filter string");
+  }
+
+  
+  
+  return static_cast<void*>(i);
 }
 
 status_t Metadata::iterator_get(IMetadata::iterator_t iter,
+                                index_t& out_index,
                                 std::string& out_metadata,
-                                void *& allocator_handle,
                                 uint64_t* lba,
                                 uint64_t* lba_count)
 {
-  return E_FAIL;
+  __iterator_t * i = static_cast<__iterator_t*>(iter);
+
+  do {
+    if(i->pos >= _n_records) {
+      break;
+    }
+
+    auto& record = _records[i->pos];
+
+    i->pos ++;
+    if(record.is_free()) continue;
+        
+    std::smatch id_match, owner_match;
+    const std::string id_target = record.id;
+    const std::string owner_target = record.owner;
+
+    if(std::regex_match(id_target, id_match, i->id_filter) ||
+       std::regex_match(owner_target, owner_match, i->owner_filter)) {
+      /* create JSON result */
+      std::stringstream ss;
+      ss << "{\"id\": \"" << record.id << "\",\"owner\":\"" << record.owner << "\","
+         << "\"datatype\":\"" << record.datatype << "\",\"utc_modified\":\"" << record.utc_modified
+         << "\",\"utc_created\":\"" << record.utc_created << "\"}";
+      
+      out_metadata = ss.str();
+      out_index = i->pos - 1;
+      
+      if(lba) *lba = record.start_lba;
+      if(lba_count) *lba_count = record.lba_count;
+      return S_OK;
+    }
+  }
+  while(i->pos < _n_records);
+  
+  return E_EMPTY;
 }
 
-size_t Metadata::iterator_record_count(iterator_t iter)
+void Metadata::close_iterator(iterator_t iter)
 {
-  return 0;
+  __iterator_t * i = static_cast<__iterator_t*>(iter);
+  assert(i);
+  delete i;
 }
 
-void Metadata::close_iterator(iterator_t iterator)
+void Metadata::free(index_t index)
 {
+  if(index > _n_records)
+    throw API_exception("invalid parameter");
+
+  struct __md_record* record = &_records[index];
+
+  lock(index);
+
+  if(record->is_free())
+    throw API_exception("invalid parameter; record already free");
+
+  record->set_free();
+  _free_list.push(record); /* ok, list is thread safe */
+ 
+  unlock(index);
+
+  flush_record(record); /* update persist copy */
 }
+
+  
+void Metadata::lock_entry(index_t index)
+{
+  if(index > _n_records)
+    throw API_exception("invalid parameter");
+  lock(index);
+}
+
+void Metadata::unlock_entry(index_t index)
+{
+  if(index > _n_records)
+    throw API_exception("invalid parameter");
+  unlock(index);
+}
+
 
 /** 
  * Factory entry point

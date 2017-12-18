@@ -1,9 +1,11 @@
 /* note: we do not include component source, only the API definition */
+#include <unistd.h>
 #include <gtest/gtest.h>
 #include <api/components.h>
 #include <api/metadata_itf.h>
 #include <api/block_itf.h>
 #include <core/dpdk.h>
+#include <common/str_utils.h>
 
 using namespace Component;
 
@@ -41,10 +43,11 @@ TEST_F(Fixobd_test, BlockdeviceInstantiate)
                                                       Component::block_posix_factory);
   assert(comp);
 
+  unlink("./blockfile.dat");
+
   IBlock_device_factory * fact = (IBlock_device_factory *) comp->query_interface(IBlock_device_factory::iid());
   std::string config_string;
-  config_string = "{\"path\":\"./blockfile.dat\",\"size_in_blocks\":1000}";
-
+  config_string = "{\"path\":\"./blockfile.dat\",\"size_in_blocks\":100}";
   _block = fact->create(config_string);
   assert(_block);
   fact->release_ref();
@@ -70,14 +73,53 @@ TEST_F(Fixobd_test, Instantiate)
   _md = component_create_metadata_fixobd(_block, 0);
 }
 
-TEST_F(Fixobd_test, Methods)
+TEST_F(Fixobd_test, AllocateMethod)
 {
-  _md->allocate(0,10,"foo", "dwaddington", ".kmer");
-  _md->allocate(11,20,"foo", "dwaddington", ".kmer");
-  _md->allocate(21,30,"foo", "dwaddington", ".kmer");
-
+  for(unsigned i=0;i<20;i++) {
+    std::string name = "foo_" + Common::random_string(8);
+    _md->allocate(i, i+20, name.c_str(), "dwaddington", ".kmer");
+  }
   _md->dump_info();
 }
+
+TEST_F(Fixobd_test, Iterator)
+{
+  auto i = _md->open_iterator("{\"id\":\"foo.*\"}");
+
+  std::string json;
+  uint64_t lba;
+  uint64_t lba_count;
+  unsigned count = 0;
+  index_t idx;
+  
+  while((_md->iterator_get(i,idx,json,&lba,&lba_count)) != E_EMPTY) {
+    PLOG("got metadata: idx=%lu %s", idx, json.c_str());
+    count++;
+  }
+
+  ASSERT_TRUE(count == 20);
+}
+
+TEST_F(Fixobd_test, Delete)
+{
+  auto i = _md->open_iterator("{\"id\":\"foo.*\"}");
+
+  std::string json;
+  uint64_t lba;
+  uint64_t lba_count;
+  unsigned count = 0;
+  index_t idx;
+  
+  while((_md->iterator_get(i,idx,json,&lba,&lba_count)) != E_EMPTY) {
+    _md->free(idx);
+    count++;
+  }
+
+  ASSERT_TRUE(count == 20);
+  PLOG("record count=%lu", _md->get_record_count());
+  ASSERT_TRUE(_md->get_record_count() == 0);
+}
+
 
 TEST_F(Fixobd_test, Release)
 {

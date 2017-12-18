@@ -58,7 +58,7 @@ struct __md_record
   uint32_t resvd;
   uint64_t start_lba;       
   uint64_t lba_count;
-    
+
   char id[64];     
   char owner[64];  
   char datatype[32];
@@ -84,6 +84,7 @@ struct __md_record
   }
   inline void set_used() { status = MD_STATUS_USED; }
   inline void set_free() { status = MD_STATUS_FREE; }
+  inline bool is_untouched() const { return status == MD_STATUS_NOT_ASSIGN; }
   inline bool is_used() const { return status == MD_STATUS_USED; }
   inline bool is_free() const { return status == MD_STATUS_FREE; }
   void dump_record() {
