@@ -69,7 +69,7 @@ public:
       PLOG("Log-store: forced initialization");
       memset(_mb, 0, _vi.block_size); /* zero whole first sector */
       _mb->magic = MAGIC;
-      _mb->max_lba = _vi.max_lba;
+      _mb->max_lba = _vi.block_count;
       _mb->fixed_size = fixed_size;
       _mb->next_free_lba = 1; /* block 0 is used by the header */
       _mb->tail = 0;

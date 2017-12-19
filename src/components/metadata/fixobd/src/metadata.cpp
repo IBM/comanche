@@ -3,6 +3,7 @@
 #include <rapidjson/rapidjson.h>
 #include <rapidjson/document.h>
 #include <api/metadata_itf.h>
+#include <common/dump_utils.h>
 #include "metadata.h"
 #include "md_record.h"
 
@@ -20,38 +21,53 @@ Metadata::Metadata(Component::IBlock_device * block_device,
   _block->add_ref();
 
   _block->get_volume_info(_vi);
-  _n_records = (_vi.max_lba + 1) * (_vi.block_size / sizeof(struct __md_record));
+
+  if(option_DEBUG)
+    PLOG("Metadata: underlying block volume size = %ld blocks", _vi.block_count);
+  
+  _n_records = _vi.block_count * (_vi.block_size / sizeof(struct __md_record));
   assert(_vi.block_size % sizeof(struct __md_record) == 0);
 
-  _memory_size = (_vi.max_lba + 1) * (_vi.block_size);
+  _memory_size = _vi.block_count * _vi.block_size;
   
   if(option_DEBUG)
-    PLOG("Metadata: #records = %lu (%lu KiB)",
+    PLOG("Metadata: #records = %lu (%lu MiB)",
          _n_records,
-         REDUCE_KB(_memory_size));
+         REDUCE_MB(_memory_size));
 
   
   /* create IO buffer */
   _iob = _block->allocate_io_buffer(_memory_size, KB(4), NUMA_NODE_ANY);
+  _records = static_cast<struct __md_record *>(_block->virt_addr(_iob));
+  memset(_records,0x1,_memory_size);
+  
   if(option_DEBUG)
-    PLOG("Metadata: allocated IO buffer (%p)", _block->virt_addr(_iob));
+    PLOG("Metadata: allocated IO buffer (%p) of %lu bytes", _block->virt_addr(_iob), _memory_size);
 
   /* read in all metadata */
   _block->read(_iob,
                0, // offset
                0, // lba
-               _vi.max_lba + 1); // lba count
+               _vi.block_count); // lba count
 
-  _records = static_cast<struct __md_record *>(_block->virt_addr(_iob));  
+  hexdump(_records,512);
   _lock_array = new Lock_array(_n_records);
 
-  if(!scan_records_unsafe() || (flags & FLAGS_FORMAT)) {
-    PLOG("initializing metadata storage");
+  if(scan_records_unsafe()==false || (flags & FLAGS_FORMAT)) {
+    PLOG("wipe-initializing metadata storage");
     wipe_initialize(); /* TODO: partial rebuild */
   }
   else {
     initialize();
   }
+
+  memset(_records,0x1,_memory_size);
+  _block->read(_iob,
+               0, // offset
+               0, // lba
+               _vi.block_count); // lba count
+
+  assert(scan_records_unsafe());
 
   if(option_DEBUG)
     dump_info();
@@ -67,9 +83,9 @@ Metadata::~Metadata()
 
 index_t Metadata::allocate(uint64_t start_lba,
                            uint64_t lba_count,
-                           const char * id,
-                           const char * owner,
-                           const char * datatype)
+                           const std::string& id,
+                           const std::string& owner,
+                           const std::string& datatype)
 {
   struct __md_record* precord;
   if(!_free_list.try_pop(precord)) {
@@ -81,9 +97,9 @@ index_t Metadata::allocate(uint64_t start_lba,
   precord->set_used();
   precord->start_lba = start_lba;
   precord->lba_count = lba_count;
-  precord->set_id(id);
-  precord->set_owner(owner);
-  precord->set_datatype(datatype);
+  precord->set_id(id.c_str());
+  precord->set_owner(owner.c_str());
+  precord->set_datatype(datatype.c_str());
 
   unlock(precord->index);
 
@@ -97,13 +113,14 @@ void Metadata::flush_record(__md_record * record)
   assert(record >= _records);
 
   addr_t block_addr = (round_down((addr_t) record, _vi.block_size));
-  PLOG("record_addr=%p block_addr=%lx", record, block_addr);
+  PLOG("flushing: record_addr=%p block_addr=%lx", record, block_addr);
   
   addr_t lba = (block_addr - (addr_t)_records) / _vi.block_size;  
   if(option_DEBUG) {    
-    PLOG("flushing %p (in block 0x%lx)", record, lba);
+    PLOG("flushing %p (in block 0x%lx at offset %lu)", record, lba, block_addr - ((addr_t)_records));
   }
 
+  /* assumes records do not straddle block boundaries */
   __md_record * record_batch_base = (struct __md_record *) block_addr;
 
   /* grab all the locks for records in the same block */
@@ -112,7 +129,7 @@ void Metadata::flush_record(__md_record * record)
     lock(record_batch_base[i].index);
   
   _block->write(_iob,
-                (addr_t)_records - block_addr, // offset
+                block_addr - ((addr_t)_records), // offset
                 lba,
                 1); // lba_count
 
@@ -128,11 +145,8 @@ void Metadata::wipe_initialize()
   
   apply([=](struct __md_record& record, size_t index, bool& keep_going)
         {
-          record.clear();
-          if(_vi.block_size == 512)
-            record.block_size = MD_BLOCK_SIZE_512;
-          else
-            record.block_size = MD_BLOCK_SIZE_4096;
+          record.clear(); /* this will set magic too */
+          record.block_size = (_vi.block_size == 512) ? MD_BLOCK_SIZE_512 : MD_BLOCK_SIZE_4096;
           record.index = index;
 
           _free_list.push(&record);
@@ -142,7 +156,7 @@ void Metadata::wipe_initialize()
   _block->write(_iob,
                 0, // offset
                 0, // lba
-                _vi.max_lba + 1); // lba count  
+                _vi.block_count); // lba count
 }
 
 void Metadata::initialize()
@@ -161,7 +175,7 @@ void Metadata::initialize()
   _block->write(_iob,
                 0, // offset
                 0, // lba
-                _vi.max_lba + 1); // lba count  
+                _vi.block_count); // lba count  
 }
 
 
@@ -171,10 +185,12 @@ bool Metadata::scan_records_unsafe()
   for(unsigned long i=0;i<_n_records;i++) {
     if(!_records[i].check_magic()) {
       if(option_DEBUG)
-        PWRN("bad magic: record %lu", i);
+        PWRN("scan detected bad magic (%u): record %lu", _records[i].magic, i);
       return false;
     }
   }
+  if(option_DEBUG)
+    PLOG("Metadata: integrity scan OK!");
   return true;
 }
 

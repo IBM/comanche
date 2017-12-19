@@ -143,7 +143,7 @@ public:
     mp->pthis = this;
     _last_gwid = _block->async_write(mp->iob,
                                      0,
-                                     genrand64_int64() % _vi.max_lba,
+                                     genrand64_int64() % _vi.block_count,
                                      1, /* n blocks */
                                      (core % Options.n_io_threads) + START_IO_CORE,
                                      release_cb, (void*) mp);

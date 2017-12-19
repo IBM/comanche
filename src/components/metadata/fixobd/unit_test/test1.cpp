@@ -7,6 +7,7 @@
 #include <core/dpdk.h>
 #include <common/str_utils.h>
 
+
 using namespace Component;
 
 namespace {
@@ -43,7 +44,7 @@ TEST_F(Fixobd_test, BlockdeviceInstantiate)
                                                       Component::block_posix_factory);
   assert(comp);
 
-  unlink("./blockfile.dat");
+  //  unlink("./blockfile.dat");
 
   IBlock_device_factory * fact = (IBlock_device_factory *) comp->query_interface(IBlock_device_factory::iid());
   std::string config_string;
@@ -52,6 +53,7 @@ TEST_F(Fixobd_test, BlockdeviceInstantiate)
   assert(_block);
   fact->release_ref();
   PINF("Block-layer component loaded OK (itf=%p)", _block);
+
 }
 
 /*< instantiation helpers */  
@@ -70,18 +72,26 @@ IMetadata * component_create_metadata_fixobd(Component::IBlock_device * block,
 
 TEST_F(Fixobd_test, Instantiate)
 {
-  _md = component_create_metadata_fixobd(_block, 0);
+  _md = component_create_metadata_fixobd(_block, 0/* flags */);
 }
 
-TEST_F(Fixobd_test, AllocateMethod)
+TEST_F(Fixobd_test, AllocateSingle)
+{
+  _md->allocate(99,101, "single", "dwaddington", ".kmer");
+}
+
+#if 1
+TEST_F(Fixobd_test, AllocateBatch)
 {
   for(unsigned i=0;i<20;i++) {
     std::string name = "foo_" + Common::random_string(8);
-    _md->allocate(i, i+20, name.c_str(), "dwaddington", ".kmer");
+    _md->allocate(i*100, i*100+20, name, "dwaddington", ".kmer");
   }
   _md->dump_info();
 }
+#endif
 
+#if 1
 TEST_F(Fixobd_test, Iterator)
 {
   auto i = _md->open_iterator("{\"id\":\"foo.*\"}");
@@ -96,13 +106,13 @@ TEST_F(Fixobd_test, Iterator)
     PLOG("got metadata: idx=%lu %s", idx, json.c_str());
     count++;
   }
-
-  ASSERT_TRUE(count == 20);
 }
+#endif
 
+#if 1
 TEST_F(Fixobd_test, Delete)
 {
-  auto i = _md->open_iterator("{\"id\":\"foo.*\"}");
+  auto i = _md->open_iterator("{\"id\":\".*\"}");
 
   std::string json;
   uint64_t lba;
@@ -115,11 +125,10 @@ TEST_F(Fixobd_test, Delete)
     count++;
   }
 
-  ASSERT_TRUE(count == 20);
   PLOG("record count=%lu", _md->get_record_count());
   ASSERT_TRUE(_md->get_record_count() == 0);
 }
-
+#endif
 
 TEST_F(Fixobd_test, Release)
 {
@@ -135,7 +144,7 @@ TEST_F(Fixobd_test, Release)
 
 int main(int argc, char **argv) {
 
-  DPDK::eal_init(32, 1, true);
+  DPDK::eal_init(128, 1, true);
   ::testing::InitGoogleTest(&argc, argv);
   auto r = RUN_ALL_TESTS();
 

@@ -1,5 +1,3 @@
-#pragma once
-
 #ifndef __BLOB_BIG_COMPONENT_H__
 #define __BLOB_BIG_COMPONENT_H__
 
@@ -7,6 +5,7 @@
 #include <api/region_itf.h>
 #include <api/pager_itf.h>
 #include <api/blob_itf.h>
+#include <api/metadata_itf.h>
 #include <api/block_allocator_itf.h>
 
 #include <core/avl_malloc.h>
@@ -15,7 +14,6 @@
 #include <list>
 
 #include "data_region.h"
-#include "metadata.h"
 
 class Blob_component_factory : public Component::IBlob_factory
 {
@@ -57,10 +55,11 @@ class Blob_component : public Component::IBlob
 {  
 private:
   static constexpr bool option_DEBUG = true;
+  
   static constexpr size_t BLOCK_SIZE = 4096;
-
-  static constexpr size_t ALLOCATOR_SIZE_BYTES = MB(128);
-  static constexpr size_t MD_SIZE_BYTES = MB(128);
+  static constexpr size_t ALLOCATOR_SIZE_BYTES = MB(8);
+  static constexpr size_t METADATA_SIZE_BYTES =  MB(8);
+  
 public:
   Blob_component(std::string owner,
                  std::string name,
@@ -100,16 +99,22 @@ public:
 public:
   /** 
    * IBlob
-   */  
-
+   */
+  
   /** 
    * Create a new blob
    * 
-   * @param size_in_bytes Initial size of blob
+   * @param name Name of blob
+   * @param owner Owner
+   * @param datatype Optional data type
+   * @param size_in_bytes Initial size of blob in bytes
    * 
    * @return Handle to new blob
    */
-  virtual blob_t create(size_t size_in_bytes) override;
+  virtual blob_t create(const std::string& name,
+                        const std::string& owner,
+                        const std::string& datatype,
+                        size_t size_in_bytes) override;
 
   /** 
    * Erase a blob
@@ -205,12 +210,12 @@ public:
   virtual void show_state(std::string filter) override;
   
 private:
-  void instantiate_components(bool force_init, std::string& name);
+  void instantiate_components(int flags, std::string& name);
   void flush_md();
   
 private:
   std::string                                  _owner;
-  Component::IBlock_device *                   _base_block_device;
+  Component::IBlock_device *                   _base_block_device; /*< base block device is split into regions for allocator, metadata and data */
   Component::VOLUME_INFO                       _base_block_device_vi;
   Component::IRegion_manager *                 _base_rm;
 
@@ -223,9 +228,7 @@ private:
   Component::IBlock_device *                   _block_data; /*< block data */
   Component::IPersistent_memory *              _pmem_allocator;
   Component::IBlock_allocator *                _allocator;
-
-  Metadata * _md;
-
+  Component::IMetadata *                       _metadata;
 
 };
 

@@ -35,6 +35,7 @@
 #include <linux/fs.h>
 #include <common/exceptions.h>
 #include <common/utils.h>
+#include <common/dump_utils.h>
 #include <core/dpdk.h>
 #include <api/block_itf.h>
 #include <rapidjson/document.h>
@@ -390,11 +391,12 @@ write(Component::io_buffer_t buffer,
   void * ptr = (void*) (reinterpret_cast<char*>(buffer) + buffer_offset);
   size_t nbytes = lba_count * IO_BLOCK_SIZE;
   ssize_t rc = pwrite(_fd, ptr, nbytes, lba * IO_BLOCK_SIZE);
+
   if(rc != nbytes)
     throw General_exception("%s: pwrite failed", __PRETTY_FUNCTION__);
 
-  if(syncfs(_fd))
-    throw General_exception("%s: syncfs failed", __PRETTY_FUNCTION__);
+  if(fsync(_fd))
+    throw General_exception("%s: fsync failed", __PRETTY_FUNCTION__);
 }
 
 void
@@ -417,10 +419,10 @@ read(Component::io_buffer_t buffer,
 
   void * ptr = (void*) (reinterpret_cast<char*>(buffer) + buffer_offset);
   size_t nbytes = lba_count * IO_BLOCK_SIZE;
+
   ssize_t rc = pread(_fd, ptr, nbytes, lba * IO_BLOCK_SIZE);
   if(rc != nbytes)
     throw General_exception("%s: pread failed", __PRETTY_FUNCTION__);
-
 }
 
 
@@ -455,7 +457,7 @@ get_volume_info(VOLUME_INFO& devinfo)
   devinfo.block_size = IO_BLOCK_SIZE;
   devinfo.distributed = false;
   devinfo.hash_id = 0;
-  devinfo.max_lba = _size_in_blocks - 1;
+  devinfo.block_count = _size_in_blocks;
   strncpy(devinfo.volume_name,_file_path.c_str(),VOLUME_INFO_MAX_NAME);
 }
 

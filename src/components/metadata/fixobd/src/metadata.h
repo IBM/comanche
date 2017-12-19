@@ -25,8 +25,7 @@ struct __md_record;
  * is concurren-safe. Iteration will perform a complete scan and is
  * thus O(N).  Scan is dynamically evaluated so allocations can be
  * made during scan - no locks are held.  Each metadata record is 256
- * bits (32 bytes).  Locking is fine-grained (per metadata block)
- * ticket-locks.
+ * bytes. Locking is fine-grained (per metadata block) ticket-locks.
  */
 
 class Metadata : public Component::IMetadata
@@ -129,9 +128,9 @@ public:
    */
   virtual index_t allocate(uint64_t start_lba,
                            uint64_t lba_count,
-                           const char * id,
-                           const char * owner,
-                           const char * datatype) override;
+                           const std::string& id,
+                           const std::string& owner,
+                           const std::string& datatype) override;
 
   /** 
    * Free/delete metadata entry

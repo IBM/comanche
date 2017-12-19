@@ -63,8 +63,8 @@ Block_unvme::Block_unvme(std::string config) : _size_in_blocks(0)
   get_volume_info(vi);
 
   PINF("Volume: block_size=%u", vi.block_size);
-  PINF("        device_size=%ld GB", REDUCE_GB(vi.max_lba * vi.block_size));
-  PINF("        maxlba=%ld", vi.max_lba);
+  PINF("        device_size=%ld GB", REDUCE_GB(vi.block_count * vi.block_size));
+  PINF("        block_count=%lu", vi.block_count);
   PINF("        name=(%s)", vi.volume_name);
   PINF("        maxqueuelen=%u", _ns->maxiopq);
 
@@ -247,7 +247,7 @@ get_volume_info(VOLUME_INFO& devinfo)
   devinfo.block_size = _ns->blocksize;
   devinfo.distributed = false;
   devinfo.hash_id = 0;
-  devinfo.max_lba = _ns->blockcount;
+  devinfo.block_count = _ns->blockcount;
   strncpy(devinfo.volume_name,_ns->device,16);
 }
 

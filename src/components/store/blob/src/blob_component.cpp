@@ -3,7 +3,6 @@
 #include <string.h>
 
 #include "blob_component.h"
-#include "inode.h"
 
 using namespace Component;
 
@@ -50,22 +49,18 @@ Blob_component::Blob_component(std::string owner,
                                 _base_block_device_vi.block_size);
 
   
-  if(((MD_SIZE_BYTES / _base_block_device_vi.block_size) +
-      (ALLOCATOR_SIZE_BYTES / _base_block_device_vi.block_size) + 1024) > _base_block_device_vi.max_lba)
+  if(((METADATA_SIZE_BYTES / _base_block_device_vi.block_size) +
+      (ALLOCATOR_SIZE_BYTES / _base_block_device_vi.block_size) + 1024) > _base_block_device_vi.block_count)
     throw Constructor_exception("device too small");
 
-  instantiate_components(flags & FLAGS_FORMAT, name);
+  instantiate_components(flags, name);
 
-  /* currently meta data is not a seperate component; later */
-  _md = new Metadata(_block_md, flags & FLAGS_FORMAT);
-   
 }
 
 Blob_component::~Blob_component()
 {
-  delete _md;
-
   /* release components */
+  _metadata->release_ref();
   _allocator->release_ref();
   _pmem_allocator->release_ref();
   _block_data->release_ref();
@@ -81,15 +76,14 @@ void Blob_component::flush_md()
   //  _block_md->write(_block_md_iob,0,0,NUM_BLOCKS_FOR_METADATA); /*< writes out whole of slab */
 }
 
-class Blob_handle
+struct Blob_handle
 {
 public:
-  Blob_handle(Blob::Data_region * dr_param) : magic(0x0101), dr(dr_param)
-  {
-    assert(dr_param);
-  }
-  uint32_t magic;
-  Blob::Data_region * dr;
+  void * block_allocator_handle;
+  lba_t  lba;
+  size_t lba_count;
+  Component::io_buffer_t iob;
+  void * vaddr;
 };
   
 
@@ -102,40 +96,38 @@ public:
  */
 IBlob::blob_t
 Blob_component::
-create(size_t size_in_bytes)
+create(const std::string& name,
+       const std::string& owner,
+       const std::string& datatype,
+       size_t size_in_bytes)
 {
   assert(size_in_bytes > 0);
   
   Blob::Data_region* dr;  
-  size_t n_blocks = (size_in_bytes / BLOCK_SIZE) + 2; /* round-up + metadata */
+  size_t n_blocks = (size_in_bytes + _base_block_device_vi.block_size - 1)  / _base_block_device_vi.block_size;  
+
+  Blob_handle* handle = new Blob_handle;
+  handle->lba_count = n_blocks;
+
+  /* allocate data block range */
+  handle->lba = _allocator->alloc(n_blocks, &handle->block_allocator_handle);
+
+  /* allocate metadata */
+  _metadata->allocate(handle->lba, n_blocks, name, owner, datatype);
+
+  /* allocate IO buffer */
+  size_t rounded_size_in_bytes = n_blocks * _base_block_device_vi.block_size;
+  handle->iob = _block_data->allocate_io_buffer(rounded_size_in_bytes,
+                                               _base_block_device_vi.block_size,
+                                               -1);
+  handle->vaddr = _block_data->virt_addr(handle->iob);
   
-  // {
-  //   std::lock_guard<std::mutex> g(_md_lock);
-  //   dr->set_as_head();
-  //   flush_md();
-  // }
-  // PLOG("create: data region allocated %lu (%ld blocks)", dr->addr(), n_blocks);
+  /* zero data in memory and on disk */
+  memset(handle->vaddr, 0, rounded_size_in_bytes);
+  _block_data->write(handle->iob, 0, handle->lba, handle->lba_count, 0);
 
-  // /* construct and write out inode */
-  // assert(dr->addr() % BLOCK_SIZE == 0);
-  // addr_t hdr_lba = dr->addr() / BLOCK_SIZE;
-
-  // Component::io_buffer_t iobuff = _block_data->allocate_io_buffer(BLOCK_SIZE, BLOCK_SIZE, NUMA_NODE_ANY);
-  // struct inode_t * inode = static_cast<struct inode_t*>(_block_data->virt_addr(iobuff));
-  // inode->magic = BLOB_INODE_MAGIC;
-  // inode->flags = 0;
-  // inode->nblocks = n_blocks;
-  // inode->size = size_in_bytes;
-  // inode->next_inode = 0;
-  // memset(inode->ranges,0,sizeof(inode->ranges));
-  // inode->ranges[0] = {dr->addr(), dr->addr() + n_blocks - 1};
-
-  // _block_data->write(iobuff, 0, hdr_lba, 1);
-  // _block_data->free_io_buffer(iobuff);
-
-  // PLOG("created blob@ %lx size=%ld blocks", hdr_lba, n_blocks);
-  // return reinterpret_cast<blob_t>(new Blob_handle(dr));
-  return 0;
+  /* return handle */
+  return static_cast<IBlob::blob_t>(handle);  
 }
 
 /** 
@@ -303,6 +295,7 @@ truncate(blob_t handle, size_t size_in_bytes)
 void
 Blob_component::show_state(std::string filter)
 {
+  _metadata->dump_info();
   
   // if(filter.compare("*")==0) {
   //   PINF("-- BLOB STORE STATE --");
@@ -320,8 +313,10 @@ Blob_component::show_state(std::string filter)
 
 
 void
-Blob_component::instantiate_components(bool force_init, std::string& name)
+Blob_component::instantiate_components(int flags, std::string& name)
 {
+  PINF("Blob component flags=%d", flags);
+  
   /* region manager */
   {
     IBase * comp = load_component("libcomanche-partregion.so",
@@ -331,7 +326,7 @@ Blob_component::instantiate_components(bool force_init, std::string& name)
     IRegion_manager_factory* fact = (IRegion_manager_factory *) comp->query_interface(IRegion_manager_factory::iid());
     assert(fact);
     
-    _base_rm = fact->open(_base_block_device, force_init);
+    _base_rm = fact->open(_base_block_device, flags);
 
     fact->release_ref();  
   }
@@ -369,8 +364,8 @@ Blob_component::instantiate_components(bool force_init, std::string& name)
   
   /* create block device for 'metadata' */
   region_name = name + "-md";
-  size_t md_nblocks = MD_SIZE_BYTES / _base_block_device_vi.block_size;
-  _block_md = _base_rm->reuse_or_allocate_region(MD_SIZE_BYTES / _base_block_device_vi.block_size,
+  size_t md_nblocks = METADATA_SIZE_BYTES / _base_block_device_vi.block_size;
+  _block_md = _base_rm->reuse_or_allocate_region(METADATA_SIZE_BYTES / _base_block_device_vi.block_size,
                                                  _owner, region_name, vaddr, reused);
   assert(_block_md);
   if(option_DEBUG) PLOG("Blob: block device for metadata created (%lu MB)",
@@ -378,10 +373,10 @@ Blob_component::instantiate_components(bool force_init, std::string& name)
   
   /* create block device for 'data' */
   region_name = name + "-data";
-  size_t data_nblocks = _base_block_device_vi.max_lba - md_nblocks - allocator_nblocks;
+  size_t data_nblocks = _base_block_device_vi.block_count - md_nblocks - allocator_nblocks;
   _block_data = _base_rm->reuse_or_allocate_region(data_nblocks,
                                                    _owner, region_name, vaddr, reused);
-  assert(_block_md);
+  assert(_block_data);
   if(option_DEBUG) PLOG("Blob: block device for data created");
 
   if(option_DEBUG) 
@@ -400,10 +395,25 @@ Blob_component::instantiate_components(bool force_init, std::string& name)
     PLOG("Opening allocator to support %lu blocks", data_nblocks);
     _allocator = fact->open_allocator(_pmem_allocator,
                                       data_nblocks,
-                                      "block-alloc-ut");  
+                                      "block-alloc-ut",
+                                      flags);  
     fact->release_ref();
     assert(_allocator);
     if(option_DEBUG) PLOG("Blob: allocator created");
+  }
+
+  /* create metadata */
+  {
+    IBase * comp = load_component("libcomanche-mdfixobd.so",
+                                  Component::metadata_fixobd_factory);
+
+    IMetadata_factory * fact = static_cast<IMetadata_factory *>
+      (comp->query_interface(IMetadata_factory::iid()));
+
+    _metadata = fact->create(_block_md, _base_block_device_vi.block_size, flags);
+    assert(_metadata);
+
+    fact->release_ref();
   }
 
 }
