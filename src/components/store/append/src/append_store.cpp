@@ -98,7 +98,7 @@ Append_store::Append_store(std::string owner,
   assert(_block);
   _block->get_volume_info(_vi);
   PLOG("Append-store: block device capacity=%lu max_dma_block=%ld",
-       _vi.max_lba, _vi.max_dma_len / _vi.block_size);
+       _vi.block_count, _vi.max_dma_len / _vi.block_size);
 
   _max_io_blocks = _vi.max_dma_len / _vi.block_size;
   _max_io_bytes  = _vi.max_dma_len;
@@ -228,7 +228,7 @@ status_t Append_store::put(std::string key,
     PLOG("[+] Append-store: append %ld bytes at block=%ld Used blocks=%ld/%ld", data_len,
          start_lba,
          start_lba+n_blocks,
-         _vi.max_lba); 
+         _vi.block_count); 
 
   auto iob = _phys_mem_allocator.allocate_io_buffer(round_up(data_len,_vi.block_size),
                                                     DMA_ALIGNMENT_BYTES,
@@ -280,7 +280,7 @@ status_t Append_store::put(std::string key,
 
   if(option_DEBUG)
     PLOG("[+] Append-store: append %ld bytes. Used blocks=%ld/%ld", data_len,
-         start_lba+n_blocks, _vi.max_lba); 
+         start_lba+n_blocks, _vi.block_count); 
 
 #ifdef __clang__
   static thread_local Semaphore sem;

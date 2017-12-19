@@ -54,14 +54,14 @@ public:
 
   char volume_name[VOLUME_INFO_MAX_NAME];  
   unsigned block_size;
+  uint64_t block_count;
   uint64_t hash_id;
-  uint64_t max_lba;
   uint64_t max_dma_len;
   unsigned distributed : 1;
   unsigned sw_queue_count : 7; /* counting from 0, i.e. 0 equals 1 queue */
   void dump() {
     PINF("VOLUME_INFO: (%s) %u %lu %lu max_dma=%lu dis=%u swqc=%u",
-         volume_name, block_size, hash_id, max_lba, max_dma_len, distributed,
+         volume_name, block_size, hash_id, block_count, max_dma_len, distributed,
          sw_queue_count);
   }
 };

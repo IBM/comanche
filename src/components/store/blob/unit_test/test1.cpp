@@ -7,7 +7,7 @@
 #include <common/logging.h>
 #include <common/utils.h>
 #include <common/cpu.h>
-
+#include <common/str_utils.h>
 #include <component/base.h>
 #include <api/components.h>
 #include <api/block_itf.h>
@@ -15,6 +15,7 @@
 
 //#define USE_NVME_DEVICE // use real device, POSIX file otherwise
 
+//int option_INIT = Component::IBlob_factory::FLAGS_FORMAT;
 int option_INIT = 0;
 
 using namespace Component;
@@ -129,7 +130,6 @@ TEST_F(Blob_test, InstantiateBlob)
   IBlob_factory* fact = (IBlob_factory *) comp->query_interface(IBlob_factory::iid());
   assert(fact);
 
-  PINF("blob fact->open flags=%d", option_INIT);
 
   _blob = fact->open("cocotheclown",
                      "mydb",
@@ -140,6 +140,22 @@ TEST_F(Blob_test, InstantiateBlob)
   fact->release_ref();
   
   PINF("Blob component loaded OK.");
+}
+
+TEST_F(Blob_test, SimpleCreate)
+{
+  std::list<IBlob::blob_t> blobs;
+  for(unsigned i=0;i<20;i++) {
+    IBlob::blob_t b = _blob->create(Common::random_string(8),
+                                    "dwaddington",
+                                    ".jelly",
+                                    rand() % KB(32));
+    assert(b);
+    blobs.push_back(b);
+  }
+  
+
+  _blob->show_state("*");
 }
 
 #if 0

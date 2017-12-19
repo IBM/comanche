@@ -86,9 +86,9 @@ public:
    */
   virtual index_t allocate(uint64_t start_lba,
                            uint64_t lba_count,
-                           const char * id,
-                           const char * owner,
-                           const char * datatype) = 0;
+                           const std::string& id,
+                           const std::string& owner,
+                           const std::string& datatype) = 0;
 
   /** 
    * Free/delete metadata entry

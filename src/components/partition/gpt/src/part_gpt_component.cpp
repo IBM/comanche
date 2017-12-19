@@ -95,7 +95,7 @@ public:
 
   void get_volume_info(Component::VOLUME_INFO& devinfo) {
     _lower_layer->get_volume_info(devinfo);
-    devinfo.max_lba = _capacity;
+    devinfo.block_count = _capacity;
 
     char tmpname[EFI_NAMELEN + 1] = {0};    
     for(unsigned i=0;i<EFI_NAMELEN;i++)

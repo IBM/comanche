@@ -68,6 +68,7 @@ struct __md_record
   // helpers
   bool check_magic() const { return magic == MD_MAGIC; }
   void set_magic() { magic = MD_MAGIC; }
+
   void clear() {
     memset(this, 0, sizeof(struct __md_record));
     set_magic();
