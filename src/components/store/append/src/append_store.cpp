@@ -532,7 +532,11 @@ void Append_store::fetch_metadata(std::string filter_expr,
 {
   std::stringstream sqlss;
 
-  sqlss << "SELECT ID,METADATA FROM " << _table_name << " WHERE " << filter_expr << ";";
+  sqlss << "SELECT ID,METADATA FROM " << _table_name;
+  if(!filter_expr.empty())
+    sqlss << " WHERE " << filter_expr;
+  sqlss << ";";
+
   std::string sql = sqlss.str();
 
   sqlite3_stmt * stmt;
