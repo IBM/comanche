@@ -172,7 +172,7 @@ byte * Log_store::read(const index_t index,
 
 std::string Log_store::read(const index_t index)
 {
-  char * ptr = (char*) this->read(index, 1, _iob, 0);
+  char * ptr = (char*) this->read(index, _iob, 1, 0);
   std::string result(ptr);
   return result;
 }

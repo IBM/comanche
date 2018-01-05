@@ -141,6 +141,7 @@ public:
     memory_pair *mp = new memory_pair;
     mp->iob = alloc_buffer();
     mp->pthis = this;
+
     _last_gwid = _block->async_write(mp->iob,
                                      0,
                                      genrand64_int64() % _vi.block_count,
