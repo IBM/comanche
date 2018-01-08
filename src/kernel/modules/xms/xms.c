@@ -29,7 +29,7 @@
 #include <asm/pgtable.h>
 #include <asm/uaccess.h>
 
-#define DEBUG
+//#define DEBUG
 
 #include "xms.h"
 
