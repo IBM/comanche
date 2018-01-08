@@ -190,7 +190,7 @@ TEST_F(Block_raid_test, TestRandomReadThroughput)
   raid->get_volume_info(vi);
   
   for(unsigned i=0;i<ITERATIONS;i++) {
-    tag = raid->async_read(mem, 0, genrand64_int64() % vi.max_lba, 1, QUEUE_ID);    
+    tag = raid->async_read(mem, 0, genrand64_int64() % vi.block_count, 1, QUEUE_ID);    
     if((raid->gwid_to_seq(tag) - last_checked) > water_mark) {
       if(raid->check_completion(last_checked+water_mark, QUEUE_ID)) {
         last_checked+=water_mark;
@@ -248,7 +248,7 @@ TEST_F(Block_raid_test, TestRandomWriteThroughput)
   raid->get_volume_info(vi);
   
   for(unsigned i=0;i<ITERATIONS;i++) {
-    tag = raid->async_write(mem, 0, genrand64_int64() % vi.max_lba, 1, QUEUE_ID);    
+    tag = raid->async_write(mem, 0, genrand64_int64() % vi.block_count, 1, QUEUE_ID);    
     if((raid->gwid_to_seq(tag) - last_checked) > water_mark) {
       if(raid->check_completion(last_checked+water_mark, QUEUE_ID)) {
         last_checked+=water_mark;

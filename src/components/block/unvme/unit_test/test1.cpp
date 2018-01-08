@@ -87,7 +87,7 @@ TEST_F(Block_unvme_test, PartitionIntegrity)
   VOLUME_INFO vinfo;
   _block->get_volume_info(vinfo);
   
-  PLOG("Volume Info: size=%ld blocks", vinfo.max_lba);
+  PLOG("Volume Info: size=%ld blocks", vinfo.block_count);
   PLOG("             block_size=%u", vinfo.block_size);
   PLOG("             name=%s", vinfo.volume_name);
 

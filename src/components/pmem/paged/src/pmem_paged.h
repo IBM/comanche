@@ -79,7 +79,7 @@ public:
    * 
    * @param handle 
    */
-  virtual void erase(pmem_t handle) {
+  virtual void erase(pmem_t handle) override {
     throw API_exception("%s: not implemented", __PRETTY_FUNCTION__);
   }
 
@@ -89,7 +89,7 @@ public:
    * 
    * @return Number of faults
    */
-  virtual size_t fault_count() {
+  virtual size_t fault_count() override {
     return _fault_count;
   }
   

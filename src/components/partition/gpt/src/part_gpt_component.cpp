@@ -11,7 +11,6 @@ struct open_partition
   struct efi_entry efi_entry;
 };
 
-namespace comanche {
 
 /** 
  * Represents a window onto the block device defined by the partition
@@ -37,13 +36,17 @@ public:
   }
 
   virtual ~Partition_session() {
+    PLOG("deleting Partition_session");
     _lower_layer->release_ref();
+  }
+
+  void release_ref() {
   }
   
   void * query_interface(Component::uuid_t& itf) {
     return nullptr;
   }
-  
+
   Component::workid_t async_read(Component::io_buffer_t buffer,
                                  uint64_t buffer_offset,
                                  uint64_t lba,
@@ -92,7 +95,7 @@ public:
 
   void get_volume_info(Component::VOLUME_INFO& devinfo) {
     _lower_layer->get_volume_info(devinfo);
-    devinfo.max_lba = _capacity;
+    devinfo.block_count = _capacity;
 
     char tmpname[EFI_NAMELEN + 1] = {0};    
     for(unsigned i=0;i<EFI_NAMELEN;i++)
@@ -115,9 +118,8 @@ create(Component::IBlock_device * block_device)
   if(block_device == nullptr)
     throw API_exception("bad block interface");
 
-
   auto obj = static_cast<Component::IPartitioned_device *>
-    (new comanche::GPT_component(block_device));
+    (new GPT_component(block_device));
 
   obj->add_ref();
   return obj;
@@ -131,6 +133,8 @@ GPT_component::GPT_component(Component::IBlock_device * block_device) :
 {
   if(block_device==nullptr)
     throw Constructor_exception("invalid parameter");
+
+  block_device->add_ref();
 }
 
 GPT_component::~GPT_component()
@@ -185,8 +189,6 @@ get_partition_info(unsigned partition_id,
 
 
 
-} // namespace comanche
-
 
 /** 
  * Factory entry point
@@ -194,11 +196,10 @@ get_partition_info(unsigned partition_id,
  */
 extern "C" void * factory_createInstance(Component::uuid_t& component_id)
 {
-  using namespace comanche;
   
   if(component_id == GPT_component_factory::component_id()) {
     PLOG("Creating 'GPT_component' factory.");
-    return static_cast<void*>(new comanche::GPT_component_factory());
+    return static_cast<void*>(new GPT_component_factory());
   }
   else
     return NULL;

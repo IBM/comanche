@@ -31,17 +31,23 @@ public:
   DECLARE_INTERFACE_UUID(0xb114511d,0x991c,0x4ca9,0xb8b7,0x79,0x09,0x15,0xd5,0xab,0x6b);
 
 public:
-  using blob_t = uint64_t;
+  using blob_t = void*;
   using cursor_t = void*;
 
   /** 
    * Create a new blob
    * 
-   * @param size_in_bytes Initial size of blob
+   * @param name Name of blob
+   * @param owner Optional owner identifier
+   * @param datatype Optional data type
+   * @param size_in_bytes Initial size of blob in bytes
    * 
    * @return Handle to new blob
    */
-  virtual blob_t create(size_t size_in_bytes) = 0;
+  virtual blob_t create(const std::string& name,
+                        const std::string& owner,
+                        const std::string& datatype,
+                        size_t size_in_bytes) = 0;
 
   /** 
    * Erase a blob
@@ -147,16 +153,14 @@ public:
    * 
    * @param owner Owner identifier
    * @param name Store name
-   * @param region_device Underlying region manager
-   * @param value_space_mb Size of value-space in MB
+   * @param base_block_device Underlying block device
    * @param flags Instantiation flags
    * 
    * @return Pointer to IRange_manager interface
    */
   virtual IBlob * open(std::string owner,
                        std::string name,
-                       Component::IRegion_manager * region_device,
-                       size_t value_space_size_in_bytes,
+                       Component::IBlock_device * base_block_device,
                        int flags) = 0;
 
 };

@@ -8,11 +8,16 @@ Daniel Waddington (daniel.waddington@ibm.com)
 
 ## [v0.2.0]
 
+## 2017-12
+### Changed
+- Posix block device component now supports callback functions.
 ## 2017-11
 ### Added
+- Initial RDMA network component (net/rdma)
+- Compiled with clang++
 - Mechanics test for SSD to GPU DMA.  Requires patch to SPDK see deps/spdk-extra.
 - Initial implementation of Core::UIPC
-- Initial implementation of MPMC postbox; unverified.	
+- Initial implementation of MPMC postbox; unverified.
 ## 2017-10
 ### Changed
 - Default read/write sync operations on IBlock_device now use a semaphore and thus do a sleep-based wait.

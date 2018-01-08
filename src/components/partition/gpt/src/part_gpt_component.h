@@ -10,9 +10,6 @@
 
 #include "gpt.h"
 
-namespace comanche
-{
-
 class GPT_component_factory : public Component::IPartitioned_device_factory
 {
 public:
@@ -38,7 +35,7 @@ public:
    * 
    * @return Pointer to IPartitioned_device
    */
-  virtual Component::IPartitioned_device* create(Component::IBlock_device * block_device);
+  virtual Component::IPartitioned_device* create(Component::IBlock_device * block_device) override;
 };
 
 
@@ -90,14 +87,14 @@ public:
    * 
    * @return Block device interface
    */
-  virtual Component::IBlock_device * open_partition(unsigned partition_id);
+  virtual Component::IBlock_device * open_partition(unsigned partition_id) override;
 
   /** 
    * Release a partition
    * 
    * @param block_device Block device interface to release 
    */
-  virtual void release_partition(Component::IBlock_device * block_device);
+  virtual void release_partition(Component::IBlock_device * block_device) override;
 
   /** 
    * Get partition information
@@ -112,13 +109,14 @@ public:
   virtual bool get_partition_info(unsigned partition_id,
                                   size_t& size,
                                   std::string& part_type,
-                                  std::string& description);
+                                  std::string& description) override;
 
 public:
+  
   GPT::Partition_table          _table;
   Component::IBlock_device *    _lower_block_layer;
   std::list<Partition_session*> _sessions;
 };
 
-} // comanche
+
 #endif

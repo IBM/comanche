@@ -608,9 +608,9 @@ int do_run_fuse() {
 
   /* disable multi-threaded operation */
 
-  /* if (fuse_opt_parse(&args, NULL, minix_opts, minix_opt_proc) == -1) {  */
-  /*   panic("couldn't parse the argument");  */
-  /* }  */
+  if (fuse_opt_parse(&args, NULL, minix_opts, minix_opt_proc) == -1) { 
+    panic("couldn't parse the argument");  
+  } 
 
   fuse_opt_add_arg(&args, "-f");
   fuse_opt_add_arg(&args, "-d");

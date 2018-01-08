@@ -172,7 +172,7 @@ private:
    */
   inline IBlock_device * select_device(uint64_t lba, unsigned& index)
   {
-    assert(lba <= _logical_max_lba);
+    assert(lba <= _logical_block_count);
     index = lba % _device_count;
     return _bdv_itf[index].block_device;
   }
@@ -186,8 +186,8 @@ private:
   std::vector<__device> _bdv_itf;
   bool                  _ready = false;
   unsigned              _device_count = 0;
-  size_t                _max_lba = 0;
-  size_t                _logical_max_lba = 0;
+  size_t                _block_count = 0;
+  size_t                _logical_block_count = 0;
 };
 
 
