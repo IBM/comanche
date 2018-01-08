@@ -110,7 +110,7 @@ public:
 
   void get_volume_info(Component::VOLUME_INFO& devinfo) override {
     _lower_layer->get_volume_info(devinfo);
-    devinfo.max_lba = _capacity;
+    devinfo.block_count = _capacity;
     strncpy(devinfo.volume_name, _volume_name.c_str(), Component::VOLUME_INFO_MAX_NAME);
   }
 

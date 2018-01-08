@@ -44,7 +44,7 @@ Block_device_component::Block_device_component(const char * pci_addr, cpu_mask_t
 
 
 
-Block_device_component::~Block_device_component()
+Block_device_component::~Block_device_component() noexcept
 {
   delete _device;
 }
@@ -127,8 +127,11 @@ get_volume_info(VOLUME_INFO& devinfo)
           VOLUME_INFO_MAX_NAME);
   
   devinfo.block_size = _device->get_block_size(DEFAULT_NAMESPACE_ID);
-  devinfo.max_lba = _device->get_size_in_blocks(DEFAULT_NAMESPACE_ID) - 1;
+  devinfo.block_count = _device->get_size_in_blocks(DEFAULT_NAMESPACE_ID);
   devinfo.max_dma_len = _device->get_max_io_xfer_size();
+  devinfo.sw_queue_count = _device->queue_count();
+  devinfo.distributed = false;
+  devinfo.hash_id = _device->get_serial_hash();
 }
 
 

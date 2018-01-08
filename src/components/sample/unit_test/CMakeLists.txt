@@ -10,4 +10,4 @@ add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 
 add_executable(sample-test1 test1.cpp)
 target_link_libraries(sample-test1 ${ASAN_LIB} common numa gtest pthread dl comanche-allocblock)
-target_compile_features(sample-test1 PRIVATE cxx_range_for)
+

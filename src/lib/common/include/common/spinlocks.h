@@ -94,7 +94,7 @@ class Ticket_lock
     struct {
       unsigned short ticket; /* little endian order */
       unsigned short users;
-    } s;
+    } s __attribute__((packed));
   };
 
  public:
@@ -131,7 +131,7 @@ class Ticket_lock
     xdk_barrier();
     return (s.ticket == s.users);
   }
-};
+} __attribute__((packed));
 
 
 /** 

@@ -43,9 +43,9 @@ using addr_t       = uint64_t;
 
 static constexpr unsigned VOLUME_INFO_MAX_NAME = 64;
 
-class VOLUME_INFO;
+struct VOLUME_INFO;
 
-class VOLUME_INFO
+struct VOLUME_INFO
 {
 public:
   VOLUME_INFO() {
@@ -54,14 +54,14 @@ public:
 
   char volume_name[VOLUME_INFO_MAX_NAME];  
   unsigned block_size;
+  uint64_t block_count;
   uint64_t hash_id;
-  uint64_t max_lba;
   uint64_t max_dma_len;
   unsigned distributed : 1;
   unsigned sw_queue_count : 7; /* counting from 0, i.e. 0 equals 1 queue */
   void dump() {
     PINF("VOLUME_INFO: (%s) %u %lu %lu max_dma=%lu dis=%u swqc=%u",
-         volume_name, block_size, hash_id, max_lba, max_dma_len, distributed,
+         volume_name, block_size, hash_id, block_count, max_dma_len, distributed,
          sw_queue_count);
   }
 };
@@ -149,8 +149,12 @@ public:
                     uint64_t lba,
                     uint64_t lba_count,
                     int queue_id = 0) {
-    
-    static __thread Semaphore sem;
+
+#ifdef __clang__
+    static thread_local Semaphore sem;
+#else
+    static __thread Semaphore sem; // GCC
+#endif
     
     workid_t wid = async_read(buffer, buffer_offset, lba, lba_count, queue_id,
                               [](uint64_t gwid, void* arg0, void* arg1)
@@ -199,8 +203,12 @@ public:
                      uint64_t lba_count,
                      int queue_id = 0) {
 
-    static __thread Semaphore sem;
-        
+#ifdef __clang__
+    static thread_local Semaphore sem;
+#else
+    static __thread Semaphore sem; // GCC
+#endif
+    
     workid_t wid = async_write(buffer, buffer_offset, lba, lba_count, queue_id,
                               [](uint64_t gwid, void* arg0, void* arg1)
                               {

@@ -423,6 +423,7 @@ extern "C" status_t uipc_close_channel(channel_t channel)
   catch(...) {
     return E_FAIL;
   }
+  return S_OK;
 }
 
 extern "C" void * uipc_alloc_message(channel_t channel)

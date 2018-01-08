@@ -19,7 +19,7 @@
 
 namespace Component {
 
-using io_buffer_t  = uint64_t;
+typedef uint64_t io_buffer_t;
 
 enum {
   NUMA_NODE_ANY = -1,
@@ -81,7 +81,7 @@ public:
    * @param vaddr 
    * @param len 
    */
-  virtual void unregister_memory_for_io(void *, size_t len) = 0;
+  virtual void unregister_memory_for_io(void * vaddr, size_t len) = 0;
 
   /** 
    * Get pointer (virtual address) to start of IO buffer

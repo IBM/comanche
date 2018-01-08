@@ -61,9 +61,7 @@ Component::IBlock_device * Block_nvme_test::_block;
 
 TEST_F(Block_nvme_test, InstantiateBlockDevice)
 {
-  std::string dll_path = getenv("HOME");
-  dll_path.append("/comanche/lib/libcomanche-blknvme.so");
-  Component::IBase * comp = Component::load_component(dll_path.c_str(),
+  Component::IBase * comp = Component::load_component("libcomanche-blknvme.so",
                                                       Component::block_nvme_factory);
   assert(comp);
   PLOG("Block_device factory loaded OK.");

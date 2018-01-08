@@ -103,9 +103,9 @@ public:
     /* set up AVL range tree */
     _range_allocator = new Core::AVL_range_allocator(_volatile_slab,
                                                      METADATA_FOOTPRINT/KB(4),
-                                                     _vi.max_lba);
-    PLOG("Region table: range allocator %lu-%lu", METADATA_FOOTPRINT/KB(4), _vi.max_lba);
-    assert(_vi.max_lba > METADATA_FOOTPRINT/KB(4));
+                                                     _vi.block_count);
+    PLOG("Region table: range allocator %lu-%lu", METADATA_FOOTPRINT/KB(4), _vi.block_count);
+    assert(_vi.block_count > METADATA_FOOTPRINT/KB(4));
     
     size_t num_entries = _table->num_entries;
     PLOG("--- Regions (magic=%x) num_entries = %ld -------", _table->magic, num_entries);
@@ -131,7 +131,7 @@ public:
   }
 
   size_t device_size_in_blocks() const {
-    return _vi.max_lba;
+    return _vi.block_count;
   }
 
   size_t num_entries() {

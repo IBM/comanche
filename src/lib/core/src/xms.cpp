@@ -68,13 +68,23 @@ extern "C" void * xms_mmap(void* vaddr, addr_t paddr, size_t size)
   if(fd == -1)
     throw General_exception("unable to open /dev/xms");
   
-  void *ptr = mmap(vaddr,
-                   size,
-                   PROT_READ | PROT_WRITE,
-                   MAP_FIXED | MAP_SHARED,
-                   fd,
-                   paddr);  // offset in the file is physical addres
-  
+  void *ptr;
+
+  if(vaddr) 
+    ptr = mmap(vaddr,
+               size,
+               PROT_READ | PROT_WRITE,
+               MAP_FIXED | MAP_SHARED,
+               fd,
+               paddr);  // offset in the file is physical addres
+  else
+    ptr = mmap(vaddr,
+               size,
+               PROT_READ | PROT_WRITE,
+               MAP_SHARED,
+               fd,
+               paddr);  // offset in the file is physical addres
+    
   close(fd);
   if(ptr == (void*)-1)
     throw General_exception("mmap failed on xms module");

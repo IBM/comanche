@@ -18,10 +18,12 @@
 #define __STORE_HEADER_H__
 
 #include <mutex>
+#include <common/cycles.h>
 #include <api/block_itf.h>
 
 class Header
 {
+  static constexpr bool option_DEBUG = false;
   static constexpr uint32_t MAGIC = 0xAC1DBA5E;
 
   struct Store_master_block
@@ -34,11 +36,12 @@ class Header
     char     owner[512];
     char     name[512];
     index_t  tail;
+    uint64_t timestamp;
   } __attribute__((packed));
 
 public:
   Header(std::string owner,
-         std::string name,
+         const std::string name,
          Component::IBlock_device * block,
          uint64_t fixed_size,
          bool force_init) : _block(block)
@@ -61,16 +64,14 @@ public:
       PLOG("Log-store: header magic mismatch, reinitializing");
       force_init = true;
     }
-    else if(force_init) {
-      PLOG("Log-store: forced init");
-    }
 
     if(force_init) {
+      PLOG("Log-store: forced initialization");
       memset(_mb, 0, _vi.block_size); /* zero whole first sector */
       _mb->magic = MAGIC;
-      _mb->max_lba = _vi.max_lba;
+      _mb->max_lba = _vi.block_count;
       _mb->fixed_size = fixed_size;
-      _mb->next_free_lba = 1;
+      _mb->next_free_lba = 1; /* block 0 is used by the header */
       _mb->tail = 0;
       strncpy(_mb->name, name.c_str(), 511);
       strncpy(_mb->owner, owner.c_str(), 511);      
@@ -82,8 +83,10 @@ public:
     PLOG("Log-store: next=%ld max=%ld owner=%s name=%s",
          _mb->next_free_lba, _mb->max_lba, _mb->owner, _mb->name);
 
-    if(name.compare(_mb->name) != 0)
-      throw General_exception("Log-store: name does not match");
+    if(name != "any") {
+      if(name.compare(_mb->name) != 0)
+        throw General_exception("Log-store: name does not match");
+    }
 
     if(owner.compare(_mb->owner) != 0)
       throw General_exception("Log-store: owner does not match");
@@ -94,16 +97,16 @@ public:
   }
 
   ~Header() {
-    dump_info();
-    write_mb();
     _block->free_io_buffer(_iob);
     _block->release_ref();
   }
 
   void dump_info() {
     std::lock_guard<std::mutex> g(_lock);
+    PINF("Log-Store");
     PINF("Header: magic=0x%x", _mb->magic);
     PINF("      : flags=0x%x", _mb->flags);
+    PINF("      : timestamp %lx", _mb->timestamp);
     PINF("      : next_free_lba=%lu", _mb->next_free_lba);
     PINF("      : owner=%s", _mb->owner);
     PINF("      : name=%s", _mb->name);
@@ -112,7 +115,8 @@ public:
     PINF("      : used blocks %lu / %lu (%f %%)",
          _mb->next_free_lba, _mb->max_lba,
          (((float)_mb->next_free_lba)/((float)_mb->max_lba))*100.0);
-
+    PINF("      : used capacity %lu MB", REDUCE_MB(_mb->next_free_lba * _vi.block_size));
+    PINF("      : record count %lu (including tail excess) ", _mb->tail / _mb->fixed_size);
   }
       
   void flush() {
@@ -123,27 +127,33 @@ public:
   
   size_t block_size() const { return _vi.block_size; }
   
-  lba_t allocate(size_t n_bytes, size_t& n_blocks, index_t& index) {
-    n_blocks = n_bytes / _vi.block_size;
+  lba_t allocate(size_t n_bytes, size_t& n_blocks) {
 
     if(unlikely(n_bytes % _vi.block_size))
       throw API_exception("allocate must round to block size");
+
+    n_blocks = n_bytes / _vi.block_size;   
 
     lba_t result;
 
     if((_mb->max_lba - _mb->next_free_lba) < n_blocks)
       throw API_exception("Log-store: no more blocks");
+    
     result = _mb->next_free_lba;
     _mb->next_free_lba += n_blocks;
-    index = _mb->tail;
-    _mb->tail += n_bytes;
+    _mb->tail += n_bytes; /* increment tail by number of written bytes */
+
+    if(option_DEBUG)
+      PLOG("header: allocating %lu", result);
     return result;
   }
 
 private:
 
   void write_mb() {
+    PLOG("Log-store: writing out header");
     std::lock_guard<std::mutex> g(_lock);
+    _mb->timestamp = rdtsc(); /* update timestamp */
     _block->write(_iob,0,0/*lba*/,1);
   }
 
@@ -158,7 +168,6 @@ private:
   Component::io_buffer_t     _iob;
   Store_master_block *       _mb;
   std::mutex                 _lock;
-  index_t                    _current_pos = 0;
 
 };
 

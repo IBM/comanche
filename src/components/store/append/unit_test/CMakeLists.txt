@@ -15,4 +15,3 @@ add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 
 add_executable(append-store-test1 test1.cpp)
 target_link_libraries(append-store-test1 ${ASAN_LIB} common numa gtest pthread dl comanche-storeappend)
-target_compile_features(append-store-test1 PRIVATE cxx_range_for)

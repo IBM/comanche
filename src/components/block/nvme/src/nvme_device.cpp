@@ -22,6 +22,7 @@
  *
  */
 
+#define DISABLE_SIGPROF_ON_IO_THREAD /*< prevents IO thread from being profiled with gperftools */
 //#define FORMAT_ON_INIT
 //#define DISABLE_IO // TESTING only.
 
@@ -128,6 +129,17 @@ static int lcore_entry_point(void * arg)
   assert(queue);
   assert(queue->device());
 
+  /* mask SIGPROF */
+#ifdef DISABLE_SIGPROF_ON_IO_THREAD
+  {
+    sigset_t set;
+    sigemptyset(&set);
+    sigaddset(&set, SIGPROF);
+    int s = pthread_sigmask(SIG_BLOCK, &set, NULL);
+    assert(s==0);
+  }
+#endif
+
   /* create and register work queue */
   struct rte_ring * ring = register_ring(current_core, queue->device());
   assert(ring);
@@ -145,7 +157,7 @@ static int lcore_entry_point(void * arg)
 
   /* clean up ring */
   rte_ring_free(ring);
-  PLOG("io thread: %u exited.", rte_lcore_id());
+  PLOG("NVMe queue IO thread: %u exited.", rte_lcore_id());
   return 0;
 }
 
@@ -256,6 +268,7 @@ Nvme_device::Nvme_device(const char* device_id,
   unsigned total_threads = io_thread_mask.count();
   size_t core = 0;
 
+
   if(io_thread_mask.check_core(rte_get_master_lcore()))
     throw Constructor_exception("cannot use master core (%u)", rte_get_master_lcore());
   
@@ -273,6 +286,8 @@ Nvme_device::Nvme_device(const char* device_id,
       
       auto q = allocate_io_queue_pair(DEFAULT_NAMESPACE_ID); /* namespace id */
       rte_eal_remote_launch(lcore_entry_point, q, core);
+
+      _cores.push_back(core);
     }      
     core++;
   }
@@ -289,7 +304,9 @@ Nvme_device::~Nvme_device()
     if(!_exit_io_threads) {
       /* wait for IO threds */  
       _exit_io_threads = true;
-      rte_eal_mp_wait_lcore();
+    }
+    for(auto& core: _cores) {
+      rte_eal_wait_lcore(core);
     }
     PLOG("all IO threads joined.");
   }
@@ -801,7 +818,7 @@ bool
 Nvme_device::
 pending_remain()
 {
-  check_completion(0); // special gwid zero means check for all complete.
+  return check_completion(0); // special gwid zero means check for all complete.
 }
 
 const struct spdk_nvme_ctrlr_data *

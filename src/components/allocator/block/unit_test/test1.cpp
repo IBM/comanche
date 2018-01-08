@@ -4,6 +4,7 @@
 #include <list>
 #include <set>
 #include <common/cycles.h>
+#include <common/rand.h>
 #include <common/exceptions.h>
 #include <common/str_utils.h>
 #include <common/logging.h>
@@ -76,7 +77,7 @@ TEST_F(Block_allocator_test, InstantiateBlockDevice)
   cpu_mask_t cpus;
   cpus.add_core(2);
 
-  _block = fact->create("8b:00.0", &cpus);
+  _block = fact->create("86:00.0", &cpus);
 
   assert(_block);
   fact->release_ref();
@@ -143,7 +144,7 @@ TEST_F(Block_allocator_test, InstantiatePmem)
   IPersistent_memory_factory * fact = static_cast<IPersistent_memory_factory *>
     (comp->query_interface(IPersistent_memory_factory::iid()));
   assert(fact);
-  _pmem = fact->open_allocator("unit-test-owner",_block);
+  _pmem = fact->open_allocator("unit-test-owner",_block, true /* force init */);
   assert(_pmem);
   fact->release_ref();
 #endif
@@ -173,7 +174,7 @@ TEST_F(Block_allocator_test, InstantiateBlockAllocator)
 
 	
 
-#if 0
+#if 1
 TEST_F(Block_allocator_test, TestAllocation)
 {
   struct Record {
@@ -183,21 +184,26 @@ TEST_F(Block_allocator_test, TestAllocation)
 
   std::vector<Record> v;
   std::set<lba_t> used_lbas;
-
-  Core::AVL_range_allocator ra(0,GB(375)/KB(4));
+  size_t n_blocks = GB(375)/KB(4);
+  Core::AVL_range_allocator ra(0, n_blocks*KB(4));
   
-  for(unsigned long i=0;i<1000;i++) {
+  PLOG("total blocks = %ld (%lx)", n_blocks, n_blocks); 
+  for(unsigned long i=0;i<10000;i++) {
     void * p;
-    size_t s = (rand() % 2000) + 1;
+    size_t s = 1; // (genrand64_int64() % 5) + 2;
     lba_t lba = _alloc->alloc(s,&p);    
+    PLOG("lba=%lx", lba);
+    
     ASSERT_TRUE(used_lbas.find(lba) == used_lbas.end()); // not already in set
 
     ASSERT_TRUE(ra.alloc_at(lba, s) != nullptr); // allocate range
       
     used_lbas.insert(lba);
-    PLOG("[%lu]: lba(%ld) allocated %ld blocks", i, lba, s);
+    //    PLOG("[%lu]: lba(%ld) allocated %ld blocks", i, lba, s);
     v.push_back({lba,p});
     i++;
+
+    if(i % 1000 == 0) PLOG("allocations:%ld", i);
   }
 
   for(auto& e: v) {
@@ -207,7 +213,7 @@ TEST_F(Block_allocator_test, TestAllocation)
 }
 #endif
 
-#if 1
+#if 0
 TEST_F(Block_allocator_test, Exhaust)
 {
   PLOG("each block 1024 bytes");
