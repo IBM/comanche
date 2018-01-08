@@ -4,7 +4,7 @@
  * @date    10 August 2017
  * @version 0.1
  * @brief   Xms support module.
-*/
+ */
 
 #include <linux/version.h>
 #include <linux/init.h>             // Macros used to mark up functions e.g., __init __exit
@@ -56,7 +56,7 @@ inline static bool check_aligned(void* p, unsigned alignment)
 /* module_param(name, charp, S_IRUGO); ///< Param desc. charp = char
    ptr, S_IRUGO can be read/not changed */
 /* MODULE_PARM_DESC(name, "The name to display in /var/log/kern.log");
-   ///< parameter description */
+///< parameter description */
 
 static long xms_dev_ioctl(struct file *filp,
                           unsigned int ioctl,
@@ -94,8 +94,8 @@ static long xms_dev_ioctl(struct file *filp,
     int rc;
     
     rc = copy_from_user(&params,
-                   ((IOCTL_GETPHYS_param *) arg),
-                   sizeof(IOCTL_GETPHYS_param));
+                        ((IOCTL_GETPHYS_param *) arg),
+                        sizeof(IOCTL_GETPHYS_param));
 
     if((rc > 0) || (!access_ok(VERIFY_WRITE, params.out_paddr, sizeof(params.out_paddr)))) {
       printk(KERN_ERR "xms: dev_ioctl passed invalid out_data param\n");
@@ -120,7 +120,10 @@ static long xms_dev_ioctl(struct file *filp,
         params.out_paddr = huge_pfn;
       }
       else {
-        if(pte == NULL) return r;
+        if(pte == NULL) {
+          printk(KERN_INFO "xms: result of walk (huge page) is null");
+          return r;
+        }
         params.out_paddr = pte_pfn(*pte) << PAGE_SHIFT;
       }
 
@@ -130,20 +133,20 @@ static long xms_dev_ioctl(struct file *filp,
 #endif
 
       rc = copy_to_user(((IOCTL_GETPHYS_param *) arg),
-			    &params,
-			    sizeof(IOCTL_GETPHYS_param));
+                        &params,
+                        sizeof(IOCTL_GETPHYS_param));
       if(rc > 0) {
-	printk(KERN_ERR "xms: copy_to_user failed");
+        printk(KERN_ERR "xms: copy_to_user failed");
       }
-      return -1;
+      return 0;
     }
   }
   else if(ioctl == IOCTL_CMD_GETBITMAP) {
     int rc;
     IOCTL_GETBITMAP_param params;
     rc = copy_from_user(&params,
-                   ((IOCTL_GETBITMAP_param *) arg),
-                   sizeof(IOCTL_GETBITMAP_param));
+                        ((IOCTL_GETBITMAP_param *) arg),
+                        sizeof(IOCTL_GETBITMAP_param));
     
     if((rc > 0) || (!access_ok(VERIFY_WRITE, params.out_data, params.out_size))) {
       printk(KERN_ERR "xms: dev_ioctl passed invalid out_data param");
@@ -249,7 +252,7 @@ static void vm_close(struct vm_area_struct *vma)
 static int vm_fault(struct vm_area_struct *area, 
                     struct vm_fault *fdata)
 #else
-static int vm_fault(struct vm_fault *vmf)
+  static int vm_fault(struct vm_fault *vmf)
 #endif
 {
   return VM_FAULT_SIGBUS;
