@@ -279,11 +279,15 @@ static int fop_mmap(struct file *file, struct vm_area_struct *vma)
 
   /* TODO: PRIV check!!!! */
 
+#ifdef DEBUG
   printk(KERN_DEBUG "fop_mmap: flags=%lx offset=%lx\n", vma->vm_flags, vma->vm_pgoff);
+#endif
   type = (vma->vm_pgoff >> 48);
   phys = (vma->vm_pgoff & 0xffffffffffffULL);
 
+#ifdef DEBUG
   printk(KERN_DEBUG "fop_mmap: type=%lx phys=%lx\n", type, phys);
+#endif
   //  unsigned long offset = vma->vm_pgoff * PAGE_SIZE;
 
   if(type == 1) {
