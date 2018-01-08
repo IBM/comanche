@@ -296,64 +296,17 @@ private:
 #define TEST_PHYS_ADDR 0x0000002080000000
 int main()
 {
-
-#if 0
-  int fd = open("/dev/xms", O_RDWR);
-  assert(fd != -1);
   
-  void * ptr = mmap((void*)0x900000000,
-                    KB(4),
-                    PROT_READ | PROT_WRITE,
-                    MAP_SHARED,// | 0x100000,
-                    fd,
-                    FLAG_NONCACHED | TEST_PHYS_ADDR);
-
-  if(ptr == (void*)-1) {
-    PERR("mmap failed");
-    return 0;
-  }
-
-  PINF("mapped vaddr: %p", ptr);
-  memset(ptr, 0, 4096);
-  PINF("zeroed page OK.");
-  
-  close(fd);
-#endif
-
 #if 1
   int fd = open("/dev/xms", O_RDWR);
-  assert(fd > 0);
-
-  IOCTL_SETMEMORY_param ioparam;
-  ioparam.vaddr = aligned_alloc(4096, 4096);
-  ioparam.size = 4096;
-  ioparam.type = MEMORY_UC;
-
-  /* make sure memory is mapped in */
-  memset(ioparam.vaddr, 0xf, 4096);
-
-  int rc = ioctl(fd, IOCTL_CMD_SETMEMORY, &ioparam);  //ioctl call
-  if(rc != 0) {
-    PERR("ioctl failed: rc=%d", rc);
-  }
-
-  free(ioparam.vaddr);
-  close(fd);
-#endif
-  
-#if 0
-  int fd = open("/dev/xms", O_RDWR);
   assert(fd != -1);
   
-  void * ptr = mmap(0, MB(4),
-                    PROT_READ|PROT_WRITE,
-                    MAP_HUGETLB | MAP_PRIVATE | MAP_ANONYMOUS | MAP_LOCKED, -1, 0);
+  void * ptr = aligned_alloc(KB(4), MB(4));
 
-  if(ptr == (void*)-1) {
-    PERR("mmap failed");
-    return 0;
-  }
+  assert(ptr);
+  memset(ptr, 0, MB(4));
   PLOG("allocated ptr=%p", ptr);
+  
 
   IOCTL_GETPHYS_param ioparam;
   ioparam.vaddr = (addr_t) ptr;
