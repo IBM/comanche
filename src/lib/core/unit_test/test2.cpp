@@ -140,7 +140,7 @@ TEST_F(Core_test, Postbox)
     }
 #endif
   }
-  void* status;
+  int status;
   wait(&status);
   
 }

@@ -24,6 +24,7 @@ cd deps
 
 ```bash
 source setenv.h
+sudo ./tools/nvme_setup.sh /* optionally attach ALL Nvme devices to VFIO */
 cmake .
 make
 ```

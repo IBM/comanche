@@ -37,7 +37,7 @@ public:
 
   size_t size() const { return _nb_size; }
   
-private:
+protected:
   
   size_t           _nb_size;
   PMEMoid          _base;
