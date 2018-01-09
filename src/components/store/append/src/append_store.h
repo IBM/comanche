@@ -18,6 +18,7 @@
 
 #include <sqlite3.h>
 #include <string>
+#include <thread>
 #include <core/zerocopy_passthrough.h>
 #include <api/store_itf.h>
 #include <api/region_itf.h>
@@ -30,7 +31,7 @@ class Append_store : public Core::Zerocopy_passthrough_impl<Component::IStore>
 private:
   static constexpr unsigned DMA_ALIGNMENT_BYTES = 8;
   static constexpr bool option_DEBUG = false;
-
+  static constexpr bool option_STATS = false;
 public:
 
   /** 
@@ -282,6 +283,8 @@ private:
                       uint64_t length);
   bool find_row(std::string& key, uint64_t& out_lba);
 
+  void monitor_thread_entry();
+  
 private:
   /* component dependencies and instantiations */
   Component::IBlock_device * _block;
@@ -290,9 +293,17 @@ private:
   Component::VOLUME_INFO     _vi;
   unsigned                   _max_io_blocks;
   unsigned                   _max_io_bytes;
-  sqlite3 *   _db;
-  std::string _db_filename;
-  std::string _table_name; 
+  sqlite3 *                  _db;
+  std::string                _db_filename;
+  std::string                _table_name;
+  
+  std::thread                _monitor;
+  bool                       _monitor_exit = false;
+
+  /* stats collection */
+  struct {
+    uint64_t iterator_get_volume;
+  } stats __attribute__((aligned(8)));
 };
 
 

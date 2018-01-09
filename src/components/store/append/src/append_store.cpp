@@ -79,13 +79,13 @@ create_block_allocator(Component::IPersistent_memory * pmem,
                        bool force_init);
 
 
-
 Append_store::Append_store(std::string owner,
                            std::string name,
                            Component::IBlock_device* block,
                            int flags)
   : _block(block),
-    _hdr(block, owner, name, flags & FLAGS_FORMAT) /* initialize header object */
+    _hdr(block, owner, name, flags & FLAGS_FORMAT), /* initialize header object */
+    _monitor([=]{ monitor_thread_entry(); })
 {
   int rc;
   
@@ -141,6 +141,21 @@ Append_store::~Append_store()
 
   _block->release_ref();
 }
+
+
+void Append_store::monitor_thread_entry()
+{
+  if(!option_STATS) return;
+  
+  while(!_monitor_exit) {
+    sleep(1);
+    auto nbytes = stats.iterator_get_volume;
+    stats.iterator_get_volume = 0;
+    if(nbytes > 0)
+      PLOG("read throughput: %lu MB/s", REDUCE_MB(nbytes));    
+  }
+}
+
 
 uint64_t Append_store::insert_row(std::string& key, std::string& metadata, uint64_t lba, uint64_t length)
 {
@@ -460,7 +475,9 @@ size_t Append_store::iterator_get(iterator_t iter,
                      queue_id);
 
   i->current_idx++;
-  return record.len * _vi.block_size;
+  size_t n_bytes = record.len * _vi.block_size;
+  stats.iterator_get_volume += n_bytes;
+  return n_bytes;
 }
 
 
