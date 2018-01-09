@@ -9,32 +9,28 @@
 #include <inttypes.h>
 #include <common/utils.h>
 #include <common/exceptions.h>
+#include "xms.h"
 
 enum {
   IOCTL_PMINFO_PAGE2M=1,
   IOCTL_PMINFO_PAGE1G=2,
 };
 
-typedef struct {
-  void * region_ptr;
-  size_t region_size;
-  uint32_t flags;
-  void * out_data;
-  size_t out_size;
-} __attribute__((packed)) IOCTL_GETBITMAP_param;
+// typedef struct {
+//   void * region_ptr;
+//   size_t region_size;
+//   uint32_t flags;
+//   void * out_data;
+//   size_t out_size;
+// } __attribute__((packed)) IOCTL_GETBITMAP_param;
 
-typedef struct {
-  uint32_t magic;
-  uint32_t bitmap_size;
-  char     bitmap[0];
-} __attribute__((packed)) IOCTL_GETBITMAP_out_param;
 
-typedef struct
-{
-  addr_t vaddr;
-  addr_t out_paddr;
-}
-__attribute__((packed)) IOCTL_GETPHYS_param;
+// typedef struct
+// {
+//   addr_t vaddr;
+//   addr_t out_paddr;
+// }
+// __attribute__((packed)) IOCTL_GETPHYS_param;
 
 // prints LSB to MSB
 #include <sys/types.h>
@@ -42,10 +38,10 @@ __attribute__((packed)) IOCTL_GETPHYS_param;
 #include <fcntl.h>
 #include <vector>
 
-enum {
-  IOCTL_CMD_GETBITMAP = 9,
-  IOCTL_CMD_GETPHYS = 10,
-};
+// enum {
+//   IOCTL_CMD_GETBITMAP = 9,
+//   IOCTL_CMD_GETPHYS = 10,
+// };
   
 
 class Page_state_bitmap
@@ -75,8 +71,8 @@ public:
     range_map.clear();
     
     IOCTL_GETBITMAP_param ioparam;
-    ioparam.region_ptr = region;
-    ioparam.region_size = region_size;
+    ioparam.ptr = region;
+    ioparam.size = region_size;
     ioparam.flags = 0;
     ioparam.out_size = bitmap_size(region_size);
     ioparam.out_data = malloc(ioparam.out_size);
@@ -101,8 +97,8 @@ public:
     dirty_vector.clear();
 
     IOCTL_GETBITMAP_param ioparam;
-    ioparam.region_ptr = region;
-    ioparam.region_size = region_size;
+    ioparam.ptr = region;
+    ioparam.size = region_size;
     ioparam.flags = 0;
     ioparam.out_size = bitmap_size(region_size);
     ioparam.out_data = malloc(ioparam.out_size);
@@ -294,22 +290,23 @@ private:
 
 };
 
+#define FLAG_NONCACHED 0x1000000000000000ULL
+#define FLAG_WC 0x2000000000000000ULL
 
+#define TEST_PHYS_ADDR 0x0000002080000000
 int main()
 {
-
+  
 #if 1
   int fd = open("/dev/xms", O_RDWR);
+  assert(fd != -1);
+  
+  void * ptr = aligned_alloc(KB(4), MB(4));
 
-  void * ptr = mmap(0, MB(4),
-                    PROT_READ|PROT_WRITE,
-                    MAP_HUGETLB | MAP_PRIVATE | MAP_ANONYMOUS | MAP_LOCKED, -1, 0);
-
-  if(ptr == (void*)-1) {
-    PERR("mmap failed");
-    return 0;
-  }
+  assert(ptr);
+  memset(ptr, 0, MB(4));
   PLOG("allocated ptr=%p", ptr);
+  
 
   IOCTL_GETPHYS_param ioparam;
   ioparam.vaddr = (addr_t) ptr;
@@ -317,6 +314,7 @@ int main()
   int rc = ioctl(fd, IOCTL_CMD_GETPHYS, &ioparam);  //ioctl call
   if(rc != 0) {
     PERR("ioctl failed: rc=%d", rc);
+    close(fd);
     return 0;
   }
 
