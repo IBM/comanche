@@ -291,10 +291,6 @@ async_read(io_buffer_t buffer,
     PINF("[+] block-posix: async_read(buffer=%p, offset=%lu, lba=%lu, lba_count=%lu",
          (void*) buffer, buffer_offset, lba, lba_count);
 
-  if(queue_id > 0) {
-    PWRN("queue parameter ignored in Block_posix");
-  }
-
   struct aiocb * desc = allocate_descriptor();
   memset(desc, 0, sizeof(struct aiocb));
   desc->aio_buf = reinterpret_cast<char*>(buffer) + buffer_offset;
@@ -337,9 +333,6 @@ async_write(io_buffer_t buffer,
   if(option_DEBUG)
     PINF("[+] block-posix: async_write(buffer=%p, offset=%lu, lba=%lu, lba_count=%lu",
          (void*)buffer, buffer_offset, lba, lba_count);
-
-  if(queue_id > 0)
-    throw API_exception("queue parameter not supported");
 
   struct aiocb * desc = allocate_descriptor();
   memset(desc, 0, sizeof(struct aiocb));
@@ -385,9 +378,6 @@ write(Component::io_buffer_t buffer,
   if(lba_count == 0)
     throw API_exception("bad parameter");
 
-  if(queue_id > 0)
-    throw API_exception("queue parameter not supported");
-
   void * ptr = (void*) (reinterpret_cast<char*>(buffer) + buffer_offset);
   size_t nbytes = lba_count * IO_BLOCK_SIZE;
   ssize_t rc = pwrite(_fd, ptr, nbytes, lba * IO_BLOCK_SIZE);
@@ -414,9 +404,6 @@ read(Component::io_buffer_t buffer,
   if(lba_count == 0)
     throw API_exception("bad parameter");
   
-  if(queue_id > 0)
-    throw API_exception("queue parameter not supported");
-
   void * ptr = (void*) (reinterpret_cast<char*>(buffer) + buffer_offset);
   size_t nbytes = lba_count * IO_BLOCK_SIZE;
 
@@ -437,9 +424,9 @@ bool
 Block_posix::
 check_completion(workid_t gwid, int queue_id)
 {
-  if(queue_id > 0)
-    throw API_exception("queue parameter not supported");
-
+  if(option_DEBUG)
+    PLOG("check_completion (%lu)", gwid);
+  
   return check_complete(gwid);
 }
 
