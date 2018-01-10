@@ -124,21 +124,23 @@ Append_store::Append_store(std::string owner,
     throw General_exception("failed to open sqlite3 db (%s)", _db_filename.c_str());
   }
 
-  /* create table if needed */
-  execute_sql("CREATE TABLE IF NOT EXISTS appendstore (ID TEXT PRIMARY KEY NOT NULL, LBA INT8, NBLOCKS INT8, METADATA TEXT);");
+  if(!_hdr.existing()) {
+    /* create table if needed */
+    execute_sql("CREATE TABLE IF NOT EXISTS appendstore (ID TEXT PRIMARY KEY NOT NULL, LBA INT8, NBLOCKS INT8, METADATA TEXT);");
 
-  execute_sql("CREATE TABLE IF NOT EXISTS meta (KEY TEXT PRIMARY KEY NOT NULL, VALUE TEXT);");
+    execute_sql("CREATE TABLE IF NOT EXISTS meta (KEY TEXT PRIMARY KEY NOT NULL, VALUE TEXT);");
 
-  {
-    std::stringstream ss;
-    ss << "INSERT INTO meta VALUES('device_id','" << _vi.device_id << "');";
-    execute_sql(ss.str());
-  }
+    {
+      std::stringstream ss;
+      ss << "INSERT INTO meta VALUES('device_id','" << _vi.device_id << "');";
+      execute_sql(ss.str());
+    }
 
-  {
-    std::stringstream ss;
-    ss << "INSERT INTO meta VALUES('volume_name','" << _vi.volume_name << "');";
-    execute_sql(ss.str());
+    {
+      std::stringstream ss;
+      ss << "INSERT INTO meta VALUES('volume_name','" << _vi.volume_name << "');";
+      execute_sql(ss.str());
+    }
   }
 }
 

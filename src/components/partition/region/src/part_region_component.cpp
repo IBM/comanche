@@ -113,7 +113,7 @@ public:
     std::stringstream ss;
     ss << devinfo.volume_name << ":Region(" << _first_lba << "-" << _last_lba << ")";
     
-    strcpy(devinfo.volume_name, ss.str().c_str());
+    strncpy(devinfo.volume_name, ss.str().c_str(), ss.str().length());
     devinfo.block_count = _capacity;
   }
 
@@ -201,6 +201,40 @@ reuse_or_allocate_region(size_t size_in_blocks,
     
     reused = false;
   }
+  vaddr = rd->vaddr;
+
+  return new Region_session(_lower_block_layer,
+                            id.c_str(),
+                            rd->saddr,
+                            rd->saddr + rd->size - 1);
+}
+
+
+/** 
+ * Request specifically reuse region
+ * 
+ * @param size_in_blocks Size of regio in blocks
+ * @param owner Owner
+ * @param id Region identifier
+ * @param vaddr 
+ * 
+ * @return Block device interface onto region
+ */
+Component::IBlock_device *
+Region_manager::open_region(size_t size_in_blocks,
+                            std::string owner,
+                            std::string id,
+                            addr_t& vaddr)
+{
+  __region_desc_t * rd = _region_table.find(owner, id);
+  if(!rd)
+    throw General_exception("region not found (%s,%s)", owner.c_str(), id.c_str());
+  
+  if(option_DEBUG) {
+    _region_table.dump();
+    PLOG("Opening existing region '%s'",id.c_str());
+  }
+
   vaddr = rd->vaddr;
 
   return new Region_session(_lower_block_layer,

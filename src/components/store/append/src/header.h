@@ -69,6 +69,7 @@ public:
     }
     else {
       PLOG("Append-store: using existing state");
+      _existing = true;
     }
     PLOG("Append-store: next=%ld max=%ld owner=%s name=%s",
          _mb->next_free_lba, _mb->block_count, _mb->owner, _mb->name);
@@ -122,6 +123,8 @@ public:
     return result;
   }
 
+  bool existing() const { return _existing; }
+  
 private:
 
   void write_mb() {
@@ -138,7 +141,7 @@ private:
   Component::io_buffer_t     _iob;
   Store_master_block *       _mb;
   std::mutex                 _lock;
-
+  bool                       _existing = false;
 };
 
 
