@@ -86,7 +86,6 @@ public:
     dump_info();
     write_mb();
     _block->free_io_buffer(_iob);
-    _block->release_ref();
   }
 
   void dump_info() {

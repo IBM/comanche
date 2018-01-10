@@ -140,6 +140,8 @@ Append_store::~Append_store()
     throw General_exception("failed to close sqlite3 db (%s)", _db_filename.c_str());
 
   _block->release_ref();
+
+  _monitor.join();
 }
 
 
