@@ -97,6 +97,7 @@ Append_store::Append_store(std::string owner,
   
   assert(_block);
   _block->get_volume_info(_vi);
+
   PLOG("Append-store: block device capacity=%lu max_dma_block=%ld",
        _vi.block_count, _vi.max_dma_len / _vi.block_size);
 
@@ -105,8 +106,8 @@ Append_store::Append_store(std::string owner,
   assert(_vi.max_dma_len % _vi.block_size == 0);
   
   /* database inititalization */
-  _table_name = name;
-  _db_filename = owner + "." + _table_name + ".db";
+  _table_name = "appendstore";
+  _db_filename = name + ".db";
 
   if(flags & FLAGS_FORMAT) {
     std::remove(_db_filename.c_str());
@@ -124,12 +125,21 @@ Append_store::Append_store(std::string owner,
   }
 
   /* create table if needed */
-  std::stringstream sqlss;
-  sqlss << "CREATE TABLE IF NOT EXISTS " << name;
-  sqlss << "(ID TEXT PRIMARY KEY NOT NULL, LBA INT8, NBLOCKS INT8, METADATA TEXT);";
-   
-  execute_sql(sqlss.str());
+  execute_sql("CREATE TABLE IF NOT EXISTS appendstore (ID TEXT PRIMARY KEY NOT NULL, LBA INT8, NBLOCKS INT8, METADATA TEXT);");
 
+  execute_sql("CREATE TABLE IF NOT EXISTS meta (KEY TEXT PRIMARY KEY NOT NULL, VALUE TEXT);");
+
+  {
+    std::stringstream ss;
+    ss << "INSERT INTO meta VALUES('device_id','" << _vi.device_id << "');";
+    execute_sql(ss.str());
+  }
+
+  {
+    std::stringstream ss;
+    ss << "INSERT INTO meta VALUES('volume_name','" << _vi.volume_name << "');";
+    execute_sql(ss.str());
+  }
 }
 
 Append_store::~Append_store()

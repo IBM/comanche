@@ -52,7 +52,8 @@ public:
     __builtin_memset(this, 0, sizeof(VOLUME_INFO));
   }
 
-  char volume_name[VOLUME_INFO_MAX_NAME];  
+  char volume_name[VOLUME_INFO_MAX_NAME];
+  char device_id[VOLUME_INFO_MAX_NAME];
   unsigned block_size;
   uint64_t block_count;
   uint64_t hash_id;

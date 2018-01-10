@@ -110,8 +110,11 @@ public:
 
   void get_volume_info(Component::VOLUME_INFO& devinfo) override {
     _lower_layer->get_volume_info(devinfo);
+    std::stringstream ss;
+    ss << devinfo.volume_name << ":Region(" << _first_lba << "-" << _last_lba << ")";
+    
+    strcpy(devinfo.volume_name, ss.str().c_str());
     devinfo.block_count = _capacity;
-    strncpy(devinfo.volume_name, _volume_name.c_str(), Component::VOLUME_INFO_MAX_NAME);
   }
 
 private:

@@ -158,9 +158,17 @@ public:
    * Get device identifier
    * 
    * 
-   * @return 
+   * @return Volume description
    */
   const char * get_device_id();
+
+  /** 
+   * Get PCI identifier
+   * 
+   * 
+   * @return PCI identifier
+   */
+  const char * get_pci_id();
 
   /**
    * Low-level format of the device
@@ -357,7 +365,7 @@ private:
    */
   void initialize(const char *device_id);
   struct spdk_nvme_ns *  get_namespace(uint32_t namespace_id);
-    
+
   int                            _mode; /**< operation mode */
   bool                           _exit_io_threads;
   bool                           _activate_io_threads;
@@ -365,6 +373,8 @@ private:
   std::vector<unsigned>          _cores;
   struct probed_device           _probed_device;
   unsigned                       _default_core = 0;
+  std::string                    _pci_id;
+  std::string                    _volume_id;
 };
 
 
