@@ -113,7 +113,8 @@ public:
     std::stringstream ss;
     ss << devinfo.volume_name << ":Region(" << _first_lba << "-" << _last_lba << ")";
     
-    strncpy(devinfo.volume_name, ss.str().c_str(), ss.str().length());
+    strncpy(devinfo.volume_name, ss.str().c_str(), sizeof(devinfo.volume_name));
+    devinfo.volume_name[sizeof(devinfo.volume_name) - 1] = '\0';
     devinfo.block_count = _capacity;
   }
 
