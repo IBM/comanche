@@ -1,17 +1,17 @@
 /*
-   Copyright [2017] [IBM Corporation]
+  Copyright [2017] [IBM Corporation]
 
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
 
-       http://www.apache.org/licenses/LICENSE-2.0
+  http://www.apache.org/licenses/LICENSE-2.0
 
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
 */
 
 
@@ -77,11 +77,16 @@ bool probe_cb(void *cb_ctx,
 {
   struct probed_device * pd = (struct probed_device *) cb_ctx;
 
-  PLOG("Checking against device: %s", trid->traddr);
   char tmp[255];
   sprintf(tmp,"0000:%s", pd->device_id);
 
-  return (strcmp(tmp, trid->traddr)==0);
+  bool result = (strcmp(tmp, trid->traddr)==0);
+  if(result)
+    PLOG("Using device: %s", trid->traddr);
+  else
+    PLOG("Ignoring device: %s", trid->traddr);
+
+  return result;
 }
 
 /** 
@@ -99,38 +104,40 @@ void attach_cb(void *cb_ctx,
                const struct spdk_nvme_ctrlr_opts *opts)
 {
   int num_ns;
-	const struct spdk_nvme_ctrlr_data *cdata = spdk_nvme_ctrlr_get_data(ctrlr);
+  
+  const struct spdk_nvme_ctrlr_data *cdata = spdk_nvme_ctrlr_get_data(ctrlr);
   struct probed_device * pd = (struct probed_device *) cb_ctx;
   
-	/* entry = malloc(sizeof(struct ctrlr_entry)); */
-	/* if (entry == NULL) { */
-	/* 	perror("ctrlr_entry malloc"); */
-	/* 	exit(1); */
-	/* } */
+  /* entry = malloc(sizeof(struct ctrlr_entry)); */
+  /* if (entry == NULL) { */
+  /* 	perror("ctrlr_entry malloc"); */
+  /* 	exit(1); */
+  /* } */
 
   PINF("Attaching to NVMe device %s:%s:%s",
        trid->traddr,
        trid->trsvcid,
        trid->subnqn);
   
-	snprintf((char*)pd->device_id, sizeof(pd->device_id), 
-            "%-20.20s (%-20.20s)", cdata->mn, cdata->sn);
+  snprintf((char*)pd->device_id, sizeof(pd->device_id), 
+	   "%-20.20s (%-20.20s)", cdata->mn, cdata->sn);
 
   pd->ctrlr = ctrlr;
 
-	/*
-	 * Each controller has one of more namespaces.  An NVMe namespace is basically
-	 *  equivalent to a SCSI LUN.  The controller's IDENTIFY data tells us how
-	 *  many namespaces exist on the controller.  For Intel(R) P3X00 controllers,
-	 *  it will just be one namespace.
-	 *
-	 * Note that in NVMe, namespace IDs start at 1, not 0.
-	 */
-	num_ns = spdk_nvme_ctrlr_get_num_ns(ctrlr);
-	PINF("Using controller %s with %d namespaces", pd->device_id, num_ns);
-	/* for (nsid = 1; nsid <= num_ns; nsid++) { */
-	/* 	register_ns(pd,ctrlr, spdk_nvme_ctrlr_get_ns(ctrlr, nsid)); */
-	/* } */
+  /*
+   * Each controller has one of more namespaces.  An NVMe namespace is basically
+   *  equivalent to a SCSI LUN.  The controller's IDENTIFY data tells us how
+   *  many namespaces exist on the controller.  For Intel(R) P3X00 controllers,
+   *  it will just be one namespace.
+   *
+   * Note that in NVMe, namespace IDs start at 1, not 0.
+   */
+  num_ns = spdk_nvme_ctrlr_get_num_ns(ctrlr);
+  PINF("Using controller %s with %d namespaces", pd->device_id, num_ns);
+  
+  /* for (nsid = 1; nsid <= num_ns; nsid++) { */
+  /* 	register_ns(pd,ctrlr, spdk_nvme_ctrlr_get_ns(ctrlr, nsid)); */
+  /* } */
   pd->ns = spdk_nvme_ctrlr_get_ns(ctrlr, 1); /* namespace 1 */
 }
 
