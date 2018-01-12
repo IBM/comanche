@@ -40,8 +40,9 @@ public:
    * @param block_device Block device interface
    * 
    */
-  Append_store(std::string owner,
-               std::string name,
+  Append_store(const std::string owner,
+               const std::string name,
+               const std::string db_location,
                Component::IBlock_device* block,
                int flags);
 
@@ -329,8 +330,9 @@ public:
     delete this;
   }
 
-  virtual Component::IStore * create(std::string owner,
-                                     std::string name,
+  virtual Component::IStore * create(const std::string owner,
+                                     const std::string name,
+                                     const std::string db_location,
                                      Component::IBlock_device* block,
                                      int flags) override
   {
@@ -338,7 +340,7 @@ public:
       throw Constructor_exception("%s: bad block interface param", __PRETTY_FUNCTION__);
     
     Component::IStore * obj = static_cast<Component::IStore *>
-      (new Append_store(owner, name, block, flags));
+      (new Append_store(owner, name, db_location, block, flags));
     
     obj->add_ref();
     return obj;
