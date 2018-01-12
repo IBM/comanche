@@ -35,6 +35,10 @@ public:
 public:
   using iterator_t=void*;
 
+  enum {
+    FLAGS_ITERATE_ALL=0x1,
+  };
+  
   /** 
    * Put-append data (copy-based)
    * 
@@ -247,15 +251,19 @@ public:
    * 
    * @param owner Owner identifier
    * @param name Store name
+   * @param db_location DB file location
    * @param block_device Underlying block device
    * @param flags Instantiation flags
+   * @param db_directory Database 
    * 
    * @return Pointer to IStore interface
    */  
-  virtual IStore * create(std::string owner,
-                          std::string name,
+  virtual IStore * create(const std::string owner,
+                          const std::string name,
+                          const std::string db_location,
                           Component::IBlock_device * block_device,
                           int flags) = 0;
+
 
 };
 

@@ -79,8 +79,9 @@ create_block_allocator(Component::IPersistent_memory * pmem,
                        bool force_init);
 
 
-Append_store::Append_store(std::string owner,
-                           std::string name,
+Append_store::Append_store(const std::string owner,
+                           const std::string name,
+                           const std::string db_location,
                            Component::IBlock_device* block,
                            int flags)
   : _block(block),
@@ -107,8 +108,10 @@ Append_store::Append_store(std::string owner,
   
   /* database inititalization */
   _table_name = "appendstore";
-  _db_filename = name + ".db";
+  _db_filename = db_location + "/" + name + ".db";
 
+  PLOG("Append-store: db_filename- %s", _db_filename.c_str());
+  
   if(flags & FLAGS_FORMAT) {
     std::remove(_db_filename.c_str());
   }
@@ -116,6 +119,7 @@ Append_store::Append_store(std::string owner,
   if(option_DEBUG) {
     PLOG("Append-store: opening db %s", _db_filename.c_str());
   }
+
 
   if(sqlite3_open_v2(_db_filename.c_str(),
                      &_db,
@@ -349,8 +353,8 @@ IStore::iterator_t Append_store::open_iterator(std::string expr,
   
   std::stringstream sqlss;
 
-  if(flags > 0) 
-    sqlss << "SELECT LBA,NBLOCKS FROM " << _table_name << " WHERE " << expr << " LIMIT 10000;";
+  if(flags & IStore::FLAGS_ITERATE_ALL)
+    sqlss << "SELECT LBA,NBLOCKS FROM " << _table_name << ";";
   else
     sqlss << "SELECT LBA,NBLOCKS FROM " << _table_name << " WHERE " << expr << " ;";
   
@@ -602,9 +606,18 @@ void Append_store::dump_info()
 
   /* dump keys */
   sqlite3_stmt * stmt;
-  sqlite3_prepare_v2(_db, sql.c_str(), sql.size(), &stmt, nullptr);
   int s;
+  s = sqlite3_prepare_v2(_db, sql.c_str(), sql.size(), &stmt, nullptr);
+  if(s != SQLITE_OK) {
+    PERR("sqlite3 error:%d %s", s, sqlite3_errmsg(_db));
+    return;
+  }
+
   while((s = sqlite3_step(stmt)) != SQLITE_DONE) {
+    if(s != SQLITE_ROW) {
+      PERR("sqlite3 error:%d", s);
+      break;
+    }
     auto key = sqlite3_column_text(stmt, 0);
     auto start_lba = sqlite3_column_int64(stmt, 1);
     auto len = sqlite3_column_int64(stmt, 2);
@@ -625,14 +638,17 @@ void Append_store::show_db()
 size_t Append_store::get_record_count()
 {
   assert(_db);
+
   std::stringstream sqlss;
   sqlss << "SELECT MAX(ROWID) FROM " << _table_name << ";";
   std::string sql = sqlss.str();
-  
   sqlite3_stmt * stmt;
+  int s;
+  
   sqlite3_prepare_v2(_db, sql.c_str(), sql.size(), &stmt, nullptr);
-  int s = sqlite3_step(stmt);
-  auto max_row_id = sqlite3_column_int64(stmt, 0);
+  sqlite3_step(stmt);
+
+  sqlite3_int64 max_row_id = sqlite3_column_int64(stmt, 0);
   sqlite3_finalize(stmt);
   return max_row_id;
 }
@@ -655,7 +671,7 @@ status_t Append_store::get(uint64_t rowid,
   int64_t data_lba = sqlite3_column_int64(stmt, 1);
   int64_t data_len = sqlite3_column_int64(stmt, 2);
   sqlite3_finalize(stmt);
-  if(option_DEBUG||1) {
+  if(option_DEBUG) {
     PLOG("get(rowid=%lu) --> lba=%ld len=%ld", rowid, data_lba, data_len);
   }
 
