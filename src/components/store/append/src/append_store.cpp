@@ -252,17 +252,20 @@ void Append_store::execute_sql(const std::string& sql, bool print_callback_flag)
   }
 
   char *zErrMsg = 0;
-  unsigned remaining_retries = 100;
+  unsigned remaining_retries = 10000;
 
   while(remaining_retries > 0) {
+    int rc;
     if(print_callback_flag) {
-      if(sqlite3_exec(db_handle(), sql.c_str(), print_callback, 0, &zErrMsg)==SQLITE_OK)
+      if((rc=sqlite3_exec(db_handle(), sql.c_str(), print_callback, 0, &zErrMsg))==SQLITE_OK)
         break;
     }
     else {
-      if(sqlite3_exec(db_handle(), sql.c_str(), callback, 0, &zErrMsg)==SQLITE_OK)
+      if((rc=sqlite3_exec(db_handle(), sql.c_str(), callback, 0, &zErrMsg))==SQLITE_OK)
         break;
     }
+    if(rc != SQLITE_BUSY)
+      throw General_exception("bad SQL statement (%s)", zErrMsg);
     usleep(1000);
     remaining_retries--;
   }
