@@ -285,6 +285,8 @@ private:
   bool find_row(std::string& key, uint64_t& out_lba);
 
   void monitor_thread_entry();
+
+  sqlite3 * db_handle();
   
 private:
   /* component dependencies and instantiations */
@@ -294,7 +296,6 @@ private:
   Component::VOLUME_INFO     _vi;
   unsigned                   _max_io_blocks;
   unsigned                   _max_io_bytes;
-  sqlite3 *                  _db;
   std::string                _db_filename;
   std::string                _table_name;
   
