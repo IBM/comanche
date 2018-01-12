@@ -298,6 +298,7 @@ private:
   unsigned                   _max_io_bytes;
   std::string                _db_filename;
   std::string                _table_name;
+  bool                       _read_only;
   
   std::thread                _monitor;
   bool                       _monitor_exit = false;
