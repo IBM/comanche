@@ -142,7 +142,7 @@ static int lcore_entry_point(void * arg)
 
   /* create and register work queue */
   struct rte_ring * ring = register_ring(current_core, queue->device());
-  assert(ring);
+  assert(ring);  
   
   /* work loop */
   IO_descriptor * desc;

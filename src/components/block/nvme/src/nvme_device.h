@@ -305,6 +305,7 @@ public:
     std::lock_guard<std::mutex> g(_qm_state.lock);
     _qm_state.ring_list[core] = ring;
     _qm_state.launched++;
+    wmb();
     PLOG("registering queue message ring (core=%u) : %p", core, ring);
   }
 
@@ -353,7 +354,7 @@ private:
   {
     std::mutex       lock;
     struct rte_ring* ring_list[MAX_IO_QUEUES];
-    unsigned         launched;
+    unsigned         launched = 0;
   } _qm_state;
 
   
