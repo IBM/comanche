@@ -19,6 +19,7 @@
 
 using namespace Component;
 
+/* thread local database handle, so we can open SQLite3 in multithread mode */
 __thread sqlite3 *     g_tls_db;
 std::vector<sqlite3 *> g_tls_db_vector;
 std::mutex             g_tls_db_vector_lock;
@@ -85,9 +86,15 @@ create_block_allocator(Component::IPersistent_memory * pmem,
 sqlite3 * Append_store::db_handle()
 {
   if(g_tls_db == nullptr) {
+    int dbflags;
+    if(_read_only)
+      dbflags = SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX;
+    else
+      dbflags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX;
+    
     if(sqlite3_open_v2(_db_filename.c_str(),
                        &g_tls_db,
-                       SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX,
+                       dbflags,
                        NULL) != SQLITE_OK) {
       throw General_exception("failed to open sqlite3 db (%s)", _db_filename.c_str());
     }
@@ -110,7 +117,8 @@ Append_store::Append_store(const std::string owner,
                            int flags)
   : _block(block),
     _hdr(block, owner, name, flags & FLAGS_FORMAT), /* initialize header object */
-    _monitor([=]{ monitor_thread_entry(); })
+    _monitor([=]{ monitor_thread_entry(); }),
+    _read_only(flags & FLAGS_READONLY)
 {
   int rc;
   
@@ -247,14 +255,17 @@ void Append_store::execute_sql(const std::string& sql, bool print_callback_flag)
   unsigned remaining_retries = 10000;
 
   while(remaining_retries > 0) {
+    int rc;
     if(print_callback_flag) {
-      if(sqlite3_exec(db_handle(), sql.c_str(), print_callback, 0, &zErrMsg)==SQLITE_OK)
+      if((rc=sqlite3_exec(db_handle(), sql.c_str(), print_callback, 0, &zErrMsg))==SQLITE_OK)
         break;
     }
     else {
-      if(sqlite3_exec(db_handle(), sql.c_str(), callback, 0, &zErrMsg)==SQLITE_OK)
+      if((rc=sqlite3_exec(db_handle(), sql.c_str(), callback, 0, &zErrMsg))==SQLITE_OK)
         break;
     }
+    if(rc != SQLITE_BUSY)
+      throw General_exception("bad SQL statement (%s)", zErrMsg);
     usleep(1000);
     remaining_retries--;
   }
@@ -281,6 +292,11 @@ status_t Append_store::put(std::string key,
   assert(_block);
   assert(data_len > 0);
   assert(data);
+
+  if(_read_only) {
+    assert(0);
+    return E_INVAL;
+  }
 
   char * p = static_cast<char *>(data);
   size_t n_blocks;
@@ -339,6 +355,11 @@ status_t Append_store::put(std::string key,
 {
   assert(_block);
 
+  if(_read_only) {
+    assert(0);
+    return E_INVAL;
+  }
+
   size_t n_blocks;
   lba_t start_lba = _hdr.allocate(data_len, n_blocks); /* allocate contiguous segment of blocks */
 
@@ -384,7 +405,7 @@ IStore::iterator_t Append_store::open_iterator(std::string expr,
   
   std::stringstream sqlss;
 
-  if(flags & IStore::FLAGS_ITERATE_ALL)
+  if(flags & FLAGS_ITERATE_ALL)
     sqlss << "SELECT LBA,NBLOCKS FROM " << _table_name << ";";
   else
     sqlss << "SELECT LBA,NBLOCKS FROM " << _table_name << " WHERE " << expr << " ;";
@@ -622,6 +643,11 @@ void Append_store::fetch_metadata(std::string filter_expr,
 
 status_t Append_store::flush()
 {
+  if(_read_only) {
+    assert(0);
+    return E_INVAL;
+  }
+
   _block->check_completion(0,0); /* wait for all pending */
   return S_OK;
 }
