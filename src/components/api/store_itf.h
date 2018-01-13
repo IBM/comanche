@@ -35,10 +35,6 @@ public:
 public:
   using iterator_t=void*;
 
-  enum {
-    FLAGS_ITERATE_ALL=0x1,
-  };
-  
   /** 
    * Put-append data (copy-based)
    * 
