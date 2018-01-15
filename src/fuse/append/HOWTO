@@ -1,0 +1,4 @@
+Unmount
+-------
+
+fusermount -u ./mymount
