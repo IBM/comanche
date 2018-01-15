@@ -152,9 +152,10 @@ TEST_F(Pmem_paged_test, IntegrityCheck)
   uint64_t * p = nullptr;
   size_t slab_size = n_elements * sizeof(uint64_t);
   bool reused;
-  _pmem->open("integrityCheckBlock", slab_size, NUMA_NODE_ANY, reused, (void*&)p);
 
-  PLOG("p=%p",p);
+  IPersistent_memory::pmem_t handle = _pmem->open("integrityCheckBlock", slab_size, NUMA_NODE_ANY, reused, (void*&)p);
+
+  PLOG("handle: %p", handle);
   ASSERT_FALSE(p==nullptr);
 
 
@@ -199,8 +200,9 @@ TEST_F(Pmem_paged_test, IntegrityCheck)
     }
   }
   #endif
+
   PLOG("Closing pmem handle");
-  _pmem->close(p);
+  _pmem->close(handle);
   PMAJOR("> Integrity check OK.");
 }
 #endif // DO_INTEGRITY
@@ -213,8 +215,7 @@ TEST_F(Pmem_paged_test, UseMemory)
   bool reused;
 
   PLOG("Performing pf/sec test...");
-  IPersistent_memory::pmem_t pmem
-    = _pmem->open("someAllocId",n_elements*PAGE_SIZE, NUMA_NODE_ANY, reused, (void*&) p);
+  auto handle = _pmem->open("someAllocId",n_elements*PAGE_SIZE, NUMA_NODE_ANY, reused, (void*&) p);
   
   PLOG("pmem->allocate gave %p", p);
 
@@ -296,7 +297,7 @@ std::vector<addr_t> pages;
   }
 #endif
   
-  _pmem->close(p);
+  _pmem->close(handle);
 }
 #endif
 
