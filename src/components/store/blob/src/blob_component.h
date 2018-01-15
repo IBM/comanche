@@ -48,6 +48,19 @@ public:
                                   Component::IBlock_device * base_block_device,
                                   int flags) override;
 
+  /** 
+   * Late binding open
+   * 
+   * @param owner Owner
+   * @param name Store name
+   * @param flags Instantiation flags
+   * 
+   * @return Pointer to IBlock interface
+   */  
+  virtual Component::IBlob * open(std::string owner,
+                                  std::string name,
+                                  int flags) override;
+
 };
 
 
@@ -90,7 +103,10 @@ public:
   void unload() override {
     delete this;
   }
-  
+
+  virtual int bind(Component::IBase * base);
+  virtual int release_bindings() { throw API_exception("cannot release bindings"); return 0; }
+
   virtual status_t start() override { return E_NOT_IMPL; } 
   virtual status_t stop() override { return E_NOT_IMPL; } 
   virtual status_t shutdown() override { return E_NOT_IMPL; } 
@@ -210,11 +226,13 @@ public:
   virtual void show_state(std::string filter) override;
   
 private:
-  void instantiate_components(int flags, std::string& name);
+  void instantiate_components();
   void flush_md();
   
 private:
-  std::string                                  _owner;
+  const std::string                            _owner;
+  const std::string                            _name;
+  int                                          _flags;
   Component::IBlock_device *                   _base_block_device; /*< base block device is split into regions for allocator, metadata and data */
   Component::VOLUME_INFO                       _base_block_device_vi;
   Component::IRegion_manager *                 _base_rm;

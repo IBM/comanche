@@ -28,8 +28,22 @@ open(std::string owner,
 
   obj->add_ref();
   return obj;
-
 }
+
+/* factory - late binding version */
+Component::IBlob *
+Blob_component_factory::
+open(std::string owner,
+     std::string name,
+     int flags)
+{
+  auto obj = static_cast<Component::IBlob *>
+    (new Blob_component(owner, name, nullptr, flags));
+
+  obj->add_ref();
+  return obj;
+}
+
 
 /* main component */
 
@@ -38,36 +52,59 @@ Blob_component::Blob_component(std::string owner,
                                Component::IBlock_device * base_block_device,
                                int flags)
   : _owner(owner),
-    _base_block_device(base_block_device)
+    _name(name),
+    _base_block_device(base_block_device),
+    _flags(flags)
 {
-  assert(_base_block_device);
-  _base_block_device->add_ref();
-  _base_block_device->get_volume_info(_base_block_device_vi);
+  if(_base_block_device) {
+    _base_block_device->add_ref();
+    _base_block_device->get_volume_info(_base_block_device_vi);
+    
+    if(_base_block_device_vi.block_size != BLOCK_SIZE)
+      throw Constructor_exception("blob component requires 4K underlying block size; size is (%lu)",
+                                  _base_block_device_vi.block_size);
+    
   
-  if(_base_block_device_vi.block_size != BLOCK_SIZE)
-    throw Constructor_exception("blob component requires 4K underlying block size; size is (%lu)",
-                                _base_block_device_vi.block_size);
-
-  
-  if(((METADATA_SIZE_BYTES / _base_block_device_vi.block_size) +
-      (ALLOCATOR_SIZE_BYTES / _base_block_device_vi.block_size) + 1024) > _base_block_device_vi.block_count)
-    throw Constructor_exception("device too small");
-
-  instantiate_components(flags, name);
-
+    if(((METADATA_SIZE_BYTES / _base_block_device_vi.block_size) +
+        (ALLOCATOR_SIZE_BYTES / _base_block_device_vi.block_size) + 1024) > _base_block_device_vi.block_count)
+      throw Constructor_exception("device too small");
+    
+    instantiate_components();
+  }
 }
 
 Blob_component::~Blob_component()
 {
-  /* release components */
-  _metadata->release_ref();
-  _allocator->release_ref();
-  _pmem_allocator->release_ref();
-  _block_data->release_ref();
-  _block_allocator->release_ref();
-  _block_md->release_ref();
-  _base_rm->release_ref();
-  _base_block_device->release_ref();
+  if(_base_block_device) {
+    /* release components */
+    _metadata->release_ref();
+    _allocator->release_ref();
+    _pmem_allocator->release_ref();
+    _block_data->release_ref();
+    _block_allocator->release_ref();
+    _block_md->release_ref();
+    _base_rm->release_ref();
+    _base_block_device->release_ref();
+  }
+}
+
+int Blob_component::bind(Component::IBase * base)
+{
+  if(_base_block_device)
+    throw API_exception("bind: base block device already bound");
+  
+  if(!base)
+    throw API_exception("bind: base param is null");
+
+  _base_block_device = (Component::IBlock_device *) base->query_interface(Component::IBlock_device::iid());
+
+  if(!_base_block_device) {
+    return 1;
+  }
+  else {
+    instantiate_components();    
+    return 0;
+  }
 }
 
 void Blob_component::flush_md()
@@ -101,6 +138,9 @@ create(const std::string& name,
        const std::string& datatype,
        size_t size_in_bytes)
 {
+  if(!_base_block_device)
+    throw API_exception("late binding still not bound");
+  
   assert(size_in_bytes > 0);
   
   Blob::Data_region* dr;  
@@ -158,6 +198,9 @@ erase(IBlob::blob_t handle)
 IBlob::cursor_t
 Blob_component::open(IBlob::blob_t handle)
 {
+  if(!_base_block_device)
+    throw API_exception("late binding still not bound");
+
   return nullptr;
 }
 
@@ -313,9 +356,9 @@ Blob_component::show_state(std::string filter)
 
 
 void
-Blob_component::instantiate_components(int flags, std::string& name)
+Blob_component::instantiate_components()
 {
-  PINF("Blob component flags=%d", flags);
+  PINF("Blob component flags=%d", _flags);
   
   /* region manager */
   {
@@ -326,7 +369,7 @@ Blob_component::instantiate_components(int flags, std::string& name)
     IRegion_manager_factory* fact = (IRegion_manager_factory *) comp->query_interface(IRegion_manager_factory::iid());
     assert(fact);
     
-    _base_rm = fact->open(_base_block_device, flags);
+    _base_rm = fact->open(_base_block_device, _flags);
 
     fact->release_ref();  
   }
@@ -337,7 +380,7 @@ Blob_component::instantiate_components(int flags, std::string& name)
   bool reused;
   
   /* create block device for 'allocator' */
-  std::string region_name = name + "-allocator";
+  std::string region_name = _name + "-allocator";
   assert(ALLOCATOR_SIZE_BYTES % _base_block_device_vi.block_size == 0);
   size_t allocator_nblocks = ALLOCATOR_SIZE_BYTES / _base_block_device_vi.block_size;
   _block_allocator = _base_rm->reuse_or_allocate_region(allocator_nblocks,
@@ -363,7 +406,7 @@ Blob_component::instantiate_components(int flags, std::string& name)
   
   
   /* create block device for 'metadata' */
-  region_name = name + "-md";
+  region_name = _name + "-md";
   size_t md_nblocks = METADATA_SIZE_BYTES / _base_block_device_vi.block_size;
   _block_md = _base_rm->reuse_or_allocate_region(METADATA_SIZE_BYTES / _base_block_device_vi.block_size,
                                                  _owner, region_name, vaddr, reused);
@@ -372,7 +415,7 @@ Blob_component::instantiate_components(int flags, std::string& name)
                         REDUCE_MB(md_nblocks * _base_block_device_vi.block_size));
   
   /* create block device for 'data' */
-  region_name = name + "-data";
+  region_name = _name + "-data";
   size_t data_nblocks = _base_block_device_vi.block_count - md_nblocks - allocator_nblocks;
   _block_data = _base_rm->reuse_or_allocate_region(data_nblocks,
                                                    _owner, region_name, vaddr, reused);
@@ -396,7 +439,7 @@ Blob_component::instantiate_components(int flags, std::string& name)
     _allocator = fact->open_allocator(_pmem_allocator,
                                       data_nblocks,
                                       "block-alloc-ut",
-                                      flags);  
+                                      _flags);  
     fact->release_ref();
     assert(_allocator);
     if(option_DEBUG) PLOG("Blob: allocator created");
@@ -410,7 +453,7 @@ Blob_component::instantiate_components(int flags, std::string& name)
     IMetadata_factory * fact = static_cast<IMetadata_factory *>
       (comp->query_interface(IMetadata_factory::iid()));
 
-    _metadata = fact->create(_block_md, _base_block_device_vi.block_size, flags);
+    _metadata = fact->create(_block_md, _base_block_device_vi.block_size, _flags);
     assert(_metadata);
 
     fact->release_ref();
