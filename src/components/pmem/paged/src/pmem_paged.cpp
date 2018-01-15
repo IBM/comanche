@@ -143,7 +143,10 @@ bool Pmem_paged_component::pf_handler(addr_t fault_addr)
 
   if (ptr == (void *)-1 || ptr != ((void*)page))
     throw General_exception("%s: mmap failed (%d)", __PRETTY_FUNCTION__, errno);
-  PLOG("Pmem-paged: mapped %lx to %p", new_phys, ptr);
+
+  if(option_DEBUG)
+    PLOG("Pmem-paged: mapped %lx to %p", new_phys, ptr);
+  
   return true;
 }
 
@@ -196,10 +199,14 @@ close(IPersistent_memory::pmem_t handle, int flags)
   if(flags > 0)
     throw API_exception("%s: flag not supported", __PRETTY_FUNCTION__);
   
-  void * ptr = handle_to_vaddr(handle);
+  void * ptr = handle_to_vaddr(handle);  
+  if(!ptr)
+    throw API_exception("pmem_page_component: bad handle");
+  
   std::lock_guard<std::mutex> g(_size_map_lock);
   size_t msize = _size_map[ptr];
 
+  PLOG("msize=%lu handle2size=%lu", msize, handle_to_size(handle));
   assert(msize == handle_to_size(handle));
   
   int rc = munmap(ptr,msize);
