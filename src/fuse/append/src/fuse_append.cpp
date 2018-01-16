@@ -50,11 +50,42 @@ static IBlock_device * create_nvme_block_device(const std::string device_name);
 static IBlock_device * create_posix_block_device(const std::string path);
 static IStore * create_append_store(IBlock_device * block);
 
-struct 
-{
+struct {
   IBlock_device * block = nullptr;
   IStore *        store = nullptr;
 } g_state;
+
+class File_handle
+{
+public:
+  File_handle(const std::string id, Component::IStore * store) : _store(store), _id(id) {
+    assert(store);
+    _iob = g_state.block->allocate_io_buffer(KB(4),KB(4),NUMA_NODE_ANY);
+    _iob_virt = g_state.block->virt_addr(_iob);
+  }
+
+  ~File_handle() {
+    g_state.block->free_io_buffer(_iob);
+  }
+
+  void* read(uint64_t offset, size_t size) {
+    assert(size <= KB(4));
+    _store->get(_id,
+                _iob,
+                0,
+                0/*queue*/);
+  }
+
+  Component::io_buffer_t& iob() { return _iob; }
+
+  inline void * buffer() const { return _iob_virt; }
+private:
+  const std::string      _id;
+  Component::IStore *    _store;
+  Component::io_buffer_t _iob;
+  void *                 _iob_virt;
+};
+  
 
 static void *fuse_append_init(struct fuse_conn_info *conn)
 {
@@ -90,12 +121,12 @@ static int fuse_append_getattr(const char *path, struct stat *stbuf)
   if (strcmp(path, "/") == 0) {
     stbuf->st_mode = S_IFDIR | 0755;
     stbuf->st_nlink = 2;
-  } else if (strcmp(path+1, options.filename) == 0) {
+  }
+  else {
     stbuf->st_mode = S_IFREG | 0444;
     stbuf->st_nlink = 1;
     stbuf->st_size = strlen(options.contents);
-  } else
-    res = -ENOENT;
+  } 
   return res;
 }
 
@@ -129,28 +160,37 @@ static int fuse_append_readdir(const char *path,
 static int fuse_append_open(const char *path, struct fuse_file_info *fi)
 {
   TRACE();
-  PNOTICE("!open ");
-  if (strcmp(path+1, options.filename) != 0)
+
+  File_handle * fh;
+
+  try {
+    fh = new File_handle(std::string(path+1), g_state.store);
+    fi->fh = reinterpret_cast<uint64_t>(fh);
+  }
+  catch(General_exception excp) {
+    PERR("eeek!");
     return -ENOENT;
-  if ((fi->flags & O_ACCMODE) != O_RDONLY)
-    return -EACCES;
+  }
+  PLOG("open OK!");
+  // if (strcmp(path+1, options.filename) != 0)
+    
+  // if ((fi->flags & O_ACCMODE) != O_RDONLY)
+  //   return -EACCES;
+
   return 0;
 }
 
 static int fuse_append_read(const char *path, char *buf, size_t size, off_t offset,
                             struct fuse_file_info *fi)
 {
+  PLOG("read: size=%lu offset=%lu", size, offset);
   size_t len;
-  (void) fi;
-  if(strcmp(path+1, options.filename) != 0)
-    return -ENOENT;
-  len = strlen(options.contents);
-  if (offset < len) {
-    if (offset + size > len)
-      size = len - offset;
-    memcpy(buf, options.contents + offset, size);
-  } else
-    size = 0;
+
+  assert(fi->fh);
+  File_handle * fh = reinterpret_cast<File_handle*>(fi->fh);
+  fh->read(offset, size);
+  memcpy(buf, fh->buffer(), size); /* perform memory copy for the moment */
+
   return size;
 }
 
