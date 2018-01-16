@@ -1,17 +1,17 @@
 /*
-   Copyright [2017] [IBM Corporation]
+  Copyright [2017] [IBM Corporation]
 
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
 
-       http://www.apache.org/licenses/LICENSE-2.0
+  http://www.apache.org/licenses/LICENSE-2.0
 
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
 */
 #ifndef __APPEND_STORE_H__
 #define __APPEND_STORE_H__
@@ -118,7 +118,7 @@ public:
    */
   virtual size_t get_record_count() override;
 
-    /** 
+  /** 
    * Get a record by rowid
    * 
    * @param rowid Row id counting from 1
@@ -129,9 +129,25 @@ public:
    * @return S_OK on success
    */
   virtual status_t get(uint64_t rowid,
-                   Component::io_buffer_t iob,
-                   size_t offset,
-                   int queue_id = 0) override;
+                       Component::io_buffer_t iob,
+                       size_t offset,
+                       int queue_id = 0) override;
+
+  /** 
+   * Get a record by ID (key)
+   * 
+   * @param key Unique key
+   * @param iob IO buffer
+   * @param offset IO buffer offset in bytes
+   * @param queue_id [optional] Queue identifier
+   * 
+   * @return S_OK on success
+   */
+  virtual status_t get(const std::string key,
+                       Component::io_buffer_t iob,
+                       size_t offset,
+                       int queue_id = 0) override;
+
 
   /** 
    * Get metadata for a record
@@ -166,7 +182,7 @@ public:
   virtual iterator_t open_iterator(std::string expr,
                                    unsigned long flags = 0) override;
 
-    /** 
+  /** 
    * Get record count for an iterator
    * 
    * @param iter Iterator
@@ -216,7 +232,7 @@ public:
                               size_t offset,
                               int queue_id = 0) override;
 
- /** 
+  /** 
    * Read from an iterator.  Does not require database access.
    * 
    * @param iter Iterator
@@ -252,9 +268,11 @@ public:
    * 
    * @param filter_expr Filter expression
    * @param out_metadata [out] metadata
+   *
+   * @return Row id
    */
-  virtual void fetch_metadata(std::string filter_expr,
-                              std::vector<std::pair<std::string,std::string> >& out_metadata) override;
+  virtual size_t fetch_metadata(const std::string filter_expr,
+                                std::vector<std::pair<std::string,std::string> >& out_metadata) override;
 
 
   /** 

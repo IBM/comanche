@@ -16,7 +16,7 @@
 #include <api/pager_itf.h>
 #include <api/pmem_itf.h>
 
-//#define USE_SPDK_NVME_DEVICE // use SPDK-NVME or POSIX-NVME
+#define USE_SPDK_NVME_DEVICE // use SPDK-NVME or POSIX-NVME
 
 #define DO_INTEGRITY
 #define DO_STRESS_MEMORY
