@@ -91,9 +91,24 @@ public:
    * @return S_OK on success
    */
   virtual status_t get(uint64_t rowid,
-                   Component::io_buffer_t iob,
-                   size_t offset,
-                   int queue_id = 0) = 0;
+                       Component::io_buffer_t iob,
+                       size_t offset,
+                       int queue_id = 0) = 0;
+
+  /** 
+   * Get a record by ID (key)
+   * 
+   * @param key Unique key
+   * @param iob IO buffer
+   * @param offset IO buffer offset in bytes
+   * @param queue_id [optional] Queue identifier
+   * 
+   * @return S_OK on success
+   */
+  virtual status_t get(const std::string key,
+                       Component::io_buffer_t iob,
+                       size_t offset,
+                       int queue_id = 0) = 0;
 
   /** 
    * Get metadata for a record
@@ -217,9 +232,11 @@ public:
    * 
    * @param filter_expr Filter expression
    * @param out_metadata [out] metadata
+   *
+   * @return Number of rows
    */
-  virtual void fetch_metadata(std::string filter_expr,
-                              std::vector<std::pair<std::string,std::string> >& out_metadata) = 0;
+  virtual size_t fetch_metadata(const std::string filter_expr,
+                                std::vector<std::pair<std::string,std::string> >& out_metadata) = 0;
   
   /** 
    * Dump debugging information

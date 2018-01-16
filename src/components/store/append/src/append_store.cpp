@@ -614,11 +614,12 @@ void Append_store::reset_iterator(iterator_t iter)
   i->current_idx = 0;
 }
 
-void Append_store::fetch_metadata(std::string filter_expr,
-                                  std::vector<std::pair<std::string,std::string> >& out_metadata)
+size_t Append_store::fetch_metadata(const std::string filter_expr,
+                                    std::vector<std::pair<std::string,std::string> >& out_metadata)
 {
   std::stringstream sqlss;
-
+  int rc = 0;
+  
   sqlss << "SELECT ID,METADATA FROM " << _table_name;
   if(!filter_expr.empty())
     sqlss << " WHERE " << filter_expr;
@@ -636,8 +637,10 @@ void Append_store::fetch_metadata(std::string filter_expr,
     p.first = (char *) key;
     p.second = (char *) metadata;
     out_metadata.push_back(p);
+    rc++;
   }
   sqlite3_finalize(stmt);
+  return rc;
 }
 
 
@@ -745,6 +748,43 @@ status_t Append_store::get(uint64_t rowid,
 
   return S_OK;
 }
+
+status_t Append_store::get(const std::string key,
+                           Component::io_buffer_t iob,
+                           size_t offset,
+                           int queue_id)
+{
+  std::stringstream sqlss;
+  sqlss << "SELECT * FROM " << _table_name << " WHERE ID='" << key << "';";
+  std::string sql = sqlss.str();
+
+  if(offset % _vi.block_size)
+    throw API_exception("offset must be aligned with block size");
+  
+  sqlite3_stmt * stmt;
+  sqlite3_prepare_v2(db_handle(), sql.c_str(), sql.size(), &stmt, nullptr);
+  int s = sqlite3_step(stmt);
+  int64_t data_lba = sqlite3_column_int64(stmt, 1);
+  int64_t data_len = sqlite3_column_int64(stmt, 2);
+  sqlite3_finalize(stmt);
+  if(option_DEBUG) {
+    PLOG("get(key=%s) --> lba=%ld len=%ld", key.c_str(), data_lba, data_len);
+  }
+
+  if((_lower_layer->get_size(iob) - offset) < (data_len * _vi.block_size)) {
+    PWRN("Append_store:get call with too smaller IO buffer");    
+    return E_INSUFFICIENT_SPACE;
+  }
+
+  _lower_layer->read(iob,
+                     offset,
+                     data_lba,
+                     data_len,
+                     queue_id);
+
+  return S_OK;
+}
+
 
 
 std::string Append_store::get_metadata(uint64_t rowid)
