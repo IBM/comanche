@@ -1,3 +1,10 @@
+Run
+---
+
+Debugging:
+
+./fuse-append -d ./foo
+
 Unmount
 -------
 
