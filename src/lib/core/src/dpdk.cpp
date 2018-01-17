@@ -43,6 +43,8 @@ extern "C" uint32_t rte_net_get_ptype(const struct rte_mbuf *m,
 namespace DPDK
 {
 
+bool _g_eal_initialized = false;
+
 void eal_init(size_t memory_limit_MB, unsigned master_core, bool primary)
 {
   std::string proc_type_option  = primary ? "--proc-type=primary" : "--proc-type=secondary";
