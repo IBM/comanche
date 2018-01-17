@@ -91,6 +91,9 @@ sqlite3 * Append_store::db_handle()
       dbflags = SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX;
     else
       dbflags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX;
+
+    if(option_DEBUG)
+      PLOG("Append-store: opening database (%s)",_db_filename.c_str());
     
     if(sqlite3_open_v2(_db_filename.c_str(),
                        &g_tls_db,
@@ -141,12 +144,12 @@ Append_store::Append_store(const std::string owner,
   /* database inititalization */
   _table_name = "appendstore";
 
-  if(db_location.empty())
-    _db_filename = db_location + name + ".db";
+  if(!db_location.empty())
+    _db_filename = db_location + "/" + name + ".db";
   else
     _db_filename = "./" + name + ".db";
 
-  PLOG("Append-store: db_filename- %s", _db_filename.c_str());
+  PLOG("Append-store: db_filename=%s", _db_filename.c_str());
   
   if(flags & FLAGS_FORMAT) {
     std::remove(_db_filename.c_str());
@@ -626,11 +629,12 @@ size_t Append_store::fetch_metadata(const std::string filter_expr,
   sqlss << ";";
 
   std::string sql = sqlss.str();
-
+  PLOG("SQL:(%s)", sql.c_str());
   sqlite3_stmt * stmt;
-  sqlite3_prepare_v2(db_handle(), sql.c_str(), sql.size(), &stmt, nullptr);
-  int s;
-  while((s = sqlite3_step(stmt)) != SQLITE_DONE) {
+  rc = sqlite3_prepare_v2(db_handle(), sql.c_str(), sql.size(), &stmt, nullptr);
+  assert(rc == SQLITE_OK);
+
+  while(sqlite3_step(stmt) != SQLITE_DONE) {
     auto key = sqlite3_column_text(stmt, 0);
     auto metadata = sqlite3_column_text(stmt, 1);
     std::pair<std::string,std::string> p;
@@ -639,6 +643,7 @@ size_t Append_store::fetch_metadata(const std::string filter_expr,
     out_metadata.push_back(p);
     rc++;
   }
+
   sqlite3_finalize(stmt);
   return rc;
 }
@@ -706,10 +711,18 @@ size_t Append_store::get_record_count()
   int s;
   
   sqlite3_prepare_v2(db_handle(), sql.c_str(), sql.size(), &stmt, nullptr);
-  sqlite3_step(stmt);
 
-  sqlite3_int64 max_row_id = sqlite3_column_int64(stmt, 0);
+  sqlite3_int64 max_row_id;
+  while((s = sqlite3_step(stmt)) != SQLITE_DONE) {
+    
+    if(s == SQLITE_ERROR || s == SQLITE_MISUSE)
+      throw API_exception("Append_store::get_record_count: failed to execute SQL statement (%s)", sql.c_str());
+
+    max_row_id = sqlite3_column_int64(stmt, 0);
+  }
+
   sqlite3_finalize(stmt);
+
   return max_row_id;
 }
 
