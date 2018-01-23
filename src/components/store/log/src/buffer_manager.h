@@ -79,7 +79,7 @@ private:
     //PLOG("$$>(%s) @ %ld", (char*)_block->virt_addr(_iob_buffer), lba);
 
 #ifndef DISABLE_IO
-    _block->async_write(_iob_buffer,
+    auto wid = _block->async_write(_iob_buffer,
                         (_current_buffer_index-1) * IO_BUFFER_SIZE, /* buffer offset */
                         lba,
                         n_blocks,
@@ -87,9 +87,12 @@ private:
                         release_buffer,
                         (void*) this,
                         (void*) _current_buffer_index);
+    
+    _block->check_completion(wid); /* gratuitous completion - will this impact performance? */
 #else
     free_index(_current_buffer_index);
 #endif
+
     ready_buffer();
   }
 

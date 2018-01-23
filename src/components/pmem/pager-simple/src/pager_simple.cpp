@@ -194,7 +194,8 @@ request_page(addr_t virt_addr_faulted,
              addr_t *out_phys_addr_map,
              addr_t *out_virt_addr_evict)
 {
-  PINF("PF#: virt=%lx", virt_addr_faulted);
+  if(option_DEBUG)
+    PINF("PF#: virt=%lx", virt_addr_faulted);
   
   if(virt_addr_faulted == 0)
     throw General_exception("SIGEV on NULL pointer");
