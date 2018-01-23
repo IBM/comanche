@@ -52,7 +52,8 @@ public:
     __builtin_memset(this, 0, sizeof(VOLUME_INFO));
   }
 
-  char volume_name[VOLUME_INFO_MAX_NAME];  
+  char volume_name[VOLUME_INFO_MAX_NAME];
+  char device_id[VOLUME_INFO_MAX_NAME];
   unsigned block_size;
   uint64_t block_count;
   uint64_t hash_id;
@@ -156,12 +157,12 @@ public:
     static __thread Semaphore sem; // GCC
 #endif
     
-    workid_t wid = async_read(buffer, buffer_offset, lba, lba_count, queue_id,
-                              [](uint64_t gwid, void* arg0, void* arg1)
-                              {
-                                ((Semaphore *)arg0)->post();
-                              },
-                              (void*) &sem);
+    async_read(buffer, buffer_offset, lba, lba_count, queue_id,
+               [](uint64_t gwid, void* arg0, void* arg1)
+               {
+                 ((Semaphore *)arg0)->post();
+               },
+               (void*) &sem);
     sem.wait();
   }
 
@@ -209,12 +210,12 @@ public:
     static __thread Semaphore sem; // GCC
 #endif
     
-    workid_t wid = async_write(buffer, buffer_offset, lba, lba_count, queue_id,
-                              [](uint64_t gwid, void* arg0, void* arg1)
-                              {
-                                ((Semaphore *)arg0)->post();
-                              },
-                               (void*) &sem);
+    async_write(buffer, buffer_offset, lba, lba_count, queue_id,
+                [](uint64_t gwid, void* arg0, void* arg1)
+                {
+                  ((Semaphore *)arg0)->post();
+                },
+                (void*) &sem);
     sem.wait();
   }
 

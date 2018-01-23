@@ -1,23 +1,24 @@
 /*
-   Copyright [2017] [IBM Corporation]
+  Copyright [2017] [IBM Corporation]
 
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
 
-       http://www.apache.org/licenses/LICENSE-2.0
+  http://www.apache.org/licenses/LICENSE-2.0
 
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
 */
 #ifndef __APPEND_STORE_H__
 #define __APPEND_STORE_H__
 
 #include <sqlite3.h>
 #include <string>
+#include <thread>
 #include <core/zerocopy_passthrough.h>
 #include <api/store_itf.h>
 #include <api/region_itf.h>
@@ -30,7 +31,7 @@ class Append_store : public Core::Zerocopy_passthrough_impl<Component::IStore>
 private:
   static constexpr unsigned DMA_ALIGNMENT_BYTES = 8;
   static constexpr bool option_DEBUG = false;
-
+  static constexpr bool option_STATS = false;
 public:
 
   /** 
@@ -39,8 +40,9 @@ public:
    * @param block_device Block device interface
    * 
    */
-  Append_store(std::string owner,
-               std::string name,
+  Append_store(const std::string owner,
+               const std::string name,
+               const std::string db_location,
                Component::IBlock_device* block,
                int flags);
 
@@ -116,7 +118,7 @@ public:
    */
   virtual size_t get_record_count() override;
 
-    /** 
+  /** 
    * Get a record by rowid
    * 
    * @param rowid Row id counting from 1
@@ -127,9 +129,25 @@ public:
    * @return S_OK on success
    */
   virtual status_t get(uint64_t rowid,
-                   Component::io_buffer_t iob,
-                   size_t offset,
-                   int queue_id = 0) override;
+                       Component::io_buffer_t iob,
+                       size_t offset,
+                       int queue_id = 0) override;
+
+  /** 
+   * Get a record by ID (key)
+   * 
+   * @param key Unique key
+   * @param iob IO buffer
+   * @param offset IO buffer offset in bytes
+   * @param queue_id [optional] Queue identifier
+   * 
+   * @return S_OK on success
+   */
+  virtual status_t get(const std::string key,
+                       Component::io_buffer_t iob,
+                       size_t offset,
+                       int queue_id = 0) override;
+
 
   /** 
    * Get metadata for a record
@@ -164,7 +182,7 @@ public:
   virtual iterator_t open_iterator(std::string expr,
                                    unsigned long flags = 0) override;
 
-    /** 
+  /** 
    * Get record count for an iterator
    * 
    * @param iter Iterator
@@ -214,7 +232,7 @@ public:
                               size_t offset,
                               int queue_id = 0) override;
 
- /** 
+  /** 
    * Read from an iterator.  Does not require database access.
    * 
    * @param iter Iterator
@@ -250,9 +268,11 @@ public:
    * 
    * @param filter_expr Filter expression
    * @param out_metadata [out] metadata
+   *
+   * @return Row id
    */
-  virtual void fetch_metadata(std::string filter_expr,
-                              std::vector<std::pair<std::string,std::string> >& out_metadata) override;
+  virtual size_t fetch_metadata(const std::string filter_expr,
+                                std::vector<std::pair<std::string,std::string> >& out_metadata) override;
 
 
   /** 
@@ -282,6 +302,10 @@ private:
                       uint64_t length);
   bool find_row(std::string& key, uint64_t& out_lba);
 
+  void monitor_thread_entry();
+
+  sqlite3 * db_handle();
+  
 private:
   /* component dependencies and instantiations */
   Component::IBlock_device * _block;
@@ -290,9 +314,17 @@ private:
   Component::VOLUME_INFO     _vi;
   unsigned                   _max_io_blocks;
   unsigned                   _max_io_bytes;
-  sqlite3 *   _db;
-  std::string _db_filename;
-  std::string _table_name; 
+  std::string                _db_filename;
+  std::string                _table_name;
+  bool                       _read_only;
+  
+  std::thread                _monitor;
+  bool                       _monitor_exit = false;
+
+  /* stats collection */
+  struct {
+    uint64_t iterator_get_volume;
+  } stats __attribute__((aligned(8)));
 };
 
 
@@ -318,8 +350,9 @@ public:
     delete this;
   }
 
-  virtual Component::IStore * create(std::string owner,
-                                     std::string name,
+  virtual Component::IStore * create(const std::string owner,
+                                     const std::string name,
+                                     const std::string db_location,
                                      Component::IBlock_device* block,
                                      int flags) override
   {
@@ -327,7 +360,7 @@ public:
       throw Constructor_exception("%s: bad block interface param", __PRETTY_FUNCTION__);
     
     Component::IStore * obj = static_cast<Component::IStore *>
-      (new Append_store(owner, name, block, flags));
+      (new Append_store(owner, name, db_location, block, flags));
     
     obj->add_ref();
     return obj;

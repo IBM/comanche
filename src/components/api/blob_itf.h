@@ -163,6 +163,19 @@ public:
                        Component::IBlock_device * base_block_device,
                        int flags) = 0;
 
+  /** 
+   * Late binding open
+   * 
+   * @param owner Owner
+   * @param name Store name
+   * @param flags Instantiation flags
+   * 
+   * @return Pointer to IBlock interface
+   */  
+  virtual Component::IBlob * open(std::string owner,
+                                  std::string name,
+                                  int flags) = 0;
+
 };
 
 

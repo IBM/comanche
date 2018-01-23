@@ -142,7 +142,7 @@ static int lcore_entry_point(void * arg)
 
   /* create and register work queue */
   struct rte_ring * ring = register_ring(current_core, queue->device());
-  assert(ring);
+  assert(ring);  
   
   /* work loop */
   IO_descriptor * desc;
@@ -213,10 +213,12 @@ Nvme_device::Nvme_device(const char * device_id,
                          Core::Poller * poller)
   : _exit_io_threads(false),
     _desc_ring(gen_desc_ring_name(), DESC_RING_SIZE),
-    _activate_io_threads(false)
+    _activate_io_threads(false),
+    _pci_id(device_id)
 {
   _probed_device.ns = nullptr;
   _probed_device.ctrlr = nullptr;
+  
   _exit_io_threads = true; /* mark this as non-IO thread mode */
   
   PLOG("Nvme_device (poller):%p", this);
@@ -246,11 +248,12 @@ Nvme_device::Nvme_device(const char* device_id,
   : _exit_io_threads(false),
     //    _desc_ring(std::to_string(get_serial_hash()), DESC_RING_SIZE), //  + std::to_string(device->get_serial_hash())
     _desc_ring(DESC_RING_SIZE), //  + std::to_string(device->get_serial_hash())
-    _activate_io_threads(true)
+    _activate_io_threads(true),
+    _pci_id(device_id)
 { 
   _probed_device.ns = nullptr;
   _probed_device.ctrlr = nullptr;
-  
+
   PLOG("Nvme_device (IO threads):%p", this);
   PLOG("Nvme_device: descriptor ring size %lu", DESC_RING_SIZE);
   
@@ -259,6 +262,8 @@ Nvme_device::Nvme_device(const char* device_id,
   assert(_probed_device.ns);
   //  self_test("metadata");
 
+  _volume_id = _probed_device.device_id;
+  
   /* allocate descriptors */
   for(unsigned i=0;i<DESC_RING_SIZE;i++) {
     _desc_ring.mp_enqueue(new IO_descriptor);
@@ -504,7 +509,14 @@ Nvme_device::get_max_squeue_depth(uint32_t namespace_id)
 const char *
 Nvme_device::get_device_id()
 {
-  return _probed_device.device_id;
+  assert(_volume_id.empty() == false);
+  return _volume_id.c_str();
+}
+
+const char *
+Nvme_device::get_pci_id()
+{
+  return _pci_id.c_str();
 }
 
 

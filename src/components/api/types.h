@@ -8,8 +8,10 @@ typedef uint64_t lba_t;
 typedef int64_t  index_t;
 
 enum {
-  FLAGS_CREATE = 0x1,
-  FLAGS_FORMAT = 0x2, /*< force region manager to format block device */
+  FLAGS_CREATE      = 0x1,
+  FLAGS_FORMAT      = 0x2, /*< force region manager to format block device */
+  FLAGS_ITERATE_ALL = 0x4,
+  FLAGS_READONLY    = 0x8,
 };
 
 #endif

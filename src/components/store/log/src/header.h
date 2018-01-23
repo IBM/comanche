@@ -154,12 +154,12 @@ private:
     PLOG("Log-store: writing out header");
     std::lock_guard<std::mutex> g(_lock);
     _mb->timestamp = rdtsc(); /* update timestamp */
-    _block->write(_iob,0,0/*lba*/,1);
+    _block->write(_iob,0,0/*lba*/,1 /* lba count */);
   }
 
   void read_mb() {
     std::lock_guard<std::mutex> g(_lock);
-    _block->read(_iob,0,0/*lba*/,1);
+    _block->read(_iob,0,0/*lba*/,1 /*lba count */);
   }
 
 private:

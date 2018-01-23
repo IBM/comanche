@@ -37,7 +37,7 @@
 
 namespace DPDK
 {
-static bool _g_eal_initialized = false;
+extern bool _g_eal_initialized;
 
 #define DEV_OPT_DECL(name, var)                                                                                        \
   char* var = getenv(name);                                                                                            \

@@ -54,6 +54,21 @@ public:
                                                               std::string id,
                                                               addr_t& vaddr,
                                                               bool& reused) = 0;
+
+  /** 
+   * Request specifically reuse region
+   * 
+   * @param size_in_blocks Size of regio in blocks
+   * @param owner Owner
+   * @param id Region identifier
+   * @param vaddr 
+   * 
+   * @return Block device interface onto region
+   */
+  virtual Component::IBlock_device * open_region(size_t size_in_blocks,
+                                                  std::string owner,
+                                                  std::string id,
+                                                  addr_t& vaddr) = 0;;
   
   /** 
    * Retrieve region information

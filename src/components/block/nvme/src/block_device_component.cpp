@@ -121,9 +121,13 @@ attach_work(std::function<void(void*)> work_function, void * arg, int queue_id)
 void
 Block_device_component::
 get_volume_info(VOLUME_INFO& devinfo)
-{  
+{
   strncpy(devinfo.volume_name,
           _device->get_device_id(),
+          VOLUME_INFO_MAX_NAME);
+  
+  strncpy(devinfo.device_id,
+          _device->get_pci_id(),
           VOLUME_INFO_MAX_NAME);
   
   devinfo.block_size = _device->get_block_size(DEFAULT_NAMESPACE_ID);
