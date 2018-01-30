@@ -151,11 +151,7 @@ public:
                     uint64_t lba_count,
                     int queue_id = 0) {
 
-#ifdef __clang__
     static thread_local Semaphore sem;
-#else
-    static __thread Semaphore sem; // GCC
-#endif
     
     async_read(buffer, buffer_offset, lba, lba_count, queue_id,
                [](uint64_t gwid, void* arg0, void* arg1)

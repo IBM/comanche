@@ -23,7 +23,7 @@ cd deps
 * Build from root
 
 ```bash
-source setenv.h
+source setenv.sh
 sudo ./tools/nvme_setup.sh /* optionally attach ALL Nvme devices to VFIO */
 cmake .
 make

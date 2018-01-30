@@ -821,16 +821,14 @@ bool Nvme_device::check_completion(uint64_t gwid, int queue_id)
     cpu_relax();
   }
 
-  bool status = (desc.status == IO_STATUS_COMPLETE);
-
-  return status;
+  return (desc.status == IO_STATUS_COMPLETE);
 }
 
 bool
 Nvme_device::
 pending_remain()
 {
-  return check_completion(0); // special gwid zero means check for all complete.
+  return !check_completion(0); // special gwid zero means check for all complete.
 }
 
 const struct spdk_nvme_ctrlr_data *
