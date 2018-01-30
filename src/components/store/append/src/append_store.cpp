@@ -99,7 +99,7 @@ sqlite3 * Append_store::db_handle()
                        &g_tls_db,
                        dbflags,
                        NULL) != SQLITE_OK) {
-      throw General_exception("failed to open sqlite3 db (%s)", _db_filename.c_str());
+      throw General_exception("Append-store: failed to open sqlite3 db (%s)", _db_filename.c_str());
     }
     assert(g_tls_db);
       
