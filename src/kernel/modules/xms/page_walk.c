@@ -1,5 +1,5 @@
 /* INFO: https://github.com/lorenzo-stoakes/linux-vm-notes/blob/master/sections/page-tables.md */
-
+#include <linux/version.h>
 #include <linux/debugfs.h>
 #include <linux/mm.h>
 #include <linux/module.h>
@@ -103,6 +103,10 @@ pte_t* walk_page_table(u64 addr, unsigned long * huge_pfn)
     pgd_t *pgd;
     pte_t *ptep;
     pud_t *pud;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,13,0)
+    p4d_t *p4d;
+#endif
+    
     pmd_t *pmd;
     struct mm_struct *mm = current->mm;
     struct vm_area_struct * vma = find_vma(mm, addr);
@@ -115,8 +119,18 @@ pte_t* walk_page_table(u64 addr, unsigned long * huge_pfn)
       printk(KERN_ERR "xms: pdg not found\n");
       return NULL;
     }    
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,13,0)    
+    p4d = p4d_offset(pgd, addr);    
+    if (p4d_none(*p4d) || p4d_bad(*p4d)) {
+      printk(KERN_ERR "xms: p4d not found\n");
+      return NULL;
+    }
     
+    pud = pud_offset(p4d, addr);
+#else
     pud = pud_offset(pgd, addr);
+#endif
     if (pud_none(*pud) || pud_bad(*pud)) {
       printk(KERN_ERR "xms: pud not found (0x%.16llx)\n", addr);
       return NULL;

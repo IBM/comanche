@@ -14,7 +14,7 @@
 class Pmem_paged_component : public Component::IPersistent_memory
 {  
 private:
-  static constexpr bool option_DEBUG = true;
+  static constexpr bool option_DEBUG = false;
 
 
 public:

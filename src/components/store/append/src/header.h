@@ -29,7 +29,7 @@ class Header
     uint32_t magic;
     uint32_t flags;
     lba_t    next_free_lba;
-    lba_t    max_lba;
+    lba_t    block_count;
     char     owner[512];
     char     name[512];
   } __attribute__((packed));
@@ -61,7 +61,7 @@ public:
     if(force_init) {
       memset(_mb, 0, _vi.block_size); /* zero whole first sector */
       _mb->magic = MAGIC;
-      _mb->max_lba = _vi.max_lba;
+      _mb->block_count = _vi.block_count;
       _mb->next_free_lba = 1;
       strncpy(_mb->name, name.c_str(), 511);
       strncpy(_mb->owner, owner.c_str(), 511);      
@@ -69,9 +69,10 @@ public:
     }
     else {
       PLOG("Append-store: using existing state");
+      _existing = true;
     }
     PLOG("Append-store: next=%ld max=%ld owner=%s name=%s",
-         _mb->next_free_lba, _mb->max_lba, _mb->owner, _mb->name);
+         _mb->next_free_lba, _mb->block_count, _mb->owner, _mb->name);
 
     if(name.compare(_mb->name) != 0)
       PLOG("Append-store: name does not match");
@@ -86,7 +87,6 @@ public:
     dump_info();
     write_mb();
     _block->free_io_buffer(_iob);
-    _block->release_ref();
   }
 
   void dump_info() {
@@ -98,8 +98,8 @@ public:
     PINF("      : owner=%s", _mb->owner);
     PINF("      : name=%s", _mb->name);
     PINF("      : used blocks %lu / %lu (%f %%)",
-         _mb->next_free_lba, _mb->max_lba,
-         (((float)_mb->next_free_lba)/((float)_mb->max_lba))*100.0);
+         _mb->next_free_lba, _mb->block_count,
+         (((float)_mb->next_free_lba)/((float)_mb->block_count))*100.0);
   }
       
   void flush() {
@@ -115,7 +115,7 @@ public:
     lba_t result;
     {
       std::lock_guard<std::mutex> g(_lock);
-      if((_mb->max_lba - _mb->next_free_lba) < n_blocks)
+      if((_mb->block_count - _mb->next_free_lba) < n_blocks)
         throw API_exception("Append-store: no more blocks");
       result = _mb->next_free_lba;
       _mb->next_free_lba += n_blocks;
@@ -123,6 +123,8 @@ public:
     return result;
   }
 
+  bool existing() const { return _existing; }
+  
 private:
 
   void write_mb() {
@@ -139,7 +141,7 @@ private:
   Component::io_buffer_t     _iob;
   Store_master_block *       _mb;
   std::mutex                 _lock;
-
+  bool                       _existing = false;
 };
 
 

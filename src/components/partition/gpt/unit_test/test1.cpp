@@ -10,6 +10,8 @@
 #include <api/block_itf.h>
 #include <api/partition_itf.h>
 
+//#define USE_NVME_DEVICE
+
 using namespace Component;
 
 namespace {
@@ -43,18 +45,41 @@ Component::IBlock_device * Part_gpt_test::_block;
 Component::IBlock_device * Part_gpt_test::_scoped_bd;
 Component::IPartitioned_device * Part_gpt_test::_pd;
 
+
+
 TEST_F(Part_gpt_test, InstantiateBlockDevice)
 {
+#ifdef USE_NVME_DEVICE
+  
   Component::IBase * comp = Component::load_component("libcomanche-blknvme.so",
                                                       Component::block_nvme_factory);
   assert(comp);
   PLOG("Block_device factory loaded OK.");
 
   IBlock_device_factory * fact = (IBlock_device_factory *) comp->query_interface(IBlock_device_factory::iid());
-  _block = fact->create("./vol-config-local.json");
+  cpu_mask_t cpus;
+  cpus.add_core(2);
+
+  _block = fact->create("86:00.0", &cpus);
   assert(_block);
   fact->release_ref();
   PINF("Lower block-layer component loaded OK.");
+
+#else
+  Component::IBase * comp = Component::load_component("libcomanche-blkposix.so",
+                                                      Component::block_posix_factory);
+  assert(comp);
+
+  unlink("./blockfile.dat");
+
+  IBlock_device_factory * fact = (IBlock_device_factory *) comp->query_interface(IBlock_device_factory::iid());
+  std::string config_string;
+  config_string = "{\"path\":\"./blockfile.dat\",\"size_in_blocks\":100}";
+  _block = fact->create(config_string);
+  assert(_block);
+  fact->release_ref();
+  PINF("Block-layer component loaded OK (itf=%p)", _block);
+#endif
 }
 
 TEST_F(Part_gpt_test, InstantiatePart)
@@ -90,11 +115,11 @@ TEST_F(Part_gpt_test, PartitionIntegrity)
   VOLUME_INFO vinfo;
   _scoped_bd->get_volume_info(vinfo);
   
-  PLOG("Volume Info: size=%ld blocks", vinfo.max_lba);
+  PLOG("Volume Info: size=%ld blocks", vinfo.block_count);
   PLOG("             block_size=%u", vinfo.block_size);
   PLOG("             name=%s", vinfo.volume_name);
 
-  unsigned BLOCK_COUNT = vinfo.max_lba;
+  unsigned BLOCK_COUNT = vinfo.block_count;
 
   /* zero blocks first */
   memset(ptr,0,4096);

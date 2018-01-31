@@ -19,6 +19,10 @@
 
 using namespace Component;
 
+/* thread local database handle, so we can open SQLite3 in multithread mode */
+__thread sqlite3 *     g_tls_db;
+std::vector<sqlite3 *> g_tls_db_vector;
+std::mutex             g_tls_db_vector_lock;
 
 class Semaphore {
 public:
@@ -79,35 +83,74 @@ create_block_allocator(Component::IPersistent_memory * pmem,
                        bool force_init);
 
 
+sqlite3 * Append_store::db_handle()
+{
+  if(g_tls_db == nullptr) {
+    int dbflags;
+    if(_read_only)
+      dbflags = SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX;
+    else
+      dbflags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX;
 
-Append_store::Append_store(std::string owner,
-                           std::string name,
+    if(option_DEBUG)
+      PLOG("Append-store: opening database (%s)",_db_filename.c_str());
+    
+    if(sqlite3_open_v2(_db_filename.c_str(),
+                       &g_tls_db,
+                       dbflags,
+                       NULL) != SQLITE_OK) {
+      throw General_exception("Append-store: failed to open sqlite3 db (%s)", _db_filename.c_str());
+    }
+    assert(g_tls_db);
+      
+    /* save in vector so we can release them all in destructor */
+    g_tls_db_vector_lock.lock();
+    //PLOG("saving db handle %p", g_tls_db);
+    g_tls_db_vector.push_back(g_tls_db);
+    g_tls_db_vector_lock.unlock();    
+  }
+
+  return g_tls_db;
+}
+
+Append_store::Append_store(const std::string owner,
+                           const std::string name,
+                           const std::string db_location,
                            Component::IBlock_device* block,
                            int flags)
   : _block(block),
-    _hdr(block, owner, name, flags & FLAGS_FORMAT) /* initialize header object */
+    _hdr(block, owner, name, flags & FLAGS_FORMAT), /* initialize header object */
+    _monitor([=]{ monitor_thread_entry(); }),
+    _read_only(flags & FLAGS_READONLY)
 {
   int rc;
   
   if(owner.empty() || name.empty() || block == nullptr)
     throw API_exception("bad Append_store constructor parameters");
-
+ 
   _lower_layer = _block;
   _block->add_ref();
   
   assert(_block);
   _block->get_volume_info(_vi);
+
   PLOG("Append-store: block device capacity=%lu max_dma_block=%ld",
-       _vi.max_lba, _vi.max_dma_len / _vi.block_size);
+       _vi.block_count, _vi.max_dma_len / _vi.block_size);
 
   _max_io_blocks = _vi.max_dma_len / _vi.block_size;
   _max_io_bytes  = _vi.max_dma_len;
   assert(_vi.max_dma_len % _vi.block_size == 0);
   
   /* database inititalization */
-  _table_name = name;
-  _db_filename = owner + "." + _table_name + ".db";
+  _table_name = "appendstore";
 
+  if(!db_location.empty())
+    _db_filename = db_location + "/" + name + ".db";
+  else
+    _db_filename = "./" + name + ".db";
+
+  PLOG("Append-store: db_filename=%s", _db_filename.c_str());
+  
   if(flags & FLAGS_FORMAT) {
     std::remove(_db_filename.c_str());
   }
@@ -115,32 +158,67 @@ Append_store::Append_store(std::string owner,
   if(option_DEBUG) {
     PLOG("Append-store: opening db %s", _db_filename.c_str());
   }
+  
+  db_handle();
+  // if(sqlite3_open_v2(_db_filename.c_str(),
+  //                    &_db,
+  //                    SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX,
+  //                    NULL) != SQLITE_OK) {
+  //   throw General_exception("failed to open sqlite3 db (%s)", _db_filename.c_str());
+  // }
 
-  if(sqlite3_open_v2(_db_filename.c_str(),
-                     &_db,
-                     SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX,
-                     NULL) != SQLITE_OK) {
-    throw General_exception("failed to open sqlite3 db (%s)", _db_filename.c_str());
+  if(!_hdr.existing()) {
+    /* create table if needed */
+    execute_sql("CREATE TABLE IF NOT EXISTS appendstore (ID TEXT PRIMARY KEY NOT NULL, LBA INT8, NBLOCKS INT8, METADATA TEXT);");
+
+    execute_sql("CREATE TABLE IF NOT EXISTS meta (KEY TEXT PRIMARY KEY NOT NULL, VALUE TEXT);");
+
+    {
+      std::stringstream ss;
+      ss << "INSERT INTO meta VALUES('device_id','" << _vi.device_id << "');";
+      execute_sql(ss.str());
+    }
+
+    {
+      std::stringstream ss;
+      ss << "INSERT INTO meta VALUES('volume_name','" << _vi.volume_name << "');";
+      execute_sql(ss.str());
+    }
   }
-
-  /* create table if needed */
-  std::stringstream sqlss;
-  sqlss << "CREATE TABLE IF NOT EXISTS " << name;
-  sqlss << "(ID TEXT PRIMARY KEY NOT NULL, LBA INT8, NBLOCKS INT8, METADATA TEXT);";
-   
-  execute_sql(sqlss.str());
-
 }
 
 Append_store::~Append_store()
 {
   //  show_db();
-  
-  if(sqlite3_close(_db) != SQLITE_OK)
-    throw General_exception("failed to close sqlite3 db (%s)", _db_filename.c_str());
+
+  g_tls_db_vector_lock.lock();
+  for(auto& handle: g_tls_db_vector) {
+    //PLOG("closing db handle %p", handle);
+    if(sqlite3_close(handle) != SQLITE_OK)
+      throw General_exception("failed to close sqlite3 db (%s)", _db_filename.c_str());
+  }
+  g_tls_db_vector_lock.unlock();
+
 
   _block->release_ref();
+
+  _monitor.join();
 }
+
+
+void Append_store::monitor_thread_entry()
+{
+  if(!option_STATS) return;
+  
+  while(!_monitor_exit) {
+    sleep(1);
+    auto nbytes = stats.iterator_get_volume;
+    stats.iterator_get_volume = 0;
+    if(nbytes > 0)
+      PLOG("read throughput: %lu MB/s", REDUCE_MB(nbytes));    
+  }
+}
+
 
 uint64_t Append_store::insert_row(std::string& key, std::string& metadata, uint64_t lba, uint64_t length)
 {
@@ -157,7 +235,7 @@ bool Append_store::find_row(std::string& key, uint64_t& out_lba)
   std::string sql = sqlss.str();
 
   sqlite3_stmt * stmt;
-  sqlite3_prepare_v2(_db, sql.c_str(), sql.size(), &stmt, nullptr);
+  sqlite3_prepare_v2(db_handle(), sql.c_str(), sql.size(), &stmt, nullptr);
   int s = sqlite3_step(stmt);
   if(s == SQLITE_ROW) {
     out_lba = sqlite3_column_int64(stmt, 0);
@@ -177,29 +255,29 @@ void Append_store::execute_sql(const std::string& sql, bool print_callback_flag)
   }
 
   char *zErrMsg = 0;
-  if(print_callback_flag) {
-    if(sqlite3_exec(_db, sql.c_str(), print_callback, 0, &zErrMsg)!=SQLITE_OK)
-      throw General_exception("bad SQL statement (%s)", zErrMsg);    
-  }
-  else {
-    if(sqlite3_exec(_db, sql.c_str(), callback, 0, &zErrMsg)!=SQLITE_OK)
+  unsigned remaining_retries = 10000;
+
+  while(remaining_retries > 0) {
+    int rc;
+    if(print_callback_flag) {
+      if((rc=sqlite3_exec(db_handle(), sql.c_str(), print_callback, 0, &zErrMsg))==SQLITE_OK)
+        break;
+    }
+    else {
+      if((rc=sqlite3_exec(db_handle(), sql.c_str(), callback, 0, &zErrMsg))==SQLITE_OK)
+        break;
+    }
+    if(rc != SQLITE_BUSY)
       throw General_exception("bad SQL statement (%s)", zErrMsg);
+    usleep(1000);
+    remaining_retries--;
+  }
+  if(remaining_retries == 0) {
+    PERR("bad SQL statement (%s)", zErrMsg);
+    assert(0);
+    throw General_exception("bad SQL statement (%s)", zErrMsg);
   }
 }
-
-// IStore::item_t Append_store::open(std::string key)
-// {
-//   uint64_t lba;
-//   if(find_row(key, lba)) {
-//     return lba;
-//   }
-//   /* create new key */
-//   // void * handle;
-//   // lba_t new_lba = _blkallocator->alloc(1, &handle);
-//   // insert_row(key, new_lba);
-//   // show_db();
-//   return 0;
-// }
 
 static void memory_free_cb(uint64_t gwid, void  *arg0, void* arg1)
 {
@@ -218,6 +296,11 @@ status_t Append_store::put(std::string key,
   assert(data_len > 0);
   assert(data);
 
+  if(_read_only) {
+    assert(0);
+    return E_INVAL;
+  }
+
   char * p = static_cast<char *>(data);
   size_t n_blocks;
   lba_t start_lba;
@@ -228,7 +311,7 @@ status_t Append_store::put(std::string key,
     PLOG("[+] Append-store: append %ld bytes at block=%ld Used blocks=%ld/%ld", data_len,
          start_lba,
          start_lba+n_blocks,
-         _vi.max_lba); 
+         _vi.block_count); 
 
   auto iob = _phys_mem_allocator.allocate_io_buffer(round_up(data_len,_vi.block_size),
                                                     DMA_ALIGNMENT_BYTES,
@@ -275,12 +358,17 @@ status_t Append_store::put(std::string key,
 {
   assert(_block);
 
+  if(_read_only) {
+    assert(0);
+    return E_INVAL;
+  }
+
   size_t n_blocks;
   lba_t start_lba = _hdr.allocate(data_len, n_blocks); /* allocate contiguous segment of blocks */
 
   if(option_DEBUG)
     PLOG("[+] Append-store: append %ld bytes. Used blocks=%ld/%ld", data_len,
-         start_lba+n_blocks, _vi.max_lba); 
+         start_lba+n_blocks, _vi.block_count); 
 
 #ifdef __clang__
   static thread_local Semaphore sem;
@@ -320,15 +408,15 @@ IStore::iterator_t Append_store::open_iterator(std::string expr,
   
   std::stringstream sqlss;
 
-  if(flags > 0) 
-    sqlss << "SELECT LBA,NBLOCKS FROM " << _table_name << " WHERE ID LIKE '" << expr << "'LIMIT 10000;";
+  if(flags & FLAGS_ITERATE_ALL)
+    sqlss << "SELECT LBA,NBLOCKS FROM " << _table_name << ";";
   else
-    sqlss << "SELECT LBA,NBLOCKS FROM " << _table_name << " WHERE ID LIKE '" << expr << "';";
+    sqlss << "SELECT LBA,NBLOCKS FROM " << _table_name << " WHERE " << expr << " ;";
   
   std::string sql = sqlss.str();
 
   sqlite3_stmt * stmt;
-  sqlite3_prepare_v2(_db, sql.c_str(), sql.size(), &stmt, nullptr);
+  sqlite3_prepare_v2(db_handle(), sql.c_str(), sql.size(), &stmt, nullptr);
   int s;
   while((s = sqlite3_step(stmt)) != SQLITE_DONE) {
 
@@ -366,7 +454,7 @@ IStore::iterator_t Append_store::open_iterator(uint64_t rowid_start,
   std::string sql = sqlss.str();
 
   sqlite3_stmt * stmt;
-  sqlite3_prepare_v2(_db, sql.c_str(), sql.size(), &stmt, nullptr);
+  sqlite3_prepare_v2(db_handle(), sql.c_str(), sql.size(), &stmt, nullptr);
   int s;
   while((s = sqlite3_step(stmt)) != SQLITE_DONE) {
 
@@ -460,7 +548,9 @@ size_t Append_store::iterator_get(iterator_t iter,
                      queue_id);
 
   i->current_idx++;
-  return record.len * _vi.block_size;
+  size_t n_bytes = record.len * _vi.block_size;
+  stats.iterator_get_volume += n_bytes;
+  return n_bytes;
 }
 
 
@@ -527,8 +617,45 @@ void Append_store::reset_iterator(iterator_t iter)
   i->current_idx = 0;
 }
 
+size_t Append_store::fetch_metadata(const std::string filter_expr,
+                                    std::vector<std::pair<std::string,std::string> >& out_metadata)
+{
+  std::stringstream sqlss;
+  int rc = 0;
+  
+  sqlss << "SELECT ID,METADATA FROM " << _table_name;
+  if(!filter_expr.empty())
+    sqlss << " WHERE " << filter_expr;
+  sqlss << ";";
+
+  std::string sql = sqlss.str();
+  PLOG("SQL:(%s)", sql.c_str());
+  sqlite3_stmt * stmt;
+  rc = sqlite3_prepare_v2(db_handle(), sql.c_str(), sql.size(), &stmt, nullptr);
+  assert(rc == SQLITE_OK);
+
+  while(sqlite3_step(stmt) != SQLITE_DONE) {
+    auto key = sqlite3_column_text(stmt, 0);
+    auto metadata = sqlite3_column_text(stmt, 1);
+    std::pair<std::string,std::string> p;
+    p.first = (char *) key;
+    p.second = (char *) metadata;
+    out_metadata.push_back(p);
+    rc++;
+  }
+
+  sqlite3_finalize(stmt);
+  return rc;
+}
+
+
 status_t Append_store::flush()
 {
+  if(_read_only) {
+    assert(0);
+    return E_INVAL;
+  }
+
   _block->check_completion(0,0); /* wait for all pending */
   return S_OK;
 }
@@ -544,9 +671,18 @@ void Append_store::dump_info()
 
   /* dump keys */
   sqlite3_stmt * stmt;
-  sqlite3_prepare_v2(_db, sql.c_str(), sql.size(), &stmt, nullptr);
   int s;
+  s = sqlite3_prepare_v2(db_handle(), sql.c_str(), sql.size(), &stmt, nullptr);
+  if(s != SQLITE_OK) {
+    PERR("sqlite3 error:%d %s", s, sqlite3_errmsg(db_handle()));
+    return;
+  }
+
   while((s = sqlite3_step(stmt)) != SQLITE_DONE) {
+    if(s != SQLITE_ROW) {
+      PERR("sqlite3 error:%d", s);
+      break;
+    }
     auto key = sqlite3_column_text(stmt, 0);
     auto start_lba = sqlite3_column_int64(stmt, 1);
     auto len = sqlite3_column_int64(stmt, 2);
@@ -558,7 +694,7 @@ void Append_store::dump_info()
 
 void Append_store::show_db()
 {
-  assert(_db);
+  assert(db_handle());
   std::stringstream sqlss;
   sqlss << "SELECT * FROM " << _table_name << ";";
   execute_sql(sqlss.str(), true);
@@ -566,16 +702,27 @@ void Append_store::show_db()
 
 size_t Append_store::get_record_count()
 {
-  assert(_db);
+  assert(db_handle());
+
   std::stringstream sqlss;
   sqlss << "SELECT MAX(ROWID) FROM " << _table_name << ";";
   std::string sql = sqlss.str();
-  
   sqlite3_stmt * stmt;
-  sqlite3_prepare_v2(_db, sql.c_str(), sql.size(), &stmt, nullptr);
-  int s = sqlite3_step(stmt);
-  auto max_row_id = sqlite3_column_int64(stmt, 0);
+  int s;
+  
+  sqlite3_prepare_v2(db_handle(), sql.c_str(), sql.size(), &stmt, nullptr);
+
+  sqlite3_int64 max_row_id;
+  while((s = sqlite3_step(stmt)) != SQLITE_DONE) {
+    
+    if(s == SQLITE_ERROR || s == SQLITE_MISUSE)
+      throw API_exception("Append_store::get_record_count: failed to execute SQL statement (%s)", sql.c_str());
+
+    max_row_id = sqlite3_column_int64(stmt, 0);
+  }
+
   sqlite3_finalize(stmt);
+
   return max_row_id;
 }
 
@@ -592,12 +739,12 @@ status_t Append_store::get(uint64_t rowid,
     throw API_exception("offset must be aligned with block size");
   
   sqlite3_stmt * stmt;
-  sqlite3_prepare_v2(_db, sql.c_str(), sql.size(), &stmt, nullptr);
+  sqlite3_prepare_v2(db_handle(), sql.c_str(), sql.size(), &stmt, nullptr);
   int s = sqlite3_step(stmt);
   int64_t data_lba = sqlite3_column_int64(stmt, 1);
   int64_t data_len = sqlite3_column_int64(stmt, 2);
   sqlite3_finalize(stmt);
-  if(option_DEBUG||1) {
+  if(option_DEBUG) {
     PLOG("get(rowid=%lu) --> lba=%ld len=%ld", rowid, data_lba, data_len);
   }
 
@@ -615,6 +762,43 @@ status_t Append_store::get(uint64_t rowid,
   return S_OK;
 }
 
+status_t Append_store::get(const std::string key,
+                           Component::io_buffer_t iob,
+                           size_t offset,
+                           int queue_id)
+{
+  std::stringstream sqlss;
+  sqlss << "SELECT * FROM " << _table_name << " WHERE ID='" << key << "';";
+  std::string sql = sqlss.str();
+
+  if(offset % _vi.block_size)
+    throw API_exception("offset must be aligned with block size");
+  
+  sqlite3_stmt * stmt;
+  sqlite3_prepare_v2(db_handle(), sql.c_str(), sql.size(), &stmt, nullptr);
+  int s = sqlite3_step(stmt);
+  int64_t data_lba = sqlite3_column_int64(stmt, 1);
+  int64_t data_len = sqlite3_column_int64(stmt, 2);
+  sqlite3_finalize(stmt);
+  if(option_DEBUG) {
+    PLOG("get(key=%s) --> lba=%ld len=%ld", key.c_str(), data_lba, data_len);
+  }
+
+  if((_lower_layer->get_size(iob) - offset) < (data_len * _vi.block_size)) {
+    PWRN("Append_store:get call with too smaller IO buffer");    
+    return E_INSUFFICIENT_SPACE;
+  }
+
+  _lower_layer->read(iob,
+                     offset,
+                     data_lba,
+                     data_len,
+                     queue_id);
+
+  return S_OK;
+}
+
+
 
 std::string Append_store::get_metadata(uint64_t rowid)
 {
@@ -623,7 +807,7 @@ std::string Append_store::get_metadata(uint64_t rowid)
   std::string sql = sqlss.str();
 
   sqlite3_stmt * stmt;
-  sqlite3_prepare_v2(_db, sql.c_str(), sql.size(), &stmt, nullptr);
+  sqlite3_prepare_v2(db_handle(), sql.c_str(), sql.size(), &stmt, nullptr);
   int s = sqlite3_step(stmt);
 
   if(s == SQLITE_ERROR)
@@ -671,3 +855,4 @@ extern "C" void * factory_createInstance(Component::uuid_t& component_id)
   }
   else return NULL;
 }
+

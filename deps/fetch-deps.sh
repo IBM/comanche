@@ -194,4 +194,16 @@ cd rocksdb && git checkout tags/v5.1.4
 
 jumpto end
 
+pmem:
+echo "Cloning pmem nvml..."
+git clone https://github.com/pmem/nvml.git
+cd nvml && git checkout tags/1.3
+jumpto end
+
+pistache:
+echo "Cloning pistache..."
+git clone https://github.com/oktal/pistache.git
+cd pistache && cmake . && make && sudo make install
+jumpto end
+
 end:
