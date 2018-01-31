@@ -12,8 +12,8 @@ if (DEFINED ENV{COMANCHE_HOME})
 else()
   set(COMANCHE_HOME ${CMAKE_SOURCE_DIR})
 endif()
-set(DPDK_DIR "../../../deps/dpdk/")
-set(SPDK_DIR "../../../deps/spdk/")
+set(DPDK_DIR ${CMAKE_SOURCE_DIR}/deps/dpdk/)
+set(SPDK_DIR ${CMAKE_SOURCE_DIR}/deps/spdk/)
 
 # DPDK library
 find_library(EXTLIB_DPDK libdpdk.a HINTS "${DPDK_DIR}/lib")
