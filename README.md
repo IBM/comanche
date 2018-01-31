@@ -39,8 +39,8 @@ For mem leak checking - ASAN may hang block-nvme:
 
 ```bash
 cmake -DCMAKE_BUILD_TYPE=ASAN .
-
 cmake -DCMAKE_BUILD_TYPE=Release .
+cmake -DCMAKE_BUILD_TYPE=NOOPT .
 ```
 
 * Prepare to run (use tools scripts)
