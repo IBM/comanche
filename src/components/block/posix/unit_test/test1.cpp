@@ -143,7 +143,7 @@ TEST_F(Block_posix_test, BasicAsync)
   PMAJOR("> basic async test OK");
 }
 
-#if 1
+#if 0
 TEST_F(Block_posix_test, MultiAsyncAggCheck)
 {
   unsigned NUM_PAGES = 128;
@@ -178,7 +178,7 @@ TEST_F(Block_posix_test, MultiAsyncAggCheck)
 
 #endif
 
-#if 1
+#if 0
 TEST_F(Block_posix_test, PartitionIntegrity)
 {
   using namespace Component;
@@ -241,16 +241,16 @@ TEST_F(Block_posix_test, PartitionIntegritySync)
   
   io_buffer_t mem = _block->allocate_io_buffer(4096,4096,Component::NUMA_NODE_ANY);
   void * ptr = _block->virt_addr(mem);
-  unsigned ITERATIONS = 10000;
+  unsigned ITERATIONS = 100;
 
   VOLUME_INFO vinfo;
   _block->get_volume_info(vinfo);
   
-  PLOG("Volume Info: size=%ld blocks", vinfo.max_lba);
+  PLOG("Volume Info: size=%ld blocks", vinfo.block_count);
   PLOG("             block_size=%u", vinfo.block_size);
   PLOG("             name=%s", vinfo.volume_name);
 
-  unsigned BLOCK_COUNT = vinfo.max_lba;
+  unsigned BLOCK_COUNT = vinfo.block_count;
 
   /* zero blocks first */
   memset(ptr,0,4096);
@@ -293,7 +293,58 @@ TEST_F(Block_posix_test, GetPhysAddr)
   addr_t phys = _block->phys_addr(mem);
   PLOG("phys lookup:%lx", phys);
   ASSERT_TRUE(phys > 0);
+  _block->free_io_buffer(mem);
 }
+
+TEST_F(Block_posix_test, AsyncWriteWithCallback)
+{
+  io_buffer_t buffer = _block->allocate_io_buffer(4096,4096,Component::NUMA_NODE_ANY);
+  IBlock_device::Semaphore sem;
+  
+  _block->async_write(buffer,
+                      0,
+                      0,
+                      1, // lba_count
+                      0, // queue_id
+                      [](uint64_t gwid, void* arg0, void* arg1)
+                      {
+                        PLOG("Callback: gwid=%lu arg0=%p arg1=%p",gwid, arg0, arg1);
+                        ((IBlock_device::Semaphore *)arg0)->post();
+                        ASSERT_TRUE(arg1 == (void*) 0xBEEF);
+                      },
+                      (void*) &sem,
+                      (void*) 0xBEEF);
+
+  sem.wait();
+  PLOG("Whooo!");
+  _block->free_io_buffer(buffer);
+}
+
+
+TEST_F(Block_posix_test, AsyncReadWithCallback)
+{
+  io_buffer_t buffer = _block->allocate_io_buffer(4096,4096,Component::NUMA_NODE_ANY);
+  IBlock_device::Semaphore sem;
+  
+  _block->async_read(buffer,
+                     0,
+                     0,
+                     1, // lba_count
+                     0, // queue_id
+                     [](uint64_t gwid, void* arg0, void* arg1)
+                     {
+                       PLOG("Callback: gwid=%lu arg0=%p arg1=%p",gwid, arg0, arg1);
+                       ((IBlock_device::Semaphore *)arg0)->post();
+                       ASSERT_TRUE(arg1 == (void*) 0xBEEF);
+                     },
+                     (void*) &sem,
+                     (void*) 0xBEEF);
+
+  sem.wait();
+  PLOG("Whooo!");
+  _block->free_io_buffer(buffer);
+}
+  
 
 TEST_F(Block_posix_test, ReleaseBlockDevice)
 {

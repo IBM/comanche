@@ -1,5 +1,5 @@
 /*
-   Copyright [2017] [IBM Corporation]
+   Copyright [2017,2018] [IBM Corporation]
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -21,7 +21,8 @@
  * Daniel G. Waddington (daniel.waddington@ibm.com)
  *
  */
-
+#include <functional>
+#include <utility>
 #include <signal.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -34,6 +35,7 @@
 #include <linux/fs.h>
 #include <common/exceptions.h>
 #include <common/utils.h>
+#include <common/dump_utils.h>
 #include <core/dpdk.h>
 #include <api/block_itf.h>
 #include <rapidjson/document.h>
@@ -103,7 +105,7 @@ Block_posix::Block_posix(std::string config) : _size_in_blocks(0), _work_id(1)
   else {
     /* file based */
     _fd = ::open(_file_path.c_str(),
-                 O_CREAT | O_RDWR | O_DIRECT,
+                 O_CREAT | O_RDWR,
                  S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     
     if(_fd == -1) {
@@ -260,6 +262,22 @@ create(std::string config_string, cpu_mask_t * cpuset, Core::Poller * poller)
  * 
  */
 
+struct __callback_info {
+  uint64_t gwid;
+  IBlock_device::io_callback_t cb;
+  void * cb_arg0;
+  void * cb_arg1;
+};
+
+static void signal_completion(union sigval sv)
+{
+  __callback_info * cbinfo = static_cast<__callback_info *>(sv.sival_ptr);
+  if(cbinfo) {
+    cbinfo->cb(cbinfo->gwid, cbinfo->cb_arg0, cbinfo->cb_arg1);
+    delete cbinfo;
+  }
+}
+
 workid_t
 Block_posix::
 async_read(io_buffer_t buffer,
@@ -275,12 +293,6 @@ async_read(io_buffer_t buffer,
     PINF("[+] block-posix: async_read(buffer=%p, offset=%lu, lba=%lu, lba_count=%lu",
          (void*) buffer, buffer_offset, lba, lba_count);
 
-  if(cb || cb_arg0 || cb_arg1)
-    throw API_exception("posix-block device does not yet support callbacks");
-  
-  if(queue_id > 0)
-    throw API_exception("queue parameter not supported");
-
   struct aiocb * desc = allocate_descriptor();
   memset(desc, 0, sizeof(struct aiocb));
   desc->aio_buf = reinterpret_cast<char*>(buffer) + buffer_offset;
@@ -288,15 +300,24 @@ async_read(io_buffer_t buffer,
   desc->aio_offset = lba * IO_BLOCK_SIZE;
   desc->aio_lio_opcode = LIO_READ; // ignored according to man page
   desc->aio_nbytes = lba_count * IO_BLOCK_SIZE;
-  desc->aio_sigevent.sigev_notify = SIGEV_NONE;
-  
-  if(aio_read(desc)!=0)
-    throw General_exception("aio_read failed");
 
   uint64_t gwid = add_outstanding(desc);
   if(option_DEBUG)
     PLOG("block-posix: async-read submitted %ld", gwid);
-  
+
+  /* set up optional call back */
+  if(cb) {
+    desc->aio_sigevent.sigev_notify = SIGEV_THREAD;
+    desc->aio_sigevent.sigev_value.sival_ptr = (void*) new __callback_info({gwid, cb, cb_arg0, cb_arg1});
+    desc->aio_sigevent.sigev_notify_function = signal_completion;
+  }
+  else {
+    desc->aio_sigevent.sigev_notify = SIGEV_NONE;
+  }
+    
+  if(aio_read(desc)!=0)
+    throw General_exception("aio_read failed");
+
   return gwid;
 }
  
@@ -315,11 +336,14 @@ async_write(io_buffer_t buffer,
     PINF("[+] block-posix: async_write(buffer=%p, offset=%lu, lba=%lu, lba_count=%lu",
          (void*)buffer, buffer_offset, lba, lba_count);
 
-  if(cb || cb_arg0 || cb_arg1)
-    throw API_exception("posix-block device does not yet support callbacks");
-  
-  if(queue_id > 0)
-    throw API_exception("queue parameter not supported");
+  /* auto expand */
+  // if(lba > _size_in_blocks) {
+  //   _size_in_blocks = lba + 1024;
+  //   int rc = ::ftruncate(_fd, _size_in_blocks * KB(4));
+  //   if(rc)
+  //     throw Constructor_exception("Block_posix:: truncate failed");
+  // }
+
 
   struct aiocb * desc = allocate_descriptor();
   memset(desc, 0, sizeof(struct aiocb));
@@ -329,13 +353,23 @@ async_write(io_buffer_t buffer,
   desc->aio_lio_opcode = LIO_WRITE; // ignored according to man page
   desc->aio_nbytes = lba_count * IO_BLOCK_SIZE;
   desc->aio_sigevent.sigev_notify = SIGEV_NONE;
-  
-  if(aio_write(desc)!=0)
-    throw General_exception("aio_write failed");
 
   uint64_t gwid = add_outstanding(desc);
   if(option_DEBUG)
     PLOG("block-posix: async-write submitted %ld", gwid);
+
+  /* set up optional call back */
+  if(cb) {
+    desc->aio_sigevent.sigev_notify = SIGEV_THREAD;
+    desc->aio_sigevent.sigev_value.sival_ptr = (void*) new __callback_info({gwid, cb, cb_arg0, cb_arg1});
+    desc->aio_sigevent.sigev_notify_function = signal_completion;
+  }
+  else {
+    desc->aio_sigevent.sigev_notify = SIGEV_NONE;
+  }
+    
+  if(aio_write(desc)!=0)
+    throw General_exception("aio_write failed");
   
   return gwid;
 }
@@ -352,20 +386,18 @@ write(Component::io_buffer_t buffer,
     PINF("[+] block-posix: write(buffer=%p, offset=%lu, lba=%lu, lba_count=%lu",
          (void*)buffer, buffer_offset, lba, lba_count);
 
-  if(queue_id > 0)
-    throw API_exception("queue parameter not supported");
+  if(lba_count == 0)
+    throw API_exception("bad parameter");
 
   void * ptr = (void*) (reinterpret_cast<char*>(buffer) + buffer_offset);
   size_t nbytes = lba_count * IO_BLOCK_SIZE;
   ssize_t rc = pwrite(_fd, ptr, nbytes, lba * IO_BLOCK_SIZE);
+
   if(rc != nbytes)
     throw General_exception("%s: pwrite failed", __PRETTY_FUNCTION__);
 
   if(fsync(_fd))
     throw General_exception("%s: fsync failed", __PRETTY_FUNCTION__);
-
-  if(option_DEBUG)
-    PINF("[block-posix] write: %p lba=%lu lba_count=%lu", ptr, lba, lba_count);
 }
 
 void
@@ -380,17 +412,15 @@ read(Component::io_buffer_t buffer,
     PINF("[+] block-posix: read(buffer=%p, offset=%lu, lba=%lu, lba_count=%lu",
          (void*)buffer, buffer_offset, lba, lba_count);
 
-  if(queue_id > 0)
-    throw API_exception("queue parameter not supported");
-
+  if(lba_count == 0)
+    throw API_exception("bad parameter");
+  
   void * ptr = (void*) (reinterpret_cast<char*>(buffer) + buffer_offset);
   size_t nbytes = lba_count * IO_BLOCK_SIZE;
+
   ssize_t rc = pread(_fd, ptr, nbytes, lba * IO_BLOCK_SIZE);
   if(rc != nbytes)
     throw General_exception("%s: pread failed", __PRETTY_FUNCTION__);
-
-  if(option_DEBUG)
-    PINF("[block-posix] read: %p lba=%lu lba_count=%lu", ptr, lba, lba_count);
 }
 
 
@@ -405,9 +435,9 @@ bool
 Block_posix::
 check_completion(workid_t gwid, int queue_id)
 {
-  if(queue_id > 0)
-    throw API_exception("queue parameter not supported");
-
+  if(option_DEBUG)
+    PLOG("check_completion (%lu)", gwid);
+  
   return check_complete(gwid);
 }
 
@@ -425,7 +455,7 @@ get_volume_info(VOLUME_INFO& devinfo)
   devinfo.block_size = IO_BLOCK_SIZE;
   devinfo.distributed = false;
   devinfo.hash_id = 0;
-  devinfo.max_lba = _size_in_blocks;
+  devinfo.block_count = _size_in_blocks;
   strncpy(devinfo.volume_name,_file_path.c_str(),VOLUME_INFO_MAX_NAME);
 }
 

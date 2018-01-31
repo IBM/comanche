@@ -85,7 +85,7 @@ public:
    * 
    * @return Pointer to record in iob
    */
-  virtual byte * read(const index_t index, Component::io_buffer_t iob, unsigned queue_id) override;
+  virtual byte * read(const index_t index, Component::io_buffer_t iob, size_t n_records, unsigned queue_id) override;
 
   /** 
    * Read blob into a string (copy based)
@@ -112,9 +112,26 @@ public:
    */
   virtual index_t get_tail() override {
     std::lock_guard<std::mutex> g(_lock);
-    return _hdr.get_tail();
+    if(_fixed_size) return ((_hdr.get_tail()) / _fixed_size);
+    return (_hdr.get_tail());
   }
 
+  /** 
+   * Get fixed size
+   * 
+   * 
+   * @return 0 if not fixed size
+   */
+  virtual size_t fixed_size() override {
+    return _fixed_size;
+  }
+  
+  /** 
+   * Output debugging information
+   * 
+   */
+  virtual void dump_info() override;
+  
 private:
 
   inline size_t header_size() {
@@ -124,12 +141,12 @@ private:
   
 private:
 
-  size_t _max_io_blocks;
-  size_t _max_io_bytes;
-  size_t _num_io_queues;
-  size_t _fixed_size;
-  bool   _use_crc;
-  Header _hdr;
+  size_t                 _max_io_blocks;
+  size_t                 _max_io_bytes;
+  size_t                 _num_io_queues;
+  size_t                 _fixed_size;
+  bool                   _use_crc;
+  Header                 _hdr;
   Component::io_buffer_t _iob;
   std::mutex             _lock;
   Component::VOLUME_INFO _vi;

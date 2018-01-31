@@ -1,5 +1,3 @@
-#pragma once
-
 #ifndef __BLOB_BIG_COMPONENT_H__
 #define __BLOB_BIG_COMPONENT_H__
 
@@ -7,11 +5,14 @@
 #include <api/region_itf.h>
 #include <api/pager_itf.h>
 #include <api/blob_itf.h>
+#include <api/metadata_itf.h>
+#include <api/block_allocator_itf.h>
 
 #include <core/avl_malloc.h>
 #include <mutex>
 #include <string>
 #include <list>
+
 #include "data_region.h"
 
 class Blob_component_factory : public Component::IBlob_factory
@@ -44,8 +45,20 @@ public:
    */
   virtual Component::IBlob * open(std::string owner,
                                   std::string name,
-                                  Component::IRegion_manager * rm,
-                                  size_t value_space_mb,
+                                  Component::IBlock_device * base_block_device,
+                                  int flags) override;
+
+  /** 
+   * Late binding open
+   * 
+   * @param owner Owner
+   * @param name Store name
+   * @param flags Instantiation flags
+   * 
+   * @return Pointer to IBlock interface
+   */  
+  virtual Component::IBlob * open(std::string owner,
+                                  std::string name,
                                   int flags) override;
 
 };
@@ -55,14 +68,15 @@ class Blob_component : public Component::IBlob
 {  
 private:
   static constexpr bool option_DEBUG = true;
-  static constexpr size_t NUM_BLOCKS_FOR_METADATA = 5;
+  
   static constexpr size_t BLOCK_SIZE = 4096;
-    
+  static constexpr size_t ALLOCATOR_SIZE_BYTES = MB(8);
+  static constexpr size_t METADATA_SIZE_BYTES =  MB(8);
+  
 public:
   Blob_component(std::string owner,
                  std::string name,
-                 Component::IRegion_manager * region_manager,
-                 size_t value_space_mb,
+                 Component::IBlock_device * base_block_device,
                  int flags);
   
   /** 
@@ -89,7 +103,10 @@ public:
   void unload() override {
     delete this;
   }
-  
+
+  virtual int bind(Component::IBase * base);
+  virtual int release_bindings() { throw API_exception("cannot release bindings"); return 0; }
+
   virtual status_t start() override { return E_NOT_IMPL; } 
   virtual status_t stop() override { return E_NOT_IMPL; } 
   virtual status_t shutdown() override { return E_NOT_IMPL; } 
@@ -98,16 +115,22 @@ public:
 public:
   /** 
    * IBlob
-   */  
-
+   */
+  
   /** 
    * Create a new blob
    * 
-   * @param size_in_bytes Initial size of blob
+   * @param name Name of blob
+   * @param owner Owner
+   * @param datatype Optional data type
+   * @param size_in_bytes Initial size of blob in bytes
    * 
    * @return Handle to new blob
    */
-  virtual blob_t create(size_t size_in_bytes) override;
+  virtual blob_t create(const std::string& name,
+                        const std::string& owner,
+                        const std::string& datatype,
+                        size_t size_in_bytes) override;
 
   /** 
    * Erase a blob
@@ -203,20 +226,27 @@ public:
   virtual void show_state(std::string filter) override;
   
 private:
+  void instantiate_components();
   void flush_md();
   
 private:
-  Component::IRegion_manager *                 _rm;
-  
-  Component::IBlock_device *                   _block_md; /*< block device for metadata */
-  Component::VOLUME_INFO                       _block_md_vi;
-  Component::io_buffer_t                       _block_md_iob;
-  Core::Slab::Allocator<Blob::Data_region> *   _slab;
-  std::mutex                                   _md_lock;
+  const std::string                            _owner;
+  const std::string                            _name;
+  int                                          _flags;
+  Component::IBlock_device *                   _base_block_device; /*< base block device is split into regions for allocator, metadata and data */
+  Component::VOLUME_INFO                       _base_block_device_vi;
+  Component::IRegion_manager *                 _base_rm;
 
-  Component::IBlock_device *                   _block_data; /*< block device for data */
-  Component::VOLUME_INFO                       _block_data_vi;
-  Blob::Data_region_tree<Blob::Data_region> *  _data_allocator;
+  /*------------------------------------------------------------------------*/
+  /* split block device into three regions: block allocator, metadata, data */
+  /*------------------------------------------------------------------------*/
+
+  Component::IBlock_device *                   _block_allocator; /*< block device for allocator */
+  Component::IBlock_device *                   _block_md; /*< block device for metadata */
+  Component::IBlock_device *                   _block_data; /*< block data */
+  Component::IPersistent_memory *              _pmem_allocator;
+  Component::IBlock_allocator *                _allocator;
+  Component::IMetadata *                       _metadata;
 
 };
 

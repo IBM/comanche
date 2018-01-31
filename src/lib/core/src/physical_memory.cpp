@@ -170,10 +170,10 @@ Component::io_buffer_t Physical_memory::register_memory_for_io(void* vaddr, addr
   if(!check_aligned(paddr, MB(2)))
     throw API_exception("register_memory_for_io requires paddr be 2MB alignment");
 
-  spdk_mem_register(vaddr, len);
+  int rc = spdk_mem_register(vaddr, len);
 
   if(spdk_vtophys(vaddr) !=  paddr)
-    throw General_exception("SPDK address registration check failed");
+    throw General_exception("SPDK address registration check failed (rc=%d)", rc);
   
   return reinterpret_cast<Component::io_buffer_t>(vaddr);
 }

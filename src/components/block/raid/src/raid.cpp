@@ -60,8 +60,8 @@ void Raid_component::configure(std::string json_configuration)
     throw API_exception("bad JSON configuration string for Raid_component");
   }    
   PLOG("RAID - level set:%d across %d devices", _raid_level, _device_count);
-  PLOG("RAID - max logical LBA is: %ld", _logical_max_lba);
-  PLOG("RAID - capacity %ld GB", REDUCE_GB(_logical_max_lba * 4096));
+  PLOG("RAID - max logical LBA is: %ld", _logical_block_count);
+  PLOG("RAID - capacity %ld GB", REDUCE_GB(_logical_block_count * 4096));
 
   _ready = true;
 }
@@ -83,16 +83,16 @@ void Raid_component::add_device(Component::IBlock_device * device, std::string r
     throw API_exception("raid device must be 4K block size");
 
   /* set lowest common max lba */
-  if(_max_lba == 0)
-    _max_lba = vi.max_lba;
-  else if(vi.max_lba < _max_lba)
-    _max_lba = vi.max_lba;     
+  if(_block_count == 0)
+    _block_count = vi.block_count;
+  else if(vi.block_count < _block_count)
+    _block_count = vi.block_count;     
    
   device->add_ref();
   _bdv_itf.push_back({device,0}); /* ignore role for now */
 
   _device_count ++;
-  _logical_max_lba = _max_lba * _device_count;
+  _logical_block_count = _block_count * _device_count;
 }
 
 workid_t Raid_component::async_read(io_buffer_t buffer,
@@ -186,7 +186,7 @@ uint64_t Raid_component::gwid_to_seq(uint64_t gwid)
 void Raid_component::get_volume_info(VOLUME_INFO& devinfo)
 {
   devinfo.block_size = 4096;
-  devinfo.max_lba = _logical_max_lba;
+  devinfo.block_count = _logical_block_count;
   sprintf(devinfo.volume_name,"SW-RAID-%d", _device_count);
 }
 

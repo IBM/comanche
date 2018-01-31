@@ -4,8 +4,9 @@
  * @date    10 August 2017
  * @version 0.1
  * @brief   Xms support module.
-*/
+ */
 
+#include <linux/version.h>
 #include <linux/init.h>             // Macros used to mark up functions e.g., __init __exit
 #include <linux/module.h>           // Core header for loading LKMs into the kernel
 #include <linux/kernel.h>           // Contains types, macros, functions for the kernel
@@ -17,9 +18,18 @@
 #include <linux/compat.h>
 #include <linux/fs.h>
 #include <linux/slab.h>
+#include <linux/uaccess.h>
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,13,0)
+#include <asm/cacheflush.h>
+#else
+#include <asm/set_memory.h>
+#endif
 
 #include <asm/pgtable.h>
 #include <asm/uaccess.h>
+
+//#define DEBUG
 
 #include "xms.h"
 
@@ -31,15 +41,22 @@ MODULE_VERSION("0.1");              ///< The version of the module
 // forward decls
 //
 void * collect_bits(void * addr, size_t size, size_t * out_bitmap_size);
-static int fop_mmap(struct file *file, struct vm_area_struct *vma);
 pte_t* walk_page_table(u64 addr, unsigned long * huge_pfn);
+
+static int fop_mmap(struct file *file, struct vm_area_struct *vma);
+static int set_memory_type(void* addr, size_t size, memory_t type);
+
+inline static bool check_aligned(void* p, unsigned alignment)
+{
+  return (!(((unsigned long)p) & (alignment - 1UL)));
+}
 
 /* static char *name = "world"; ///< An example LKM argument --
    default value is "world" */
 /* module_param(name, charp, S_IRUGO); ///< Param desc. charp = char
    ptr, S_IRUGO can be read/not changed */
 /* MODULE_PARM_DESC(name, "The name to display in /var/log/kern.log");
-   ///< parameter description */
+///< parameter description */
 
 static long xms_dev_ioctl(struct file *filp,
                           unsigned int ioctl,
@@ -49,19 +66,39 @@ static long xms_dev_ioctl(struct file *filp,
   void * bitmap;
   size_t bitmap_size = 0;
 
-#if 0
+#ifdef DEBUG
   printk(KERN_INFO "xms: dev_ioctl (%d) (arg=%lx)\n", ioctl, arg);
 #endif
 
-  if(ioctl == IOCTL_CMD_GETPHYS) {
+  if(ioctl == IOCTL_CMD_SETMEMORY) {
+    int rc;
+    IOCTL_SETMEMORY_param params;
+    rc = copy_from_user(&params,
+                        ((IOCTL_SETMEMORY_param *) arg),
+                        sizeof(IOCTL_SETMEMORY_param));
+    
+    if((rc > 0) || (!access_ok(VERIFY_READ, params.vaddr, params.size))) {
+      printk(KERN_ERR "xms: dev_ioctl passed invalid param\n");
+      return r;
+    }
+
+    if(!check_aligned(params.vaddr, PAGE_SIZE) || (params.size % PAGE_SIZE)) {
+      printk(KERN_ERR "xms: ioctl set_memory requires page-aligned pointer (%p)\n", params.vaddr);
+      return r;
+    }
+
+    return set_memory_type(params.vaddr, params.size, params.type);
+  }
+  else if(ioctl == IOCTL_CMD_GETPHYS) {
     IOCTL_GETPHYS_param params;
+    int rc;
+    
+    rc = copy_from_user(&params,
+                        ((IOCTL_GETPHYS_param *) arg),
+                        sizeof(IOCTL_GETPHYS_param));
 
-    copy_from_user(&params,
-                   ((IOCTL_GETPHYS_param *) arg),
-                   sizeof(IOCTL_GETPHYS_param));
-
-    if(!access_ok(VERIFY_WRITE, params.out_paddr, sizeof(params.out_paddr))) {
-      printk(KERN_ERR "xms: dev_ioctl passed invalid out_data param");
+    if((rc > 0) || (!access_ok(VERIFY_WRITE, params.out_paddr, sizeof(params.out_paddr)))) {
+      printk(KERN_ERR "xms: dev_ioctl passed invalid out_data param\n");
       return r;
     }
     
@@ -71,6 +108,7 @@ static long xms_dev_ioctl(struct file *filp,
     }
 
     {
+      int rc;
       unsigned long huge_pfn = 0;
       pte_t* pte = walk_page_table(params.vaddr, &huge_pfn);
       
@@ -82,7 +120,10 @@ static long xms_dev_ioctl(struct file *filp,
         params.out_paddr = huge_pfn;
       }
       else {
-        if(pte == NULL) return r;
+        if(pte == NULL) {
+          printk(KERN_INFO "xms: result of walk (huge page) is null");
+          return r;
+        }
         params.out_paddr = pte_pfn(*pte) << PAGE_SHIFT;
       }
 
@@ -90,19 +131,24 @@ static long xms_dev_ioctl(struct file *filp,
       printk(KERN_INFO "xms: page %p->%lx",
              (void*) params.vaddr, params.out_paddr);
 #endif
-      copy_to_user(((IOCTL_GETPHYS_param *) arg),
-                   &params,
-                   sizeof(IOCTL_GETPHYS_param));
+
+      rc = copy_to_user(((IOCTL_GETPHYS_param *) arg),
+                        &params,
+                        sizeof(IOCTL_GETPHYS_param));
+      if(rc > 0) {
+        printk(KERN_ERR "xms: copy_to_user failed");
+      }
       return 0;
     }
   }
   else if(ioctl == IOCTL_CMD_GETBITMAP) {
+    int rc;
     IOCTL_GETBITMAP_param params;
-    copy_from_user(&params,
-                   ((IOCTL_GETBITMAP_param *) arg),
-                   sizeof(IOCTL_GETBITMAP_param));
-
-    if(!access_ok(VERIFY_WRITE, params.out_data, params.out_size)) {
+    rc = copy_from_user(&params,
+                        ((IOCTL_GETBITMAP_param *) arg),
+                        sizeof(IOCTL_GETBITMAP_param));
+    
+    if((rc > 0) || (!access_ok(VERIFY_WRITE, params.out_data, params.out_size))) {
       printk(KERN_ERR "xms: dev_ioctl passed invalid out_data param");
       return r;
     }
@@ -123,13 +169,51 @@ static long xms_dev_ioctl(struct file *filp,
       return r;
     }
 
-    copy_to_user(params.out_data, bitmap, bitmap_size);
+    rc = copy_to_user(params.out_data, bitmap, bitmap_size);
+    BUG_ON(rc > 0);
     kfree(bitmap);
     
     return 0;
   }
               
   return r;
+}
+
+static addr_t get_physical(void * vaddr)
+{
+  unsigned long huge_pfn = 0;
+  pte_t* pte = walk_page_table((unsigned long) vaddr, &huge_pfn);
+      
+  if(pte == NULL && huge_pfn > 0) {
+#ifdef DEBUG
+    printk(KERN_INFO "xms: huge %p->%lx", (void*) vaddr, huge_pfn);
+#endif
+    return huge_pfn;
+  }
+  else {
+    if(pte == NULL) return -EINVAL;
+    return (pte_pfn(*pte) << PAGE_SHIFT);
+  }
+  return -1;
+}
+  
+
+static int set_memory_type(void* vaddr, size_t size, memory_t type)
+{
+  addr_t paddr = get_physical(vaddr);
+  unsigned num_pages = size / PAGE_SIZE;
+  
+  printk(KERN_INFO "set_memory_type: %p %lu %u (%u pages)\n", vaddr, size, type, num_pages);
+  printk(KERN_INFO "set_memory_type: phys=0x%lx\n", paddr);
+
+  if(type == MEMORY_UC) {
+    /* int ret; */
+    /* ret = reserve_memtype(paddr, paddr + num_pages * PAGE_SIZE, */
+    /*                       _PAGE_CACHE_MODE_UC_MINUS, NULL); */
+    //    ret = reserve_memtype(
+    //    rc = set_memory_uc(paddr, num_pages);
+  }
+  return 0;
 }
 
 static int xms_dev_release(struct inode *inode, struct file *file)
@@ -164,8 +248,12 @@ static void vm_close(struct vm_area_struct *vma)
 {
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,13,0)
 static int vm_fault(struct vm_area_struct *area, 
                     struct vm_fault *fdata)
+#else
+  static int vm_fault(struct vm_fault *vmf)
+#endif
 {
   return VM_FAULT_SIGBUS;
 }
@@ -183,13 +271,33 @@ static struct vm_operations_struct mmap_fops = {
  */
 static int fop_mmap(struct file *file, struct vm_area_struct *vma)
 {
+  unsigned long type;
+  addr_t phys;
+  
   if(vma->vm_end < vma->vm_start)
     return -EINVAL;
 
   /* TODO: PRIV check!!!! */
-  
+
+#ifdef DEBUG
+  printk(KERN_DEBUG "fop_mmap: flags=%lx offset=%lx\n", vma->vm_flags, vma->vm_pgoff);
+#endif
+  type = (vma->vm_pgoff >> 48);
+  phys = (vma->vm_pgoff & 0xffffffffffffULL);
+
+#ifdef DEBUG
+  printk(KERN_DEBUG "fop_mmap: type=%lx phys=%lx\n", type, phys);
+#endif
   //  unsigned long offset = vma->vm_pgoff * PAGE_SIZE;
 
+  if(type == 1) {
+    vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot); /* uncached */
+    printk(KERN_DEBUG "fop_mmap: set non-cached\n");
+  }
+  else if(type == 2) {
+    vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot); /* uncached */
+    printk(KERN_DEBUG "fop_mmap: set write-combined\n");
+  }
   /* PDBG("file->private_data = %p",file->private_data); */
 
   //vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot); /* disable cache */
@@ -209,7 +317,7 @@ static int fop_mmap(struct file *file, struct vm_area_struct *vma)
 
   if (remap_pfn_range(vma, 
                       vma->vm_start,
-                      vma->vm_pgoff, // passed through physical address 
+                      phys, //vma->vm_pgoff, // passed through physical address 
                       vma->vm_end - vma->vm_start,
                       vma->vm_page_prot)) {
     printk(KERN_ERR "remap_pfn_range failed.");
@@ -217,7 +325,7 @@ static int fop_mmap(struct file *file, struct vm_area_struct *vma)
   }
 
 #ifdef DEBUG
-  printk(KERN_INFO "xms: mmap virt=%lx pgoff=%lx", vma->vm_start, vma->vm_pgoff);
+  printk(KERN_INFO "xms: mmap virt=%lx pgoff=%lx\n", vma->vm_start, vma->vm_pgoff);
 #endif
 
   vma->vm_ops = &mmap_fops;

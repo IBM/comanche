@@ -1,8 +1,8 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
-include(../../../../mk/common.cmake)
+include($ENV{COMANCHE_HOME}/mk/common.cmake)
 
-project(blob-big-tests CXX)
+project(blob-tests CXX)
 
 include_directories(../../)
 include_directories(../../../components/api/)
@@ -18,6 +18,6 @@ add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 # Including extra cmake rules
 #include(../../../../mk/clang-dev-tools.cmake)
 
-add_executable(blob-big-test1 test1.cpp)
-target_link_libraries(blob-big-test1 numa gtest pthread common dl comanche-blobbig)
-target_compile_features(blob-big-test1 PRIVATE cxx_range_for)
+add_executable(blob-test1 test1.cpp)
+target_link_libraries(blob-test1 numa gtest pthread common dl comanche-blob)
+target_compile_features(blob-test1 PRIVATE cxx_range_for)

@@ -1,0 +1,11 @@
+Run
+---
+
+Debugging:
+
+./fuse-append -d ./foo
+
+Unmount
+-------
+
+fusermount -u ./mymount

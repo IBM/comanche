@@ -90,6 +90,11 @@ class cpu_mask_t
     }
   }
 
+  void clear()
+  {
+    CPU_ZERO(&cpu_set_);
+  }
+  
   size_t size()
   {
     return sizeof(cpu_set_t);

@@ -8,6 +8,9 @@ Daniel Waddington (daniel.waddington@ibm.com)
 
 ## [v0.2.0]
 
+## 2017-12
+### Changed
+- Posix block device component now supports callback functions.
 ## 2017-11
 ### Added
 - Initial RDMA network component (net/rdma)

@@ -116,7 +116,7 @@ TEST_F(Append_store_test, Instantiate)
   IStore_factory * fact = (IStore_factory *) comp->query_interface(IStore_factory::iid());
 
   ASSERT_TRUE(_block);
-  _store = fact->create("testowner","teststore",_block, FLAGS_FORMAT);
+  _store = fact->create("testowner","teststore","./",_block, FLAGS_FORMAT);
   ASSERT_TRUE(_store);
   
   fact->release_ref();

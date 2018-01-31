@@ -158,9 +158,17 @@ public:
    * Get device identifier
    * 
    * 
-   * @return 
+   * @return Volume description
    */
   const char * get_device_id();
+
+  /** 
+   * Get PCI identifier
+   * 
+   * 
+   * @return PCI identifier
+   */
+  const char * get_pci_id();
 
   /**
    * Low-level format of the device
@@ -297,6 +305,7 @@ public:
     std::lock_guard<std::mutex> g(_qm_state.lock);
     _qm_state.ring_list[core] = ring;
     _qm_state.launched++;
+    wmb();
     PLOG("registering queue message ring (core=%u) : %p", core, ring);
   }
 
@@ -326,6 +335,9 @@ public:
 #endif
   }
 
+  size_t queue_count() const {
+    return _queues.size();
+  }
 
 private:
   /* we managed descriptors at the device level because there is 
@@ -342,7 +354,7 @@ private:
   {
     std::mutex       lock;
     struct rte_ring* ring_list[MAX_IO_QUEUES];
-    unsigned         launched;
+    unsigned         launched = 0;
   } _qm_state;
 
   
@@ -354,13 +366,16 @@ private:
    */
   void initialize(const char *device_id);
   struct spdk_nvme_ns *  get_namespace(uint32_t namespace_id);
-    
+
   int                            _mode; /**< operation mode */
   bool                           _exit_io_threads;
   bool                           _activate_io_threads;
   std::vector<Nvme_queue *>      _queues;
+  std::vector<unsigned>          _cores;
   struct probed_device           _probed_device;
   unsigned                       _default_core = 0;
+  std::string                    _pci_id;
+  std::string                    _volume_id;
 };
 
 
