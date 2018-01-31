@@ -35,7 +35,7 @@ make
 cmake -DCMAKE_BUILD_TYPE=Debug .
 ```
 
-For mem leak checking - ASAN may hang block-nvme:
+Other build options:
 
 ```bash
 cmake -DCMAKE_BUILD_TYPE=ASAN .
