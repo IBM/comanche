@@ -74,6 +74,7 @@ public:
                 _iob,
                 0,
                 0/*queue*/);
+    return _iob_virt;
   }
 
   Component::io_buffer_t& iob() { return _iob; }
@@ -161,6 +162,9 @@ static int fuse_append_open(const char *path, struct fuse_file_info *fi)
 {
   TRACE();
 
+  if(g_state.store->check_path(path) == 0)
+    return -ENOENT;
+
   File_handle * fh;
 
   try {
@@ -168,7 +172,6 @@ static int fuse_append_open(const char *path, struct fuse_file_info *fi)
     fi->fh = reinterpret_cast<uint64_t>(fh);
   }
   catch(General_exception excp) {
-    PERR("eeek!");
     return -ENOENT;
   }
   PLOG("open OK!");
@@ -180,13 +183,20 @@ static int fuse_append_open(const char *path, struct fuse_file_info *fi)
   return 0;
 }
 
-static int fuse_append_read(const char *path, char *buf, size_t size, off_t offset,
+static int fuse_append_read(const char *path,
+                            char *buf,
+                            size_t size,
+                            off_t offset,
                             struct fuse_file_info *fi)
 {
-  PLOG("read: size=%lu offset=%lu", size, offset);
+  PLOG("read: path=%s size=%lu offset=%lu", path, size, offset);
   size_t len;
 
+  if(g_state.store->check_path(path) == 0)
+    return -ENOENT;
+  
   assert(fi->fh);
+
   File_handle * fh = reinterpret_cast<File_handle*>(fi->fh);
   fh->read(offset, size);
   memcpy(buf, fh->buffer(), size); /* perform memory copy for the moment */
@@ -194,6 +204,15 @@ static int fuse_append_read(const char *path, char *buf, size_t size, off_t offs
   return size;
 }
 
+static int fuse_append_access(const char *, int)
+{
+  return 0;
+}
+
+static int fuse_append_flush(const char *, struct fuse_file_info *)
+{
+  return 0;
+}
 /** 
  * End of fuse hooks -----------------------------------------------------------
  * 
@@ -304,7 +323,8 @@ int main(int argc, char *argv[])
   fuse_append_oper.readdir = fuse_append_readdir;
   fuse_append_oper.open    = fuse_append_open;
   fuse_append_oper.read    = fuse_append_read;
-
+  fuse_append_oper.access  = fuse_append_access;
+  fuse_append_oper.flush   = fuse_append_flush;
   
   return fuse_main(args.argc, args.argv, &fuse_append_oper, NULL);
 }

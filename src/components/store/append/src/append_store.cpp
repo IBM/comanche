@@ -648,6 +648,26 @@ size_t Append_store::fetch_metadata(const std::string filter_expr,
   return rc;
 }
 
+uint64_t Append_store::check_path(const std::string path)
+{
+  std::stringstream sqlss;
+  int rc = 0;
+  
+  sqlss << "SELECT rowid FROM " << _table_name;
+  sqlss << " WHERE ID=" << path;
+  sqlss << ";";
+
+  std::string sql = sqlss.str();
+  PLOG("SQL:(%s)", sql.c_str());
+  sqlite3_stmt * stmt;
+  rc = sqlite3_prepare_v2(db_handle(), sql.c_str(), sql.size(), &stmt, nullptr);
+
+  if(sqlite3_step(stmt) != SQLITE_DONE) {
+    return sqlite3_column_int64(stmt, 0);
+  }
+  else return 0;
+}
+
 
 status_t Append_store::flush()
 {
