@@ -237,6 +237,15 @@ public:
    */
   virtual size_t fetch_metadata(const std::string filter_expr,
                                 std::vector<std::pair<std::string,std::string> >& out_metadata) = 0;
+
+  /** 
+   * Determine if a path is valid.
+   * 
+   * @param path Path
+   * 
+   * @return Row id, or 0 on invalid path
+   */
+  virtual uint64_t check_path(const std::string path) = 0;
   
   /** 
    * Dump debugging information

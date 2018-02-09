@@ -3,9 +3,10 @@ Run
 
 Debugging:
 
-./fuse-append -d ./foo
+./fuse-append -d ./mymount
 
 Unmount
 -------
 
 fusermount -u ./mymount
+
