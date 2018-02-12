@@ -294,7 +294,6 @@ status_t Append_store::put(std::string key,
 {
   assert(_block);
   assert(data_len > 0);
-  assert(data);
 
   if(_read_only) {
     assert(0);
@@ -305,46 +304,52 @@ status_t Append_store::put(std::string key,
   size_t n_blocks;
   lba_t start_lba;
 
-  start_lba = _hdr.allocate(data_len, n_blocks); /* allocate contiguous segment of blocks */
-
-  if(option_DEBUG)
-    PLOG("[+] Append-store: append %ld bytes at block=%ld Used blocks=%ld/%ld", data_len,
-         start_lba,
-         start_lba+n_blocks,
-         _vi.block_count); 
-
-  auto iob = _phys_mem_allocator.allocate_io_buffer(round_up(data_len,_vi.block_size),
-                                                    DMA_ALIGNMENT_BYTES,
-                                                    NUMA_NODE_ANY);
-  assert(iob);
-  
-  memcpy(_phys_mem_allocator.virt_addr(iob), data, data_len);
+  /* allocate contiguous segment of blocks */
+  start_lba = _hdr.allocate(data_len, n_blocks); 
 
 #ifdef __clang__
   static thread_local Semaphore sem;
 #else
   static __thread Semaphore sem;
 #endif
+
+  Component::io_buffer_t iob;
   
-  /* issue aync */
-  _block->async_write(iob,
-                      0,
-                      start_lba, /* append store header */
-                      n_blocks,
-                      queue_id,
-                      [](uint64_t gwid, void* arg0, void* arg1)
-                      {
-                        ((Semaphore *)arg0)->post();
-                      },
-                      (void*) &sem);
+  if(data) { /* if data == NULL we don't write out, just reserve */
+    if(option_DEBUG)
+      PLOG("[+] Append-store: append %ld bytes at block=%ld Used blocks=%ld/%ld", data_len,
+           start_lba,
+           start_lba+n_blocks,
+           _vi.block_count); 
+
+    iob = _phys_mem_allocator.allocate_io_buffer(round_up(data_len,_vi.block_size),
+                                                      DMA_ALIGNMENT_BYTES,
+                                                      NUMA_NODE_ANY);
+    assert(iob);
+  
+    memcpy(_phys_mem_allocator.virt_addr(iob), data, data_len);
+  
+    /* issue aync */
+    _block->async_write(iob,
+                        0,
+                        start_lba, /* append store header */
+                        n_blocks,
+                        queue_id,
+                        [](uint64_t gwid, void* arg0, void* arg1)
+                        {
+                          ((Semaphore *)arg0)->post();
+                        },
+                        (void*) &sem);
+  }
 
   /* write metadata */
   insert_row(key, metadata, start_lba, n_blocks);
 
-  /* wait for io to complete */
-  sem.wait();
-
-  _phys_mem_allocator.free_io_buffer(iob);
+  if(data) {
+    /* wait for io to complete */
+    sem.wait();
+    _phys_mem_allocator.free_io_buffer(iob);
+  }
   
   return S_OK;
 }
@@ -654,8 +659,7 @@ uint64_t Append_store::check_path(const std::string path)
   int rc = 0;
   
   sqlss << "SELECT rowid FROM " << _table_name;
-  sqlss << " WHERE ID=" << path;
-  sqlss << ";";
+  sqlss << " WHERE ID='" << path << "';";
 
   std::string sql = sqlss.str();
   PLOG("SQL:(%s)", sql.c_str());
@@ -772,7 +776,8 @@ status_t Append_store::get(uint64_t rowid,
     PWRN("Append_store:get call with too smaller IO buffer");    
     return E_INSUFFICIENT_SPACE;
   }
-
+  
+  assert(data_len > 0);
   _lower_layer->read(iob,
                      offset,
                      data_lba,
@@ -788,8 +793,9 @@ status_t Append_store::get(const std::string key,
                            int queue_id)
 {
   std::stringstream sqlss;
-  sqlss << "SELECT * FROM " << _table_name << " WHERE ID='" << key << "';";
+  sqlss << "SELECT LBA, NBLOCKS FROM " << _table_name << " WHERE ID='" << key << "';";
   std::string sql = sqlss.str();
+  PLOG("%s",sql.c_str());
 
   if(offset % _vi.block_size)
     throw API_exception("offset must be aligned with block size");
@@ -797,18 +803,19 @@ status_t Append_store::get(const std::string key,
   sqlite3_stmt * stmt;
   sqlite3_prepare_v2(db_handle(), sql.c_str(), sql.size(), &stmt, nullptr);
   int s = sqlite3_step(stmt);
-  int64_t data_lba = sqlite3_column_int64(stmt, 1);
-  int64_t data_len = sqlite3_column_int64(stmt, 2);
+  int64_t data_lba = sqlite3_column_int64(stmt, 0);
+  int64_t data_len = sqlite3_column_int64(stmt, 1);
   sqlite3_finalize(stmt);
-  if(option_DEBUG) {
+  if(option_DEBUG || 1) {
     PLOG("get(key=%s) --> lba=%ld len=%ld", key.c_str(), data_lba, data_len);
   }
 
   if((_lower_layer->get_size(iob) - offset) < (data_len * _vi.block_size)) {
-    PWRN("Append_store:get call with too smaller IO buffer");    
+    PWRN("Append_store:get call with too smaller (%lu KB) IO buffer", REDUCE_KB(_lower_layer->get_size(iob)));    
     return E_INSUFFICIENT_SPACE;
   }
-
+  assert(data_len > 0);
+  
   _lower_layer->read(iob,
                      offset,
                      data_lba,
