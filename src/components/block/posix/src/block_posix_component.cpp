@@ -413,7 +413,7 @@ read(Component::io_buffer_t buffer,
          (void*)buffer, buffer_offset, lba, lba_count);
 
   if(lba_count == 0)
-    throw API_exception("bad parameter");
+    throw API_exception("bad lba_count parameter");
   
   void * ptr = (void*) (reinterpret_cast<char*>(buffer) + buffer_offset);
   size_t nbytes = lba_count * IO_BLOCK_SIZE;

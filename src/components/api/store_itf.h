@@ -40,11 +40,11 @@ public:
    * 
    * @param key 
    * @param metadata 
-   * @param data 
+   * @param data Pointer to data, set to NULL to reserve only.
    * @param data_len 
    * @param queue_id [optional] Queue identifier
    * 
-   * @return 
+   * @return S_OK on success
    */
   virtual status_t put(std::string key,
                        std::string metadata,
