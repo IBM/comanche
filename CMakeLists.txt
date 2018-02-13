@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.5)
 
 
 project(kivati)
+set(CMAKE_INSTALL_PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/install)
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/lib/common)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/lib/core)
