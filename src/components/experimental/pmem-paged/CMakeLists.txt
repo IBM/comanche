@@ -7,9 +7,6 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O2")
 
 project(comanche-pmempaged CXX)
 
-include_directories(../../components/)
-include_directories(../../lib/common/include)
-include_directories(../../lib/core/include)
 link_directories(../../lib/common)
 link_directories(../../../lib)
 

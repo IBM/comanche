@@ -1,13 +1,8 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
-include(${CMAKE_CURRENT_SOURCE_DIR}/../../mk/common.cmake)
 
 project(paging-tracker CXX)
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../src/)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../src/components/)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../src/lib/common/include)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../src/lib/core/include)
 link_directories(/usr/local/lib)
 link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../lib/)
 #link_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/)

@@ -2,7 +2,6 @@ cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
 project(cuda-dma LANGUAGES CXX)
 
-include($ENV{COMANCHE_HOME}/mk/common.cmake)
 
 #set(CMAKE_CUDA_COMPILER /usr/local/cuda-8.0/bin/nvcc)
 #set(CUDA_TOOLKIT_ROOT_DIR /usr/local/cuda-8.0/)
@@ -21,8 +20,6 @@ message(STATUS "Cuda cublas libraries  : ${CUDA_CUBLAS_LIBRARIES}")
 
 cuda_include_directories($ENV{COMANCHE_HOME}/deps/gdrcopy/)
 cuda_include_directories($ENV{COMANCHE_HOME}/src/components/)
-cuda_include_directories($ENV{COMANCHE_HOME}/src/lib/common/include)
-cuda_include_directories($ENV{COMANCHE_HOME}/src/lib/core/include)
 
 # build cuda code into static library
 

@@ -1,6 +1,5 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
-include(${CMAKE_CURRENT_SOURCE_DIR}/../../../mk/common.cmake)
 
 add_subdirectory(./unit_test)
 # We statically compile in the DPDK and SPDK into this module
@@ -44,8 +43,6 @@ link_directories(../../../lib)
 set(CMAKE_INCLUDE_CURRENT_DIR true)
 include_directories(./include)
 include_directories(./include/core)
-include_directories(../../components)
-include_directories(../common/include)
 include_directories(../../../deps/dpdk/include/dpdk)
 include_directories(../../../deps/spdk/include)
 
