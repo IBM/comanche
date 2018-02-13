@@ -13,7 +13,7 @@
 #include <stddef.h>
 #include <unistd.h>
 #include <assert.h>
-
+#include <sys/xattr.h>
 #include <common/str_utils.h>
 #include <core/dpdk.h>
 
@@ -58,7 +58,8 @@ struct {
 class File_handle
 {
 public:
-  File_handle(const std::string id, Component::IStore * store) : _store(store), _id(id) {
+  File_handle(const std::string id, Component::IStore * store) :
+    _store(store), _id(id) {
     assert(store);
     _iob = g_state.block->allocate_io_buffer(KB(4),KB(4),NUMA_NODE_ANY);
     _iob_virt = g_state.block->virt_addr(_iob);
@@ -69,16 +70,19 @@ public:
   }
 
   void* read(uint64_t offset, size_t size) {
+    TRACE();
     assert(size <= KB(4));
     _store->get(_id,
                 _iob,
                 0,
                 0/*queue*/);
+    return _iob_virt;
   }
 
   Component::io_buffer_t& iob() { return _iob; }
 
   inline void * buffer() const { return _iob_virt; }
+
 private:
   const std::string      _id;
   Component::IStore *    _store;
@@ -118,16 +122,30 @@ static int fuse_append_getattr(const char *path, struct stat *stbuf)
 {
   int res = 0;
   memset(stbuf, 0, sizeof(struct stat));
-  if (strcmp(path, "/") == 0) {
-    stbuf->st_mode = S_IFDIR | 0755;
-    stbuf->st_nlink = 2;
-  }
-  else {
-    stbuf->st_mode = S_IFREG | 0444;
-    stbuf->st_nlink = 1;
-    stbuf->st_size = strlen(options.contents);
-  } 
+
+  if(g_state.store->check_path(path) == 0)
+    return -ENOENT;
+
+  stbuf->st_mode = S_IFREG | 0444;
+  stbuf->st_nlink = 1;
+  stbuf->st_size = strlen(options.contents);
+
   return res;
+}
+
+static int fuse_append_create(const char * filename,
+                              mode_t mode,
+                              struct fuse_file_info * fi)
+{
+  PLOG("create: %s", filename);
+  g_state.store->put(filename, "none", nullptr, MB(8));
+  return 0;
+}
+
+static int fuse_append_unlink(const char * filename)
+{
+  PLOG("unlink: %s", filename);
+  return 0;
 }
 
 static int fuse_append_readdir(const char *path,
@@ -161,14 +179,16 @@ static int fuse_append_open(const char *path, struct fuse_file_info *fi)
 {
   TRACE();
 
+  if(g_state.store->check_path(path) == 0)
+    return -ENOENT;
+
   File_handle * fh;
 
   try {
-    fh = new File_handle(std::string(path+1), g_state.store);
+    fh = new File_handle(std::string(path), g_state.store);
     fi->fh = reinterpret_cast<uint64_t>(fh);
   }
   catch(General_exception excp) {
-    PERR("eeek!");
     return -ENOENT;
   }
   PLOG("open OK!");
@@ -180,18 +200,74 @@ static int fuse_append_open(const char *path, struct fuse_file_info *fi)
   return 0;
 }
 
-static int fuse_append_read(const char *path, char *buf, size_t size, off_t offset,
+static int fuse_append_read(const char *path,
+                            char *buf,
+                            size_t size,
+                            off_t offset,
                             struct fuse_file_info *fi)
 {
-  PLOG("read: size=%lu offset=%lu", size, offset);
+  PLOG("read: path=%s size=%lu offset=%lu", path, size, offset);
   size_t len;
 
+  if(g_state.store->check_path(path) == 0)
+    return -ENOENT;
+  
   assert(fi->fh);
+
   File_handle * fh = reinterpret_cast<File_handle*>(fi->fh);
   fh->read(offset, size);
   memcpy(buf, fh->buffer(), size); /* perform memory copy for the moment */
 
   return size;
+}
+
+static int fuse_append_access(const char *, int)
+{
+  return 0;
+}
+
+static int fuse_append_flush(const char *, struct fuse_file_info *)
+{
+  return 0;
+}
+
+static int fuse_append_release(const char* path, struct fuse_file_info *fi)
+{
+  PLOG("release (%s)", path);
+  return 0;  
+}
+
+static int fuse_append_setxattr(const char* path,
+                                const char* name,
+                                const char* value,
+                                size_t size,
+                                int flags)
+{
+  PLOG("setxttr (%s,%s,%s)", path, name, value);
+  return -1;
+}
+
+
+static int fuse_append_getxattr(const char * path,
+                                const char *name,
+                                char * value, size_t size)
+{
+  PLOG("getxttr (%s,%s,%s)", path, name, value);
+  //  memset(value, 0, size);
+  return -ENODATA;
+}
+
+
+static int fuse_append_truncate(const char *, off_t)
+{
+  TRACE();
+  return 0;
+}
+
+static int fuse_append_utimens(const char* path, const timespec*)
+{
+  TRACE();
+  return 0;
 }
 
 /** 
@@ -254,13 +330,14 @@ static IStore * create_append_store(IBlock_device * block)
   fact->release_ref();
 
   // test put
-  {
-    std::string data = Common::random_string(128);
-    store->put(Common::random_string(8), "metadata", (void*) data.c_str(), data.length());
-  }
+  // {
+  //   std::string data = Common::random_string(128);
+  //   store->put(Common::random_string(8), "metadata", (void*) data.c_str(), data.length());
+  // }
 
   return store;
 }
+
 
 
 static void show_help(const char *progname)
@@ -304,7 +381,15 @@ int main(int argc, char *argv[])
   fuse_append_oper.readdir = fuse_append_readdir;
   fuse_append_oper.open    = fuse_append_open;
   fuse_append_oper.read    = fuse_append_read;
-
+  fuse_append_oper.access  = fuse_append_access;
+  fuse_append_oper.flush   = fuse_append_flush;
+  fuse_append_oper.create   = fuse_append_create;
+  fuse_append_oper.unlink   = fuse_append_unlink;
+  fuse_append_oper.getxattr = fuse_append_getxattr;
+  fuse_append_oper.setxattr = fuse_append_setxattr;
+  fuse_append_oper.release = fuse_append_release;
+  fuse_append_oper.truncate = fuse_append_truncate;
+  fuse_append_oper.utimens = fuse_append_utimens;
   
   return fuse_main(args.argc, args.argv, &fuse_append_oper, NULL);
 }
