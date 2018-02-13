@@ -1,6 +1,5 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
-include(${CMAKE_CURRENT_SOURCE_DIR}/../../../mk/common.cmake)
 
 project(common CXX)
 enable_language(CXX C ASM)

@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
+include(mk/common.cmake)
 
 
 project(kivati)
