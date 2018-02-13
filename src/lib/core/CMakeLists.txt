@@ -7,9 +7,9 @@ add_subdirectory(./unit_test)
 #
 project(comanche-core CXX)
 enable_language(CXX C ASM)
-  
-set(DPDK_DIR ENV{COMANCHE_HOME}/deps/dpdk/)
-set(SPDK_DIR ENV{COMANCHE_HOME}/deps/spdk/)
+
+set(DPDK_DIR "$ENV{COMANCHE_HOME}/deps/dpdk/")
+set(SPDK_DIR "$ENV{COMANCHE_HOME}/deps/spdk/")
 
 # DPDK library
 find_library(EXTLIB_DPDK libdpdk.a HINTS "${DPDK_DIR}/lib")
