@@ -255,7 +255,7 @@ void Append_store::execute_sql(const std::string& sql, bool print_callback_flag)
   }
 
   char *zErrMsg = 0;
-  unsigned remaining_retries = 10000;
+  unsigned remaining_retries = 1000000;
 
   while(remaining_retries > 0) {
     int rc;
