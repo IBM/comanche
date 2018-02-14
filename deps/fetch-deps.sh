@@ -16,18 +16,6 @@ jumpto $start
 
 start:
 
-echo "Fetching Nanomsg ..."
-git clone https://github.com/nanomsg/nanomsg.git
-cd nanomsg ; git checkout tags/1.0.0
-cd nanomsg ; ./configure && make ; sudo make install
-cd $BASE
-
-echo "Fetching Google protobuf..."
-wget https://github.com/google/protobuf/releases/download/v3.0.0/protobuf-cpp-3.0.0.tar.gz
-tar -xvf protobuf-cpp-3.0.0.tar.gz
-cd protobuf-3.0.0/ ; ./configure ; make ; sudo make install
-cd $BASE
-
 dpdk:
 echo "Fetching DPDK v17.08 ..."
 rm -f dpdk-17.08*
@@ -56,12 +44,6 @@ cp ../spdk-extras/build.sh .
 ./build.sh
 cd $BASE
 
-#jumpto end # TEMPORARY!
-
-# Now part of repo
-#echo "Cloning Micron/UNVMe ..."
-#git clone https://github.com/MicronSSD/unvme.git
-#cd $BASE
 city:
 echo "Cloning CityHash ..."
 git clone https://github.com/google/cityhash.git
@@ -69,6 +51,40 @@ cd cityhash
 ./configure && make
 sudo make install
 cd $BASE
+
+echo "Cloning Google test framework (v1.8.0) ..."
+git clone https://github.com/google/googletest.git
+cd googletest
+git checkout tags/release-1.8.0
+cmake . && make
+sudo make install
+cd $BASE
+
+echo "Cloning Flatbuffers ..."
+git clone https://github.com/google/flatbuffers.git
+cd flatbuffers
+cmake . && make
+sudo make install
+cd $BASE
+
+# END OF MANDATORT DEPS
+jumpto end
+
+nanomsg:
+echo "Fetching Nanomsg ..."
+git clone https://github.com/nanomsg/nanomsg.git
+cd nanomsg ; git checkout tags/1.0.0
+cd nanomsg ; ./configure && make ; sudo make install
+cd $BASE
+jumpto end
+
+protobuf:
+echo "Fetching Google protobuf..."
+wget https://github.com/google/protobuf/releases/download/v3.0.0/protobuf-cpp-3.0.0.tar.gz
+tar -xvf protobuf-cpp-3.0.0.tar.gz
+cd protobuf-3.0.0/ ; ./configure ; make ; sudo make install
+cd $BASE
+jumpto end
 
 messaging:
 echo "Cloning libsodium..."
@@ -79,6 +95,7 @@ cd libsodium
 sudo make install
 sudo ldconfig
 cd $BASE
+jumpto end
 
 echo "Cloning libzmq..."
 git clone git://github.com/zeromq/libzmq.git
@@ -88,6 +105,7 @@ cd libzmq
 sudo make install
 sudo ldconfig
 cd $BASE
+jumpto end
 
 echo "Cloning CZMQ..."
 git clone git://github.com/zeromq/czmq.git
@@ -97,6 +115,7 @@ cd czmq
 sudo make install
 sudo ldconfig
 cd $BASE
+jumpto end
 
 echo "Cloning libcurve..."
 git clone git://github.com/zeromq/libcurve.git
@@ -106,14 +125,6 @@ sh autogen.sh
 ./configure && make check
 sudo make install
 sudo ldconfig
-cd $BASE
-
-echo "Cloning Google test framework (v1.8.0) ..."
-git clone https://github.com/google/googletest.git
-cd googletest
-git checkout tags/release-1.8.0
-cmake . && make
-sudo make install
 cd $BASE
 
 # glog:
