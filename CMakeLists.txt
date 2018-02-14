@@ -1,8 +1,13 @@
 cmake_minimum_required(VERSION 3.5)
 include(mk/common.cmake)
 
+if(NOT DEFINED ENV{COMANCHE_HOME})
+  message(SEND_ERROR "COMANCHE_HOME is not defined")
+  return()
+endif()
 
-project(kivati)
+
+project(comanche)
 set(CMAKE_INSTALL_PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/install)
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/lib/common)
