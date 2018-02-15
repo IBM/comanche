@@ -96,6 +96,7 @@ TEST_F(Core_test, Postbox)
     Core::UIPC::Shared_memory sm("zimbar", 1);
     sleep(1);
     Core::Mpmc_postbox<uint64_t> pbox(sm.get_addr(), sizeof(uint64_t) * 64, true);
+    
 
     auto started = std::chrono::high_resolution_clock::now();
     for(uint64_t i=0;i<ITERATIONS;i++) {
