@@ -136,7 +136,7 @@ public:
   
   virtual ~Shared_memory();
 
-  void * get_addr();
+  void * get_addr(size_t offset = 0);
 
   size_t get_size_in_pages() const { return _size_in_pages; }
   size_t get_size() const { return _size_in_pages * PAGE_SIZE; }
