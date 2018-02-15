@@ -80,8 +80,8 @@ class Page_state_bitmap
    */
   Page_state_bitmap()
   {
-    _fd = open("/dev/kivati", O_RDWR);  // requires kivati kernel module
-    if (_fd == -1) throw Constructor_exception("unable to open /dev/kivati - check module is loaded.");
+    _fd = open("/dev/xms", O_RDWR);  // requires kivati kernel module
+    if (_fd == -1) throw Constructor_exception("unable to open /dev/xms - check module is loaded.");
   }
 
   virtual ~Page_state_bitmap()
