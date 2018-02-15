@@ -41,7 +41,7 @@
 #include <nanomsg/nn.h>
 #include <nanomsg/reqrep.h>
 
-namespace kivati
+namespace Core
 {
 /** 
    * IPC server helper class
@@ -52,7 +52,7 @@ class IPC_server
 {
  private:
   static const auto     MAX_MSG_SIZE = 1024;
-  static constexpr bool option_DEBUG = false;
+  static constexpr bool option_DEBUG = true;
   std::string           _url;
 
  public:
@@ -277,4 +277,4 @@ class IPC_client
 
 #endif
 
-#endif  // __KIVATI_IPC__
+#endif  // __COMANCHE_IPC__
