@@ -134,8 +134,8 @@ public:
         T val = _slots[next];
         PLOG("found something %lu", val);
 
-        int64_t goo = __sync_fetch_and_add(&_slots[next], 1);
-        PLOG("goo = %ld", goo);
+        // int64_t goo = __sync_fetch_and_add(&_slots[next], 1);
+        // PLOG("goo = %ld", goo);
         if(__sync_bool_compare_and_swap((unsigned long long *) &_slots[next], (unsigned long long) val, 0))  {
           _slots[next] = 0;
           out_val = val;
@@ -145,6 +145,7 @@ public:
         }
         else {
           PLOG("but CAS failed");
+          sleep(1);
         }
       }
       attempts++;
@@ -212,10 +213,10 @@ public:
 
   
 private:
-  volatile T*       _slots;         /* points to shared memory */
-  unsigned _num_slots = 0; /* these members will be in separate memory areas */
-  unsigned _next_free = 0;
-  unsigned _next_to_collect = 0;
+  volatile T* _slots;         /* points to shared memory */
+  unsigned    _num_slots = 0; /* these members will be in separate memory areas */
+  unsigned    _next_free = 0;
+  unsigned    _next_to_collect = 0;
   
 } __attribute__((packed));
 
