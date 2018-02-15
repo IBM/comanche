@@ -12,6 +12,9 @@
 #include <core/uipc.h>
 #include <core/postbox.h>
 
+//#define TEST_UIPC
+#define TEST_POSTBOX
+
 namespace {
 
 // The fixture for testing class Foo.
@@ -37,7 +40,7 @@ class Core_test : public ::testing::Test {
 
 bool client_side = false;
 
-#if 0
+#ifdef TEST_UIPC
 TEST_F(Core_test, UIPC)
 {
   unsigned long ITERATIONS = 10000000;
@@ -80,15 +83,16 @@ TEST_F(Core_test, UIPC)
 }
 #endif
 
+#ifdef TEST_POSTBOX
 TEST_F(Core_test, Postbox)
 {
-  //#define CHECK
+#define CHECK
 #ifdef CHECK
   unsigned long ITERATIONS = 1000;
 #else
   unsigned long ITERATIONS = 10000000;
 #endif
-  if(fork()) {
+  if(fork()) { /* fork */
     Core::UIPC::Shared_memory sm("zimbar", 1);
     sleep(1);
     Core::Mpmc_postbox<uint64_t> pbox(sm.get_addr(), sizeof(uint64_t) * 64, true);
@@ -96,7 +100,7 @@ TEST_F(Core_test, Postbox)
     auto started = std::chrono::high_resolution_clock::now();
     for(uint64_t i=0;i<ITERATIONS;i++) {
       if(pbox.post(i+1)) {
-        //        PLOG("posted %lu", i+1);
+        PLOG("posted %lu", i+1);
       }
       else {
         i--;
@@ -144,7 +148,7 @@ TEST_F(Core_test, Postbox)
   wait(&status);
   
 }
-
+#endif
 
 
 } // namespace

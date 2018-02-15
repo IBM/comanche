@@ -61,7 +61,7 @@ public:
   File_handle(const std::string id, Component::IStore * store) :
     _store(store), _id(id) {
     assert(store);
-    _iob = g_state.block->allocate_io_buffer(KB(4),KB(4),NUMA_NODE_ANY);
+    _iob = g_state.block->allocate_io_buffer(MB(32),KB(4),NUMA_NODE_ANY);
     _iob_virt = g_state.block->virt_addr(_iob);
   }
 
@@ -70,14 +70,22 @@ public:
   }
 
   void* read(uint64_t offset, size_t size) {
-    TRACE();
-    assert(size <= KB(4));
     _store->get(_id,
                 _iob,
                 0,
                 0/*queue*/);
     return _iob_virt;
   }
+    
+  void write(const char * data, size_t size, uint64_t offset) {
+    memcpy(_iob_virt, data, size);
+    _store->put(_id,
+                "none",
+                _iob,
+                offset,
+                0/*queue*/);
+  }
+
 
   Component::io_buffer_t& iob() { return _iob; }
 
@@ -94,7 +102,7 @@ private:
 static void *fuse_append_init(struct fuse_conn_info *conn)
 {
 
-  DPDK::eal_init(32);
+  DPDK::eal_init(1024);
   PLOG("fuse_append: DPDK init OK.");
 
 #ifdef USE_NVME_DEVICE
@@ -269,6 +277,20 @@ static int fuse_append_utimens(const char* path, const timespec*)
   TRACE();
   return 0;
 }
+static int fuse_append_fallocate(const char * path, int, off_t, off_t, struct fuse_file_info *)
+{
+  TRACE();
+  return 0;
+}
+
+static int fuse_append_write(const char* path, const char *buf, size_t size, off_t offset, struct fuse_file_info* fi)
+{
+  PLOG("write: (%s, %lu, %lu)", path, size, offset);
+  File_handle * fh = reinterpret_cast<File_handle*>(fi->fh);
+  fh->write(buf, size, offset);
+  
+  return 0;
+}
 
 /** 
  * End of fuse hooks -----------------------------------------------------------
@@ -310,7 +332,7 @@ static IBlock_device * create_posix_block_device(const std::string path)
   //  config_string += "/dev/nvme0n1";1
   config_string += path; //"./blockfile.dat";
   //  config_string += "\"}";
-  config_string += "\",\"size_in_blocks\":10000}";
+  config_string += "\",\"size_in_blocks\":20000}";
 
   auto block = fact->create(config_string);
   assert(block);
@@ -381,6 +403,7 @@ int main(int argc, char *argv[])
   fuse_append_oper.readdir = fuse_append_readdir;
   fuse_append_oper.open    = fuse_append_open;
   fuse_append_oper.read    = fuse_append_read;
+  fuse_append_oper.write    = fuse_append_write;
   fuse_append_oper.access  = fuse_append_access;
   fuse_append_oper.flush   = fuse_append_flush;
   fuse_append_oper.create   = fuse_append_create;
@@ -390,6 +413,6 @@ int main(int argc, char *argv[])
   fuse_append_oper.release = fuse_append_release;
   fuse_append_oper.truncate = fuse_append_truncate;
   fuse_append_oper.utimens = fuse_append_utimens;
-  
+  fuse_append_oper.fallocate = fuse_append_fallocate;
   return fuse_main(args.argc, args.argv, &fuse_append_oper, NULL);
 }

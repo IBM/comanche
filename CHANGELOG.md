@@ -6,11 +6,22 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 Daniel Waddington (daniel.waddington@ibm.com)
 
+## 2018-2
+- FUSE integration
 ## [v0.2.0]
 
 ## 2017-12
 ### Changed
 - Posix block device component now supports callback functions.
+## 2017-11-06
+#### changed
+- use CMAKE_SOURCE_DIR for out-of-tree build
+#### added
+- a wiki page on configuring qemu with nvme support with libvirt, [here](https://github.com/fengggli/comanche/wiki/vm)
+#### note
+- before running fetch-deps.sh
+    export MAKEFLAGS="-j 8"
+- uuid-dev is required by spdk build
 ## 2017-11
 ### Added
 - Initial RDMA network component (net/rdma)
