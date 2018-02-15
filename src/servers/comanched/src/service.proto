@@ -1,0 +1,77 @@
+syntax = "proto2";
+package ipc_protocol;
+
+
+/* option optimize_for = LITE_RUNTIME; */
+enum MessageType {
+  __Ack = 100;
+  __CreateSessionRequest = 1;
+  __CreateSessionReply = 2;
+  __ShutdownSessionRequest = 3;
+  __ReleaseSessionRequest = 4;
+}
+
+enum SessionType {
+  FastSharedMemoryIPC = 2;
+  SharedIOSlab = 3;
+}
+
+/* Common header */
+message Header {
+  required fixed32 type = 1; /* all messages have this field */
+  required string auth_id = 2;
+  required string auth_token = 3;
+  optional uint32 debug_code = 4;
+}
+
+/* Type 1 */
+message CreateSessionRequest
+{
+  required Header hdr = 1;
+  required SessionType session_type = 2;
+  optional string slab_id = 3;
+  optional uint64 memory_size = 4;
+  optional uint64 storage_size = 5;
+  optional uint64 virtual_size = 6;
+}
+
+/* Type 2 */
+message CreateSessionReply
+{
+  required Header hdr = 1;
+  required int64 status = 2;
+  required string session_id = 3;
+  optional fixed64 phys_addr = 4;
+  optional fixed64 virt_addr = 5;
+  optional fixed64 storage_addr = 6;
+  optional fixed32 foobar = 7;
+  optional bool reconstructed = 8;
+  optional uint64 phys_size = 9;
+  optional string path = 10;
+  optional uint64 offset = 11;
+  optional uint32 block_size = 12;
+}
+
+/* Type 3 */
+message ShutdownSession
+{
+  required Header hdr = 1;
+}
+
+/* Type 4 */
+message ReleaseSessionRequest
+{
+  required Header hdr = 1;
+  required SessionType session_type = 2;
+  required string session_id = 3;
+}
+
+/* Type 100 */
+message Ack
+{
+  required Header hdr = 1;
+  required sint32 code = 2;
+}
+  
+
+  
