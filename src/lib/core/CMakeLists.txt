@@ -8,8 +8,11 @@ add_subdirectory(./unit_test)
 project(comanche-core CXX)
 enable_language(CXX C ASM)
 
+set(GCC_COVERAGE_COMPILE_FLAGS "-mrdrnd")
 set(DPDK_DIR "$ENV{COMANCHE_HOME}/deps/dpdk/")
 set(SPDK_DIR "$ENV{COMANCHE_HOME}/deps/spdk/")
+
+add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -mrdrnd)
 
 # DPDK library
 find_library(EXTLIB_DPDK libdpdk.a HINTS "${DPDK_DIR}/lib")

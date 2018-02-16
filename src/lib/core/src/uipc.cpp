@@ -205,9 +205,12 @@ Shared_memory::~Shared_memory()
   }
 }
 
-void * Shared_memory::get_addr()
+void * Shared_memory::get_addr(size_t offset)
 {
-  return _vaddr;
+  if(offset >> (_size_in_pages * PAGE_SIZE))
+    throw API_exception("invalid offset parameter");
+  
+  return reinterpret_cast<void *>(((addr_t)_vaddr) + offset);
 }
 
 void Shared_memory::open_shared_memory(std::string name, bool master)
