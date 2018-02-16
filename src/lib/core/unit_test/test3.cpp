@@ -13,7 +13,6 @@
 #include <core/postbox.h>
 
 #include <core/rlf_bitmap.h>
-#include <core/rlf_slab.h>
 
 namespace {
 
