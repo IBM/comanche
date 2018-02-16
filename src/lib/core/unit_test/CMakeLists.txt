@@ -25,11 +25,15 @@ add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG -mrdrnd)
 # Including extra cmake rules
 #include(../../../../mk/clang-dev-tools.cmake)
 
-add_executable(core-test3 test3.cpp)
-target_link_libraries(core-test3 common numa gtest pthread dl comanche-core)
-target_compile_features(core-test3 PRIVATE cxx_range_for)
-
+add_executable(core-test1 test1.cpp)
+target_link_libraries(core-test1 common numa gtest pthread dl comanche-core)
+target_compile_features(core-test1 PRIVATE cxx_range_for)
 
 add_executable(core-test2 test2.cpp)
 target_link_libraries(core-test2 common numa gtest pthread dl comanche-core)
 target_compile_features(core-test2 PRIVATE cxx_range_for)
+
+add_executable(core-test3 test3.cpp)
+target_link_libraries(core-test3 common numa gtest pthread dl comanche-core)
+target_compile_features(core-test3 PRIVATE cxx_range_for)
+
