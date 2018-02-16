@@ -12,6 +12,13 @@ public:
   {
   }
 
+  void allocate_dma_memory(size_t size)
+  {
+    using namespace ipc_protocol;
+
+    AllocDmaMemory msg;
+  }
+
   void session_request()
   {
     using namespace ipc_protocol;

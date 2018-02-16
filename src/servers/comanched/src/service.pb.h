@@ -38,6 +38,7 @@ void protobuf_AssignDesc_service_2eproto();
 void protobuf_ShutdownFile_service_2eproto();
 
 class Ack;
+class AllocDmaMemory;
 class CreateSessionReply;
 class CreateSessionRequest;
 class Header;
@@ -49,7 +50,8 @@ enum MessageType {
   __CreateSessionRequest = 1,
   __CreateSessionReply = 2,
   __ShutdownSessionRequest = 3,
-  __ReleaseSessionRequest = 4
+  __ReleaseSessionRequest = 4,
+  __AllocDmaMemory = 5
 };
 bool MessageType_IsValid(int value);
 const MessageType MessageType_MIN = __CreateSessionRequest;
@@ -67,8 +69,8 @@ inline bool MessageType_Parse(
     MessageType_descriptor(), name, value);
 }
 enum SessionType {
-  FastSharedMemoryIPC = 1,
-  SharedIOSlab = 2
+  FastSharedMemoryIPC = 2,
+  SharedIOSlab = 3
 };
 bool SessionType_IsValid(int value);
 const SessionType SessionType_MIN = FastSharedMemoryIPC;
@@ -812,6 +814,124 @@ class ReleaseSessionRequest : public ::google::protobuf::Message /* @@protoc_ins
 };
 // -------------------------------------------------------------------
 
+class AllocDmaMemory : public ::google::protobuf::Message /* @@protoc_insertion_point(class_definition:ipc_protocol.AllocDmaMemory) */ {
+ public:
+  AllocDmaMemory();
+  virtual ~AllocDmaMemory();
+
+  AllocDmaMemory(const AllocDmaMemory& from);
+
+  inline AllocDmaMemory& operator=(const AllocDmaMemory& from) {
+    CopyFrom(from);
+    return *this;
+  }
+
+  inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const {
+    return _internal_metadata_.unknown_fields();
+  }
+
+  inline ::google::protobuf::UnknownFieldSet* mutable_unknown_fields() {
+    return _internal_metadata_.mutable_unknown_fields();
+  }
+
+  static const ::google::protobuf::Descriptor* descriptor();
+  static const AllocDmaMemory& default_instance();
+
+  void Swap(AllocDmaMemory* other);
+
+  // implements Message ----------------------------------------------
+
+  inline AllocDmaMemory* New() const { return New(NULL); }
+
+  AllocDmaMemory* New(::google::protobuf::Arena* arena) const;
+  void CopyFrom(const ::google::protobuf::Message& from);
+  void MergeFrom(const ::google::protobuf::Message& from);
+  void CopyFrom(const AllocDmaMemory& from);
+  void MergeFrom(const AllocDmaMemory& from);
+  void Clear();
+  bool IsInitialized() const;
+
+  int ByteSize() const;
+  bool MergePartialFromCodedStream(
+      ::google::protobuf::io::CodedInputStream* input);
+  void SerializeWithCachedSizes(
+      ::google::protobuf::io::CodedOutputStream* output) const;
+  ::google::protobuf::uint8* InternalSerializeWithCachedSizesToArray(
+      bool deterministic, ::google::protobuf::uint8* output) const;
+  ::google::protobuf::uint8* SerializeWithCachedSizesToArray(::google::protobuf::uint8* output) const {
+    return InternalSerializeWithCachedSizesToArray(false, output);
+  }
+  int GetCachedSize() const { return _cached_size_; }
+  private:
+  void SharedCtor();
+  void SharedDtor();
+  void SetCachedSize(int size) const;
+  void InternalSwap(AllocDmaMemory* other);
+  private:
+  inline ::google::protobuf::Arena* GetArenaNoVirtual() const {
+    return _internal_metadata_.arena();
+  }
+  inline void* MaybeArenaPtr() const {
+    return _internal_metadata_.raw_arena_ptr();
+  }
+  public:
+
+  ::google::protobuf::Metadata GetMetadata() const;
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  // required .ipc_protocol.Header hdr = 1;
+  bool has_hdr() const;
+  void clear_hdr();
+  static const int kHdrFieldNumber = 1;
+  const ::ipc_protocol::Header& hdr() const;
+  ::ipc_protocol::Header* mutable_hdr();
+  ::ipc_protocol::Header* release_hdr();
+  void set_allocated_hdr(::ipc_protocol::Header* hdr);
+
+  // required uint64 pid = 2;
+  bool has_pid() const;
+  void clear_pid();
+  static const int kPidFieldNumber = 2;
+  ::google::protobuf::uint64 pid() const;
+  void set_pid(::google::protobuf::uint64 value);
+
+  // required uint64 size = 3;
+  bool has_size() const;
+  void clear_size();
+  static const int kSizeFieldNumber = 3;
+  ::google::protobuf::uint64 size() const;
+  void set_size(::google::protobuf::uint64 value);
+
+  // @@protoc_insertion_point(class_scope:ipc_protocol.AllocDmaMemory)
+ private:
+  inline void set_has_hdr();
+  inline void clear_has_hdr();
+  inline void set_has_pid();
+  inline void clear_has_pid();
+  inline void set_has_size();
+  inline void clear_has_size();
+
+  // helper for ByteSize()
+  int RequiredFieldsByteSizeFallback() const;
+
+  ::google::protobuf::internal::InternalMetadataWithArena _internal_metadata_;
+  ::google::protobuf::uint32 _has_bits_[1];
+  mutable int _cached_size_;
+  ::ipc_protocol::Header* hdr_;
+  ::google::protobuf::uint64 pid_;
+  ::google::protobuf::uint64 size_;
+  friend void  protobuf_AddDesc_service_2eproto();
+  friend void protobuf_AssignDesc_service_2eproto();
+  friend void protobuf_ShutdownFile_service_2eproto();
+
+  void InitAsDefaultInstance();
+  static AllocDmaMemory* default_instance_;
+};
+// -------------------------------------------------------------------
+
 class Ack : public ::google::protobuf::Message /* @@protoc_insertion_point(class_definition:ipc_protocol.Ack) */ {
  public:
   Ack();
@@ -1141,7 +1261,7 @@ inline void CreateSessionRequest::clear_has_session_type() {
   _has_bits_[0] &= ~0x00000002u;
 }
 inline void CreateSessionRequest::clear_session_type() {
-  session_type_ = 1;
+  session_type_ = 2;
   clear_has_session_type();
 }
 inline ::ipc_protocol::SessionType CreateSessionRequest::session_type() const {
@@ -1760,7 +1880,7 @@ inline void ReleaseSessionRequest::clear_has_session_type() {
   _has_bits_[0] &= ~0x00000002u;
 }
 inline void ReleaseSessionRequest::clear_session_type() {
-  session_type_ = 1;
+  session_type_ = 2;
   clear_has_session_type();
 }
 inline ::ipc_protocol::SessionType ReleaseSessionRequest::session_type() const {
@@ -1826,6 +1946,102 @@ inline void ReleaseSessionRequest::set_allocated_session_id(::std::string* sessi
   }
   session_id_.SetAllocatedNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), session_id);
   // @@protoc_insertion_point(field_set_allocated:ipc_protocol.ReleaseSessionRequest.session_id)
+}
+
+// -------------------------------------------------------------------
+
+// AllocDmaMemory
+
+// required .ipc_protocol.Header hdr = 1;
+inline bool AllocDmaMemory::has_hdr() const {
+  return (_has_bits_[0] & 0x00000001u) != 0;
+}
+inline void AllocDmaMemory::set_has_hdr() {
+  _has_bits_[0] |= 0x00000001u;
+}
+inline void AllocDmaMemory::clear_has_hdr() {
+  _has_bits_[0] &= ~0x00000001u;
+}
+inline void AllocDmaMemory::clear_hdr() {
+  if (hdr_ != NULL) hdr_->::ipc_protocol::Header::Clear();
+  clear_has_hdr();
+}
+inline const ::ipc_protocol::Header& AllocDmaMemory::hdr() const {
+  // @@protoc_insertion_point(field_get:ipc_protocol.AllocDmaMemory.hdr)
+  return hdr_ != NULL ? *hdr_ : *default_instance_->hdr_;
+}
+inline ::ipc_protocol::Header* AllocDmaMemory::mutable_hdr() {
+  set_has_hdr();
+  if (hdr_ == NULL) {
+    hdr_ = new ::ipc_protocol::Header;
+  }
+  // @@protoc_insertion_point(field_mutable:ipc_protocol.AllocDmaMemory.hdr)
+  return hdr_;
+}
+inline ::ipc_protocol::Header* AllocDmaMemory::release_hdr() {
+  // @@protoc_insertion_point(field_release:ipc_protocol.AllocDmaMemory.hdr)
+  clear_has_hdr();
+  ::ipc_protocol::Header* temp = hdr_;
+  hdr_ = NULL;
+  return temp;
+}
+inline void AllocDmaMemory::set_allocated_hdr(::ipc_protocol::Header* hdr) {
+  delete hdr_;
+  hdr_ = hdr;
+  if (hdr) {
+    set_has_hdr();
+  } else {
+    clear_has_hdr();
+  }
+  // @@protoc_insertion_point(field_set_allocated:ipc_protocol.AllocDmaMemory.hdr)
+}
+
+// required uint64 pid = 2;
+inline bool AllocDmaMemory::has_pid() const {
+  return (_has_bits_[0] & 0x00000002u) != 0;
+}
+inline void AllocDmaMemory::set_has_pid() {
+  _has_bits_[0] |= 0x00000002u;
+}
+inline void AllocDmaMemory::clear_has_pid() {
+  _has_bits_[0] &= ~0x00000002u;
+}
+inline void AllocDmaMemory::clear_pid() {
+  pid_ = GOOGLE_ULONGLONG(0);
+  clear_has_pid();
+}
+inline ::google::protobuf::uint64 AllocDmaMemory::pid() const {
+  // @@protoc_insertion_point(field_get:ipc_protocol.AllocDmaMemory.pid)
+  return pid_;
+}
+inline void AllocDmaMemory::set_pid(::google::protobuf::uint64 value) {
+  set_has_pid();
+  pid_ = value;
+  // @@protoc_insertion_point(field_set:ipc_protocol.AllocDmaMemory.pid)
+}
+
+// required uint64 size = 3;
+inline bool AllocDmaMemory::has_size() const {
+  return (_has_bits_[0] & 0x00000004u) != 0;
+}
+inline void AllocDmaMemory::set_has_size() {
+  _has_bits_[0] |= 0x00000004u;
+}
+inline void AllocDmaMemory::clear_has_size() {
+  _has_bits_[0] &= ~0x00000004u;
+}
+inline void AllocDmaMemory::clear_size() {
+  size_ = GOOGLE_ULONGLONG(0);
+  clear_has_size();
+}
+inline ::google::protobuf::uint64 AllocDmaMemory::size() const {
+  // @@protoc_insertion_point(field_get:ipc_protocol.AllocDmaMemory.size)
+  return size_;
+}
+inline void AllocDmaMemory::set_size(::google::protobuf::uint64 value) {
+  set_has_size();
+  size_ = value;
+  // @@protoc_insertion_point(field_set:ipc_protocol.AllocDmaMemory.size)
 }
 
 // -------------------------------------------------------------------
@@ -1901,6 +2117,8 @@ inline void Ack::set_code(::google::protobuf::int32 value) {
 }
 
 #endif  // !PROTOBUF_INLINE_NOT_IN_HEADERS
+// -------------------------------------------------------------------
+
 // -------------------------------------------------------------------
 
 // -------------------------------------------------------------------

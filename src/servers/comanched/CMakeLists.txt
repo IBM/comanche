@@ -14,13 +14,14 @@ add_custom_command(
   WORKING_DIRECTORY ./src)
 
 add_custom_command(
-  OUTPUT src/service.pb.h
+  OUTPUT src/service.pb.cc
   PRE_BUILD
-  COMMAND protoc --cpp_out-./src ./src/service.proto
-  DEPENDS "src/service.proto"
+  COMMAND protoc --cpp_out=. -I${CMAKE_CURRENT_BINARY_DIR}/src ${CMAKE_CURRENT_BINARY_DIR}/src/service.proto
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/src/service.proto
   WORKING_DIRECTORY ./src)
 
-add_custom_target(proto ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/src/protocol_generated.h)
+#add_custom_target(proto ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/src/protocol_generated.h)
+add_custom_target(proto ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/src/service.pb.cc)
 
 add_executable(comanched src/main.cpp src/service.cpp src/service.pb.cc)
 target_link_libraries(comanched ${ASAN_LIB} common comanche-core numa pthread dl z boost_system boost_program_options nanomsg protobuf)

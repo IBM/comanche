@@ -9,7 +9,9 @@ enum MessageType {
   __CreateSessionReply = 2;
   __ShutdownSessionRequest = 3;
   __ReleaseSessionRequest = 4;
+  __AllocDmaMemory = 5;
 }
+
 
 enum SessionType {
   FastSharedMemoryIPC = 2;
@@ -64,6 +66,15 @@ message ReleaseSessionRequest
   required Header hdr = 1;
   required SessionType session_type = 2;
   required string session_id = 3;
+}
+
+
+/* Type 5 */
+message AllocDmaMemory
+{
+  required Header hdr = 1;
+  required uint64 pid = 2;
+  required uint64 size = 3;  
 }
 
 /* Type 100 */
