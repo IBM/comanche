@@ -47,6 +47,7 @@ public:
                                                        region_id,
                                                        vaddr,
                                                        reused);
+    
     if(!bd) throw General_exception("%s: region exhausted", __PRETTY_FUNCTION__);
     _table.push_back({vaddr,vaddr+(bs*nblocks)-1,bd});
     PLOG("Range-tracker: reuse-or-allocate result 0x%lx-0x%lx %p",vaddr,vaddr+(bs*nblocks)-1,bd);

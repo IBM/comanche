@@ -16,7 +16,7 @@
 #include <api/pager_itf.h>
 #include <api/pmem_itf.h>
 
-#define USE_SPDK_NVME_DEVICE // use SPDK-NVME or POSIX-NVME
+//#define USE_SPDK_NVME_DEVICE // use SPDK-NVME or POSIX-NVME
 
 #define DO_INTEGRITY
 #define DO_STRESS_MEMORY
@@ -67,7 +67,7 @@ TEST_F(Pmem_paged_test, InstantiateBlockDevice)
 
   cpu_mask_t mask;
   mask.add_core(2);
-  _block = fact->create("8b:00.0", &mask);
+  _block = fact->create("81:00.0", &mask);
 
   assert(_block);
   fact->release_ref();
@@ -112,7 +112,7 @@ TEST_F(Pmem_paged_test, InstantiatePager)
   assert(comp);
   IPager_factory * fact = static_cast<IPager_factory *>(comp->query_interface(IPager_factory::iid()));
   assert(fact);
-  _pager = fact->create(NUM_PAGER_PAGES,"unit-test-heap",_block);
+  _pager = fact->create(NUM_PAGER_PAGES,"unit-test-heap",_block, true /* force init */);
   assert(_pager);
 
   PINF("Pager-simple component loaded OK.");
@@ -146,7 +146,8 @@ struct data_t {
 #ifdef DO_INTEGRITY
 TEST_F(Pmem_paged_test, IntegrityCheck)
 {
-  size_t msize = KB(4) * 64; //MB(2) * 1;
+  //size_t msize = KB(4) * 64; // works OK.
+  size_t msize = KB(4) * 1024; // broken!
   size_t n_elements = msize / sizeof(uint64_t);
   unsigned long ITERATIONS = 1000000UL;
   uint64_t * p = nullptr;
@@ -185,8 +186,7 @@ TEST_F(Pmem_paged_test, IntegrityCheck)
   }
   PMAJOR("> Zero verification OK!");
 
-  #if 1
-  //  srand(rdtsc());
+  /* integrity test */
   for(unsigned long i=0;i<ITERATIONS;i++) {
     uint64_t slot = rand() % n_elements;
     if(p[slot] != 0 && p[slot] != slot) {
@@ -199,7 +199,6 @@ TEST_F(Pmem_paged_test, IntegrityCheck)
       PLOG("Integrity iteration: %lu", i);
     }
   }
-  #endif
 
   PLOG("Closing pmem handle");
   _pmem->close(handle);
