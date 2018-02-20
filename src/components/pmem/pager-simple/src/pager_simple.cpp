@@ -26,8 +26,8 @@ using namespace Component;
 class Range_tracker
 {
 public:
-  Range_tracker(IRegion_manager * rm, std::string owner,std::string heap_set_id) :
-    _rm(rm), _owner(owner), _heap_set_id(heap_set_id)
+  Range_tracker(IRegion_manager * rm, std::string owner,std::string heap_set_id, size_t max_nr_pages) :
+    _rm(rm), _owner(owner), _heap_set_id(heap_set_id), max_nr_pages(max_nr_pages)
   {
     assert(_rm);
     _rm->add_ref();   
@@ -41,6 +41,12 @@ public:
     uint64_t nblocks = size / bs;
     if(size % bs) nblocks++;
 
+    /* are there enough backed phys pages? */
+    if(nblocks > max_nr_pages){
+        throw General_exception("%s: requested nr_pages(0x%lx) > nr_phs_pages (0x%lx)",
+                            __PRETTY_FUNCTION__, nblocks, max_nr_pages);
+    }
+    
     addr_t vaddr;
     IBlock_device * bd = _rm->reuse_or_allocate_region(nblocks,
                                                        _owner,
@@ -88,6 +94,7 @@ private:
   std::string _owner;
   std::string _heap_set_id;
   std::vector<range_t> _table;
+  size_t max_nr_pages; // max nr_pages, decided by the backed blk device
 };
 
 Simple_pager_component::
@@ -121,7 +128,7 @@ Simple_pager_component(size_t nr_pages,
   init_memory(nr_pages);
 
   /* initialize range tracker */
-  _tracker = new Range_tracker(_rm, "myTiger", heap_set_id);
+  _tracker = new Range_tracker(_rm, "myTiger", heap_set_id, nr_pages);
 
   PINF("Part-region component loaded OK.");
 }
