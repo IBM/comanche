@@ -40,7 +40,6 @@ include_directories(./src/lwip/src/include)
 include_directories(./src/lwip)
 include_directories(../)
 include_directories(../../components/api/)
-include_directories(../../lib/common/include)
 
 link_directories(../../lib/common)
 link_directories(../../../lib)
