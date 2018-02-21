@@ -9,5 +9,6 @@ add_subdirectory (fs)
 add_subdirectory (allocator)
 add_subdirectory (store)
 add_subdirectory (metadata)
+add_subdirectory (net)
 
 

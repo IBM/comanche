@@ -117,6 +117,25 @@ public:
    */
   virtual void dump_info() = 0;
 
+  /** 
+   * Check if metadata entry exists
+   * 
+   * @param id 
+   * @param owner 
+   * @param out_size [output] Size in bytes of entity
+   * 
+   * @return True if entry exists
+   */
+  virtual bool check_exists(const std::string& id, const std::string& owner, size_t& out_size) = 0;
+
+  /** 
+   * Get string form of metadata for a given index
+   * 
+   * @param index Entry index
+   * 
+   * @return String version of metadata
+   */
+  virtual std::string get_metadata(index_t index) = 0;
 };
 
 

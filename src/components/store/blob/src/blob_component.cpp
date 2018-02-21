@@ -1,4 +1,5 @@
 #include <common/exceptions.h>
+#include <common/errors.h>
 #include <core/dpdk.h>
 #include <string.h>
 
@@ -354,6 +355,22 @@ Blob_component::show_state(std::string filter)
   // }
 }
 
+bool Blob_component::check_key(const std::string& key, size_t& out_size)
+{
+  return _metadata->check_exists(key, "", out_size);
+}
+
+void Blob_component::get_metadata_vector(const std::string& filter,
+                                         std::vector<std::string>& out_vector)
+{
+  IMetadata::iterator_t i = _metadata->open_iterator(filter);
+  index_t index;
+  std::string md;
+  uint64_t lba, lba_count;
+  while(_metadata->iterator_get(i, index, md, &lba, &lba_count) == S_OK) {
+    out_vector.push_back(md);
+  }
+}
 
 void
 Blob_component::instantiate_components()
@@ -439,6 +456,7 @@ Blob_component::instantiate_components()
     _allocator = fact->open_allocator(_pmem_allocator,
                                       data_nblocks,
                                       "block-alloc-ut",
+                                      0, /* numa node */
                                       _flags);  
     fact->release_ref();
     assert(_allocator);
