@@ -68,8 +68,8 @@ TEST_F(Block_nvme_test, InstantiateBlockDevice)
 
   IBlock_device_factory * fact = (IBlock_device_factory *) comp->query_interface(IBlock_device_factory::iid());
   cpu_mask_t cpus;
-  cpus.add_core(24);
-  cpus.add_core(25);
+  cpus.add_core(2);
+  //  cpus.add_core(25);
 
   _block = fact->create(opt.pci.c_str(), &cpus);
   

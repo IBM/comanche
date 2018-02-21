@@ -1,9 +1,9 @@
 /*
-  FUSE: Filesystem in Userspace wrapper for Append-Store
+  FUSE: Filesystem in Userspace wrapper for Ustack-Store
 */
 #define FUSE_USE_VERSION 26
 //#define USE_NVME_DEVICE
-#define DB_LOCATION "/home/danielwaddington/comanche/src/fuse/append"
+#define DB_LOCATION "/home/danielwaddington/comanche/src/fuse/ustack"
 
 #include <fuse.h>
 #include <stdio.h>
@@ -16,10 +16,14 @@
 #include <sys/xattr.h>
 #include <common/str_utils.h>
 #include <core/dpdk.h>
+#include <rapidjson/document.h>
 
 #include <api/components.h>
 #include <api/store_itf.h>
+#include <api/block_itf.h>
+#include <api/blob_itf.h>
 
+#include "ustack.h"
 
 using namespace Component;
 /*
@@ -46,44 +50,41 @@ static const struct fuse_opt option_spec[] = {
   FUSE_OPT_END
 };
 
-static IBlock_device * create_nvme_block_device(const std::string device_name);
-static IBlock_device * create_posix_block_device(const std::string path);
-static IStore * create_append_store(IBlock_device * block);
 
-struct {
-  IBlock_device * block = nullptr;
-  IStore *        store = nullptr;
-} g_state;
+Ustack * ustack;
+
 
 class File_handle
 {
 public:
-  File_handle(const std::string id, Component::IStore * store) :
+  File_handle(const std::string id, Component::IBlob * store) :
     _store(store), _id(id) {
     assert(store);
-    _iob = g_state.block->allocate_io_buffer(MB(32),KB(4),NUMA_NODE_ANY);
-    _iob_virt = g_state.block->virt_addr(_iob);
+    _iob = ustack->block->allocate_io_buffer(MB(32),KB(4),NUMA_NODE_ANY);
+    _iob_virt = ustack->block->virt_addr(_iob);
+    //    _cursor = _store->open(id);
   }
 
   ~File_handle() {
-    g_state.block->free_io_buffer(_iob);
+    ustack->block->free_io_buffer(_iob);
   }
 
   void* read(uint64_t offset, size_t size) {
-    _store->get(_id,
-                _iob,
-                0,
-                0/*queue*/);
+    // _store->get(_id,
+    //             _iob,
+    //             0,
+    //             0/*queue*/);
+    assert(0);
     return _iob_virt;
   }
     
   void write(const char * data, size_t size, uint64_t offset) {
     memcpy(_iob_virt, data, size);
-    _store->put(_id,
-                "none",
-                _iob,
-                offset,
-                0/*queue*/);
+    // _store->put(_id,
+    //             "none",
+    //             _iob,
+    //             offset,
+    //             0/*queue*/);
   }
 
 
@@ -91,77 +92,86 @@ public:
 
   inline void * buffer() const { return _iob_virt; }
 
+  size_t size;
+  
 private:
+  Component::IBlob::cursor_t _cursor;
   const std::string      _id;
-  Component::IStore *    _store;
+  Component::IBlob *    _store;
   Component::io_buffer_t _iob;
   void *                 _iob_virt;
 };
   
 
-static void *fuse_append_init(struct fuse_conn_info *conn)
+static void *fuse_ustack_init(struct fuse_conn_info *conn)
 {
-
   DPDK::eal_init(1024);
-  PLOG("fuse_append: DPDK init OK.");
+  PLOG("fuse_ustack: DPDK init OK.");
 
-#ifdef USE_NVME_DEVICE
-  g_state.block = create_nvme_block_device("01:00.0");
-#else
-  g_state.block = create_posix_block_device("./block.dat");
-#endif
-
-  PLOG("fuse_append: block device %p", g_state.block);
-    
-  g_state.store = create_append_store(g_state.block);
-  assert(g_state.store);
+  ustack = new Ustack();
   
   return NULL;
 }
 
-static void fuse_append_destroy(void *private_data)
+static void fuse_ustack_destroy(void *private_data)
 {
   TRACE();
-  g_state.store->release_ref();
-  g_state.block->release_ref();
+
+  delete ustack;
 }
 
-static int fuse_append_getattr(const char *path, struct stat *stbuf)
+static int fuse_ustack_getattr(const char *path, struct stat *st)
 {
   int res = 0;
-  memset(stbuf, 0, sizeof(struct stat));
+  memset(st, 0, sizeof(struct stat));
+  st->st_uid = getuid();
+	st->st_gid = getgid();
+	st->st_atime = time( NULL );
+	st->st_mtime = time( NULL );
+  
+  PLOG("getattr: path=[%s]", path);
+  if(strcmp(path,"/") == 0) {
+    st->st_mode = S_IFDIR | 0755;
+		st->st_nlink = 2;
+    return res;
+  }
 
-  if(g_state.store->check_path(path) == 0)
+  size_t entity_size = 0;
+  if(ustack->store->check_key(path+1, entity_size) == 0) {
+    PLOG("no entity");
     return -ENOENT;
-
-  stbuf->st_mode = S_IFREG | 0444;
-  stbuf->st_nlink = 1;
-  stbuf->st_size = strlen(options.contents);
+  }
+  
+  st->st_mode = S_IFREG | 0444;
+  st->st_nlink = 2; /* number of hard links */
+  st->st_size = entity_size;
 
   return res;
 }
 
-static int fuse_append_create(const char * filename,
+static int fuse_ustack_create(const char * filename,
                               mode_t mode,
                               struct fuse_file_info * fi)
 {
+  TRACE();
   PLOG("create: %s", filename);
-  g_state.store->put(filename, "none", nullptr, MB(8));
+  //  ustack->store->put(filename, "none", nullptr, MB(8));
   return 0;
 }
 
-static int fuse_append_unlink(const char * filename)
+static int fuse_ustack_unlink(const char * filename)
 {
   PLOG("unlink: %s", filename);
   return 0;
 }
 
-static int fuse_append_readdir(const char *path,
+static int fuse_ustack_readdir(const char *path,
                                void *buf,
                                fuse_fill_dir_t filler,
                                off_t offset,
                                struct fuse_file_info *fi)
 {
+  using namespace rapidjson;
   TRACE();
   
   (void) offset;
@@ -170,10 +180,16 @@ static int fuse_append_readdir(const char *path,
   filler(buf, ".", NULL, 0);
   filler(buf, "..", NULL, 0);
 
-  auto last_record = g_state.store->get_record_count();
-  for(uint64_t r=1;r<=last_record ;r++) {
-    std::string md = g_state.store->get_metadata(r);
-    filler(buf, md.c_str(), NULL, 0);
+  std::vector<std::string> mdv;
+  ustack->store->get_metadata_vector("{\"id\":\".*\"}", mdv);
+
+  //  auto last_record = ustack->store->get_record_count();
+  //  for(uint64_t r=1;r<=last_record ;r++) {
+  for(auto& m : mdv) {
+    Document document;
+    document.Parse(m.c_str());
+    const char * id  = document["id"].GetString();
+    filler(buf, id, NULL, 0);
   }
   
   // //  filler(buf, options.filename, NULL, 0);
@@ -183,18 +199,20 @@ static int fuse_append_readdir(const char *path,
   return 0;
 }
 
-static int fuse_append_open(const char *path, struct fuse_file_info *fi)
+static int fuse_ustack_open(const char *path, struct fuse_file_info *fi)
 {
   TRACE();
 
-  if(g_state.store->check_path(path) == 0)
+  size_t size = 0;
+  if(ustack->store->check_key(path, size) == 0)
     return -ENOENT;
 
   File_handle * fh;
 
   try {
-    fh = new File_handle(std::string(path), g_state.store);
+    fh = new File_handle(std::string(path), ustack->store);
     fi->fh = reinterpret_cast<uint64_t>(fh);
+    fh->size = size;
   }
   catch(General_exception excp) {
     return -ENOENT;
@@ -208,7 +226,7 @@ static int fuse_append_open(const char *path, struct fuse_file_info *fi)
   return 0;
 }
 
-static int fuse_append_read(const char *path,
+static int fuse_ustack_read(const char *path,
                             char *buf,
                             size_t size,
                             off_t offset,
@@ -217,7 +235,8 @@ static int fuse_append_read(const char *path,
   PLOG("read: path=%s size=%lu offset=%lu", path, size, offset);
   size_t len;
 
-  if(g_state.store->check_path(path) == 0)
+  size_t entity_size = 0;
+  if(ustack->store->check_key(path, entity_size) == 0)
     return -ENOENT;
   
   assert(fi->fh);
@@ -229,23 +248,23 @@ static int fuse_append_read(const char *path,
   return size;
 }
 
-static int fuse_append_access(const char *, int)
+static int fuse_ustack_access(const char *, int)
 {
   return 0;
 }
 
-static int fuse_append_flush(const char *, struct fuse_file_info *)
+static int fuse_ustack_flush(const char *, struct fuse_file_info *)
 {
   return 0;
 }
 
-static int fuse_append_release(const char* path, struct fuse_file_info *fi)
+static int fuse_ustack_release(const char* path, struct fuse_file_info *fi)
 {
   PLOG("release (%s)", path);
   return 0;  
 }
 
-static int fuse_append_setxattr(const char* path,
+static int fuse_ustack_setxattr(const char* path,
                                 const char* name,
                                 const char* value,
                                 size_t size,
@@ -256,7 +275,7 @@ static int fuse_append_setxattr(const char* path,
 }
 
 
-static int fuse_append_getxattr(const char * path,
+static int fuse_ustack_getxattr(const char * path,
                                 const char *name,
                                 char * value, size_t size)
 {
@@ -266,24 +285,24 @@ static int fuse_append_getxattr(const char * path,
 }
 
 
-static int fuse_append_truncate(const char *, off_t)
+static int fuse_ustack_truncate(const char *, off_t)
 {
   TRACE();
   return 0;
 }
 
-static int fuse_append_utimens(const char* path, const timespec*)
+static int fuse_ustack_utimens(const char* path, const timespec*)
 {
   TRACE();
   return 0;
 }
-static int fuse_append_fallocate(const char * path, int, off_t, off_t, struct fuse_file_info *)
+static int fuse_ustack_fallocate(const char * path, int, off_t, off_t, struct fuse_file_info *)
 {
   TRACE();
   return 0;
 }
 
-static int fuse_append_write(const char* path, const char *buf, size_t size, off_t offset, struct fuse_file_info* fi)
+static int fuse_ustack_write(const char* path, const char *buf, size_t size, off_t offset, struct fuse_file_info* fi)
 {
   PLOG("write: (%s, %lu, %lu)", path, size, offset);
   File_handle * fh = reinterpret_cast<File_handle*>(fi->fh);
@@ -298,67 +317,6 @@ static int fuse_append_write(const char* path, const char *buf, size_t size, off
  */
 
 
-static IBlock_device * create_nvme_block_device(const std::string device_name)
-{
-  PLOG("creating nvme block device: %s", device_name.c_str());
-  
-  IBase * comp = load_component("libcomanche-blknvme.so",
-                                block_nvme_factory);
-  
-  assert(comp);
-  IBlock_device_factory * fact = (IBlock_device_factory *)
-    comp->query_interface(IBlock_device_factory::iid());
-  
-  cpu_mask_t cpus;
-  cpus.add_core(2);
-  
-  auto block = fact->create(device_name.c_str(), &cpus);
-  assert(block);
-  fact->release_ref();
-
-  return block;
-}
-
-static IBlock_device * create_posix_block_device(const std::string path)
-{
-  IBase * comp = load_component("libcomanche-blkposix.so",
-                                                      block_posix_factory);
-  assert(comp);
-  PLOG("Block_device factory loaded OK.");
-  
-  IBlock_device_factory * fact = (IBlock_device_factory *) comp->query_interface(IBlock_device_factory::iid());
-  std::string config_string;
-  config_string = "{\"path\":\"";
-  //  config_string += "/dev/nvme0n1";1
-  config_string += path; //"./blockfile.dat";
-  //  config_string += "\"}";
-  config_string += "\",\"size_in_blocks\":20000}";
-
-  auto block = fact->create(config_string);
-  assert(block);
-  fact->release_ref();
-  return block;
-}
-
-static IStore * create_append_store(IBlock_device * block)
-{
-  assert(block);
-  
-  IBase * comp = load_component("libcomanche-storeappend.so",
-                                Component::store_append_factory);
-  assert(comp);
-  IStore_factory * fact = (IStore_factory *) comp->query_interface(IStore_factory::iid());
-  auto store = fact->create(getlogin(), "teststore", DB_LOCATION, block, 0); //FLAGS_FORMAT);  
-  fact->release_ref();
-
-  // test put
-  // {
-  //   std::string data = Common::random_string(128);
-  //   store->put(Common::random_string(8), "metadata", (void*) data.c_str(), data.length());
-  // }
-
-  return store;
-}
 
 
 
@@ -366,10 +324,10 @@ static void show_help(const char *progname)
 {
   printf("usage: %s [options] <mountpoint>\n\n", progname);
   printf("File-system specific options:\n"
-         "    --name=<s>          Name of the \"fuse_append\" file\n"
-         "                        (default: \"fuse_append\")\n"
-         "    --contents=<s>      Contents \"fuse_append\" file\n"
-         "                        (default \"Fuse_Append, World!\\n\")\n"
+         "    --name=<s>          Name of the \"fuse_ustack\" file\n"
+         "                        (default: \"fuse_ustack\")\n"
+         "    --contents=<s>      Contents \"fuse_ustack\" file\n"
+         "                        (default \"Fuse_Ustack, World!\\n\")\n"
          "\n");
 }
 
@@ -380,8 +338,8 @@ int main(int argc, char *argv[])
   /* Set defaults -- we have to use strdup so that
      fuse_opt_parse can free the defaults if other
      values are specified */
-  options.filename = strdup("fuse_append");
-  options.contents = strdup("Fuse_Append World!\n");
+  options.filename = strdup("fuse_ustack");
+  options.contents = strdup("Ustack World!\n");
   /* Parse options */
   if (fuse_opt_parse(&args, &options, option_spec, NULL) == -1)
     return 1;
@@ -396,23 +354,23 @@ int main(int argc, char *argv[])
     args.argv[0] = (char*) "";
   }
   
-  static struct fuse_operations fuse_append_oper;
-  fuse_append_oper.init    = fuse_append_init;
-  fuse_append_oper.destroy = fuse_append_destroy;
-  fuse_append_oper.getattr = fuse_append_getattr;
-  fuse_append_oper.readdir = fuse_append_readdir;
-  fuse_append_oper.open    = fuse_append_open;
-  fuse_append_oper.read    = fuse_append_read;
-  fuse_append_oper.write    = fuse_append_write;
-  fuse_append_oper.access  = fuse_append_access;
-  fuse_append_oper.flush   = fuse_append_flush;
-  fuse_append_oper.create   = fuse_append_create;
-  fuse_append_oper.unlink   = fuse_append_unlink;
-  fuse_append_oper.getxattr = fuse_append_getxattr;
-  fuse_append_oper.setxattr = fuse_append_setxattr;
-  fuse_append_oper.release = fuse_append_release;
-  fuse_append_oper.truncate = fuse_append_truncate;
-  fuse_append_oper.utimens = fuse_append_utimens;
-  fuse_append_oper.fallocate = fuse_append_fallocate;
-  return fuse_main(args.argc, args.argv, &fuse_append_oper, NULL);
+  static struct fuse_operations fuse_ustack_oper;
+  fuse_ustack_oper.init    = fuse_ustack_init;
+  fuse_ustack_oper.destroy = fuse_ustack_destroy;
+  fuse_ustack_oper.getattr = fuse_ustack_getattr;
+  fuse_ustack_oper.readdir = fuse_ustack_readdir;
+  fuse_ustack_oper.open    = fuse_ustack_open;
+  fuse_ustack_oper.read    = fuse_ustack_read;
+  fuse_ustack_oper.write    = fuse_ustack_write;
+  fuse_ustack_oper.access  = fuse_ustack_access;
+  fuse_ustack_oper.flush   = fuse_ustack_flush;
+  fuse_ustack_oper.create   = fuse_ustack_create;
+  fuse_ustack_oper.unlink   = fuse_ustack_unlink;
+  fuse_ustack_oper.getxattr = fuse_ustack_getxattr;
+  fuse_ustack_oper.setxattr = fuse_ustack_setxattr;
+  fuse_ustack_oper.release = fuse_ustack_release;
+  fuse_ustack_oper.truncate = fuse_ustack_truncate;
+  fuse_ustack_oper.utimens = fuse_ustack_utimens;
+  fuse_ustack_oper.fallocate = fuse_ustack_fallocate;
+  return fuse_main(args.argc, args.argv, &fuse_ustack_oper, NULL);
 }

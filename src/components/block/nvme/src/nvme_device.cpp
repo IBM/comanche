@@ -509,7 +509,7 @@ Nvme_device::get_max_squeue_depth(uint32_t namespace_id)
 const char *
 Nvme_device::get_device_id()
 {
-  assert(_volume_id.empty() == false);
+  //  assert(_volume_id.empty() == false);
   return _volume_id.c_str();
 }
 

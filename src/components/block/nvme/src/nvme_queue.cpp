@@ -128,7 +128,7 @@ void Nvme_queue::submit_async_op_internal(IO_descriptor * desc)
 #endif
 
   // bounds check LBA
-  if (desc->lba + desc->lba_count >= _max_lba)
+  if (desc->lba + desc->lba_count > _max_lba)
     throw API_exception("lba out of bounds (lba=%lu, max=%lu)",desc->lba + desc->lba_count, _max_lba);
 
  retry_submission:

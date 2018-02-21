@@ -134,6 +134,26 @@ public:
    * @param filter 
    */
   virtual void show_state(std::string filter) = 0;
+
+  /** 
+   * Check if blob exists
+   * 
+   * @param key Name of blob
+   * @param out_size [output] Size of blob in bytes
+   * 
+   * @return True if blob exists
+   */
+  virtual bool check_key(const std::string& key, size_t& out_size) = 0;
+
+  /** 
+   * Get a vector of metadata 
+   * 
+   * @param filter Filter expression
+   * @param out_vector 
+   *
+   */
+  virtual void get_metadata_vector(const std::string& filter,
+                                   std::vector<std::string>& out_vector) = 0;
 };
 
 

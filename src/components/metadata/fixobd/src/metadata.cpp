@@ -1,5 +1,6 @@
 #include <iostream>
 #include <regex>
+#include <sstream>
 #include <rapidjson/rapidjson.h>
 #include <rapidjson/document.h>
 #include <api/metadata_itf.h>
@@ -12,7 +13,7 @@ using namespace rapidjson;
 
 Metadata::Metadata(Component::IBlock_device * block_device,
                    unsigned block_size,
-                   int flags)
+                   int flags) : _block_size(block_size)
 {
   if(!block_device || !block_size)
     throw Constructor_exception("Metadata::ctor bad param");
@@ -22,8 +23,10 @@ Metadata::Metadata(Component::IBlock_device * block_device,
 
   _block->get_volume_info(_vi);
 
-  if(option_DEBUG)
-    PLOG("Metadata: underlying block volume size = %ld blocks", _vi.block_count);
+  if(option_DEBUG) {
+    PLOG("Metadata: managed block_size = %u", block_size);
+    PLOG("Metadata: underlying volume block count = %ld blocks", _vi.block_count);
+  }
   
   _n_records = _vi.block_count * (_vi.block_size / sizeof(struct __md_record));
   assert(_vi.block_size % sizeof(struct __md_record) == 0);
@@ -50,7 +53,7 @@ Metadata::Metadata(Component::IBlock_device * block_device,
                0, // lba
                _vi.block_count); // lba count
 
-  hexdump(_records,512);
+  //  hexdump(_records,512);
   _lock_array = new Lock_array(_n_records);
 
   if(scan_records_unsafe()==false || (flags & FLAGS_FORMAT)) {
@@ -146,7 +149,7 @@ void Metadata::wipe_initialize()
   apply([=](struct __md_record& record, size_t index, bool& keep_going)
         {
           record.clear(); /* this will set magic too */
-          record.block_size = (_vi.block_size == 512) ? MD_BLOCK_SIZE_512 : MD_BLOCK_SIZE_4096;
+          record.block_size = (_block_size == 512) ? MD_BLOCK_SIZE_512 : MD_BLOCK_SIZE_4096;
           record.index = index;
 
           _free_list.push(&record);
@@ -266,7 +269,7 @@ IMetadata::iterator_t Metadata::open_iterator(std::string filter)
       PLOG("filter expr (%s)", filter.c_str());
 
     if(doc.IsNull())
-      throw API_exception("invalid filter string");
+      throw API_exception("fixobd: invalid filter string");
 
     i = new __iterator_t;
     i->pos = 0;
@@ -283,8 +286,6 @@ IMetadata::iterator_t Metadata::open_iterator(std::string filter)
     throw API_exception("invalid filter string");
   }
 
-  
-  
   return static_cast<void*>(i);
 }
 
@@ -329,6 +330,42 @@ status_t Metadata::iterator_get(IMetadata::iterator_t iter,
   while(i->pos < _n_records);
   
   return E_EMPTY;
+}
+
+bool Metadata::check_exists(const std::string& id, const std::string& owner, size_t& out_size)
+{
+  bool check_owner = owner.empty() ? false : true;
+  
+  /* this is an unsafe scan! */
+  for(unsigned long i=0;i<_n_records;i++) {
+    auto& record = _records[i];
+    if(id.compare(record.id) == 0) {
+      if(!check_owner || owner.compare(record.owner) == 0) {
+        out_size = record.block_size ? (record.lba_count * 512) : (record.lba_count * 4096);
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+
+std::string Metadata::get_metadata(index_t index)
+{
+  if(index > _n_records)
+    throw API_exception("invalid index parameter");
+
+  lock(index);
+  auto& record = _records[index];
+
+  std::stringstream ss;
+  ss << record.id << " ";
+  ss << record.owner << " ";
+  ss << record.datatype << " ";
+  ss << (record.lba_count * _vi.block_size) << " ";
+   
+  unlock(index);
+  return ss.str();
 }
 
 void Metadata::close_iterator(iterator_t iter)
