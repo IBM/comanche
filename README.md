@@ -8,7 +8,7 @@ HowTo
 * DPDK/SPDK
 
 Comanche currently uses DPDK/SPDK.  You should install and test this
-first (see dpdk/usertools/dpdksetup.sh).  Note, it is possible to run
+first (see [dpdk/usertools/dpdksetup.sh](https://github.com/spdk/dpdk/blob/spdk-17.05/usertools/dpdk-setup.sh)).  Note, it is possible to run
 in a virtual machine (using UIO) but you will need to run your
 programs as root.
 
@@ -53,18 +53,19 @@ Tested Compilers and OS/HW
 --------------------------
 
 * Software 
-- Ubuntu 16.04.3 LTS (x86_64)
-- gcc 5.4
-- clang 3.8.0
+     - Ubuntu 16.04.3 LTS (x86_64)
+     - gcc 5.4
+     - clang 3.8.0
 
 * Hardware
-- Intel x86
-- Intel PC3700 and P4800X NVMe SSD
+     - Intel x86
+     - Intel PC3700 and P4800X NVMe SSD
 
 * Change compiler preference on Ubuntu with:
+```
     'sudo update-alternatives --config c++'
     'sudo update-alternatives --config cc' 
-    
+```    
 Compiling for debug
 -------------------
 
