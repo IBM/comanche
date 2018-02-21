@@ -2,7 +2,6 @@ cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
 add_subdirectory(./unit_test)
 
-include($ENV{COMANCHE_HOME}/mk/common.cmake)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -D_BSD_SOURCE -D_FILE_OFFSET_BITS=64 -MD -MP")
 set(DPDK_DIR "$ENV{COMANCHE_HOME}/deps/dpdk/")
