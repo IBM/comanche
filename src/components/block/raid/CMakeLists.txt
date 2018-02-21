@@ -5,7 +5,6 @@ enable_language(CXX C ASM)
 
 add_subdirectory(./unit_test)
 
-include($ENV{COMANCHE_HOME}/mk/common.cmake)
 
 include_directories(./src)
 

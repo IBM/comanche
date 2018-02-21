@@ -146,8 +146,8 @@ struct data_t {
 #ifdef DO_INTEGRITY
 TEST_F(Pmem_paged_test, IntegrityCheck)
 {
-  //size_t msize = KB(4) * 64; // works OK.
-  size_t msize = KB(4) * 1024; // broken!
+  size_t msize = KB(4) * 64; // works OK. but only mapped once
+  //size_t msize = KB(4) * 1024; // broken!
   size_t n_elements = msize / sizeof(uint64_t);
   unsigned long ITERATIONS = 1000000UL;
   uint64_t * p = nullptr;
@@ -165,6 +165,8 @@ TEST_F(Pmem_paged_test, IntegrityCheck)
     p[e] = 0xf;
 
   PINF("0xf writes complete. Starting check...");
+
+  PLOG("current total number of faults: %lu", _pmem->fault_count());
   
   for(unsigned long e=0;e<n_elements;e++) {
     if(p[e] != 0xf) {
@@ -305,6 +307,8 @@ TEST_F(Pmem_paged_test, ReleaseBlockDevice)
 {
   ASSERT_TRUE(_pmem);
   ASSERT_TRUE(_block);
+
+  PLOG("total number of faults: %lu", _pmem->fault_count());
 
   _pmem->stop();
   _pmem->release_ref();
