@@ -7,8 +7,6 @@ set(CXXMAKE_C_FLAGS "${CXXMAKE_C_FLAGS} -O2 -g")
 project(pmem-paged-tests CXX)
 
 include_directories(../../)
-include_directories(../../../components/api/)
-include_directories(../../../lib/common/include)
 link_directories(/usr/local/lib)
 link_directories(../../../lib/common)
 link_directories(../)

@@ -1,12 +1,9 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
-include($ENV{COMANCHE_HOME}/mk/common.cmake)
 
 project(blob-tests CXX)
 
 include_directories(../../)
-include_directories(../../../components/api/)
-include_directories(../../../lib/common/include)
 link_directories(/usr/local/lib)
 link_directories(../../../lib/common)
 link_directories(../)
