@@ -30,9 +30,9 @@ extern "C" {
 #endif
 
 struct probed_device {
+  char device_id[1024];
   struct spdk_nvme_ctrlr *ctrlr;
   struct spdk_nvme_ns *ns;
-  char device_id[1024];
 };
 
 bool probe_cb(void *cb_ctx,

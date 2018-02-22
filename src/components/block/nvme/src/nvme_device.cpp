@@ -218,6 +218,7 @@ Nvme_device::Nvme_device(const char * device_id,
 {
   _probed_device.ns = nullptr;
   _probed_device.ctrlr = nullptr;
+  memset(_probed_device.device_id, 0, 1024);
   
   _exit_io_threads = true; /* mark this as non-IO thread mode */
   
@@ -227,6 +228,8 @@ Nvme_device::Nvme_device(const char * device_id,
   assert(device_id);    
   initialize(device_id);
   assert(_probed_device.ns);
+
+  _volume_id = _probed_device.device_id;
 
   /* allocate descriptors */
   for(unsigned i=0;i<DESC_RING_SIZE;i++) {
@@ -249,7 +252,7 @@ Nvme_device::Nvme_device(const char* device_id,
     //    _desc_ring(std::to_string(get_serial_hash()), DESC_RING_SIZE), //  + std::to_string(device->get_serial_hash())
     _desc_ring(DESC_RING_SIZE), //  + std::to_string(device->get_serial_hash())
     _activate_io_threads(true),
-    _pci_id(device_id)
+   _pci_id(device_id)
 { 
   _probed_device.ns = nullptr;
   _probed_device.ctrlr = nullptr;
@@ -263,7 +266,7 @@ Nvme_device::Nvme_device(const char* device_id,
   //  self_test("metadata");
 
   _volume_id = _probed_device.device_id;
-  
+
   /* allocate descriptors */
   for(unsigned i=0;i<DESC_RING_SIZE;i++) {
     _desc_ring.mp_enqueue(new IO_descriptor);
@@ -351,7 +354,7 @@ Nvme_device::initialize(const char* device_id)
     throw new Device_exception("spdk_nvme_probe() failed\n");
   }
   
-  PLOG("Probe complete (%p,%p)", _probed_device.ctrlr, _probed_device.ns);
+  PLOG("Probe complete (%p,%p) %s", _probed_device.ctrlr, _probed_device.ns, _probed_device.device_id);
   
   if(!_probed_device.ctrlr)
     throw new General_exception("NVMe device (%s) not found (check VFIO/UIO binding)", device_id);
