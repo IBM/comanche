@@ -62,6 +62,7 @@ Tested Compilers and OS/HW
 * Hardware
      - Intel x86
      - Intel PC3700 and P4800X NVMe SSD
+     - Samsung P1725a SSD
 
 * Change compiler preference on Ubuntu with:
 ```
