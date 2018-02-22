@@ -142,7 +142,7 @@ public:
     mp->iob = alloc_buffer();
     mp->pthis = this;
 
-    _last_gwid = _block->async_write(mp->iob,
+    _last_gwid = _block->async_read(mp->iob,
                                      0,
                                      genrand64_int64() % _vi.block_count,
                                      1, /* n blocks */
