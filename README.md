@@ -1,6 +1,8 @@
 # Comanche
 Framework for user-level compositional storage systems development. See [wiki](https://github.com/IBM/comanche/wiki) for more information.
 
+NOTE: Comanche is in its early stages of development and while we welcome collaboration from the open source community, this effort is not for the faint hearted and requires a certain level of systems expertise.
+
 
 HowTo
 -----
