@@ -1,8 +1,3 @@
-#pragma once
-
-#ifndef __API_PAGER_ITF_H__
-#define __API_PAGER_ITF_H__
-
 /*
  * (C) Copyright IBM Corporation 2017. All rights reserved.
  *
@@ -14,6 +9,9 @@
  * Daniel G. Waddington (daniel.waddington@ibm.com)
  *
  */
+
+#ifndef __API_PAGER_ITF_H__
+#define __API_PAGER_ITF_H__
 
 #include <string>
 #include <component/base.h>

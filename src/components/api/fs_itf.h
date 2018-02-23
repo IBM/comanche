@@ -10,8 +10,6 @@
  *
  */
 
-#pragma once
-
 #ifndef __COMANCHE_API_FS_ITF__
 #define __COMANCHE_API_FS_ITF__
 

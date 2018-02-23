@@ -10,8 +10,6 @@
  *
  */
 
-#pragma once
-
 #ifndef __API_REGION_ITF__
 #define __API_REGION_ITF__
 

@@ -10,8 +10,6 @@
  *
  */
 
-#pragma once
-
 #ifndef __COMPONENT_API_MEMORY_H_
 #define __COMPONENT_API_MEMORY_H_
 
