@@ -53,13 +53,13 @@ Tested Compilers and OS/HW
 --------------------------
 
 * Software 
-- Ubuntu 16.04.3 LTS (x86_64)
-- gcc 5.4
-- clang 3.8.0
+  - Ubuntu 16.04.3 LTS (x86_64)
+  - gcc 5.4
+  - clang 3.8.0
 
 * Hardware
-- Intel x86
-- Intel PC3700 and P4800X NVMe SSD
+  - Intel x86
+  - Intel PC3700 and P4800X NVMe SSD
 
 * Change compiler preference on Ubuntu with:
     'sudo update-alternatives --config c++'
