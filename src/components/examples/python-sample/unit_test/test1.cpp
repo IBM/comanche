@@ -36,7 +36,7 @@ Component::ISample * Sample_test::_sample;
 TEST_F(Sample_test, Instantiate)
 {
   /* create object instance through factory */
-  Component::IBase * comp = Component::load_component("libsample-component.so",
+  Component::IBase * comp = Component::load_component("../libpysample-component.so",
                                                       Component::sample_component_factory);
 
   ASSERT_TRUE(comp);
