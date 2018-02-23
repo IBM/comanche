@@ -30,11 +30,6 @@ public:
    */
   Sample(std::string name);
 
-  /** 
-   * Destructor
-   * 
-   */
-  virtual ~Sample();
 
   /** 
    * Component/interface management
@@ -57,10 +52,16 @@ public:
 public:
 
   /* ISample */
-  void say_hello() override;
-
+  void say_hello() {
+    _pyfunc_sample_say_hello(); /* Python function pointer */
+  }
+  
 private:
-  std::string _name;
+  std::string           _name;
+  boost::python::object _main_module;
+  boost::python::object _main_namespace;
+  boost::python::object _pyobj_sample;
+  boost::python::object _pyfunc_sample_say_hello;
 };
 
 

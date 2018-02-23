@@ -153,8 +153,12 @@ static int fuse_ustack_create(const char * filename,
                               mode_t mode,
                               struct fuse_file_info * fi)
 {
-  TRACE();
   PLOG("create: %s", filename);
+  ustack->store->create(filename+1,
+                        "dwaddington",
+                        "fuse-blob",
+                        KB(8));
+                        
   //  ustack->store->put(filename, "none", nullptr, MB(8));
   return 0;
 }
@@ -204,7 +208,7 @@ static int fuse_ustack_open(const char *path, struct fuse_file_info *fi)
   TRACE();
 
   size_t size = 0;
-  if(ustack->store->check_key(path, size) == 0)
+  if(ustack->store->check_key(path+1, size) == 0)
     return -ENOENT;
 
   File_handle * fh;

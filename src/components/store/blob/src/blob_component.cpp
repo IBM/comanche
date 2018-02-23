@@ -144,9 +144,11 @@ create(const std::string& name,
   
   assert(size_in_bytes > 0);
   
-  Blob::Data_region* dr;  
+  Blob::Data_region* dr;
+  assert(_base_block_device_vi.block_size == 4096);
   size_t n_blocks = (size_in_bytes + _base_block_device_vi.block_size - 1)  / _base_block_device_vi.block_size;  
-
+  PLOG("Blob: size_in_bytes=%lu n_blocks = %lu", size_in_bytes, n_blocks);
+  
   Blob_handle* handle = new Blob_handle;
   handle->lba_count = n_blocks;
 

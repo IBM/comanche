@@ -97,6 +97,7 @@ index_t Metadata::allocate(uint64_t start_lba,
 
   lock(precord->index);
 
+  precord->block_size = _block_size;
   precord->set_used();
   precord->start_lba = start_lba;
   precord->lba_count = lba_count;
@@ -342,6 +343,7 @@ bool Metadata::check_exists(const std::string& id, const std::string& owner, siz
     if(id.compare(record.id) == 0) {
       if(!check_owner || owner.compare(record.owner) == 0) {
         out_size = record.block_size ? (record.lba_count * 512) : (record.lba_count * 4096);
+        PLOG("Metadata: returning size=%lu", out_size);
         return true;
       }
     }
