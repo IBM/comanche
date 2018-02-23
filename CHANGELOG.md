@@ -8,16 +8,16 @@ Daniel Waddington (daniel.waddington@ibm.com)
 
 ## 2018-2
 - FUSE integration
+- Example component based on wrapped-Python
 ## [v0.2.0]
-
 ## 2017-12
 ### Changed
 - Posix block device component now supports callback functions.
 ## 2017-11-06
 #### changed
-- use CMAKE_SOURCE_DIR for out-of-tree build
+- Use CMAKE_SOURCE_DIR for out-of-tree build
 #### added
-- a wiki page on configuring qemu with nvme support with libvirt, [here](https://github.com/fengggli/comanche/wiki/vm)
+- Wiki page on configuring qemu with nvme support with libvirt, [here](https://github.com/fengggli/comanche/wiki/vm)
 #### note
 - before running fetch-deps.sh
     export MAKEFLAGS="-j 8"
