@@ -10,8 +10,6 @@
  *
  */
 
-#pragma once
-
 #ifndef __API_BLOB_ITF__
 #define __API_BLOB_ITF__
 

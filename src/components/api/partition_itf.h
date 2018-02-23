@@ -10,8 +10,6 @@
  *
  */
 
-#pragma once
-
 #ifndef __API_PARTITION_ITF__
 #define __API_PARTITION_ITF__
 
