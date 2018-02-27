@@ -1,0 +1,1 @@
+g++ -c -DCONFIG_DEBUG -I/home/danielwaddington/comanche/src/components -I/home/danielwaddington/comanche/src/lib/common/include -I/home/danielwaddington/comanche/src/lib/core/include -O0 -g -std=gnu++14 -o foo.o -c ./src/sample.cpp -fdump-class-hierarchy
