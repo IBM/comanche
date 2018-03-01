@@ -31,7 +31,12 @@
 #define CONFIG_IO_MEMORY_ALIGNMENT_REQUIREMENT 4 // 4 bytes aligned for PRP mode (non-SG) see NVMe spec
 
 //#define CONFIG_QUEUE_STATS                     // turn on: statistics
-//#define CONFIG_STATS_REPORT_INTERVAL 1000000       // interval in IOs to report stats
+#undef CONFIG_QUEUE_STATS_DETAILED // enable for detailed queue stats
+
+#ifdef CONFIG_QUEUE_STATS
+#define CONFIG_STATS_REPORT_INTERVAL 100000       // interval in IOs to report stats
+#endif
+
 //#define CHECK_THREAD_VIOLATION                  // turn on/off: thread reentrancy violation checks
 //#define CONFIG_CHECKS_VALIDATE_POINTERS // turn on/off extra pointer validity checking
 #endif

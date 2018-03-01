@@ -89,7 +89,7 @@ public:
 #else
   byte           padding[128-84];
 #endif
-} __attribute__((aligned(64)));
+} __attribute__((packed,aligned(64)));
 
 static_assert(sizeof(IO_descriptor) == 128,"not cacheline aligned");
 
