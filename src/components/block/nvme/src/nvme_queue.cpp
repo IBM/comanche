@@ -1,5 +1,5 @@
 /*
-   Copyright [2017] [IBM Corporation]
+   Copyright [2017,2018] [IBM Corporation]
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ Nvme_queue::Nvme_queue(Nvme_device* device,
   if(option_DEBUG)
     PLOG("New Nvme_queue: %u", qid);
 
-  PLOG("blk-nvm: clock freq %f", _rdtsc_freq_mhz);
+  PLOG("blk-nvme: clock freq %f", _rdtsc_freq_mhz);
   
   assert(device);
   assert(qpair);
@@ -57,6 +57,8 @@ Nvme_queue::Nvme_queue(Nvme_device* device,
   _max_lba = spdk_nvme_ns_get_num_sectors(device->ns());
   
 #ifdef CONFIG_QUEUE_STATS
+  PLOG("blk-nvme: queue stats ON");
+  
   /* reset stats */
   _stats.issued = 0;
   _stats.polls = 0;
@@ -184,6 +186,7 @@ void Nvme_queue::submit_async_op_internal(IO_descriptor * desc)
 
   _stats.total_submit_cycles+=duration;
   _stats.issued++;
+  _stats.lba_count += desc->lba_count;
 
 
   if(_stats.issued % CONFIG_STATS_REPORT_INTERVAL == 0) {
@@ -198,14 +201,15 @@ maxcompl(%lu), meansubmit(%.2f), meancompl(%.2f), maxiosizeblks(%lu), meancycles
          _stats.max_io_size_blocks,
          (float)_stats.total_io_cycles / (float) _stats.issued
          );
-
+    
 #endif
     if(_stats.last_report_timestamp > 0) {
       uint64_t time_delta_usec = (rdtsc() - _stats.last_report_timestamp) / _rdtsc_freq_mhz; 
       PLOG("blknvme: throughput %1g KIOPS",
-           ((double)CONFIG_STATS_REPORT_INTERVAL) / ((double)time_delta_usec / 1000.0));
+           ((double)_stats.lba_count) / ((double)time_delta_usec / 1000.0));
     }
     _stats.last_report_timestamp = rdtsc();
+    _stats.lba_count = 0;
   }
 
 
