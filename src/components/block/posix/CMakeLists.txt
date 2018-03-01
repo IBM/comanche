@@ -1,5 +1,7 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
+include($ENV{COMANCHE_HOME}/mk/common.cmake)
+
 add_subdirectory(./unit_test)
 
 
@@ -8,8 +10,6 @@ set(DPDK_DIR "$ENV{COMANCHE_HOME}/deps/dpdk/")
 set(SPDK_DIR "$ENV{COMANCHE_HOME}/deps/spdk/")
 
 project(comanche-blkposix CXX)
-
-enable_language(CXX C ASM)
 
 include_directories(${DPDK_DIR}/include/dpdk)
 include_directories(${SPDK_DIR}/include)

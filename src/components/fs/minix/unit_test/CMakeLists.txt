@@ -1,5 +1,6 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
+include($ENV{COMANCHE_HOME}/mk/common.cmake)
 
 project(fsminix-tests CXX)
 
