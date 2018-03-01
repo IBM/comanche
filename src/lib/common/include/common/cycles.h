@@ -144,6 +144,19 @@ INLINE cpu_time_t rdtsc()
 #error Platform not supported.
 #endif
 
+
+namespace Core
+{
+/** 
+ * Get RDTSC frequency in MHz.
+ * 
+ * 
+ * @return Clock frequency in MHz
+ */
+float get_rdtsc_frequency_mhz();
+}
+
+
 #undef INLINE
 
 #endif
