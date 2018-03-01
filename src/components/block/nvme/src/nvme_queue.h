@@ -214,6 +214,7 @@ public:
 #ifdef CONFIG_QUEUE_STATS
   struct {
     unsigned long issued;
+    unsigned long lba_count = 0;
     unsigned long failed_polls;
     unsigned long list_skips;
     unsigned long polls;

@@ -30,11 +30,11 @@
 #define CONFIG_MAX_MEMORY_PER_INSTANCE_MB 16384 // 16GB size in MB to limit each instance (only for multi-instance)
 #define CONFIG_IO_MEMORY_ALIGNMENT_REQUIREMENT 4 // 4 bytes aligned for PRP mode (non-SG) see NVMe spec
 
-//#define CONFIG_QUEUE_STATS                     // turn on: statistics
+#define CONFIG_QUEUE_STATS                     // turn on: statistics
 #undef CONFIG_QUEUE_STATS_DETAILED // enable for detailed queue stats
 
 #ifdef CONFIG_QUEUE_STATS
-#define CONFIG_STATS_REPORT_INTERVAL 100000       // interval in IOs to report stats
+#define CONFIG_STATS_REPORT_INTERVAL 10000       // interval in IOs to report stats
 #endif
 
 //#define CHECK_THREAD_VIOLATION                  // turn on/off: thread reentrancy violation checks
