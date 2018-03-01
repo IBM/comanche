@@ -1,10 +1,11 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
+include($ENV{COMANCHE_HOME}/mk/common.cmake)
+
 project(comanche-raid CXX)
 enable_language(CXX C ASM)
 
 add_subdirectory(./unit_test)
-
 
 include_directories(./src)
 

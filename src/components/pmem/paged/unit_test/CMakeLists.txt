@@ -1,7 +1,8 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
-project(pmem-posix-tests CXX)
+include($ENV{COMANCHE_HOME}/mk/common.cmake)
 
+project(pmem-posix-tests CXX)
 
 find_library(GTEST_LIB NAMES GTEST PATHS /usr/local/lib,/usr/lib)
 

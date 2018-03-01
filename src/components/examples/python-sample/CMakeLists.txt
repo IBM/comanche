@@ -1,5 +1,7 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
+include($ENV{COMANCHE_HOME}/mk/common.cmake)
+
 project(pysample-component CXX)
 
 add_subdirectory(./unit_test)
@@ -26,11 +28,6 @@ ELSEIF(NOT Boost_FOUND)
 ENDIF()
 
 include_directories(../)
-include_directories($ENV{COMANCHE_HOME}/src/components)
-include_directories($ENV{COMANCHE_HOME}/src/lib/common/include)
-include_directories($ENV{COMANCHE_HOME}/src/lib/core/include)
-
-link_directories($ENV{COMANCHE_HOME}/lib)
 
 file(GLOB SOURCES src/*.cpp)
 
