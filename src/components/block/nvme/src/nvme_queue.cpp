@@ -40,10 +40,13 @@ Nvme_queue::Nvme_queue(Nvme_device* device,
                        unsigned qid,
                        struct spdk_nvme_qpair* const qpair)
   : _device(device),
-    _qpair(qpair)
+    _qpair(qpair),
+    _rdtsc_freq_mhz(Core::get_rdtsc_frequency_mhz())
 {
   if(option_DEBUG)
     PLOG("New Nvme_queue: %u", qid);
+
+  PLOG("blk-nvm: clock freq %f", _rdtsc_freq_mhz);
   
   assert(device);
   assert(qpair);
@@ -182,16 +185,31 @@ void Nvme_queue::submit_async_op_internal(IO_descriptor * desc)
   _stats.total_submit_cycles+=duration;
   _stats.issued++;
 
-  if(_stats.issued % CONFIG_STATS_REPORT_INTERVAL == 0)
-    PLOG("COMANCHE: Queue (%p) outstanding(%lu), failed polls(%lu), skips(%lu), issued(%lu), polls(%lu), maxsubmit(%lu), \
+
+  if(_stats.issued % CONFIG_STATS_REPORT_INTERVAL == 0) {
+
+#ifdef CONFIG_QUEUE_STATS_DETAILED  
+    PLOG("blknvme: Queue (%p) failed polls(%lu), skips(%lu), issued(%lu), polls(%lu), maxsubmit(%lu), \
 maxcompl(%lu), meansubmit(%.2f), meancompl(%.2f), maxiosizeblks(%lu), meancyclesperio(%.2f)",
-         this, _status.outstanding, _stats.failed_polls, _stats.list_skips,
+         this, _stats.failed_polls, _stats.list_skips,
          _stats.issued, _stats.polls, _stats.max_submit_cycles, _stats.max_complete_cycles,
          (float)_stats.total_submit_cycles / (float) _stats.issued,
          (float)_stats.total_complete_cycles / (float) _stats.issued,
          _stats.max_io_size_blocks,
          (float)_stats.total_io_cycles / (float) _stats.issued
-         );  
+         );
+
+#endif
+    if(_stats.last_report_timestamp > 0) {
+      uint64_t time_delta_usec = (rdtsc() - _stats.last_report_timestamp) / _rdtsc_freq_mhz; 
+      PLOG("blknvme: throughput %1g KIOPS",
+           ((double)CONFIG_STATS_REPORT_INTERVAL) / ((double)time_delta_usec / 1000.0));
+    }
+    _stats.last_report_timestamp = rdtsc();
+  }
+
+
+  
 #endif
   
 }

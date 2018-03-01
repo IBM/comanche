@@ -206,14 +206,18 @@ public:
     //   iod = iod->next;
     return (iod->tag - 1); /* we know last tag processed is this minus one */
   }
-  
+
+private:
+  const float _rdtsc_freq_mhz;
 public:
+  
 #ifdef CONFIG_QUEUE_STATS
   struct {
     unsigned long issued;
     unsigned long failed_polls;
     unsigned long list_skips;
     unsigned long polls;
+    cpu_time_t last_report_timestamp = 0;
     cpu_time_t total_submit_cycles;
     cpu_time_t max_submit_cycles;
     cpu_time_t total_complete_cycles;
