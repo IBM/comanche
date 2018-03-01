@@ -204,9 +204,10 @@ maxcompl(%lu), meansubmit(%.2f), meancompl(%.2f), maxiosizeblks(%lu), meancycles
     
 #endif
     if(_stats.last_report_timestamp > 0) {
-      uint64_t time_delta_usec = (rdtsc() - _stats.last_report_timestamp) / _rdtsc_freq_mhz; 
-      PLOG("blknvme: throughput %1g KIOPS",
-           ((double)_stats.lba_count) / ((double)time_delta_usec / 1000.0));
+      uint64_t time_delta_usec = (rdtsc() - _stats.last_report_timestamp) / _rdtsc_freq_mhz;
+
+      auto bps = ((double)_stats.lba_count) / ((double)time_delta_usec / 1000000.0);
+      PLOG("blknvme: throughput %1g BPS (%2g MiB/s)", bps, (bps * 4.0)/1024.0);
     }
     _stats.last_report_timestamp = rdtsc();
     _stats.lba_count = 0;
