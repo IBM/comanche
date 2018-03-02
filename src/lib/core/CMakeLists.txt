@@ -1,10 +1,11 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
+include(./.cmakeinclude)
 
-add_subdirectory(./unit_test)
 # We statically compile in the DPDK and SPDK into this module
 #
 project(comanche-core CXX)
+
 enable_language(CXX C ASM)
 
 set(GCC_COVERAGE_COMPILE_FLAGS "-mrdrnd")
@@ -37,8 +38,6 @@ endif()
 link_directories(../../../deps/dpdk/lib/)
 link_directories(../../../lib)
 
-
-
 set(CMAKE_INCLUDE_CURRENT_DIR true)
 include_directories(./include)
 include_directories(./include/core)
@@ -59,3 +58,4 @@ target_link_libraries(${PROJECT_NAME} ${ASAN_LIB} common rt pthread numa pcap uu
 
 #target_compile_features(comanche-core PRIVATE cxx_range_for)
 
+add_subdirectory(./unit_test)

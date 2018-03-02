@@ -2,7 +2,7 @@ cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
 project(regionpart-tests CXX)
 
-include($ENV{COMANCHE_HOME}/mk/common.cmake)
+include(./.cmakeinclude)
 
 find_library(GTEST_LIB NAMES GTEST PATHS /usr/local/lib,/usr/lib)
 
