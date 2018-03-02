@@ -4,10 +4,7 @@ cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 project(common CXX)
 enable_language(CXX C ASM)
   
-if (DEFINED ENV{COMANCHE_HOME})
-else()
-  set(COMANCHE_HOME ${CMAKE_SOURCE_DIR})
-endif()
+include(./.cmakeinclude)
 
 set(CMAKE_INCLUDE_CURRENT_DIR true)
 include_directories(./include)

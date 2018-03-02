@@ -1,7 +1,8 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
-project(cuda-dma LANGUAGES CXX)
+include(./.cmakeinclude)
 
+project(cuda-dma LANGUAGES CXX)
 
 #set(CMAKE_CUDA_COMPILER /usr/local/cuda-8.0/bin/nvcc)
 #set(CUDA_TOOLKIT_ROOT_DIR /usr/local/cuda-8.0/)
