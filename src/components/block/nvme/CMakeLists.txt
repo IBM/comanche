@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
 
-include($ENV{COMANCHE_HOME}/mk/common.cmake)
+include(./.cmakeinclude)
 
 add_subdirectory(./unit_test)
 
