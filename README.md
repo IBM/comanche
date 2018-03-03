@@ -25,7 +25,14 @@ cd deps
 * Build from root
 
 ```bash
-source setenv.sh
+./autogen.py (run this once to generate .cmakeinclude files in subdirectories)
+cmake .
+make
+```
+
+* Load modules (XMS) and attach NVMe devices to SPDK 
+```bash
+sudo ./load-module.sh
 sudo ./tools/nvme_setup.sh /* optionally attach ALL Nvme devices to VFIO */
 cmake .
 make
@@ -55,7 +62,6 @@ Tested Compilers and OS/HW
 --------------------------
 
 * Software 
-<<<<<<< HEAD
   - Ubuntu 16.04.3 LTS (x86_64)
   - gcc 5.4
   - clang 3.8.0
