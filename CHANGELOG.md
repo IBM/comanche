@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 Daniel Waddington (daniel.waddington@ibm.com)
 
 ## 2018-2
+- updates to build system; remove COMANCHE_HOME requirement
 - FUSE integration
 - Example component based on wrapped-Python
 ## [v0.2.0]
