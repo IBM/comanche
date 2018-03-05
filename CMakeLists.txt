@@ -1,10 +1,9 @@
 cmake_minimum_required(VERSION 3.5)
-include(mk/common.cmake)
 
-if(NOT EXISTS "./src/lib/.cmakeinclude")
-  message(SEND_ERROR "You must run (once) autogen.py to generate cmake includes")
-  return()
-endif()
+#if(NOT EXISTS "./src/lib/.cmakeinclude")
+#  message(SEND_ERROR "You must run (once) autogen.py to generate cmake includes")
+#  return()
+#endif()
 
 project(comanche)
 
