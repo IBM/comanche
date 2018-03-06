@@ -179,7 +179,8 @@ Shared_memory::Shared_memory(std::string name, size_t n_pages) : _name(name)
   _vaddr = negotiate_addr_create(fifo_name.c_str(),
                                  n_pages * PAGE_SIZE);
   assert(_vaddr);
-  _size_in_pages = n_pages * PAGE_SIZE;
+  _size_in_pages = n_pages;
+  PNOTICE("shared memory ages: %lu", _size_in_pages);
   
   open_shared_memory(name.c_str(), true);
   
@@ -215,6 +216,8 @@ void * Shared_memory::get_addr(size_t offset)
 
 void Shared_memory::open_shared_memory(std::string name, bool master)
 {
+  PLOG("open shared memory:%s %d", name.c_str(), master);
+  
   umask(0);
   int fd = -1;
 

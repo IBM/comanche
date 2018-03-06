@@ -134,17 +134,23 @@ private:
 
  private:
   /** 
-     * Callback to handle each message (must be implemented)
-     * 
-     * @param msg Pointer to incoming message
-     * @param msg_len Length of incoming message data
-     * @param reply [out] Reply message (allocated in this function)
-     * @param reply_len [out] Length of reply message
-     * 
-     * @return -1 to exit message loop
-     */
+   * Callback to handle each message (must be implemented)
+   * 
+   * @param msg Pointer to incoming message
+   * @param msg_len Length of incoming message data
+   * @param reply [out] Reply message (allocated in this function)
+   * @param reply_len [out] Length of reply message
+   * 
+   * @return -1 to exit message loop
+   */
   virtual int process_message(void* msg, size_t msg_len, void* reply, size_t reply_len) = 0;
 
+  /** 
+   * Called after each reply is sent
+   * 
+   * @param reply 
+   */
+  virtual void post_reply(void * reply) {  }
 
  private:
   void message_loop()
@@ -183,6 +189,8 @@ private:
       assert(rc == (int) reply_msg_len);
       if (rc == 0) throw General_exception("nn_send failed.");
       assert(rc > 0);
+
+      post_reply(reply_msg);
     }
 
     nn_freemsg(msg);

@@ -25,8 +25,9 @@
 #define __CORE_UIPC_H__
 
 #include <common/mpmc_bounded_queue.h>
-#include <sys/stat.h>
 #include <string>
+#include <vector>
+#include <sys/stat.h>
 #include <mutex>
 
 /* Expose as C because we want other programming languages to
