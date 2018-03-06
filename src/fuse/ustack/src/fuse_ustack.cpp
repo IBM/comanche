@@ -108,7 +108,7 @@ static void *fuse_ustack_init(struct fuse_conn_info *conn)
   DPDK::eal_init(1024);
   PLOG("fuse_ustack: DPDK init OK.");
 
-  ustack = new Ustack();
+  ustack = new Ustack("ipc:///tmp//ustack.ipc");
   
   return NULL;
 }
