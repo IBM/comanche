@@ -14,13 +14,18 @@ public:
   
   const std::string get_shared_memory_id() {
     using namespace Protocol;
+    using namespace flatbuffers;
     flatbuffers::FlatBufferBuilder fbb(1024);
-    MessageBuilder builder(fbb);    
-    builder.add_sender_id(999);
 
-    auto element = CreateElementMemoryRequest(fbb, MessageType_Memory_request);
-    builder.add_element(element.Union());
-    auto msg = builder.Finish();
+    auto msg = CreateMessage(fbb, 123, Element_ElementMemoryRequest, CreateElementMemoryRequest(fbb, 1222).Union());
+    FinishMessageBuffer(fbb, msg);
+    
+    // auto element = CreateElementMemoryRequest(fbb, 1000);
+
+    // auto msg = CreateMessage(fbb, 123, Element_ElementMemoryRequest, element);
+
+    // //    CreateMessage(flatbuffers::FlatBufferBuilder &_fbb, int64_t sender_id, Protocol::Element element_type, flatbuffers::Offset<void> element)
+    // FinishMessageBuffer(fbb, msg);
 
     size_t reply_len = 0;
     void * reply = send_and_wait((const char *) fbb.GetBufferPointer(),

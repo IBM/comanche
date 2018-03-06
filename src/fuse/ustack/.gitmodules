@@ -1,0 +1,4 @@
+[submodule "comanche"]
+        path = flatbuffers
+        url = https://github.com/google/flatbuffers.git
+        branch = master
