@@ -23,6 +23,7 @@ table ElementMemoryRequest
 table ElementMemoryReply
 {
   size:uint64 = 0;
+  shmem_id:string;
 }
 
 root_type Message;
