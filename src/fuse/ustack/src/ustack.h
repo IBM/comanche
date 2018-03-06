@@ -1,9 +1,11 @@
 #ifndef __USTACK_H__
 #define __USTACK_H__
 
+#include <map>
 #include <thread>
 #include <core/ipc.h>
-
+#include <core/uipc.h>
+#include <tbb/concurrent_vector.h>
 #include <api/block_itf.h>
 #include <api/region_itf.h>
 #include <api/blob_itf.h>
@@ -22,8 +24,26 @@ protected:
                               void* reply,
                               size_t reply_len);
 
+  virtual void post_reply(void * reply_msg);
+
 private:
-  std::thread * _ipc_thread;
+  
+  struct Shared_memory_instance
+  {
+    Shared_memory_instance(std::string id, size_t size, unsigned long client_id) :
+      _id(id), _size(size), _client_id(client_id), _shmem(nullptr) {
+    }
+      
+    std::string _id;
+    size_t _size;
+    unsigned long _client_id;
+    Core::UIPC::Shared_memory * _shmem;
+  };
+
+
+  std::thread *                                                  _ipc_thread;
+  std::vector<Shared_memory_instance*>                           _pending;
+  std::map<unsigned long, std::vector<Shared_memory_instance *>> _shmem_map;
 };
 
 

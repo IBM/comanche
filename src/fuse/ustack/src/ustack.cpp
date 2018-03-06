@@ -1,7 +1,9 @@
 #include <common/utils.h>
 #include <common/str_utils.h>
 #include <csignal>
+#include <future>
 #include "ustack.h"
+#include "protocol_generated.h"
 
 using namespace Component;
 
@@ -26,7 +28,6 @@ Ustack::Ustack(const std::string endpoint) : IPC_server(endpoint)
   IBlob_factory* fact = (IBlob_factory *) comp->query_interface(IBlob_factory::iid());
   assert(fact);
 
-
   store = fact->open("cocotheclown",
                      "mydb",
                      block,
@@ -50,7 +51,11 @@ Ustack::~Ustack()
   signal_exit();
   _ipc_thread->join();
   delete _ipc_thread;
-  
+
+  for(auto& i: _shmem_map)
+    for(auto& p: i.second)
+      delete p;
+
   store->release_ref();
   block->release_ref();
 }
@@ -60,10 +65,50 @@ int Ustack::process_message(void* msg,
                             void* reply,
                             size_t reply_len)
 {
-  PNOTICE("Got message!!!");
+  using namespace Protocol;
+
+  const Message * pmsg = Protocol::GetMessage(msg);
+  auto sender_id = pmsg->sender_id();
+  PLOG("sender_id: %lu", sender_id);
+
+  /* message: MemoryRequest */
+  if(pmsg->element_type() == Element_ElementMemoryRequest) {
+    PLOG("proto: MemoryRequest {size: %lu}", pmsg->element_as_ElementMemoryRequest()->size());
+    auto& shmem_v = _shmem_map[sender_id];
+    size_t size_in_pages = round_up(msg_len, PAGE_SIZE) / PAGE_SIZE;
+    std::stringstream ss;
+    ss << "shm-" << sender_id << "-" << shmem_v.size();
+
+    flatbuffers::FlatBufferBuilder fbb(1024);
+    auto response = CreateMessage(fbb,
+                                  getpid(),
+                                  Element_ElementMemoryReply,
+                                  CreateElementMemoryReply(fbb,
+                                                           size_in_pages,
+                                                           fbb.CreateString(ss.str())).Union());
+    FinishMessageBuffer(fbb, response);    
+    memcpy(reply, fbb.GetBufferPointer(), fbb.GetSize());
+
+    /* set up pending shared memory instantiation */
+    _pending.push_back(new Shared_memory_instance(ss.str(), size_in_pages, sender_id));
+    PLOG("returning from message loop");
+    return 0;
+  }
+
   return 0;
 }
 
+
+void Ustack::post_reply(void * reply_msg)
+{
+  /* connect pending shared memory segments */
+  for(auto& p: _pending) {
+    assert(p->_shmem == nullptr);
+    PLOG("ustack: creating shared memory (%s, %lu)", p->_id.c_str(), p->_size);
+    p->_shmem = new Core::UIPC::Shared_memory(p->_id, p->_size);
+    _shmem_map[p->_client_id].push_back(p);
+  }
+}
 
 
 
