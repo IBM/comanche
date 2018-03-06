@@ -53,8 +53,11 @@ class IPC_server
  private:
   static const auto     MAX_MSG_SIZE = 1024;
   static constexpr bool option_DEBUG = true;
-  std::string           _url;
 
+private:
+  std::string           _url;
+  int                   _epid;
+  
  public:
   /** 
      * Constructor
@@ -65,10 +68,10 @@ class IPC_server
   {
     if (_fd < 0) throw new Constructor_exception("IPC_server constructor nn_socket: %s\n", nn_strerror(nn_errno()));
 
-    if (nn_bind(_fd, _url.c_str()) < 0)
-      throw new Constructor_exception("IPC_server constructor nn_bind: %s\n", nn_strerror(nn_errno()));
-
     if (option_DEBUG) PLOG("IPC server endpoint (url=%s)", _url.c_str());
+    
+    if ((_epid = nn_bind(_fd, _url.c_str())) < 0)
+      throw new Constructor_exception("IPC_server constructor nn_bind: %s\n", nn_strerror(nn_errno()));
 
     std::string unix_file = _url.substr(5);
     Common::string_replace(unix_file, "//", "/");
@@ -82,16 +85,21 @@ class IPC_server
   }
 
   /** 
-     * Destructor
-     * 
-     */
-  virtual ~IPC_server()
-  {
+   * Destructor
+   * 
+   */
+  virtual ~IPC_server() {
     assert(_fd >= 0);
 
-    nn_close(_fd);
+    if(_fd > 0)
+      nn_close(_fd);
   }
 
+  void signal_exit() {
+    assert(_fd >= 0);
+    _exit = true;
+    nn_term();    
+  }
 
   /** 
      * Called to start the message loop
@@ -102,7 +110,6 @@ class IPC_server
     if (option_DEBUG) PLOG("IPC server starting on ... (url=%s)", _url.c_str());
     message_loop();
   }
-
 
   /** 
      * Set access control 
@@ -150,7 +157,9 @@ class IPC_server
 
       // wait for request message
       int rc = nn_recv(_fd, msg, MAX_MSG_SIZE, 0);
-      assert(rc > 0);
+
+      if(rc == -1) break; /* interrupted by nn_term() */
+
       if (option_DEBUG) {
         PNOTICE("nn_recv(request): chksum=%x", Common::chksum32(msg, rc));
         hexdump(msg, 128);

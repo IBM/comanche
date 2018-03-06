@@ -1,0 +1,28 @@
+// FlatBuffers IDL file
+
+namespace Protocol;
+
+enum MessageType:byte { Memory_request = 0 }
+
+union Element {
+  ElementMemoryRequest,
+  ElementMemoryReply,
+}
+
+table Message
+{
+  sender_id:long;
+  element:Element;
+}
+
+table ElementMemoryRequest
+{
+  size:uint64 = 0;
+}
+
+table ElementMemoryReply
+{
+  size:uint64 = 0;
+}
+
+root_type Message;
