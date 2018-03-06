@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.5)
 
-#if(NOT EXISTS "./src/lib/.cmakeinclude")
-#  message(SEND_ERROR "You must run (once) autogen.py to generate cmake includes")
-#  return()
-#endif()
+if(NOT EXISTS "./src/lib/.cmakeinclude")
+  message("Generating .cmakeinclude files...")
+  execute_process(COMMAND python "${CMAKE_CURRENT_LIST_DIR}/autogen.py")
+endif()
 
 project(comanche)
 

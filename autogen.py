@@ -4,8 +4,7 @@ import os
 comancheRoot = os.getcwd()
 
 def gen(rootDir):
-    for dirName, subdirList, fileList in os.walk(rootDir):
-        print('Found directory: %s' % dirName)
+    for dirName, subdirList, fileList in os.walk(rootDir):        
         for fname in os.listdir('.'):
             if fname == 'CMakeLists.txt':
                 file = open(dirName + "/.cmakeinclude","w+")
