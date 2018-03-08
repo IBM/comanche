@@ -12,8 +12,8 @@
 #include <core/uipc.h>
 #include <core/postbox.h>
 
-//#define TEST_UIPC
-#define TEST_POSTBOX
+#define TEST_UIPC
+//#define TEST_POSTBOX
 
 namespace {
 
@@ -43,32 +43,33 @@ bool client_side = false;
 #ifdef TEST_UIPC
 TEST_F(Core_test, UIPC)
 {
-  unsigned long ITERATIONS = 10000000;
+  unsigned long ITERATIONS = 100000;
   //  if(!client_side) {
   if(fork()) {
-    Core::UIPC::Channel sm("foobar2", 4096, 32);
-    
+    Core::UIPC::Channel sm("foobar2", 4096, 256);
+    sleep(1);
     for(unsigned long i=0;i<ITERATIONS;i++) {
       void * msg = sm.alloc_msg();
+      assert(msg);
       while(sm.send(msg) != S_OK) {
         //        usleep(1000);
       }
-      if(i % 1000000 == 0) PLOG("sent %lu", i);
+      if(i % 10000 == 0)
+        PLOG("sent %lu", i);
     }
     PLOG("%lu sent", ITERATIONS);
   }
   else {
-    Core::UIPC::Channel sm("foobar2");
-    
-    void * incoming = nullptr;
+    Core::UIPC::Channel sm("foobar2");   
 
     auto started = std::chrono::high_resolution_clock::now();
-
+    PINF("waiting for messages...");
     for(unsigned long i=0;i<ITERATIONS;i++) {
-      incoming = nullptr;
+      void * incoming = nullptr;
       while(sm.recv(incoming)==E_EMPTY);
       sm.free_msg(incoming);
-      if(i % 1000000 == 0) PLOG("sent %lu", i);
+      if(i % 10000 == 0)
+        PLOG("recv %lu", i);
     }
     PLOG("%lu received", ITERATIONS);
     auto done = std::chrono::high_resolution_clock::now();

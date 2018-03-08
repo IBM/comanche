@@ -163,7 +163,7 @@ class Channel
 {
 private:
   static constexpr bool option_DEBUG = true;
-  typedef Common::Mpmc_bounded_lfq_sleeping<void*> queue_t;
+  typedef Common::Mpmc_bounded_lfq<void*> queue_t;
   
 public:
   /** 
@@ -208,7 +208,7 @@ public:
    * 
    * @return S_OK or E_EMPTY
    */
-  status_t recv(void*& out_msg);
+  status_t recv(void*& recvd_msg);
 
   /** 
    * Allocate message (in shared memory) for

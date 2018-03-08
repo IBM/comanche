@@ -134,16 +134,13 @@ status_t Channel::send(void* msg)
   }
 }
 
-status_t Channel::recv(void*& out_msg)
+status_t Channel::recv(void*& recvd_msg)
 {
   assert(_in_queue);
-  out_msg = alloc_msg();
-  if(_in_queue->dequeue(out_msg)) {
+  if(_in_queue->dequeue(recvd_msg))
     return S_OK;
-  }
-  else {
+  else
     return E_EMPTY;
-  }
 }
 
 void Channel::unblock_threads()
@@ -157,7 +154,7 @@ void * Channel::alloc_msg()
   assert(_slab_ring);
   void * msg = nullptr;
   _slab_ring->dequeue(msg);
-  assert(msg);
+  if(!msg) throw General_exception("channel: out of message slots");
   return msg;
 }
 
@@ -204,6 +201,7 @@ Shared_memory::~Shared_memory()
 {
   if(munmap(_vaddr, _size_in_pages))
     throw General_exception("unmap failed");
+  
   shm_unlink(_name.c_str());
 
   for(auto& n: _fifo_names) {
