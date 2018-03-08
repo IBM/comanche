@@ -48,6 +48,7 @@ Ustack::Ustack(const std::string endpoint) : IPC_server(endpoint)
 
 Ustack::~Ustack()
 {
+  TRACE();
   _shutdown = true;
   signal_exit();
   _ipc_thread->join();
@@ -55,17 +56,28 @@ Ustack::~Ustack()
 
   for(auto& i: _channel_map) {
     auto channel = i.second;
+    channel->_channel->set_shutdown();
     channel->_channel->unblock_threads();
+  }
+
+  for(auto& t_vector: _threads) {
+    for(auto& t : t_vector.second) {
+      t->join();
+    }
+  }
+
+  for(auto& i: _channel_map) {
+    auto channel = i.second;
     delete channel->_channel;
+    delete channel;
   }
 
-  for(auto& t: _threads) {    
-    t->join();
+  for(auto& i: _shmem_map) {
+    for(auto& shmem: i.second) {
+      delete shmem->_shmem;
+      delete shmem;
+    }
   }
-
-  for(auto& i: _shmem_map)
-    for(auto& p: i.second)
-      delete p;
 
   store->release_ref();
   block->release_ref();
@@ -107,8 +119,7 @@ int Ustack::process_message(void* msg,
 
         /* set up pending shared memory instantiation */
         _pending_shmem.push_back(new Shared_memory_instance(ss.str(), size_in_pages, sender_id));
-        PLOG("returning from message loop");
-        return 0;
+        break;
       }
     case MessageType_Channel_request:
       {
@@ -130,12 +141,114 @@ int Ustack::process_message(void* msg,
 
         /* defer creation of channel */
         _pending_channels.push_back(new Channel_instance(ss.str(), sender_id));
-        return 0;
+        break;
+      }
+    case MessageType_Shutdown:
+      {
+        release_resources(sender_id);
+        break;
       }
     };
 
 
   return 0;
+}
+
+void Ustack::release_resources(pid_t client_id)
+{
+  TRACE();
+
+  /* release channel threads */
+  if(_channel_map.find(client_id) != _channel_map.end()) {
+    auto channel = _channel_map[client_id];
+    channel->_channel->set_shutdown();
+    channel->_channel->unblock_threads();
+  }
+
+  /* release threads */
+  if(_threads.find(client_id) != _threads.end()) {
+    for(auto& t : _threads[client_id]) {
+      t->join();      
+      delete t;
+      PLOG("Ustack: deleted thread %p", t);
+    }
+  }
+  _threads.erase(client_id);
+
+  /* release channels */
+  if(_channel_map.find(client_id) != _channel_map.end()) {
+    auto channel = _channel_map[client_id];
+    channel->_channel->set_shutdown();
+    channel->_channel->unblock_threads();
+    delete channel;
+    PLOG("Ustack: deleted channel (%p)", channel->_channel);
+  }
+  _channel_map.erase(client_id);
+
+  /* release shmem */
+  if(_shmem_map.find(client_id) != _shmem_map.end()) {
+    auto memory_v = _shmem_map[client_id];
+    for(auto& s : memory_v) {
+      delete s->_shmem;
+      PLOG("Ustack: deleted shmem (%p)", s->_shmem);
+      delete s;
+    }
+  }
+  _shmem_map.erase(client_id);
+
+  //  for(auto& t_vector: _threads) {
+  //   for(auto& t : t_vector.second) {
+  //     t->join();
+  //   }
+  // }
+
+  // for(auto& i: _channel_map) {
+  //   auto channel = i.second;
+  //   delete channel->_channel;
+  //   delete channel;
+  // }
+
+
+  // for(auto& i: _shmem_map) {
+  //   for(auto& shmem: i.second) {
+  //     delete shmem->_shmem;
+  //     delete shmem;
+  //   }
+  // }
+
+
+  // /* unblock channels */
+  // for(auto& i: _channel_map) {
+  //   auto channel = i.second;
+  //   if(channel->_client_id == client_id)
+  //     channel->_channel->unblock_threads();
+  // }
+
+  // for(auto& i: _channel_map) {
+  //   auto channel = i.second;
+  //   if(channel->_client_id == client_id) {
+  //     PLOG("releasing channel (%lu)", client_id);
+  //     channel->_channel->unblock_threads();
+  //     delete channel->_channel;
+  //     delete channel;
+  //     _channel_map.erase(client_id);
+  //   }
+  // }
+
+  // for(auto& t: _threads) {    
+  //   t->join();
+  // }
+
+  // for(auto& i: _shmem_map) {
+  //   auto& v = i.second;
+  //   for(std::vector<Shared_memory_instance *>::iterator j=v.begin(); j!=v.end(); j++) {
+  //     if((*j)->_client_id == client_id) {
+  //       delete (*j)->_shmem;
+  //       v.erase(j);
+  //     }
+  //   }
+  // }
+
 }
 
 
@@ -148,6 +261,7 @@ void Ustack::post_reply(void * reply_msg)
     p->_shmem = new Core::UIPC::Shared_memory(p->_id, p->_size);
     _shmem_map[p->_client_id].push_back(p);
   }
+  _pending_shmem.clear();
 
   /* connect pending shared memory channels */
   for(auto& c: _pending_channels) {
@@ -157,8 +271,9 @@ void Ustack::post_reply(void * reply_msg)
     _channel_map[c->_client_id] = c;
 
     /* create thread */
-    _threads.push_back(new std::thread([=]() { uipc_channel_thread_entry(c->_channel); }));
+    _threads[c->_client_id].push_back(new std::thread([=]() { uipc_channel_thread_entry(c->_channel); }));
   }
+  _pending_channels.clear();
 }
 
 void Ustack::uipc_channel_thread_entry(Core::UIPC::Channel * channel)
@@ -169,16 +284,21 @@ void Ustack::uipc_channel_thread_entry(Core::UIPC::Channel * channel)
     status_t s = channel->recv((void*&)msg);
     PLOG("recv'ed UIPC msg:status=%d, type=%d (%s)",s, msg->type, msg->data);
 
-    if(s == E_EMPTY && _shutdown) break;
+    if(channel->shutdown() && s == E_EMPTY) {      
+      break;
+    }
     
     assert(msg);
     msg->type = 101;
-    channel->send(msg);
-    
-    channel->free_msg(msg);
+    channel->send(msg);   
   }
   PLOG("worker (%p) exiting", channel);
 }
+
+
+
+/* static functions */
+
 
 static IBlock_device * create_nvme_block_device(const std::string device_name)
 {

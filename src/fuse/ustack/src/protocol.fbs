@@ -6,7 +6,8 @@ enum MessageType:byte {
   Memory_request = 0,
   Memory_reply = 1,
   Channel_request = 2,
-  Channel_reply = 3
+  Channel_reply = 3,
+  Shutdown = 9,
 }
 
 union Element {

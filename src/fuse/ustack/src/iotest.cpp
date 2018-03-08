@@ -14,16 +14,35 @@ public:
   }
 
   ~Ustack_client() {
-    /* TODO: send disconnect message */
+    /* send shutdown message */
+    send_shutdown();
+    
     for(auto& s: _shmem)
       delete s;
-    delete _channel;
+
+    if(_channel)
+      delete _channel;
   }
 
-  Core::UIPC::Channel * get_uipc_channel() {
+  void send_shutdown() {
     using namespace Protocol;
     using namespace flatbuffers;
-    flatbuffers::FlatBufferBuilder fbb(1024);
+    flatbuffers::FlatBufferBuilder fbb(256);
+
+    auto msg = CreateMessage(fbb,
+                             MessageType_Shutdown,
+                             getpid());
+    
+    FinishMessageBuffer(fbb, msg);
+    send_no_wait((const char *) fbb.GetBufferPointer(), fbb.GetSize());
+  }
+
+  
+
+  void get_uipc_channel() {
+    using namespace Protocol;
+    using namespace flatbuffers;
+    flatbuffers::FlatBufferBuilder fbb(256);
 
     auto msg = CreateMessage(fbb,
                              MessageType_Channel_request,
@@ -51,16 +70,16 @@ public:
 
   }
   
-  const std::string get_shared_memory_id() {
+  void get_shared_memory(size_t n_bytes) {
     using namespace Protocol;
     using namespace flatbuffers;
-    flatbuffers::FlatBufferBuilder fbb(1024);
+    flatbuffers::FlatBufferBuilder fbb(256);
 
     auto msg = CreateMessage(fbb,
                              MessageType_Memory_request,
                              getpid(),
                              Element_ElementMemoryRequest,
-                             CreateElementMemoryRequest(fbb, 1222).Union());
+                             CreateElementMemoryRequest(fbb, n_bytes).Union());
     
     FinishMessageBuffer(fbb, msg);
     
@@ -100,7 +119,7 @@ public:
 
 private:
   std::vector<Core::UIPC::Shared_memory *> _shmem;
-  Core::UIPC::Channel *                    _channel;
+  Core::UIPC::Channel *                    _channel = nullptr;
 };
 
 
@@ -109,9 +128,10 @@ int main()
 {
   Ustack_client ustack("ipc:///tmp//ustack.ipc");
 
-  auto channel = ustack.get_uipc_channel();
+  ustack.get_uipc_channel();
+  ustack.get_shared_memory(MB(4));
+
   ustack.send_command();
-  //  ustack.get_shared_memory_id();
   
   FILE * fp = fopen("./fs/fio.blob","w+");
   if(fp==NULL) {
