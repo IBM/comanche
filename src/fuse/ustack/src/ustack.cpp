@@ -48,9 +48,20 @@ Ustack::Ustack(const std::string endpoint) : IPC_server(endpoint)
 
 Ustack::~Ustack()
 {
+  _shutdown = true;
   signal_exit();
   _ipc_thread->join();
   delete _ipc_thread;
+
+  for(auto& i: _channel_map) {
+    auto channel = i.second;
+    channel->_channel->unblock_threads();
+    delete channel->_channel;
+  }
+
+  for(auto& t: _threads) {    
+    t->join();
+  }
 
   for(auto& i: _shmem_map)
     for(auto& p: i.second)
@@ -72,28 +83,57 @@ int Ustack::process_message(void* msg,
   PLOG("sender_id: %lu", sender_id);
 
   /* message: MemoryRequest */
-  if(pmsg->element_type() == Element_ElementMemoryRequest) {
-    PLOG("proto: MemoryRequest {size: %lu}", pmsg->element_as_ElementMemoryRequest()->size());
-    auto& shmem_v = _shmem_map[sender_id];
-    size_t size_in_pages = round_up(msg_len, PAGE_SIZE) / PAGE_SIZE;
-    std::stringstream ss;
-    ss << "shm-" << sender_id << "-" << shmem_v.size();
+  switch(pmsg->type())
+    {
+    case MessageType_Memory_request:
+      {
+        assert(pmsg->element_type() == Element_ElementMemoryRequest);
+        PLOG("proto: MemoryRequest {size: %lu}", pmsg->element_as_ElementMemoryRequest()->size());
+        auto& shmem_v = _shmem_map[sender_id];
+        size_t size_in_pages = round_up(msg_len, PAGE_SIZE) / PAGE_SIZE;
+        std::stringstream ss;
+        ss << "shm-" << sender_id << "-" << shmem_v.size();
 
-    flatbuffers::FlatBufferBuilder fbb(1024);
-    auto response = CreateMessage(fbb,
-                                  getpid(),
-                                  Element_ElementMemoryReply,
-                                  CreateElementMemoryReply(fbb,
-                                                           size_in_pages,
-                                                           fbb.CreateString(ss.str())).Union());
-    FinishMessageBuffer(fbb, response);    
-    memcpy(reply, fbb.GetBufferPointer(), fbb.GetSize());
+        flatbuffers::FlatBufferBuilder fbb(1024);
+        auto response = CreateMessage(fbb,
+                                      MessageType_Memory_reply,
+                                      getpid(),
+                                      Element_ElementMemoryReply,
+                                      CreateElementMemoryReply(fbb,
+                                                               size_in_pages,
+                                                               fbb.CreateString(ss.str())).Union());
+        FinishMessageBuffer(fbb, response);    
+        memcpy(reply, fbb.GetBufferPointer(), fbb.GetSize());
 
-    /* set up pending shared memory instantiation */
-    _pending.push_back(new Shared_memory_instance(ss.str(), size_in_pages, sender_id));
-    PLOG("returning from message loop");
-    return 0;
-  }
+        /* set up pending shared memory instantiation */
+        _pending_shmem.push_back(new Shared_memory_instance(ss.str(), size_in_pages, sender_id));
+        PLOG("returning from message loop");
+        return 0;
+      }
+    case MessageType_Channel_request:
+      {
+        PLOG("proto: ChannelRequest");
+        std::stringstream ss;
+        ss << "channel-" << sender_id;
+
+        flatbuffers::FlatBufferBuilder fbb(1024);
+        auto response = CreateMessage(fbb,
+                                      MessageType_Channel_reply,
+                                      getpid(),
+                                      Element_ElementChannelReply,
+                                      CreateElementChannelReply(fbb,
+                                                                MAX_MESSAGE_SIZE,
+                                                                fbb.CreateString(ss.str())).Union());
+                                                                
+        FinishMessageBuffer(fbb, response);    
+        memcpy(reply, fbb.GetBufferPointer(), fbb.GetSize());
+
+        /* defer creation of channel */
+        _pending_channels.push_back(new Channel_instance(ss.str(), sender_id));
+        return 0;
+      }
+    };
+
 
   return 0;
 }
@@ -102,15 +142,43 @@ int Ustack::process_message(void* msg,
 void Ustack::post_reply(void * reply_msg)
 {
   /* connect pending shared memory segments */
-  for(auto& p: _pending) {
+  for(auto& p: _pending_shmem) {
     assert(p->_shmem == nullptr);
     PLOG("ustack: creating shared memory (%s, %lu)", p->_id.c_str(), p->_size);
     p->_shmem = new Core::UIPC::Shared_memory(p->_id, p->_size);
     _shmem_map[p->_client_id].push_back(p);
   }
+
+  /* connect pending shared memory channels */
+  for(auto& c: _pending_channels) {
+    assert(c->_channel == nullptr);
+    PLOG("ustack: creating channel (%s)", c->_id.c_str());
+    c->_channel = new Core::UIPC::Channel(c->_id, MAX_MESSAGE_SIZE, MESSAGE_QUEUE_SIZE);
+    _channel_map[c->_client_id] = c;
+
+    /* create thread */
+    _threads.push_back(new std::thread([=]() { uipc_channel_thread_entry(c->_channel); }));
+  }
 }
 
+void Ustack::uipc_channel_thread_entry(Core::UIPC::Channel * channel)
+{
+  PLOG("worker (%p) starting", channel);
+  while(!_shutdown) {
+    struct IO_command * msg = nullptr;
+    status_t s = channel->recv((void*&)msg);
+    PLOG("recv'ed UIPC msg:status=%d, type=%d (%s)",s, msg->type, msg->data);
 
+    if(s == E_EMPTY && _shutdown) break;
+    
+    assert(msg);
+    msg->type = 101;
+    channel->send(msg);
+    
+    channel->free_msg(msg);
+  }
+  PLOG("worker (%p) exiting", channel);
+}
 
 static IBlock_device * create_nvme_block_device(const std::string device_name)
 {

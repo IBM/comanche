@@ -2,17 +2,24 @@
 
 namespace Protocol;
 
-enum MessageType:byte { Memory_request = 0 }
+enum MessageType:byte {
+  Memory_request = 0,
+  Memory_reply = 1,
+  Channel_request = 2,
+  Channel_reply = 3
+}
 
 union Element {
   ElementMemoryRequest,
   ElementMemoryReply,
+  ElementChannelReply,
 }
 
 table Message
 {
-  sender_id:long;
-  element:Element;
+  type      : MessageType;
+  sender_id : long;
+  element   : Element;  
 }
 
 table ElementMemoryRequest
@@ -22,8 +29,14 @@ table ElementMemoryRequest
 
 table ElementMemoryReply
 {
-  size:uint64 = 0;
-  shmem_id:string;
+  size     : uint64 = 0;
+  shmem_id : string;
+}
+
+table ElementChannelReply
+{
+  max_msg_size : uint32;
+  uipc_id      : string;
 }
 
 root_type Message;
