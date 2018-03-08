@@ -185,6 +185,14 @@ public:
   Channel(std::string name);
 
   /** 
+   * Destructor
+   * 
+   * 
+   * @return 
+   */
+  virtual ~Channel();
+ 
+  /** 
    * Post message onto channel
    * 
    * @param msg Message pointer
@@ -225,12 +233,26 @@ public:
    */
   void unblock_threads();
 
-  virtual ~Channel();
+  /** 
+   * Shutdown handling
+   * 
+   */
+  void set_shutdown() { _shutdown = true; }
 
+  /** 
+   * Determine if shutdown in progress
+   * 
+   * 
+   * @return True if so
+   */
+  bool shutdown() const { return _shutdown; }
+  
 private:
   void initialize_data_structures();
   
+  
 private:
+  bool _shutdown           = false;
   bool                     _master;
   Shared_memory *          _shmem_fifo_m2s;
   Shared_memory *          _shmem_fifo_s2m;

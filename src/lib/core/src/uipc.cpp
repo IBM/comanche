@@ -46,7 +46,8 @@ struct addr_size_pair {
 //typedef Common::Spsc_bounded_lfq_sleeping<Dataplane::Command_t, 32 /* queue size */>
 //command_queue_t;
 
-Channel::Channel(std::string name, size_t message_size, size_t queue_size) : _master(true)
+Channel::Channel(std::string name, size_t message_size, size_t queue_size)
+  : _master(true)
 {
   size_t queue_footprint = queue_t::memory_footprint(queue_size);
   unsigned pages_per_queue = round_up(queue_footprint, PAGE_SIZE) / PAGE_SIZE;
@@ -93,7 +94,6 @@ Channel::Channel(std::string name) : _master(false)
 {
   _shmem_fifo_m2s = new Shared_memory(name + "-m2s");
   PMAJOR("got fifo (m2s) @ %p - %lu bytes", _shmem_fifo_m2s->get_addr(), _shmem_fifo_m2s->get_size());
-
 
   _shmem_fifo_s2m = new Shared_memory(name + "-s2m");
   PMAJOR("got fifo (s2m) @ %p - %lu bytes", _shmem_fifo_s2m->get_addr(), _shmem_fifo_s2m->get_size());  
@@ -243,16 +243,17 @@ void Shared_memory::open_shared_memory(std::string name, bool master)
   if(fd == -1)
     throw Constructor_exception("shm_open failed to open/create %s", name.c_str());
 
-  if(ftruncate(fd, _size_in_pages))
+  if(ftruncate(fd, _size_in_pages * PAGE_SIZE))
     throw General_exception("unable to allocate shared memory IPC");
 
   void * ptr = mmap(_vaddr,
-                    _size_in_pages,
+                    _size_in_pages * PAGE_SIZE,
                     PROT_READ | PROT_WRITE,
                     MAP_SHARED | MAP_FIXED, fd, 0);
   if(ptr != _vaddr)
     throw Constructor_exception("mmap failed in Shared_memory");
 
+  memset(ptr, 0, _size_in_pages * PAGE_SIZE);
   close(fd);
 }
 

@@ -31,7 +31,7 @@ protected:
 private:
 
   void uipc_channel_thread_entry(Core::UIPC::Channel * channel);
-    
+  void release_resources(pid_t client_id);
   
   struct Shared_memory_instance
   {
@@ -41,18 +41,18 @@ private:
       
     std::string                 _id;
     size_t                      _size;
-    unsigned long               _client_id;
+    pid_t                       _client_id;
     Core::UIPC::Shared_memory * _shmem;
   };
 
   struct Channel_instance
   {
-    Channel_instance(std::string id, unsigned long client_id) :
+    Channel_instance(std::string id, pid_t client_id) :
       _id(id), _client_id(client_id), _channel(nullptr) {
     }
       
     std::string           _id;
-    unsigned long         _client_id;
+    pid_t                 _client_id;
     Core::UIPC::Channel * _channel;
   };
 
@@ -62,9 +62,10 @@ private:
   //  typedef unsigned long pid_t;
   bool _shutdown = false;
   std::thread *                                          _ipc_thread;
-  std::vector<std::thread *>                             _threads;
   std::vector<Shared_memory_instance*>                   _pending_shmem;
   std::vector<Channel_instance*>                         _pending_channels;
+
+  std::map<pid_t, std::vector<std::thread *>>            _threads;
   std::map<pid_t, std::vector<Shared_memory_instance *>> _shmem_map;
   std::map<pid_t, Channel_instance *>                    _channel_map;
 };

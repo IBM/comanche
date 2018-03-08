@@ -1,17 +1,17 @@
 /*
-   Copyright [2017] [IBM Corporation]
+  Copyright [2017] [IBM Corporation]
 
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
 
-       http://www.apache.org/licenses/LICENSE-2.0
+  http://www.apache.org/licenses/LICENSE-2.0
 
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
 */
 
 /* 
@@ -44,13 +44,13 @@
 namespace Core
 {
 /** 
-   * IPC server helper class
-   * 
-   * @param url URL of nanomsg endpoint (e.g. ipc:///tmp/foobar)
-   */
+ * IPC server helper class
+ * 
+ * @param url URL of nanomsg endpoint (e.g. ipc:///tmp/foobar)
+ */
 class IPC_server
 {
- private:
+private:
   static const auto     MAX_MSG_SIZE = 1024;
   static constexpr bool option_DEBUG = false;
 
@@ -58,12 +58,12 @@ private:
   std::string           _url;
   int                   _epid;
   
- public:
+public:
   /** 
-     * Constructor
-     * 
-     * @param url Nanomsg URL to listen on
-     */
+   * Constructor
+   * 
+   * @param url Nanomsg URL to listen on
+   */
   IPC_server(const std::string url) : _url(url)
   {
     if (_fd < 0) throw new Constructor_exception("IPC_server constructor nn_socket: %s\n", nn_strerror(nn_errno()));
@@ -79,8 +79,8 @@ private:
     if (option_DEBUG) PLOG("UNIX domain socket = (%s)", unix_file.c_str());
 
     /* modify permission so that server can run as root if needed and 
-         clients need not. Sticky bit should be set.
-      */
+       clients need not. Sticky bit should be set.
+    */
     chmod(unix_file.c_str(), 0777);
   }
 
@@ -102,9 +102,9 @@ private:
   }
 
   /** 
-     * Called to start the message loop
-     * 
-     */
+   * Called to start the message loop
+   * 
+   */
   void ipc_start()
   {
     if (option_DEBUG) PLOG("IPC server starting on ... (url=%s)", _url.c_str());
@@ -112,27 +112,27 @@ private:
   }
 
   /** 
-     * Set access control 
-     * 
-     */
+   * Set access control 
+   * 
+   */
   void set_acl()
   {
     // TODO
   }
 
   /** 
-     * Helper used in process_message implementation to allocate new message
-     * 
-     * @param size Size of message to allocate in bytes
-     * 
-     * @return Pointer to new message
-     */
+   * Helper used in process_message implementation to allocate new message
+   * 
+   * @param size Size of message to allocate in bytes
+   * 
+   * @return Pointer to new message
+   */
   void* alloc_reply(size_t size)
   {
     return nn_allocmsg(size, 0);
   }
 
- private:
+private:
   /** 
    * Callback to handle each message (must be implemented)
    * 
@@ -152,7 +152,7 @@ private:
    */
   virtual void post_reply(void * reply) {  }
 
- private:
+private:
   void message_loop()
   {
     void* msg = nn_allocmsg(MAX_MSG_SIZE, 0);
@@ -198,7 +198,7 @@ private:
     if (option_DEBUG) PDBG("message loop exited ok.");
   }
 
- private:
+private:
   const int _fd{nn_socket(AF_SP, NN_REP)};
   bool      _exit = false;
 };
@@ -206,22 +206,22 @@ private:
 
 
 /** 
-   * IPC client helper class
-   * 
-   * @param url URL of nanomsg endpoint (e.g. ipc:///tmp/foobar)
-   */
+ * IPC client helper class
+ * 
+ * @param url URL of nanomsg endpoint (e.g. ipc:///tmp/foobar)
+ */
 class IPC_client
 {
- private:
+private:
   static constexpr auto MAX_REPLY_SIZE = 1024;
   static constexpr bool option_DEBUG   = false;
 
- public:
+public:
   /** 
-     * Constructor
-     * 
-     * @param url Nanomsg URL to connect to
-     */
+   * Constructor
+   * 
+   * @param url Nanomsg URL to connect to
+   */
   IPC_client(const std::string url)
   {
     if (_fd < 0) throw new Constructor_exception("IPC_client constructor nn_socket: %s\n", nn_strerror(nn_errno()));
@@ -233,9 +233,9 @@ class IPC_client
   }
 
   /** 
-     * Destructor
-     * 
-     */
+   * Destructor
+   * 
+   */
   ~IPC_client()
   {
     assert(_fd >= 0);
@@ -243,24 +243,24 @@ class IPC_client
   }
 
   /** 
-     * Free message from send_and_wait
-     * 
-     * @param msg Pointer to message to free.
-     * 
-     * @return EFAULT if pointer is invalid
-     */
+   * Free message from send_and_wait
+   * 
+   * @param msg Pointer to message to free.
+   * 
+   * @return EFAULT if pointer is invalid
+   */
   static int free_msg(void* msg)
   {
     return nn_freemsg(msg);
   }
 
   /** 
-     * Send string data
-     * 
-     * @param msg Pointer to string to send
-     * 
-     * @return Pointer to reply message. Must be freed by client through
-     */
+   * Send string data
+   * 
+   * @param msg Pointer to string to send
+   * 
+   * @return Pointer to reply message. Must be freed by client through
+   */
   void* send_and_wait(const char* msg, size_t msg_len, size_t* reply_len)
   {
     int rc;
@@ -287,7 +287,30 @@ class IPC_client
     return reply_msg;
   }
 
- private:
+    /** 
+   * Send string data; does not wait for reply
+   * 
+   * @param msg Pointer to string to send
+   * 
+   * @return Pointer to reply message. Must be freed by client through
+   */
+  void send_no_wait(const char* msg, size_t msg_len)
+  {
+    int rc;
+
+    if (option_DEBUG) {
+      PNOTICE("nn_send (request): chksum=%x",
+              Common::chksum32((void*) msg, msg_len));
+      
+      hexdump((void*) msg, 128);
+    }
+
+    rc = nn_send(_fd, msg, msg_len, 0);
+    if (rc < 0) PWRN("nn_send failed unexpectedly");
+  }
+
+
+private:
   const int _fd{nn_socket(AF_SP, NN_REQ)};
 };
 }
