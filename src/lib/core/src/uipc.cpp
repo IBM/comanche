@@ -137,12 +137,18 @@ status_t Channel::send(void* msg)
 status_t Channel::recv(void*& out_msg)
 {
   assert(_in_queue);
+  out_msg = alloc_msg();
   if(_in_queue->dequeue(out_msg)) {
     return S_OK;
   }
   else {
     return E_EMPTY;
   }
+}
+
+void Channel::unblock_threads()
+{
+  _in_queue->exit_threads();
 }
 
  
@@ -180,7 +186,6 @@ Shared_memory::Shared_memory(std::string name, size_t n_pages) : _name(name)
                                  n_pages * PAGE_SIZE);
   assert(_vaddr);
   _size_in_pages = n_pages;
-  PNOTICE("shared memory ages: %lu", _size_in_pages);
   
   open_shared_memory(name.c_str(), true);
   

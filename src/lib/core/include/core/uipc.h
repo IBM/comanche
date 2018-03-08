@@ -129,7 +129,7 @@ namespace UIPC {
 class Shared_memory
 {
 private:
-  static constexpr bool option_DEBUG = true;
+  static constexpr bool option_DEBUG = false;
   
 public:
   Shared_memory(std::string name, size_t n_pages); /*< initiator constructor */
@@ -163,7 +163,7 @@ class Channel
 {
 private:
   static constexpr bool option_DEBUG = true;
-  typedef Common::Mpmc_bounded_lfq<void*> queue_t;
+  typedef Common::Mpmc_bounded_lfq_sleeping<void*> queue_t;
   
 public:
   /** 
@@ -218,6 +218,12 @@ public:
    * @return S_OK or E_INVAL
    */
   status_t free_msg(void*);
+
+  /** 
+   * Used to unblock a thread waiting on a recv
+   * 
+   */
+  void unblock_threads();
 
   virtual ~Channel();
 
