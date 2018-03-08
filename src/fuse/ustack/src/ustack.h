@@ -10,6 +10,8 @@
 #include <api/region_itf.h>
 #include <api/blob_itf.h>
 
+#include "protocol_channel.h"
+
 class Ustack : public Core::IPC_server {
 public:
   Ustack(const std::string endpoint);
@@ -27,6 +29,9 @@ protected:
   virtual void post_reply(void * reply_msg);
 
 private:
+
+  void uipc_channel_thread_entry(Core::UIPC::Channel * channel);
+    
   
   struct Shared_memory_instance
   {
@@ -34,16 +39,34 @@ private:
       _id(id), _size(size), _client_id(client_id), _shmem(nullptr) {
     }
       
-    std::string _id;
-    size_t _size;
-    unsigned long _client_id;
+    std::string                 _id;
+    size_t                      _size;
+    unsigned long               _client_id;
     Core::UIPC::Shared_memory * _shmem;
   };
 
+  struct Channel_instance
+  {
+    Channel_instance(std::string id, unsigned long client_id) :
+      _id(id), _client_id(client_id), _channel(nullptr) {
+    }
+      
+    std::string           _id;
+    unsigned long         _client_id;
+    Core::UIPC::Channel * _channel;
+  };
 
-  std::thread *                                                  _ipc_thread;
-  std::vector<Shared_memory_instance*>                           _pending;
-  std::map<unsigned long, std::vector<Shared_memory_instance *>> _shmem_map;
+  static constexpr unsigned MAX_MESSAGE_SIZE = sizeof(IO_command);
+  static constexpr unsigned MESSAGE_QUEUE_SIZE = 16;
+
+  //  typedef unsigned long pid_t;
+  bool _shutdown = false;
+  std::thread *                                          _ipc_thread;
+  std::vector<std::thread *>                             _threads;
+  std::vector<Shared_memory_instance*>                   _pending_shmem;
+  std::vector<Channel_instance*>                         _pending_channels;
+  std::map<pid_t, std::vector<Shared_memory_instance *>> _shmem_map;
+  std::map<pid_t, Channel_instance *>                    _channel_map;
 };
 
 

@@ -6,7 +6,7 @@
 #include <core/uipc.h>
 
 #include "protocol_generated.h"
-
+#include "protocol_channel.h"
 class Ustack_client: public Core::IPC_client
 {
 public:
@@ -17,8 +17,39 @@ public:
     /* TODO: send disconnect message */
     for(auto& s: _shmem)
       delete s;
+    delete _channel;
   }
 
+  Core::UIPC::Channel * get_uipc_channel() {
+    using namespace Protocol;
+    using namespace flatbuffers;
+    flatbuffers::FlatBufferBuilder fbb(1024);
+
+    auto msg = CreateMessage(fbb,
+                             MessageType_Channel_request,
+                             getpid());
+    
+    FinishMessageBuffer(fbb, msg);
+
+    assert(fbb.GetSize() > 0);
+    size_t reply_len = 0;
+    void * reply = send_and_wait((const char *) fbb.GetBufferPointer(),
+                                 fbb.GetSize(),
+                                 &reply_len);
+
+    const Message * reply_msg = Protocol::GetMessage(reply);
+    if(reply_msg->type() != MessageType_Channel_reply)
+      throw General_exception("bad response to Memory_request");
+    
+    if(reply_msg->element_type() == Element_ElementChannelReply) {
+      std::string channel_id = reply_msg->element_as_ElementChannelReply()->uipc_id()->str();
+      PLOG("response: channel(%s)", channel_id.c_str());
+      _channel = new Core::UIPC::Channel(channel_id);
+      PLOG("channel acquired (%s)", channel_id.c_str());
+    }
+    else throw General_exception("unexpected reply message");    
+
+  }
   
   const std::string get_shared_memory_id() {
     using namespace Protocol;
@@ -26,6 +57,7 @@ public:
     flatbuffers::FlatBufferBuilder fbb(1024);
 
     auto msg = CreateMessage(fbb,
+                             MessageType_Memory_request,
                              getpid(),
                              Element_ElementMemoryRequest,
                              CreateElementMemoryRequest(fbb, 1222).Union());
@@ -39,8 +71,11 @@ public:
                                  &reply_len);
 
     const Message * reply_msg = Protocol::GetMessage(reply);
+    if(reply_msg->type() != MessageType_Memory_reply)
+      throw General_exception("bad response to Memory_request");
+    
     if(reply_msg->element_type() == Element_ElementMemoryReply) {
-      std::string shmem_id = reply_msg->element_as_ElementMemoryReply()->shmem_id()->c_str();
+      std::string shmem_id = reply_msg->element_as_ElementMemoryReply()->shmem_id()->str();
       PLOG("response: %s", shmem_id.c_str());
       _shmem.push_back(new Core::UIPC::Shared_memory(shmem_id));
       PLOG("shared memory acquired (%s)", shmem_id.c_str());
@@ -48,16 +83,35 @@ public:
     else throw General_exception("unexpected reply message");    
   }
 
+  void send_command()
+  {
+    assert(_channel);
+    struct IO_command * cmd = static_cast<struct IO_command *>(_channel->alloc_msg());
+    cmd->type = 99;
+    strcpy(cmd->data, "hello");
+    _channel->send(cmd);
+
+    void * reply = nullptr;
+    while(_channel->recv(reply));
+    PLOG("waiting for IO channel reply...");
+    _channel->free_msg(reply);
+    PLOG("send command and got reply.");
+  }
+
 private:
   std::vector<Core::UIPC::Shared_memory *> _shmem;
-
+  Core::UIPC::Channel *                    _channel;
 };
+
+
 
 int main()
 {
   Ustack_client ustack("ipc:///tmp//ustack.ipc");
 
-  ustack.get_shared_memory_id();
+  auto channel = ustack.get_uipc_channel();
+  ustack.send_command();
+  //  ustack.get_shared_memory_id();
   
   FILE * fp = fopen("./fs/fio.blob","w+");
   if(fp==NULL) {
