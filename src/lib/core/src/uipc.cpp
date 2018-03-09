@@ -49,6 +49,7 @@ struct addr_size_pair {
 Channel::Channel(std::string name, size_t message_size, size_t queue_size)
   : _master(true)
 {
+  PNOTICE("creating master (%s)", name.c_str());
   size_t queue_footprint = queue_t::memory_footprint(queue_size);
   unsigned pages_per_queue = round_up(queue_footprint, PAGE_SIZE) / PAGE_SIZE;
 
@@ -176,36 +177,52 @@ status_t Channel::free_msg(void* msg)
  * @param n_pages 
  */
 
-Shared_memory::Shared_memory(std::string name, size_t n_pages) : _name(name)
+Shared_memory::Shared_memory(std::string name, size_t n_pages)
+  : _master(true),_name(name)
 {
-  std::string fifo_name = "fifo." + name;
+  std::string fifo_name = "shm." + name;
   _vaddr = negotiate_addr_create(fifo_name.c_str(),
                                  n_pages * PAGE_SIZE);
   assert(_vaddr);
   _size_in_pages = n_pages;
+
+  if(option_DEBUG)
+    PLOG("open_shared_memory: master");
   
-  open_shared_memory(name.c_str(), true);
-  
+  open_shared_memory(name.c_str(), true);  
 }
 
-Shared_memory::Shared_memory(std::string name) : _name(name), _size_in_pages(0)
+Shared_memory::Shared_memory(std::string name)
+  : _master(false), _name(name), _size_in_pages(0)
 {
-  std::string fifo_name = "fifo." + name;
+  std::string fifo_name = "shm." + name;
   _vaddr =  negotiate_addr_connect(fifo_name.c_str(), &_size_in_pages);
   assert(_vaddr);
+
+  if(option_DEBUG)
+    PLOG("open_shared_memory: slave");
   
   open_shared_memory(name.c_str(), false);
 }
 
 Shared_memory::~Shared_memory()
 {
-  if(munmap(_vaddr, _size_in_pages))
-    throw General_exception("unmap failed");
+  PLOG("unmapping shared memory: %p", _vaddr);
   
-  shm_unlink(_name.c_str());
+  if(munmap(_vaddr, _size_in_pages * PAGE_SIZE) != 0)
+    throw General_exception("unmap failed");
 
-  for(auto& n: _fifo_names) {
-    unlink(n.c_str());
+  if(_master) {
+    int rc = shm_unlink(_name.c_str());
+    if(rc != 0)
+      throw General_exception("shared memory failed to unlink (%s)", _name.c_str());
+    
+    for(auto& n: _fifo_names) {
+      PLOG("removing fifo (%s)", n.c_str());
+      rc = unlink(n.c_str());
+      if(rc != 0)
+        throw General_exception("shared memory failed to remove fifo (%s)", n.c_str());
+    }
   }
 }
 
@@ -283,8 +300,11 @@ negotiate_addr_create(std::string name,
     PLOG("mkfifo %s", name_c2s.c_str());
   }
 
-  unlink(name_s2c.c_str());
+  assert(_master);
+
   unlink(name_c2s.c_str());
+  unlink(name_s2c.c_str());
+  
   if(mkfifo(name_c2s.c_str(), 0666) ||
      mkfifo(name_s2c.c_str(), 0666)) {
     perror("mkfifo:");
@@ -309,7 +329,8 @@ negotiate_addr_create(std::string name,
                MAP_SHARED | MAP_ANONYMOUS,
                0, 0);
     
-    if(ptr == (void*) -1) {
+    if((ptr == (void*) -1) || (ptr != (void*)vaddr)) {
+      munmap(ptr, size_in_bytes);
       vaddr += size_in_bytes;
       continue; /* slide and retry */
     }
@@ -344,6 +365,7 @@ negotiate_addr_create(std::string name,
   close(fd_c2s);
   close(fd_s2c);
 
+  PLOG("master: negotiated %p", ptr);
   return ptr;
 }
 
@@ -386,6 +408,7 @@ negotiate_addr_connect(std::string name,
 
     char answer;
     if(ptr != (void*)offer.addr) {
+      munmap(ptr, offer.size);
       answer = 'N';
       if(write(fd_c2s, &answer, sizeof(answer)) != sizeof(answer))
         throw General_exception("write failed");
@@ -403,6 +426,8 @@ negotiate_addr_connect(std::string name,
   close(fd_c2s);
   
   *size_in_pages_out = offer.size / PAGE_SIZE;
+
+  PLOG("slave: negotiated %p", ptr);
   return ptr;
 }
 

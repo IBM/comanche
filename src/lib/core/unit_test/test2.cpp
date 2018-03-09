@@ -160,5 +160,14 @@ int main(int argc, char **argv) {
   if(argc > 1) client_side = true;
   
   ::testing::InitGoogleTest(&argc, argv);
+
+  // if(client_side)
+  //   return RUN_ALL_TESTS();
+  // else {
+  //   while(1) {
+  //     RUN_ALL_TESTS();
+  //   }
+  //   return 0;
+  // }
   return RUN_ALL_TESTS();
 }
