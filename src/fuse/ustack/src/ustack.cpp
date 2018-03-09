@@ -73,10 +73,13 @@ Ustack::~Ustack()
   }
 
   for(auto& i: _shmem_map) {
-    for(auto& shmem: i.second) {
-      delete shmem->_shmem;
+    for(auto& shmem: i.second)
       delete shmem;
-    }
+  }
+
+  for(auto& i: _iomem_map) {
+    for(auto& iomem: i.second)
+      delete iomem;
   }
 
   store->release_ref();
@@ -143,11 +146,32 @@ int Ustack::process_message(void* msg,
         _pending_channels.push_back(new Channel_instance(ss.str(), sender_id));
         break;
       }
+    case MessageType_IO_buffer_request:
+      {
+        assert(pmsg->element_type() == Element_ElementIOBufferRequest);
+        size_t n_pages = pmsg->element_as_ElementIOBufferRequest()->n_pages();
+        auto& iomem_list = _iomem_map[sender_id];
+        auto iomem = new IO_memory_instance(n_pages);
+        iomem_list.push_back(iomem);
+
+        flatbuffers::FlatBufferBuilder fbb(1024);
+        auto response = CreateMessage(fbb,
+                                      MessageType_IO_buffer_reply,
+                                      getpid(),
+                                      Element_ElementIOBufferReply,
+                                      CreateElementIOBufferReply(fbb, iomem->_phys_addr).Union());
+
+        FinishMessageBuffer(fbb, response);    
+        memcpy(reply, fbb.GetBufferPointer(), fbb.GetSize());
+        break;
+      }      
     case MessageType_Shutdown:
       {
         release_resources(sender_id);
         break;
       }
+    default:
+      throw General_exception("unhandled message received");
     };
 
 
@@ -189,12 +213,23 @@ void Ustack::release_resources(pid_t client_id)
   if(_shmem_map.find(client_id) != _shmem_map.end()) {
     auto memory_v = _shmem_map[client_id];
     for(auto& s : memory_v) {
-      delete s->_shmem;
-      PLOG("Ustack: deleted shmem (%p)", s->_shmem);
       delete s;
+      PLOG("Ustack: deleted shmem (%p)", s->_shmem);
     }
   }
   _shmem_map.erase(client_id);
+
+  /* release iomem */
+  if(_iomem_map.find(client_id) != _iomem_map.end()) {
+    auto memory_v = _iomem_map[client_id];
+    for(auto& s : memory_v) {
+      delete s;
+      PLOG("Ustack: deleted iomem (%p)", s);
+    }
+  }
+  _iomem_map.erase(client_id);
+
+  
 
   //  for(auto& t_vector: _threads) {
   //   for(auto& t : t_vector.second) {
@@ -343,4 +378,5 @@ static IBlock_device * create_posix_block_device(const std::string path)
   return block;
 }
 
-
+// static members
+Core::Physical_memory Ustack::IO_memory_instance::_allocator;
