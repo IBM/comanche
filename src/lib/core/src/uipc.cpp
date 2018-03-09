@@ -49,7 +49,6 @@ struct addr_size_pair {
 Channel::Channel(std::string name, size_t message_size, size_t queue_size)
   : _master(true)
 {
-  PNOTICE("creating master (%s)", name.c_str());
   size_t queue_footprint = queue_t::memory_footprint(queue_size);
   unsigned pages_per_queue = round_up(queue_footprint, PAGE_SIZE) / PAGE_SIZE;
 
