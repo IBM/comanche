@@ -152,6 +152,7 @@ private:
   void open_shared_memory(std::string path_name, bool master);
   
 private:
+  bool                     _master;
   std::vector<std::string> _fifo_names;
   std::string              _name;
   void *                   _vaddr;

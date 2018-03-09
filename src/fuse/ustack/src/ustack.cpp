@@ -282,11 +282,12 @@ void Ustack::uipc_channel_thread_entry(Core::UIPC::Channel * channel)
   while(!_shutdown) {
     struct IO_command * msg = nullptr;
     status_t s = channel->recv((void*&)msg);
-    PLOG("recv'ed UIPC msg:status=%d, type=%d (%s)",s, msg->type, msg->data);
 
-    if(channel->shutdown() && s == E_EMPTY) {      
+    if(channel->shutdown() && s == E_EMPTY)
       break;
-    }
+    if(!msg) continue;
+    
+    PLOG("recv'ed UIPC msg:status=%d, type=%d (%s)",s, msg->type, msg->data);
     
     assert(msg);
     msg->type = 101;
