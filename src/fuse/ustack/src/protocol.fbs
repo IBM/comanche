@@ -7,6 +7,8 @@ enum MessageType:byte {
   Memory_reply = 1,
   Channel_request = 2,
   Channel_reply = 3,
+  IO_buffer_request = 4,
+  IO_buffer_reply = 5,
   Shutdown = 9,
 }
 
@@ -14,6 +16,8 @@ union Element {
   ElementMemoryRequest,
   ElementMemoryReply,
   ElementChannelReply,
+  ElementIOBufferRequest,
+  ElementIOBufferReply
 }
 
 table Message
@@ -38,6 +42,16 @@ table ElementChannelReply
 {
   max_msg_size : uint32;
   uipc_id      : string;
+}
+
+table ElementIOBufferRequest
+{
+  n_pages     : uint64;
+}
+
+table ElementIOBufferReply
+{
+  phys_addr   : uint64;
 }
 
 root_type Message;

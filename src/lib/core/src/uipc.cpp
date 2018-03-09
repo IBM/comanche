@@ -179,7 +179,7 @@ status_t Channel::free_msg(void* msg)
 Shared_memory::Shared_memory(std::string name, size_t n_pages)
   : _master(true),_name(name)
 {
-  std::string fifo_name = "shm." + name;
+  std::string fifo_name = "fifo." + name;
   _vaddr = negotiate_addr_create(fifo_name.c_str(),
                                  n_pages * PAGE_SIZE);
   assert(_vaddr);
@@ -194,7 +194,7 @@ Shared_memory::Shared_memory(std::string name, size_t n_pages)
 Shared_memory::Shared_memory(std::string name)
   : _master(false), _name(name), _size_in_pages(0)
 {
-  std::string fifo_name = "shm." + name;
+  std::string fifo_name = "fifo." + name;
   _vaddr =  negotiate_addr_connect(fifo_name.c_str(), &_size_in_pages);
   assert(_vaddr);
 
@@ -315,6 +315,8 @@ negotiate_addr_create(std::string name,
 
   assert(fd_c2s >= 0 && fd_s2c >= 0);
 
+  PLOG("saving fifo name: %s",name_c2s.c_str());
+  PLOG("saving fifo name: %s",name_s2c.c_str());
   _fifo_names.push_back(name_c2s);
   _fifo_names.push_back(name_s2c);
 

@@ -5,6 +5,7 @@
 #include <thread>
 #include <core/ipc.h>
 #include <core/uipc.h>
+#include <core/physical_memory.h>
 #include <tbb/concurrent_vector.h>
 #include <api/block_itf.h>
 #include <api/region_itf.h>
@@ -38,6 +39,10 @@ private:
     Shared_memory_instance(std::string id, size_t size, unsigned long client_id) :
       _id(id), _size(size), _client_id(client_id), _shmem(nullptr) {
     }
+
+    ~Shared_memory_instance() {
+      if(_shmem) delete _shmem;
+    }
       
     std::string                 _id;
     size_t                      _size;
@@ -50,10 +55,31 @@ private:
     Channel_instance(std::string id, pid_t client_id) :
       _id(id), _client_id(client_id), _channel(nullptr) {
     }
+    ~Channel_instance() {
+      if(_channel) delete _channel;
+    }
       
     std::string           _id;
     pid_t                 _client_id;
     Core::UIPC::Channel * _channel;
+  };
+
+  struct IO_memory_instance
+  {
+    IO_memory_instance(size_t n_pages) : _n_pages(n_pages) {
+      _iob = _allocator.allocate_io_buffer(n_pages * PAGE_SIZE, PAGE_SIZE, Component::NUMA_NODE_ANY);
+      _phys_addr = _allocator.phys_addr(_iob);
+    }
+    ~IO_memory_instance() {
+      _allocator.free_io_buffer(_iob);
+    }
+    
+    Component::io_buffer_t _iob;
+    size_t                 _n_pages;
+    addr_t                 _phys_addr;
+
+  private:
+    static Core::Physical_memory _allocator;
   };
 
   static constexpr unsigned MAX_MESSAGE_SIZE = sizeof(IO_command);
@@ -68,6 +94,7 @@ private:
   std::map<pid_t, std::vector<std::thread *>>            _threads;
   std::map<pid_t, std::vector<Shared_memory_instance *>> _shmem_map;
   std::map<pid_t, Channel_instance *>                    _channel_map;
+  std::map<pid_t, std::vector<IO_memory_instance*>>      _iomem_map;
 };
 
 

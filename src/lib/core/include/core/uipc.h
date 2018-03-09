@@ -163,7 +163,7 @@ private:
 class Channel
 {
 private:
-  static constexpr bool option_DEBUG = true;
+  static constexpr bool option_DEBUG = false;
   typedef Common::Mpmc_bounded_lfq<void*> queue_t;
   
 public:
