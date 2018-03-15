@@ -42,8 +42,9 @@ public:
     if(size % bs) nblocks++;
 
     /* are there enough backed phys pages? */
+    /*this is fine*/
     if(nblocks > max_nr_pages){
-        throw General_exception("%s: requested nr_pages(0x%lx) > nr_phs_pages (0x%lx)",
+        PINF("%s: requested nr_pages(0x%lx) > nr_phs_pages (0x%lx)",
                             __PRETTY_FUNCTION__, nblocks, max_nr_pages);
     }
     
@@ -248,6 +249,7 @@ request_page(addr_t virt_addr_faulted,
       
       /* issue async write-back */
 #ifndef FORCE_SYNC // TESTING only.
+      // TODO: io buffer not protected!
       _pages[slot].gwid = bd->async_write(_iob, buffer_offset, lba,1);
 #else
       bd->write(_iob, buffer_offset, lba, 1);
@@ -262,6 +264,7 @@ request_page(addr_t virt_addr_faulted,
     if(option_DEBUG)
       PLOG("swapping in: vaddr=0x%lx lba=0x%lx", virt_addr_faulted, lba);
 
+    // TODO: io buffer can be corrupted
     bd->read(_iob, buffer_offset, lba, 1);
   }
 #endif

@@ -361,12 +361,14 @@ TEST_F(Block_posix_test, AsyncSwap)
     for(unsigned i=0;i<4096;i++) p[i] = 0xcc;
     
     tag1 = _block->async_write(mem, 0, 1, 1);
+    // TODO: can pass the test if you check the completion each time after asyc operation
     
     for(unsigned i=0;i<4096;i++) p[i] = 0xff;
     
     for(uint64_t i = 0; i < nr_iterations; i++){
         /*
          * write second blk and read first blk
+         * NOTE: this async_write causes the problem
          */
         tag2 = _block->async_write(mem, 0, 2, 1);
         
