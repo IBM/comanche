@@ -353,14 +353,15 @@ TEST_F(Block_posix_test, AsyncSwap)
     void * ptr = _block->virt_addr(mem);
     uint8_t *p = (uint8_t *) ptr;
     
-    uint64_t tag1, tag2;
+    uint64_t tag; //tag2;
     
     memset(ptr, 0x0, 4096);
     
     /* two blocks, 1 filled with 0xcc and the other with 0xff*/
     for(unsigned i=0;i<4096;i++) p[i] = 0xcc;
     
-    tag1 = _block->async_write(mem, 0, 1, 1);
+    tag = _block->async_write(mem, 0, 1, 1);
+    while(!_block->check_completion(tag)) usleep(100);
     // TODO: can pass the test if you check the completion each time after asyc operation
     
     for(unsigned i=0;i<4096;i++) p[i] = 0xff;
@@ -370,11 +371,11 @@ TEST_F(Block_posix_test, AsyncSwap)
          * write second blk and read first blk
          * NOTE: this async_write causes the problem
          */
-        tag2 = _block->async_write(mem, 0, 2, 1);
-        
-        while(!_block->check_completion(tag1)) usleep(100);
-        tag1 = _block->async_read(mem, 0, 1, 1);
-        while(!_block->check_completion(tag1)) usleep(100);
+        tag = _block->async_write(mem, 0, 2, 1);
+        while(!_block->check_completion(tag)) usleep(100);
+
+        tag = _block->async_read(mem, 0, 1, 1);
+        while(!_block->check_completion(tag)) usleep(100);
         
         if(p[0] !=0xcc){
             PWRN("eeek on blk 1!! p[0]=0x%x%x",0xf&(p[0]>>4), 0xf &p[0]);
@@ -385,11 +386,11 @@ TEST_F(Block_posix_test, AsyncSwap)
          * write first blk and read second blk
          */
     
-        tag1 = _block->async_write(mem, 0, 1, 1);
+        tag = _block->async_write(mem, 0, 1, 1);
+        while(!_block->check_completion(tag)) usleep(100);
 
-        while(!_block->check_completion(tag2)) usleep(100);
-        tag2 = _block->async_read(mem, 0, 2, 1);
-        while(!_block->check_completion(tag2)) usleep(100);
+        tag = _block->async_read(mem, 0, 2, 1);
+        while(!_block->check_completion(tag)) usleep(100);
     
         if(p[0] !=0xff){
             PWRN("eeek on blk 2!! p[0]=0x%x%x",0xf&(p[0]>>4), 0xf &p[0]);
