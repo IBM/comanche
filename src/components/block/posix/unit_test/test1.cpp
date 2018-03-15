@@ -234,7 +234,7 @@ TEST_F(Block_posix_test, PartitionIntegrity)
 #endif
 
 
-#if 1
+#if 0
 TEST_F(Block_posix_test, PartitionIntegritySync)
 {
   using namespace Component;
@@ -351,16 +351,16 @@ TEST_F(Block_posix_test, AsyncSwap)
     uint64_t nr_iterations = 10000;
     io_buffer_t mem = _block->allocate_io_buffer(4096,4096,Component::NUMA_NODE_ANY);
     void * ptr = _block->virt_addr(mem);
-    char *p = (char*) ptr;
+    uint8_t *p = (uint8_t *) ptr;
     
-    uint64_t tag;
+    uint64_t tag1, tag2;
     
     memset(ptr, 0x0, 4096);
     
     /* two blocks, 1 filled with 0xcc and the other with 0xff*/
     for(unsigned i=0;i<4096;i++) p[i] = 0xcc;
     
-    tag = _block->async_write(mem, 0, 1, 1);
+    tag1 = _block->async_write(mem, 0, 1, 1);
     
     for(unsigned i=0;i<4096;i++) p[i] = 0xff;
     
@@ -368,12 +368,11 @@ TEST_F(Block_posix_test, AsyncSwap)
         /*
          * write second blk and read first blk
          */
-        while(!_block->check_completion(tag)) {
-            cpu_relax();
-        }
-        tag = _block->async_write(mem, 0, 2, 1);
+        tag2 = _block->async_write(mem, 0, 2, 1);
         
-        _block->read(mem, 0, 1, 1);
+        while(!_block->check_completion(tag1)) usleep(100);
+        tag1 = _block->async_read(mem, 0, 1, 1);
+        while(!_block->check_completion(tag1)) usleep(100);
         
         if(p[0] !=0xcc){
             PWRN("eeek on blk 1!! p[0]=0x%x%x",0xf&(p[0]>>4), 0xf &p[0]);
@@ -383,12 +382,12 @@ TEST_F(Block_posix_test, AsyncSwap)
         /*
          * write first blk and read second blk
          */
-        while(!_block->check_completion(tag)) {
-            cpu_relax();
-        }
     
-        tag = _block->async_write(mem, 0, 1, 1);
-        _block->read(mem, 0, 2, 1);
+        tag1 = _block->async_write(mem, 0, 1, 1);
+
+        while(!_block->check_completion(tag2)) usleep(100);
+        tag2 = _block->async_read(mem, 0, 2, 1);
+        while(!_block->check_completion(tag2)) usleep(100);
     
         if(p[0] !=0xff){
             PWRN("eeek on blk 2!! p[0]=0x%x%x",0xf&(p[0]>>4), 0xf &p[0]);
