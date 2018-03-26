@@ -4,14 +4,64 @@
 #include <assert.h>
 #include <core/ipc.h>
 #include <core/uipc.h>
+#include <core/avl_malloc.h>
+#include <core/xms.h>
 
 #include "protocol_generated.h"
 #include "protocol_channel.h"
 
+class IO_memory_allocator : private Core::Region_allocator
+{
+public:
+  IO_memory_allocator(addr_t phys_base, size_t n_bytes) :
+    _phys_base(phys_base),    
+    Core::Region_allocator(phys_base, n_bytes) {
+
+    void * ptr = xms_mmap((void*) 0x1100000000, phys_base, n_bytes);
+    assert(ptr);
+    _virt_base = reinterpret_cast<addr_t>(ptr);
+    _offset = _virt_base - _phys_base;
+
+    PMAJOR("IO_memory_allocator: %ld bytes (%p)", n_bytes, ptr);
+  }
+
+  ~IO_memory_allocator() {
+    munmap(reinterpret_cast<void*>(_virt_base), _size);
+  }
+
+  void * malloc(size_t n_bytes) {
+    return get_virt(alloc(n_bytes, 8 /* alignment */));
+  }
+
+  void free(void * ptr) {
+    return Core::Region_allocator::free(get_phys(ptr));
+  }
+
+  void * get_virt(addr_t paddr) {
+    return reinterpret_cast<void*>(paddr + _offset);
+  }
+
+  addr_t get_phys(void * vaddr) {
+    return reinterpret_cast<addr_t>(vaddr) - _offset;
+  }
+
+private:
+  addr_t _virt_base;
+  addr_t _phys_base;
+  ssize_t _offset;
+  size_t _size;
+  
+};
+
 class Ustack_client: public Core::IPC_client
 {
 public:
-  Ustack_client(const std::string endpoint) : Core::IPC_client(endpoint) {
+  Ustack_client(const std::string endpoint, size_t n_iopages = 64) :
+    Core::IPC_client(endpoint),
+    _iomem_allocator(get_io_memory(n_iopages),n_iopages * PAGE_SIZE)
+  {
+    PLOG("Ustack: allocating %ld pages of IO memory", n_iopages);
+    
   }
 
   ~Ustack_client() {
@@ -38,7 +88,7 @@ public:
     send_no_wait((const char *) fbb.GetBufferPointer(), fbb.GetSize());
   }
 
-  void get_io_memory(int n_pages) {
+  addr_t get_io_memory(int n_pages) {
     using namespace Protocol;
     using namespace flatbuffers;
     flatbuffers::FlatBufferBuilder fbb(256);
@@ -61,13 +111,15 @@ public:
     const Message * reply_msg = Protocol::GetMessage(reply);
     if(reply_msg->type() != MessageType_IO_buffer_reply)
       throw General_exception("bad response to Memory_request");
-    
+
+    addr_t phys_addr;
     if(reply_msg->element_type() == Element_ElementIOBufferReply) {
-      addr_t phys_addr = reply_msg->element_as_ElementIOBufferReply()->phys_addr(); 
+      phys_addr = reply_msg->element_as_ElementIOBufferReply()->phys_addr(); 
       PLOG("response: phys=%lx", phys_addr);
       PLOG("IO buffer acquired OK");
     }
-    else throw General_exception("unexpected reply message");    
+    else throw General_exception("unexpected reply message");
+    return phys_addr;
   }
 
   void get_uipc_channel() {
@@ -149,6 +201,7 @@ public:
   }
 
 private:
+  IO_memory_allocator                      _iomem_allocator;
   std::vector<Core::UIPC::Shared_memory *> _shmem;
   Core::UIPC::Channel *                    _channel = nullptr;
 };

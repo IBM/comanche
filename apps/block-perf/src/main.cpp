@@ -1,6 +1,7 @@
 #include <boost/program_options.hpp> 
 #include <core/task.h>
 #include <core/poller.h>
+#include <core/dpdk.h>
 #include <common/assert.h>
 #include <common/utils.h>
 #include <common/rand.h>
@@ -14,9 +15,16 @@
 
 using namespace std;
 
+enum {
+  WORKLOAD_RAND_READ = 1,
+  WORKLOAD_RAND_WRITE = 2,
+  WORKLOAD_RW = 5,
+};
+  
 struct {
   unsigned n_client_threads;
   unsigned n_io_threads = 1;
+  int workload = WORKLOAD_RAND_READ;
 } Options;
 
 
@@ -67,6 +75,9 @@ int main(int argc, char * argv[])
       ("pci", po::value< vector<string> >(), "PCIe id for NVMe drive")
       ("threads", po::value<int>(), "# client threads")
       ("iothreads", po::value<int>(), "# IO threads (default 1)")
+      ("rw", "read-write workload")
+      ("randwrite", "randomw-write workload")
+      ("randread", "random-read workload")
       ;
  
     po::variables_map vm; 
@@ -79,10 +90,22 @@ int main(int argc, char * argv[])
       Options.n_client_threads = vm["pci"].as<std::vector<std::string>>().size();
     }
 
-    if(vm.count("iothreads")) {
+    if(vm.count("iothreads"))
       Options.n_io_threads = vm["iothreads"].as<int>();
-    }
     
+    if(vm.count("rw")) {
+      PINF("Using RW 50:50 workload");
+      Options.workload = WORKLOAD_RW;
+    }
+    else if(vm.count("randwrite")) {
+      PINF("Using random write workload");
+      Options.workload = WORKLOAD_RAND_WRITE;
+    }
+    else {
+      PINF("Using random read workload");
+      Options.workload = WORKLOAD_RAND_READ;
+    }
+       
     if(vm.count("pci")) {
       m = new Main(vm["pci"].as<std::vector<std::string>>());
       m->run();
@@ -142,18 +165,63 @@ public:
     mp->iob = alloc_buffer();
     mp->pthis = this;
 
-    _last_gwid = _block->async_read(mp->iob,
-                                     0,
-                                     genrand64_int64() % _vi.block_count,
-                                     1, /* n blocks */
-                                     (core % Options.n_io_threads) + START_IO_CORE,
-                                     release_cb, (void*) mp);
-    _io_count++;
+    auto block = genrand64_int64() % _vi.block_count;
+
+    switch(Options.workload) {
+    case WORKLOAD_RAND_READ:
+      _last_gwid = _block->async_read(mp->iob,
+                                      0,
+                                      block,
+                                      1, /* n blocks */
+                                      (core % Options.n_io_threads) + START_IO_CORE,
+                                      release_cb, (void*) mp);
+      _io_count++;
+      break;
+    case WORKLOAD_RAND_WRITE:
+      _last_gwid = _block->async_write(mp->iob,
+                                      0,
+                                      block,
+                                      1, /* n blocks */
+                                      (core % Options.n_io_threads) + START_IO_CORE,
+                                      release_cb, (void*) mp);
+      _io_count++;
+      break;
+    case WORKLOAD_RW:
+      _block->read(mp->iob,
+                   0,
+                   block,
+                   1, /* n blocks */
+                   (core % Options.n_io_threads) + START_IO_CORE);
+      
+      _block->write(mp->iob,
+                    0,
+                    block,
+                    1, /* n blocks */
+                    (core % Options.n_io_threads) + START_IO_CORE);
+
+      free_buffer(mp->iob);
+      
+#if 0
+      _last_gwid = _block->async_write(mp->iob,
+                                      0,
+                                      block,
+                                      1, /* n blocks */
+                                      (core % Options.n_io_threads) + START_IO_CORE,
+                                      release_cb, (void*) mp);
+#endif
+      _io_count+=2;
+      break;
+    default:
+      throw General_exception("unhandled workload");
+    }
+
   }
   
   void cleanup(unsigned core) override {
-    _block->check_completion(_last_gwid, (core % Options.n_io_threads) + START_IO_CORE);
-    PLOG("(%p) completed %lu IOPS", this, _io_count/10);
+    //    _block->check_completion(_last_gwid, (core % Options.n_io_threads) + START_IO_CORE);
+    PINF("(%p) completed %lu IOPS %.2f MB/s", this,
+         _io_count/10 /* period is 10sec */,
+         (_io_count/10 * 4.0f) / 1024.0);
   }
 
   Component::io_buffer_t alloc_buffer()
@@ -207,11 +275,13 @@ void Main::run()
 
 void Main::create_block_components(const vector<string>& vs)
 {
+  DPDK::eal_init(256);
+    
   using namespace Component;
   IBase * comp = load_component("libcomanche-blknvme.so", block_nvme_factory);
   assert(comp);
   IBlock_device_factory * fact = (IBlock_device_factory *) comp->query_interface(IBlock_device_factory::iid());
-
+  
   cpu_mask_t m;
   for(unsigned i=0;i<Options.n_io_threads;i++) {
     m.add_core(START_IO_CORE + i);

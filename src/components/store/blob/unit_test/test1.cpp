@@ -142,6 +142,18 @@ TEST_F(Blob_test, InstantiateBlob)
   PINF("Blob component loaded OK.");
 }
 
+TEST_F(Blob_test, SimpleWrite)
+{
+  IBlob::blob_t b = _blob->create("test_blob0",
+                                  "dwaddington",
+                                  ".jelly",
+                                  MB(64));
+
+  auto cursor = _blob->open_cursor(b);
+}
+
+
+#if 0
 TEST_F(Blob_test, SimpleCreate)
 {
   std::list<IBlob::blob_t> blobs;
@@ -157,6 +169,7 @@ TEST_F(Blob_test, SimpleCreate)
 
   _blob->show_state("*");
 }
+#endif
 
 #if 0
 TEST_F(Blob_test, StressBlobCreateDelete)

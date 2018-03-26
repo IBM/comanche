@@ -1,8 +1,11 @@
 #include <common/exceptions.h>
 #include <common/errors.h>
+#include <common/city.h>
+#include <common/rand.h>
 #include <core/dpdk.h>
 #include <string.h>
-
+#include <tbb/tbb.h>
+#include <tbb/concurrent_unordered_set.h>
 #include "blob_component.h"
 
 using namespace Component;
@@ -10,6 +13,55 @@ using namespace Component;
 __attribute__((constructor))
 static void __initialize_dpdk() {
   DPDK::eal_init(512, 1, true);
+}
+
+struct Blob_handle
+{
+  /* TODO: add authentication token */
+  void *                 block_allocator_handle;
+  lba_t                  lba;
+  size_t                 lba_count;
+
+  ~Blob_handle() {
+    // TODO clean up block allocator handle
+  }
+};
+
+struct Cursor_handle
+{
+  /* TODO: add authentication token */
+  uint64_t blob_handle;
+  off64_t  offset;
+  off64_t  eof;
+};
+
+typedef tbb::concurrent_hash_map<uint64_t, std::shared_ptr<Blob_handle>> blob_handle_map_t;
+typedef tbb::concurrent_hash_map<uint64_t, std::shared_ptr<Cursor_handle>> cursor_handle_map_t;
+
+blob_handle_map_t   g_blob_handles;
+cursor_handle_map_t g_cursor_handles;
+
+
+static std::shared_ptr<Blob_handle> lookup_blob_handle(uint64_t handle)
+{
+  blob_handle_map_t::accessor a;
+  std::shared_ptr<Blob_handle> result;
+  if(g_blob_handles.find(a, handle)) {
+    result = a->second;
+  }
+  else throw General_exception("invalid blob handle");
+  return result;
+}
+
+static std::shared_ptr<Cursor_handle> lookup_cursor_handle(uint64_t handle)
+{
+  cursor_handle_map_t::accessor a;
+  std::shared_ptr<Cursor_handle> result;
+  if(g_cursor_handles.find(a, handle)) {
+    result = a->second;
+  }
+  else throw General_exception("invalid blob handle");
+  return result;
 }
 
 
@@ -114,16 +166,6 @@ void Blob_component::flush_md()
   //  _block_md->write(_block_md_iob,0,0,NUM_BLOCKS_FOR_METADATA); /*< writes out whole of slab */
 }
 
-struct Blob_handle
-{
-public:
-  void * block_allocator_handle;
-  lba_t  lba;
-  size_t lba_count;
-  Component::io_buffer_t iob;
-  void * vaddr;
-};
-  
 
 /** 
  * Create a new blob
@@ -147,9 +189,9 @@ create(const std::string& name,
   Blob::Data_region* dr;
   assert(_base_block_device_vi.block_size == 4096);
   size_t n_blocks = (size_in_bytes + _base_block_device_vi.block_size - 1)  / _base_block_device_vi.block_size;  
-  PLOG("Blob: size_in_bytes=%lu n_blocks = %lu", size_in_bytes, n_blocks);
+  PLOG("Blob: create size_in_bytes=%lu n_blocks = %lu", size_in_bytes, n_blocks);
   
-  Blob_handle* handle = new Blob_handle;
+  std::shared_ptr<Blob_handle> handle(new Blob_handle);
   handle->lba_count = n_blocks;
 
   /* allocate data block range */
@@ -158,204 +200,61 @@ create(const std::string& name,
   /* allocate metadata */
   _metadata->allocate(handle->lba, n_blocks, name, owner, datatype);
 
-  /* allocate IO buffer */
+  /* allocate IO temporary buffer */
   size_t rounded_size_in_bytes = n_blocks * _base_block_device_vi.block_size;
-  handle->iob = _block_data->allocate_io_buffer(rounded_size_in_bytes,
-                                               _base_block_device_vi.block_size,
-                                               -1);
-  handle->vaddr = _block_data->virt_addr(handle->iob);
+  auto iob = _block_data->allocate_io_buffer(rounded_size_in_bytes,
+                                             _base_block_device_vi.block_size,
+                                             -1);
+  auto vptr = _block_data->virt_addr(iob);
   
   /* zero data in memory and on disk */
-  memset(handle->vaddr, 0, rounded_size_in_bytes);
-  _block_data->write(handle->iob, 0, handle->lba, handle->lba_count, 0);
+  memset(vptr, 0, rounded_size_in_bytes);
+  _block_data->write(iob, 0, handle->lba, handle->lba_count, 0);
+  _block_data->free_io_buffer(iob);
 
-  /* return handle */
-  return static_cast<IBlob::blob_t>(handle);  
-}
+  uint64_t opaque_handle = genrand64_int64();
 
-/** 
- * Erase a blob
- * 
- * @param handle Blob handle
- */
-void
-Blob_component::
-erase(IBlob::blob_t handle)
-{
-  // Blob_handle * h = reinterpret_cast<Blob_handle*>(handle);
-  // {
-  //   std::lock_guard<std::mutex> g(_md_lock);
-  //   _data_allocator->free(h->dr->addr()); /* TODO optimize since we have Memory_region */
-  //   flush_md();
-  // }
-  // delete h;
-}
+  {
+    blob_handle_map_t::accessor a;
+    g_blob_handles.insert(a, opaque_handle);
+    a->second = handle;
+  }
 
-/** 
- * Open a cursor to a blob
- * 
- * @param handle Blob handle
- * 
- * @return Cursor
- */
-IBlob::cursor_t
-Blob_component::open(IBlob::blob_t handle)
-{
-  if(!_base_block_device)
-    throw API_exception("late binding still not bound");
-
-  return nullptr;
-}
-
-/** 
- * Close a cursor to a blob
- * 
- * @param handle 
- * 
- * @return 
- */
-IBlob::cursor_t
-Blob_component::
-close(IBlob::blob_t handle)
-{
-  return nullptr;
-}
-
-/** 
- * Move cursor position
- * 
- * @param cursor Cursor handle
- * @param offset Offset in bytes
- * @param flags SEEK_SET etc.
- */
-void
-Blob_component::
-seek(cursor_t cursor, long offset, int flags)
-{
-}
-
-/** 
- * Zero copy version of read
- * 
- * @param cursor 
- * @param buffer 
- * @param buffer_offset 
- * @param size_in_bytes 
- */
-void
-Blob_component::
-read(cursor_t cursor, io_buffer_t buffer, size_t buffer_offset, size_t size_in_bytes)
-{
-}
-
-/** 
- * Copy-based read
- * 
- * @param cursor 
- * @param dest 
- * @param size_in_bytes 
- */
-void
-Blob_component::
-read(cursor_t cursor, void * dest, size_t size_in_bytes)
-{
-}
-
-/** 
- * Zero copy version of write
- * 
- * @param cursor 
- * @param buffer 
- * @param buffer_offset 
- * @param size_in_bytes 
- */
-void
-Blob_component::
-write(cursor_t cursor, io_buffer_t buffer, size_t buffer_offset, size_t size_in_bytes)
-{
-}
-
-/** 
- * Copy-based write
- * 
- * @param cursor 
- * @param dest 
- * @param size_in_bytes 
- */
-void
-Blob_component::
-write(cursor_t cursor, void * dest, size_t size_in_bytes)
-{
+  return opaque_handle;
 }
 
 
-/** 
- * Set the size of the file (like POSIX truncate call)
- * 
- * @param size_in_bytes Size in bytes
- */
-void
-Blob_component::
-truncate(blob_t handle, size_t size_in_bytes)
+
+IBlob::cursor_t Blob_component::open_cursor(blob_t blob)
 {
-  // Blob_handle * h = reinterpret_cast<Blob_handle*>(handle);
-  // if(size_in_bytes > h->dr->size())
-  //   throw API_exception("truncation larger than existing size");
-
-  // /* now we have to trim the storage blocks */
-  // Inode inode(_block_data, h->dr->addr());
-
-  // assert(inode.size() >= size_in_bytes);
-
-  // if(inode.size() == size_in_bytes) return; /* no need to trim */
-
-  // size_t new_nblocks = (size_in_bytes / BLOCK_SIZE) + 1; //bytes_to_trim = inode.size() - size_in_bytes;
-  // size_t blocks_to_remove = inode.nblocks() - new_nblocks;
-
-  // while(blocks_to_remove > 0) {
-  //   range_t * r = inode.last_range();
-  //   if(r==nullptr) throw Logic_exception("truncating blocks");
-
-  //   size_t delta = (r->last - r->first);
-  //   if(blocks_to_remove >= delta) {
-  //     /* remove complete range */
-  //     r->last = r->first = 0;
-  //     blocks_to_remove -= delta;
-  //   }
-  //   else {
-  //     /* shrink range */
-  //     r->last -= blocks_to_remove;
-  //     blocks_to_remove = 0;
-  //   }
-  // }
-
-  // assert(size_in_bytes <= new_nblocks * BLOCK_SIZE);
-  // /* update allocator */
-  // {
-  //   std::lock_guard<std::mutex> g(_md_lock);
-  //   _data_allocator->trim(h->dr->addr(), new_nblocks * BLOCK_SIZE);
-  // }
-
-}
-
-void
-Blob_component::show_state(std::string filter)
-{
-  _metadata->dump_info();
+  auto blob_handle = lookup_blob_handle(blob);
   
-  // if(filter.compare("*")==0) {
-  //   PINF("-- BLOB STORE STATE --");
-  //   _data_allocator->apply([](addr_t addr,size_t size, bool free, bool head)
-  //                          {
-  //                            if(free) return;
-                             
-  //                            if(head) {
-  //                              PINF("Head: %08lx-%08lx",addr,addr+size);
-  //                            }
-  //                          });
-  //   PINF("-- end ---------------");
-  // }
+  std::shared_ptr<Cursor_handle> handle(new Cursor_handle);
+  handle->blob_handle = blob;
+  handle->offset = 0;
+  handle->eof = blob_handle->lba_count * _base_block_device_vi.block_size;
+
+  uint64_t opaque_handle = genrand64_int64();
+
+  {
+    cursor_handle_map_t::accessor a;
+    g_cursor_handles.insert(a, opaque_handle);
+    a->second = handle;
+  }
+
+  return opaque_handle;
 }
+  
+status_t Blob_component::read(cursor_t cursor,
+                              Component::io_buffer_t& iob,
+                              size_t size_in_bytes,
+                              size_t iob_offset)
+{
+  return S_OK;
+}
+
+
+
 
 bool Blob_component::check_key(const std::string& key, size_t& out_size)
 {
