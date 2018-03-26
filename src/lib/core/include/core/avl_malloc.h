@@ -867,8 +867,7 @@ class Arena_allocator : public Common::Base_memory_allocator
 
 /** 
  * AVL-based heap region manager.  This uses the C-runtime heap for slab purposes
- * and therefore is only used as an in-memory structure.  It is currently used
- * by the simple storage manager.
+ * and therefore is only used as an in-memory structure.  
  * 
  */
 class Region_allocator

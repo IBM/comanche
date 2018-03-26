@@ -13,6 +13,7 @@
 #ifndef __API_BLOB_ITF__
 #define __API_BLOB_ITF__
 
+#include <stdint.h>
 #include <api/memory_itf.h>
 #include <api/region_itf.h>
 
@@ -29,11 +30,11 @@ public:
   DECLARE_INTERFACE_UUID(0xb114511d,0x991c,0x4ca9,0xb8b7,0x79,0x09,0x15,0xd5,0xab,0x6b);
 
 public:
-  using blob_t = void*;
-  using cursor_t = void*;
+  using blob_t = uint64_t;
+  using cursor_t = uint64_t;
 
   /** 
-   * Create a new blob
+   * Create a new blob and initialize to zero.
    * 
    * @param name Name of blob
    * @param owner Optional owner identifier
@@ -47,84 +48,31 @@ public:
                         const std::string& datatype,
                         size_t size_in_bytes) = 0;
 
-  /** 
-   * Erase a blob
-   * 
-   * @param handle Blob handle
-   */
-  virtual void erase(blob_t handle) = 0;
 
   /** 
-   * Open a cursor to a blob
+   * Open cursor to blob
    * 
-   * @param handle Blob handle
+   * @param blob Blob handle
    * 
-   * @return Cursor
+   * @return Cursor handle
    */
-  virtual cursor_t open(blob_t handle) = 0;
-
+  virtual cursor_t open_cursor(blob_t blob) = 0;
+  
   /** 
-   * Close a cursor to a blob
-   * 
-   * @param handle 
-   * 
-   * @return 
-   */
-  virtual cursor_t close(blob_t handle) = 0;
-
-  /** 
-   * Move cursor position
+   * Synchronous direct read into IO buffer
    * 
    * @param cursor Cursor handle
+   * @param iob IO buffer handle
+   * @param size_in_bytes Number of bytes to read
    * @param offset Offset in bytes
-   * @param flags SEEK_SET etc.
-   */
-  virtual void seek(cursor_t cursor, long offset, int flags) = 0;
-
-  /** 
-   * Zero copy version of read
    * 
-   * @param cursor 
-   * @param buffer 
-   * @param buffer_offset 
-   * @param size_in_bytes 
+   * @return S_OK on success
    */
-  virtual void read(cursor_t cursor, io_buffer_t buffer, size_t buffer_offset, size_t size_in_bytes) = 0;
+  virtual status_t read(cursor_t cursor,
+                        Component::io_buffer_t& iob,
+                        size_t size_in_bytes,
+                        size_t iob_offset = 0) = 0;
 
-  /** 
-   * Copy-based read
-   * 
-   * @param cursor 
-   * @param dest 
-   * @param size_in_bytes 
-   */
-  virtual void read(cursor_t cursor, void * dest, size_t size_in_bytes) = 0;
-
-  /** 
-   * Zero copy version of write
-   * 
-   * @param cursor 
-   * @param buffer 
-   * @param buffer_offset 
-   * @param size_in_bytes 
-   */
-  virtual void write(cursor_t cursor, io_buffer_t buffer, size_t buffer_offset, size_t size_in_bytes) = 0;
-
-  /** 
-   * Copy-based write
-   * 
-   * @param cursor 
-   * @param dest 
-   * @param size_in_bytes 
-   */
-  virtual void write(cursor_t cursor, void * dest, size_t size_in_bytes) = 0;
-
-  /** 
-   * Set the size of the file (like POSIX truncate call)
-   * 
-   * @param size_in_bytes Size in bytes
-   */
-  virtual void truncate(blob_t handle, size_t size_in_bytes) = 0;
 
   /** 
    * Debug state of the blob store

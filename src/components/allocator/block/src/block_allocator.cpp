@@ -26,7 +26,7 @@ Segments are put in log 2 bins according to the maximum free contiguous space th
 
  */
 static constexpr size_t PER_SEGMENT_FOOTPRINT    = 4096;
-static constexpr size_t LBA_RANGE_PER_SEGMENT    = (MB(128)/4096);
+static constexpr size_t LBA_RANGE_PER_SEGMENT    = (GB(2)/4096);
 //static constexpr size_t NUM_SEGMENTS = 1000;
 
 static unsigned size_to_bin(uint64_t size)

@@ -322,7 +322,7 @@ void Ustack::uipc_channel_thread_entry(Core::UIPC::Channel * channel)
       break;
     if(!msg) continue;
     
-    PLOG("recv'ed UIPC msg:status=%d, type=%d (%s)",s, msg->type, msg->data);
+    PMAJOR("recv'ed UIPC msg:status=%d, type=%d (%s)",s, msg->type, msg->data);
     
     assert(msg);
     msg->type = 101;

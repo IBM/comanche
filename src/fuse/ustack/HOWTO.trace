@@ -1,0 +1,3 @@
+sudo trace-cmd record -M 2 -p function_graph ./iotest 
+sudo trace-cmd report |less
+sudo perf stat ./iotest

@@ -133,89 +133,29 @@ public:
                         size_t size_in_bytes) override;
 
   /** 
-   * Erase a blob
+   * Open cursor to blob
    * 
-   * @param handle Blob handle
+   * @param blob Blob handle
+   * 
+   * @return Cursor handle
    */
-  virtual void erase(blob_t handle) override;
-
+  virtual cursor_t open_cursor(blob_t blob) override;
+  
   /** 
-   * Open a cursor to a blob
-   * 
-   * @param handle Blob handle
-   * 
-   * @return Cursor
-   */
-  virtual cursor_t open(blob_t handle) override;
-
-  /** 
-   * Close a cursor to a blob
-   * 
-   * @param handle 
-   * 
-   * @return 
-   */
-  virtual cursor_t close(blob_t handle) override;
-
-  /** 
-   * Move cursor position
+   * Synchronous direct read into IO buffer
    * 
    * @param cursor Cursor handle
+   * @param iob IO buffer handle
+   * @param size_in_bytes Number of bytes to read
    * @param offset Offset in bytes
-   * @param flags SEEK_SET etc.
-   */
-  virtual void seek(cursor_t cursor, long offset, int flags) override;
-
-  /** 
-   * Zero copy version of read
    * 
-   * @param cursor 
-   * @param buffer 
-   * @param buffer_offset 
-   * @param size_in_bytes 
+   * @return S_OK on success
    */
-  virtual void read(cursor_t cursor, Component::io_buffer_t buffer, size_t buffer_offset, size_t size_in_bytes) override;
+  virtual status_t read(cursor_t cursor,
+                        Component::io_buffer_t& iob,
+                        size_t size_in_bytes,
+                        size_t iob_offset = 0) override;
 
-  /** 
-   * Copy-based read
-   * 
-   * @param cursor 
-   * @param dest 
-   * @param size_in_bytes 
-   */
-  virtual void read(cursor_t cursor, void * dest, size_t size_in_bytes) override;
-
-  /** 
-   * Zero copy version of write
-   * 
-   * @param cursor 
-   * @param buffer 
-   * @param buffer_offset 
-   * @param size_in_bytes 
-   */
-  virtual void write(cursor_t cursor,
-                     Component::io_buffer_t buffer,
-                     size_t buffer_offset,
-                     size_t size_in_bytes) override;
-
-  /** 
-   * Copy-based write
-   * 
-   * @param cursor 
-   * @param dest 
-   * @param size_in_bytes 
-   */
-  virtual void write(cursor_t cursor,
-                     void * dest,
-                     size_t size_in_bytes) override;
-
-
-  /** 
-   * Set the size of the file (like POSIX truncate call)
-   * 
-   * @param size_in_bytes Size in bytes
-   */
-  virtual void truncate(blob_t handle, size_t size_in_bytes) override;
 
   /** 
    * Debug state of the blob store
