@@ -55,7 +55,7 @@
 // compromising on hash quality.
 
 #include "city_config.h"
-#include <city.h>
+#include <common/city.h>
 
 #include <algorithm>
 #include <string.h>  // for memcpy and memset
