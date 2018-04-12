@@ -1,0 +1,3 @@
+[submodule "comanche-restricted"]
+	path = comanche-restricted
+	url = git@github.ibm.com:Daniel-Waddington/comanche-restricted.git
