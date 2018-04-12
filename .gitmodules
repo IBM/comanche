@@ -1,0 +1,3 @@
+[submodule "src/lib/pmdk"]
+	path = src/lib/pmdk
+	url = https://github.com/pmem/pmdk.git
