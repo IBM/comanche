@@ -15,6 +15,7 @@ def gen(rootDir):
 
 gen('./src')
 gen('./apps')
+gen('./comanche-restricted/src')
 
 
 
