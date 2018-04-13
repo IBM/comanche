@@ -1,3 +1,8 @@
 [submodule "comanche-restricted"]
 	path = comanche-restricted
 	url = git@github.ibm.com:Daniel-Waddington/comanche-restricted.git
+
+[submodule "src/lib/pmdk"]
+	path = src/lib/pmdk
+	url = https://github.com/pmem/pmdk.git
+
