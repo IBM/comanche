@@ -112,6 +112,14 @@ extern "C"
 #define MB(X) (X << 20)
 #define GB(X) (((unsigned long)X) << 30)
 
+#define REDUCE_KiB(X) (X >> 10)
+#define REDUCE_MiB(X) (X >> 20)
+#define REDUCE_GiB(X) (X >> 30)
+
+#define KiB(X) (X << 10)
+#define MiB(X) (X << 20)
+#define GiB(X) (((unsigned long)X) << 30)
+
 #define PAGE_SHIFT_512 9
 #define PAGE_SHIFT_4K 12
 #define PAGE_SHIFT_2MB 21
