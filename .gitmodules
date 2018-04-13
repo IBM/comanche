@@ -2,6 +2,4 @@
 	path = src/lib/pmdk
 	url = https://github.com/pmem/pmdk.git
   branch = stable-1.4
-[submodule "comanche-restricted"]
-	path = comanche-restricted
-	url = git@github.ibm.com:Daniel-Waddington/comanche-restricted.git
+
