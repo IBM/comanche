@@ -3,3 +3,6 @@
 	url = https://github.com/pmem/pmdk.git
   branch = stable-1.4
 
+[submodule "src/lib/ndctl"]
+	path = src/lib/ndctl
+	url = https://github.com/pmem/ndctl.git

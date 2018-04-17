@@ -304,7 +304,12 @@ static void * build_bitmap(u64 start_page,
       /* clear dirty and accessed */
       *pte = pte_clear_flags(*pte, _PAGE_DIRTY | _PAGE_ACCESSED);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,15,0)
+      __flush_tlb_one_user(addr);
+      __flush_tlb_one_kernel(addr);
+#else
       __flush_tlb_single(addr); /* TODO: this won't work for SMP ?? */
+#endif
 
       pte_unmap(pte);
     }
