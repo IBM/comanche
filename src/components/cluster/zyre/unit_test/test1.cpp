@@ -47,6 +47,44 @@ TEST_F(Zyre_test, Instantiate)
   fact->release_ref();
 }
 
+TEST_F(Zyre_test, Methods)
+{
+  auto uuid = _zyre->uuid();
+  ASSERT_FALSE(uuid.empty());
+  PLOG("uuid:%s",uuid.c_str());
+
+  _zyre->dump_info();
+}
+
+TEST_F(Zyre_test, Start)
+{
+  _zyre->start_node();
+  sleep(2);
+}
+
+TEST_F(Zyre_test, JoinGroup)
+{
+  _zyre->group_join("foobar");
+  sleep(2);
+}
+
+TEST_F(Zyre_test, Shout)
+{
+  _zyre->shout("foobar", "X-MSG", "Hello there");
+  sleep(1);
+}
+
+TEST_F(Zyre_test, LeaveGroup)
+{
+  _zyre->group_leave("foobar");
+}
+
+
+TEST_F(Zyre_test, Stop)
+{
+  _zyre->stop_node();
+}
+
 
 TEST_F(Zyre_test, Cleanup)
 {
@@ -58,11 +96,6 @@ TEST_F(Zyre_test, Cleanup)
 } // namespace
 
 int main(int argc, char **argv) {
-
-  if(argc < 2) {
-    PINF("zyre-test1");
-    return -1;
-  }
 
   ::testing::InitGoogleTest(&argc, argv);
   auto r = RUN_ALL_TESTS();
