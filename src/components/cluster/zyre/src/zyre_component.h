@@ -17,14 +17,17 @@
 #ifndef __ZYRE_COMPONENT_H__
 #define __ZYRE_COMPONENT_H__
 
+#include <zyre.h>
 #include <component/base.h>
 #include <api/cluster_itf.h>
+
 
 class Zyre_component : public Component::ICluster
 {  
 private:
   static constexpr bool option_DEBUG = true;
-
+  static constexpr unsigned HEARTBEAT_INTERVAL_MS = 1000;
+  
 public:
   /** 
    * Constructor
@@ -32,7 +35,8 @@ public:
    * @param block_device Block device interface
    * 
    */
-  Zyre_component(const std::string& node_name);
+  Zyre_component(const std::string& node_name,
+                 const std::string& end_point);
 
   /** 
    * Destructor
@@ -61,11 +65,20 @@ public:
 public:
   
   /* ICluster interface */
-  std::string uuid() const override {
-    return "hello";
-  }
+  virtual void start_node() override;
+  virtual void stop_node() override;
+  virtual std::string uuid() const override;
+  virtual std::string node_name() const override;
+  virtual void dump_info() const override;
+  virtual void group_join(const std::string& group) override;
+  virtual void group_leave(const std::string& group) override;
+  virtual void shout(const std::string& group, const std::string& type, const std::string& message) override;
+  virtual void whisper(const std::string& peer_uuid, const std::string& type, const std::string& message) override;
+  virtual void poll_recv(std::function<void(const std::string& sender, const std::string& type, const std::string& message)> callback) override;
+
 
 private:
+  zyre_t * _node;
 };
 
 
@@ -91,9 +104,17 @@ public:
     delete this;
   }
 
+  virtual Component::ICluster * create(const std::string& node_name,
+                                       const std::string& end_point) override
+  {    
+    Component::ICluster * obj = static_cast<Component::ICluster*>(new Zyre_component(node_name, end_point));    
+    obj->add_ref();
+    return obj;
+  }
+
   virtual Component::ICluster * create(const std::string& node_name) override
   {    
-    Component::ICluster * obj = static_cast<Component::ICluster*>(new Zyre_component(node_name));    
+    Component::ICluster * obj = static_cast<Component::ICluster*>(new Zyre_component(node_name, ""));    
     obj->add_ref();
     return obj;
   }
