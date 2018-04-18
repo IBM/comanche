@@ -63,14 +63,14 @@ public:
    * 
    * @return Memory region handle
    */
-  virtual memory_region_t register_memory(void * contig_addr, size_t size, int flags) = 0;
+  virtual memory_region_t register_memory(const void * contig_addr, size_t size, int flags) = 0;
 
   /** 
    * De-register memory region
    * 
    * @param memory_region 
    */
-  virtual void deregister_memory(memory_region_t memory_region) = 0;
+  virtual void deregister_memory(const memory_region_t memory_region) = 0;
 
   /** 
    * Asynchronously post a buffer to the connection
@@ -80,7 +80,7 @@ public:
    * 
    * @return Work (context) identifier
    */
-  virtual context_t post_send(connection_t connection,
+  virtual context_t post_send(const connection_t connection,
                               const std::vector<struct iovec>& buffers) = 0;
 
   /** 
@@ -91,7 +91,7 @@ public:
    * 
    * @return Work (context) identifier
    */
-  virtual context_t post_recv(connection_t connection,
+  virtual context_t post_recv(const connection_t connection,
                               const std::vector<struct iovec>& buffers) = 0;
 
   /** 
@@ -104,7 +104,7 @@ public:
    * @param out_context 
    * 
    */
-  virtual void post_read(connection_t connection,
+  virtual void post_read(const connection_t connection,
                          const std::vector<struct iovec>& buffers,
                          uint64_t remote_addr,
                          uint64_t key,
@@ -120,7 +120,7 @@ public:
    * @param out_context 
    * 
    */
-  virtual void post_write(connection_t connection,
+  virtual void post_write(const connection_t connection,
                           const std::vector<struct iovec>& buffers,
                           uint64_t remote_addr,
                           uint64_t key,
@@ -132,16 +132,18 @@ public:
    * @param connection Connection to inject on
    * @param buffers Buffer vector (containing regions should be registered)
    */
-  virtual void inject_send(connection_t connection,
+  virtual void inject_send(const connection_t connection,
                            const std::vector<struct iovec>& buffers) = 0;
 
   /** 
    * Poll for UDP (connectionless) bootstrap requests
    * 
    * @param map_function Function applied to each request
+   * @param packet_data Data received on bootstrap port
    * 
    */
-  virtual void poll_bootstrap_requests(std::function<void(const std::string& remote_endpoint)> map_function) = 0;
+  virtual void poll_bootstrap_requests(std::function<void(const std::string& remote_endpoint,
+                                                           std::string& packet_data)> map_function) = 0;
   
   /** 
    * Poll events (e.g., completions)
@@ -164,6 +166,14 @@ public:
    * @return Max message size in bytes
    */
   virtual size_t max_message_size() const = 0;
+
+  /** 
+   * Get provider name
+   * 
+   * 
+   * @return Provider name
+   */
+  virtual const std::string get_provider() const = 0;
   
   /** 
    * Close connection
@@ -173,6 +183,8 @@ public:
 
   /* Additional TODO:
      - support for completion and event counters 
+     - support for secure bootstrap/connection negotiation
+     - support for statistics collection
   */
 };
 
@@ -187,7 +199,7 @@ public:
    * 
    * @param json_configuration Configuration string in JSON
    * form. e.g. { "caps":["FI_MSG","FI_RMA"], "preferred_provider" :
-   * "verbs", "boostrap_ip":"10.0.0.1", "bootstrap_port" : 9000 }
+   * "verbs", "bootstrap_addr":"10.0.0.1:9999" }
    * @return 
    */
   virtual IFabric * open_provider(const std::string& json_configuration) = 0;
