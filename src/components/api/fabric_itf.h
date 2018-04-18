@@ -134,16 +134,6 @@ public:
    */
   virtual void inject_send(const connection_t connection,
                            const std::vector<struct iovec>& buffers) = 0;
-
-  /** 
-   * Poll for UDP (connectionless) bootstrap requests
-   * 
-   * @param map_function Function applied to each request
-   * @param packet_data Data received on bootstrap port
-   * 
-   */
-  virtual void poll_bootstrap_requests(std::function<void(const std::string& remote_endpoint,
-                                                           std::string& packet_data)> map_function) = 0;
   
   /** 
    * Poll events (e.g., completions)
@@ -183,7 +173,6 @@ public:
 
   /* Additional TODO:
      - support for completion and event counters 
-     - support for secure bootstrap/connection negotiation
      - support for statistics collection
   */
 };
@@ -198,8 +187,7 @@ public:
    * Open a fabric provider instance
    * 
    * @param json_configuration Configuration string in JSON
-   * form. e.g. { "caps":["FI_MSG","FI_RMA"], "preferred_provider" :
-   * "verbs", "bootstrap_addr":"10.0.0.1:9999" }
+   * form. e.g. { "caps":["FI_MSG","FI_RMA"], "preferred_provider" : "verbs"}
    * @return 
    */
   virtual IFabric * open_provider(const std::string& json_configuration) = 0;
