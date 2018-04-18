@@ -19,7 +19,6 @@
 
 #include <functional>
 #include <common/exceptions.h>
-#include <api/rdma_itf.h>
 #include <rdma/rdma_cma.h>
 
 namespace Component
