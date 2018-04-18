@@ -9,3 +9,6 @@
 [submodule "src/lib/libfabric"]
 	path = src/lib/libfabric
 	url = https://github.com/ofiwg/libfabric.git
+[submodule "src/components/cluster/zyre/lib/zyre"]
+	path = src/components/cluster/zyre/lib/zyre
+	url = https://github.com/zeromq/zyre.git

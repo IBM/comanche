@@ -62,12 +62,12 @@ public:
                    void*& out_value, /* release with free() */
                    size_t& out_value_len) = 0;
 
-  virtual void get_ref(const pool_t pool,
-                       const std::string key,
-                       const void*& out_value,
-                       size_t& out_value_len) = 0;
+  virtual void get_reference(const pool_t pool,
+                             const std::string key,
+                             const void*& out_value,
+                             size_t& out_value_len) = 0;
 
-  virtual void release_ref(const pool_t pool,
+  virtual void release_reference(const pool_t pool,
                            const void * ptr) = 0;
                              
   virtual void remove(const pool_t pool,
