@@ -12,3 +12,6 @@
 [submodule "src/components/cluster/zyre/lib/zyre"]
 	path = src/components/cluster/zyre/lib/zyre
 	url = https://github.com/zeromq/zyre.git
+[submodule "src/lib/cppzmq"]
+	path = src/lib/cppzmq
+	url = https://github.com/zeromq/cppzmq.git

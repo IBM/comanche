@@ -36,22 +36,16 @@ struct ibv_mr * Rdma_component::register_memory(void * contig_addr, size_t size)
   return _transport.register_memory(contig_addr,size);
 }
 
-uint64_t Rdma_component::post_send(struct ibv_mr * mr0, struct ibv_mr * extra_mr)
+void Rdma_component::post_send(uint64_t gwid, struct ibv_mr * mr0, struct ibv_mr * extra_mr)
 {
-  uint64_t gwid = next_gwid();
   if(_transport.post_send(gwid, mr0, extra_mr) != S_OK)
     throw General_exception("rdma transport post_send failed");
-
-  return gwid;
 }
 
-uint64_t Rdma_component::post_recv(struct ibv_mr * mr0)
+void Rdma_component::post_recv(uint64_t gwid, struct ibv_mr * mr0)
 {
-  uint64_t gwid = next_gwid();
   if(_transport.post_recv(gwid, mr0) != S_OK)
     throw General_exception("rdma transport post_recv failed");
-
-  return gwid;
 }
 
 int Rdma_component::poll_completions(std::function<void(uint64_t)> completion_func)

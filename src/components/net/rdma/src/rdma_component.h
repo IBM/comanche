@@ -96,19 +96,17 @@ public:
    * 
    * @param mr0 Memory buffer (e.g., header)
    * @param extra_mr Additional buffer (e.g., payload)
-   * 
-   * @return Work identifier
+   *
    */
-  virtual uint64_t post_send(struct ibv_mr * mr0, struct ibv_mr * extra_mr) override;
+  virtual void post_send(uint64_t wid, struct ibv_mr * mr0, struct ibv_mr * extra_mr) override;
 
   /** 
    * Post a buffer to receive data
    * 
    * @param mr0 RDMA buffer (from register_memory)
    * 
-   * @return Work identifier
    */
-  virtual uint64_t post_recv(struct ibv_mr * mr0) override;
+  virtual void post_recv(uint64_t wid, struct ibv_mr * mr0) override;
 
   /** 
    * Poll completions with completion function
