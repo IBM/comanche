@@ -36,24 +36,6 @@ public:
   using connection_t=void*;
   
   /** 
-   * Connect to a waiting peer (creates local endpoint)
-   * 
-   * @param remote_endpoint Remote endpoint designator
-   * 
-   */
-  virtual connection_t connect(const std::string& remote_endpoint) = 0;
-
-  /** 
-   * Wait for a connect on a specific port
-   * 
-   * @param port Port number
-   * @param timeout Timeout in milliseconds
-   * 
-   * @return S_OK or E_FAIL
-   */
-  virtual status_t wait_for_connect(int port, unsigned long timeout) = 0;
-
-  /** 
    * Register buffer for RDMA
    * 
    * @param contig_addr Pointer to contiguous region
@@ -178,12 +160,20 @@ class IFabric_endpoint : public Component::IBase
 {
 public:
   DECLARE_INTERFACE_UUID(0xc373d083,0xe629,0x46c9,0x86fa,0x6f,0x96,0x40,0x61,0x10,0xdf);
+  
+  /** 
+   * Connect to a remote server and creates local endpoint
+   * 
+   * @param remote_endpoint Remote endpoint designator
+   * 
+   */
+  virtual IFabric_connection * connect(const std::string& remote_endpoint) = 0;
 
   /** 
-   * New connections (handled by the active thread) are 
-   * queued so that they can be taken by a polling thread
-   * an integrated into the processing loop.  This method
-   * is normally invoked until NULL is returned.
+   * Server/accept side handling of new connections (handled by the
+   * active thread) are queued so that they can be taken by a polling
+   * thread an integrated into the processing loop.  This method is
+   * normally invoked until NULL is returned.
    * 
    * 
    * @return New connection or NULL on no new connections.
