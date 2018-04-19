@@ -26,10 +26,9 @@ namespace Component
  * Fabric/RDMA-based network component
  * 
  */
-class IFabric : public Component::IBase
+class IFabric_connection
 {
 public:
-  DECLARE_INTERFACE_UUID(0xc373d083,0xe629,0x46c9,0x86fa,0x6f,0x96,0x40,0x61,0x10,0xdf);
 
   using memory_region_t=void*;
   using endpoint_t=void*;
@@ -75,37 +74,31 @@ public:
   /** 
    * Asynchronously post a buffer to the connection
    * 
-   * @param connection Connection to send on
    * @param buffers Buffer vector (containing regions should be registered)
    * 
    * @return Work (context) identifier
    */
-  virtual context_t post_send(const connection_t connection,
-                              const std::vector<struct iovec>& buffers) = 0;
+  virtual context_t post_send(const std::vector<struct iovec>& buffers) = 0;
 
   /** 
    * Asynchronously post a buffer to receive data
    * 
-   * @param connection Connection to post to
    * @param buffers Buffer vector (containing regions should be registered)
    * 
    * @return Work (context) identifier
    */
-  virtual context_t post_recv(const connection_t connection,
-                              const std::vector<struct iovec>& buffers) = 0;
+  virtual context_t post_recv(const std::vector<struct iovec>& buffers) = 0;
 
   /** 
    * Post RDMA read operation
    * 
-   * @param connection Connection to read on
    * @param buffers Destination buffer vector
    * @param remote_addr Remote address
    * @param key Key for remote address
    * @param out_context 
    * 
    */
-  virtual void post_read(const connection_t connection,
-                         const std::vector<struct iovec>& buffers,
+  virtual void post_read(const std::vector<struct iovec>& buffers,
                          uint64_t remote_addr,
                          uint64_t key,
                          context_t& out_context) = 0;
@@ -113,15 +106,13 @@ public:
   /** 
    * Post RDMA write operation
    * 
-   * @param connection Connection to write to
    * @param buffers Source buffer vector
    * @param remote_addr Remote address
    * @param key Key for remote address
    * @param out_context 
    * 
    */
-  virtual void post_write(const connection_t connection,
-                          const std::vector<struct iovec>& buffers,
+  virtual void post_write(const std::vector<struct iovec>& buffers,
                           uint64_t remote_addr,
                           uint64_t key,
                           context_t& out_context) = 0;
@@ -132,8 +123,7 @@ public:
    * @param connection Connection to inject on
    * @param buffers Buffer vector (containing regions should be registered)
    */
-  virtual void inject_send(const connection_t connection,
-                           const std::vector<struct iovec>& buffers) = 0;
+  virtual void inject_send(const std::vector<struct iovec>& buffers) = 0;
   
   /** 
    * Poll events (e.g., completions)
@@ -151,6 +141,71 @@ public:
   virtual void unblock_completions() = 0;
 
   /** 
+   * Get address of connected peer (taken from fi_getpeer during
+   * connection instantiation).
+   * 
+   * 
+   * @return Peer endpoint address
+   */
+  virtual std::string get_peer_addr() = 0;
+
+  /** 
+   * Get local address of connection (taken from fi_getname during
+   * connection instantiation).
+   * 
+   * 
+   * @return Local endpoint address
+   */
+  virtual std::string get_local_addr() = 0;
+
+
+  /* Additional TODO:
+     - support for atomic RMA operations
+     - support for completion and event counters 
+     - support for statistics collection
+  */
+
+};
+
+
+/** 
+ * Fabric endpoint.  Instantiation of this interface normally creates
+ * an active thread that uses the fabric connection manager to handle
+ * connections (see man fi_cm).  On release of the interface, the
+ * endpoint is destroyed.
+ */
+class IFabric_endpoint : public Component::IBase
+{
+public:
+  DECLARE_INTERFACE_UUID(0xc373d083,0xe629,0x46c9,0x86fa,0x6f,0x96,0x40,0x61,0x10,0xdf);
+
+  /** 
+   * New connections (handled by the active thread) are 
+   * queued so that they can be taken by a polling thread
+   * an integrated into the processing loop.  This method
+   * is normally invoked until NULL is returned.
+   * 
+   * 
+   * @return New connection or NULL on no new connections.
+   */
+  virtual IFabric_connection * get_new_connections() = 0;
+  
+  /** 
+   * Close connection and release any associated resources
+   * 
+   * @param connection 
+   */
+  virtual void close_connection(IFabric_connection * connection) = 0;
+
+  /** 
+   * Used to get a vector of active connection belonging to this
+   * end point.
+   * 
+   * @return Vector of new connections
+   */
+  virtual const std::vector<IFabric_connection*>& connections() = 0;
+  
+  /** 
    * Get the maximum message size for the provider
    * 
    * @return Max message size in bytes
@@ -163,19 +218,14 @@ public:
    * 
    * @return Provider name
    */
-  virtual const std::string get_provider() const = 0;
-  
+  virtual const std::string get_provider_name() const = 0;
+
   /** 
-   * Close connection
+   * Shutdown connection ready for release (is this needed?)
    * 
    */
-  virtual void close(connection_t connection) = 0;
-
-  /* Additional TODO:
-     - support for completion and event counters 
-     - support for statistics collection
-  */
-};
+  virtual void shutdown() = 0;
+}
 
 
 class IFabric_factory : public Component::IBase
@@ -184,13 +234,14 @@ public:
   DECLARE_INTERFACE_UUID(0xfac3d083,0xe629,0x46c9,0x86fa,0x6f,0x96,0x40,0x61,0x10,0xdf);
 
   /** 
-   * Open a fabric provider instance
-   * 
+   * Open a fabric endpoint.  Endpoints usually correspond with hardware resources, e.g. verbs queue pair
+   * Options should include provider, capabilities, active thread core.
+   *
    * @param json_configuration Configuration string in JSON
    * form. e.g. { "caps":["FI_MSG","FI_RMA"], "preferred_provider" : "verbs"}
    * @return 
    */
-  virtual IFabric * open_provider(const std::string& json_configuration) = 0;
+  virtual IFabric_endpoint * open_endpoint(const std::string& json_configuration) = 0;
 };
 
 } // Component
