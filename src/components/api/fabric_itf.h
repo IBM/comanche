@@ -117,6 +117,16 @@ public:
   virtual int poll_events(std::function<void(context_t, status_t, void*)> completion_callback) = 0;
 
   /** 
+   * Block and wait for next completion.
+   * 
+   * @param polls_limit Maximum number of polls (throws exception on exceeding limit)
+   * 
+   * @return Next completion context
+   */
+  virtual context_t wait_for_next_completion(unsigned polls_limit = 0) = 0;
+
+
+  /** 
    * Unblock any threads waiting on completions
    * 
    */
