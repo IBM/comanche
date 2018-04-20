@@ -19,6 +19,7 @@
 
 #include <functional>
 #include <common/exceptions.h>
+#include <api/components.h>
 #include <rdma/rdma_cma.h>
 
 namespace Component
@@ -65,21 +66,21 @@ public:
   /** 
    * Post a buffer to the connection
    * 
+   * @param wid Work identifier
    * @param mr0 RDMA buffer (e.g., header)
    * @param extra_mr Additional buffer (e.g., payload)
    * 
-   * @return Work identifier
    */
-  virtual uint64_t post_send(struct ibv_mr * mr0, struct ibv_mr * extra_mr = NULL) = 0;
+  virtual void post_send(uint64_t wid, struct ibv_mr * mr0, struct ibv_mr * extra_mr = NULL) = 0;
 
   /** 
    * Post a buffer to receive data
    * 
+   * @param wid Work identifier
    * @param mr0 RDMA buffer (from register_memory)
-   * 
-   * @return Work identifier
+   *
    */
-  virtual uint64_t post_recv(struct ibv_mr * mr0) = 0;
+  virtual void post_recv(uint64_t wid, struct ibv_mr * mr0) = 0;
 
   /** 
    * Poll completions with completion function
@@ -89,6 +90,15 @@ public:
    * @return Number of completions
    */
   virtual int poll_completions(std::function<void(uint64_t)> completion_func = 0) = 0;
+
+  /** 
+   * Block and wait for next completion.
+   * 
+   * @param polls_limit Maximum number of pollsx
+   * 
+   * @return Next completion id
+   */
+  virtual uint64_t wait_for_next_completion(unsigned polls_limit = 0) = 0;
     
   /** 
    * Disconnect from peer

@@ -65,6 +65,23 @@ public:
   }
 
   /** 
+   * Destructor
+   * 
+   * 
+   * @return 
+   */
+  virtual ~Rdma_transport()
+  {
+    TRACE();
+    for(auto& mr : _mr_vector)
+      ibv_dereg_mr(mr);
+
+    channel_close_ctx(_ctx);
+    PLOG("Rdma_transport: channel closed");
+  }
+
+  
+  /** 
    * Wait for connection
    * 
    * @param port 
@@ -178,19 +195,6 @@ public:
     return S_OK;
   }
 
-  /** 
-   * Destructor
-   * 
-   * 
-   * @return 
-   */
-  virtual ~Rdma_transport()
-  {
-    for(auto& mr : _mr_vector) {
-      ibv_dereg_mr(mr);
-    }
-    channel_close_ctx(_ctx);
-  }
 
   /** 
    * Get a pointer to the first segment buffer area
@@ -281,7 +285,7 @@ public:
         break;
       }
       if(wc[i].wr_id) {
-        _outstanding--;
+        _outstanding --;
         if(release_func)
           release_func(wc[i].wr_id);
       }
@@ -293,7 +297,31 @@ public:
     return ne;
   }
 
+  uint64_t wait_for_next_completion(unsigned timeout_polls) {
+    struct ibv_exp_wc wc[1];
+      
+    int ne;
+    unsigned attempts = timeout_polls;
+    
+    while((ne = ibv_exp_poll_cq(_ctx->cq, 1, wc, sizeof(wc[0]))) == 0) {
+      if(timeout_polls > 0) {
+        attempts --;
+        if(attempts == 0) throw General_exception("wait_for_next_completion time out");
+      }
+    }
+    
+    if(wc[0].status != IBV_WC_SUCCESS) {
+      throw General_exception("Failed status %s (%d) for wr_id %d",
+                              ibv_wc_status_str(wc[0].status),
+                              wc[0].status, (int) wc[0].wr_id);
+    }
 
+    assert(ne == 1);
+    assert(wc[0].wr_id);
+    _outstanding --;
+    return wc[0].wr_id;
+  }
+  
   /** 
    * Post send with work id.
    * 

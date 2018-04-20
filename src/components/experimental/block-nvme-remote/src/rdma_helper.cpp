@@ -510,6 +510,7 @@ struct ibv_mr * channel_register_memory(struct channel_context *ctx,
 
 int channel_close_ctx(struct channel_context *ctx)
 {
+  TRACE();
   if(!ctx) return 0;
   
   if (ibv_destroy_qp(ctx->qp)) {
@@ -543,7 +544,6 @@ int channel_close_ctx(struct channel_context *ctx)
     PERR("Couldn't release context\n");
     return 1;
   }
-
 
   free(ctx);
 
