@@ -56,6 +56,7 @@ public:
   }
 
   void unload() override {
+    PLOG("unloading RDMA component.");
     delete this;
   }
 
@@ -116,6 +117,15 @@ public:
    * @return Number of completions
    */
   virtual int poll_completions(std::function<void(uint64_t)> completion_func) override;
+
+  /** 
+   * Wait for next complete
+   * 
+   * @param timeout_polls Limit to the number of polls
+   * 
+   * @return 
+   */
+  virtual uint64_t wait_for_next_completion(unsigned timeout_polls = 0) override;
   
   /** 
    * Disconnect from peer
@@ -128,9 +138,9 @@ public:
 private:
   inline uint64_t next_gwid() { return _gwid++; }
   
-  uint64_t       _gwid __attribute__((aligned(8))) = 0;
-  Rdma_transport _transport;
-  std::string    _device_name;
+  uint64_t        _gwid __attribute__((aligned(8))) = 0;
+  Rdma_transport* _transport;
+  std::string     _device_name;
 };
 
 
