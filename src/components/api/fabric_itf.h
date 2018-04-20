@@ -17,7 +17,12 @@
 #ifndef __API_FABRIC_ITF__
 #define __API_FABRIC_ITF__
 
+#include <component/base.h> /* Component::IBase */
+
 #include <functional>
+#include <vector>
+
+struct iovec;
 
 namespace Component
 {
@@ -34,7 +39,9 @@ public:
   using endpoint_t=void*;
   using context_t=void*;
   using connection_t=void*;
-  
+
+  virtual ~IFabric_connection() {}
+
   /** 
    * Register buffer for RDMA
    * 
@@ -60,7 +67,7 @@ public:
    * 
    * @return Work (context) identifier
    */
-  virtual context_t post_send(const std::vector<struct iovec>& buffers) = 0;
+  virtual context_t post_send(const std::vector<iovec>& buffers) = 0;
 
   /** 
    * Asynchronously post a buffer to receive data
@@ -69,7 +76,7 @@ public:
    * 
    * @return Work (context) identifier
    */
-  virtual context_t post_recv(const std::vector<struct iovec>& buffers) = 0;
+  virtual context_t post_recv(const std::vector<iovec>& buffers) = 0;
 
   /** 
    * Post RDMA read operation
@@ -80,7 +87,7 @@ public:
    * @param out_context 
    * 
    */
-  virtual void post_read(const std::vector<struct iovec>& buffers,
+  virtual void post_read(const std::vector<iovec>& buffers,
                          uint64_t remote_addr,
                          uint64_t key,
                          context_t& out_context) = 0;
@@ -94,7 +101,7 @@ public:
    * @param out_context 
    * 
    */
-  virtual void post_write(const std::vector<struct iovec>& buffers,
+  virtual void post_write(const std::vector<iovec>& buffers,
                           uint64_t remote_addr,
                           uint64_t key,
                           context_t& out_context) = 0;
@@ -105,7 +112,7 @@ public:
    * @param connection Connection to inject on
    * @param buffers Buffer vector (containing regions should be registered)
    */
-  virtual void inject_send(const std::vector<struct iovec>& buffers) = 0;
+  virtual void inject_send(const std::vector<iovec>& buffers) = 0;
   
   /** 
    * Poll events (e.g., completions)
@@ -193,7 +200,7 @@ public:
    * 
    * @return Vector of new connections
    */
-  virtual const std::vector<IFabric_connection*>& connections() = 0;
+  virtual std::vector<IFabric_connection*> connections() = 0;
   
   /** 
    * Get the maximum message size for the provider
@@ -208,14 +215,8 @@ public:
    * 
    * @return Provider name
    */
-  virtual const std::string get_provider_name() const = 0;
-
-  /** 
-   * Shutdown connection ready for release (is this needed?)
-   * 
-   */
-  virtual void shutdown() = 0;
-}
+  virtual std::string get_provider_name() const = 0;
+};
 
 
 class IFabric_factory : public Component::IBase
