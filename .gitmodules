@@ -3,3 +3,6 @@
 	url = https://github.com/pmem/pmdk.git
   branch = stable-1.4
 
+[submodule "src/components/store/kv/rocksdb"]
+	path = src/components/store/kv/rocksdb
+	url = https://github.com/facebook/rocksdb.git
