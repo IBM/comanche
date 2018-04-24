@@ -85,13 +85,13 @@ TEST_F(Rdma_test, ExchangeData)
   for(unsigned i=0;i<ITERATIONS;i++) {
     if(client) {
       sprintf(msg, "Hello %u !!", i);
-      _rdma->post_send(rdma_buffer);
+      _rdma->post_send(i, rdma_buffer);
       int n_complete = 0;
       while((n_complete = _rdma->poll_completions()) == 0);
       ASSERT_TRUE(n_complete == 1);
     }
     else {
-      _rdma->post_recv(rdma_buffer);
+      _rdma->post_recv(i, rdma_buffer);
       int n_complete = 0;
       while((n_complete = _rdma->poll_completions()) == 0);
       ASSERT_TRUE(n_complete == 1);

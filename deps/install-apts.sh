@@ -6,7 +6,7 @@ apt-get install -y gcc libpciaccess-dev make libcunit1-dev pkg-config \
         libcunit1-dev libboost-system-dev libboost-iostreams-dev libboost-program-options-dev \
         libssl-dev g++-multilib fabric libtool-bin autoconf automake \
         rapidjson-dev libfuse-dev libpcap-dev sqlite3 libsqlite3-dev libomp-dev \
-	      libtbb-dev libtbb-doc libboost-python-dev
+	      libtbb-dev libtbb-doc libboost-python-dev libkmod-dev libjson-c-dev
 
 # optional
 #
