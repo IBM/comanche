@@ -40,15 +40,21 @@ public:
     THREAD_MODEL_SINGLE_PER_POOL,
     THREAD_MODEL_MULTI_PER_POOL,
   };
+
+  enum {
+    FLAGS_READ_ONLY,
+  };
     
   virtual int thread_safety() const = 0;
     
   virtual pool_t create_pool(const std::string path,
-                            const std::string name,
-                            const size_t size) = 0;
+                             const std::string name,
+                             const size_t size,
+                             unsigned int flags = 0) = 0;
 
   virtual pool_t open_pool(const std::string path,
-                          const std::string name) = 0;
+                           const std::string name,
+                           unsigned int flags = 0) = 0;
 
   virtual void close_pool(const pool_t pid) = 0;
 

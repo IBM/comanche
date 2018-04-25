@@ -23,13 +23,14 @@ RockStore::~RockStore()
 
 IKVStore::pool_t RockStore::create_pool(const std::string path,
                                         const std::string name,
-                                        const size_t size)
+                                        const size_t size,
+                                        unsigned int flags)
 {
   rocksdb::Options options;
   options.error_if_exists = true;
   options.create_if_missing = true;
   
-  std::string db_file = path + name;
+  std::string db_file = path + "/" + name;
   rocksdb::DB* db = nullptr;
   rocksdb::Status status = rocksdb::DB::Open(options, db_file, &db);
   if(status.ok()==false)
@@ -38,17 +39,23 @@ IKVStore::pool_t RockStore::create_pool(const std::string path,
 }
 
 IKVStore::pool_t RockStore::open_pool(const std::string path,
-                                      const std::string name)
+                                      const std::string name,
+                                      unsigned int flags)
 {
   rocksdb::Options options;
   options.create_if_missing = true;
-  
-  std::string db_file = path + name;
+
+  std::string db_file = path + "/" + name;
   rocksdb::DB* db = nullptr;
-  rocksdb::Status status = rocksdb::DB::Open(options, db_file, &db);
-  assert(db);
+  rocksdb::Status status;
+  if(flags & IKVStore::FLAGS_READ_ONLY)
+    status = rocksdb::DB::OpenForReadOnly(options, db_file, &db);
+  else
+    status = rocksdb::DB::Open(options, db_file, &db);
+  
   if(!status.ok())
-    throw General_exception("unable to create rocksDB database (%s)", db_file.c_str());
+    throw General_exception("unable to open or create rocksDB database (%s)", db_file.c_str());
+  assert(db);
   return static_cast<IKVStore::pool_t>(db);
 }
 
@@ -67,7 +74,7 @@ void RockStore::put(IKVStore::pool_t pool,
   std::string val((const char *) value, value_len);
 
   rocksdb::WriteOptions write_options;
-  //  write_options.sync = true;
+  write_options.sync = true;
   
   rocksdb::Status status = db->Put(write_options, key, val);
 
@@ -117,7 +124,12 @@ void RockStore::remove(const pool_t pool,
 
 size_t RockStore::count(const pool_t pool)
 {
-  return 0;
+  rocksdb::DB * db = static_cast<rocksdb::DB*>(pool);
+  size_t num = 0;
+  PWRN("RockStore::count is estimate only");
+  std::string num_str;
+  db->GetProperty("rocksdb.estimate-num-keys", &num_str);
+  return std::strtoull(num_str.c_str(), NULL, 10);
 }
 
 void RockStore::debug(const pool_t pool, unsigned cmd, uint64_t arg)

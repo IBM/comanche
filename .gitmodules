@@ -2,12 +2,10 @@
 	path = src/lib/pmdk
 	url = https://github.com/pmem/pmdk.git
   branch = stable-1.4
-
-<<<<<<< HEAD
 [submodule "src/components/store/kv/rocksdb"]
 	path = src/components/store/kv/rocksdb
 	url = https://github.com/facebook/rocksdb.git
-=======
+  branch = 5.8.3
 [submodule "src/lib/ndctl"]
 	path = src/lib/ndctl
 	url = https://github.com/pmem/ndctl.git
@@ -17,4 +15,10 @@
 [submodule "src/components/cluster/zyre/lib/zyre"]
 	path = src/components/cluster/zyre/lib/zyre
 	url = https://github.com/zeromq/zyre.git
->>>>>>> bc0a6c8605f060dd43da255904a09a77cc176624
+[submodule "src/lib/cppzmq"]
+  path = src/lib/cppzmq
+  url = https://github.com/zeromq/cppzmq.git
+
+[submodule "src/components/store/rockstore/rocksdb"]
+	path = src/components/store/rockstore/rocksdb
+	url = https://github.com/facebook/rocksdb.git
