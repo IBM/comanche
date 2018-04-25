@@ -4,6 +4,9 @@ include(./.cmakeinclude)
 
 project(comanche-rocksdb CXX)
 
+execute_process(COMMAND git submodule update --init -- rocksdb WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+#add_subdirectory(./rocksdb)
 add_subdirectory(./unit_test)
 
 enable_language(CXX C ASM)

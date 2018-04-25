@@ -61,10 +61,12 @@ public:
   
   virtual pool_t create_pool(const std::string path,
                              const std::string name,
-                             const size_t size) override;
+                             const size_t size,
+                             unsigned int flags = 0) override;
   
   virtual pool_t open_pool(const std::string path,
-                           const std::string name) override;
+                           const std::string name,
+                           unsigned int flags = 0) override;
   
   virtual void close_pool(const pool_t pid) override;
 
@@ -85,7 +87,6 @@ public:
   
   virtual void release_reference(const pool_t pool,
                                  const void * ptr) override;
-
 
   virtual void remove(const pool_t pool,
                       const std::string key) override;
