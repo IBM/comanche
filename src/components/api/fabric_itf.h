@@ -53,10 +53,23 @@ public:
   /** 
    * De-register memory region
    * 
-   * @param memory_region 
+   * @param memory_region Memory region to de-register
    */
   virtual void deregister_memory(const memory_region_t memory_region) = 0;
 
+  /**
+   * Allocate group identifier (group ids are > 0)
+   *
+   */
+  virtual unsigned allocate_group_id() = 0;
+
+  /**
+   * Release group identifier
+   *
+   * @group Group identifier to release
+   */  
+  virtual void release_group_id(unsigned group) = 0;
+  
   /** 
    * Asynchronously post a buffer to the connection
    * 
