@@ -625,6 +625,8 @@ void Append_store::reset_iterator(iterator_t iter)
 size_t Append_store::fetch_metadata(const std::string filter_expr,
                                     std::vector<std::pair<std::string,std::string> >& out_metadata)
 {
+  PLOG("Append-store::fetch_metadata");
+  
   std::stringstream sqlss;
   int rc = 0;
   

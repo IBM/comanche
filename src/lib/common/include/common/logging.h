@@ -96,7 +96,7 @@
 #define PTEST(f, a...) fprintf(stdout, "[TEST]: %s:" f "\n", __FUNCTION__, ##a)
 
 #define PINF(f, a...) fprintf(stderr, "%s" f "%s\n", ESC_INF, ##a, ESC_END)
-#define PWRN(f, a...) fprintf(stderr, "%s[WRN]: " f "%s\n", ESC_WRN, ##a, ESC_END)
+#define PWRN(f, a...) fprintf(stderr, "%s[WRN]:" f "%s\n", ESC_WRN, ##a, ESC_END)
 #define PERR(f, a...) fprintf(stderr, "%sERROR %s:" f "%s\n", ESC_ERR, __FUNCTION__, ##a, ESC_END);
 #define PNOTICE(f, a...) \
   fprintf(stderr, "%sNOTICE %s:" f "%s\n", BRIGHT_RED, __FUNCTION__, ##a, ESC_END);

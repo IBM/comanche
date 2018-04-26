@@ -16,7 +16,7 @@ add_library(${PROJECT_NAME} SHARED ${SOURCES})
 
 set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--no-undefined")
 
-target_link_libraries(${PROJECT_NAME} common comanche-core fabric)
+target_link_libraries(${PROJECT_NAME} common comanche-core fabric pthread)
 # target_link_libraries(${PROJECT_NAME} common comanche-core pthread numa dl rt z rdmacm ibverbs)
 
 

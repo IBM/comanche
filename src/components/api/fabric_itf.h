@@ -42,6 +42,10 @@ public:
 
   virtual ~IFabric_connection() {}
 
+  enum {
+    GROUP_ANY = 0
+  };
+  
   /** 
    * Register buffer for RDMA
    * 
@@ -56,27 +60,43 @@ public:
   /** 
    * De-register memory region
    * 
-   * @param memory_region 
+   * @param memory_region Memory region to de-register
    */
   virtual void deregister_memory(const memory_region_t memory_region) = 0;
 
+  /**
+   * Allocate group identifier (group ids are > 0)
+   *
+   */
+  virtual unsigned allocate_group_id() = 0;
+
+  /**
+   * Release group identifier
+   *
+   * @group Group identifier to release
+   */  
+  virtual void release_group_id(unsigned group) = 0;
+  
   /** 
    * Asynchronously post a buffer to the connection
    * 
    * @param buffers Buffer vector (containing regions should be registered)
+   * @param [optional] Group identifier
    * 
    * @return Work (context) identifier
    */
-  virtual context_t post_send(const std::vector<iovec>& buffers) = 0;
+
+  virtual context_t post_send(const std::vector<iovec>& buffers, unsigned group = 0) = 0;
 
   /** 
    * Asynchronously post a buffer to receive data
    * 
    * @param buffers Buffer vector (containing regions should be registered)
+   * @param [optional] Group identifier
    * 
    * @return Work (context) identifier
    */
-  virtual context_t post_recv(const std::vector<iovec>& buffers) = 0;
+  virtual context_t post_recv(const std::vector<iovec>& buffers, unsigned group = 0) = 0;
 
   /** 
    * Post RDMA read operation
@@ -85,12 +105,14 @@ public:
    * @param remote_addr Remote address
    * @param key Key for remote address
    * @param out_context 
+   * @param [optional] Group identifier
    * 
    */
   virtual void post_read(const std::vector<iovec>& buffers,
                          uint64_t remote_addr,
                          uint64_t key,
-                         context_t& out_context) = 0;
+                         context_t& out_context,
+                         unsigned group = 0) = 0;
 
   /** 
    * Post RDMA write operation
@@ -99,12 +121,14 @@ public:
    * @param remote_addr Remote address
    * @param key Key for remote address
    * @param out_context 
+   * @param [optional] Group identifier
    * 
    */
   virtual void post_write(const std::vector<iovec>& buffers,
                           uint64_t remote_addr,
                           uint64_t key,
-                          context_t& out_context) = 0;
+                          context_t& out_context,
+                          unsigned group = 0) = 0;
 
   /** 
    * Send message without completion
@@ -115,13 +139,24 @@ public:
   virtual void inject_send(const std::vector<iovec>& buffers) = 0;
   
   /** 
-   * Poll events (e.g., completions)
+   * Poll completion events; service completion queues and store
+   * events not belonging to group (stall them).  This method will
+   * BOTH services the completion queues and service those events
+   * stalled (previously
    * 
    * @param completion_callback (context_t, status_t status, void* error_data)
+   * @param group Poll events for corresponding group; group==0 for any
    * 
-   * @return Number of completions processed
+   * @return Number of completions processed in the corresponding group
    */
-  virtual int poll_events(std::function<void(context_t, status_t, void*)> completion_callback) = 0;
+  virtual size_t poll_completions(std::function<void(context_t, status_t, void*, unsigned)> completion_callback, unsigned group = 0) = 0;
+
+  /**
+   * Get count of stalled completions.
+   *
+   * @param group Group filter; group==0 for any
+   */
+  virtual size_t stalled_completion_count(unsigned group = 0) = 0;
 
   /** 
    * Block and wait for next completion.
@@ -130,8 +165,7 @@ public:
    * 
    * @return Next completion context
    */
-  virtual context_t wait_for_next_completion(unsigned polls_limit = 0) = 0;
-
+  virtual context_t wait_for_next_completion(unsigned group, unsigned polls_limit = 0) = 0;
 
   /** 
    * Unblock any threads waiting on completions
