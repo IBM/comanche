@@ -43,33 +43,31 @@ public:
 
   void deregister_memory(const memory_region_t memory_region) override;
 
-  context_t post_send(const std::vector<iovec>& buffers, unsigned) override;
+  context_t post_send(const std::vector<iovec>& buffers) override;
 
-  context_t post_recv(const std::vector<iovec>& buffers, unsigned) override;
+  context_t post_recv(const std::vector<iovec>& buffers) override;
 
   void post_read(
     const std::vector<iovec>& buffers,
     uint64_t remote_addr,
     uint64_t key,
-    context_t& out_context, unsigned) override;
+    context_t& out_context) override;
 
   void post_write(
     const std::vector<iovec>& buffers,
     uint64_t remote_addr,
     uint64_t key,
-    context_t& out_context, unsigned) override;
+    context_t& out_context) override;
 
-  unsigned allocate_group_id() override;
-
-  void release_group_id(unsigned group) override;
+  IFabric_communicator *allocate_group() override;
 
   void inject_send(const std::vector<iovec>& buffers) override;
   
-  std::size_t poll_completions(std::function<void(context_t, status_t, void*, unsigned)> completion_callback, unsigned) override;
+  std::size_t poll_completions(std::function<void(context_t, status_t, void*, IFabric_communicator *)> completion_callback) override;
 
-  std::size_t stalled_completion_count(unsigned) override;
+  std::size_t stalled_completion_count() override;
 
-  context_t wait_for_next_completion(unsigned, unsigned polls_limit) override;
+  context_t wait_for_next_completion(unsigned polls_limit) override;
 
   void unblock_completions() override;
 

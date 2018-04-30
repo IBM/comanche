@@ -31,8 +31,6 @@
  * 
  */
 
-#include <iostream>
-
 Fabric_connection::Fabric_connection(fid_fabric &fabric_, fi_info &info_, const void *addr, const void *param, size_t paramlen)
   : _domain(make_fid_domain(fabric_, info_, this))
   , _aep{make_fid_aep(*_domain, info_, this)}
@@ -40,7 +38,7 @@ Fabric_connection::Fabric_connection(fid_fabric &fabric_, fi_info &info_, const 
   auto i = fi_connect(&*_aep, addr, param, paramlen);
   if ( i != FI_SUCCESS )
   {
-    throw fabric_error(i,__LINE__);
+    throw fabric_error(i, __FILE__, __LINE__);
   }
 }
 
@@ -80,7 +78,7 @@ void Fabric_connection::deregister_memory(const memory_region_t memory_region)
  * @return Work (context) identifier
  */
 auto Fabric_connection::post_send(
-  const std::vector<struct iovec>& buffers, unsigned) -> context_t
+  const std::vector<struct iovec>& buffers) -> context_t
 {
   not_implemented(__func__);
 }
@@ -94,7 +92,7 @@ auto Fabric_connection::post_send(
  * @return Work (context) identifier
  */
 auto Fabric_connection::post_recv(
-  const std::vector<struct iovec>& buffers, unsigned) -> context_t
+  const std::vector<struct iovec>& buffers) -> context_t
 {
   not_implemented(__func__);
 }
@@ -113,7 +111,7 @@ void Fabric_connection::post_read(
   const std::vector<struct iovec>& buffers,
   uint64_t remote_addr,
   uint64_t key,
-  context_t& out_context, unsigned)
+  context_t& out_context)
 {
   not_implemented(__func__);
 }
@@ -132,7 +130,7 @@ void Fabric_connection::post_write(
   const std::vector<struct iovec>& buffers,
   uint64_t remote_addr,
   uint64_t key,
-  context_t& out_context, unsigned)
+  context_t& out_context)
 {
   not_implemented(__func__);
 }
@@ -155,12 +153,12 @@ void Fabric_connection::inject_send(const std::vector<struct iovec>& buffers)
    * 
    * @return Number of completions processed
    */
-std::size_t Fabric_connection::poll_completions(std::function<void(context_t, status_t, void*, unsigned)> completion_callback, unsigned)
+std::size_t Fabric_connection::poll_completions(std::function<void(context_t, status_t, void*, IFabric_communicator *)> completion_callback)
 {
   not_implemented(__func__);
 }
 
-std::size_t Fabric_connection::stalled_completion_count(unsigned)
+std::size_t Fabric_connection::stalled_completion_count()
 {
   not_implemented(__func__);
 }
@@ -172,25 +170,20 @@ std::size_t Fabric_connection::stalled_completion_count(unsigned)
  * 
  * @return Next completion context
  */
-auto Fabric_connection::wait_for_next_completion(unsigned, unsigned polls_limit) -> context_t
+auto Fabric_connection::wait_for_next_completion(unsigned polls_limit) -> context_t
 {
   not_implemented(__func__);
 }
 
-unsigned Fabric_connection::allocate_group_id()
+auto Fabric_connection::allocate_group() -> IFabric_communicator *
 {
   not_implemented(__func__);
 }
 
-void Fabric_connection::release_group_id(unsigned group)
-{
-  not_implemented(__func__);
-}
-
-  /** 
-   * Unblock any threads waiting on completions
-   * 
-   */
+/** 
+ * Unblock any threads waiting on completions
+ * 
+ */
 void Fabric_connection::unblock_completions()
 {
   not_implemented(__func__);

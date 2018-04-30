@@ -36,8 +36,8 @@ class fabric_error
   : public std::logic_error
 {
 public:
-  fabric_error(int i, int line)
-    : std::logic_error{std::string{"fabric_error \""} + fi_strerror(-i) + "\" at " + std::to_string(line)}
+  fabric_error(int i_, const char *file_, int line_)
+    : std::logic_error{std::string{"fabric_error \""} + fi_strerror(-i_) + "\" at " + file_ + ":" + std::to_string(line_)}
   {}
 };
 

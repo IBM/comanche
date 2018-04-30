@@ -44,20 +44,15 @@ struct fid_pep;
  * 
  */
 
-extern std::map<std::string, int> cap_fwd;
-
 std::shared_ptr<fid_domain> make_fid_domain(fid_fabric &fabric, fi_info &info, void *context);
 
 std::shared_ptr<fid_fabric> make_fid_fabric(fi_fabric_attr &attr, void *context);
 
-std::shared_ptr<fi_info> make_fi_info( int version , const char *node , const char *service , const fi_info *hints);
+std::shared_ptr<fi_info> make_fi_info(int version, const char *node, const char *service, const fi_info *hints);
 
 std::shared_ptr<fi_info> make_fi_info(const std::string &, std::uint64_t caps, fi_info &hints);
 
 std::shared_ptr<fi_info> make_fi_info(fi_info &hints);
-
-std::shared_ptr<fi_info> make_info();
-std::shared_ptr<fi_info> make_fi_info_hints(std::uint64_t caps, int mr_mode);
 
 std::shared_ptr<fi_info> make_fi_fabric_spec(const std::string& json_configuration);
 

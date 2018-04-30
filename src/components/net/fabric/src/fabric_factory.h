@@ -43,6 +43,7 @@ public:
   Fabric_factory(const std::string& json_configuration);
 
   Component::IFabric_endpoint * open_endpoint(const std::string& json_configuration) override;
+  Component::IFabric_connection * open_connection(const std::string& json_configuration, const std::string & remote_endpoint) override;
   fid_fabric *fid() const { return &*_fabric; }
   std::string prov_name() const;
 };
