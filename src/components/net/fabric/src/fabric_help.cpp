@@ -22,19 +22,17 @@
 #include "fabric_help.h"
 
 #include "fabric_error.h"
+#include "fabric_json.h"
 #include "fabric_ptr.h"
 
-#include <rapidjson/document.h>
-
-/* fi_connect / fi_listen / fi_accept / fi_reject / fi_shutdown : Manage endpoint connection state.
- *      fi_setname / fi_getname / fi_getpeer : Set local, or return local or peer endpoint address.
- *     fi_join / fi_close / fi_mc_addr : Join, leave, or retrieve a multicast address.
- */
 #include <rdma/fi_cm.h>
 #include <rdma/fi_endpoint.h> /* fi_endpoint */
 
 #include <cassert>
+#include <cstring> /* strdup */
+#if 0
 #include <iostream>
+#endif
 #include <map>
 #include <memory> /* shared_ptr */
 
@@ -43,21 +41,17 @@
  * 
  */
 
-std::map<std::string, int> cap_fwd = {
-#define X(Y) {#Y, (Y)},
-#include "fabric_caps.h"
-#undef X
-};
-
 std::shared_ptr<fid_domain> make_fid_domain(fid_fabric &fabric, fi_info &info, void *context)
 {
   fid_domain *f(nullptr);
   int i = fi_domain(&fabric, &info, &f, context);
   if ( i != FI_SUCCESS )
   {
+#if 0
     std::cout << "FABRIC at " << static_cast<void *>(&fabric) << "\n";
     std::cout << "INFO at " << static_cast<void *>(&info) << ":" << fi_tostr(&info, FI_TYPE_INFO) << "\n";
-    throw fabric_error(i,__LINE__);
+#endif
+    throw fabric_error(i, __FILE__, __LINE__);
   }
   return fid_ptr(f);
 }
@@ -68,7 +62,7 @@ std::shared_ptr<fid_fabric> make_fid_fabric(fi_fabric_attr &attr, void *context)
   int i = fi_fabric(&attr, &f, context);
   if ( i != FI_SUCCESS )
   {
-    throw fabric_error(i,__LINE__);
+    throw fabric_error(i, __FILE__, __LINE__);
   }
   return fid_ptr(f);
 }
@@ -87,7 +81,7 @@ std::shared_ptr<fi_info> make_fi_info(
   int i = fi_getinfo(version, node, service, 0, hints, &f);
   if ( i != FI_SUCCESS )
   {
-    throw fabric_error(i,__LINE__);
+    throw fabric_error(i, __FILE__, __LINE__);
   }
 #if 0
   for ( auto j = f; j; j = j->next )
@@ -109,22 +103,15 @@ std::shared_ptr<fi_info> make_fi_info(fi_info &hints)
   return make_fi_info(FI_VERSION(FI_MAJOR_VERSION,FI_MINOR_VERSION), nullptr, nullptr, &hints);
 }
 
-std::shared_ptr<fi_info> make_info()
-{
-  std::shared_ptr<fi_info> info(fi_allocinfo(), fi_freeinfo);
-  if ( ! info )
-  {
-    throw fabric_bad_alloc("fi_info");
-  }
-  return info;
-}
-
 class hints
 {
   std::shared_ptr<fi_info> _info;
 public:
-  hints()
-  : _info(make_info())
+  explicit hints()
+    : _info(make_fi_info())
+  {}
+  explicit hints(std::shared_ptr<fi_info> info_)
+    : _info(info_)
   {}
   hints &caps(int c) { _info->caps = c; return *this; }
   hints &mr_mode(int m) { _info->domain_attr->mr_mode = m; return *this; } // e.g. FI_MR_LOCAL | FI_MR_ALLOCATED | FI_MR_PROV_KEY | FI_MR_VIRT_ADDR;
@@ -132,44 +119,20 @@ public:
     assert(! _info->fabric_attr->prov_name);
     _info->fabric_attr->prov_name = ::strdup(n); return *this;
   } // e.g. FI_MR_LOCAL | FI_MR_ALLOCATED | FI_MR_PROV_KEY | FI_MR_VIRT_ADDR;
+  const char *prov_name() const { return _info->fabric_attr->prov_name; }
   std::shared_ptr<fi_info> data() { return _info; }
 };
 
-std::shared_ptr<fi_info> make_fi_info_hints(std::uint64_t caps, int mr_mode)
-{
-  auto info = make_info();
-  info->caps = caps;
-  info->domain_attr->mr_mode = mr_mode; // FI_MR_LOCAL | FI_MR_ALLOCATED | FI_MR_PROV_KEY | FI_MR_VIRT_ADDR;
-  return info;
-}
-
 std::shared_ptr<fi_info> make_fi_fabric_spec(const std::string& json_configuration)
 {
-  rapidjson::Document jdoc;
-  jdoc.Parse(json_configuration.c_str());
-
-  auto provider = jdoc.FindMember("preferred_provider");
-  auto default_provider = "verbs";
-  default_provider = "sockets";
-  auto provider_str = std::string(provider != jdoc.MemberEnd() && provider->value.IsString() ? provider->value.GetString() : default_provider);
-
-  std::uint64_t caps_int{0U};
-  auto caps = jdoc.FindMember("caps");
-  if ( caps != jdoc.MemberEnd() && caps->value.IsArray() )
+  auto h = hints(parse_info(nullptr, json_configuration));
+  const auto default_provider = "sockets";
+  if ( h.prov_name() == nullptr )
   {
-    for ( auto cap = caps->value.Begin(); cap != caps->value.End(); ++cap )
-    {
-      if ( cap->IsString() )
-      {
-        auto cap_int_i = cap_fwd.find(cap->GetString());
-        if ( cap_int_i != cap_fwd.end() )
-        {
-          caps_int |= cap_int_i->second;
-        }
-      }
-    }
+    h.prov_name(default_provider);
   }
-  return hints().caps(caps_int).mr_mode(FI_MR_LOCAL | FI_MR_ALLOCATED | FI_MR_PROV_KEY | FI_MR_VIRT_ADDR).prov_name(provider_str.c_str()).data();
+  
+  return h.mr_mode(FI_MR_LOCAL | FI_MR_ALLOCATED | FI_MR_PROV_KEY | FI_MR_VIRT_ADDR).data();
 }
 
 std::shared_ptr<fid_ep> make_fid_aep(fid_domain &domain, fi_info &info, void *context)
@@ -179,7 +142,7 @@ std::shared_ptr<fid_ep> make_fid_aep(fid_domain &domain, fi_info &info, void *co
   static_assert(0 == FI_SUCCESS, "FI_SUCCESS not 0, which means that we need to distinguish between these types of \"successful\" returns");
   if ( i != FI_SUCCESS )
   {
-    throw fabric_error(i,__LINE__);
+    throw fabric_error(i, __FILE__, __LINE__);
   }
   return fid_ptr(e);
 }
@@ -191,7 +154,7 @@ std::shared_ptr<fid_pep> make_fid_pep(fid_fabric &fabric, fi_info &info, void *c
   static_assert(0 == FI_SUCCESS, "FI_SUCCESS not 0, which means that we need to distinguish between these types of \"successful\" returns");
   if ( i != FI_SUCCESS )
   {
-    throw fabric_error(i,__LINE__);
+    throw fabric_error(i, __FILE__, __LINE__);
   }
   return fid_ptr(e);
 }
@@ -222,7 +185,7 @@ std::shared_ptr<fid_eq> make_fid_eq(fid_fabric &fabric, struct fi_eq_attr *attr,
   int i = fi_eq_open(&fabric, attr, &e, context);
   if ( i != 0 )
   {
-    throw fabric_error(i,__LINE__);
+    throw fabric_error(i, __FILE__, __LINE__);
   }
   return fid_ptr(e);
 }

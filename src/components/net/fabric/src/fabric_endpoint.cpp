@@ -29,6 +29,7 @@
 #include <rdma/fi_eq.h>
 
 #include <cerrno>
+#include <iostream>
 #include <string>
 
 /** 
