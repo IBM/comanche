@@ -217,4 +217,11 @@ git clone https://github.com/oktal/pistache.git
 cd pistache && cmake . && make && sudo make install
 jumpto end
 
+cmake:
+echo "Cloning cmake..."
+wget https://cmake.org/files/v3.6/cmake-3.6.2.tar.gz
+tar -zxvf cmake-3.6.2.tar.gz
+cd cmake-3.6.2 && ./bootstrap --prefix=/usr && sudo make && sudo make install
+jumpto end
+
 end:
