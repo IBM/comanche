@@ -70,15 +70,15 @@ public:
   
   virtual void close_pool(const pool_t pid) override;
 
-  virtual void put(const pool_t pool,
-                   const std::string key,
-                   const void * value,
-                   const size_t value_len) override;
+  virtual int put(const pool_t pool,
+                  const std::string key,
+                  const void * value,
+                  const size_t value_len) override;
 
-  virtual void get(const pool_t pool,
-                   const std::string key,
-                   void*& out_value,
-                   size_t& out_value_len) override;
+  virtual int get(const pool_t pool,
+                  const std::string key,
+                  void*& out_value,
+                  size_t& out_value_len) override;
   
   virtual void get_reference(const pool_t pool,
                              const std::string key,
