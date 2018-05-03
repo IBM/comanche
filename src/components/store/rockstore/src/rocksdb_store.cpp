@@ -35,7 +35,7 @@ IKVStore::pool_t RockStore::create_pool(const std::string path,
   rocksdb::Status status = rocksdb::DB::Open(options, db_file, &db);
   if(status.ok()==false)
     throw General_exception("unable to create rocksDB database (%s)", db_file.c_str());
-  return static_cast<IKVStore::pool_t>(db);
+  return reinterpret_cast<IKVStore::pool_t>(db);
 }
 
 IKVStore::pool_t RockStore::open_pool(const std::string path,
@@ -56,48 +56,52 @@ IKVStore::pool_t RockStore::open_pool(const std::string path,
   if(!status.ok())
     throw General_exception("unable to open or create rocksDB database (%s)", db_file.c_str());
   assert(db);
-  return static_cast<IKVStore::pool_t>(db);
+  return reinterpret_cast<IKVStore::pool_t>(db);
 }
 
 void RockStore::close_pool(pool_t pid)
 {
-  rocksdb::DB * db = static_cast<rocksdb::DB*>(pid);
+  rocksdb::DB * db = reinterpret_cast<rocksdb::DB*>(pid);
   delete db;
 }
 
-void RockStore::put(IKVStore::pool_t pool,
+int RockStore::put(IKVStore::pool_t pool,
                   std::string key,
                   const void * value,
                   size_t value_len)
 {
-  rocksdb::DB * db = static_cast<rocksdb::DB*>(pool);
+  rocksdb::DB * db = reinterpret_cast<rocksdb::DB*>(pool);
   std::string val((const char *) value, value_len);
 
   rocksdb::WriteOptions write_options;
   write_options.sync = true;
   
   rocksdb::Status status = db->Put(write_options, key, val);
-
+  
   if(!status.ok())
-    throw General_exception("rocksDB put operation failed key=%s", key.c_str());
+    return E_FAIL;
+    
+  return S_OK;
 }
 
-void RockStore::get(const pool_t pool,
+int RockStore::get(const pool_t pool,
                     const std::string key,
                     void*& out_value,
                     size_t& out_value_len)
 {
-  rocksdb::DB * db = static_cast<rocksdb::DB*>(pool);
+  rocksdb::DB * db = reinterpret_cast<rocksdb::DB*>(pool);
   std::string value;
   rocksdb::Status status = db->Get(rocksdb::ReadOptions(), key, &value);
   if(!status.ok())
-    throw General_exception("rocksDB get operation failed key=%s", key.c_str());
+    return E_FAIL;
   
   /* we have to do memcpy */
   out_value_len = value.length();
   out_value = malloc(out_value_len);
   assert(out_value);
-  memcpy(out_value, value.data(), out_value_len);   
+  memcpy(out_value, value.data(), out_value_len);
+
+  return S_OK;
 }
 
 void RockStore::get_reference(const pool_t pool,
@@ -116,7 +120,7 @@ void RockStore::release_reference(const pool_t pool,
 void RockStore::remove(const pool_t pool,
                      const std::string key)
 {
-  rocksdb::DB * db = static_cast<rocksdb::DB*>(pool);
+  rocksdb::DB * db = reinterpret_cast<rocksdb::DB*>(pool);
   rocksdb::Status status = db->Delete(rocksdb::WriteOptions(), key);
   if(!status.ok())
     throw General_exception("rocksDB delete operation failed key=%s", key.c_str());
@@ -124,7 +128,7 @@ void RockStore::remove(const pool_t pool,
 
 size_t RockStore::count(const pool_t pool)
 {
-  rocksdb::DB * db = static_cast<rocksdb::DB*>(pool);
+  rocksdb::DB * db = reinterpret_cast<rocksdb::DB*>(pool);
   size_t num = 0;
   PWRN("RockStore::count is estimate only");
   std::string num_str;

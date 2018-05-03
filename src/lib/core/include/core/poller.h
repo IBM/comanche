@@ -24,6 +24,7 @@
 #ifndef __CORE_POLLER_H__
 #define __CORE_POLLER_H__
 
+#include <functional>
 #include <signal.h>
 #include <numa.h>
 #include <unistd.h>

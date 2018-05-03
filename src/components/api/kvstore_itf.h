@@ -24,7 +24,7 @@ namespace Component
 {
 
 /** 
- * Kve-value interface
+ * Key-value interface
  */
 class IKVStore : public Component::IBase
 {
@@ -32,8 +32,7 @@ public:
   DECLARE_INTERFACE_UUID(0x62f4829f,0x0405,0x4c19,0x9898,0xa3,0xae,0x21,0x5a,0x3e,0xe8);
 
 public:
-  using iterator_t = void*;
-  using pool_t     = void*;
+  using pool_t     = uint64_t;
 
   enum {
     THREAD_MODEL_UNSAFE,
@@ -43,6 +42,12 @@ public:
 
   enum {
     FLAGS_READ_ONLY,
+  };
+
+  enum {
+    S_OK = 0,
+    E_KEY_EXISTS = 1,
+    E_KEY_NOT_FOUND = 2,
   };
     
   virtual int thread_safety() const = 0;
@@ -58,15 +63,15 @@ public:
 
   virtual void close_pool(const pool_t pid) = 0;
 
-  virtual void put(const pool_t pool,
-                   const std::string key,
-                   const void * value,
-                   const size_t value_len) = 0;
+  virtual int put(const pool_t pool,
+                  const std::string key,
+                  const void * value,
+                  const size_t value_len) = 0;
 
-  virtual void get(const pool_t pool,
-                   const std::string key,
-                   void*& out_value, /* release with free() */
-                   size_t& out_value_len) = 0;
+  virtual int get(const pool_t pool,
+                  const std::string key,
+                  void*& out_value, /* release with free() */
+                  size_t& out_value_len) = 0;
 
   virtual void get_reference(const pool_t pool,
                              const std::string key,

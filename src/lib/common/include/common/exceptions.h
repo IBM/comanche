@@ -280,4 +280,34 @@ class Data_exception : public Exception
 };
 
 
+class Protocol_exception : public Exception
+{
+ public:
+  Protocol_exception() : Exception("Protocol error"), _err_code(E_FAIL)
+  {
+  }
+
+  Protocol_exception(int err) : Exception("Protocol error"), _err_code(err)
+  {
+  }
+
+  __attribute__((__format__(__printf__, 2, 0))) Protocol_exception(const char* fmt, ...) : Exception()
+  {
+    va_list args;
+    va_start(args, fmt);
+    char msg[255] = {0};
+    vsnprintf(msg, 254, fmt, args);
+    set_cause(msg);
+  }
+
+  status_t error_code()
+  {
+    return _err_code;
+  }
+
+ private:
+  status_t _err_code;
+};
+
+
 #endif

@@ -58,7 +58,7 @@ TEST_F(KVStore_test, OpenPool)
   catch(...) {
     pool = _kvstore->open_pool("./", "test1.rksdb");
   }
-  ASSERT_TRUE(pool != nullptr);
+  ASSERT_TRUE(pool != 0);
 }
 
 
