@@ -80,8 +80,8 @@ public:
                   void*& out_value,
                   size_t& out_value_len) override;
   
-  virtual int remove(const pool_t pool,
-                      const std::string key) override;
+  virtual int erase(const pool_t pool,
+                    const std::string key) override;
 
   virtual size_t count(const pool_t pool) override;
 

@@ -110,7 +110,7 @@ TEST_F(KVStore_test, BasicApply)
 
 TEST_F(KVStore_test, BasicRemove)
 {
-  _kvstore->remove(pool, "MyKey");
+  _kvstore->erase(pool, "MyKey");
 }
 
 
