@@ -104,26 +104,15 @@ int RockStore::get(const pool_t pool,
   return S_OK;
 }
 
-void RockStore::get_reference(const pool_t pool,
-                              const std::string key,
-                              const void*& out_value,
-                              size_t& out_value_len)
-{
-  throw General_exception("not valid");
-}
-
-void RockStore::release_reference(const pool_t pool,
-                                  const void * ptr)
-{
-}
-
-void RockStore::remove(const pool_t pool,
+int RockStore::remove(const pool_t pool,
                      const std::string key)
 {
   rocksdb::DB * db = reinterpret_cast<rocksdb::DB*>(pool);
   rocksdb::Status status = db->Delete(rocksdb::WriteOptions(), key);
   if(!status.ok())
-    throw General_exception("rocksDB delete operation failed key=%s", key.c_str());
+    return E_FAIL;
+
+  return S_OK;
 }
 
 size_t RockStore::count(const pool_t pool)
@@ -139,12 +128,6 @@ size_t RockStore::count(const pool_t pool)
 void RockStore::debug(const pool_t pool, unsigned cmd, uint64_t arg)
 {
 }
-
-void RockStore::apply(pool_t pool,
-                    std::function<int(uint64_t key, const void *val, const size_t val_len)> function)
-{
-}
-
 
 
 /** 

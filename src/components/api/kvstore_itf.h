@@ -46,8 +46,14 @@ public:
 
   enum {
     S_OK = 0,
-    E_KEY_EXISTS = 1,
-    E_KEY_NOT_FOUND = 2,
+    E_FAIL = -1,
+    E_KEY_EXISTS = -2,
+    E_KEY_NOT_FOUND = -3,
+    E_POOL_NOT_FOUND = -4,
+    E_NOT_SUPPORTED = -5,
+    E_ALREADY_EXISTS = -6,
+    E_TOO_LARGE = -7,
+    E_BAD_PARAM = -8,
   };
     
   virtual int thread_safety() const = 0;
@@ -73,24 +79,59 @@ public:
                   void*& out_value, /* release with free() */
                   size_t& out_value_len) = 0;
 
-  virtual void get_reference(const pool_t pool,
-                             const std::string key,
-                             const void*& out_value,
-                             size_t& out_value_len) = 0;
+  /** 
+   * Allocate an object but do not populate data
+   * 
+   * @param pool Pool handle
+   * @param key Key
+   * @param nbytes Size to allocate in bytes
+   * @param out_key_hash [out] Hash of key
+   * 
+   * @return S_OK on success
+   */
+  virtual int allocate(const pool_t pool,
+                       const std::string key,
+                       const size_t nbytes,
+                       uint64_t& out_key_hash) { return E_NOT_SUPPORTED; }
 
-  virtual void release_reference(const pool_t pool,
-                                 const void * ptr) = 0;
-                             
-  virtual void remove(const pool_t pool,
-                      const std::string key)= 0;
+  /** 
+   * Apply a functor to an object as a transaction
+   * 
+   * @param pool Pool handle
+   * @param key_hash Hash key (returned from allocate)
+   * @param functor Functor to apply to object
+   * @param offset
+   * @param size
+   * 
+   * @return S_OK on success
+   */
+  virtual int apply(const pool_t pool,
+                    uint64_t key_hash,
+                    std::function<void(void*,const size_t)> functor,
+                    size_t offset = 0,
+                    size_t size = 0) { return E_NOT_SUPPORTED; }
+
+  virtual int apply(const pool_t pool,
+                    const std::string key,
+                    std::function<void(void*,const size_t)> functor,
+                    size_t offset = 0,
+                    size_t size = 0) { return E_NOT_SUPPORTED; }
+
+                               
+  virtual int remove(const pool_t pool,
+                     const std::string key)= 0;
+  
+  virtual int remove(const pool_t pool,
+                     uint64_t key_hash) { return E_NOT_SUPPORTED; }
+
 
   virtual size_t count(const pool_t pool) = 0;
 
-  virtual void apply(const pool_t pool,
-                     std::function<int(uint64_t key,
-                                       const void * value,
-                                       const size_t value_len)> function) = 0;
-
+  virtual int map(const pool_t pool,
+                  std::function<int(uint64_t key,
+                                    const void * value,
+                                    const size_t value_len)> function) { return E_NOT_SUPPORTED; }
+  
   virtual void debug(const pool_t pool, unsigned cmd, uint64_t arg) = 0;
 };
 
