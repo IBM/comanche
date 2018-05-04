@@ -80,23 +80,10 @@ public:
                   void*& out_value,
                   size_t& out_value_len) override;
   
-  virtual void get_reference(const pool_t pool,
-                             const std::string key,
-                             const void*& out_value,
-                             size_t& out_value_len) override;
-  
-  virtual void release_reference(const pool_t pool,
-                                 const void * ptr) override;
-
-  virtual void remove(const pool_t pool,
+  virtual int remove(const pool_t pool,
                       const std::string key) override;
 
   virtual size_t count(const pool_t pool) override;
-
-  virtual void apply(const pool_t pool,
-                     std::function<int(uint64_t key,
-                                       const void * value,
-                                       const size_t value_len)> function) override;
 
   virtual void debug(const pool_t pool, unsigned cmd, uint64_t arg) override;
   
