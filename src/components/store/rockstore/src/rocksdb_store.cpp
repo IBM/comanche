@@ -104,7 +104,7 @@ int RockStore::get(const pool_t pool,
   return S_OK;
 }
 
-int RockStore::remove(const pool_t pool,
+int RockStore::erase(const pool_t pool,
                      const std::string key)
 {
   rocksdb::DB * db = reinterpret_cast<rocksdb::DB*>(pool);
