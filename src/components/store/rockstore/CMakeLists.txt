@@ -23,6 +23,6 @@ link_directories(${CMAKE_CURRENT_SOURCE_DIR}/rocksdb)
 add_library(${PROJECT_NAME} SHARED ${SOURCES})
 
 set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--no-undefined")
-target_link_libraries(${PROJECT_NAME} common comanche-core pthread tbb numa dl rt boost_system boost_filesystem rocksdb z bz2)
+target_link_libraries(${PROJECT_NAME} common comanche-core tbb numa dl rt boost_system boost_filesystem rocksdb z bz2 pthread)
 
 add_dependencies(${PROJECT_NAME} rocksdblib)
