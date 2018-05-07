@@ -15,8 +15,8 @@ add_custom_target(rocksdblib
 enable_language(CXX C ASM)
 file(GLOB SOURCES src/*.c*)
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}./rocksdb/include)
-link_directories(${CMAKE_CURRENT_SOURCE_DIR}./rocksdb)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/include)
+link_directories(${CMAKE_CURRENT_SOURCE_DIR}/rocksdb)
 
 add_library(${PROJECT_NAME} SHARED ${SOURCES})
 
