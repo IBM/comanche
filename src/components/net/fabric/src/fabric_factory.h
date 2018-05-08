@@ -32,8 +32,8 @@ struct fid_fabric;
 class Fabric_factory
   : public Component::IFabric_factory
 {
-  std::shared_ptr<fi_info> _fabric_spec;
-  std::shared_ptr<fi_info> _info; 
+  static constexpr std::uint64_t control_port = 47591;
+  std::shared_ptr<fi_info> _fabric_info;
   std::shared_ptr<fid_fabric> _fabric;
 public:
   DECLARE_VERSION(0.1);
@@ -43,9 +43,8 @@ public:
   Fabric_factory(const std::string& json_configuration);
 
   Component::IFabric_endpoint * open_endpoint(const std::string& json_configuration) override;
-  Component::IFabric_connection * open_connection(const std::string& json_configuration, const std::string & remote_endpoint) override;
+  Component::IFabric_connection * open_connection(const std::string& json_configuration, const std::string & remote) override;
   fid_fabric *fid() const { return &*_fabric; }
-  std::string prov_name() const;
 };
 
 #endif
