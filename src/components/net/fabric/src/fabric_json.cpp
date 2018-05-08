@@ -21,8 +21,6 @@
 
 #include "fabric_json.h"
 
-#include "fabric_endpoint.h"
-#include "fabric_error.h"
 #include "fabric_help.h"
 
 #include <rapidjson/document.h>
@@ -66,91 +64,91 @@ namespace
   translate_map<std::uint64_t> map_caps
   {
 #define X(Y) { #Y, (Y) },
-#include "fabric_caps.h"
+#include "bits_caps.h"
 #undef X
   };
 
   translate_map<std::uint64_t> map_mode
   {
 #define X(Y) { #Y, (Y) },
-#include "fabric_mode.h"
+#include "bits_mode.h"
 #undef X
   };
 
   translate_map<std::uint64_t> map_op_flags
   {
 #define X(Y) { #Y, (Y) },
-#include "fabric_op_flags.h"
+#include "bits_op_flags.h"
 #undef X
   };
 
   translate_map<std::uint64_t> map_msg_order
   {
 #define X(Y) { #Y, (Y) },
-#include "fabric_msg_order.h"
+#include "bits_msg_order.h"
 #undef X
   };
 
   translate_map<std::uint64_t> map_comp_order
   {
 #define X(Y) { #Y, (Y) },
-#include "fabric_comp_order.h"
+#include "bits_comp_order.h"
 #undef X
   };
 
   translate_map<std::uint32_t> map_addr_format
   {
 #define X(Y) { #Y, (Y) },
-#include "fabric_addr_format.h"
+#include "enum_addr_format.h"
 #undef X
   };
 
   translate_map<fi_ep_type> map_ep_type
   {
 #define X(Y) { #Y, (Y) },
-#include "fabric_ep_type.h"
+#include "enum_ep_type.h"
 #undef X
   };
 
   translate_map<std::uint32_t> map_ep_protocol
   {
 #define X(Y) { #Y, (Y) },
-#include "fabric_ep_protocol.h"
+#include "enum_ep_protocol.h"
 #undef X
   };
 
   translate_map<fi_threading> map_threading
   {
 #define X(Y) { #Y, (Y) },
-#include "fabric_threading.h"
+#include "enum_threading.h"
 #undef X
   };
 
   translate_map<fi_progress> map_progress
   {
 #define X(Y) { #Y, (Y) },
-#include "fabric_progress.h"
+#include "enum_progress.h"
 #undef X
   };
 
   translate_map<fi_resource_mgmt> map_resource_mgmt
   {
 #define X(Y) { #Y, (Y) },
-#include "fabric_resource_mgmt.h"
+#include "enum_resource_mgmt.h"
 #undef X
   };
 
   translate_map<fi_av_type> map_av_type
   {
 #define X(Y) { #Y, (Y) },
-#include "fabric_av_type.h"
+#include "enum_av_type.h"
 #undef X
   };
 
   translate_map<int> map_mr_mode
   {
 #define X(Y) { #Y, (Y) },
-#include "fabric_mr_mode.h"
+#include "bits_mr_mode.h"
 #undef X
   };
 
@@ -247,7 +245,7 @@ namespace
     {
       throw std::domain_error("not an array");
     }
-    for ( auto i = 0; i != v.Size(); ++i )
+    for ( std::size_t i = 0; i != v.Size(); ++i )
     {
       const auto &e = v[i];
       if ( ! e.IsUint() )
@@ -292,12 +290,12 @@ namespace
   template<typename S, char *S::*M>
     std::size_t assign_string(json_value &v, S &s)
     {
-      auto st = parse_scalar<const char *>(v);
-      ::free(*s.*M);
-      *s.*M = ::strdup(st);
+      auto st = ::strdup(parse_scalar<const char *>(v));
+      std::free(*s.*M);
+      *s.*M = st;
     }
 
-  std::size_t assign_array_uint8(json_value &v, void **p)
+  std::size_t assign_array_void(json_value &v, void **p)
   {
     auto a = parse_array_uint8(v);
     auto k = static_cast<uint8_t *>(std::malloc(a.size()));
@@ -306,6 +304,7 @@ namespace
     *p = k;
     return a.size();
   }
+
   std::size_t assign_array_uint8(json_value &v, std::uint8_t **p)
   {
     auto a = parse_array_uint8(v);
@@ -314,6 +313,21 @@ namespace
     std::free(*p);
     *p = k;
     return a.size();
+  }
+
+  std::size_t assign_addr_str(json_value &v, void **p)
+  {
+    if ( v.IsString() )
+    {
+      auto st = ::strdup(v.GetString());
+      std::free(*p);
+      *p = st;
+      return std::strlen(st);
+    }
+    else
+    {
+      return assign_array_void(v, p);
+    }
   }
 
   template <typename S, typename V, V S::*M, translate_map<V> &X>
@@ -325,7 +339,15 @@ namespace
   template <void * fi_info::*M, std::size_t fi_info::*L>
     void assign_addr(json_value &v, fi_info &info)
     {
-      info.*L = assign_array_uint8(v, &(info.*M));
+      auto assign_fn =
+        info.addr_format == FI_ADDR_STR
+        /* special case: the address is a character string interpreted by the fi provider */
+        ? assign_addr_str
+        /* normal case: we do not interpret the address */
+        : assign_array_void
+        ;
+
+      info.*L = assign_fn(v, &(info.*M));
     }
 
   template <typename S>
@@ -507,7 +529,8 @@ std::shared_ptr<fi_info> parse_info(std::shared_ptr<fi_info> info_, const std::s
   {
     throw std::domain_error{std::string{"JSON parse error \""} + rapidjson::GetParseError_En(jdoc.GetParseError()) + "\" at " + std::to_string(jdoc.GetErrorOffset())};
   }
-  try {
+  try
+  {
     return parse_info(info_, jdoc);
   }
   catch ( const std::domain_error &e )
