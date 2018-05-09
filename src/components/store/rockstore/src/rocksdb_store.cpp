@@ -29,6 +29,7 @@ IKVStore::pool_t RockStore::create_pool(const std::string path,
   rocksdb::Options options;
   options.error_if_exists = true;
   options.create_if_missing = true;
+  options.max_open_files = 1024;
   
   std::string db_file = path + "/" + name;
   rocksdb::DB* db = nullptr;
@@ -66,20 +67,35 @@ void RockStore::close_pool(pool_t pid)
 }
 
 int RockStore::put(IKVStore::pool_t pool,
-                  std::string key,
-                  const void * value,
-                  size_t value_len)
+                   std::string key,
+                   const void * value,
+                   size_t value_len)
 {
   rocksdb::DB * db = reinterpret_cast<rocksdb::DB*>(pool);
   std::string val((const char *) value, value_len);
-
+  
   rocksdb::WriteOptions write_options;
-  write_options.sync = true;
+  write_options.disableWAL = true;
+  // write_options.sync = true;
   
   rocksdb::Status status = db->Put(write_options, key, val);
-  
-  if(!status.ok())
+
+  if(!status.ok()) {
+    PERR("RockStore::put error (%s)", status.ToString().c_str());
     return E_FAIL;
+  }
+
+  if(option_SANITY)
+  {
+    PLOG("Put: key(%s)", key.c_str());      
+    std::string value;
+    rocksdb::Status status = db->Get(rocksdb::ReadOptions(), key, &value);
+    if(!status.ok()) {
+      PLOG("RockStore::get - sanity check failed (%s)", key.c_str());
+      return E_FAIL;
+    }
+  }
+
     
   return S_OK;
 }
@@ -92,8 +108,10 @@ int RockStore::get(const pool_t pool,
   rocksdb::DB * db = reinterpret_cast<rocksdb::DB*>(pool);
   std::string value;
   rocksdb::Status status = db->Get(rocksdb::ReadOptions(), key, &value);
-  if(!status.ok())
+  if(!status.ok()) {
+    PLOG("RockStore::get - no key (%s)", key.c_str());
     return E_FAIL;
+  }
   
   /* we have to do memcpy */
   out_value_len = value.length();
