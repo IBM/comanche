@@ -19,6 +19,7 @@ class RockStore : public Component::IKVStore /* generic Key-Value store interfac
 {  
 private:
   static constexpr bool option_DEBUG = true;
+  static constexpr bool option_SANITY = false;
 
 public:
   /** 

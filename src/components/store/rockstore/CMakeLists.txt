@@ -6,6 +6,8 @@ add_subdirectory(./unit_test)
 
 project(comanche-rocksdb CXX)
 
+add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
+
 execute_process(COMMAND git submodule update --init -- rocksdb
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
