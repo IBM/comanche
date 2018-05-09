@@ -154,14 +154,14 @@ public:
    * 
    * @return Memory region handle
    */
-  virtual memory_region_t register_memory(const void * contig_addr, size_t size, int flags) = 0;
+  virtual memory_region_t register_memory(const void * contig_addr, size_t size, uint64_t key, int flags) = 0;
 
   /**
    * De-register memory region
    * 
    * @param memory_region Memory region to de-register
    */
-  virtual void deregister_memory(const memory_region_t memory_region) = 0;
+  virtual void deregister_memory(memory_region_t memory_region) = 0;
 
   /**
    * Allocate group (for partitioned completion handling)
@@ -279,7 +279,7 @@ public:
    * @return 
    */
   virtual IFabric_endpoint * open_endpoint(const std::string& json_configuration) = 0;
-  virtual IFabric_connection * open_connection(const std::string& json_configuration, const std::string & remote_endpoint) = 0;
+  virtual IFabric_connection * open_connection(const std::string& json_configuration, const std::string& remote_endpoint) = 0;
 };
 
 } // Component

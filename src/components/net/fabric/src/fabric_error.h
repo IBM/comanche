@@ -35,10 +35,23 @@
 class fabric_error
   : public std::logic_error
 {
+  int _i;
+  const char *_file; 
+  int _line; 
 public:
   fabric_error(int i_, const char *file_, int line_)
-    : std::logic_error{std::string{"fabric_error \""} + fi_strerror(-i_) + "\" at " + file_ + ":" + std::to_string(line_)}
+    : std::logic_error{std::string{"fabric_error \""} + fi_strerror(i_) + "\" at " + file_ + ":" + std::to_string(line_)}
+    , _i(i_)
+    , _file(file_)
+    , _line(line_)
   {}
+  fabric_error(int i_, const char *file_, int line_, const std::string &desc_)
+    : std::logic_error{std::string{"fabric_error \""} + fi_strerror(i_) + "\" at " + file_ + ":" + std::to_string(line_) + " " + desc_}
+  {}
+  fabric_error add(const std::string &added) const
+  {
+    return fabric_error(_i, _file, _line, added);
+  }
 };
 
 class fabric_bad_alloc

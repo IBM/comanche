@@ -24,6 +24,7 @@
 #include "fabric_error.h"
 #include "fabric_help.h"
 
+#include <rdma/fabric.h> /* FI_TYPE_xxx */
 #include <rdma/fi_cm.h> /* fi_connect */
 
 /** 
@@ -31,19 +32,87 @@
  * 
  */
 
-Fabric_connection::Fabric_connection(fid_fabric &fabric_, fi_info &info_, const void *addr, const void *param, size_t paramlen)
-  : _domain(make_fid_domain(fabric_, info_, this))
-  , _aep{make_fid_aep(*_domain, info_, this)}
+
+/* Client-side constructor */
+Fabric_connection::Fabric_connection(fid_fabric &fabric_, const fi_info &info_, Fd_control &&control_, bool is_client_
+  )
+  : _descr( is_client_ ? "client " : "server " )
+  , _control(std::move(control_))
+  /* client needs the address format, before it creates the domain */
+  , _addr_format(( is_client_ ? _control.recv_format() : format_ep_t(info_.addr_format)))
+  , _domain_info(make_fi_infodup(info_, "domain construction"))
+  , _domain(((_domain_info->addr_format = std::get<0>(_addr_format)), make_fid_domain(fabric_, *_domain_info, this)))
+  , _tx(*_domain, FI_SEND | FI_WRITE | FI_REMOTE_READ, tx_key
+      , 0U // was mr_flag, flags for fid_mr_regs ( FI_RMA_EVENT , FI_RMA_PMEM )
+    )
+  , _rx(*_domain, FI_RECV | FI_READ | FI_REMOTE_WRITE, rx_key
+      , 0U // was mr_flags, flags for fid_mr_reg ( FI_RMA_EVENT , FI_RMA_PMEM )
+    )
+  , _av_attr{}
+  , _av(make_fid_av(*_domain, _av_attr, this))
+  , _ep_info(make_fi_infodup(*_domain_info, "endpoint construction"))
+  , _ep(make_fid_aep(*_domain, *_ep_info, this))
+  , _eq_attr{}
+  , _eq{}
 {
-  auto i = fi_connect(&*_aep, addr, param, paramlen);
-  if ( i != FI_SUCCESS )
+  /* NOTE: the various tests for type (FI_EP_MSG) and mode (_is_client)
+   * should move to derived classses.
+   */
+  if ( _ep_info->ep_attr->type == FI_EP_MSG )
   {
-    throw fabric_error(i, __FILE__, __LINE__);
+    _eq_attr.size = 10;
+    _eq_attr.wait_obj = FI_WAIT_NONE; 
+    _eq = make_fid_eq(fabric_, &_eq_attr, this);
+    CHECKZ(fi_ep_bind(&*_ep, &_eq->fid, 0));
+  }
+
+  if ( _av )
+  {
+    CHECKZ(fi_ep_bind(&*_ep, &_av->fid, 0));
+  }
+  CHECKZ(fi_ep_bind(&*_ep, _tx.cq(), FI_TRANSMIT));
+  CHECKZ(fi_ep_bind(&*_ep, _rx.cq(), FI_RECV));
+
+  CHECKZ(fi_enable(&*_ep));
+
+  /* Give the endpoint a receive buffer */
+  post(
+    fi_recv, get_rx_comp, _rx.seq()
+    , this /* context, to get_rx_comp */
+    , "receive " __FILE__ /* string identifier for reporting */
+    /* parameters to fi_recv: */
+    , &*_ep /* context */
+    , static_cast<void *>(&*this->_rx.buffer().begin())
+    , this->_rx.buffer().size()
+    , this->_rx.mr_desc()
+    , FI_ADDR_UNSPEC /* src_addr */
+    , static_cast<void *>(this)
+  );
+
+  if ( is_client_ )
+  {
+    auto param = nullptr;
+    std::size_t paramlen = 0;
+    auto remote_addr = _control.recv_name();
+    if ( _ep_info->ep_attr->type == FI_EP_MSG )
+    {
+      try
+      {
+        CHECKZ(fi_connect(&*_ep, &*std::get<0>(remote_addr).begin(), param, paramlen));
+      }
+      catch ( const fabric_error &e )
+      {
+        throw e.add(fi_tostr(&*_ep_info, FI_TYPE_INFO));
+      }
+    }
   }
 }
 
 Fabric_connection::~Fabric_connection()
-{}
+{
+  /* "the flags parameter is reserved and must be 0" */
+  fi_shutdown(&*_ep, 0);
+}
 
 /** 
  * Register buffer for RDMA
@@ -54,7 +123,9 @@ Fabric_connection::~Fabric_connection()
  * 
  * @return Memory region handle
  */
-auto Fabric_connection::register_memory(const void * contig_addr, size_t size, int flags) -> Component::IFabric_connection::memory_region_t
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+auto Fabric_connection::register_memory(const void * contig_addr, size_t size, std::uint64_t key, int flags) -> Component::IFabric_connection::memory_region_t
 {
   not_implemented(__func__);
 }
@@ -174,6 +245,7 @@ auto Fabric_connection::wait_for_next_completion(unsigned polls_limit) -> contex
 {
   not_implemented(__func__);
 }
+#pragma GCC diagnostic pop
 
 auto Fabric_connection::allocate_group() -> IFabric_communicator *
 {
@@ -212,4 +284,23 @@ std::string Fabric_connection::get_peer_addr()
 std::string Fabric_connection::get_local_addr()
 {
   not_implemented(__func__);
+}
+
+auto Fabric_connection::get_name() const -> addr_ep_t
+{
+  auto it = static_cast<const char *>(_ep_info->src_addr);
+  return addr_ep_t(
+     std::vector<char>(it, it+_ep_info->src_addrlen)
+  );
+}
+
+void Fabric_connection::get_rx_comp(void *ctx_, uint64_t total_)
+{
+  auto ctx = static_cast<Fabric_connection *>(ctx_);
+  if ( ! ctx )
+  {
+    throw std::logic_error("call to rx_comp with no rx resources");
+  }
+  auto &rx = ctx->_rx;
+  return rx.get_cq_comp(total_);
 }
