@@ -14,45 +14,36 @@
    limitations under the License.
 */
 
-#ifndef _FABRIC_FID_PTR_H_
-#define _FABRIC_FID_PTR_H_
+#ifndef _ALLOCATOR_ALIGNED_H_
+#define _ALLOCATOR_ALIGNED_H_
 
-/* 
- * Authors: 
- */
+#include "bad_aligned_alloc.h"
 
-#include <rdma/fabric.h>
+#include <common/utils.h> /* round_up */
 
-#include <memory> /* shared_ptr */
+#include <unistd.h> /* sysconf */
 
-/** 
- * Fabric/RDMA-based network component
- */
+#include <cstddef> /* size_t */
+#include <memory> /* allocator */
 
-template <typename T>
-  int fid_close(T *f)
-  {
-    return fi_close(&f->fid);
-  }
-
-/* fid is shared not so much for true sharing as for automatic lifetime control.
- * A unique_ptr might work as well.
- */
+#include <stdlib.h> /* aligned_alloc */
 
 template <typename T>
-  std::shared_ptr<T> fid_ptr(T *f)
-  {
-    return std::shared_ptr<T>(f, fid_close<T>);
-  }
-
-template <typename T>
-  class fid_delete
+  class aligned_allocator
+    : public std::allocator<T>
   {
   public:
-    void operator()(T *f) { fid_close(f); }
+    using base = std::allocator<T>;
+    typename base::pointer allocate(std::size_t sz_)
+    {
+      auto align = ::sysconf(_SC_PAGESIZE);
+      auto b = ::aligned_alloc(round_up(sz_, align), align);
+      if ( b == nullptr )
+      {
+        throw bad_aligned_alloc{sz_, align};
+      }
+      return b;
+    }
   };
-
-template <typename T>
-  using fid_unique_ptr = std::unique_ptr<T, fid_delete<T>>;
 
 #endif

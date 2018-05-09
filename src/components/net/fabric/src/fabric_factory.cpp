@@ -21,12 +21,20 @@
 
 #include "fabric_factory.h"
 
-#include "fabric_endpoint.h"
-#include "fabric_error.h"
+#include "fabric_connection_factory.h"
+#include "fabric_connection_client.h"
 #include "fabric_help.h"
 #include "fabric_json.h"
 
 #include <rdma/fabric.h> /* fi_info */
+
+#include <netinet/in.h>
+#include <sys/socket.h>
+
+#include <unistd.h>
+
+#include <cerrno>
+#include <stdexcept>
 
 /** 
  * Fabric/RDMA-based network component
@@ -48,9 +56,8 @@
  */
 
 Fabric_factory::Fabric_factory(const std::string& json_configuration)
-  : _fabric_spec(make_fi_fabric_spec(json_configuration)) 
-  , _info(make_fi_info(*_fabric_spec))
-  , _fabric(make_fid_fabric(*_info->fabric_attr, this))
+  : _fabric_info(make_fi_fabric_spec(json_configuration)) 
+  , _fabric(make_fid_fabric(*_fabric_info->fabric_attr, this))
 {
 }
 
@@ -60,18 +67,19 @@ void *Fabric_factory::query_interface(Component::uuid_t& itf_uuid) {
 
 Component::IFabric_endpoint * Fabric_factory::open_endpoint(const std::string& json_configuration)
 {
-  _info = parse_info(_info, json_configuration);
-  return new Fabric_endpoint(*this, *_info);
+  _fabric_info = parse_info(_fabric_info, json_configuration);
+  return new Fabric_connection_factory(*this->fid(), *_fabric_info, control_port);
 }
 
-Component::IFabric_connection * Fabric_factory::open_connection(const std::string & json_configuration, const std::string & remote_endpoint)
+Component::IFabric_connection * Fabric_factory::open_connection(const std::string& json_configuration, const std::string &remote)
+try
 {
-  not_implemented(__func__);
+  _fabric_info = parse_info(_fabric_info, json_configuration);
+  return new Fabric_connection_client(*this->fid(), *_fabric_info, remote);
 }
-
-std::string Fabric_factory::prov_name() const
+catch (const std::exception &e )
 {
-  return _info->fabric_attr->prov_name;
+  throw std::runtime_error(std::string("(while in Fabric_factory::open_connection) ") + e.what() );
 }
 
 /** 
