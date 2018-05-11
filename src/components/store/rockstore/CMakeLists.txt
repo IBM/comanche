@@ -12,7 +12,7 @@ execute_process(COMMAND git submodule update --init -- rocksdb
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_custom_target(rocksdblib
-  COMMAND make -j EXTRA_LDFLAGS="-fPIC" EXTRA_CFLAGS="-fPIC" EXTRA_CXXFLAGS="-fPIC" static_lib
+  COMMAND make -j ROCKSDB_VALGRIND_RUN=1 EXTRA_LDFLAGS="-fPIC" EXTRA_CFLAGS="-fPIC" EXTRA_CXXFLAGS="-fPIC" static_lib
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/)
 
 
