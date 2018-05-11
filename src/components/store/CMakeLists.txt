@@ -5,4 +5,4 @@ add_subdirectory (append)
 add_subdirectory (log)
 add_subdirectory (blob)
 add_subdirectory (rockstore)
-
+add_subdirectory (filestore)
