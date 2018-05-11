@@ -21,6 +21,7 @@ private:
   static constexpr bool option_DEBUG = true;
   static constexpr bool option_SANITY = false;
 
+  static constexpr unsigned MAX_OPEN_FILES = 512;
 public:
   /** 
    * Constructor

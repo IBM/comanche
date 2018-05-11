@@ -41,7 +41,7 @@ public:
   };
 
   enum {
-    FLAGS_READ_ONLY,
+    FLAGS_READ_ONLY = 1,
   };
 
   enum {
