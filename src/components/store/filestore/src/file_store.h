@@ -18,7 +18,7 @@
 class FileStore : public Component::IKVStore /* generic Key-Value store interface */
 {  
 private:
-  static constexpr bool option_DEBUG = true;
+  static constexpr bool option_DEBUG = false;
 
 public:
   /** 
