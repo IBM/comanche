@@ -14,6 +14,7 @@ Ustack::Ustack(const std::string endpoint) : IPC_server(endpoint)
 {
   /* block device */
 #ifdef USE_NVME_DEVICE
+  #error foo
   block = create_nvme_block_device("01:00.0");
 #else
   block = create_posix_block_device("./block.dat");
@@ -41,7 +42,7 @@ Ustack::Ustack(const std::string endpoint) : IPC_server(endpoint)
   IBlob::blob_t b = store->create("fio.blob",
                                   "dwaddington",
                                   ".jelly",
-                                  MB(32));
+                                  KB(32));
 
   _ipc_thread = new std::thread([=]() { ipc_start(); });
 }
@@ -370,7 +371,7 @@ static IBlock_device * create_posix_block_device(const std::string path)
   //  config_string += "/dev/nvme0n1";1
   config_string += path; //"./blockfile.dat";
   //  config_string += "\"}";
-  config_string += "\",\"size_in_blocks\":20000}";
+  config_string += "\",\"size_in_blocks\":200000}";
 
   auto block = fact->create(config_string);
   assert(block);

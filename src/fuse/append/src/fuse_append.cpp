@@ -332,7 +332,7 @@ static IBlock_device * create_posix_block_device(const std::string path)
   //  config_string += "/dev/nvme0n1";1
   config_string += path; //"./blockfile.dat";
   //  config_string += "\"}";
-  config_string += "\",\"size_in_blocks\":20000}";
+  config_string += "\",\"size_in_blocks\":80000}";
 
   auto block = fact->create(config_string);
   assert(block);

@@ -13,7 +13,7 @@ int main()
 {
   void * ptr = malloc(4096);
   memset(ptr,'a',4096);
-  int fd = open("foobar.dat", O_SYNC | O_CREAT | O_TRUNC | O_WRONLY);
+  int fd = open("foobar.dat", O_SYNC | O_CREAT | O_TRUNC, O_WRONLY);
   assert(fd != -1);
   for(unsigned i=0;i<0;i++) {
     ssize_t res = write(fd, ptr, 4096);
