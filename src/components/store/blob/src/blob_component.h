@@ -1,3 +1,5 @@
+
+
 #ifndef __BLOB_BIG_COMPONENT_H__
 #define __BLOB_BIG_COMPONENT_H__
 
@@ -162,7 +164,7 @@ public:
    * 
    * @param filter 
    */
-  virtual void show_state(std::string filter) override;
+  virtual void show_state(std::string filter) { PERR("not implemented"); }
 
   /** 
    * Check if blob exists
