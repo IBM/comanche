@@ -72,8 +72,8 @@ private:
   static constexpr bool option_DEBUG = true;
   
   static constexpr size_t BLOCK_SIZE = 4096;
-  static constexpr size_t ALLOCATOR_SIZE_BYTES = MB(8);
-  static constexpr size_t METADATA_SIZE_BYTES =  MB(8);
+  static constexpr size_t ALLOCATOR_SIZE_BYTES = MB(32);
+  static constexpr size_t METADATA_SIZE_BYTES =  MB(32);
   
 public:
   Blob_component(std::string owner,
