@@ -11,6 +11,7 @@
 
 int main()
 {
+#if 0
   void * ptr = malloc(4096);
   memset(ptr,'a',4096);
   int fd = open("foobar.dat", O_SYNC | O_CREAT | O_TRUNC, O_WRONLY);
@@ -20,8 +21,9 @@ int main()
   }
   close(fd);
   PLOG("done!");
+#endif
   
-  #if 0
+#if 1
   Ustack_client ustack("ipc:///tmp//ustack.ipc", 64);
 
   ustack.get_uipc_channel();
