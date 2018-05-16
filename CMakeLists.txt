@@ -2,10 +2,23 @@ cmake_minimum_required(VERSION 3.5)
 
   #execute_process(COMMAND python "${CMAKE_CURRENT_LIST_DIR}/autogen.py")
 #endif()
-set(ENV{COMANCHE_HOME} ${CMAKE_SOURCE_DIR})
-include(${CMAKE_SOURCE_DIR}/mk/common.cmake)
 
+# env variable only used for kernel module manual Make
+#TODO:  this should be improved in future
+set(ENV{COMANCHE_HOME} ${CMAKE_SOURCE_DIR})
+
+
+include(${CMAKE_SOURCE_DIR}/mk/common.cmake)
 project(comanche)
+
+# make COMANCHE HOME visible in config.h
+set(CONF_COMANCHE_HOME ${CMAKE_SOURCE_DIR})
+configure_file(
+    "${CMAKE_SOURCE_DIR}/config_comanche.h.in"
+    "${CMAKE_BINARY_DIR}/config_comanche.h"
+    @ONLY
+    )
+include_directories(${CMAKE_BINARY_DIR})
 
 
 # force out-of-tree build

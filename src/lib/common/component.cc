@@ -40,6 +40,7 @@
 
 #include <component/base.h>
 #include <common/errors.h>
+#include <config_comanche.h>
 
 namespace Component
 {
@@ -57,7 +58,7 @@ namespace Component
     void * (*factory_createInstance)(Component::uuid_t&);
     char * error;
 
-    char * comanche_home = getenv("COMANCHE_HOME");
+    const char * comanche_home = CONF_COMANCHE_HOME;
     if(comanche_home == nullptr) {
       PERR("Environment variable COMANCHE_HOME not set");
       return nullptr;
