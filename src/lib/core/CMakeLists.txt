@@ -1,6 +1,5 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
-include(./.cmakeinclude)
 
 # We statically compile in the DPDK and SPDK into this module
 #

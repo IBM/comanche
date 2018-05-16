@@ -1,6 +1,5 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
-include(./.cmakeinclude)
 
 project(sample-component CXX)
 
