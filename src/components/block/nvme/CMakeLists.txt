@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
 
-include(./.cmakeinclude)
 
 add_subdirectory(./unit_test)
 

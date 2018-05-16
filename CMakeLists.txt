@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.5)
 
-#if(NOT EXISTS "./src/lib/.cmakeinclude")
-  #message("Generating .cmakeinclude files...")
   #execute_process(COMMAND python "${CMAKE_CURRENT_LIST_DIR}/autogen.py")
 #endif()
+set(ENV{COMANCHE_HOME} ${CMAKE_SOURCE_DIR})
+include(${CMAKE_SOURCE_DIR}/mk/common.cmake)
 
 project(comanche)
 
@@ -13,7 +13,7 @@ option(FORCE_OTT_BUILD "force out of tree build" ON)
 
 if(CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR AND FORCE_OTT_BUILD)
     message(FATAL_ERROR "cannot use in-souce build ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR}, you need delte CMakeCache.txt and CMakeFiles ")
-endif(CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR)
+endif(CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR AND FORCE_OTT_BUILD)
 
 
 add_subdirectory(src/lib/common)
@@ -40,7 +40,6 @@ add_custom_target(doc
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   COMMENT "Generating API documentation with Doxygen" VERBATIM
   )
-
 
 endif(DOXYGEN_FOUND)
 
