@@ -1,0 +1,9 @@
+/* author: Feng Li
+ * mail: fengggli@yahoo.com
+ * 
+ * configure the Comanche path 
+ */
+
+
+// will be configured using cmake variable when running cmake 
+#cmakedefine CONF_COMANCHE_HOME ("@CONF_COMANCHE_HOME@")
