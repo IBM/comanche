@@ -1,11 +1,20 @@
 cmake_minimum_required(VERSION 3.5)
 
-if(NOT EXISTS "./src/lib/.cmakeinclude")
-  message("Generating .cmakeinclude files...")
-  execute_process(COMMAND python "${CMAKE_CURRENT_LIST_DIR}/autogen.py")
-endif()
+#if(NOT EXISTS "./src/lib/.cmakeinclude")
+  #message("Generating .cmakeinclude files...")
+  #execute_process(COMMAND python "${CMAKE_CURRENT_LIST_DIR}/autogen.py")
+#endif()
 
 project(comanche)
+
+
+# force out-of-tree build
+option(FORCE_OTT_BUILD "force out of tree build" ON)
+
+if(CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR AND FORCE_OTT_BUILD)
+    message(FATAL_ERROR "cannot use in-souce build ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR}, you need delte CMakeCache.txt and CMakeFiles ")
+endif(CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR)
+
 
 add_subdirectory(src/lib/common)
 add_subdirectory(src/lib/core)

@@ -1,9 +1,7 @@
 *~
 *.o
-CMakeFiles
-*.cmake
-CMakeCache.txt
 deps
+build*
 *.cmd
 *.symvers
 *.so
@@ -17,4 +15,3 @@ Doxyfile*
 cscope*
 tags
 doc/html*
-.cmakeinclude
