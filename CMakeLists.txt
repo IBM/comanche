@@ -13,12 +13,17 @@ project(comanche)
 
 # make COMANCHE HOME visible in config.h
 set(CONF_COMANCHE_HOME ${CMAKE_SOURCE_DIR})
+# by default will be installed to the builddir
+set(CONF_COMANCHE_INSTALL ${CMAKE_BINARY_DIR}/install)
+set(CMAKE_INSTALL_PREFIX ${CONF_COMANCHE_INSTALL})
 configure_file(
     "${CMAKE_SOURCE_DIR}/config_comanche.h.in"
     "${CMAKE_BINARY_DIR}/config_comanche.h"
     @ONLY
     )
 include_directories(${CMAKE_BINARY_DIR})
+install (FILES "${CMAKE_BINARY_DIR}/config_comanche.h"
+    DESTINATION include)
 
 
 # force out-of-tree build

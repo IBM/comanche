@@ -7,3 +7,4 @@
 
 // will be configured using cmake variable when running cmake 
 #cmakedefine CONF_COMANCHE_HOME ("@CONF_COMANCHE_HOME@")
+#cmakedefine CONF_COMANCHE_INSTALL ("@CONF_COMANCHE_INSTALL@")
