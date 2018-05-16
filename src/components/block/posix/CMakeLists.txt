@@ -21,4 +21,8 @@ add_library(${PROJECT_NAME} SHARED ${SOURCES})
 
 target_link_libraries(${PROJECT_NAME} ${ASAN_LIB} common comanche-core dl rt pthread numa rdmacm ibverbs uuid )
 
+install (TARGETS ${PROJECT_NAME}
+    LIBRARY 
+    DESTINATION lib)
+
 
