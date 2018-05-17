@@ -21,3 +21,10 @@ add_library(${PROJECT_NAME} SHARED ${SOURCES})
 
 target_link_libraries(${PROJECT_NAME} ${ASAN_LIB} common comanche-core dl rt pthread numa rdmacm ibverbs pcap uuid)
 
+# set the linkage in the install/lib
+set_target_properties(${PROJECT_NAME} PROPERTIES 
+                          INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib)
+install (TARGETS ${PROJECT_NAME}
+    LIBRARY 
+    DESTINATION lib)
+
