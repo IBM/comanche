@@ -11,3 +11,5 @@ add_subdirectory (net)
 add_subdirectory (examples)
 #add_subdirectory (cluster)
 
+install(DIRECTORY "api" DESTINATION include FILES_MATCHING PATTERN "*.h*")
+      

@@ -1,37 +1,35 @@
 cmake_minimum_required(VERSION 3.5)
 
-  #execute_process(COMMAND python "${CMAKE_CURRENT_LIST_DIR}/autogen.py")
-#endif()
+# force out-of-tree build
+option(FORCE_OTT_BUILD "force out of tree build" ON)
 
-# env variable only used for kernel module manual Make
-#TODO:  this should be improved in future
+if(CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR AND FORCE_OTT_BUILD)
+    message(FATAL_ERROR "Cannot use in-source build ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR}. You should delete any CMakeCache.txt and CMakeFiles and then try out-of-tree build")
+endif(CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR AND FORCE_OTT_BUILD)
+
+# used for kernel
 set(ENV{COMANCHE_HOME} ${CMAKE_SOURCE_DIR})
 
+set(CMAKE_CXX_STANDARD 11)
 
 include(${CMAKE_SOURCE_DIR}/mk/common.cmake)
 project(comanche)
 
 # make COMANCHE HOME visible in config.h
 set(CONF_COMANCHE_HOME ${CMAKE_SOURCE_DIR})
+
 # by default will be installed to the builddir
 set(CONF_COMANCHE_INSTALL ${CMAKE_BINARY_DIR}/install)
 set(CMAKE_INSTALL_PREFIX ${CONF_COMANCHE_INSTALL})
+
 configure_file(
     "${CMAKE_SOURCE_DIR}/config_comanche.h.in"
     "${CMAKE_BINARY_DIR}/config_comanche.h"
-    @ONLY
-    )
+    @ONLY)
+  
 include_directories(${CMAKE_BINARY_DIR})
 install (FILES "${CMAKE_BINARY_DIR}/config_comanche.h"
     DESTINATION include)
-
-
-# force out-of-tree build
-option(FORCE_OTT_BUILD "force out of tree build" ON)
-
-if(CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR AND FORCE_OTT_BUILD)
-    message(FATAL_ERROR "cannot use in-souce build ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR}, you need delte CMakeCache.txt and CMakeFiles, and then try out-of-tree build")
-endif(CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR AND FORCE_OTT_BUILD)
 
 
 add_subdirectory(src/lib/common)

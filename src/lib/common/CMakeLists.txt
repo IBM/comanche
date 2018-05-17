@@ -14,10 +14,10 @@ add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 
 add_library(common SHARED cpu.cc rand.cc utils.cc dump_utils.cc str_utils.cc memory.cc crc32.cc city.cc component.cc cycles.cc)
 
-target_compile_features(common PRIVATE cxx_range_for)
-
-# Including extra cmake rules
-#include(../../../mk/clang-dev-tools.cmake)
+install(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION lib)
+install(DIRECTORY "include/common" DESTINATION include FILES_MATCHING PATTERN "*.h*")
+install(DIRECTORY "include/component" DESTINATION include FILES_MATCHING PATTERN "*.h*")
+      
 
 
 
