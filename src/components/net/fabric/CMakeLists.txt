@@ -24,12 +24,3 @@ install (TARGETS ${PROJECT_NAME}
     LIBRARY 
     DESTINATION lib)
 # target_link_libraries(${PROJECT_NAME} common comanche-core pthread numa dl rt z rdmacm ibverbs)
-
-# set the linkage in the install/lib
-set_target_properties(${PROJECT_NAME} PROPERTIES 
-                          INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib)
-install (TARGETS ${PROJECT_NAME}
-    LIBRARY 
-    DESTINATION lib)
-
-
