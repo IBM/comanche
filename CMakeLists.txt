@@ -30,7 +30,7 @@ install (FILES "${CMAKE_BINARY_DIR}/config_comanche.h"
 option(FORCE_OTT_BUILD "force out of tree build" ON)
 
 if(CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR AND FORCE_OTT_BUILD)
-    message(FATAL_ERROR "cannot use in-souce build ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR}, you need delte CMakeCache.txt and CMakeFiles ")
+    message(FATAL_ERROR "cannot use in-souce build ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR}, you need delte CMakeCache.txt and CMakeFiles, and then try out-of-tree build")
 endif(CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR AND FORCE_OTT_BUILD)
 
 
