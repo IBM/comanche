@@ -1,11 +1,38 @@
 cmake_minimum_required(VERSION 3.5)
 
-if(NOT EXISTS "./src/lib/.cmakeinclude")
-  message("Generating .cmakeinclude files...")
-  execute_process(COMMAND python "${CMAKE_CURRENT_LIST_DIR}/autogen.py")
-endif()
+  #execute_process(COMMAND python "${CMAKE_CURRENT_LIST_DIR}/autogen.py")
+#endif()
 
+# env variable only used for kernel module manual Make
+#TODO:  this should be improved in future
+set(ENV{COMANCHE_HOME} ${CMAKE_SOURCE_DIR})
+
+
+include(${CMAKE_SOURCE_DIR}/mk/common.cmake)
 project(comanche)
+
+# make COMANCHE HOME visible in config.h
+set(CONF_COMANCHE_HOME ${CMAKE_SOURCE_DIR})
+# by default will be installed to the builddir
+set(CONF_COMANCHE_INSTALL ${CMAKE_BINARY_DIR}/install)
+set(CMAKE_INSTALL_PREFIX ${CONF_COMANCHE_INSTALL})
+configure_file(
+    "${CMAKE_SOURCE_DIR}/config_comanche.h.in"
+    "${CMAKE_BINARY_DIR}/config_comanche.h"
+    @ONLY
+    )
+include_directories(${CMAKE_BINARY_DIR})
+install (FILES "${CMAKE_BINARY_DIR}/config_comanche.h"
+    DESTINATION include)
+
+
+# force out-of-tree build
+option(FORCE_OTT_BUILD "force out of tree build" ON)
+
+if(CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR AND FORCE_OTT_BUILD)
+    message(FATAL_ERROR "cannot use in-souce build ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR}, you need delte CMakeCache.txt and CMakeFiles, and then try out-of-tree build")
+endif(CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR AND FORCE_OTT_BUILD)
+
 
 add_subdirectory(src/lib/common)
 add_subdirectory(src/lib/core)
@@ -31,7 +58,6 @@ add_custom_target(doc
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   COMMENT "Generating API documentation with Doxygen" VERBATIM
   )
-
 
 endif(DOXYGEN_FOUND)
 

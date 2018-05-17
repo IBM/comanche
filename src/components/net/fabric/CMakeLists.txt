@@ -2,7 +2,6 @@ cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
 add_compile_options(-g)
 
-include(./.cmakeinclude)
 
 add_subdirectory(./unit_test)
 
@@ -17,6 +16,11 @@ add_library(${PROJECT_NAME} SHARED ${SOURCES})
 set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--no-undefined")
 
 target_link_libraries(${PROJECT_NAME} common comanche-core fabric pthread)
+
+# set the linkage in the install/lib
+set_target_properties(${PROJECT_NAME} PROPERTIES 
+                          INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib)
+install (TARGETS ${PROJECT_NAME}
+    LIBRARY 
+    DESTINATION lib)
 # target_link_libraries(${PROJECT_NAME} common comanche-core pthread numa dl rt z rdmacm ibverbs)
-
-

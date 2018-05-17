@@ -1,6 +1,5 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
-include(./.cmakeinclude)
 
 add_subdirectory(./unit_test)
 
@@ -16,4 +15,11 @@ add_library(${PROJECT_NAME} SHARED ${SOURCES})
 
 set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--no-undefined")
 target_link_libraries(${PROJECT_NAME} common comanche-core tbb numa dl rt boost_system boost_filesystem pthread)
+
+# set the linkage in the install/lib
+set_target_properties(${PROJECT_NAME} PROPERTIES 
+                          INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib)
+install (TARGETS ${PROJECT_NAME}
+    LIBRARY 
+    DESTINATION lib)
 
