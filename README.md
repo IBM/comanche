@@ -22,12 +22,17 @@ cd deps
 ./fetch-deps.sh
 ```
 
-* Build from root
+* Build
+**Now we enforce out-of-source build** 
 
 ```bash
-./autogen.py (run this once to generate .cmakeinclude files in subdirectories)
-cmake .
+mkdir build
+cd build
+cmake ..
 make
+
+# all the libs will be installedin build/install
+make install
 ```
 
 * Load modules (XMS) and attach NVMe devices to SPDK 
