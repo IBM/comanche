@@ -61,4 +61,11 @@ set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${EXTLIB_DPDK} -Wl,-
 
 target_link_libraries(${PROJECT_NAME} dl rt pthread zmq czmq zyre numa rdmacm ibverbs)
 
+# set the linkage in the install/lib
+set_target_properties(${PROJECT_NAME} PROPERTIES 
+                          INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib)
+install (TARGETS ${PROJECT_NAME}
+    LIBRARY 
+    DESTINATION lib)
+
 #set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--no-whole-archive")
