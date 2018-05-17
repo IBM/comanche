@@ -1,6 +1,5 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
-include(./.cmakeinclude)
 
 project(pysample-component CXX)
 
@@ -36,5 +35,12 @@ add_library(${PROJECT_NAME} SHARED ${SOURCES})
 
 set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--no-undefined")
 target_link_libraries(${PROJECT_NAME} common comanche-core pthread numa dl rt z boost_python-py35 ${PYTHON_LIBRARY})
+
+# set the linkage in the install/lib
+set_target_properties(${PROJECT_NAME} PROPERTIES 
+                          INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib)
+install (TARGETS ${PROJECT_NAME}
+    LIBRARY 
+    DESTINATION lib)
 
 

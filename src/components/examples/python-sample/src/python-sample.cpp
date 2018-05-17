@@ -2,9 +2,11 @@
 #include <boost/python.hpp>
 #include "python-sample.h"
 
+#include <config_comanche.h>
+
 __attribute__((constructor)) static void _ctor() 
 {
-  std::string path = getenv("COMANCHE_HOME");
+  std::string path = CONF_COMANCHE_HOME;
   path += "/src/components/examples/python-sample/";
   
   PLOG("setting PYTHONPATH=%s", path.c_str());

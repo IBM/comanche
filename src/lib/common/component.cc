@@ -40,6 +40,7 @@
 
 #include <component/base.h>
 #include <common/errors.h>
+#include <config_comanche.h>
 
 namespace Component
 {
@@ -57,11 +58,6 @@ namespace Component
     void * (*factory_createInstance)(Component::uuid_t&);
     char * error;
 
-    char * comanche_home = getenv("COMANCHE_HOME");
-    if(comanche_home == nullptr) {
-      PERR("Environment variable COMANCHE_HOME not set");
-      return nullptr;
-    }
 
     PLOG("Load path: %s", dllname);
     
@@ -69,7 +65,7 @@ namespace Component
 
     if(!dll) {
 
-      std::string dll_path = comanche_home;
+      std::string dll_path = CONF_COMANCHE_INSTALL;
       dll_path += "/lib/";
       dll_path += dllname;
 
@@ -77,7 +73,7 @@ namespace Component
       dll = dlopen(dll_path.c_str(), RTLD_NOW);
 
       if(!dll) {
-        PERR("Unable to load library (%s) - check dependencies with ldd tool (reason:%s)",dllname, dlerror());
+        PERR("Unable to load library (%s) at path (%s) - check dependencies with ldd tool (reason:%s)",dllname, dll_path.c_str(), dlerror());
         return nullptr;
       }
     }

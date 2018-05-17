@@ -1,6 +1,5 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
-include(./.cmakeinclude)
 
 # We statically compile in the DPDK and SPDK into this module
 #
@@ -55,6 +54,8 @@ set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${EXTLIB_DPDK} ${EXT
 set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--no-whole-archive")
 
 target_link_libraries(${PROJECT_NAME} ${ASAN_LIB} common rt pthread numa pcap uuid rdmacm ibverbs dl)
+install (TARGETS ${PROJECT_NAME}
+    LIBRARY DESTINATION lib)
 
 #target_compile_features(comanche-core PRIVATE cxx_range_for)
 

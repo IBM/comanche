@@ -113,7 +113,7 @@ function reset_linux {
 	# IOAT
 	TMP=`mktemp`
 	#collect all the device_id info of ioat devices.
-	grep "PCI_DEVICE_ID_INTEL_IOAT" $rootdir/include/spdk/pci_ids.h \
+	grep "PCI_DEVICE_ID_INTEL_IOAT" $rootdir/deps/spdk/include/spdk/pci_ids.h\
 	| awk -F"x" '{print $2}' > $TMP
 
 	modprobe ioatdma || true
