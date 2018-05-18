@@ -18,9 +18,8 @@ project(comanche)
 # make COMANCHE HOME visible in config.h
 set(CONF_COMANCHE_HOME ${CMAKE_SOURCE_DIR})
 
-# by default will be installed to the builddir
-set(CONF_COMANCHE_INSTALL ${CMAKE_BINARY_DIR}/install)
-set(CMAKE_INSTALL_PREFIX ${CONF_COMANCHE_INSTALL})
+# override this at cmake time with 'cmake -DCMAKE_INSTALL_PREFIX:PATH=/foo ..'
+set(CONF_COMANCHE_INSTALL ${CMAKE_INSTALL_PREFIX})
 
 configure_file(
     "${CMAKE_SOURCE_DIR}/config_comanche.h.in"
