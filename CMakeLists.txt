@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.5)
 # force out-of-tree build
 option(FORCE_OTT_BUILD "force out of tree build" ON)
 
+option(USE_RESTRICTED "also build restricted components" OFF)
+
 if(CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR AND FORCE_OTT_BUILD)
     message(FATAL_ERROR "Cannot use in-source build ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR}. You should delete any CMakeCache.txt and CMakeFiles and then try out-of-tree build")
 endif(CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR AND FORCE_OTT_BUILD)
@@ -58,3 +60,6 @@ add_custom_target(doc
 
 endif(DOXYGEN_FOUND)
 
+if (USE_RESTRICTED)
+    add_subdirectory(comanche-restricted)
+endif(USE_RESTRICTED)
