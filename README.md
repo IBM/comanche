@@ -23,13 +23,19 @@ cd deps
 ```
 
 * Build
-**Now we enforce out-of-source build** 
+**Now we enforce out-of-source build**
 
 ```bash
 mkdir build
 cd build
 cmake ..
 make
+
+** To override the install destination
+
+```bash
+cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX:PATH=/foo
+```
 
 # all the libs will be installedin build/install
 make install
