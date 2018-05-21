@@ -19,7 +19,9 @@
 
 #include <component/base.h> /* Component::IBase */
 
+#include <cstdint>
 #include <functional>
+#include <tuple>
 #include <vector>
 
 struct iovec;
@@ -34,9 +36,10 @@ namespace Component
 class IFabric_communicator
 {
 public:
-
+#if 0
+  /* not currently used */
   using context_t=void*;
-
+#endif
   virtual ~IFabric_communicator() {}
 
   /**
@@ -47,7 +50,7 @@ public:
    * @return Work (context) identifier
    */
 
-  virtual context_t post_send(const std::vector<iovec>& buffers) = 0;
+  virtual void post_send(const std::vector<iovec>& buffers, void *context) = 0;
 
   /**
    * Asynchronously post a buffer to receive data
@@ -56,7 +59,7 @@ public:
    *
    * @return Work (context) identifier
    */
-  virtual context_t post_recv(const std::vector<iovec>& buffers) = 0;
+  virtual void post_recv(const std::vector<iovec>& buffers, void *context) = 0;
 
   /**
    * Post RDMA read operation
@@ -70,7 +73,7 @@ public:
   virtual void post_read(const std::vector<iovec>& buffers,
                          uint64_t remote_addr,
                          uint64_t key,
-                         context_t& out_context) = 0;
+                         void *context) = 0;
 
   /**
    * Post RDMA write operation
@@ -84,7 +87,7 @@ public:
   virtual void post_write(const std::vector<iovec>& buffers,
                           uint64_t remote_addr,
                           uint64_t key,
-                          context_t& out_context) = 0;
+                          void *context) = 0;
 
   /**
    * Send message without completion
@@ -92,7 +95,7 @@ public:
    * @param connection Connection to inject on
    * @param buffers Buffer vector (containing regions should be registered)
    */
-  virtual void inject_send(const std::vector<iovec>& buffers) = 0;
+  virtual void inject_send(const std::vector<iovec>& buffers, void *context) = 0;
 
   /**
    * Poll completion events; service completion queues and store
@@ -104,7 +107,7 @@ public:
    *
    * @return Number of completions processed
    */
-  virtual size_t poll_completions(std::function<void(context_t, status_t, void*, IFabric_communicator *)> completion_callback) = 0;
+  virtual size_t poll_completions(std::function<void(void *context, status_t)> completion_callback) = 0;
 
   /**
    * Get count of stalled completions.
@@ -117,9 +120,9 @@ public:
    *
    * @param polls_limit Maximum number of polls (throws exception on exceeding limit)
    *
-   * @return Next completion context
+   * @return (was next completion context. But poll_completions can retrieve that)
    */
-  virtual context_t wait_for_next_completion(unsigned polls_limit = 0) = 0;
+  virtual void wait_for_next_completion(unsigned polls_limit = 0) = 0;
 
   /* Additional TODO:
      - support for atomic RMA operations
@@ -130,31 +133,31 @@ public:
 
 /**
  * Fabric/RDMA-based network component
- * 
+ *
  */
 class IFabric_connection
  : public IFabric_communicator
 {
 public:
 
-  using memory_region_t=void*;
-  using context_t=IFabric_communicator::context_t;
+  using memory_region_t=std::tuple<void *, std::uint64_t>;
 #if 0
   /* not currently used */
+  using context_t=IFabric_communicator::context_t;
   using endpoint_t=void*;
   using connection_t=void*;
 #endif
- 
+
   /**
    * Register buffer for RDMA
-   * 
+   *
    * @param contig_addr Pointer to contiguous region
    * @param size Size of buffer in bytes
    * @param flags Flags e.g., FI_REMOTE_READ|FI_REMOTE_WRITE
    * 
    * @return Memory region handle
    */
-  virtual memory_region_t register_memory(const void * contig_addr, size_t size, uint64_t key, int flags) = 0;
+  virtual memory_region_t register_memory(const void * contig_addr, size_t size, uint64_t key, uint64_t flags) = 0;
 
   /**
    * De-register memory region
@@ -264,6 +267,19 @@ public:
   virtual std::string get_provider_name() const = 0;
 };
 
+class IFabric
+{
+public:
+  /**
+   * Open a fabric endpoint.  Endpoints usually correspond with hardware resources, e.g. verbs queue pair
+   * Options may not conflict with those specified for the fabric.
+   *
+   * @param json_configuration Configuration string in JSON
+   * @return the endpoint
+   */
+  virtual IFabric_endpoint * open_endpoint(const std::string& json_configuration, std::uint16_t port) = 0;
+  virtual IFabric_connection * open_connection(const std::string& json_configuration, const std::string& remote_endpoint, std::uint16_t port) = 0;
+};
 
 class IFabric_factory : public Component::IBase
 {
@@ -278,8 +294,7 @@ public:
    * form. e.g. { "caps":["FI_MSG","FI_RMA"], "preferred_provider" : "verbs"}
    * @return 
    */
-  virtual IFabric_endpoint * open_endpoint(const std::string& json_configuration) = 0;
-  virtual IFabric_connection * open_connection(const std::string& json_configuration, const std::string& remote_endpoint) = 0;
+  virtual IFabric * make_fabric(const std::string& json_configuration) = 0;
 };
 
 } // Component

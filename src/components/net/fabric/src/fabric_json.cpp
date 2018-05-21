@@ -21,7 +21,7 @@
 
 #include "fabric_json.h"
 
-#include "fabric_help.h"
+#include "fabric_util.h"
 
 #include <rapidjson/document.h>
 #include <rapidjson/error/en.h>
@@ -245,7 +245,7 @@ namespace
     {
       throw std::domain_error("not an array");
     }
-    for ( std::size_t i = 0; i != v.Size(); ++i )
+    for ( unsigned i = 0; i != v.Size(); ++i )
     {
       const auto &e = v[i];
       if ( ! e.IsUint() )
@@ -491,11 +491,6 @@ namespace
 
   std::shared_ptr<fi_info> parse_info(std::shared_ptr<fi_info> info, const rapidjson::Document &v)
   {
-    if ( ! info )
-    {
-      info = make_fi_info();
-    }
-
     if ( ! v.IsObject() )
     {
       throw std::domain_error{": NOT a JSON object (" + std::to_string(v.GetType()) + ")"};
@@ -521,8 +516,10 @@ namespace
   }
 }
 
-std::shared_ptr<fi_info> parse_info(std::shared_ptr<fi_info> info_, const std::string &s_)
+#include <cassert>
+std::shared_ptr<fi_info> parse_info(const std::string &s_, std::shared_ptr<fi_info> info_)
 {
+  assert(info_);
   rapidjson::Document jdoc;
   jdoc.Parse(s_.c_str());
   if ( jdoc.HasParseError() )
@@ -537,6 +534,11 @@ std::shared_ptr<fi_info> parse_info(std::shared_ptr<fi_info> info_, const std::s
   {
     throw std::domain_error{std::string{"JSON parse <root> "} + e.what()};
   }
+}
+
+std::shared_ptr<fi_info> parse_info(const std::string &s_)
+{
+  return parse_info(s_, make_fi_info());
 }
 
 /*

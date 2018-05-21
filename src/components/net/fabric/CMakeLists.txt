@@ -1,7 +1,6 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
-add_compile_options(-g)
-
+add_compile_options(-g -pedantic -Wall -Wextra -Wcast-align -Wcast-qual -Wconversion -Weffc++ -Wold-style-cast -Wredundant-decls -Wshadow -Wtype-limits -Wunused-parameter -Wwrite-strings)
 
 add_subdirectory(./unit_test)
 

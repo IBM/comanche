@@ -18,7 +18,7 @@
 
 #include "fabric_connection.h"
 #include "fabric_error.h"
-#include "fabric_help.h"
+#include "fabric_util.h"
 #include "fd_socket.h"
 
 #include <netdb.h>
@@ -30,10 +30,16 @@
 #include <rdma/fi_domain.h>
 #include <rdma/fi_endpoint.h>
 
-Fabric_connection_factory::Fabric_connection_factory(fid_fabric &fabric_fid_, const fi_info &info_, std::uint16_t port_)
-  : _info(make_fi_infodup(info_, "fabric construction"))
-  , _fabric(fabric_fid_)
-  , _control(_fabric, *_info, port_)
+Fabric_connection_factory::Fabric_connection_factory(fid_fabric &fabric_, fid_eq &eq_, fi_info &info_, std::uint16_t port_)
+  : _info(info_)
+  , _fabric(fabric_)
+  , _eq(eq_)
+  /* "this" is context for events occuring on the passive endpoint.
+   * Not really necessary, as the expected event so far is a CONNREQ
+   * which is handled synchronously by server_control.
+   */
+  , _pep(make_fid_pep_listener(fabric_, _info, _eq, this))
+  , _control(_fabric, _eq, get_name(&_pep->fid), port_)
 {
 }
 
@@ -43,12 +49,12 @@ void *Fabric_connection_factory::query_interface(Component::uuid_t& itf_uuid) {
 
 size_t Fabric_connection_factory::max_message_size() const
 {
-  return _info->ep_attr->max_msg_size;
+  return _info.ep_attr->max_msg_size;
 }
 
 std::string Fabric_connection_factory::get_provider_name() const
 {
-  return _info->fabric_attr->prov_name;
+  return _info.fabric_attr->prov_name;
 }
 
 /* Connect as a client */
@@ -56,7 +62,7 @@ Component::IFabric_connection * Fabric_connection_factory::connect(const std::st
 {
   not_implemented(__func__);
 }
-  
+
 Component::IFabric_connection * Fabric_connection_factory::get_new_connections()
 {
   return _control.get_new_connection();

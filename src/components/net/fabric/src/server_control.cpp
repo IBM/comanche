@@ -14,16 +14,16 @@
    limitations under the License.
 */
 
-/* 
- * Authors: 
- * 
+/*
+ * Authors:
+ *
  */
 
 #include "server_control.h"
 
-#include "fabric_connection.h"
-#include "fabric_help.h"
+#include "fabric_connection_server.h"
 #include "fabric_json.h"
+#include "fabric_util.h"
 #include "fd_control.h"
 #include "fd_socket.h"
 #include "pointer_cast.h"
@@ -40,12 +40,35 @@
 #include <cerrno>
 #include <stdexcept>
 
-Server_control::Server_control(fid_fabric &fabric_, const fi_info &info_, std::uint16_t port_)
+Pending_cnxns::Pending_cnxns()
+  : _m{}
+  , _q{}
+{}
+
+void Pending_cnxns::push(cnxn_t c)
+{
+  guard g{_m};
+  _q.push(c);
+}
+
+auto Pending_cnxns::remove() -> cnxn_t
+{
+  cnxn_t c;
+  guard g{_m};
+  if ( _q.size() != 0 )
+  {
+    c = _q.front();
+    _q.pop();
+  }
+  return c;
+}
+
+Server_control::Server_control(fid_fabric &fabric_, fid_eq &eq_, addr_ep_t name, std::uint16_t port_)
   : _pending{}
   , _open{}
   , _end{}
   , _pipe_errno(::pipe(_end) == -1 ? errno : 0)
-  , _th{&Server_control::listen, make_listener(port_), _end[0], std::ref(fabric_), std::ref(info_), std::ref(_pending)}
+  , _th{&Server_control::listen, make_listener(port_), _end[0], std::ref(fabric_), std::ref(eq_), name, std::ref(_pending)}
 {
   if ( _pipe_errno )
   {
@@ -72,7 +95,7 @@ Fd_socket Server_control::make_listener(std::uint16_t port)
       system_fail(e, "setsockopt");
     }
   }
-    
+
   {
     sockaddr_in addr{};
     addr.sin_family = domain;
@@ -97,24 +120,23 @@ Fd_socket Server_control::make_listener(std::uint16_t port)
 
 /*
  * objects accesses in multiple threads:
- * 
+ *
  *  fabric_ should be used only by (threadsafe) libfabric calls.
  *  info_ should be used only in by (threadsafe) libfabric calls.
  *  _run : needs an atomic
- *  _pending: needs a mutex 
+ *  _pending: needs a mutex
  */
 #include <cassert>
 #include <cstring>
 #include <unistd.h>
 #include <sys/select.h>
-void Server_control::listen(Fd_socket &&listen_fd_, int end_fd_, fid_fabric &fabric_, const fi_info &info_, Pending_cnxns &pend_)
-//void Server_control::listen(Fd_socket &&listen_fd_, int end_fd_, fid_fabric &fabric_, const fi_info &info_) 
+void Server_control::listen(Fd_socket &&listen_fd_, int end_fd_, fid_fabric &fabric_, fid_eq &eq_, addr_ep_t pep_name_, Pending_cnxns &pend_)
 {
   auto listen_fd = std::move(listen_fd_);
 
   auto run = true;
   while ( run )
-  { 
+  {
     fd_set fds_read;
     FD_ZERO(&fds_read);
     FD_SET(listen_fd.fd(), &fds_read);
@@ -133,7 +155,7 @@ void Server_control::listen(Fd_socket &&listen_fd_, int end_fd_, fid_fabric &fab
 
     run = ! FD_ISSET(end_fd_, &fds_read);
     if ( FD_ISSET(listen_fd.fd(), &fds_read) )
-    { 
+    {
       try
       {
         auto r = ::accept(listen_fd.fd(), nullptr, nullptr);
@@ -143,16 +165,26 @@ void Server_control::listen(Fd_socket &&listen_fd_, int end_fd_, fid_fabric &fab
           system_fail(e, (" in accept fd " + std::to_string(listen_fd.fd())));
         }
         auto conn_fd = Fd_control(r);
+        /* NOTE: Fd_control needs a timeout. */
 
-        /* we have a "control connection". Create a fabric endpoint. */
-        /* send format, so that the client can create an endpoint with the servers address format */
-        conn_fd.send_format(Fd_control::format_ep_t(info_.addr_format));
-        auto conn = std::make_shared<Fabric_connection>(fabric_, info_, std::move(conn_fd), false);
-        /* get the address format and name for the server endpoint */
-        auto ep_name = conn->get_name();
+        /* we have a "control connection". Send the name of the server passive endpoint to the client */
+        /* send the name to the client */
+        conn_fd.send_name(pep_name_);
 
-        /* send the format and name to the client */
-        conn->control().send_name(ep_name);
+        /*
+         * Wait for a connection.
+         *
+         * ERROR: Since the client may disappear or stall, the rest of this
+         * section ought to be handled by eq processing. There is already a
+         * pselect, and the event queue can be tied to a file decriptor for
+         * the pselect by FI_WAIT_FD/FI_GETWAIT.
+         */
+        fi_eq_cm_entry entry;
+        std:: uint32_t event;
+        CHECKZ(fi_eq_sread(&eq_, &event, &entry, sizeof entry, -1, 0));
+        assert(event == FI_CONNREQ);
+
+        auto conn = std::make_shared<Fabric_connection_server>(fabric_, eq_, *entry.info, std::move(conn_fd));
         pend_.push(conn);
       }
       catch ( const std::exception &e )
@@ -182,7 +214,7 @@ Fabric_connection * Server_control::get_new_connection()
 std::vector<Fabric_connection *> Server_control::connections()
 {
   std::vector<Fabric_connection *> v;
-  std::transform(_open.begin(), _open.end(), std::back_inserter(v), [] (const open_t::value_type &v) { return &*v.second; });
+  std::transform(_open.begin(), _open.end(), std::back_inserter(v), [] (const open_t::value_type &v_) { return &*v_.second; });
   return v;
 }
 

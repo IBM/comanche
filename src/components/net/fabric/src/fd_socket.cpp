@@ -14,9 +14,9 @@
    limitations under the License.
 */
 
-/* 
- * Authors: 
- * 
+/*
+ * Authors:
+ *
  */
 
 #include "fd_socket.h"
@@ -52,7 +52,7 @@ Fd_socket::~Fd_socket()
 Fd_socket::Fd_socket(Fd_socket &&o) noexcept
   : _fd(o._fd)
 {
-  o._fd = -1;  
+  o._fd = -1;
 }
 
 Fd_socket &Fd_socket::operator=(Fd_socket &&o) noexcept
@@ -87,9 +87,10 @@ void Fd_socket::send(const void *buf, std::size_t size) const
      system_fail(ECONNABORTED, "send");
   }
 }
+
 void Fd_socket::recv(void *buf, std::size_t size) const
 {
-  int r;
+  ssize_t r;
   do
   {
      r = ::read(_fd, buf, size);

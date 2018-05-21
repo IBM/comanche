@@ -14,9 +14,9 @@
    limitations under the License.
 */
 
-/* 
- * Authors: 
- * 
+/*
+ * Authors:
+ *
  */
 
 #include "fd_control.h"
@@ -34,7 +34,7 @@ namespace
   std::shared_ptr<addrinfo> getaddrinfo_ptr(std::string dst_addr, uint16_t port)
   {
     addrinfo hints{};
-  
+
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_protocol = IPPROTO_TCP;
@@ -55,64 +55,58 @@ Fd_control::Fd_control()
 {}
 
 Fd_control::Fd_control(int fd_)
- : Fd_socket(fd_)
-{}
-
-Fd_control::Fd_control(std::string dst_addr, uint16_t port)
-  : Fd_socket()
+  : Fd_socket(fd_)
 {
-  auto results = getaddrinfo_ptr(dst_addr, port);
-  auto e = ENOENT;
+  /* Note: consider addint setsockopt(SO_RCVTIMEO) here */
+}
 
-  Fd_control connfd;
-  for ( auto rp = results.get(); rp && ! good(); rp = rp->ai_next)
+namespace
+{
+  int socket_from_address(std::string dst_addr, uint16_t port)
   {
-    auto fd = ::socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-    e = errno;
-    if ( fd != -1 )
+    auto results = getaddrinfo_ptr(dst_addr, port);
+    auto e = ENOENT;
+
+    int fd = -1;
+    bool ok = false;
+    for ( auto rp = results.get(); rp && ! ok; rp = rp->ai_next)
     {
-      if ( -1 == ::connect(fd, rp->ai_addr, rp->ai_addrlen) )
+      fd = ::socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+      e = errno;
+      if ( fd != -1 )
       {
-        e = errno;
-      }
-      else
-      {
-        *this = Fd_control(fd);
+        if ( -1 == ::connect(fd, rp->ai_addr, rp->ai_addrlen) )
+        {
+          e = errno;
+        }
+        else
+        {
+          ok = true;
+        }
       }
     }
-  }
 
-  if ( ! good() )
-  {
-    sleep(1);
-    system_fail(e, __func__);
+    if ( ! ok )
+    {
+      sleep(1);
+      system_fail(e, __func__);
+    }
+
+    return fd;
   }
 }
 
-void Fd_control::send_format(const format_ep_t &format_) const
+Fd_control::Fd_control(std::string dst_addr, uint16_t port)
+  : Fd_socket(socket_from_address(dst_addr, port))
 {
-  auto nfmt = htonl(std::get<0>(format_));
-  send(&nfmt, sizeof nfmt);
 }
 
 void Fd_control::send_name(const addr_ep_t &name_) const
 {
   auto sz = std::get<0>(name_).size();
-  auto nsz = htonl(sz);
+  auto nsz = htonl(std::uint32_t(sz));
   send(&nsz, sizeof nsz);
   send(&*std::get<0>(name_).begin(), sz);
-}
-
-auto Fd_control::recv_format() const -> format_ep_t
-try
-{
-  auto nfmt = htonl((typename std::tuple_element<0, format_ep_t>::type()));
-  recv(&nfmt, sizeof nfmt);
-  return format_ep_t(ntohl(nfmt));
-}
-catch ( const std::exception &e )
-{
-  throw std::runtime_error(std::string("(while receiving format) ") + e.what());
 }
 
 auto Fd_control::recv_name() const -> addr_ep_t
@@ -123,7 +117,7 @@ try
 
   auto sz = ntohl(nsz);
   std::vector<char> name(sz);
-  recv(&*name.begin(), sizeof sz);
+  recv(&*name.begin(), sz);
 
   return addr_ep_t(std::move(name));
 }

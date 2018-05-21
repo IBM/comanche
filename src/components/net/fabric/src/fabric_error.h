@@ -17,17 +17,15 @@
 #ifndef _FABRIC_ERROR_H_
 #define _FABRIC_ERROR_H_
 
-/* 
- * Authors: 
- * 
+/*
+ * Authors:
+ *
  */
-
-#include <rdma/fi_errno.h>
 
 #include <string>
 #include <stdexcept>
 
-/** 
+/**
  * Fabric/RDMA-based network component
  */
 
@@ -36,22 +34,12 @@ class fabric_error
   : public std::logic_error
 {
   int _i;
-  const char *_file; 
-  int _line; 
+  const char *_file;
+  int _line;
 public:
-  fabric_error(int i_, const char *file_, int line_)
-    : std::logic_error{std::string{"fabric_error \""} + fi_strerror(i_) + "\" at " + file_ + ":" + std::to_string(line_)}
-    , _i(i_)
-    , _file(file_)
-    , _line(line_)
-  {}
-  fabric_error(int i_, const char *file_, int line_, const std::string &desc_)
-    : std::logic_error{std::string{"fabric_error \""} + fi_strerror(i_) + "\" at " + file_ + ":" + std::to_string(line_) + " " + desc_}
-  {}
-  fabric_error add(const std::string &added) const
-  {
-    return fabric_error(_i, _file, _line, added);
-  }
+  fabric_error(int i, const char *file, int line);
+  fabric_error(int i, const char *file, int line, const std::string &desc);
+  fabric_error add(const std::string &added) const;
 };
 
 class fabric_bad_alloc
@@ -59,11 +47,8 @@ class fabric_bad_alloc
 {
   std::string _what;
 public:
-  fabric_bad_alloc(std::string which)
-    : std::bad_alloc{}
-    , _what{"fabric_bad_alloc " + which}
-  {}
-  const char *what() const noexcept override { return _what.c_str(); }
+  fabric_bad_alloc(std::string which);
+  const char *what() const noexcept override;
 };
 
 #endif

@@ -19,15 +19,18 @@
 
 #include "fabric_connection.h"
 
+#include <cstdint>
+#include <string>
 
 struct fi_info;
 struct fid_fabric;
+struct fid_eq;
 
 class Fabric_connection_client
   : public Fabric_connection
 {
 public:
-  Fabric_connection_client(fid_fabric &fabric, const fi_info &info, const std::string & remote);
+  Fabric_connection_client(fid_fabric &fabric, fid_eq &, fi_info & info, const std::string & remote, std::uint16_t control_port);
 };
 
 #endif
