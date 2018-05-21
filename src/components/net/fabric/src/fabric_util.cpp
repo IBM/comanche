@@ -266,7 +266,7 @@ try
 }
 catch ( const fabric_error &e )
 {
-	throw e.add(std::string(std::string(" in ") + __func__ + " " + std::to_string(len)));
+  throw e.add(std::string(std::string(" in ") + __func__ + " " + std::to_string(len)));
 }
 
 fid_unique_ptr<fid_cq> make_fid_cq(fid_domain &domain, fi_cq_attr &attr, void *context)

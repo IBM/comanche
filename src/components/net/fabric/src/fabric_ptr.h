@@ -17,15 +17,15 @@
 #ifndef _FABRIC_FID_PTR_H_
 #define _FABRIC_FID_PTR_H_
 
-/* 
- * Authors: 
+/*
+ * Authors:
  */
 
 #include <rdma/fabric.h>
 
 #include <memory> /* shared_ptr */
 
-/** 
+/**
  * Fabric/RDMA-based network component
  */
 
