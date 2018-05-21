@@ -141,12 +141,25 @@ namespace
   {
     std::shared_ptr<Component::IFabric_endpoint> _ep;
     std::thread _th;
-    void listener(Component::IFabric_endpoint &ep)
+
+    void wait_to_quit(registered_memory &rm, char rma_first_char)
     {
-      Component::IFabric_connection *cnxn = nullptr;
-      while ( ! ( cnxn = ep.get_new_connections() ) ) {}
-      registered_memory rm{*cnxn};
-      auto rma_first_char = rm.first_char();
+      /* serve as a remote buffer until the client writes 'q' to the magic location. */
+      auto volatile quit_byte = &rm[remote_memory_offset];
+      while ( *quit_byte != 'q' )
+      {
+        auto rma_new_first_char = rm.first_char();
+        if ( rma_new_first_char != rma_first_char )
+        {
+          std::cerr << "Server buffer char changes from " << unsigned(uint8_t(rma_first_char)) << " to " << unsigned(uint8_t(rma_new_first_char)) << "\n";
+          rma_first_char = rma_new_first_char;
+        }
+      }
+std::cerr << "Server received 'q'" << std::endl;
+    }
+
+    void send_memory_info(Component::IFabric_connection &cnxn, registered_memory &rm)
+    {
       /* get the virtual address of the buffer and send it to the client */
       std::vector<iovec> v;
       std::uint64_t vaddr = reinterpret_cast<std::uint64_t>(&rm[0]);
@@ -161,13 +174,13 @@ namespace
       iv.iov_base = &rm[0];
       iv.iov_len = (sizeof vaddr) + (sizeof key);
       v.emplace_back(iv);
-      cnxn->post_send(v, this);
+      cnxn.post_send(v, this);
       {
         auto completed_ct = 0;
         while ( completed_ct == 0 )
         {
           auto ct =
-            cnxn->poll_completions(
+            cnxn.poll_completions(
               [&v,this] (void *ctxt, status_t st) -> void
               {
                 assert(ctxt == this);
@@ -179,17 +192,20 @@ namespace
           completed_ct += ct;
         }
       }
-      /* serve as a remote buffer until the client writes 'q' to the magic location. */
-      while ( rm[remote_memory_offset] != 'q' )
-      {
-        auto rma_new_first_char = rm.first_char();
-        if ( rma_new_first_char != rma_first_char )
-        {
-          std::cerr << "Server buffer char changes from " << unsigned(uint8_t(rma_first_char)) << " to " << unsigned(uint8_t(rma_new_first_char)) << "\n";
-          rma_first_char = rma_new_first_char;
-        }
-      }
-std::cerr << "Server received 'q'" << std::endl;
+    }
+
+    void listener(Component::IFabric_endpoint &ep)
+    {
+      Component::IFabric_connection *cnxn = nullptr;
+      /* busy-wait for a client */
+      while ( ! ( cnxn = ep.get_new_connections() ) ) {}
+      /* register an RDMA memory region */
+      registered_memory rm{*cnxn};
+      auto rma_first_char = rm.first_char();
+      /* send the client address and key to memory */
+      send_memory_info(*cnxn, rm);
+      /* Wait for the client to signal "quit" */
+      wait_to_quit(rm, rma_first_char);
       ep.close_connection(cnxn);
     }
   public:
@@ -211,7 +227,6 @@ std::cerr << "Server received 'q'" << std::endl;
       auto rmc = static_cast<remote_memory_client *>(rmc_);
       ASSERT_TRUE(rmc);
       rmc->check_complete(stat_);
-std::cerr << "Remote memory op completed" << std::endl;
     }
     void check_complete(status_t stat_)
     {
