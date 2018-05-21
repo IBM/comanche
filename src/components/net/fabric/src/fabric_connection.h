@@ -17,19 +17,34 @@
 #ifndef _FABRIC_CONNECTION_H_
 #define _FABRIC_CONNECTION_H_
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+#pragma GCC diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+#pragma GCC diagnostic ignored "-Wsign-conversion"
+#pragma GCC diagnostic ignored "-Wvariadic-macros"
 #include <api/fabric_itf.h>
+#pragma GCC diagnostic pop
 
+#include "fabric_ptr.h"
 #include "fd_control.h"
-#include "endpoint_resources_simplex.h"
 
 #include <component/base.h> /* DECLARE_VERSION, DECLARE_COMPONENT_UUID */
 
+#include <rdma/fi_domain.h>
+
+#include <map>
 #include <memory> /* shared_ptr */
+#include <mutex>
 #include <tuple>
+#include <vector>
 
 struct fi_info;
-struct fid_domain;
 struct fid_fabric;
+struct fid_eq;
+struct fid_domain;
+struct fi_cq_attr;
+struct fid_cq;
 struct fid_ep;
 
 class Fabric_connection
@@ -41,61 +56,75 @@ class Fabric_connection
   using addr_ep_t = std::tuple<std::vector<char>>;
   std::string _descr;
   Fd_control _control;
-  format_ep_t _addr_format; /* HACK: necessary (addr_format, at least) on client side to construct the domain. Don't know whether server side will need it. */
   std::shared_ptr<fi_info> _domain_info;
   std::shared_ptr<fid_domain> _domain;
-  endpoint_resources_simplex _tx;
-  endpoint_resources_simplex _rx;
-  fi_av_attr _av_attr;
-  fid_unique_ptr<fid_av> _av;
+  /* pingpong example used separate tx and rx completion queues.
+   * Not sure why; perhaps it was for accounting.
+   */
+  fi_cq_attr _cq_attr;
+  fid_unique_ptr<fid_cq> _cq;
   std::shared_ptr<fi_info> _ep_info;
+  addr_ep_t _peer_addr;
   std::shared_ptr<fid_ep> _ep;
-  /* an event queue, use only if the endpoint turns out to be type FI_EP_MSG */
-  fi_eq_attr _eq_attr;
-  std::shared_ptr<fid_eq> _eq;
 
-  static void get_rx_comp(void *ctx, uint64_t limit);
+  std::mutex _m; /* protects _mr_addr_to_desc, _mr_desc_to_addr */
+  using guard = std::unique_lock<std::mutex>;
+  /* Map of [starts of] registered memory regions to memory descriptors. */
+  std::map<const void *, void *> _mr_addr_to_desc;
+  /* since fi_mr_attr_raw may not be implemented, add reverse map as well. */
+  std::map<void *, const void *> _mr_desc_to_addr;
+
+  static void get_rx_comp(void *ctx, std::uint64_t limit);
+  std::vector<void *> populated_desc(const std::vector<iovec> & buffers);
 protected:
-  static constexpr std::uint64_t control_port = 47591;
+  const fi_info &ep_info() const { return *_ep_info; }
+  fid_ep &ep() { return *_ep; }
+
+  void await_connected(fid_eq &eq) const;
 public:
-  Fabric_connection(fid_fabric &fabric_, const fi_info &info_, Fd_control &&control_, bool is_client);
+  Fabric_connection(
+    fid_fabric &fabric
+    , fid_eq &eq
+    , fi_info &info
+    , Fd_control &&control
+    , addr_ep_t (*set_peer_early)(Fd_control &control, fi_info &info)
+    , const std::string &descr);
 
   ~Fabric_connection(); /* Note: need to notify the polling thread that this connection is going away, */
 
   const Fd_control &control() const { return _control; }
 
-  memory_region_t register_memory(const void * contig_addr, size_t size, uint64_t key, int flags) override;
+  memory_region_t register_memory(const void * contig_addr, size_t size, std::uint64_t key, std::uint64_t flags) override;
 
   void deregister_memory(const memory_region_t memory_region) override;
 
-  context_t post_send(const std::vector<iovec>& buffers) override;
+  void  post_send(const std::vector<iovec>& buffers, void *context) override;
 
-  context_t post_recv(const std::vector<iovec>& buffers) override;
+  void  post_recv(const std::vector<iovec>& buffers, void *context) override;
 
   void post_read(
     const std::vector<iovec>& buffers,
-    uint64_t remote_addr,
-    uint64_t key,
-    context_t& out_context) override;
+    std::uint64_t remote_addr,
+    std::uint64_t key,
+    void *context) override;
 
   void post_write(
     const std::vector<iovec>& buffers,
-    uint64_t remote_addr,
-    uint64_t key,
-    context_t& out_context) override;
+    std::uint64_t remote_addr,
+    std::uint64_t key,
+    void *context) override;
 
   IFabric_communicator *allocate_group() override;
 
-  void inject_send(const std::vector<iovec>& buffers) override;
-  
-  std::size_t poll_completions(std::function<void(context_t, status_t, void*, IFabric_communicator *)> completion_callback) override;
+  void inject_send(const std::vector<iovec>& buffers, void *context) override;
+
+  std::size_t poll_completions(std::function<void(void *context, status_t)> completion_callback) override;
 
   std::size_t stalled_completion_count() override;
 
-  context_t wait_for_next_completion(unsigned polls_limit) override;
+  void wait_for_next_completion(unsigned polls_limit) override;
 
   void unblock_completions() override;
-
   std::string get_peer_addr() override;
 
   std::string get_local_addr() override;

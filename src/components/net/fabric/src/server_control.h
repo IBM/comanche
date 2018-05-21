@@ -17,17 +17,15 @@
 #ifndef _SERVER_CONTROL_H_
 #define _SERVER_CONTROL_H_
 
-#include <atomic>
 #include <cstddef> /* uint16_t */
 #include <map>
 #include <memory> /* shared_ptr */
 #include <mutex>
 #include <queue>
 #include <thread>
-#include <tuple>
 
 struct fid_fabric;
-struct fi_info;
+struct fid_eq;
 class Fabric_connection;
 class Fd_control;
 class Fd_socket;
@@ -41,32 +39,17 @@ private:
   using guard = std::unique_lock<std::mutex>;
   std::queue<cnxn_t> _q;
 public:
-  Pending_cnxns()
-    : _m{}
-    , _q{}
-  {}
-  void push(cnxn_t c)
-  {
-    guard g{_m};
-    _q.push(c);
-  }
-  cnxn_t remove()
-  {
-    cnxn_t c;
-    guard g{_m};
-    if ( _q.size() != 0 )
-    {
-      c = _q.front();
-      _q.pop();
-    }
-    return c;
-  }
+  Pending_cnxns();
+  void push(cnxn_t c);
+  cnxn_t remove();
 };
+
 /*
  */
 
 class Server_control
 {
+  using addr_ep_t = std::tuple<std::vector<char>>;
   using cnxn_t = std::shared_ptr<Fabric_connection>;
   Pending_cnxns _pending;
 
@@ -78,9 +61,9 @@ class Server_control
   std::thread _th;
 
   static Fd_socket make_listener(std::uint16_t port);
-  static void listen(Fd_socket &&listener, int end_fd, fid_fabric &fabric, const fi_info &info, Pending_cnxns &pend);
+  static void listen(Fd_socket &&listen_fd, int end_fd, fid_fabric &fabric, fid_eq &eq, addr_ep_t name, Pending_cnxns &pend);
 public:
-  Server_control(fid_fabric &fabric, const fi_info &info, std::uint16_t port);
+  Server_control(fid_fabric &fabric, fid_eq &eq, addr_ep_t name, std::uint16_t port);
   ~Server_control();
   Fabric_connection * get_new_connection();
   std::vector<Fabric_connection *> connections();

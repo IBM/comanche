@@ -14,8 +14,8 @@
    limitations under the License.
 */
 
-#ifndef _FABRIC_FACTORY_H_
-#define _FABRIC_FACTORY_H_
+#ifndef _FABRIC_H_
+#define _FABRIC_H_
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
@@ -26,22 +26,30 @@
 #include <api/fabric_itf.h>
 #pragma GCC diagnostic pop
 
-#include <component/base.h> /* DECLARE_VERSION, DECLARE_COMPONENT_UUID */
+#include <rdma/fi_domain.h>
+
+#include <memory> /* shared_ptr */
+
+struct fi_info;
+struct fid_fabric;
+struct fid_eq;
 
 /*
- * Note: Fabric_factory make fabrics as specified by configuration parameters
- * (and limited to those fabrics supported by the available software and hardware).
+ * Note: Fabric is a fabric which can create servers (IFabric_endpoint) and clients (IFabric_connection)
  */
-class Fabric_factory
-  : public Component::IFabric_factory
+class Fabric
+  : public Component::IFabric
 {
+  std::shared_ptr<fi_info> _info;
+  std::shared_ptr<fid_fabric> _fabric;
+  /* an event queue, in case the endpoint is connection-oriented */
+  fi_eq_attr _eq_attr;
+  std::shared_ptr<fid_eq> _eq;
 public:
-  DECLARE_VERSION(0.1f);
-  DECLARE_COMPONENT_UUID(0xfac3a5ae,0xcf34,0x4aff,0x8321,0x19,0x08,0x21,0xa9,0x9f,0xd3);
-  void *query_interface(Component::uuid_t& itf_uuid) override;
 
-  Fabric_factory();
-  Component::IFabric * make_fabric(const std::string& json_configuration) override;
+  Fabric(const std::string& json_configuration);
+  Component::IFabric_endpoint * open_endpoint(const std::string& json_configuration, std::uint16_t control_port) override;
+  Component::IFabric_connection * open_connection(const std::string& json_configuration, const std::string & remote, std::uint16_t control_port) override;
 };
 
 #endif

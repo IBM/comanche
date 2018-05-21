@@ -19,7 +19,13 @@
 
 #include "bad_aligned_alloc.h"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+#pragma GCC diagnostic ignored "-Wsign-conversion"
+#pragma GCC diagnostic ignored "-Wvariadic-macros"
 #include <common/utils.h> /* round_up */
+#pragma GCC diagnostic pop
 
 #include <unistd.h> /* sysconf */
 
@@ -37,7 +43,12 @@ template <typename T>
     typename base::pointer allocate(std::size_t sz_)
     {
       auto align = ::sysconf(_SC_PAGESIZE);
-      auto b = ::aligned_alloc(round_up(sz_, align), align);
+      if ( align <= 0 )
+      {
+        throw bad_aligned_alloc{sz_, align};
+      }
+      auto ualign = static_cast<unsigned long>(align);
+      auto b = ::aligned_alloc(round_up(sz_, ualign), ualign);
       if ( b == nullptr )
       {
         throw bad_aligned_alloc{sz_, align};

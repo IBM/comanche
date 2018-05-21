@@ -34,8 +34,6 @@ public:
   explicit Fd_control(std::string dst_addr, uint16_t port);
   Fd_control(Fd_control &&) = default;
   Fd_control &operator=(Fd_control &&) = default;
-  void send_format(const format_ep_t &name) const;
-  format_ep_t recv_format() const;
   void send_name(const addr_ep_t &name) const;
   addr_ep_t recv_name() const;
 };

@@ -17,45 +17,54 @@
 #ifndef _FABRIC_CONNECTION_FACTORY_H_
 #define _FABRIC_CONNECTION_FACTORY_H_
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+#pragma GCC diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+#pragma GCC diagnostic ignored "-Wsign-conversion"
+#pragma GCC diagnostic ignored "-Wvariadic-macros"
 #include <api/fabric_itf.h>
+#pragma GCC diagnostic pop
 
 #include "fabric_ptr.h" /* fid_unique_ptr */
 #include "server_control.h"
 
 #include <cstdint> /* uint64_t */
 #include <stdexcept>
+#include <tuple>
+#include <vector>
 
 struct fi_info;
 struct fid_fabric;
-struct fid_cq;
-struct fid_ep;
-struct fid_mr;
+struct fid_eq;
+struct fid_pep;
 
 class Fabric_factory;
 
 class Fabric_connection_factory
   : public Component::IFabric_endpoint
 {
-  std::shared_ptr<fi_info> _info;
+  using addr_ep_t = std::tuple<std::vector<char>>;
+
+  fi_info &_info;
   fid_fabric &_fabric;
+  fid_eq &_eq;
+  std::shared_ptr<fid_pep> _pep;
   Server_control _control;
-  std::vector<char> get_name(int (*getter)(fid_t fid, void *addr, size_t *addrlen));
-protected:
-  static constexpr std::uint64_t control_port = 47591;
 public:
-  // Fabric_endpoint_active(Fabric_factory & fabric, fi_info &info, uint64_t flags);
-  Fabric_connection_factory(fid_fabric &fabric, const fi_info &info, std::uint16_t control_port);
+  /* Note: fi_info is not const because we reuse it when constructing the passize endpoint */
+  Fabric_connection_factory(fid_fabric &fabric, fid_eq &eq, fi_info &info, std::uint16_t control_port);
 
   void *query_interface(Component::uuid_t& itf_uuid) override;
 
   Component::IFabric_connection * connect(const std::string& remote_endpoint) override;
 
   Component::IFabric_connection * get_new_connections() override;
- 
+
   void close_connection(Component::IFabric_connection * connection) override;
 
   std::vector<Component::IFabric_connection*> connections() override;
- 
+
   size_t max_message_size() const override;
 
   std::string get_provider_name() const override;

@@ -14,15 +14,20 @@
    limitations under the License.
 */
 
-#ifndef _FABRIC_JSON_H_
-#define _FABRIC_JSON_H_
+#ifndef _FABRIC_CONNECTION_SERVER_H_
+#define _FABRIC_CONNECTION_SERVER_H_
 
-#include <memory>
-#include <string>
+#include "fabric_connection.h"
 
 struct fi_info;
+struct fid_fabric;
+struct fid_eq;
 
-std::shared_ptr<fi_info> parse_info(const std::string &s, std::shared_ptr<fi_info> info);
-std::shared_ptr<fi_info> parse_info(const std::string &s);
+class Fabric_connection_server
+  : public Fabric_connection
+{
+public:
+  Fabric_connection_server(fid_fabric &fabric, fid_eq &, fi_info & info, Fd_control &&conn_fd);
+};
 
 #endif
