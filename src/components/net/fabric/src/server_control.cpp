@@ -63,22 +63,18 @@ auto Pending_cnxns::remove() -> cnxn_t
   return c;
 }
 
-Server_control::Server_control(fid_fabric &fabric_, fid_eq &eq_, addr_ep_t name, std::uint16_t port_)
+Server_control::Server_control(fid_fabric &fabric_, fid_eq &eq_, fabric_types::addr_ep_t name, std::uint16_t port_)
   : _pending{}
   , _open{}
   , _end{}
-  , _pipe_errno(::pipe(_end) == -1 ? errno : 0)
-  , _th{&Server_control::listen, make_listener(port_), _end[0], std::ref(fabric_), std::ref(eq_), name, std::ref(_pending)}
+  , _th{&Server_control::listen, make_listener(port_), _end.fd_read(), std::ref(fabric_), std::ref(eq_), name, std::ref(_pending)}
 {
-  if ( _pipe_errno )
-  {
-    system_fail(_pipe_errno, "creating server control pipe");
-  }
 }
 
 Server_control::~Server_control()
 {
-  ::close(_end[1]);
+  char c{};
+  ::write(_end.fd_write(), &c, 1);
   _th.join();
 }
 
@@ -130,7 +126,7 @@ Fd_socket Server_control::make_listener(std::uint16_t port)
 #include <cstring>
 #include <unistd.h>
 #include <sys/select.h>
-void Server_control::listen(Fd_socket &&listen_fd_, int end_fd_, fid_fabric &fabric_, fid_eq &eq_, addr_ep_t pep_name_, Pending_cnxns &pend_)
+void Server_control::listen(Fd_socket &&listen_fd_, int end_fd_, fid_fabric &fabric_, fid_eq &eq_, fabric_types::addr_ep_t pep_name_, Pending_cnxns &pend_)
 {
   auto listen_fd = std::move(listen_fd_);
 

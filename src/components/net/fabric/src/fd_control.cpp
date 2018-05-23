@@ -101,15 +101,15 @@ Fd_control::Fd_control(std::string dst_addr, uint16_t port)
 {
 }
 
-void Fd_control::send_name(const addr_ep_t &name_) const
+void Fd_control::send_name(const fabric_types::addr_ep_t &name_) const
 {
-  auto sz = std::get<0>(name_).size();
+  auto sz = name_.size();
   auto nsz = htonl(std::uint32_t(sz));
   send(&nsz, sizeof nsz);
-  send(&*std::get<0>(name_).begin(), sz);
+  send(&*name_.begin(), sz);
 }
 
-auto Fd_control::recv_name() const -> addr_ep_t
+auto Fd_control::recv_name() const -> fabric_types::addr_ep_t
 try
 {
   auto nsz = htonl(0);
@@ -119,7 +119,7 @@ try
   std::vector<char> name(sz);
   recv(&*name.begin(), sz);
 
-  return addr_ep_t(std::move(name));
+  return fabric_types::addr_ep_t(std::move(name));
 }
 catch ( const std::exception &e )
 {

@@ -19,6 +19,7 @@
 
 #include <component/base.h> /* Component::IBase */
 
+#include <chrono>
 #include <cstdint>
 #include <functional>
 #include <tuple>
@@ -95,13 +96,13 @@ public:
    * @param connection Connection to inject on
    * @param buffers Buffer vector (containing regions should be registered)
    */
-  virtual void inject_send(const std::vector<iovec>& buffers, void *context) = 0;
+  virtual void inject_send(const std::vector<iovec>& buffers) = 0;
 
   /**
    * Poll completion events; service completion queues and store
    * events not belonging to group (stall them).  This method will
-   * BOTH services the completion queues and service those events
-   * stalled (previously
+   * BOTH service the completion queues and service those events
+   * stalled previously
    *
    * @param completion_callback (context_t, status_t status, void* error_data, IFabric_communicator *)
    *
@@ -123,6 +124,7 @@ public:
    * @return (was next completion context. But poll_completions can retrieve that)
    */
   virtual void wait_for_next_completion(unsigned polls_limit = 0) = 0;
+  virtual void wait_for_next_completion(std::chrono::milliseconds timeout) = 0;
 
   /* Additional TODO:
      - support for atomic RMA operations

@@ -23,12 +23,18 @@
 
 #include "fabric_error.h"
 #include "fabric_util.h"
+#include "system_fail.h"
 
 #include <rdma/fabric.h> /* FI_TYPE_xxx */
 #include <rdma/fi_cm.h> /* fi_connect */
+#include <rdma/fi_domain.h> /* fi_wait */
 #include <rdma/fi_rma.h> /* fi_writev */
 
+#include <sys/select.h> /* pselect */
 #include <sys/uio.h> /* iovec */
+
+#include <algorithm> /* min */
+#include <limits> /* <int>::max */
 
 /**
  * Fabric/RDMA-based network component
@@ -36,7 +42,7 @@
  */
 
 /* Note: the info is owned by the caller, and must be copied if it is to be saved. */
-Fabric_connection::Fabric_connection(fid_fabric &fabric_, fid_eq &eq_, fi_info &info_, Fd_control &&control_, addr_ep_t (*set_peer_early)(Fd_control &control, fi_info &info), const std::string &descr_)
+Fabric_connection::Fabric_connection(fid_fabric &fabric_, fid_eq &eq_, fi_info &info_, Fd_control &&control_, fabric_types::addr_ep_t (*set_peer_early)(Fd_control &control, fi_info &info), const std::string &descr_)
   : _descr( descr_ )
   , _control(std::move(control_))
   , _domain_info(make_fi_infodup(info_, "domain"))
@@ -44,7 +50,17 @@ Fabric_connection::Fabric_connection(fid_fabric &fabric_, fid_eq &eq_, fi_info &
    * and not bound to a more specific entity (an endpoint, mr, av, pr scalable_ep).
    */
   , _domain(make_fid_domain(fabric_, *_domain_info, this))
-  , _cq_attr{100, 0U, FI_CQ_FORMAT_CONTEXT, FI_WAIT_UNSPEC, 0U, FI_CQ_COND_NONE, nullptr}
+#if 0
+  /* verbs provider does not support wait sets */
+  , _wait_attr{
+    FI_WAIT_FD /* wait_obj type. verbs supports ony FI_WAIT_FD */
+    , 0U /* flags, "must be set to 0 by the caller" */
+  }
+  , _wait_set(make_fid_wait(fabric_, _wait_attr))
+  , _cq_attr{100, 0U, FI_CQ_FORMAT_CONTEXT, FI_WAIT_SET, 0U, FI_CQ_COND_NONE, &*_wait_set}
+#else
+  , _cq_attr{100, 0U, FI_CQ_FORMAT_CONTEXT, FI_WAIT_FD, 0U, FI_CQ_COND_NONE, nullptr}
+#endif
   , _cq(make_fid_cq(*_domain, _cq_attr, this))
   , _ep_info(make_fi_infodup(*_domain_info, "endpoint construction"))
   , _peer_addr(set_peer_early(_control, *_ep_info))
@@ -84,8 +100,6 @@ Fabric_connection::~Fabric_connection()
  *
  * @return Memory region handle
  */
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-parameter"
 auto Fabric_connection::register_memory(const void * contig_addr, size_t size, std::uint64_t key, std::uint64_t flags) -> Component::IFabric_connection::memory_region_t
 {
   auto mr = make_fid_mr_reg_ptr(*_domain, contig_addr, size, std::uint64_t(FI_SEND|FI_RECV|FI_READ|FI_WRITE|FI_REMOTE_READ|FI_REMOTE_WRITE), key, flags);
@@ -216,7 +230,7 @@ void Fabric_connection::post_write(
   void *context)
 {
   auto desc = populated_desc(buffers);
-  CHECKZ(fi_writev(&*_ep, &*buffers.begin(), &*desc.begin(),
+  CHECKZ(::fi_writev(&*_ep, &*buffers.begin(), &*desc.begin(),
     buffers.size(), fi_addr_t{}, remote_addr, key, context));
 }
 
@@ -226,9 +240,9 @@ void Fabric_connection::post_write(
    * @param connection Connection to inject on
    * @param buffers Buffer vector (containing regions should be registered)
    */
-void Fabric_connection::inject_send(const std::vector<iovec>& buffers, void *context)
+void Fabric_connection::inject_send(const std::vector<iovec>& buffers)
 {
-  not_implemented(__func__);
+  CHECKZ(::fi_inject(&*_ep, &*buffers.begin(), buffers.size(), fi_addr_t{}));
 }
 
 #if 0
@@ -306,8 +320,30 @@ std::size_t Fabric_connection::poll_completions(std::function<void(void *connect
 
 std::size_t Fabric_connection::stalled_completion_count()
 {
-  not_implemented(__func__);
+  not_implemented(__func__); /* useful only for groups, which are not yet implemented */
 }
+
+class fd_unblock_set_monitor
+{
+  std::mutex &_m;
+  using guard = std::lock_guard<std::mutex>;
+  std::set<int> &_s;
+  int _fd;
+public:
+  explicit fd_unblock_set_monitor(std::mutex &m_, std::set<int> &s_, int fd_)
+    : _m(m_)
+    , _s(s_)
+    , _fd(fd_)
+  {
+    guard g{_m};
+    _s.insert(_fd);
+  }
+  ~fd_unblock_set_monitor()
+  {
+    guard g{_m};
+    _s.erase(_fd);
+  }
+};
 
 /**
  * Block and wait for next completion.
@@ -316,11 +352,63 @@ std::size_t Fabric_connection::stalled_completion_count()
  *
  * @return Next completion context
  */
+void Fabric_connection::wait_for_next_completion(std::chrono::milliseconds timeout)
+{
+/* verbs provider does not support wait sets */
+#if 0
+  fi_wait(&*_wait_set, std::min(std::numeric_limits<int>::max(), int(timeout.count())));
+#else
+  int fd;
+  CHECKZ(fi_control(&_cq->fid, FI_GETWAIT, &fd));
+  FD_ZERO(&_fds_read);
+  FD_SET(fd, &_fds_read);
+  Fd_pair fd_unblock;
+  fd_unblock_set_monitor(_m_fd_unblock_set, _fd_unblock_set, fd_unblock.fd_write());
+  FD_SET(fd_unblock.fd_read(), &_fds_read);
+  FD_ZERO(&_fds_write);
+  FD_SET(fd, &_fds_write);
+  FD_ZERO(&_fds_except);
+  FD_SET(fd, &_fds_except);
+  struct timespec ts {
+    timeout.count() / 1000 /* seconds */
+    , (timeout.count() % 1000) * 1000000 /* nanoseconds */
+  };
+
+  auto ready = ::pselect(fd+1, &_fds_read, &_fds_write, &_fds_except, &ts, nullptr);
+  if ( -1 == ready )
+  {
+    switch ( auto e = errno )
+    {
+    case EINTR:
+      break;
+    default:
+      system_fail(e, "wait_for_next_completion");
+    }
+  }
+  /* Note: there is no reason to act on the fd's because either
+   *  - fi_cq_read will take care of them, or
+   *  - the fd_unblock_set_monitor will take care of them.
+   */
+#endif
+}
+
 void Fabric_connection::wait_for_next_completion(unsigned polls_limit)
 {
-  not_implemented(__func__);
+  for ( ; polls_limit != 0; --polls_limit )
+  {
+    try
+    {
+      return wait_for_next_completion(std::chrono::milliseconds(0));
+    }
+    catch ( const fabric_error &e )
+    {
+      if ( e.id() != FI_ETIMEDOUT )
+      {
+        throw;
+      }
+    }
+  }
 }
-#pragma GCC diagnostic pop
 
 auto Fabric_connection::allocate_group() -> IFabric_communicator *
 {
@@ -333,7 +421,12 @@ auto Fabric_connection::allocate_group() -> IFabric_communicator *
  */
 void Fabric_connection::unblock_completions()
 {
-  not_implemented(__func__);
+  std::lock_guard<std::mutex> g{_m_fd_unblock_set};
+  for ( auto fd : _fd_unblock_set )
+  {
+    char c{};
+    ::write(fd, &c, 1);
+  }
 }
 
   /**
@@ -345,7 +438,7 @@ void Fabric_connection::unblock_completions()
    */
 std::string Fabric_connection::get_peer_addr()
 {
-  not_implemented(__func__);
+  return std::string(_peer_addr.begin(), _peer_addr.end());
 }
 
   /**
@@ -358,25 +451,22 @@ std::string Fabric_connection::get_peer_addr()
 
 std::string Fabric_connection::get_local_addr()
 {
-  not_implemented(__func__);
+  auto v = get_name();
+  return std::string(v.begin(), v.end());
 }
 
-auto Fabric_connection::get_name() const -> addr_ep_t
+auto Fabric_connection::get_name() const -> fabric_types::addr_ep_t
 {
   auto it = static_cast<const char *>(_ep_info->src_addr);
-  return addr_ep_t(
+  return fabric_types::addr_ep_t(
      std::vector<char>(it, it+_ep_info->src_addrlen)
   );
 }
 
-#include <iostream>
 void Fabric_connection::await_connected(fid_eq &eq_) const
 {
-std::cerr << __func__ << " " << _descr << " waiting\n";
-
   fi_eq_cm_entry entry;
   std:: uint32_t event;
   CHECKZ(fi_eq_sread(&eq_, &event, &entry, sizeof entry, -1, 0));
-std::cerr << __func__ << " " << _descr << " received " << event << "\n";
   assert(event == FI_CONNECTED);
 }

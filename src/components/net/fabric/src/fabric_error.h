@@ -40,6 +40,7 @@ public:
   fabric_error(int i, const char *file, int line);
   fabric_error(int i, const char *file, int line, const std::string &desc);
   fabric_error add(const std::string &added) const;
+  unsigned id() const { return unsigned(_i); }
 };
 
 class fabric_bad_alloc

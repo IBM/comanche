@@ -14,26 +14,14 @@
    limitations under the License.
 */
 
-#ifndef _FD_CONTROL_H_
-#define _FD_CONTROL_H_
+#ifndef _FABRIC_TYPES_H_
+#define _FABRIC_TYPES_H_
 
-#include "fabric_types.h" /* addr_ep_t */
-#include "fd_socket.h"
+#include <vector>
 
-#include <cstdint>
-#include <string>
-
-class Fd_control
-  : public Fd_socket
+namespace fabric_types
 {
-public:
-  Fd_control();
-  explicit Fd_control(int fd_);
-  explicit Fd_control(std::string dst_addr, uint16_t port);
-  Fd_control(Fd_control &&) = default;
-  Fd_control &operator=(Fd_control &&) = default;
-  void send_name(const fabric_types::addr_ep_t &name) const;
-  fabric_types::addr_ep_t recv_name() const;
-};
+  using addr_ep_t = std::vector<char>;
+}
 
 #endif

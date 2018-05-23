@@ -17,6 +17,9 @@
 #ifndef _SERVER_CONTROL_H_
 #define _SERVER_CONTROL_H_
 
+#include "fabric_types.h" /* addr_ep_t */
+#include "fd_pair.h"
+
 #include <cstddef> /* uint16_t */
 #include <map>
 #include <memory> /* shared_ptr */
@@ -49,21 +52,18 @@ public:
 
 class Server_control
 {
-  using addr_ep_t = std::tuple<std::vector<char>>;
   using cnxn_t = std::shared_ptr<Fabric_connection>;
   Pending_cnxns _pending;
 
   using open_t = std::map<Fabric_connection *, cnxn_t>;
   open_t _open;
-
-  int _end[2];
-  int _pipe_errno;
+  Fd_pair _end;
   std::thread _th;
 
   static Fd_socket make_listener(std::uint16_t port);
-  static void listen(Fd_socket &&listen_fd, int end_fd, fid_fabric &fabric, fid_eq &eq, addr_ep_t name, Pending_cnxns &pend);
+  static void listen(Fd_socket &&listen_fd, int end_fd, fid_fabric &fabric, fid_eq &eq, fabric_types::addr_ep_t name, Pending_cnxns &pend);
 public:
-  Server_control(fid_fabric &fabric, fid_eq &eq, addr_ep_t name, std::uint16_t port);
+  Server_control(fid_fabric &fabric, fid_eq &eq, fabric_types::addr_ep_t name, std::uint16_t port);
   ~Server_control();
   Fabric_connection * get_new_connection();
   std::vector<Fabric_connection *> connections();

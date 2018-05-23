@@ -137,6 +137,24 @@ namespace
     std::uint64_t key() const { return _registration.key(); }
   };
 
+  void wait_poll(Component::IFabric_connection &cnxn, std::function<void(void *context, status_t)> cb)
+  {
+    size_t ct = 0;
+    unsigned delay = 0;
+    while ( ct == 0 )
+    {
+      cnxn.wait_for_next_completion(std::chrono::seconds(60));
+      ct = cnxn.poll_completions(cb);
+      ++delay;
+    }
+    /* poll_completions does not always get a completion after wait_for_next_completion returns
+     * (does it perhaps return when a message begins to appear in the completion queue?)
+     * but it should not take more than two trips through the loop to get the completion.
+     */
+    ASSERT_LE(delay,2);
+    ASSERT_EQ(ct,1);
+  }
+
   class remote_memory_server
   {
     std::shared_ptr<Component::IFabric_endpoint> _ep;
@@ -175,23 +193,14 @@ std::cerr << "Server received 'q'" << std::endl;
       iv.iov_len = (sizeof vaddr) + (sizeof key);
       v.emplace_back(iv);
       cnxn.post_send(v, this);
-      {
-        auto completed_ct = 0;
-        while ( completed_ct == 0 )
-        {
-          auto ct =
-            cnxn.poll_completions(
-              [&v,this] (void *ctxt, status_t st) -> void
-              {
-                assert(ctxt == this);
-                assert(st == S_OK);
-              }
-            );
-          if ( ct != 0 ) {
+      wait_poll(
+        cnxn,
+        [&v,this] (void *ctxt, status_t st) -> void
+          {
+            assert(ctxt == this);
+            assert(st == S_OK);
           }
-          completed_ct += ct;
-        }
-      }
+      );
     }
 
     void listener(Component::IFabric_endpoint &ep)
@@ -230,7 +239,7 @@ std::cerr << "Server received 'q'" << std::endl;
     }
     void check_complete(status_t stat_)
     {
-      ASSERT_TRUE(stat_ == S_OK);
+      ASSERT_EQ(stat_, S_OK);
     }
     std::shared_ptr<Component::IFabric_connection> _cnxn;
     registered_memory rm_out;
@@ -251,24 +260,17 @@ std::cerr << "Server received 'q'" << std::endl;
       iv.iov_len = (sizeof _vaddr) + (sizeof _key);
       v.emplace_back(iv);
       _cnxn->post_recv(v, this);
-      {
-        auto completed_ct = 0;
-        while ( completed_ct == 0 )
-        {
-          auto ct =
-            _cnxn->poll_completions(
-              [&v, this] (void *ctxt, status_t st) -> void
-              {
-                assert(ctxt == this);
-                assert(st == S_OK);
-                assert(v[0].iov_len == (sizeof _vaddr) + sizeof( _key));
-                std::memcpy(&_vaddr, &rm_out[0], sizeof _vaddr);
-                std::memcpy(&_key, &rm_out[sizeof _vaddr], sizeof _key);
-              }
-            );
-          completed_ct += ct;
-        }
-      }
+      wait_poll(
+        *_cnxn,
+        [&v, this] (void *ctxt, status_t st) -> void
+          {
+            assert(ctxt == this);
+            assert(st == S_OK);
+            assert(v[0].iov_len == (sizeof _vaddr) + sizeof( _key));
+            std::memcpy(&_vaddr, &rm_out[0], sizeof _vaddr);
+            std::memcpy(&_key, &rm_out[sizeof _vaddr], sizeof _key);
+          }
+      );
       std::cerr << "Remote memory client addr " << _vaddr << " key " << _key << std::endl;
     }
     void write(const std::string &msg)
@@ -281,16 +283,7 @@ std::cerr << "Posting write from " << static_cast<void *>(&rm_out[0]) << " to " 
         buffers[0].iov_len = msg.size();
         _cnxn->post_write(buffers, _vaddr + remote_memory_offset, _key, this);
       }
-      {
-#if 0
-/* We do not yet support wait_for_next_completion */
-        _cnxn->wait_for_next_completion();
-        auto ct = _cnxn->poll_completions(check_complete_static);
-        ASSERT_TRUE(ct == 1);
-#else
-        while ( ! _cnxn->poll_completions(check_complete_static) ) {}
-#endif
-      }
+      wait_poll(*_cnxn, check_complete_static);
     }
     void read_verify(const std::string &msg)
     {
@@ -301,18 +294,9 @@ std::cerr << "Posting read to " << static_cast<void *>(&rm_in[0]) << " from " <<
         buffers[0].iov_len = msg.size();
         _cnxn->post_read(buffers, _vaddr + remote_memory_offset, _key, this);
       }
-      {
-#if 0
-/* We do not yet support wait_for_next_completion */
-        _cnxn->wait_for_next_completion();
-        auto ct = _cnxn->poll_completions(check_complete_static);
-        ASSERT_TRUE(ct == 1);
-#else
-        while ( ! _cnxn->poll_completions(check_complete_static) ) {}
-#endif
-      }
+      wait_poll(*_cnxn, check_complete_static);
       std::string remote_msg(&rm_in[0], &rm_in[0] + msg.size());
-      ASSERT_TRUE(msg == remote_msg);
+      ASSERT_EQ(msg, remote_msg);
 std::cerr << "Client verified readback" << std::endl;
     }
   };

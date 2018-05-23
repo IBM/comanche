@@ -29,10 +29,8 @@
 #include "fabric_ptr.h" /* fid_unique_ptr */
 #include "server_control.h"
 
-#include <cstdint> /* uint64_t */
-#include <stdexcept>
-#include <tuple>
-#include <vector>
+#include <cstdint> /* uint16_t */
+#include <memory> /* shared_ptr */
 
 struct fi_info;
 struct fid_fabric;
@@ -44,8 +42,6 @@ class Fabric_factory;
 class Fabric_connection_factory
   : public Component::IFabric_endpoint
 {
-  using addr_ep_t = std::tuple<std::vector<char>>;
-
   fi_info &_info;
   fid_fabric &_fabric;
   fid_eq &_eq;

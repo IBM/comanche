@@ -14,26 +14,30 @@
    limitations under the License.
 */
 
-#ifndef _FD_CONTROL_H_
-#define _FD_CONTROL_H_
+#include "fd_pair.h"
 
-#include "fabric_types.h" /* addr_ep_t */
-#include "fd_socket.h"
+#include "system_fail.h"
 
-#include <cstdint>
-#include <string>
+#include <unistd.h> /* pipe */
+#include <fcntl.h> /* O_NONBLOCK */
 
-class Fd_control
-  : public Fd_socket
+Fd_pair::Fd_pair()
+  : _pair{}
 {
-public:
-  Fd_control();
-  explicit Fd_control(int fd_);
-  explicit Fd_control(std::string dst_addr, uint16_t port);
-  Fd_control(Fd_control &&) = default;
-  Fd_control &operator=(Fd_control &&) = default;
-  void send_name(const fabric_types::addr_ep_t &name) const;
-  fabric_types::addr_ep_t recv_name() const;
-};
+  if ( -1 == ::pipe(_pair) )
+  {
+    auto e = errno;
+    system_fail(e, "creating Fd_pair");
+  }
+  if ( -1 == ::fcntl(fd_read(), F_SETFL, O_NONBLOCK) )
+  {
+    auto e = errno;
+    system_fail(e, "setting O_NONBLOCK on Fd_pair");
+  }
+}
 
-#endif
+Fd_pair::~Fd_pair()
+{
+  ::close(fd_read());
+  ::close(fd_write());
+}
