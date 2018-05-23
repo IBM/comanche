@@ -23,6 +23,8 @@
  */
 
 #include <rdma/fi_errno.h> /* FI_AGAIN */
+
+#include "fabric_types.h" /* addr_ep_t */
 #include "fabric_ptr.h" /* fid_unique_ptr */
 
 #include <unistd.h> /* ssize_t */
@@ -30,13 +32,12 @@
 #include <map>
 #include <memory> /* shared_ptr */
 #include <string>
-#include <tuple>
-#include <vector>
 
 struct fi_cq_attr;
 struct fi_info;
 struct fi_eq_attr;
 struct fi_fabric_attr;
+struct fi_wait_attr;
 
 struct fid_cq;
 struct fid_domain;
@@ -45,6 +46,7 @@ struct fid_ep;
 struct fid_eq;
 struct fid_mr;
 struct fid_pep;
+struct fid_wait;
 
 /**
  * Fabric/RDMA-based network component
@@ -71,6 +73,8 @@ std::shared_ptr<fid_pep> make_fid_pep(fid_fabric &fabric, fi_info &info, void *c
 
 std::shared_ptr<fid_pep> make_fid_pep_listener(fid_fabric &fabric, fi_info &info, fid_eq &eq, void *context);
 
+fid_unique_ptr<fid_wait> make_fid_wait(fid_fabric &fabric, fi_wait_attr &attr);
+
 /* The help text does not say whether attr may be null, but the provider source expects that it is not. */
 std::shared_ptr<fid_eq> make_fid_eq(fid_fabric &fabric, fi_eq_attr &attr, void *context);
 
@@ -85,9 +89,7 @@ fid_mr *make_fid_mr_reg_ptr(
 
 fid_unique_ptr<fid_cq> make_fid_cq(fid_domain &domain, fi_cq_attr &attr, void *context);
 
-using addr_ep_t = std::tuple<std::vector<char>>;
-
-auto get_name(fid_t fid) -> addr_ep_t;
+auto get_name(fid_t fid) -> fabric_types::addr_ep_t;
 
 /* fi_fabric, fi_close (when called on a fabric) and most fi_poll functions FI_SUCCESS; others return 0 */
 void (check_ge_zero)(int r, const char *file, int line);

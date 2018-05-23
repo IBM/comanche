@@ -27,7 +27,9 @@
 #pragma GCC diagnostic pop
 
 #include "fabric_ptr.h"
+#include "fabric_types.h" /* addr_ep_t */
 #include "fd_control.h"
+#include "fd_pair.h"
 
 #include <component/base.h> /* DECLARE_VERSION, DECLARE_COMPONENT_UUID */
 
@@ -36,7 +38,7 @@
 #include <map>
 #include <memory> /* shared_ptr */
 #include <mutex>
-#include <tuple>
+#include <set>
 #include <vector>
 
 struct fi_info;
@@ -52,19 +54,27 @@ class Fabric_connection
 {
   static constexpr auto tx_key = std::uint64_t(0x0123456789abcdef);
   static constexpr auto rx_key = std::uint64_t(tx_key + 1U);
-  using format_ep_t = std::tuple<std::uint32_t>;
-  using addr_ep_t = std::tuple<std::vector<char>>;
   std::string _descr;
   Fd_control _control;
   std::shared_ptr<fi_info> _domain_info;
   std::shared_ptr<fid_domain> _domain;
+#if 0
+  fi_wait_attr _wait_attr;
+  fid_unique_ptr<fid_wait> _wait_set; /* make_fid_wait(fid_fabric &fabric, fi_wait_attr &attr) */
+#else
+  fd_set _fds_read;
+  fd_set _fds_write;
+  fd_set _fds_except;
+#endif
+  std::mutex _m_fd_unblock_set;
+  std::set<int> _fd_unblock_set;
   /* pingpong example used separate tx and rx completion queues.
    * Not sure why; perhaps it was for accounting.
    */
   fi_cq_attr _cq_attr;
   fid_unique_ptr<fid_cq> _cq;
   std::shared_ptr<fi_info> _ep_info;
-  addr_ep_t _peer_addr;
+  fabric_types::addr_ep_t _peer_addr;
   std::shared_ptr<fid_ep> _ep;
 
   std::mutex _m; /* protects _mr_addr_to_desc, _mr_desc_to_addr */
@@ -87,7 +97,7 @@ public:
     , fid_eq &eq
     , fi_info &info
     , Fd_control &&control
-    , addr_ep_t (*set_peer_early)(Fd_control &control, fi_info &info)
+    , fabric_types::addr_ep_t (*set_peer_early)(Fd_control &control, fi_info &info)
     , const std::string &descr);
 
   ~Fabric_connection(); /* Note: need to notify the polling thread that this connection is going away, */
@@ -116,20 +126,21 @@ public:
 
   IFabric_communicator *allocate_group() override;
 
-  void inject_send(const std::vector<iovec>& buffers, void *context) override;
+  void inject_send(const std::vector<iovec>& buffers) override;
 
   std::size_t poll_completions(std::function<void(void *context, status_t)> completion_callback) override;
 
   std::size_t stalled_completion_count() override;
 
   void wait_for_next_completion(unsigned polls_limit) override;
+  void wait_for_next_completion(std::chrono::milliseconds timeout) override;
 
   void unblock_completions() override;
   std::string get_peer_addr() override;
 
   std::string get_local_addr() override;
 
-  addr_ep_t get_name() const;
+  fabric_types::addr_ep_t get_name() const;
 };
 
 #endif

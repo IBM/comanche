@@ -42,14 +42,14 @@ namespace
    * (This is a work-around for what looks like a bug in the verbs provider.
    * It should probably accept addr, as the sockets provider does.)
    */
-  addr_ep_t set_peer_early(Fd_control &control_, fi_info &ep_info_)
+  fabric_types::addr_ep_t set_peer_early(Fd_control &control_, fi_info &ep_info_)
   {
-    addr_ep_t remote_addr;
+    fabric_types::addr_ep_t remote_addr;
     if ( ep_info_.ep_attr->type == FI_EP_MSG )
     {
       remote_addr = control_.recv_name();
       /* fi_connect, at least for verbs, ignores addr and uses dest_addr from the hints. */
-      ep_info_.dest_addrlen = std::get<0>(remote_addr).size();
+      ep_info_.dest_addrlen = remote_addr.size();
       if ( 0 != ep_info_.dest_addrlen )
       {
         ep_info_.dest_addr = malloc(ep_info_.dest_addrlen);
@@ -57,7 +57,7 @@ namespace
         {
           throw bad_dest_addr_alloc(ep_info_.dest_addrlen);
         }
-        std::copy(std::get<0>(remote_addr).begin(), std::get<0>(remote_addr).end(), static_cast<char *>(ep_info_.dest_addr));
+        std::copy(remote_addr.begin(), remote_addr.end(), static_cast<char *>(ep_info_.dest_addr));
       }
     }
     /* Other providers will look in addr: provide the name there as well. */

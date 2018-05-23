@@ -14,26 +14,21 @@
    limitations under the License.
 */
 
-#ifndef _FD_CONTROL_H_
-#define _FD_CONTROL_H_
+#ifndef _FD_PAIR_H_
+#define _FD_PAIR_H_
 
-#include "fabric_types.h" /* addr_ep_t */
-#include "fd_socket.h"
+#include "system_fail.h"
 
-#include <cstdint>
-#include <string>
+#include <unistd.h> /* pipe */
 
-class Fd_control
-  : public Fd_socket
+class Fd_pair
 {
+  int _pair[2];
 public:
-  Fd_control();
-  explicit Fd_control(int fd_);
-  explicit Fd_control(std::string dst_addr, uint16_t port);
-  Fd_control(Fd_control &&) = default;
-  Fd_control &operator=(Fd_control &&) = default;
-  void send_name(const fabric_types::addr_ep_t &name) const;
-  fabric_types::addr_ep_t recv_name() const;
+  Fd_pair();
+  int fd_read() const { return _pair[0]; }
+  int fd_write() const { return _pair[1]; }
+  ~Fd_pair();
 };
 
 #endif

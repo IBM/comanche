@@ -26,6 +26,7 @@
 #include "fabric_ptr.h"
 
 #include <rdma/fi_cm.h>
+#include <rdma/fi_domain.h> /* fid_wait, fi_wait_open */
 #include <rdma/fi_endpoint.h> /* fi_endpoint */
 
 #include <cassert>
@@ -276,6 +277,13 @@ fid_unique_ptr<fid_cq> make_fid_cq(fid_domain &domain, fi_cq_attr &attr, void *c
   return fid_unique_ptr<fid_cq>(cq);
 }
 
+fid_unique_ptr<fid_wait> make_fid_wait(fid_fabric &fabric, fi_wait_attr &attr)
+{
+  fid_wait *wait_set;
+  CHECKZ(::fi_wait_open(&fabric, &attr, &wait_set));
+  return fid_unique_ptr<fid_wait>(wait_set);
+}
+
 [[noreturn]] void not_implemented(const std::string &who)
 {
   throw std::runtime_error{who + " not_implemented"};
@@ -304,7 +312,7 @@ void check_ge_zero(ssize_t r, const char *file, int line)
   }
 }
 
-auto get_name(fid_t fid) -> addr_ep_t
+auto get_name(fid_t fid) -> fabric_types::addr_ep_t
 {
   size_t addrlen = 0;
 
@@ -313,5 +321,5 @@ auto get_name(fid_t fid) -> addr_ep_t
   std::vector<char> name(addrlen);
 
   CHECKZ(fi_getname(fid, &*name.begin(), &addrlen));
-  return addr_ep_t(name);
+  return fabric_types::addr_ep_t(name);
 }
