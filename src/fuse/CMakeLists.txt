@@ -1,5 +1,4 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
-add_subdirectory(append)
-add_subdirectory(hello)
-add_subdirectory(ustack)
+# disable auto-build
+#add_subdirectory(ustack)
