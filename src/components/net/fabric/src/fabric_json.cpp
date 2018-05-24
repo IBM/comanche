@@ -367,7 +367,7 @@ namespace
     {
       if ( ! (info.*M) )
       {
-        info.*M = new T{};
+        throw std::domain_error(": missing substructure");
       }
 
       if ( ! v.IsObject() )

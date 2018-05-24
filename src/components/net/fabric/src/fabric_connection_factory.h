@@ -53,8 +53,6 @@ public:
 
   void *query_interface(Component::uuid_t& itf_uuid) override;
 
-  Component::IFabric_connection * connect(const std::string& remote_endpoint) override;
-
   Component::IFabric_connection * get_new_connections() override;
 
   void close_connection(Component::IFabric_connection * connection) override;

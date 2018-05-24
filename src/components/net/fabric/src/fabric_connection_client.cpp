@@ -16,21 +16,13 @@
 
 #include "fabric_connection_client.h"
 
+#include "bad_dest_addr_alloc.h"
+#include "fabric_error.h"
+#include "fabric_types.h"
 #include "fabric_util.h"
 
-#include <algorithm>
-#include <stdexcept>
-
-class bad_dest_addr_alloc
-  : public std::bad_alloc
-{
-  std::string _what;
-public:
-  explicit bad_dest_addr_alloc(std::size_t sz)
-    : _what{"Failed to allocate " + std::to_string(sz) + " bytes for dest_addr"}
-  {}
-  const char *what() const noexcept { return _what.c_str(); }
-};
+#include <algorithm> /* copy */
+#include <cstdint> /* size_t */
 
 namespace
 {
@@ -72,7 +64,8 @@ Fabric_connection_client::Fabric_connection_client(
   , const std::string & remote_
   , std::uint16_t control_port_
 )
-  : Fabric_connection(fabric_, eq_, info_, Fd_control(remote_, control_port_), set_peer_early, "client")
+try
+  : Fabric_connection(fabric_, eq_, info_, Fd_control(remote_, control_port_), set_peer_early)
 {
   if ( ep_info().ep_attr->type == FI_EP_MSG )
   {
@@ -82,4 +75,8 @@ Fabric_connection_client::Fabric_connection_client(
 
     await_connected(eq_);
   }
+}
+catch ( fabric_error &e )
+{
+  throw e.add("in Fabric_connection_client constuctor");
 }

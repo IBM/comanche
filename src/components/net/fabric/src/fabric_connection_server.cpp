@@ -40,7 +40,7 @@ Fabric_connection_server::Fabric_connection_server(
   , fi_info &info_
   , Fd_control &&conn_fd_
 )
-  : Fabric_connection(fabric_, eq_, info_, std::move(conn_fd_), set_peer_early, "server")
+  : Fabric_connection(fabric_, eq_, info_, std::move(conn_fd_), set_peer_early)
 {
   if ( ep_info().ep_attr->type == FI_EP_MSG )
   {

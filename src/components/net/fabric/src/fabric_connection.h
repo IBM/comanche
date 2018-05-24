@@ -25,6 +25,7 @@
 #pragma GCC diagnostic ignored "-Wvariadic-macros"
 #include <api/fabric_itf.h>
 #pragma GCC diagnostic pop
+#include "fabric_comm.h"
 
 #include "fabric_ptr.h"
 #include "fabric_types.h" /* addr_ep_t */
@@ -51,10 +52,8 @@ struct fid_ep;
 
 class Fabric_connection
   : public Component::IFabric_connection
+  , public Fabric_comm
 {
-  static constexpr auto tx_key = std::uint64_t(0x0123456789abcdef);
-  static constexpr auto rx_key = std::uint64_t(tx_key + 1U);
-  std::string _descr;
   Fd_control _control;
   std::shared_ptr<fi_info> _domain_info;
   std::shared_ptr<fid_domain> _domain;
@@ -85,7 +84,9 @@ class Fabric_connection
   std::map<void *, const void *> _mr_desc_to_addr;
 
   static void get_rx_comp(void *ctx, std::uint64_t limit);
-  std::vector<void *> populated_desc(const std::vector<iovec> & buffers);
+  std::mutex _m_comms;
+  std::set<Fabric_comm *> _comms;
+
 protected:
   const fi_info &ep_info() const { return *_ep_info; }
   fid_ep &ep() { return *_ep; }
@@ -97,8 +98,7 @@ public:
     , fid_eq &eq
     , fi_info &info
     , Fd_control &&control
-    , fabric_types::addr_ep_t (*set_peer_early)(Fd_control &control, fi_info &info)
-    , const std::string &descr);
+    , fabric_types::addr_ep_t (*set_peer_early)(Fd_control &control, fi_info &info));
 
   ~Fabric_connection(); /* Note: need to notify the polling thread that this connection is going away, */
 
@@ -108,21 +108,33 @@ public:
 
   void deregister_memory(const memory_region_t memory_region) override;
 
-  void  post_send(const std::vector<iovec>& buffers, void *context) override;
-
-  void  post_recv(const std::vector<iovec>& buffers, void *context) override;
+  void  post_send(const std::vector<iovec>& buffers, void *context) override { return Fabric_comm::post_send(buffers, context); }
+  void  post_recv(const std::vector<iovec>& buffers, void *context) override { return Fabric_comm::post_recv(buffers, context); }
 
   void post_read(
     const std::vector<iovec>& buffers,
     std::uint64_t remote_addr,
     std::uint64_t key,
-    void *context) override;
+    void *context) override { return Fabric_comm::post_read(buffers, remote_addr, key, context); }
 
   void post_write(
     const std::vector<iovec>& buffers,
     std::uint64_t remote_addr,
     std::uint64_t key,
-    void *context) override;
+    void *context) override { return Fabric_comm::post_write(buffers, remote_addr, key, context); }
+
+  void  post_send_internal(const std::vector<iovec>& buffers, void *context);
+  void  post_recv_internal(const std::vector<iovec>& buffers, void *context);
+  void post_read_internal(
+    const std::vector<iovec>& buffers,
+    std::uint64_t remote_addr,
+    std::uint64_t key,
+    void *context);
+  void post_write_internal(
+    const std::vector<iovec>& buffers,
+    std::uint64_t remote_addr,
+    std::uint64_t key,
+    void *context);
 
   IFabric_communicator *allocate_group() override;
 
@@ -141,6 +153,15 @@ public:
   std::string get_local_addr() override;
 
   fabric_types::addr_ep_t get_name() const;
+
+  void poll_completions_for_comm(Fabric_comm *, std::function<void(void *context, status_t)> completion_callback);
+
+  /* public for access by Fabric_comm */
+  std::vector<void *> populated_desc(const std::vector<iovec> & buffers);
+  std::size_t get_cq_comp_err(std::function<void(void *connection, status_t st)> completion_callback);
+  ssize_t cq_sread(void *buf, size_t count, const void *cond, int timeout) noexcept;
+  ssize_t cq_readerr(fi_cq_err_entry *buf, uint64_t flags) noexcept;
+  void queue_completion(Fabric_comm *comm, void *context, status_t status);
 };
 
 #endif

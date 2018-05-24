@@ -97,9 +97,6 @@ void (check_ge_zero)(ssize_t r, const char *file, int line);
 
 #define CHECKZ(V) (check_ge_zero)((V), __FILE__, __LINE__)
 
-[[noreturn]] void not_expected(const std::string &who);
-[[noreturn]] void not_implemented(const std::string &who);
-
 template <class ... Args>
   void post(ssize_t (*post_fn)(Args ... args), void (*comp_fn)(void *, std::uint64_t), uint64_t seq, void *ctx, const char *op, Args &&... args)
   {
