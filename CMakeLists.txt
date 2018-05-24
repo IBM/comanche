@@ -32,7 +32,6 @@ include_directories(${CMAKE_BINARY_DIR})
 install (FILES "${CMAKE_BINARY_DIR}/config_comanche.h"
     DESTINATION include)
 
-
 add_subdirectory(src)
 add_subdirectory(apps)
 add_subdirectory(testing)
