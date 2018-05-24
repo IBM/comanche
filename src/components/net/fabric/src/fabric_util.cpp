@@ -24,13 +24,13 @@
 #include "fabric_error.h"
 #include "fabric_json.h"
 #include "fabric_ptr.h"
+#include "hints.h"
 
 #include <rdma/fi_cm.h>
 #include <rdma/fi_domain.h> /* fid_wait, fi_wait_open */
 #include <rdma/fi_endpoint.h> /* fi_endpoint */
 
 #include <cassert>
-#include <cstring> /* strdup */
 #include <memory> /* shared_ptr */
 #include <mutex>
 
@@ -105,9 +105,6 @@ catch ( const fabric_error &e )
   throw e.add(tostr(attr_));
 }
 
-#if 0
-#include <iostream>
-#endif
 std::shared_ptr<fi_info> make_fi_info(
   std::uint32_t version_
   , const char *node_
@@ -117,13 +114,6 @@ std::shared_ptr<fi_info> make_fi_info(
 try
 {
   fi_info *f;
-#if 0
-  if ( hints_ )
-  {
-    std::cerr << "INFO hint for " << "make_fi_info" << ": " << tostr(*hints_) << "\n";
-  }
-#endif
-
   CHECKZ(fi_getinfo(version_, node_, service_, 0, hints_, &f));
   return std::shared_ptr<fi_info>(f,fi_freeinfo);
 }
@@ -146,27 +136,6 @@ std::shared_ptr<fi_info> make_fi_info(const fi_info &hints)
 {
   return make_fi_info(FI_VERSION(FI_MAJOR_VERSION,FI_MINOR_VERSION), nullptr, nullptr, &hints);
 }
-
-class hints
-{
-  std::shared_ptr<fi_info> _info;
-public:
-  explicit hints()
-    : _info(make_fi_info())
-  {}
-  explicit hints(std::shared_ptr<fi_info> info_)
-    : _info(info_)
-  {}
-  hints &caps(uint64_t c) { _info->caps = c; return *this; }
-  hints &mode(uint64_t c) { _info->mode = c; return *this; }
-  hints &mr_mode(int m) { _info->domain_attr->mr_mode = m; return *this; }
-  hints &prov_name(const char *n) {
-    assert(! _info->fabric_attr->prov_name);
-    _info->fabric_attr->prov_name = ::strdup(n); return *this;
-  } // e.g. FI_MR_LOCAL | FI_MR_ALLOCATED | FI_MR_PROV_KEY | FI_MR_VIRT_ADDR;
-  const char *prov_name() const { return _info->fabric_attr->prov_name; }
-  const fi_info &data() { return *_info; }
-};
 
 std::shared_ptr<fi_info> make_fi_info(const std::string& json_configuration)
 {
@@ -282,15 +251,6 @@ fid_unique_ptr<fid_wait> make_fid_wait(fid_fabric &fabric, fi_wait_attr &attr)
   fid_wait *wait_set;
   CHECKZ(::fi_wait_open(&fabric, &attr, &wait_set));
   return fid_unique_ptr<fid_wait>(wait_set);
-}
-
-[[noreturn]] void not_implemented(const std::string &who)
-{
-  throw std::runtime_error{who + " not_implemented"};
-}
-[[noreturn]] void not_expected(const std::string &who)
-{
-  throw std::logic_error{who + " not_expected"};
 }
 
 /* fi_fabric, fi_close (when called on a fabric) and most fi_poll functions FI_SUCCESS; others return 0 */

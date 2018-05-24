@@ -57,12 +57,6 @@ std::string Fabric_connection_factory::get_provider_name() const
   return _info.fabric_attr->prov_name;
 }
 
-/* Connect as a client */
-Component::IFabric_connection * Fabric_connection_factory::connect(const std::string &)
-{
-  not_implemented(__func__);
-}
-
 Component::IFabric_connection * Fabric_connection_factory::get_new_connections()
 {
   return _control.get_new_connection();

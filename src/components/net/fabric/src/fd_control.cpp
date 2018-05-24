@@ -25,6 +25,7 @@
 
 #include <netinet/in.h>
 #include <netdb.h>
+#include <string.h>
 #include <unistd.h>
 
 #include <memory>
@@ -69,6 +70,7 @@ namespace
 
     int fd = -1;
     bool ok = false;
+    std::string e_why = ": " + dst_addr + ":" + std::to_string(port);
     for ( auto rp = results.get(); rp && ! ok; rp = rp->ai_next)
     {
       fd = ::socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
@@ -78,6 +80,7 @@ namespace
         if ( -1 == ::connect(fd, rp->ai_addr, rp->ai_addrlen) )
         {
           e = errno;
+          e_why += ", " + std::to_string(rp->ai_family) + "/" + std::to_string( rp->ai_socktype) + std::to_string( rp->ai_protocol) + "/" + std::to_string(rp->ai_addrlen) + " err " + std::to_string(e);
         }
         else
         {
@@ -88,8 +91,7 @@ namespace
 
     if ( ! ok )
     {
-      sleep(1);
-      system_fail(e, __func__);
+      system_fail(e, __func__ + e_why);
     }
 
     return fd;
@@ -109,6 +111,14 @@ void Fd_control::send_name(const fabric_types::addr_ep_t &name_) const
   send(&*name_.begin(), sz);
 }
 
+namespace
+{
+  std::string while_in(const std::string &where)
+  {
+    return " (while in " + where + ")";
+  }
+}
+
 auto Fd_control::recv_name() const -> fabric_types::addr_ep_t
 try
 {
@@ -121,7 +131,7 @@ try
 
   return fabric_types::addr_ep_t(std::move(name));
 }
-catch ( const std::exception &e )
+catch ( const std::system_error &e )
 {
-  throw std::runtime_error(std::string("(while receiving name) ") + e.what());
+  throw std::system_error(e.code(), e.what() + while_in(__func__));
 }

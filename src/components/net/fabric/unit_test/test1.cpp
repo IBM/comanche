@@ -76,7 +76,6 @@ namespace
   constexpr std::uint16_t control_port_1 = 47592;
   constexpr std::uint16_t control_port_2 = 47593;
 
-  constexpr uint64_t remote_key = 54312U; /* value does not matter; ibverbs wil supply its own value */
   static constexpr std::size_t remote_memory_offset = 25;
 
   class registration
@@ -120,6 +119,7 @@ namespace
 
   class registered_memory
   {
+    static constexpr uint64_t remote_key = 54312U; /* value does not matter to ibverbs; ibverbs ignores the value and creates its own key */
     Component::IFabric_connection &_cnxn;
     /* There may be an alignment restriction on registered memory, May be 8, or 16. */
     alignas(64) std::array<char, 4096> _memory;
@@ -137,14 +137,14 @@ namespace
     std::uint64_t key() const { return _registration.key(); }
   };
 
-  void wait_poll(Component::IFabric_connection &cnxn, std::function<void(void *context, status_t)> cb)
+  void wait_poll(Component::IFabric_communicator &comm, std::function<void(void *context, status_t)> cb)
   {
     size_t ct = 0;
     unsigned delay = 0;
     while ( ct == 0 )
     {
-      cnxn.wait_for_next_completion(std::chrono::seconds(60));
-      ct = cnxn.poll_completions(cb);
+      comm.wait_for_next_completion(std::chrono::seconds(6000));
+      ct = comm.poll_completions(cb);
       ++delay;
     }
     /* poll_completions does not always get a completion after wait_for_next_completion returns
@@ -197,8 +197,8 @@ std::cerr << "Server received 'q'" << std::endl;
         cnxn,
         [&v,this] (void *ctxt, status_t st) -> void
           {
-            assert(ctxt == this);
-            assert(st == S_OK);
+            ASSERT_EQ(ctxt, this);
+            ASSERT_EQ(st, S_OK);
           }
       );
     }
@@ -207,14 +207,17 @@ std::cerr << "Server received 'q'" << std::endl;
     {
       Component::IFabric_connection *cnxn = nullptr;
       /* busy-wait for a client */
-      while ( ! ( cnxn = ep.get_new_connections() ) ) {}
-      /* register an RDMA memory region */
-      registered_memory rm{*cnxn};
-      auto rma_first_char = rm.first_char();
-      /* send the client address and key to memory */
-      send_memory_info(*cnxn, rm);
-      /* Wait for the client to signal "quit" */
-      wait_to_quit(rm, rma_first_char);
+      while ( ! ( cnxn = ep.get_new_connections() ) )
+      {}
+      {
+        /* register an RDMA memory region */
+        registered_memory rm{*cnxn};
+        auto rma_first_char = rm.first_char();
+        /* send the client address and key to memory */
+        send_memory_info(*cnxn, rm);
+        /* Wait for the client to signal "quit" */
+        wait_to_quit(rm, rma_first_char);
+      }
       ep.close_connection(cnxn);
     }
   public:
@@ -229,18 +232,41 @@ std::cerr << "Server received 'q'" << std::endl;
     }
   };
 
+
   class remote_memory_client
   {
+    static Component::IFabric_connection *open_connection_patiently(Component::IFabric &fabric_, const std::string &fabric_spec_, const std::string ip_address_, std::uint16_t port_)
+    {
+      Component::IFabric_connection *cnxn = nullptr;
+      while ( ! cnxn )
+      {
+        try
+        {
+          cnxn = fabric_.open_connection(fabric_spec_, ip_address_, port_);
+        }
+        catch ( std::system_error &e )
+        {
+          if ( e.code().value() != ECONNREFUSED )
+          {
+            throw;
+          }
+        }
+      }
+      return cnxn;
+    }
+
     static void check_complete_static(void *rmc_, status_t stat_)
     {
       auto rmc = static_cast<remote_memory_client *>(rmc_);
       ASSERT_TRUE(rmc);
       rmc->check_complete(stat_);
     }
-    void check_complete(status_t stat_)
+
+    static void check_complete(status_t stat_)
     {
       ASSERT_EQ(stat_, S_OK);
     }
+
     std::shared_ptr<Component::IFabric_connection> _cnxn;
     registered_memory rm_out;
     registered_memory rm_in;
@@ -248,7 +274,7 @@ std::cerr << "Server received 'q'" << std::endl;
     std::uint64_t _key;
   public:
     remote_memory_client(Component::IFabric &fabric_, const std::string &fabric_spec_, const std::string ip_address_, std::uint16_t port_)
-      : _cnxn(fabric_.open_connection(fabric_spec_, ip_address_, port_))
+      : _cnxn(open_connection_patiently(fabric_, fabric_spec_, ip_address_, port_))
       , rm_out{*_cnxn}
       , rm_in{*_cnxn}
       , _vaddr{}
@@ -264,15 +290,20 @@ std::cerr << "Server received 'q'" << std::endl;
         *_cnxn,
         [&v, this] (void *ctxt, status_t st) -> void
           {
-            assert(ctxt == this);
-            assert(st == S_OK);
-            assert(v[0].iov_len == (sizeof _vaddr) + sizeof( _key));
+            ASSERT_EQ(ctxt, this);
+            ASSERT_EQ(st, S_OK);
+            ASSERT_EQ(v[0].iov_len, (sizeof _vaddr) + sizeof( _key));
             std::memcpy(&_vaddr, &rm_out[0], sizeof _vaddr);
             std::memcpy(&_key, &rm_out[sizeof _vaddr], sizeof _key);
           }
       );
       std::cerr << "Remote memory client addr " << _vaddr << " key " << _key << std::endl;
     }
+
+    std::uint64_t vaddr() const { return _vaddr; }
+    std::uint64_t key() const { return _key; }
+    Component::IFabric_connection &cnxn() { return *_cnxn; }
+
     void write(const std::string &msg)
     {
       std::copy(msg.begin(), msg.end(), &rm_out[0]);
@@ -285,6 +316,7 @@ std::cerr << "Posting write from " << static_cast<void *>(&rm_out[0]) << " to " 
       }
       wait_poll(*_cnxn, check_complete_static);
     }
+
     void read_verify(const std::string &msg)
     {
       std::vector<iovec> buffers(1);
@@ -293,6 +325,65 @@ std::cerr << "Posting read to " << static_cast<void *>(&rm_in[0]) << " from " <<
         buffers[0].iov_base = &rm_in[0];
         buffers[0].iov_len = msg.size();
         _cnxn->post_read(buffers, _vaddr + remote_memory_offset, _key, this);
+      }
+      wait_poll(*_cnxn, check_complete_static);
+      std::string remote_msg(&rm_in[0], &rm_in[0] + msg.size());
+      ASSERT_EQ(msg, remote_msg);
+std::cerr << "Client verified readback" << std::endl;
+    }
+
+    Component::IFabric_communicator *allocate_group() const
+    {
+      return _cnxn->allocate_group();
+    }
+  };
+
+  class remote_memory_subclient
+  {
+    static void check_complete_static(void *rmc_, status_t stat_)
+    {
+      auto rmc = static_cast<remote_memory_subclient *>(rmc_);
+      ASSERT_TRUE(rmc);
+      rmc->check_complete(stat_);
+    }
+    void check_complete(status_t stat_)
+    {
+      ASSERT_EQ(stat_, S_OK);
+    }
+    remote_memory_client &_parent;
+    std::shared_ptr<Component::IFabric_communicator> _cnxn;
+    registered_memory rm_out;
+    registered_memory rm_in;
+  public:
+    remote_memory_subclient(remote_memory_client &parent_)
+      : _parent(parent_)
+      , _cnxn(_parent.allocate_group())
+      , rm_out{_parent.cnxn()}
+      , rm_in{_parent.cnxn()}
+    {
+    }
+
+    void write(const std::string &msg)
+    {
+      std::copy(msg.begin(), msg.end(), &rm_out[0]);
+      std::vector<iovec> buffers(1);
+      {
+std::cerr << "Posting write from " << static_cast<void *>(&rm_out[0]) << " to " << _parent.vaddr() + remote_memory_offset << " key " << _parent.key() << std::endl;
+        buffers[0].iov_base = &rm_out[0];
+        buffers[0].iov_len = msg.size();
+        _cnxn->post_write(buffers, _parent.vaddr() + remote_memory_offset, _parent.key(), this);
+      }
+      wait_poll(*_cnxn, check_complete_static);
+    }
+
+    void read_verify(const std::string &msg)
+    {
+      std::vector<iovec> buffers(1);
+      {
+std::cerr << "Posting read to " << static_cast<void *>(&rm_in[0]) << " from " << _parent.vaddr() + remote_memory_offset << std::endl;
+        buffers[0].iov_base = &rm_in[0];
+        buffers[0].iov_len = msg.size();
+        _cnxn->post_read(buffers, _parent.vaddr() + remote_memory_offset, _parent.key(), this);
       }
       wait_poll(*_cnxn, check_complete_static);
       std::string remote_msg(&rm_in[0], &rm_in[0] + msg.size());
@@ -477,21 +568,58 @@ TEST_F(Fabric_test, WriteRead)
 
   auto factory = std::shared_ptr<Component::IFabric_factory>(static_cast<IFabric_factory *>(comp->query_interface(IFabric_factory::iid())));
 
-  if ( is_client )
+  for ( auto iteration = 0; iteration != 5; ++iteration )
   {
-    auto fabric_client = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec_static));
-    /* Feed the endpoint a good JSON spec */
-    remote_memory_client client(*fabric_client, "{}", remote_host, control_port_0);
-    /* Feed the endpoint some terrible text */
-    std::string msg = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.";
-    client.write(msg);
-    client.read_verify(msg);
-    client.write("q");
+    if ( is_client )
+    {
+      auto fabric_client = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec_static));
+      /* Feed the endpoint a good JSON spec */
+      remote_memory_client client(*fabric_client, "{}", remote_host, control_port_0);
+      /* Feed the endpoint some terrible text */
+      std::string msg = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.";
+      client.write(msg);
+      client.read_verify(msg);
+      client.write("q");
+    }
+    else
+    {
+      auto fabric_server = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec_static));
+      remote_memory_server server(*fabric_server, "{}", control_port_0);
+    }
   }
-  else
+  factory->release_ref();
+}
+
+TEST_F(Fabric_test, Groups)
+{
+  /* create object instance through factory */
+  Component::IBase * comp = Component::load_component("libcomanche-fabric.so",
+                                                      Component::net_fabric_factory);
+  ASSERT_TRUE(comp);
+
+  auto factory = std::shared_ptr<Component::IFabric_factory>(static_cast<IFabric_factory *>(comp->query_interface(IFabric_factory::iid())));
+
+  for ( auto iteration = 0; iteration != 5; ++iteration )
   {
-    auto fabric_server = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec_static));
-    remote_memory_server server(*fabric_server, "{}", control_port_0);
+    if ( is_client )
+    {
+      auto fabric_client = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec_static));
+      /* Feed the endpoint a good JSON spec */
+      remote_memory_client client(*fabric_client, "{}", remote_host, control_port_0);
+
+      /* make one "communicator (two, including the parent. */
+      remote_memory_subclient g0(client);
+      std::string msg = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.";
+      /* outgh to split send from completions so that we can test the separation of comms */
+      g0.write(msg);
+      g0.read_verify(msg);
+      g0.write("q");
+    }
+    else
+    {
+      auto fabric_server = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec_static));
+      remote_memory_server server(*fabric_server, "{}", control_port_0);
+    }
   }
 
   factory->release_ref();

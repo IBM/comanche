@@ -38,7 +38,7 @@ Fd_socket::Fd_socket()
 Fd_socket::Fd_socket(int fd_)
   : _fd(fd_)
 {
-  if ( -1 == _fd )
+  if ( _fd < 0 )
   {
     throw std::logic_error("negative fd in Fd_socket::Fd_socket");
   }
