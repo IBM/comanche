@@ -176,6 +176,15 @@ void FileStore::close_pool(pool_t pid)
   }
 }
 
+void FileStore::delete_pool(const pool_t pid)
+{
+  auto handle = reinterpret_cast<Pool_handle*>(pid);
+  if(_pool_sessions.count(handle) != 1)
+    throw API_exception("bad pool handle");
+
+  boost::filesystem::remove_all(handle->path);
+}
+
 int FileStore::put(IKVStore::pool_t pid,
                    std::string key,
                    const void * value,

@@ -82,6 +82,15 @@ IKVStore::pool_t RockStore::open_pool(const std::string path,
   return reinterpret_cast<IKVStore::pool_t>(db);
 }
 
+void RockStore::delete_pool(const pool_t pid)
+{
+  rocksdb::Options options;
+  rocksdb::DB * db = reinterpret_cast<rocksdb::DB*>(pid);
+  auto db_name = db->GetName();
+  delete db;
+  rocksdb::DestroyDB(db_name, options);
+}
+
 void RockStore::close_pool(pool_t pid)
 {
   rocksdb::DB * db = reinterpret_cast<rocksdb::DB*>(pid);
