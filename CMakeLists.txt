@@ -35,7 +35,7 @@ install (FILES "${CMAKE_BINARY_DIR}/config_comanche.h"
 
 add_subdirectory(src)
 add_subdirectory(apps)
-
+add_subdirectory(testing)
 
 # add a target to generate API documentation with Doxygen
 find_package(Doxygen)
