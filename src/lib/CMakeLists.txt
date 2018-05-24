@@ -9,7 +9,9 @@ add_subdirectory(core)
 ExternalProject_Add(ndctl
   GIT_REPOSITORY https://github.com/pmem/ndctl.git
   GIT_TAG v60.3
+  #DOWNLOAD_COMMAND git clone -b v60.3 https://github.com/pmem/ndctl.git
   BUILD_IN_SOURCE 1
+  UPDATE_DISCONNECTED 1
   DOWNLOAD_DIR ${CMAKE_CURRENT_SOURCE_DIR}
   SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ndctl
   CONFIGURE_COMMAND ./autogen.sh COMMAND  ./configure --prefix=${CMAKE_CURRENT_BINARY_DIR} --sysconfdir=/etc --libdir=/usr/lib64
@@ -17,11 +19,12 @@ ExternalProject_Add(ndctl
   INSTALL_COMMAND "" #sudo make install
   )
 
-ExternalProject_Add(pmdk
-  #  DOWNLOAD_COMMAND git clone -b stable-1.4 https://github.com/pmem/pmdk.git
+ExternalProject_Add(pmdk  
   GIT_REPOSITORY https://github.com/pmem/pmdk.git
   GIT_TAG stable-1.4
+  #DOWNLOAD_COMMAND git clone -b stable-1.4 https://github.com/pmem/pmdk.git
   BUILD_IN_SOURCE 1
+  UPDATE_DISCONNECTED 1
   DOWNLOAD_DIR ${CMAKE_CURRENT_SOURCE_DIR}
   SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/pmdk
   CONFIGURE_COMMAND ""
