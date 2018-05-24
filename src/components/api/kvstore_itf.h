@@ -105,6 +105,13 @@ public:
   virtual void close_pool(const pool_t pool) = 0;
 
   /** 
+   * Delete an existing pool
+   * 
+   * @param pool Pool handle
+   */
+  virtual void delete_pool(const pool_t pool)  = 0;
+
+  /** 
    * Write an object value
    * 
    * @param pool Pool handle
