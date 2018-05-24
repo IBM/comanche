@@ -115,12 +115,11 @@ Fd_socket Server_control::make_listener(std::uint16_t port)
 }
 
 /*
- * objects accesses in multiple threads:
+ * objects accessed in multiple threads:
  *
  *  fabric_ should be used only by (threadsafe) libfabric calls.
  *  info_ should be used only in by (threadsafe) libfabric calls.
- *  _run : needs an atomic
- *  _pending: needs a mutex
+ * _pending: has a mutex
  */
 #include <cassert>
 #include <cstring>
@@ -137,56 +136,63 @@ void Server_control::listen(Fd_socket &&listen_fd_, int end_fd_, fid_fabric &fab
     FD_ZERO(&fds_read);
     FD_SET(listen_fd.fd(), &fds_read);
     FD_SET(end_fd_, &fds_read);
-#if 0
-    auto ready =
-#endif
-    ::pselect(std::max(listen_fd.fd(), end_fd_)+1, &fds_read, nullptr, nullptr, nullptr, nullptr);
 
-#if 0
-    if ( -1 == ready )
+    auto n = ::pselect(std::max(listen_fd.fd(), end_fd_)+1, &fds_read, nullptr, nullptr, nullptr, nullptr);
+    if ( n < 0 )
     {
-      auto e = errno;
-    }
-#endif
-
-    run = ! FD_ISSET(end_fd_, &fds_read);
-    if ( FD_ISSET(listen_fd.fd(), &fds_read) )
-    {
-      try
+      switch ( auto e = errno )
       {
-        auto r = ::accept(listen_fd.fd(), nullptr, nullptr);
-        if ( r == -1 )
-        {
-          auto e = errno;
-          system_fail(e, (" in accept fd " + std::to_string(listen_fd.fd())));
-        }
-        auto conn_fd = Fd_control(r);
-        /* NOTE: Fd_control needs a timeout. */
-
-        /* we have a "control connection". Send the name of the server passive endpoint to the client */
-        /* send the name to the client */
-        conn_fd.send_name(pep_name_);
-
-        /*
-         * Wait for a connection.
-         *
-         * ERROR: Since the client may disappear or stall, the rest of this
-         * section ought to be handled by eq processing. There is already a
-         * pselect, and the event queue can be tied to a file decriptor for
-         * the pselect by FI_WAIT_FD/FI_GETWAIT.
-         */
-        fi_eq_cm_entry entry;
-        std:: uint32_t event;
-        CHECKZ(fi_eq_sread(&eq_, &event, &entry, sizeof entry, -1, 0));
-        assert(event == FI_CONNREQ);
-
-        auto conn = std::make_shared<Fabric_connection_server>(fabric_, eq_, *entry.info, std::move(conn_fd));
-        pend_.push(conn);
+      /* Cannot "fix" any of the error conditions, but acknowledge their existence */
+      case EBADF:
+      case EINTR:
+      case EINVAL:
+      case ENOMEM:
+        break;
+      default: /* unknown error */
+        break;
       }
-      catch ( const std::exception &e )
+    }
+    else
+    {
+      run = ! FD_ISSET(end_fd_, &fds_read);
+      if ( FD_ISSET(listen_fd.fd(), &fds_read) )
       {
-        /* An exception may not cause the loop to exit; only the destructor may do that. */
-        sleep(1);
+        try
+        {
+          auto r = ::accept(listen_fd.fd(), nullptr, nullptr);
+          if ( r == -1 )
+          {
+            auto e = errno;
+            system_fail(e, (" in accept fd " + std::to_string(listen_fd.fd())));
+          }
+          auto conn_fd = Fd_control(r);
+          /* NOTE: Fd_control needs a timeout. */
+
+          /* we have a "control connection". Send the name of the server passive endpoint to the client */
+          /* send the name to the client */
+          conn_fd.send_name(pep_name_);
+
+          /*
+           * Wait for a connection.
+           *
+           * ERROR: Since the client may disappear or stall, the rest of this
+           * section ought to be handled by eq processing. There is already a
+           * pselect, and the event queue can be tied to a file decriptor for
+           * the pselect by FI_WAIT_FD/FI_GETWAIT.
+           */
+          fi_eq_cm_entry entry;
+          std:: uint32_t event;
+          CHECKZ(fi_eq_sread(&eq_, &event, &entry, sizeof entry, -1, 0));
+          assert(event == FI_CONNREQ);
+
+          auto conn = std::make_shared<Fabric_connection_server>(fabric_, eq_, *entry.info, std::move(conn_fd));
+          pend_.push(conn);
+        }
+        catch ( const std::exception &e )
+        {
+          /* An exception may not cause the loop to exit; only the destructor may do that. */
+          ::sleep(1);
+        }
       }
     }
   }
@@ -219,15 +225,11 @@ void Server_control::close_connection(Fabric_connection * cnxn_)
   /*
    * If a server-side connection, remove it from the map.
    * If not in the map, presumable a client-side connection.
-   * We do not own those, so delete it.
+   * We do not own those.
    */
   auto it = _open.find(cnxn_);
   if ( it != _open.end() )
   {
     _open.erase(it);
-  }
-  else
-  {
-    delete cnxn_;
   }
 }

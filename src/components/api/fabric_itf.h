@@ -108,7 +108,7 @@ public:
    *
    * @return Number of completions processed
    */
-  virtual size_t poll_completions(std::function<void(void *context, status_t)> completion_callback) = 0;
+  virtual size_t poll_completions(std::function<void(void *context, status_t) noexcept> completion_callback) = 0;
 
   /**
    * Get count of stalled completions.
@@ -125,6 +125,12 @@ public:
    */
   virtual void wait_for_next_completion(unsigned polls_limit = 0) = 0;
   virtual void wait_for_next_completion(std::chrono::milliseconds timeout) = 0;
+
+  /**
+   * Unblock any threads waiting on completions
+   * 
+   */
+  virtual void unblock_completions() = 0;
 
   /* Additional TODO:
      - support for atomic RMA operations
@@ -175,12 +181,6 @@ public:
   virtual IFabric_communicator *allocate_group() = 0;
 
   /**
-   * Unblock any threads waiting on completions
-   * 
-   */
-  virtual void unblock_completions() = 0;
-
-  /**
    * Get address of connected peer (taken from fi_getpeer during
    * connection instantiation).
    * 
@@ -218,14 +218,6 @@ class IFabric_endpoint : public Component::IBase
 {
 public:
   DECLARE_INTERFACE_UUID(0xc373d083,0xe629,0x46c9,0x86fa,0x6f,0x96,0x40,0x61,0x10,0xdf);
-
-  /**
-   * Connect to a remote server and creates local endpoint
-   * 
-   * @param remote_endpoint Remote endpoint designator
-   * 
-   */
-  virtual IFabric_connection * connect(const std::string& remote_endpoint) = 0;
 
   /**
    * Server/accept side handling of new connections (handled by the
