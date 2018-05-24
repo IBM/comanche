@@ -34,7 +34,7 @@ make
 ** To override the install destination
 
 ```bash
-cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX:PATH=/foo
+cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX:PATH=`pwd`/dist ..
 ```
 
 # all the libs will be installedin build/install
