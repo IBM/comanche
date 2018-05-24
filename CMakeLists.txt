@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.5)
 # force out-of-tree build
 option(FORCE_OTT_BUILD "force out of tree build" ON)
 
-option(USE_RESTRICTED "also build restricted components" OFF)
+option(USE_RESTRICTED "include build restricted components" OFF)
 
 if(CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR AND FORCE_OTT_BUILD)
     message(FATAL_ERROR "Cannot use in-source build ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR}. You should delete any CMakeCache.txt and CMakeFiles and then try out-of-tree build")
@@ -33,12 +33,9 @@ install (FILES "${CMAKE_BINARY_DIR}/config_comanche.h"
     DESTINATION include)
 
 
-add_subdirectory(src/lib/common)
-add_subdirectory(src/lib/core)
-add_subdirectory(src/components)
+add_subdirectory(src)
 add_subdirectory(apps)
-add_subdirectory(src/kernel/modules)
-
+add_subdirectory(testing)
 
 # add a target to generate API documentation with Doxygen
 find_package(Doxygen)

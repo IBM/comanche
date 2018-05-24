@@ -69,6 +69,8 @@ public:
   
   virtual void close_pool(const pool_t pid) override;
 
+  virtual void delete_pool(const pool_t pid) override;
+
   virtual int put(const pool_t pool,
                   const std::string key,
                   const void * value,

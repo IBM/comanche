@@ -38,8 +38,8 @@ Component::IKVStore * KVStore_test::_kvstore;
 TEST_F(KVStore_test, Instantiate)
 {
   /* create object instance through factory */
-  Component::IBase * comp = Component::load_component("libcomanche-rocksdb.so",
-                                                      Component::rocksdb_factory);
+  //  Component::IBase * comp = Component::load_component("libcomanche-storefile.so", Component::filestore_factory);
+  Component::IBase * comp = Component::load_component("libcomanche-pmstore.so", Component::pmstore_factory);
 
   ASSERT_TRUE(comp);
   IKVStore_factory * fact = (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
@@ -53,10 +53,10 @@ TEST_F(KVStore_test, OpenPool)
 {
   ASSERT_TRUE(_kvstore);
   try {
-    pool = _kvstore->create_pool("./", "test1.rksdb", MB(32));
+    pool = _kvstore->create_pool("/tmp/", "test1.rksdb", MB(32));
   }
   catch(...) {
-    pool = _kvstore->open_pool("./", "test1.rksdb");
+    pool = _kvstore->open_pool("/tmp/", "test1.rksdb");
   }
   ASSERT_TRUE(pool != 0);
 }
@@ -122,7 +122,7 @@ TEST_F(KVStore_test, ClosePool)
 TEST_F(KVStore_test, ReopenPool)
 {
   ASSERT_TRUE(_kvstore);
-  pool = _kvstore->open_pool("./", "test1.rksdb");
+  pool = _kvstore->open_pool("/tmp/", "test1.rksdb");
   ASSERT_TRUE(pool != 0);
 }
 

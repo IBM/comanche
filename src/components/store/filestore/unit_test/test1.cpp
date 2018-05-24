@@ -66,11 +66,13 @@ TEST_F(KVStore_test, BasicPut)
 {
   ASSERT_TRUE(pool);
   std::string key = "MyKey";
+  std::string key2 = "MyKey2";
   std::string value = "Hello world!";
   //  value.resize(value.length()+1); /* append /0 */
   value.resize(MB(8));
     
   _kvstore->put(pool, key, value.c_str(), value.length());
+  _kvstore->put(pool, key2, value.c_str(), value.length());
 }
 
 TEST_F(KVStore_test, BasicGet)
@@ -95,6 +97,16 @@ TEST_F(KVStore_test, ClosePool)
   _kvstore->close_pool(pool);
 }
 
+TEST_F(KVStore_test, ReopenPool)
+{
+  pool = _kvstore->open_pool("./", "test1.pool");
+  ASSERT_TRUE(pool != 0);
+}
+
+TEST_F(KVStore_test, DeletePool)
+{
+  _kvstore->delete_pool(pool);
+}
 
 
 
