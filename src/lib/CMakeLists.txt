@@ -14,9 +14,9 @@ ExternalProject_Add(ndctl
   UPDATE_DISCONNECTED 1
   DOWNLOAD_DIR ${CMAKE_CURRENT_SOURCE_DIR}
   SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ndctl
-  CONFIGURE_COMMAND ./autogen.sh COMMAND  ./configure --prefix=${CMAKE_CURRENT_BINARY_DIR} --sysconfdir=/etc --libdir=/usr/lib64
+  CONFIGURE_COMMAND ./autogen.sh COMMAND  ./configure --prefix=/usr --sysconfdir=/etc --libdir=/usr/lib64
   BUILD_COMMAND make -j
-  INSTALL_COMMAND "" #sudo make install
+  INSTALL_COMMAND "" # cannot install, needs sudo privs to do so; install manual from 
   )
 
 ExternalProject_Add(pmdk  
@@ -29,7 +29,7 @@ ExternalProject_Add(pmdk
   SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/pmdk
   CONFIGURE_COMMAND ""
   BUILD_COMMAND make -j
-  INSTALL_COMMAND ""
+  INSTALL_COMMAND make install prefix=${CMAKE_INSTALL_PREFIX}
   )
 
 
