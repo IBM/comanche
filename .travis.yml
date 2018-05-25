@@ -8,12 +8,12 @@ branches:
     - travis-CI-test
 
 sudo: enabled 
-addons:
-    apt:
-      update:true
 
 compiler:
   - g++
+
+before_install:
+  - sudo apt-get -qq update
 
 install:
   - cd deps
