@@ -1,0 +1,21 @@
+language: c++
+
+sudo: enabled 
+
+compiler:
+  - g++
+
+install:
+  - cd deps
+  - sudo ./install-apts.sh
+  - sudo ./fetch-deps.sh
+  - cd ..
+  - mkdir build
+  - cd build
+  - cmake ..
+  - make
+
+
+
+
+
