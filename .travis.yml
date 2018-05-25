@@ -3,6 +3,7 @@ language: c++
 # add branches you want to triger CI
 branches:
   only:
+    - master
     - unstable
     - travis-CI-test
 
