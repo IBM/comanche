@@ -7,7 +7,9 @@ branches:
     - unstable
     - travis-CI-test
 
-sudo: enabled 
+sudo: required
+
+dist: xenial
 
 compiler:
   - g++
