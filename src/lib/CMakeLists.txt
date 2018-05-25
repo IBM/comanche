@@ -4,13 +4,7 @@ include(${CMAKE_ROOT}/Modules/ExternalProject.cmake)
 
 add_subdirectory(common)
 add_subdirectory(core)
-
-#set(BENCHMARK_DOWNLOAD_DEPENDENCIES 1)
-#-DBENCHMARK_ENABLE_GTEST_TESTS=OFF
-#set(BENCHMARK_ENABLE_GTEST_TESTS OFF)
-list(APPEND CMAKE_ARGS "-DCMAKE_BUILD_TYPE=RELEASE -DBENCHMARK_ENABLE_GTEST_TESTS=OFF -DBENCHMARK_DOWNLOAD_DEPENDENCIES=ON")
 add_subdirectory(benchmark)
-
 add_subdirectory(tbb)
 
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ndctl")
