@@ -9,24 +9,30 @@ branches:
 
 sudo: required
 
-dist: xenial
+services:
+  - docker
 
 compiler:
   - g++
 
+# dock image see here: - docker run -d --name ubuntu-test -v $(pwd):/travis ubuntu:latest tail -f /dev/null
 before_install:
-  - sudo apt-get -qq update
+  - docker run -d --name ubuntu-test -v $(pwd):/travis ubuntu:16.04 tail -f /dev/null
+  - docker ps
+  - docker exec -t ubuntu-test bash -c "apt-get update;
+    cd /travis"
 
 install:
-  - cd deps
-  - sudo ./install-apts.sh
-  - sudo ./fetch-deps.sh
-  - cd ..
-  - mkdir build
-  - cd build
-  - cmake ..
-  - make
-  - make install
+  - docker exec -t ubuntu-test bash -c "
+    cd deps;
+    ./install-apts.sh;
+    ./fetch-deps.sh;
+    cd .. ;
+    mkdir build;
+    cd build;
+    cmake .. ;
+    make; 
+    make install"
 
 
 
