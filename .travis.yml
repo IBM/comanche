@@ -1,5 +1,11 @@
 language: c++
 
+# add branches you want to triger CI
+branches:
+  only:
+    - unstable
+    - travis-CI-test
+
 sudo: enabled 
 addons:
     apt:
