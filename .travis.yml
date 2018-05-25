@@ -1,6 +1,9 @@
 language: c++
 
 sudo: enabled 
+addons:
+    apt:
+      update:true
 
 compiler:
   - g++
