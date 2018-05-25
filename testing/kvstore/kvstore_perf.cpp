@@ -56,7 +56,7 @@ TEST_F(KVStore_test, OpenPool)
 {
   ASSERT_TRUE(_kvstore);
   try {
-    pool = _kvstore->create_pool(PATH, "test1.rksdb", MB(32));
+    pool = _kvstore->create_pool(PATH, "test1.rksdb", GB(4));
   }
   catch(...) {
     pool = _kvstore->open_pool(PATH, "test1.rksdb");
