@@ -271,6 +271,7 @@ public:
    * @param json_configuration Configuration string in JSON
    * @return the endpoint
    */
+  virtual ~IFabric() {}
   virtual IFabric_endpoint * open_endpoint(const std::string& json_configuration, std::uint16_t port) = 0;
   virtual IFabric_connection * open_connection(const std::string& json_configuration, const std::string& remote_endpoint, std::uint16_t port) = 0;
 };
@@ -288,6 +289,7 @@ public:
    * form. e.g. { "caps":["FI_MSG","FI_RMA"], "preferred_provider" : "verbs"}
    * @return 
    */
+  virtual ~IFabric_factory() {}
   virtual IFabric * make_fabric(const std::string& json_configuration) = 0;
 };
 
