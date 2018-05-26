@@ -24,6 +24,7 @@ env:
 
 # comanche requires cmake 3.6.2 (to build google/benchmark)
 # for local building testing, remener to run git submodule init/update
+# Using g++ will exhaust travisci memory
 #
 before_install:
   - docker run -d --name ${CONTAINER_NAME} -v $(pwd):/travis ${DOCKERIMG} tail -f /dev/null
@@ -31,6 +32,7 @@ before_install:
   - docker exec -t ${CONTAINER_NAME} bash -c "
     cd /travis/deps;
     ./install-apts.sh;
+    sudo apt -y install clang;
     sudo apt -y remove cmake;
     sudo apt purge -y --auto-remove cmake;
     wget https://cmake.org/files/v3.11/cmake-3.11.2-Linux-x86_64.sh;
@@ -45,7 +47,7 @@ install:
     cd .. ;
     mkdir build;
     cd build;
-    cmake .. -DBENCHMARK_ENABLE_TESTING=off; 
+    cmake .. -DBENCHMARK_ENABLE_TESTING=off -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++;
     make; 
     make install"
 
