@@ -16,8 +16,9 @@ compiler:
   - g++
 
 # TODO: we can auto-build and publish this docker image
+# see https://docs.docker.com/docker-cloud/builds/automated-build
 env:
-  - DOCKERIMG="fengggli/comanche-env:ubuntu1604-05-25-18"
+  - DOCKERIMG="fengggli/comanche-env:ubuntu1604-180525.a"
 
 # dock image see here: - docker run -d --name ubuntu-test -v $(pwd):/travis ubuntu:latest tail -f /dev/null
 before_install:

@@ -8,7 +8,11 @@
 # Use an official Python runtime as a parent image
 FROM ubuntu:16.04
 
-# docker image will
+# some dumb packages
 RUN apt-get update \
-  && apt-get install -y wget git 
+  && apt-get -y install wget git
+
+# enable sudo
+RUN apt-get -y install sudo \
+  && useradd -m docker && echo "docker:docker" | chpasswd && adduser docker sudo
 
