@@ -18,23 +18,34 @@ compiler:
 # TODO: we can auto-build and publish this docker image
 # see https://docs.docker.com/docker-cloud/builds/automated-build
 env:
-  - DOCKERIMG="fengggli/comanche-env:ubuntu1604-180525.a"
+  global:
+    - DOCKERIMG="fengggli/comanche-env:ubuntu1604-180525.a"
+    - CONTAINER_NAME="comanche-build-test"
 
-# dock image see here: - docker run -d --name ubuntu-test -v $(pwd):/travis ubuntu:latest tail -f /dev/null
+# comanche requires cmake 3.6.2 (to build google/benchmark)
+# for local building testing, remener to run git submodule init/update
+#
 before_install:
-  - docker run -d --name ubuntu-test -v $(pwd):/travis ${DOCKERIMG} tail -f /dev/null
+  - docker run -d --name ${CONTAINER_NAME} -v $(pwd):/travis ${DOCKERIMG} tail -f /dev/null
   - docker ps
+  - docker exec -t ${CONTAINER_NAME} bash -c "
+    cd /travis/deps;
+    ./install-apts.sh;
+    sudo apt -y remove cmake;
+    sudo apt purge -y --auto-remove cmake;
+    wget https://cmake.org/files/v3.11/cmake-3.11.2-Linux-x86_64.sh;
+    sh cmake-3.11.2-Linux-x86_64.sh  --skip-license  --prefix=/usr"
+
 
 install:
-  - docker exec -t ubuntu-test bash -c "apt-get update;
+  - docker exec -t ${CONTAINER_NAME} bash -c "
     cd /travis;
     cd deps;
-    ./install-apts.sh;
     ./fetch-deps.sh;
     cd .. ;
     mkdir build;
     cd build;
-    cmake .. ;
+    cmake .. -DBENCHMARK_ENABLE_TESTING=off; 
     make; 
     make install"
 
