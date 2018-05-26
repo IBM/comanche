@@ -15,9 +15,13 @@ services:
 compiler:
   - g++
 
+# TODO: we can auto-build and publish this docker image
+env:
+  - DOCKERIMG="fengggli/comanche-env:ubuntu1604-05-25-18"
+
 # dock image see here: - docker run -d --name ubuntu-test -v $(pwd):/travis ubuntu:latest tail -f /dev/null
 before_install:
-  - docker run -d --name ubuntu-test -v $(pwd):/travis ubuntu:16.04 tail -f /dev/null
+  - docker run -d --name ubuntu-test -v $(pwd):/travis ${DOCKERIMG} tail -f /dev/null
   - docker ps
 
 install:
