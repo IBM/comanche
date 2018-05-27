@@ -24,8 +24,6 @@ env:
 
 # comanche requires cmake 3.6.2 (to build google/benchmark)
 # for local building testing, remener to run git submodule init/update
-# Using g++ will exhaust travisci memory
-#
 before_install:
   - docker run -d --name ${CONTAINER_NAME} -v $(pwd):/travis ${DOCKERIMG} tail -f /dev/null
   - docker ps
@@ -45,6 +43,7 @@ install:
     cd deps;
     ./fetch-deps.sh"
 
+# note: limit job number to 2 to avoid out-of-memory for rocksdb build
 script:
   - docker exec -t ${CONTAINER_NAME} bash -c "
     cd /travis ;
@@ -55,4 +54,4 @@ script:
     make install"
     
 after_success:
-  - echo 'make complete'
+  - echo 'comanche build complete'
