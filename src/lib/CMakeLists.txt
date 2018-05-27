@@ -5,7 +5,10 @@ include(${CMAKE_ROOT}/Modules/ExternalProject.cmake)
 add_subdirectory(common)
 add_subdirectory(core)
 add_subdirectory(benchmark)
-add_subdirectory(tbb)
+
+if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+  add_subdirectory(tbb)
+endif()
 
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ndctl")
   message("Skipping NDCTL ... already built")

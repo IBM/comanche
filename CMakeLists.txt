@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.6)
 
 # force out-of-tree build
 option(FORCE_OTT_BUILD "force out of tree build" ON)
