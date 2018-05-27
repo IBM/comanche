@@ -49,9 +49,4 @@ install:
     cd build;
     cmake .. -DBENCHMARK_ENABLE_TESTING=off -DCOMANCHE_LIMIT_MAKE_JOB=2;
     make; 
-    make install"
-
-
-
-
-
+    echo 'make complete'"
