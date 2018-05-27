@@ -43,10 +43,16 @@ install:
   - docker exec -t ${CONTAINER_NAME} bash -c "
     cd /travis;
     cd deps;
-    ./fetch-deps.sh;
-    cd .. ;
+    ./fetch-deps.sh"
+
+script:
+  - docker exec -t ${CONTAINER_NAME} bash -c "
+    cd /travis ;
     mkdir build;
     cd build;
     cmake .. -DBENCHMARK_ENABLE_TESTING=off -DCOMANCHE_LIMIT_MAKE_JOB=2;
     make; 
-    echo 'make complete'"
+    make install"
+    
+after_success:
+  - echo 'make complete'"
