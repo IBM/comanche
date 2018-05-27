@@ -55,4 +55,4 @@ script:
     make install"
     
 after_success:
-  - echo 'make complete'"
+  - echo 'make complete'
