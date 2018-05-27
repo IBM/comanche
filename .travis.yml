@@ -47,7 +47,7 @@ install:
     cd .. ;
     mkdir build;
     cd build;
-    cmake .. -DBENCHMARK_ENABLE_TESTING=off -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCOMANCHE_LIMIT_MAKE_JOB=1;
+    cmake .. -DBENCHMARK_ENABLE_TESTING=off -DCOMANCHE_LIMIT_MAKE_JOB=2;
     make; 
     make install"
 
