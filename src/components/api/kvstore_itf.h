@@ -19,6 +19,7 @@
 #define __API_KVSTORE_ITF__
 
 #include <api/components.h>
+#include <functional>
 
 namespace Component
 {

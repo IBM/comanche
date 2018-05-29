@@ -1,5 +1,6 @@
 #include <iostream>
 #include <boost/python.hpp>
+#include <common/exceptions.h>
 #include "python-sample.h"
 
 #include <config_comanche.h>
