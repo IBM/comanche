@@ -134,8 +134,8 @@ extern "C"
  */
 INLINE static void* align_pointer(void* p, unsigned long alignment)
 {
-  if (((addr_t)p) % alignment == 0) return p;
-  return (void*)((((mword_t)p) & ~((mword_t)alignment - 1UL)) + alignment);
+  if (addr_t(p) % alignment == 0) return p;
+  return reinterpret_cast<void*>((mword_t(p) & ~(mword_t(alignment) - 1UL)) + alignment);
 }
 
 /** 
@@ -149,7 +149,7 @@ INLINE static void* align_pointer(void* p, unsigned long alignment)
 INLINE static addr_t round_up(addr_t p, unsigned long alignment)
 {
   if (p % alignment == 0) return p;
-  return (addr_t)((((mword_t)p) & ~((mword_t)alignment - 1UL)) + alignment);
+  return addr_t((mword_t(p) & ~(mword_t(alignment) - 1UL)) + alignment);
 }
 
 /** 
@@ -163,7 +163,7 @@ INLINE static addr_t round_up(addr_t p, unsigned long alignment)
 INLINE static addr_t round_down(addr_t p, unsigned long alignment)
 {
   if (p % alignment == 0) return p;
-  return (addr_t)((((mword_t)p) & ~((mword_t)alignment - 1UL)));
+  return addr_t((mword_t(p) & ~(mword_t(alignment) - 1UL)));
 }
 
 /** 
@@ -176,8 +176,8 @@ INLINE static addr_t round_down(addr_t p, unsigned long alignment)
  */
 INLINE static void* round_down(void* p, unsigned long alignment)
 {
-  if (((mword_t)p) % alignment == 0) return p;
-  return (void*)((((mword_t)p) & ~((mword_t)alignment - 1UL)));
+  if (mword_t(p) % alignment == 0) return p;
+  return reinterpret_cast<void*>(mword_t(p) & ~(mword_t(alignment) - 1UL));
 }
 
 
@@ -191,12 +191,12 @@ INLINE static void* round_down(void* p, unsigned long alignment)
  */
 INLINE static bool check_aligned(void* p, unsigned alignment)
 {
-  return (!(((unsigned long)p) & (alignment - 1UL)));
+  return (!(reinterpret_cast<unsigned long>(p) & (alignment - 1UL)));
 }
 
 INLINE static bool check_aligned(unsigned long p, unsigned alignment)
 {
-  return (!(((unsigned long)p) & (alignment - 1UL)));
+  return (!(static_cast<unsigned long>(p) & (alignment - 1UL)));
 }
 
 /**
@@ -226,10 +226,10 @@ INLINE static unsigned log_base2(uint64_t val)
 INLINE static addr_t round_up_superpage(addr_t a)
 {
   /* round up to 4MB super page */
-  if ((a & ((addr_t)0x3fffff)) == 0)
+  if ((a & addr_t(0x3fffff)) == 0)
     return a;
   else
-    return (a & (~((addr_t)0x3fffff))) + MB(4);
+    return (a & (~addr_t(0x3fffff))) + MB(4);
 }
 
 /**
@@ -242,10 +242,10 @@ INLINE static addr_t round_up_superpage(addr_t a)
 INLINE addr_t round_up_page(addr_t a)
 {
   /* round up to 4K page */
-  if ((a & ((addr_t)0xfff)) == 0)
+  if ((a & addr_t(0xfff)) == 0)
     return a;
   else
-    return (a & (~((addr_t)0xfff))) + KB(4);
+    return (a & (~addr_t(0xfff))) + KB(4);
 }
 
 /**
@@ -258,10 +258,10 @@ INLINE addr_t round_up_page(addr_t a)
 INLINE addr_t round_down_page(addr_t a)
 {
   /* round down to 4K page */
-  if ((a & ((addr_t)0xfff)) == 0)
+  if ((a & addr_t(0xfff)) == 0)
     return a;
   else
-    return (a & (~((addr_t)0xfff)));
+    return (a & (~addr_t(0xfff)));
 }
 
 INLINE addr_t round_down_by_shift(addr_t a, unsigned shift)
@@ -278,7 +278,7 @@ INLINE addr_t round_down_by_shift(addr_t a, unsigned shift)
  */
 INLINE void* round_down_cacheline(void* a)
 {
-  return (void*)(((addr_t)a) & ~(CACHE_LINE_SHIFT - 1));
+  return reinterpret_cast<void*>(addr_t(a) & ~(CACHE_LINE_SHIFT - 1));
 }
 
 /**
@@ -288,10 +288,10 @@ INLINE void* round_down_cacheline(void* a)
 INLINE addr_t round_up_log2(addr_t a)
 {
   int clzl  = __builtin_clzl(a);
-  int fsmsb = ((sizeof(addr_t) * 8) - clzl);
-  if ((((addr_t)1) << (fsmsb - 1)) == a) fsmsb--;
+  int fsmsb = int(((sizeof(addr_t) * 8) - clzl));
+  if ((addr_t(1) << (fsmsb - 1)) == a) fsmsb--;
 
-  return (((addr_t)1) << fsmsb);
+  return (addr_t(1) << fsmsb);
 }
 
 /** Returns current system time. */
@@ -315,7 +315,7 @@ INLINE static struct timeval now()
  */
 INLINE static double operator-(const struct timeval& t1, const struct timeval& t2)
 {
-  return (double)(t1.tv_sec - t2.tv_sec) + 1.0e-6f * (t1.tv_usec - t2.tv_usec);
+  return double(t1.tv_sec - t2.tv_sec) + 1.0e-6 * double(t1.tv_usec - t2.tv_usec);
 }
 
 #ifndef __CUDACC__
@@ -404,13 +404,13 @@ Cpu_bitset get_actual_affinities(const Cpu_bitset& logical_affinities, const int
  */
 INLINE void clflush_area(void* p, size_t size)
 {
-  addr_t paddr = (addr_t) p;
+  addr_t paddr = addr_t(p);
   addr_t start_cl = paddr >> CACHE_LINE_SHIFT;
   addr_t end_cl = (paddr+size-1) >> CACHE_LINE_SHIFT;
  
   while(start_cl <= end_cl) {
     /* CLFLUSH doesn't need a fence. CLFLUSHOPT will. need fix for Skylake */
-    const void * clp = (const void *) (start_cl << CACHE_LINE_SHIFT);
+    const void * clp = reinterpret_cast<const void *>(start_cl << CACHE_LINE_SHIFT);
     //    PLOG("flushing cache line: %p", clp);
     __builtin_ia32_clflush(clp);
     start_cl++;
