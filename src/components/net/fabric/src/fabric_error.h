@@ -39,6 +39,8 @@ class fabric_error
 public:
   fabric_error(int i, const char *file, int line);
   fabric_error(int i, const char *file, int line, const std::string &desc);
+  fabric_error(const fabric_error &) = default;
+  fabric_error& operator=(const fabric_error &) = default;
   fabric_error add(const std::string &added) const;
   unsigned id() const { return unsigned(_i); }
 };

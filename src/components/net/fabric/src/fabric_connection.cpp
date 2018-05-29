@@ -60,6 +60,14 @@ Fabric_connection::Fabric_connection(fid_fabric &fabric_, fid_eq &eq_, fi_info &
     , 0U /* flags, "must be set to 0 by the caller" */
   }
   , _wait_set(make_fid_wait(fabric_, _wait_attr))
+#else
+  , _fds_read{}
+  , _fds_write{}
+  , _fds_except{}
+#endif
+  , _m_fd_unblock_set{}
+  , _fd_unblock_set{}
+#if 0
   , _cq_attr{100, 0U, FI_CQ_FORMAT_CONTEXT, FI_WAIT_SET, 0U, FI_CQ_COND_NONE, &*_wait_set}
 #else
   , _cq_attr{100, 0U, FI_CQ_FORMAT_CONTEXT, FI_WAIT_FD, 0U, FI_CQ_COND_NONE, nullptr}
@@ -68,6 +76,11 @@ Fabric_connection::Fabric_connection(fid_fabric &fabric_, fid_eq &eq_, fi_info &
   , _ep_info(make_fi_infodup(*_domain_info, "endpoint construction"))
   , _peer_addr(set_peer_early(_control, *_ep_info))
   , _ep(make_fid_aep(*_domain, *_ep_info, this))
+  , _m{}
+  , _mr_addr_to_desc{}
+  , _mr_desc_to_addr{}
+  , _m_comms{}
+  , _comms{}
 {
   /* NOTE: the various tests for type (FI_EP_MSG) should perhaps
    * move to derived classses.
@@ -411,7 +424,8 @@ void Fabric_connection::unblock_completions()
   for ( auto fd : _fd_unblock_set )
   {
     char c{};
-    ::write(fd, &c, 1);
+    auto sz = ::write(fd, &c, 1);
+    (void) sz;
   }
 }
 
