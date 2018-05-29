@@ -19,13 +19,7 @@
 
 #include "bad_aligned_alloc.h"
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
-#pragma GCC diagnostic ignored "-Wold-style-cast"
-#pragma GCC diagnostic ignored "-Wsign-conversion"
-#pragma GCC diagnostic ignored "-Wvariadic-macros"
 #include <common/utils.h> /* round_up */
-#pragma GCC diagnostic pop
 
 #include <unistd.h> /* sysconf */
 

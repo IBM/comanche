@@ -44,9 +44,9 @@ fabric_error::fabric_error(int i_, const char *file_, int line_, const std::stri
   , _line(line_)
 {}
 
-fabric_error fabric_error::add(const std::string &added) const
+fabric_error fabric_error::add(const std::string &added_) const
 {
-  return fabric_error(_i, _file, _line, added);
+  return fabric_error(_i, _file, _line, added_);
 }
 
 fabric_bad_alloc::  fabric_bad_alloc(std::string which)

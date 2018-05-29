@@ -17,14 +17,7 @@
 #ifndef _FABRIC_CONNECTION_FACTORY_H_
 #define _FABRIC_CONNECTION_FACTORY_H_
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-#pragma GCC diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
-#pragma GCC diagnostic ignored "-Wold-style-cast"
-#pragma GCC diagnostic ignored "-Wsign-conversion"
-#pragma GCC diagnostic ignored "-Wvariadic-macros"
 #include <api/fabric_itf.h>
-#pragma GCC diagnostic pop
 
 #include "fabric_ptr.h" /* fid_unique_ptr */
 #include "server_control.h"
