@@ -7,7 +7,7 @@ add_subdirectory(core)
 add_subdirectory(benchmark)
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-  add_subdirectory(tbb)
+  #add_subdirectory(tbb)
 endif()
 
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ndctl")

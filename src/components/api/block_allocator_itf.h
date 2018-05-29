@@ -39,9 +39,24 @@ public:
                                             size_t max_lba,
                                             persist_id_t persistent_id,
                                             int numa_node = NUMA_NODE_ANY,
-                                            bool force_init = false) = 0;
+                                            bool force_init = false){ return nullptr; }
 
+
+/** 
+   * Open allocator using AEP
+   * 
+   * @param pmem obj pool to store bitmaps
+   * @param max_lba Maximum LBA to track
+   * @param name Allocator persistent identifier
+   * 
+   * @return 
+   */
+  virtual IBlock_allocator * open_allocator(size_t max_lba,
+                                            persist_id_t persistent_id,
+                                            int numa_node = NUMA_NODE_ANY,
+                                            bool force_init = false){ return nullptr;}
 };
+
 
 /** 
  * General allocator interface.  Units are normally blocks or bytes.
