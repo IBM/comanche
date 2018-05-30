@@ -1,3 +1,4 @@
+#include <fcntl.h>
 #include <iostream>
 #include <set>
 #include <string>
@@ -5,7 +6,9 @@
 #include <mutex>
 #include <api/kvstore_itf.h>
 #include <common/city.h>
+#include <common/exceptions.h>
 #include <boost/filesystem.hpp>
+#include <sys/stat.h>
 #include <tbb/concurrent_hash_map.h>
 #include <tbb/concurrent_unordered_set.h>
 

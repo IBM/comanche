@@ -22,7 +22,7 @@ rm -f dpdk-17.08*
 rm dpdk
 wget http://fast.dpdk.org/rel/dpdk-17.08.tar.xz
 #wget http://fast.dpdk.org/rel/dpdk-16.11.tar.xz
-tar -xvf dpdk-17.08.tar.xz
+tar -xf dpdk-17.08.tar.xz
 ln -s dpdk-17.08 dpdk
 cd dpdk
 mkdir -p usertools # weird hack

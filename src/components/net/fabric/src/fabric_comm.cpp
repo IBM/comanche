@@ -35,6 +35,8 @@
 /* Note: the info is owned by the caller, and must be copied if it is to be saved. */
 Fabric_comm::Fabric_comm(Fabric_connection &conn_)
   : _conn( conn_ )
+  , _m_completions{}
+  , _completions{}
 {
 }
 

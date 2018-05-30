@@ -75,7 +75,7 @@
     E_NO_RESPONSE            = -29,                                                 \
     E_TIMEOUT                = -30,                                                 \
     E_ERROR_BASE             = -50,                                                 \
-  };
+  }
 #endif
 
 ERROR_ENUMS; /* add to global namespace also */

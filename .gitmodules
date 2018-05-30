@@ -1,19 +1,26 @@
 [submodule "src/components/store/kv/rocksdb"]
-           path = src/components/store/kv/rocksdb
-           url = https://github.com/facebook/rocksdb.git
-           branch = 5.8.3
+  path = src/components/store/kv/rocksdb
+  url = https://github.com/facebook/rocksdb.git
+  branch = 5.13.fb
 [submodule "src/lib/libfabric"]
-           path = src/lib/libfabric
-           url = https://github.com/ofiwg/libfabric.git
+  path = src/lib/libfabric
+  url = https://github.com/ofiwg/libfabric.git
 [submodule "src/components/cluster/zyre/lib/zyre"]
-           path = src/components/cluster/zyre/lib/zyre
-           url = https://github.com/zeromq/zyre.git
+  path = src/components/cluster/zyre/lib/zyre
+  url = https://github.com/zeromq/zyre.git
 [submodule "src/lib/cppzmq"]
-           path = src/lib/cppzmq
-           url = https://github.com/zeromq/cppzmq.git
+  path = src/lib/cppzmq
+  url = https://github.com/zeromq/cppzmq.git
 [submodule "src/components/store/rockstore/rocksdb"]
-           path = src/components/store/rockstore/rocksdb
-           url = https://github.com/facebook/rocksdb.git
+  path = src/components/store/rockstore/rocksdb
+  url = https://github.com/facebook/rocksdb.git
 [submodule "src/lib/ndctl"]
-	path = src/lib/ndctl
+  path = src/lib/ndctl
 	url = https://github.com/pmem/ndctl.git
+[submodule "src/lib/tbb"]
+	path = src/lib/tbb
+  url = https://github.com/dwaddington/tbb.git
+[submodule "src/lib/benchmark"]
+	path = src/lib/benchmark
+	url = https://github.com/dwaddington/benchmark.git
+  branch = r1.4
