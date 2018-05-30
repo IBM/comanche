@@ -12,8 +12,6 @@ endif(CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR AND FORCE_OTT_BUILD)
 # used for kernel
 set(ENV{COMANCHE_HOME} ${CMAKE_SOURCE_DIR})
 
-set(CMAKE_CXX_STANDARD 11)
-
 include(${CMAKE_SOURCE_DIR}/mk/common.cmake)
 project(comanche)
 
@@ -27,7 +25,7 @@ configure_file(
     "${CMAKE_SOURCE_DIR}/config_comanche.h.in"
     "${CMAKE_BINARY_DIR}/config_comanche.h"
     @ONLY)
-  
+
 include_directories(${CMAKE_BINARY_DIR})
 install (FILES "${CMAKE_BINARY_DIR}/config_comanche.h"
     DESTINATION include)

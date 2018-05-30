@@ -7,6 +7,8 @@ project(comanche-core CXX)
 
 enable_language(CXX C ASM)
 
+set(CMAKE_CXX_STANDARD 11)
+
 set(GCC_COVERAGE_COMPILE_FLAGS "-mrdrnd")
 set(DPDK_DIR "$ENV{COMANCHE_HOME}/deps/dpdk/")
 set(SPDK_DIR "$ENV{COMANCHE_HOME}/deps/spdk/")

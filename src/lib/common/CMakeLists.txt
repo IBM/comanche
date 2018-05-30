@@ -3,7 +3,8 @@ cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
 project(common CXX)
 enable_language(CXX C ASM)
-  
+
+set(CMAKE_CXX_STANDARD 11)
 
 set(CMAKE_INCLUDE_CURRENT_DIR true)
 include_directories(./include)
@@ -17,7 +18,3 @@ add_library(common SHARED cpu.cc rand.cc utils.cc dump_utils.cc str_utils.cc mem
 install(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION lib)
 install(DIRECTORY "include/common" DESTINATION include FILES_MATCHING PATTERN "*.h*")
 install(DIRECTORY "include/component" DESTINATION include FILES_MATCHING PATTERN "*.h*")
-      
-
-
-
