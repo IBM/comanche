@@ -50,9 +50,9 @@ script:
     cd /travis ;
     mkdir build;
     cd build;
-    cmake .. -DBENCHMARK_ENABLE_TESTING=off -DCOMANCHE_LIMIT_MAKE_JOB=2;
-    make; 
+    cmake .. -DCOMANCHE_LIMIT_MAKE_JOB=2;
+    make;
     make install"
-    
+
 after_success:
   - echo 'comanche build complete'

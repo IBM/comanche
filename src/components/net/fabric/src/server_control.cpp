@@ -74,7 +74,8 @@ Server_control::Server_control(fid_fabric &fabric_, fid_eq &eq_, fabric_types::a
 Server_control::~Server_control()
 {
   char c{};
-  ::write(_end.fd_write(), &c, 1);
+  auto sz = ::write(_end.fd_write(), &c, 1);
+  (void) sz;
   _th.join();
 }
 
@@ -140,7 +141,8 @@ void Server_control::listen(Fd_socket &&listen_fd_, int end_fd_, fid_fabric &fab
     auto n = ::pselect(std::max(listen_fd.fd(), end_fd_)+1, &fds_read, nullptr, nullptr, nullptr, nullptr);
     if ( n < 0 )
     {
-      switch ( auto e = errno )
+      auto e = errno;
+      switch ( e )
       {
       /* Cannot "fix" any of the error conditions, but acknowledge their existence */
       case EBADF:

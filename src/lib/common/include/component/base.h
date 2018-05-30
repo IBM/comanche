@@ -64,7 +64,7 @@
 #define  DECLARE_VERSION(X) float version() override { return X ; }
 
 #define DECLARE_STATIC_COMPONENT_UUID(NAME, f1,f2,f3,f4,f5,f6,f7,f8,f9,f10) \
-  static Component::uuid_t NAME __attribute__((unused)) = {f1,f2,f3,f4,{f5,f6,f7,f8,f9,f10}} ;
+  static Component::uuid_t NAME __attribute__((unused)) = {f1,f2,f3,f4,{f5,f6,f7,f8,f9,f10}}
 
 #define DUMMY_IBASE_CONTROL \
   status_t start() override { return E_NOT_IMPL; } \
@@ -92,12 +92,12 @@ namespace Component
          << std::setfill('0') << std::setw(4) << uuid1 << "-" 
          << std::setfill('0') << std::setw(4) << uuid2 << "-" 
          << std::setfill('0') << std::setw(4) << uuid3 << "-" 
-         << std::setfill('0') << std::setw(2) << (int) uuid4[0] 
-         << std::setfill('0') << std::setw(2) << (int) uuid4[1] 
-         << std::setfill('0') << std::setw(2) << (int) uuid4[2]
-         << std::setfill('0') << std::setw(2) << (int) uuid4[3] 
-         << std::setfill('0') << std::setw(2) << (int) uuid4[4] 
-         << std::setfill('0') << std::setw(2) << (int) uuid4[5];
+         << std::setfill('0') << std::setw(2) << int(uuid4[0]) 
+         << std::setfill('0') << std::setw(2) << int(uuid4[1]) 
+         << std::setfill('0') << std::setw(2) << int(uuid4[2])
+         << std::setfill('0') << std::setw(2) << int(uuid4[3])
+         << std::setfill('0') << std::setw(2) << int(uuid4[4])
+         << std::setfill('0') << std::setw(2) << int(uuid4[5]);
 
       return ss.str();
     }
@@ -114,12 +114,12 @@ namespace Component
       if(err != 10) 
         return E_FAIL;
 
-      uuid0 = p0;
-      uuid1 = p1;
-      uuid2 = p2;
-      uuid3 = p3;
+      uuid0 = uint32_t(p0);
+      uuid1 = uint16_t(p1);
+      uuid2 = uint16_t(p2);
+      uuid3 = uint16_t(p3);
       for(unsigned i=0;i<6;i++)
-        uuid4[i] = (uint8_t) q[i];
+        uuid4[i] = uint8_t(q[i]);
 
       return S_OK;
     }
@@ -138,6 +138,8 @@ namespace Component
     std::atomic<unsigned>   _ref_count; /* component level reference counting */
     void *                  _dll_handle;
 
+    IBase(IBase &) = delete;
+    IBase &operator=(const IBase &) = delete;
   public:
     IBase() : _ref_count(0), _dll_handle(NULL) {
     }
@@ -202,7 +204,7 @@ namespace Component
       int val = _ref_count.fetch_sub(1) - 1;    
       assert(val >= 0);
       if(val == 0) {
-        PLOG("unloading component (%p)",(void*) this);
+        PLOG("unloading component (%p)", static_cast<void*>(this));
         this->unload(); /* call virtual unload function */
       }
     }
@@ -296,7 +298,7 @@ namespace Component
    * @return 
    */
   status_t bind(std::vector<IBase *> components);
-};
+}
 
 
 

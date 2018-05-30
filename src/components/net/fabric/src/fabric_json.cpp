@@ -50,7 +50,7 @@ template <typename T>
  * map of strings to json parse functions
  */
 template <typename S>
-  using parse_map = translate_map<void (*)(const rapidjson::Value &, S &)>;
+  using parse_map = translate_map<void (*)(const rapidjson::Value &, S *)>;
 
 using json_value = const rapidjson::Value &;
 
@@ -61,91 +61,91 @@ namespace
    * Each set of named strings is enumreated in an include file.
    */
 
-  translate_map<std::uint64_t> map_caps
+  const translate_map<std::uint64_t> map_caps
   {
 #define X(Y) { #Y, (Y) },
 #include "bits_caps.h"
 #undef X
   };
 
-  translate_map<std::uint64_t> map_mode
+  const translate_map<std::uint64_t> map_mode
   {
 #define X(Y) { #Y, (Y) },
 #include "bits_mode.h"
 #undef X
   };
 
-  translate_map<std::uint64_t> map_op_flags
+  const translate_map<std::uint64_t> map_op_flags
   {
 #define X(Y) { #Y, (Y) },
 #include "bits_op_flags.h"
 #undef X
   };
 
-  translate_map<std::uint64_t> map_msg_order
+  const translate_map<std::uint64_t> map_msg_order
   {
 #define X(Y) { #Y, (Y) },
 #include "bits_msg_order.h"
 #undef X
   };
 
-  translate_map<std::uint64_t> map_comp_order
+  const translate_map<std::uint64_t> map_comp_order
   {
 #define X(Y) { #Y, (Y) },
 #include "bits_comp_order.h"
 #undef X
   };
 
-  translate_map<std::uint32_t> map_addr_format
+  const translate_map<std::uint32_t> map_addr_format
   {
 #define X(Y) { #Y, (Y) },
 #include "enum_addr_format.h"
 #undef X
   };
 
-  translate_map<fi_ep_type> map_ep_type
+  const translate_map<fi_ep_type> map_ep_type
   {
 #define X(Y) { #Y, (Y) },
 #include "enum_ep_type.h"
 #undef X
   };
 
-  translate_map<std::uint32_t> map_ep_protocol
+  const translate_map<std::uint32_t> map_ep_protocol
   {
 #define X(Y) { #Y, (Y) },
 #include "enum_ep_protocol.h"
 #undef X
   };
 
-  translate_map<fi_threading> map_threading
+  const translate_map<fi_threading> map_threading
   {
 #define X(Y) { #Y, (Y) },
 #include "enum_threading.h"
 #undef X
   };
 
-  translate_map<fi_progress> map_progress
+  const translate_map<fi_progress> map_progress
   {
 #define X(Y) { #Y, (Y) },
 #include "enum_progress.h"
 #undef X
   };
 
-  translate_map<fi_resource_mgmt> map_resource_mgmt
+  const translate_map<fi_resource_mgmt> map_resource_mgmt
   {
 #define X(Y) { #Y, (Y) },
 #include "enum_resource_mgmt.h"
 #undef X
   };
 
-  translate_map<fi_av_type> map_av_type
+  const translate_map<fi_av_type> map_av_type
   {
 #define X(Y) { #Y, (Y) },
 #include "enum_av_type.h"
 #undef X
   };
 
-  translate_map<int> map_mr_mode
+  const translate_map<int> map_mr_mode
   {
 #define X(Y) { #Y, (Y) },
 #include "bits_mr_mode.h"
@@ -264,9 +264,9 @@ namespace
     {
   public:
     template <typename S, V S::*M>
-      static void assign_scalar(json_value &v, S &s)
+      static void assign_scalar(json_value &v, S *s)
       {
-        s.*M = parse_scalar<V>(v);
+        s->*M = parse_scalar<V>(v);
       }
     };
 
@@ -277,24 +277,16 @@ namespace
   public:
     using V = char *;
     template <typename S, V S::*M>
-      static void assign_scalar(json_value &v, S &s)
+      static void assign_scalar(json_value &v, S *s)
       {
         auto st = parse_scalar<const char *>(v);
-        ::free(s.*M);
-        s.*M = ::strdup(st);
+        ::free(s->*M);
+        s->*M = ::strdup(st);
       }
     };
 
   /* GetString returns a char *, so unsuitable for binary data
    */
-  template<typename S, char *S::*M>
-    std::size_t assign_string(json_value &v, S &s)
-    {
-      auto st = ::strdup(parse_scalar<const char *>(v));
-      std::free(*s.*M);
-      *s.*M = st;
-    }
-
   std::size_t assign_array_void(json_value &v, void **p)
   {
     auto a = parse_array_uint8(v);
@@ -330,42 +322,42 @@ namespace
     }
   }
 
-  template <typename S, typename V, V S::*M, translate_map<V> &X>
-    void assign_bitset(json_value &v, S &s)
+  template <typename S, typename V, V S::*M, translate_map<V> *X>
+    void assign_bitset(json_value &v, S *s)
     {
-      s.*M = parse_bitset<V>(v, X);
+      s->*M = parse_bitset<V>(v, *X);
     }
 
   template <void * fi_info::*M, std::size_t fi_info::*L>
-    void assign_addr(json_value &v, fi_info &info)
+    void assign_addr(json_value &v, fi_info *info)
     {
       auto assign_fn =
-        info.addr_format == FI_ADDR_STR
+        info->addr_format == FI_ADDR_STR
         /* special case: the address is a character string interpreted by the fi provider */
         ? assign_addr_str
         /* normal case: we do not interpret the address */
         : assign_array_void
         ;
 
-      info.*L = assign_fn(v, &(info.*M));
+      info->*L = assign_fn(v, &(info->*M));
     }
 
   template <typename S>
-    void assign_auth_key(json_value &v, S &s)
+    void assign_auth_key(json_value &v, S *s)
     {
-      s.auth_key_size = assign_array_uint8(v, &s.auth_key);
+      s->auth_key_size = assign_array_uint8(v, &s->auth_key);
     }
 
-  template <typename S, typename V, V S::*M, translate_map<V> &X>
-    void assign_scalar_map(json_value &v, S &s)
+  template <typename S, typename V, V S::*M, translate_map<V> *X>
+    void assign_scalar_map(json_value &v, S *s)
     {
-      s.*M = parse_scalar_mapped<V>(v, X);
+      s->*M = parse_scalar_mapped<V>(v, *X);
     }
 
-  template <typename T, parse_map<T> &X, T *fi_info::*M>
-    void parse_struct(json_value &v, fi_info &info)
+  template <typename T, parse_map<T> *X, T *fi_info::*M>
+    void parse_struct(json_value &v, fi_info *info)
     {
-      if ( ! (info.*M) )
+      if ( ! (info->*M) )
       {
         throw std::domain_error(": missing substructure");
       }
@@ -378,14 +370,14 @@ namespace
       for ( auto it = v.MemberBegin(); it != v.MemberEnd(); ++it )
       {
         auto k = it->name.GetString();
-        auto iv = X.find(k);
+        auto iv = X->find(k);
         try
         {
-          if ( iv == X.end() )
+          if ( iv == X->end() )
           {
             throw std::domain_error(": unrecognized key");
           }
-          (iv->second)(it->value, *(info.*M));
+          (iv->second)(it->value, info->*M);
         }
         catch (const std::domain_error &e)
         {
@@ -395,8 +387,8 @@ namespace
     }
 
 #define SET_SCALAR(S,M) Assign<decltype(S::M)>::assign_scalar<S, &S::M>
-#define SET_BITSET(S,M,X) assign_bitset<S, decltype(S::M), &S::M, X>
-#define SET_SCALAR_MAPPED(S,M,X) assign_scalar_map<S, decltype(S::M), &S::M, X>
+#define SET_BITSET(S,M,X) assign_bitset<S, decltype(S::M), &S::M, &X>
+#define SET_SCALAR_MAPPED(S,M,X) assign_scalar_map<S, decltype(S::M), &S::M, &X>
 
   parse_map<fi_tx_attr> map_tx_attr
   {
@@ -482,11 +474,11 @@ namespace
     { "addr_format", SET_SCALAR_MAPPED(fi_info,addr_format,map_addr_format) },
     { "src", assign_addr<&fi_info::src_addr, &fi_info::src_addrlen> },
     { "dest", assign_addr<&fi_info::dest_addr, &fi_info::dest_addrlen> },
-    { "tx_attr", { parse_struct<fi_tx_attr, map_tx_attr, &fi_info::tx_attr> } },
-    { "rx_attr", { parse_struct<fi_rx_attr, map_rx_attr, &fi_info::rx_attr> } },
-    { "ep_attr", { parse_struct<fi_ep_attr, map_ep_attr, &fi_info::ep_attr> } },
-    { "domain_attr", { parse_struct<fi_domain_attr, map_domain_attr, &fi_info::domain_attr> } },
-    { "fabric_attr", { parse_struct<fi_fabric_attr, map_fabric_attr, &fi_info::fabric_attr> } },
+    { "tx_attr", { parse_struct<fi_tx_attr, &map_tx_attr, &fi_info::tx_attr> } },
+    { "rx_attr", { parse_struct<fi_rx_attr, &map_rx_attr, &fi_info::rx_attr> } },
+    { "ep_attr", { parse_struct<fi_ep_attr, &map_ep_attr, &fi_info::ep_attr> } },
+    { "domain_attr", { parse_struct<fi_domain_attr, &map_domain_attr, &fi_info::domain_attr> } },
+    { "fabric_attr", { parse_struct<fi_fabric_attr, &map_fabric_attr, &fi_info::fabric_attr> } },
   };
 
   std::shared_ptr<fi_info> parse_info(std::shared_ptr<fi_info> info, const rapidjson::Document &v)
@@ -505,7 +497,7 @@ namespace
         {
           throw std::domain_error(": unrecognized key");
         }
-        (iv->second)(it->value, *info);
+        (iv->second)(it->value, &*info);
       }
       catch (const std::domain_error &e)
       {
