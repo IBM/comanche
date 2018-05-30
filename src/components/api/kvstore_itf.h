@@ -19,6 +19,8 @@
 #define __API_KVSTORE_ITF__
 
 #include <api/components.h>
+#include <api/block_itf.h>
+#include <api/block_allocator_itf.h>
 
 namespace Component
 {
@@ -82,7 +84,28 @@ public:
   virtual pool_t create_pool(const std::string path,
                              const std::string name,
                              const size_t size,
-                             unsigned int flags = 0) = 0;
+                             unsigned int flags = 0){return E_NOT_SUPPORTED;}
+
+/** 
+   * Create an object pool using block device backend
+   * 
+   * @param path Path of the persistent memory (e.g., /mnt/pmem0/ )
+   * @param name Name of object pool
+   * @param size Size of object in bytes
+   * @param blk_dev block device 
+   * @param blk_alloc block allocator 
+   * @param flags Creation flags
+   * 
+   * @return Pool handle
+   */
+  virtual pool_t create_pool(const std::string path,
+                             const std::string name,
+                             const size_t size,
+                             Component::IBlock_device *blk_dev,
+                             Component::IBlock_allocator *blk_alloc,
+                             unsigned int flags = 0){return E_NOT_SUPPORTED;}
+
+
 
   /** 
    * Open an existing pool
