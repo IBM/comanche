@@ -6,8 +6,6 @@
 
 #include "itf_ref.h"
 #include "types.h"
-#include <api/block_itf.h>
-#include <api/metadata_itf.h>
 
 namespace Component
 {

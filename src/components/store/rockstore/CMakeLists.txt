@@ -11,7 +11,8 @@ execute_process(COMMAND git submodule update --init -- rocksdb
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_custom_target(rocksdblib
-  COMMAND make -j ROCKSDB_VALGRIND_RUN=1 EXTRA_LDFLAGS="-fPIC" EXTRA_CFLAGS="-fPIC" EXTRA_CXXFLAGS="-fPIC" static_lib
+  COMMAND make -j ${COMANCHE_LIMIT_MAKE_JOB} ROCKSDB_VALGRIND_RUN=1 EXTRA_LDFLAGS="-fPIC" EXTRA_CFLAGS="-fPIC" EXTRA_CXXFLAGS="-fPIC" static_lib
+  ROCKSDB_VALGRIND_RUN=1 EXTRA_LDFLAGS="-fPIC" EXTRA_CFLAGS="-fPIC" EXTRA_CXXFLAGS="-fPIC" static_lib
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/)
 
 
@@ -24,7 +25,7 @@ link_directories(${CMAKE_CURRENT_SOURCE_DIR}/rocksdb)
 add_library(${PROJECT_NAME} SHARED ${SOURCES})
 
 set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--no-undefined")
-target_link_libraries(${PROJECT_NAME} common comanche-core tbb numa dl rt boost_system boost_filesystem rocksdb z bz2 pthread snappy)
+target_link_libraries(${PROJECT_NAME} common comanche-core tbb numa dl rt boost_system boost_filesystem rocksdb z bz2 pthread snappy lz4)
 
 # set the linkage in the install/lib
 set_target_properties(${PROJECT_NAME} PROPERTIES 

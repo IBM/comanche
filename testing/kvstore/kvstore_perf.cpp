@@ -34,12 +34,14 @@ class KVStore_test : public ::testing::Test {
 
 Component::IKVStore * KVStore_test::_kvstore;
 
+#define PATH "/mnt/pmem0/"
 
 TEST_F(KVStore_test, Instantiate)
 {
   /* create object instance through factory */
   //  Component::IBase * comp = Component::load_component("libcomanche-storefile.so", Component::filestore_factory);
-  Component::IBase * comp = Component::load_component("libcomanche-pmstore.so", Component::pmstore_factory);
+  //  Component::IBase * comp = Component::load_component("libcomanche-pmstore.so", Component::pmstore_factory);
+  Component::IBase * comp = Component::load_component("/home/danielwaddington/comanche/build/comanche-restricted/src/components/pmstore/libcomanche-pmstore.so", Component::pmstore_factory);
 
   ASSERT_TRUE(comp);
   IKVStore_factory * fact = (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
@@ -49,14 +51,15 @@ TEST_F(KVStore_test, Instantiate)
   fact->release_ref();
 }
 
+
 TEST_F(KVStore_test, OpenPool)
 {
   ASSERT_TRUE(_kvstore);
   try {
-    pool = _kvstore->create_pool("/tmp/", "test1.rksdb", MB(32));
+    pool = _kvstore->create_pool(PATH, "test1.rksdb", GB(4));
   }
   catch(...) {
-    pool = _kvstore->open_pool("/tmp/", "test1.rksdb");
+    pool = _kvstore->open_pool(PATH, "test1.rksdb");
   }
   ASSERT_TRUE(pool != 0);
 }
@@ -83,46 +86,22 @@ TEST_F(KVStore_test, BasicGet)
   PINF("Value=(%.50s) %lu", ((char*)value), value_len);
 }
 
-#if 0
-TEST_F(KVStore_test, BasicGetRef)
-{
-  std::string key = "MyKey";
-
-  const void * value = nullptr;
-  size_t value_len = 0;
-  _kvstore->get_reference(pool, key, value, value_len);
-  PINF("Ref Value=(%.50s) %lu", ((char*)value), value_len);
-  _kvstore->release_reference(pool, value);
-}
-
-
-TEST_F(KVStore_test, BasicApply)
-{
-  _kvstore->apply(pool,[](uint64_t key,
-                          const void * value,
-                          const size_t value_len) -> int
-                  {
-                    PINF("key:%lx value@%p value_len=%lu", key, value, value_len);
-                    return 0;;
-                  });
-}
-#endif
 
 TEST_F(KVStore_test, BasicRemove)
 {
   _kvstore->erase(pool, "MyKey");
 }
 
-
 TEST_F(KVStore_test, ClosePool)
 {
   _kvstore->close_pool(pool);
 }
 
+#if 0
 TEST_F(KVStore_test, ReopenPool)
 {
   ASSERT_TRUE(_kvstore);
-  pool = _kvstore->open_pool("/tmp/", "test1.rksdb");
+  pool = _kvstore->open_pool(PATH, "test1.rksdb");
   ASSERT_TRUE(pool != 0);
 }
 
@@ -130,7 +109,7 @@ TEST_F(KVStore_test, DeletePool)
 {
   _kvstore->delete_pool(pool);
 }
-
+#endif
 
 
 } // namespace

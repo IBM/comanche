@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.6)
 
 # force out-of-tree build
 option(FORCE_OTT_BUILD "force out of tree build" ON)
@@ -31,7 +31,6 @@ configure_file(
 include_directories(${CMAKE_BINARY_DIR})
 install (FILES "${CMAKE_BINARY_DIR}/config_comanche.h"
     DESTINATION include)
-
 
 add_subdirectory(src)
 add_subdirectory(apps)

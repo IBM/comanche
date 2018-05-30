@@ -3,22 +3,13 @@
 
 
 #pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-#pragma GCC diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
-#pragma GCC diagnostic ignored "-Wold-style-cast"
+#pragma GCC diagnostic ignored "-Weffc++"
 #pragma GCC diagnostic ignored "-Wunused-parameter"
-#pragma GCC diagnostic ignored "-Wvariadic-macros"
+#pragma GCC diagnostic ignored "-Wold-style-cast"
 #include <api/components.h>
 #pragma GCC diagnostic pop
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-#pragma GCC diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
-#pragma GCC diagnostic ignored "-Wold-style-cast"
-#pragma GCC diagnostic ignored "-Wsign-conversion"
-#pragma GCC diagnostic ignored "-Wvariadic-macros"
 #include <api/fabric_itf.h>
-#pragma GCC diagnostic pop
 
 #include <sys/mman.h>
 #include <sys/uio.h> /* iovec */
@@ -99,6 +90,8 @@ namespace
   {
     const void *_addr;
     std::size_t _len;
+    mr_lock(const mr_lock &) = delete;
+    mr_lock& operator=(const mr_lock &) = delete;
   public:
     mr_lock(const void *addr_, std::size_t len_)
       : _addr(addr_)
