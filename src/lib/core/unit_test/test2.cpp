@@ -79,7 +79,7 @@ TEST_F(Core_test, UIPC)
     PINF("Rate: %f M items per second", (ITERATIONS / secs)/1000000.0);
 
   }
-  void* status;
+  int status;
   wait(&status);
 }
 #endif

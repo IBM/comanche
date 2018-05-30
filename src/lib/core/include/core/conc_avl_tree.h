@@ -29,6 +29,7 @@
 #ifndef CONC_AVL_TREE
 #define CONC_AVL_TREE
 
+#include <functional>
 #include <mutex>
 
 #include "hazard.h"  // ABA protection
