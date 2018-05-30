@@ -41,7 +41,7 @@ make
 cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX:PATH=`pwd`/dist ..
 ```
 
-# all the libs will be installedin build/install
+# All libs will be installed in cmake installation prefix
 make install
 ```
 
