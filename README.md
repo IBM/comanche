@@ -17,9 +17,10 @@ programs as root.
 * Prepare (one time - although it may change across checkouts)
 
 ```bash
-cd deps
-./install-apts.sh
-./fetch-deps.sh
+( cd deps
+  ./install-apts.sh
+  ./fetch-deps.sh
+)
 ```
 
 * Build
