@@ -29,17 +29,7 @@
 
 #include <rdma/fabric.h> /* fi_info */
 
-#include <rdma/fabric.h> /* fi_info */
-
-#include <netinet/in.h>
-#include <sys/socket.h>
-
-#include <unistd.h>
-
-#include <cerrno>
-#include <cstdlib> /* malloc */
-#include <cstring> /* memcpy */
-#include <stdexcept>
+#include <stdexcept> /* system_error */
 
 /**
  * Fabric/RDMA-based network component

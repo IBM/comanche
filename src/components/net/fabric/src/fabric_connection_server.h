@@ -19,6 +19,7 @@
 
 #include "fabric_connection.h"
 
+class Fd_control;
 struct fi_info;
 struct fid_fabric;
 struct fid_eq;

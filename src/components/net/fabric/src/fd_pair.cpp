@@ -18,8 +18,8 @@
 
 #include "system_fail.h"
 
-#include <unistd.h> /* pipe */
-#include <fcntl.h> /* O_NONBLOCK */
+#include <unistd.h> /* close, pipe */
+#include <fcntl.h> /* fcntl, O_NONBLOCK */
 
 Fd_pair::Fd_pair()
   : _pair{}

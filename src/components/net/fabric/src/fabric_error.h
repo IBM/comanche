@@ -22,8 +22,9 @@
  *
  */
 
-#include <string>
 #include <stdexcept>
+
+#include <string>
 
 /**
  * Fabric/RDMA-based network component

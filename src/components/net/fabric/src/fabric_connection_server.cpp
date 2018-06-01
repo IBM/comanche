@@ -16,12 +16,12 @@
 
 #include "fabric_connection_server.h"
 
-#include "fabric_util.h"
+#include "fabric_util.h" /* CHECKZ */
 
-#include <rdma/fi_cm.h>
+#include <rdma/fi_cm.h> /* fi_accept */
 
-#include <algorithm>
-#include <stdexcept>
+#include <algorithm> /* move */
+#include <cstdint> /* size_t */
 
 namespace
 {

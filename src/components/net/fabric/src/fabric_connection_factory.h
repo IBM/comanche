@@ -52,7 +52,7 @@ public:
 
   std::vector<Component::IFabric_connection*> connections() override;
 
-  size_t max_message_size() const override;
+  std::size_t max_message_size() const override;
 
   std::string get_provider_name() const override;
 };

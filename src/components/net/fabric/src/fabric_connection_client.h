@@ -19,7 +19,7 @@
 
 #include "fabric_connection.h"
 
-#include <cstdint>
+#include <cstdint> /* uint16_t */
 #include <string>
 
 struct fi_info;

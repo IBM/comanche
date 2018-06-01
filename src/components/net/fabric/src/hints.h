@@ -22,6 +22,7 @@
 #ifndef _FABRIC_HINTS_H_
 #define _FABRIC_HINTS_H_
 
+#include <cstdint> /* uint64_t */
 #include <memory> /* shared_ptr */
 
 struct fi_info;
@@ -37,8 +38,8 @@ class hints
 public:
   explicit hints();
   explicit hints(std::shared_ptr<fi_info> info);
-  hints &caps(uint64_t c);
-  hints &mode(uint64_t c);
+  hints &caps(std::uint64_t c);
+  hints &mode(std::uint64_t c);
   hints &mr_mode(int m);
   hints &prov_name(const char *n);
   const char *prov_name() const;

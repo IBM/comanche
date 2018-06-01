@@ -24,9 +24,9 @@
 #include "system_fail.h"
 
 #include <netinet/in.h>
-#include <sys/socket.h>
+#include <sys/socket.h> /* send */
 
-#include <unistd.h>
+#include <unistd.h> /* close */
 
 #include <cerrno>
 #include <stdexcept>
@@ -98,10 +98,10 @@ void Fd_socket::recv(void *buf, std::size_t size) const
   if ( r < 0 )
   {
     auto e = errno;
-    system_fail(e, "recv (neg) ");
+    system_fail(e, "recv (neg)");
   }
   if ( r == 0 )
   {
-    system_fail(ECONNABORTED, "recv (zero) ");
+    system_fail(ECONNABORTED, "recv (zero)");
   }
 }

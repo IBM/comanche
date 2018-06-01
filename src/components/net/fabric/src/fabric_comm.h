@@ -14,34 +14,20 @@
    limitations under the License.
 */
 
-#ifndef _FABRIC_GROUP_H_
-#define _FABRIC_GROUP_H_
+#ifndef _FABRIC_COMM_H_
+#define _FABRIC_COMM_H_
 
 #include <api/fabric_itf.h>
 
-#include "fabric_ptr.h"
 #include "fabric_types.h" /* addr_ep_t */
-#include "fd_control.h"
-#include "fd_pair.h"
 
-#include <component/base.h> /* DECLARE_VERSION, DECLARE_COMPONENT_UUID */
-
-#include <rdma/fi_domain.h>
-
-#include <map>
-#include <memory> /* shared_ptr */
+#include <chrono>
+#include <cstddef> /* size_t */
+#include <cstdint> /* uint64_t */
 #include <mutex>
 #include <queue>
-#include <set>
+#include <tuple>
 #include <vector>
-
-struct fi_info;
-struct fid_fabric;
-struct fid_eq;
-struct fid_domain;
-struct fi_cq_attr;
-struct fid_cq;
-struct fid_ep;
 
 class Fabric_connection;
 class async_req_record;
@@ -50,7 +36,7 @@ class Fabric_comm
   : public Component::IFabric_communicator
 {
   Fabric_connection &_conn;
-  using completion_t = std::pair<void *, status_t>;
+  using completion_t = std::tuple<void *, status_t>;
   /* completions for this comm processed but not yet forwarded */
   std::mutex _m_completions;
   std::queue<completion_t> _completions;

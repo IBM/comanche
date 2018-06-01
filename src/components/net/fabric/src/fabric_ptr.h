@@ -23,7 +23,7 @@
 
 #include <rdma/fabric.h>
 
-#include <memory> /* shared_ptr */
+#include <memory> /* shared_ptr, unique_ptr */
 
 /**
  * Fabric/RDMA-based network component

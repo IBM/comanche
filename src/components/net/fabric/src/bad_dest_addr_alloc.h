@@ -19,8 +19,8 @@
 
 #include <new> /* bad_alloc */
 
-#include <cstdint>
-#include <string>
+#include <cstddef> /* size_t */
+#include <string> /* to_string */
 
 class bad_dest_addr_alloc
   : public std::bad_alloc

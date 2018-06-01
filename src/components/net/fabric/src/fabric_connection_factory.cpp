@@ -17,17 +17,8 @@
 #include "fabric_connection_factory.h"
 
 #include "fabric_connection.h"
-#include "fabric_error.h"
 #include "fabric_util.h"
-#include "fd_socket.h"
 
-#include <netdb.h>
-
-#include <memory> /* allocator, shared_ptr */
-#include <stdexcept>
-
-#include <rdma/fi_cm.h>
-#include <rdma/fi_domain.h>
 #include <rdma/fi_endpoint.h>
 
 Fabric_connection_factory::Fabric_connection_factory(fid_fabric &fabric_, fid_eq &eq_, fi_info &info_, std::uint16_t port_)
@@ -66,7 +57,7 @@ std::vector<Component::IFabric_connection*> Fabric_connection_factory::connectio
 {
   auto v = _control.connections();
   /* EXTRA COPY to change type */
-  return std::vector<Component::IFabric_connection*>(v.begin(), v.end());
+  return std::vector<Component::IFabric_connection *>(v.begin(), v.end());
 }
 
 void Fabric_connection_factory::close_connection(Component::IFabric_connection * connection)

@@ -25,10 +25,10 @@
 
 #include <netinet/in.h>
 #include <netdb.h>
-#include <string.h>
 #include <unistd.h>
 
-#include <memory>
+#include <memory> /* shared_ptr */
+#include <string> /* to_string */
 
 namespace
 {
@@ -98,7 +98,7 @@ namespace
   }
 }
 
-Fd_control::Fd_control(std::string dst_addr, uint16_t port)
+Fd_control::Fd_control(std::string dst_addr, std::uint16_t port)
   : Fd_socket(socket_from_address(dst_addr, port))
 {
 }

@@ -30,7 +30,6 @@
 struct fid_fabric;
 struct fid_eq;
 class Fabric_connection;
-class Fd_control;
 class Fd_socket;
 
 class Pending_cnxns
