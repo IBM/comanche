@@ -11,103 +11,19 @@
 //#define PATH "/dev/dax0.0"
 #define POOL_NAME "test.pool"
 
+#define DEFAULT_COMPONENT "/home/danielwaddington/comanche/build/comanche-restricted/src/components/pmstore/libcomanche-pmstore.so"
+#define PMSTORE_PATH "/home/danielwaddington/comanche/build/comanche-restricted/src/components/pmstore/libcomanche-pmstore.so"
+#define FILESTORE_PATH "libcomanche-storefile.so"
+#define NVMESTORE_PATH "libcomanche-nvmestore.so"
+#define ROCKSTORE_PATH "libcomanche-rocksdb.so"
+
 using namespace Component;
 
-class Data
-{
-public:
-  static constexpr size_t NUM_ELEMENTS = 10000000;
-  static constexpr size_t KEY_LEN = 8;
-  static constexpr size_t VAL_LEN = 64;
-
-  struct KV_pair {
-    char key[KEY_LEN + 1];
-    char value[VAL_LEN + 1];
-  };
-
-  KV_pair * _data;
-
-  Data() {
-    PLOG("Initializing data....");
-    _data = new KV_pair[NUM_ELEMENTS];
-
-    for(size_t i=0;i<NUM_ELEMENTS;i++) {
-      auto key = Common::random_string(KEY_LEN);
-      auto val = Common::random_string(VAL_LEN);
-      strncpy(_data[i].key, key.c_str(), key.length());
-      _data[i].key[KEY_LEN] = '\0';
-      strncpy(_data[i].value, val.c_str(), val.length());
-     _data[i].value[VAL_LEN] = '\0';
-    }
-    PLOG("Initializing data..OK.");
-  }
-
-  ~Data() {
-    delete [] _data;
-  }
-
-  const char * key(size_t i) const {
-    if(i >= NUM_ELEMENTS) throw General_exception("out of bounds");
-    return _data[i].key;
-  }
-
-  const char * value(size_t i) const {
-    if(i >= NUM_ELEMENTS) throw General_exception("out of bounds");
-    return _data[i].value;
-  }
-
-  size_t value_len() const { return VAL_LEN; }
-
-};
+#include "data.h"
+#include "exp_put.h"
+#include "exp_get.h"
 
 Data * _data;
-
-class Experiment_Put : public Core::Tasklet
-{ 
-public:
-
-  Experiment_Put(Component::IKVStore * arg) : _store(arg) {
-    assert(arg);
-  }
-  
-  void initialize(unsigned core) {
-    char poolname[256];
-    sprintf(poolname, "Put.pool.%u", core);
-    PLOG("Creating pool for worker %u ...", core);
-    _pool = _store->create_pool("/mnt/pmem0", poolname, GB(1));
-    PLOG("Created pool for worker %u ...OK!", core);
-    //    _pool = _store->open_pool("/dev/", "dax0.0");
-    ProfilerRegisterThread();
-  };
-  
-  void do_work(unsigned core) {
-    if(_first_iter) {
-      _start = std::chrono::high_resolution_clock::now();
-      _first_iter = false;
-    }
-    
-    i++;
-    int rc = _store->put(_pool, _data->key(i), _data->value(i), _data->value_len());
-    assert(rc == S_OK);
-  }
-  
-  void cleanup(unsigned core) {
-    _end = std::chrono::high_resolution_clock::now();
-    double secs = std::chrono::duration_cast<std::chrono::milliseconds>(_end - _start).count() / 1000.0;
-    PINF("*Put* IOPS: %2g", ((double)i) / secs);
-
-    _store->delete_pool(_pool);
-  }
-
-private:
-  size_t i = 0;
-  
-  Component::IKVStore *       _store;
-  Component::IKVStore::pool_t _pool;
-  bool                        _first_iter = true;
-  std::chrono::system_clock::time_point _start, _end;
-};
-
 
 static Component::IKVStore * g_store;
 static void initialize();
@@ -115,20 +31,24 @@ static void cleanup();
 
 struct {
   std::string test;
+  std::string component;
+  unsigned cores;
+  unsigned time_secs;
 } Options;
 
 
 int main(int argc, char * argv[])
 {
   ProfilerDisable();
-
-  _data = new Data();
   
   namespace po = boost::program_options; 
   po::options_description desc("Options"); 
   desc.add_options()
-    ("help", "Show help"),
-    ("test", po::value<std::string>(), "Test name")
+    ("help", "Show help")
+    ("test", po::value<std::string>(), "Test name <all|Put>")
+    ("component", po::value<std::string>(), "Implementation selection <pmstore|nvmestore|filestore>")
+    ("cores", po::value<int>(), "Number of threads/cores")
+    ("time", po::value<int>(), "Duration to run in seconds")
     ;
 
   try {
@@ -140,31 +60,44 @@ int main(int argc, char * argv[])
       return 0;
     }
 
-    if(vm.count("test"))
-      Options.test = vm["test"].as<std::string>();
+    Options.test = vm.count("test") > 0 ? vm["test"].as<std::string>() : "all";
+    vm.count("component") > 0 ? vm["component"].as<std::string>() : DEFAULT_COMPONENT;
+
+    if(vm.count("component"))
+      Options.component = vm["component"].as<std::string>();
     else
-      Options.test = "all";
+      Options.component = DEFAULT_COMPONENT;
+    
+    Options.cores  = vm.count("cores") > 0 ? vm["cores"].as<int>() : 1;
+    Options.time_secs  = vm.count("time") > 0 ? vm["time"].as<int>() : 4;
   }
-  catch (...) {
-    std::cout << desc;
-    return 0;    
+  catch (const po::error &ex)
+  {
+    std::cerr << ex.what() << '\n';
   }
 
+  _data = new Data();
   initialize();
 
   cpu_mask_t cpus;
-  //  cpus.set_mask(0xF);
-  cpus.add_core(1);
-  cpus.add_core(2);
-  cpus.add_core(3);
-  cpus.add_core(4);
-  cpus.add_core(5);
+  unsigned core = 1;
+  for(unsigned core = 0; core < Options.cores; core++)
+    cpus.add_core(core);
 
   ProfilerStart("cpu.profile");
-  {
-    Core::Per_core_tasking<Experiment_Put, Component::IKVStore*> tasking(cpus, g_store);
-    sleep(4);
+
+  if(Options.test == "all" || Options.test == "Put") {
+    Core::Per_core_tasking<Experiment_Put, Component::IKVStore*> exp(cpus, g_store);
+    sleep(Options.time_secs);
   }
+
+  if(Options.test == "all" || Options.test == "Get") {
+    Core::Per_core_tasking<Experiment_Get, Component::IKVStore*> exp(cpus, g_store);
+    //    sleep(Options.time_secs + 8);
+    exp.wait_for_all();
+  }
+
+  
   ProfilerStop();
   
   cleanup();
@@ -175,7 +108,21 @@ int main(int argc, char * argv[])
 
 static void initialize()
 {
-  Component::IBase * comp = Component::load_component("/home/danielwaddington/comanche/build/comanche-restricted/src/components/pmstore/libcomanche-pmstore.so", Component::pmstore_factory);
+  Component::IBase * comp;
+  
+  if(Options.component == "pmstore") {
+    comp = Component::load_component(PMSTORE_PATH, Component::pmstore_factory);
+  }
+  else if(Options.component == "filestore") {
+    comp = Component::load_component(FILESTORE_PATH, Component::filestore_factory);
+  }
+  // else if(Options.component == "nvmestore") {
+  //   comp = Component::load_component(NVMESTORE_PATH, Component::nvmestore_factory);
+  // }
+  else if(Options.component == "rockstore") {
+    comp = Component::load_component(ROCKSTORE_PATH, Component::rocksdb_factory);
+  }
+  else throw General_exception("unknown --component option (%s)", Options.component.c_str());
 
   assert(comp);
   IKVStore_factory * fact = (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
