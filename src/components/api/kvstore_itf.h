@@ -86,7 +86,7 @@ public:
   virtual pool_t create_pool(const std::string path,
                              const std::string name,
                              const size_t size,
-                             unsigned int flags = 0) =0;
+                             unsigned int flags = 0) = 0;
 
   /** 
    * Open an existing pool

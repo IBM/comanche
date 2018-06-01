@@ -1,6 +1,6 @@
 #### Component design
 
-To add a component, you can follow the posix_component example:
+To add a component, you can follow the posix_blk component example:
 
 1. uuid for interfaces:
   ````
