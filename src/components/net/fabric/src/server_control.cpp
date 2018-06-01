@@ -22,23 +22,25 @@
 #include "server_control.h"
 
 #include "fabric_connection_server.h"
-#include "fabric_json.h"
-#include "fabric_util.h"
+#include "fabric_util.h" /* CHECKZ */
 #include "fd_control.h"
-#include "fd_socket.h"
 #include "pointer_cast.h"
 #include "system_fail.h"
 
 #include <rdma/fabric.h> /* fi_info */
 
-#include <netinet/in.h>
-#include <sys/socket.h>
+#include <netinet/in.h> /* sockaddr_in */
+#include <sys/select.h> /* fd_set, pselect */
 
-#include <unistd.h>
+#include <unistd.h> /* close */
 
-#include <algorithm>
+#include <algorithm> /* max, move, transform */
+#include <cassert>
 #include <cerrno>
+#include <functional> /* ref */
+#include <memory> /* make_shared */
 #include <stdexcept>
+#include <string> /* to_string */
 
 Pending_cnxns::Pending_cnxns()
   : _m{}
@@ -122,10 +124,6 @@ Fd_socket Server_control::make_listener(std::uint16_t port)
  *  info_ should be used only in by (threadsafe) libfabric calls.
  * _pending: has a mutex
  */
-#include <cassert>
-#include <cstring>
-#include <unistd.h>
-#include <sys/select.h>
 void Server_control::listen(Fd_socket &&listen_fd_, int end_fd_, fid_fabric &fabric_, fid_eq &eq_, fabric_types::addr_ep_t pep_name_, Pending_cnxns &pend_)
 {
   auto listen_fd = std::move(listen_fd_);

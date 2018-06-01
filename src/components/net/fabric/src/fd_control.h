@@ -17,8 +17,9 @@
 #ifndef _FD_CONTROL_H_
 #define _FD_CONTROL_H_
 
-#include "fabric_types.h" /* addr_ep_t */
 #include "fd_socket.h"
+
+#include "fabric_types.h" /* addr_ep_t */
 
 #include <cstdint>
 #include <string>
@@ -29,7 +30,7 @@ class Fd_control
 public:
   Fd_control();
   explicit Fd_control(int fd_);
-  explicit Fd_control(std::string dst_addr, uint16_t port);
+  explicit Fd_control(std::string dst_addr, std::uint16_t port);
   Fd_control(Fd_control &&) = default;
   Fd_control &operator=(Fd_control &&) = default;
   void send_name(const fabric_types::addr_ep_t &name) const;

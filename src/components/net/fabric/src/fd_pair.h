@@ -17,10 +17,6 @@
 #ifndef _FD_PAIR_H_
 #define _FD_PAIR_H_
 
-#include "system_fail.h"
-
-#include <unistd.h> /* pipe */
-
 class Fd_pair
 {
   int _pair[2];

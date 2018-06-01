@@ -19,7 +19,7 @@
 
 #include <api/fabric_itf.h>
 
-#include <rdma/fi_domain.h>
+#include <rdma/fi_domain.h> /* fi_eq_attr */
 
 #include <memory> /* shared_ptr */
 

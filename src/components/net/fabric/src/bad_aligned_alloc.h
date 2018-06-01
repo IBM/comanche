@@ -17,8 +17,9 @@
 #ifndef _BAD_ALIGNED_ALLOC_H_
 #define _BAD_ALIGNED_ALLOC_H_
 
-#include <cstddef> /* size_t */
 #include <new> /* bad_alloc */
+
+#include <cstddef> /* size_t */
 #include <string>
 
 class bad_aligned_alloc

@@ -28,8 +28,9 @@
 #include "fabric_ptr.h" /* fid_unique_ptr */
 
 #include <unistd.h> /* ssize_t */
-#include <cstdint>
-#include <map>
+
+#include <cstddef> /* size_t */
+#include <cstdint> /* uinat32_t, uint64_t */
 #include <memory> /* shared_ptr */
 #include <string>
 
@@ -53,7 +54,7 @@ struct fid_wait;
  *
  */
 
-void fi_void_connect(fid_ep &ep, const fi_info &ep_info, const void *addr, const void *param, size_t paramlen);
+void fi_void_connect(fid_ep &ep, const fi_info &ep_info, const void *addr, const void *param, std::size_t paramlen);
 
 std::shared_ptr<fid_domain> make_fid_domain(fid_fabric &fabric, fi_info &info, void *context);
 
@@ -83,9 +84,9 @@ std::shared_ptr<fi_info> make_fi_info();
 std::shared_ptr<fi_info> make_fi_infodup(const fi_info &info_, const std::string &why_);
 
 fid_mr *make_fid_mr_reg_ptr(
-  fid_domain &domain, const void *buf, size_t len,
-  uint64_t access, uint64_t key,
-  uint64_t flags);
+  fid_domain &domain, const void *buf, std::size_t len,
+  std::uint64_t access, std::uint64_t key,
+  std::uint64_t flags);
 
 fid_unique_ptr<fid_cq> make_fid_cq(fid_domain &domain, fi_cq_attr &attr, void *context);
 
@@ -98,7 +99,7 @@ void (check_ge_zero)(ssize_t r, const char *file, int line);
 #define CHECKZ(V) (check_ge_zero)((V), __FILE__, __LINE__)
 
 template <class ... Args>
-  void post(ssize_t (*post_fn)(Args ... args), void (*comp_fn)(void *, std::uint64_t), uint64_t seq, void *ctx, const char *op, Args &&... args)
+  void post(ssize_t (*post_fn)(Args ... args), void (*comp_fn)(void *, std::uint64_t), std::uint64_t seq, void *ctx, const char *op, Args &&... args)
   {
     auto r = post_fn(args ...);
     while ( r == -FI_EAGAIN )

@@ -24,9 +24,7 @@
 #include "fabric_util.h" /* make_fi_info */
 
 #include <cassert>
-#include <cstring>
-
-struct fi_info;
+#include <cstring> /* strdup */
 
 /**
  * Fabric/RDMA-based network component

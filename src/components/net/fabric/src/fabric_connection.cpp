@@ -24,6 +24,7 @@
 #include "fabric_error.h"
 #include "fabric_comm.h"
 #include "fabric_util.h"
+#include "fd_pair.h"
 #include "fd_unblock_set_monitor.h"
 #include "async_req_record.h"
 #include "system_fail.h"

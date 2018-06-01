@@ -27,6 +27,8 @@
 #include "fabric_error.h"
 #include "async_req_record.h"
 
+#include <rdma/fi_domain.h> /* fi_cq_tagged_entry */
+
 /**
  * Fabric/RDMA-based network component
  *
@@ -193,11 +195,11 @@ std::size_t Fabric_comm::drain_old_completions(std::function<void(void *context,
   while ( ! _completions.empty() )
   {
     auto &c = _completions.front();
+    _completions.pop();
     k.unlock();
-    completion_callback(c.first, c.second);
+    completion_callback(std::get<0>(c), std::get<1>(c));
     ++ct_total;
     k.lock();
-    _completions.pop();
   }
   return ct_total;
 }

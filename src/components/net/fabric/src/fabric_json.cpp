@@ -31,6 +31,7 @@
 
 #include <cstdint> /* uint32_t, uint64_t */
 #include <cstring> /* strdup */
+#include <map>
 #include <stdexcept> /* domain_error */
 #include <string>
 #include <vector>

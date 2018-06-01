@@ -30,7 +30,6 @@
 #include <rdma/fi_domain.h> /* fid_wait, fi_wait_open */
 #include <rdma/fi_endpoint.h> /* fi_endpoint */
 
-#include <cassert>
 #include <memory> /* shared_ptr */
 #include <mutex>
 
@@ -80,7 +79,6 @@ catch ( const fabric_error &e )
   // throw e.add(fi_tostr(&ep_info_, FI_TYPE_INFO));
 }
 
-#include <cassert>
 std::shared_ptr<fid_domain> make_fid_domain(fid_fabric &fabric_, fi_info &info_, void *context_)
 try
 {

@@ -21,28 +21,31 @@
 
 #include "fabric_comm.h"
 
-#include "fabric_ptr.h"
+#include "fabric_ptr.h" /* fid_unique_ptr */
 #include "fabric_types.h" /* addr_ep_t */
 #include "fd_control.h"
-#include "fd_pair.h"
 
-#include <component/base.h> /* DECLARE_VERSION, DECLARE_COMPONENT_UUID */
+#include <rdma/fi_domain.h> /* fi_cq_attr, fi_cq_err_entry */
 
-#include <rdma/fi_domain.h>
 
+#include <sys/select.h> /* fd_set */
+
+#include <unistd.h> /* ssize_t */
+
+#include <cstdint> /* uint64_t */
 #include <map>
 #include <memory> /* shared_ptr */
-#include <mutex>
+#include <mutex> /* unique_lock */
 #include <set>
 #include <vector>
 
 struct fi_info;
-struct fid_fabric;
-struct fid_eq;
-struct fid_domain;
 struct fi_cq_attr;
-struct fid_cq;
-struct fid_ep;
+struct fid_fabric;
+ struct fid_eq;
+ struct fid_domain;
+ struct fid_cq;
+ struct fid_ep;
 
 class Fabric_connection
   : public Component::IFabric_connection
@@ -76,9 +79,6 @@ class Fabric_connection
   std::map<const void *, void *> _mr_addr_to_desc;
   /* since fi_mr_attr_raw may not be implemented, add reverse map as well. */
   std::map<void *, const void *> _mr_desc_to_addr;
-#if 0
-  static void get_rx_comp(void *ctx, std::uint64_t limit);
-#endif
   std::mutex _m_comms;
   std::set<Fabric_comm *> _comms;
 
@@ -99,7 +99,7 @@ public:
 
   const Fd_control &control() const { return _control; }
 
-  memory_region_t register_memory(const void * contig_addr, size_t size, std::uint64_t key, std::uint64_t flags) override;
+  memory_region_t register_memory(const void * contig_addr, std::size_t size, std::uint64_t key, std::uint64_t flags) override;
 
   void deregister_memory(const memory_region_t memory_region) override;
 
@@ -154,8 +154,8 @@ public:
   /* public for access by Fabric_comm */
   std::vector<void *> populated_desc(const std::vector<iovec> & buffers);
   std::size_t get_cq_comp_err(std::function<void(void *connection, status_t st)> completion_callback);
-  ssize_t cq_sread(void *buf, size_t count, const void *cond, int timeout) noexcept;
-  ssize_t cq_readerr(fi_cq_err_entry *buf, uint64_t flags) noexcept;
+  ssize_t cq_sread(void *buf, std::size_t count, const void *cond, int timeout) noexcept;
+  ssize_t cq_readerr(fi_cq_err_entry *buf, std::uint64_t flags) noexcept;
   void queue_completion(Fabric_comm *comm, void *context, status_t status);
 };
 
