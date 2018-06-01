@@ -43,6 +43,7 @@ public:
 
   enum {
     FLAGS_READ_ONLY = 1,
+    FLAGS_SET_SIZE = 2,
   };
 
   enum {
@@ -77,13 +78,15 @@ public:
    * @param name Name of object pool
    * @param size Size of object in bytes
    * @param flags Creation flags
+   * @param
    * 
    * @return Pool handle
    */
   virtual pool_t create_pool(const std::string path,
                              const std::string name,
                              const size_t size,
-                             unsigned int flags = 0) = 0;
+                             unsigned int flags = 0,
+                             uint64_t expected_obj_count = 0) = 0;
 
   /** 
    * Open an existing pool

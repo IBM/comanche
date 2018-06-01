@@ -158,6 +158,7 @@ int main(int argc, char * argv[])
   cpus.add_core(2);
   cpus.add_core(3);
   cpus.add_core(4);
+  cpus.add_core(5);
 
   ProfilerStart("cpu.profile");
   {

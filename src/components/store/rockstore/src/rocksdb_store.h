@@ -64,7 +64,8 @@ public:
   virtual pool_t create_pool(const std::string path,
                              const std::string name,
                              const size_t size,
-                             unsigned int flags = 0) override;
+                             unsigned int flags = 0,
+                             uint64_t args = 0) override;
   
   virtual pool_t open_pool(const std::string path,
                            const std::string name,
