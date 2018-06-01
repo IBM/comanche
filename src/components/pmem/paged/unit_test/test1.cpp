@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <string>
+#include <random>
 #include <list>
 #include <common/cycles.h>
 #include <common/exceptions.h>
