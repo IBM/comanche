@@ -77,6 +77,7 @@ public:
     _pool = _store->create_pool("/mnt/pmem0", poolname, GB(1));
     PLOG("Created pool for worker %u ...OK!", core);
     //    _pool = _store->open_pool("/dev/", "dax0.0");
+    ProfilerRegisterThread();
   };
   
   void do_work(unsigned core) {
@@ -158,14 +159,12 @@ int main(int argc, char * argv[])
   cpus.add_core(3);
   cpus.add_core(4);
 
-  ProfilerEnable();
-  
+  ProfilerStart("cpu.profile");
   {
     Core::Per_core_tasking<Experiment_Put, Component::IKVStore*> tasking(cpus, g_store);
     sleep(4);
   }
-
-  ProfilerDisable();
+  ProfilerStop();
   
   cleanup();
   
