@@ -11,11 +11,11 @@
 //#define PATH "/dev/dax0.0"
 #define POOL_NAME "test.pool"
 
-#define DEFAULT_COMPONENT "/home/danielwaddington/comanche/build/comanche-restricted/src/components/pmstore/libcomanche-pmstore.so"
 #define PMSTORE_PATH "/home/danielwaddington/comanche/build/comanche-restricted/src/components/pmstore/libcomanche-pmstore.so"
 #define FILESTORE_PATH "libcomanche-storefile.so"
 #define NVMESTORE_PATH "libcomanche-nvmestore.so"
 #define ROCKSTORE_PATH "libcomanche-rocksdb.so"
+#define DEFAULT_COMPONENT PMSTORE_PATH
 
 using namespace Component;
 
