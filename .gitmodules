@@ -24,3 +24,6 @@
 	path = src/lib/benchmark
 	url = https://github.com/dwaddington/benchmark.git
   branch = r1.4
+[submodule "src/lib/gperftools"]
+	path = src/lib/gperftools
+	url = https://github.com/dwaddington/gperftools.git
