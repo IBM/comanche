@@ -28,7 +28,7 @@ else()
 endif()
 
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/pmdk")
-  message("Skipping NDCTL ... already built")
+  message("Skipping PMDK ... already built")
 else()
   ExternalProject_Add(pmdk  
     GIT_REPOSITORY https://github.com/pmem/pmdk.git

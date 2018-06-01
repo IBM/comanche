@@ -1,5 +1,5 @@
 /*
-   Copyright [2017] [IBM Corporation]
+   Copyright [2017, 2018] [IBM Corporation]
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -75,6 +75,7 @@ class Per_core_tasking
         _threads[c] = nullptr;
       }
     }
+    _start_flag = true;
   }
 
   virtual ~Per_core_tasking()
@@ -97,15 +98,18 @@ private:
     set_cpu_affinity(1UL << core);
 
     _tasklet[core]->initialize(core);
-    
+
+    while(!_start_flag) usleep(1000);
+      
     while (!_exit_flag) {
-      _tasklet[core]->do_work(core); /* call tasklet */
+        _tasklet[core]->do_work(core); /* call tasklet */
     }
 
     _tasklet[core]->cleanup(core);      
   }
 
  private:
+  bool           _start_flag = false;
   bool           _exit_flag = false;
   std::thread *  _threads[MAX_CORES];
   __Tasklet_t *  _tasklet[MAX_CORES];

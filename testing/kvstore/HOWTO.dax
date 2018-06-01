@@ -1,0 +1,4 @@
+Device DAX
+----------
+
+ndctl create-namespace -m dax -e namespace0.0 -f

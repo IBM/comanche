@@ -30,11 +30,20 @@ include_directories(../)
 
 file(GLOB SOURCES src/*.cpp)
 
+find_library(BOOST_PYTHON_PY boost_python-py35)
+if(NOT BOOST_PYTHON_PY)
+  find_library(BOOST_PYTHON_PY boost_python-py36)
+  if(NOT BOOST_PYTHON_PY)
+    message(FATAL_ERROR "neither boost_python-py35 or boost_python-py36 found")
+  endif()
+endif()
+
+
 add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} ${FLAG_DUMP_CLASS} -DCONFIG_DEBUG)
 add_library(${PROJECT_NAME} SHARED ${SOURCES})
 
 set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--no-undefined")
-target_link_libraries(${PROJECT_NAME} common comanche-core pthread numa dl rt z boost_python-py35 ${PYTHON_LIBRARY})
+target_link_libraries(${PROJECT_NAME} common comanche-core pthread numa dl rt z ${BOOST_PYTHON_PY} ${PYTHON_LIBRARY})
 
 # set the linkage in the install/lib
 set_target_properties(${PROJECT_NAME} PROPERTIES 
