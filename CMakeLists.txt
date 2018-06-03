@@ -20,9 +20,6 @@ project(comanche)
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/mk)
 message("CMAKE_MODULE_PATH: ${CMAKE_MODULE_PATH}")
 
-set(PMDK_PREFIX ${CONF_COMANCHE_HOME}/src/lib/pmdk)
-find_package(PMDK REQUIRED)
-
 # make COMANCHE HOME visible in config.h
 set(CONF_COMANCHE_HOME ${CMAKE_SOURCE_DIR})
 
@@ -37,6 +34,11 @@ configure_file(
 include_directories(${CMAKE_BINARY_DIR})
 install (FILES "${CMAKE_BINARY_DIR}/config_comanche.h"
     DESTINATION include)
+
+# PMDK packages
+set(PMDK_PREFIX ${CONF_COMANCHE_HOME}/src/lib/pmdk)
+find_package(PMDK REQUIRED)
+
 
 add_subdirectory(src)
 add_subdirectory(apps)
