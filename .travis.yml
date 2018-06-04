@@ -5,6 +5,7 @@ branches:
   only:
     - master
     - unstable
+    - nvmestore
     - travis-CI-test
 
 sudo: required

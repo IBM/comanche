@@ -1,12 +1,15 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
+# option to build libraies, on by default
+option(BUILD_TBB "build tbb library" ON)
+
 include(${CMAKE_ROOT}/Modules/ExternalProject.cmake)
 
 add_subdirectory(common)
 add_subdirectory(core)
 add_subdirectory(benchmark)
 
-if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+if (BUILD_TBB AND "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
   add_subdirectory(tbb)
 endif()
 
