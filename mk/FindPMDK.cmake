@@ -5,9 +5,8 @@
 # Finds the PMDK library
 # https://cmake.org/cmake/help/v3.11/manual/cmake-developer.7.html#find-modules
 # 
-# This assumes you have installed PMDK with "sudo make install"
-# It will find the pmdk installation(/usr/local) and also the debug version of pmdk
-# TODO: an option to select from debug/release(install) version?
+# It will find the pmdk nondebug/debug version of pmdk
+# TODO: an option to select from debug/nondebug version?
 
 
 # This will define the following variables::
@@ -18,17 +17,21 @@
 #   PMDK_LIBRARIES_DEBUG
 
 find_path(PMDK_INCLUDE_DIR
+  PATHS ${PMDK_PREFIX}/src/include
   NAMES libpmem.h
 )
 
 # non-debug libraries, sudo install in pmdk
 find_library(LIB_PMEM
+  PATHS ${PMDK_PREFIX}/src/nondebug
   NAMES pmem)
 
 find_library(LIB_PMEMOBJ
+  PATHS ${PMDK_PREFIX}/src/nondebug
   NAMES pmemobj)
 
 find_library(LIB_PMEMPOOL
+  PATHS ${PMDK_PREFIX}/src/nondebug
   NAMES pmempool)
 
 # debug libraries
