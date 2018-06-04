@@ -18,8 +18,11 @@
 #ifndef __API_KVSTORE_ITF__
 #define __API_KVSTORE_ITF__
 
-#include <api/components.h>
 #include <functional>
+
+#include <api/components.h>
+#include <api/block_itf.h>
+#include <api/block_allocator_itf.h>
 
 namespace Component
 {
@@ -318,7 +321,16 @@ public:
   DECLARE_INTERFACE_UUID(0xface829f,0x0405,0x4c19,0x9898,0xa3,0xae,0x21,0x5a,0x3e,0xe8);
 
   virtual IKVStore * create(const std::string owner,
-                            const std::string name) = 0;
+                            const std::string name){
+    throw API_exception("not implemented.");
+  }
+
+  virtual IKVStore * create(const std::string owner,
+                            const std::string name,  
+                             Component::IBlock_device *blk_dev,
+                             Component::IBlock_allocator *blk_alloc){
+    throw API_exception("not implemented.");
+  }
   
 
 };

@@ -165,6 +165,13 @@ public:
     return obj;
   }
 
+virtual Component::IBlock_allocator * open_allocator(  size_t max_lba,
+                                                       Component::persist_id_t id,
+                                                       int numa_node,
+                                                       bool force_init) override{
+  return NULL; 
+  }
+
 };
 
 
