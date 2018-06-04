@@ -20,11 +20,3 @@
 [submodule "src/lib/tbb"]
 	path = src/lib/tbb
   url = https://github.com/dwaddington/tbb.git
-[submodule "src/lib/benchmark"]
-  path = src/lib/benchmark
-  url = https://github.com/dwaddington/benchmark.git
-  branch = r1.4
-[submodule "src/lib/gperftools"]
-  path = src/lib/gperftools
-  url = https://github.com/dwaddington/gperftools.git
-  branch = gperftools-r2.7

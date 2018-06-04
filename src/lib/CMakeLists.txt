@@ -7,7 +7,6 @@ include(${CMAKE_ROOT}/Modules/ExternalProject.cmake)
 
 add_subdirectory(common)
 add_subdirectory(core)
-add_subdirectory(benchmark)
 
 if (BUILD_TBB AND "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
   add_subdirectory(tbb)
