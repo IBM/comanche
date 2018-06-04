@@ -15,7 +15,7 @@
 #define FILESTORE_PATH "libcomanche-storefile.so"
 #define NVMESTORE_PATH "libcomanche-nvmestore.so"
 #define ROCKSTORE_PATH "libcomanche-rocksdb.so"
-#define DEFAULT_COMPONENT PMSTORE_PATH
+#define DEFAULT_COMPONENT "pmstore"
 
 using namespace Component;
 
@@ -45,7 +45,7 @@ int main(int argc, char * argv[])
   po::options_description desc("Options"); 
   desc.add_options()
     ("help", "Show help")
-    ("test", po::value<std::string>(), "Test name <all|Put>")
+    ("test", po::value<std::string>(), "Test name <all|Put|Get>")
     ("component", po::value<std::string>(), "Implementation selection <pmstore|nvmestore|filestore>")
     ("cores", po::value<int>(), "Number of threads/cores")
     ("time", po::value<int>(), "Duration to run in seconds")
