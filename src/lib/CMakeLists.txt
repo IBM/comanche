@@ -3,7 +3,6 @@ cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 # option to build libraies, on by default
 option(BUILD_TBB "build tbb library" ON)
 
-
 include(${CMAKE_ROOT}/Modules/ExternalProject.cmake)
 
 add_subdirectory(common)

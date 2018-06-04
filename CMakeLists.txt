@@ -13,10 +13,9 @@ endif(CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR AND FORCE_OTT_BUILD)
 set(ENV{COMANCHE_HOME} ${CMAKE_SOURCE_DIR})
 
 include(${CMAKE_SOURCE_DIR}/mk/common.cmake)
-
-
 project(comanche)
 
+# locate FindXXX.cmake
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/mk)
 message("CMAKE_MODULE_PATH: ${CMAKE_MODULE_PATH}")
 
@@ -34,11 +33,6 @@ configure_file(
 include_directories(${CMAKE_BINARY_DIR})
 install (FILES "${CMAKE_BINARY_DIR}/config_comanche.h"
     DESTINATION include)
-
-# PMDK packages
-set(PMDK_PREFIX ${CONF_COMANCHE_HOME}/src/lib/pmdk)
-find_package(PMDK REQUIRED)
-
 
 add_subdirectory(src)
 add_subdirectory(apps)
@@ -65,5 +59,9 @@ add_custom_target(doc
 endif(DOXYGEN_FOUND)
 
 if (USE_RESTRICTED)
+  # currently PMDK packages are only used for Restricted
+    set(PMDK_PREFIX ${CONF_COMANCHE_HOME}/src/lib/pmdk)
+    find_package(PMDK REQUIRED)
+
     add_subdirectory(comanche-restricted)
 endif(USE_RESTRICTED)

@@ -5,7 +5,9 @@
 # Finds the PMDK library
 # https://cmake.org/cmake/help/v3.11/manual/cmake-developer.7.html#find-modules
 # 
-# TODO: this can find the pmdk installation with "sudo make install",  an option to select from debug/release(install) version?
+# This assumes you have installed PMDK with "sudo make install"
+# It will find the pmdk installation(/usr/local) and also the debug version of pmdk
+# TODO: an option to select from debug/release(install) version?
 
 
 # This will define the following variables::
@@ -13,6 +15,7 @@
 #   PMDK_FOUND    - True if the system has the PMDK library
 #   PMDK_INCLUDE_DIRS
 #   PMDK_LIBRARIES 
+#   PMDK_LIBRARIES_DEBUG
 
 find_path(PMDK_INCLUDE_DIR
   NAMES libpmem.h
