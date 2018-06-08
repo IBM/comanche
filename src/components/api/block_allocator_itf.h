@@ -49,12 +49,13 @@ public:
    * Open allocator using AEP
    * 
    * @param max_lba Maximum LBA to track
-   * @param name Allocator persistent identifier
-   * 
+   * @param path, path of the pool to store the allocation info
+   * @param name, the name of the stored allocation info
    * @return 
    */
   virtual IBlock_allocator * open_allocator(size_t max_lba,
-                                            persist_id_t persistent_id,
+                                            std::string path,
+                                            std::string name,
                                             int numa_node = NUMA_NODE_ANY,
                                             bool force_init = false){
     throw API_exception("not implemented.");
