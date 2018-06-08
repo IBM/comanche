@@ -7,6 +7,7 @@ project(comanche-storefile CXX)
 
 add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 
+include_directories(../../../../src/lib/tbb/include/)
 
 enable_language(CXX C ASM)
 file(GLOB SOURCES src/*.c*)
