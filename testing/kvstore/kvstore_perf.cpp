@@ -7,9 +7,6 @@
 #include <boost/program_options.hpp>
 #include <chrono>
 #include <gperftools/profiler.h>
-
-#include <core/dpdk.h>
-
 #define PATH "/mnt/pmem0/"
 //#define PATH "/dev/dax0.0"
 #define POOL_NAME "test.pool"
@@ -31,11 +28,6 @@ Data * _data;
 static Component::IKVStore * g_store;
 static void initialize();
 static void cleanup();
-
-// required for nvmestore
-static Component::IBlock_device  *_block;
-static Component::IBlock_allocator *_alloc;
-static size_t _nr_blks; //number of blocks from IBlockdev
 
 struct {
   std::string test;
@@ -125,8 +117,7 @@ static void initialize()
     comp = Component::load_component(FILESTORE_PATH, Component::filestore_factory);
   }
   else if(Options.component == "nvmestore") {
-    comp = Component::load_component("libcomanche-nvmestore.so",
-                                                        Component::nvmestore_factory);
+    comp = Component::load_component(NVMESTORE_PATH, Component::nvmestore_factory);
   }
   else if(Options.component == "rockstore") {
     comp = Component::load_component(ROCKSTORE_PATH, Component::rocksdb_factory);
@@ -136,7 +127,7 @@ static void initialize()
   assert(comp);
   IKVStore_factory * fact = (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
 
-  g_store = fact->create("owner","name"); 
+  g_store = fact->create("owner","name");
   fact->release_ref();
 }
 
