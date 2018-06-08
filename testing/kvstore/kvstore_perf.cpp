@@ -125,73 +125,6 @@ static void initialize()
     comp = Component::load_component(FILESTORE_PATH, Component::filestore_factory);
   }
   else if(Options.component == "nvmestore") {
-
-    DPDK::eal_init(512);
-
-    /*
-     * init blk devices
-     */
-#ifdef USE_SPDK_NVME_DEVICE
-    
-    comp = Component::load_component("libcomanche-blknvme.so",
-                                                        Component::block_nvme_factory);
-
-    assert(comp);
-    PLOG("Block_device factory loaded OK.");
-    IBlock_device_factory * fact = (IBlock_device_factory *) comp->query_interface(IBlock_device_factory::iid());
-    
-    cpu_mask_t cpus;
-    cpus.add_core(2);
-
-    _block = fact->create("86:00.0", &cpus);
-
-    assert(_block);
-    fact->release_ref();
-    PINF("Lower block-layer component loaded OK.");
-
-#else
-    
-    comp = Component::load_component("libcomanche-blkposix.so",
-                                                        Component::block_posix_factory);
-    assert(comp);
-    PLOG("Block_device factory loaded OK.");
-
-    IBlock_device_factory * fact_blk = (IBlock_device_factory *) comp->query_interface(IBlock_device_factory::iid());
-    std::string config_string;
-    config_string = "{\"path\":\"";
-    //  config_string += "/dev/nvme0n1";1
-    config_string += "./blockfile.dat";
-    //  config_string += "\"}";
-    config_string += "\",\"size_in_blocks\":10000}";
-    PLOG("config: %s", config_string.c_str());
-
-    _nr_blks = 10000;
-
-    _block = fact_blk->create(config_string);
-    assert(_block);
-    fact_blk->release_ref();
-    PINF("Block-layer component loaded OK (itf=%p)", _block);
-#endif
-
-    /*
-     * instantiate block allocator
-     */
-    comp = load_component("libcomanche-blkalloc-aep.so",
-                                  Component::block_allocator_aep_factory);
-    assert(comp);
-    IBlock_allocator_factory * fact_blk_alloc = static_cast<IBlock_allocator_factory *>
-      (comp->query_interface(IBlock_allocator_factory::iid()));
-
-    size_t num_blocks = _nr_blks;
-    PLOG("Opening allocator to support %lu blocks", num_blocks);
-    _alloc = fact_blk_alloc->open_allocator(
-                                  num_blocks,
-                                  "nvmestore-blk-allc-1");  
-    fact_blk_alloc->release_ref();  
-
-    /*
-     * instantialize
-     */
     comp = Component::load_component("libcomanche-nvmestore.so",
                                                         Component::nvmestore_factory);
   }
@@ -203,24 +136,13 @@ static void initialize()
   assert(comp);
   IKVStore_factory * fact = (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
 
-  if(Options.component == "nvmestore") {
-    g_store = fact->create("owner","name", _block, _alloc ); 
-  else{
-    g_store = fact->create("owner","name"); }
-  }
+  g_store = fact->create("owner","name"); 
   fact->release_ref();
 }
 
 static void cleanup()
 {
   g_store->release_ref();
-
-  if(Options.component == "nvmestore") {
-    assert(_alloc);
-    assert(_block);
-    _alloc->release_ref();
-    _block->release_ref();
-  }
 }
 
 

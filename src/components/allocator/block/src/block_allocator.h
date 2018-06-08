@@ -166,10 +166,11 @@ public:
   }
 
 virtual Component::IBlock_allocator * open_allocator(  size_t max_lba,
-                                                       Component::persist_id_t id,
+                                                       std::string path,
+                                                       std::string name,
                                                        int numa_node,
                                                        bool force_init) override{
-  return NULL; 
+    throw API_exception("not implemented.");
   }
 
 };
