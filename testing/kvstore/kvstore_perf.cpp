@@ -11,7 +11,7 @@
 //#define PATH "/dev/dax0.0"
 #define POOL_NAME "test.pool"
 
-#define PMSTORE_PATH "/home/danielwaddington/comanche/build/comanche-restricted/src/components/pmstore/libcomanche-pmstore.so"
+#define PMSTORE_PATH "libcomanche-pmstore.so"
 #define FILESTORE_PATH "libcomanche-storefile.so"
 #define NVMESTORE_PATH "libcomanche-nvmestore.so"
 #define ROCKSTORE_PATH "libcomanche-rocksdb.so"
@@ -116,9 +116,9 @@ static void initialize()
   else if(Options.component == "filestore") {
     comp = Component::load_component(FILESTORE_PATH, Component::filestore_factory);
   }
-  // else if(Options.component == "nvmestore") {
-  //   comp = Component::load_component(NVMESTORE_PATH, Component::nvmestore_factory);
-  // }
+  else if(Options.component == "nvmestore") {
+    comp = Component::load_component(NVMESTORE_PATH, Component::nvmestore_factory);
+  }
   else if(Options.component == "rockstore") {
     comp = Component::load_component(ROCKSTORE_PATH, Component::rocksdb_factory);
   }
@@ -127,7 +127,7 @@ static void initialize()
   assert(comp);
   IKVStore_factory * fact = (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
 
-  g_store = fact->create("owner","name");  
+  g_store = fact->create("owner","name");
   fact->release_ref();
 }
 
