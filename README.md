@@ -21,10 +21,16 @@ programs as root.
 
 ```bash
 ( cd deps
-  ./install-apts.sh
+  ./install-apts.sh # use ./install-yum.sh for fedora
   ./fetch-deps.sh
 )
 ```
+* populate submodules
+```
+git submodule init
+git submodule update
+```
+
 
 * Build
 **Now we enforce out-of-source build**

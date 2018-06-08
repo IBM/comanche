@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# build-essentials for fedora
+yum install git make automake gcc-c++ openssl-devel sqlite-devel
+
+# yum install "kernel-devel-uname-r == $(uname -r)"
+
 # needed for SPDK and DPDK build
 yum install libpcap-devel uuid-devel libuuid libuuid-devel libaio-devel \
     CUnit CUnit-devel librdmacm-devel librdmacm cmake3 numactl-devel python-devel \
