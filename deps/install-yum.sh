@@ -1,16 +1,16 @@
 #!/bin/bash
 
 # build-essentials for fedora
-yum install git make automake gcc-c++ openssl-devel sqlite-devel 
+yum -y install wget git make automake gcc-c++ openssl-devel sqlite-devel 
 
 # yum install "kernel-devel-uname-r == $(uname -r)"
 
 # needed for SPDK and DPDK build
-yum install libpcap-devel uuid-devel libuuid libuuid-devel libaio-devel \
+yum -y install libpcap-devel uuid-devel libuuid libuuid-devel libaio-devel \
     CUnit CUnit-devel librdmacm-devel librdmacm cmake3 numactl-devel python-devel \
     rapidjson-devel gmp-devel mpfr-devel libmpc-devel \
     elfutils-libelf-devel libpcap-devel libuuid-devel libaio-devel boost boost-devel \
-    boost-python3 boost-python3-devel doxygen graphviz fuse fuse-devel gperftools gperftools-devel \ 
+    boost-python3 boost-python3-devel doxygen graphviz fuse fuse-devel gperftools gperftools-devel \
     asciidoc xmlto libtool graphviz
     
 # build GCC 5.4

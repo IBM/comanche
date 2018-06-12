@@ -21,11 +21,12 @@ compiler:
 # see https://docs.docker.com/docker-cloud/builds/automated-build
 env:
   global:
-    - CONTAINER_NAME="comanche-build-test"
   matrix:
-    - DOCKERIMG="fedora:27" 
+    - CONTAINER_NAME="comanche-build-fedora27"
+      DOCKERIMG="fedora:27" 
       BOOTSTRAP_FILE="./install-yum.sh"
-    - DOCKERIMG="fengggli/comanche-env:ubuntu1604-180525.a"  
+    - CONTAINER_NAME="comanche-build-ubuntu1604"
+      DOCKERIMG="ubuntu:16.04"  
       BOOTSTRAP_FILE="./install-apts.sh"
 
 
@@ -35,9 +36,9 @@ env:
 before_install:
   - docker run -d --name ${CONTAINER_NAME} -v $(pwd):/travis ${DOCKERIMG} tail -f /dev/null
   - docker ps
-  - docker exec -t ${CONTAINER_NAME} bash -e BOOTSTRAP=${BOOTSTRAP_FILE}-c "
+  - docker exec -t ${CONTAINER_NAME} bash  -c "
     cd /travis/deps;
-    ${BOOTSTRAP};"
+    ${BOOTSTRAP_FILE};"
 
 install:
   - docker exec -t ${CONTAINER_NAME} bash -c "
