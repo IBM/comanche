@@ -35,7 +35,7 @@ env:
 # for local building testing, remener to run git submodule init/update
 before_install:
   - docker run -d --name ${CONTAINER_NAME} --privileged
-    -v /lib/modules:/lib/modules:ro -v $(pwd):/travis ${DOCKERIMG}
+    -v $(pwd):/travis ${DOCKERIMG}
     tail -f /dev/null
   - docker ps
   - docker exec -t ${CONTAINER_NAME} bash  -c "
