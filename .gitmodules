@@ -15,8 +15,12 @@
   path = src/components/store/rockstore/rocksdb
   url = https://github.com/facebook/rocksdb.git
 [submodule "src/lib/ndctl"]
-  path = src/lib/ndctl
-	url = https://github.com/pmem/ndctl.git
+	path = src/lib/ndctl
+	url = https://github.com/pmem/ndctl
 [submodule "src/lib/tbb"]
 	path = src/lib/tbb
   url = https://github.com/dwaddington/tbb.git
+[submodule "src/lib/pmdk"]
+	path = src/lib/pmdk
+	url = https://github.com/pmem/pmdk
+	branch = stable-1.4

@@ -39,6 +39,10 @@ git submodule update
 mkdir build
 cd build
 cmake ..
+# build the core and dependencies
+make deps 
+
+# build componets of comanche
 make
 
 ** To override the install destination
