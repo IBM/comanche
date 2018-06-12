@@ -49,7 +49,7 @@ echo "Cloning CityHash ..."
 git clone https://github.com/google/cityhash.git
 cd cityhash
 ./configure && make
-sudo make install
+make install
 cd $BASE
 
 echo "Cloning Google test framework (v1.8.0) ..."
@@ -57,14 +57,14 @@ git clone https://github.com/google/googletest.git
 cd googletest
 git checkout tags/release-1.8.0
 cmake . && make
-sudo make install
+make install
 cd $BASE
 
 echo "Cloning Flatbuffers ..."
 git clone https://github.com/google/flatbuffers.git
 cd flatbuffers
 cmake . && make
-sudo make install
+make install
 cd $BASE
 
 # END OF MANDATORT DEPS
@@ -74,7 +74,7 @@ nanomsg:
 echo "Fetching Nanomsg ..."
 git clone https://github.com/nanomsg/nanomsg.git
 cd nanomsg ; git checkout tags/1.0.0
-cd nanomsg ; ./configure && make ; sudo make install
+cd nanomsg ; ./configure && make ; make install
 cd $BASE
 jumpto end
 
@@ -82,7 +82,7 @@ protobuf:
 echo "Fetching Google protobuf..."
 wget https://github.com/google/protobuf/releases/download/v3.0.0/protobuf-cpp-3.0.0.tar.gz
 tar -xvf protobuf-cpp-3.0.0.tar.gz
-cd protobuf-3.0.0/ ; ./configure ; make ; sudo make install
+cd protobuf-3.0.0/ ; ./configure ; make ; make install
 cd $BASE
 jumpto end
 
@@ -92,8 +92,8 @@ git clone git://github.com/jedisct1/libsodium.git
 cd libsodium
 ./autogen.sh
 ./configure && make check
-sudo make install
-sudo ldconfig
+make install
+ldconfig
 cd $BASE
 jumpto end
 
@@ -102,8 +102,8 @@ git clone git://github.com/zeromq/libzmq.git
 cd libzmq
 ./autogen.sh
 ./configure && make check
-sudo make install
-sudo ldconfig
+make install
+ldconfig
 cd $BASE
 jumpto end
 
@@ -112,8 +112,8 @@ git clone git://github.com/zeromq/czmq.git
 cd czmq
 ./autogen.sh
 ./configure && make check
-sudo make install
-sudo ldconfig
+make install
+ldconfig
 cd $BASE
 jumpto end
 
@@ -123,8 +123,8 @@ cd libcurve
 sh autogen.sh
 ./autogen.sh
 ./configure && make check
-sudo make install
-sudo ldconfig
+make install
+ldconfig
 cd $BASE
 
 # glog:
@@ -134,7 +134,7 @@ cd $BASE
 # git checkout tags/v0.3.5
 # automake --add-missing && ./configure
 # make
-# sudo make install
+# make install
 # cd $BASE
 
 zyre:
@@ -142,8 +142,8 @@ echo "Cloning Zyre..."
 git clone git://github.com/zeromq/zyre.git
 cd zyre
 ./autogen.sh && ./configure && make check
-sudo make install
-sudo ldconfig
+make install
+ldconfig
 cd $BASE
 
 # moved to apt install
@@ -153,7 +153,7 @@ cd $BASE
 #cd rapidjson
 #git checkout tags/v1.1.0
 #cmake . && make
-#sudo make install
+#make install
 #cd $BASE
 
 # end of default install
@@ -212,7 +212,7 @@ cd $BASE
 
 echo "Cloning PMDK..."
 git clone https://github.com/dwaddington/pmdk.git
-cd pmdk && make && sudo make install
+cd pmdk && make && make install
 cd $BASE
 
 jumpto end
@@ -221,7 +221,7 @@ cmake:
 echo "Cloning cmake..."
 wget https://cmake.org/files/v3.6/cmake-3.6.2.tar.gz
 tar -zxvf cmake-3.6.2.tar.gz
-cd cmake-3.6.2 && ./bootstrap --prefix=/usr && sudo make && sudo make install
+cd cmake-3.6.2 && ./bootstrap --prefix=/usr && make && make install
 jumpto end
 
 end:
