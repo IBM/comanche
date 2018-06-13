@@ -36,6 +36,8 @@ env:
 # for local building testing, remener to run git submodule init/update
 # https://stackoverflow.com/questions/33013539/docker-loading-kernel-modules
 before_install:
+  - sudo apt-get update
+  - sudo apt-get install linux-headers-`uname -r`
   - docker run -d --name ${CONTAINER_NAME} --privileged --cap-add=ALL
     -v $(pwd):/travis ${HOSTMODULE}
     ${DOCKERIMG}
