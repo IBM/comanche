@@ -16,7 +16,6 @@ endif()
 if(0)
   ExternalProject_Add(ndctl
     BUILD_IN_SOURCE 1
-    UPDATE_DISCONNECTED 1
     SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ndctl
     CONFIGURE_COMMAND ./autogen.sh COMMAND  ./configure --prefix=/usr --sysconfdir=/etc --libdir=/usr/lib64
     BUILD_COMMAND make -j
@@ -28,7 +27,6 @@ endif()
 # build pmdk
 ExternalProject_Add(pmdk  
   BUILD_IN_SOURCE 1
-  UPDATE_DISCONNECTED 1
   SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/pmdk
   CONFIGURE_COMMAND ""
   BUILD_COMMAND make -j
