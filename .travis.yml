@@ -25,6 +25,7 @@ env:
     - CONTAINER_NAME="comanche-build-fedora27"
       DOCKERIMG="fedora:27" 
       BOOTSTRAP_FILE="./install-yum.sh"
+      HOSTMODULE="-v /lib/modules:/lib/modules:ro -v /usr/src:/usr/src:ro"
     - CONTAINER_NAME="comanche-build-ubuntu1604"
       DOCKERIMG="ubuntu:16.04"  
       BOOTSTRAP_FILE="./install-apts.sh"
@@ -36,7 +37,8 @@ env:
 # https://stackoverflow.com/questions/33013539/docker-loading-kernel-modules
 before_install:
   - docker run -d --name ${CONTAINER_NAME} --privileged --cap-add=ALL
-    -v $(pwd):/travis ${DOCKERIMG}
+    -v $(pwd):/travis ${HOSTMODULE}
+    ${DOCKERIMG}
     tail -f /dev/null
   - docker ps
   - docker exec -t ${CONTAINER_NAME} bash  -c "
