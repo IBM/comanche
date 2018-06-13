@@ -41,15 +41,17 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" AND NOT CMAKE_CXX_COMPILER_VERSION
   set(FLAG_DUMP_CLASS "-fdump-class-hierarchy")
 endif()
 
-# the first make deps will only build the dep libraries
-add_custom_target(deps
-  make all
-  COMMAND ${CMAKE_COMMAND} -DBOOTSTRAP_DEPS=off ${CMAKE_CURRENT_SOURCE_DIR}
+# run 'make components' to trigger compoents build
+add_custom_target(components
+  ${CMAKE_COMMAND} -DBOOTSTRAP_DEPS=off ${CMAKE_CURRENT_SOURCE_DIR}
+  COMMAND make all
   )
 
+# default make will only build core and dependencies
 if(BOOTSTRAP_DEPS)
   add_subdirectory(src/lib)
-  message(WARNING "run 'make deps' first to build depenencies; then run 'make' to build components")
+  message("\n[IMPORTANT]: first run 'make' to build core and dependencies")
+  message("             then run 'make components' to build components")
 
 else(BOOTSTRAP_DEPS)
   set(PMDK_PREFIX ${CONF_COMANCHE_HOME}/src/lib/pmdk)

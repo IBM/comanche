@@ -60,8 +60,8 @@ script:
     mkdir build;
     cd build;
     cmake .. -DCOMANCHE_LIMIT_MAKE_JOB=2;
-    make deps;
     make;
+    make components;
     make install"
 
 after_success:
