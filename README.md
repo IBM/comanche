@@ -25,10 +25,10 @@ programs as root.
   sudo ./fetch-deps.sh
 )
 ```
+
 * populate submodules
 ```
-git submodule init
-git submodule update
+git submodule update --init --recursive
 ```
 
 
@@ -39,11 +39,8 @@ git submodule update
 mkdir build
 cd build
 cmake ..
-# build the core and dependencies
-make deps 
-
-# build componets of comanche
-make
+make   # build the core and dependencies
+make components # build comanche components & tests, etc
 
 ** To override the install destination
 
@@ -63,6 +60,7 @@ sudo ./load-module.sh
 sudo ./tools/nvme_setup.sh /* optionally attach ALL Nvme devices to VFIO */
 cmake .
 make
+make components
 ```
 
 * Build components in debug mode (e.g., with asan)
