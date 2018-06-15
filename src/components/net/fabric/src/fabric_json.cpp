@@ -21,7 +21,7 @@
 
 #include "fabric_json.h"
 
-#include "fabric_util.h"
+#include "fabric_util.h" /* make_fi_info */
 
 #include <rapidjson/document.h>
 #include <rapidjson/error/en.h>

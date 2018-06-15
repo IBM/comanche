@@ -41,11 +41,13 @@ class Fabric_comm
   std::mutex _m_completions;
   std::queue<completion_t> _completions;
 
-  std::size_t get_cq_comp_err(std::function<void(void *context, status_t st)> completion_callback);
+  std::size_t process_cq_comp_err(std::function<void(void *context, status_t st)> completion_callback);
   std::size_t process_or_queue_completion(async_req_record *g_context_, std::function<void(void *context, status_t st)> cb_, status_t status_);
 public:
   explicit Fabric_comm(Fabric_connection &);
   ~Fabric_comm(); /* Note: need to notify the polling thread that this connection is going away, */
+
+  /* BEGIN Component::IFabric_communicator */
   void post_send(const std::vector<iovec>& buffers, void *context) override;
 
   void post_recv(const std::vector<iovec>& buffers, void *context) override;
@@ -72,6 +74,7 @@ public:
   void wait_for_next_completion(std::chrono::milliseconds timeout) override;
 
   void unblock_completions() override;
+  /* END Component::IFabric_communicator */
 
   fabric_types::addr_ep_t get_name() const;
 

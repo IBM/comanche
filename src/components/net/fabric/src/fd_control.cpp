@@ -24,8 +24,8 @@
 #include "system_fail.h"
 
 #include <netinet/in.h>
+#include <sys/socket.h>
 #include <netdb.h>
-#include <unistd.h>
 
 #include <memory> /* shared_ptr */
 #include <string> /* to_string */
@@ -58,26 +58,26 @@ Fd_control::Fd_control()
 Fd_control::Fd_control(int fd_)
   : Fd_socket(fd_)
 {
-  /* Note: consider addint setsockopt(SO_RCVTIMEO) here */
+  /* NITE: consider adding setsockopt(SO_RCVTIMEO) here */
 }
 
 namespace
 {
-  int socket_from_address(std::string dst_addr, uint16_t port)
+  Fd_socket socket_from_address(std::string dst_addr, uint16_t port)
   {
     auto results = getaddrinfo_ptr(dst_addr, port);
     auto e = ENOENT;
 
-    int fd = -1;
+    Fd_socket fd{};
     bool ok = false;
     std::string e_why = ": " + dst_addr + ":" + std::to_string(port);
     for ( auto rp = results.get(); rp && ! ok; rp = rp->ai_next)
     {
-      fd = ::socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+      fd = Fd_socket(::socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol));
       e = errno;
-      if ( fd != -1 )
+      if ( fd.good() )
       {
-        if ( -1 == ::connect(fd, rp->ai_addr, rp->ai_addrlen) )
+        if ( -1 == ::connect(fd.fd(), rp->ai_addr, rp->ai_addrlen) )
         {
           e = errno;
           e_why += ", " + std::to_string(rp->ai_family) + "/" + std::to_string( rp->ai_socktype) + std::to_string( rp->ai_protocol) + "/" + std::to_string(rp->ai_addrlen) + " err " + std::to_string(e);

@@ -14,46 +14,51 @@
    limitations under the License.
 */
 
-#ifndef _FABRIC_FID_PTR_H_
-#define _FABRIC_FID_PTR_H_
+#ifndef _FABRIC_STR_H_
+#define _FABRIC_STR_H_
 
 /*
  * Authors:
+ *
  */
 
-#include <rdma/fabric.h>
+#include <rdma/fabric.h> /* fi_tostr */
 
-#include <memory> /* shared_ptr, unique_ptr */
+#include <mutex>
+#include <string>
+
+struct fi_info;
+struct fi_fabric_attr;
 
 /**
  * Fabric/RDMA-based network component
+ *
  */
 
-#include <iostream>
+/* bind fi types to their type ids */
 template <typename T>
-  int fid_close(T *f)
-  {
-    return ::fi_close(&f->fid);
-  }
+  struct str_attr;
 
-/* fid is shared not so much for true sharing as for automatic lifetime control.
- * A unique_ptr might work as well.
- */
-
-template <typename T>
-  std::shared_ptr<T> fid_ptr(T *f)
+template <>
+  struct str_attr<::fi_info>
   {
-    return std::shared_ptr<T>(f, fid_close<T>);
-  }
-
-template <typename T>
-  class fid_delete
-  {
-  public:
-    void operator()(T *f) { fid_close(f); }
+    static constexpr auto id = FI_TYPE_INFO;
   };
 
+template <>
+  struct str_attr<::fi_fabric_attr>
+  {
+    static constexpr auto id = FI_TYPE_FABRIC_ATTR;
+  };
+
+extern std::mutex m_fi_tostr;
+
+/* typesafe and threadsafe version of fi_tostr */
 template <typename T>
-  using fid_unique_ptr = std::unique_ptr<T, fid_delete<T>>;
+  std::string tostr(const T &f)
+  {
+    std::lock_guard<std::mutex> g{m_fi_tostr};
+    return ::fi_tostr(&f, str_attr<T>::id);
+  }
 
 #endif

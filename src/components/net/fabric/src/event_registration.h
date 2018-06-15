@@ -14,33 +14,31 @@
    limitations under the License.
 */
 
-#ifndef _FABRIC_CONNECTION_CLIENT_H_
-#define _FABRIC_CONNECTION_CLIENT_H_
+/*
+ * Authors:
+ *
+ */
 
-#include "fabric_connection.h"
+#ifndef _EVENT_REGISTRATION_H_
+#define _EVENT_REGISTRATION_H_
 
-#include <cstdint> /* uint16_t */
-#include <string>
+#include <rdma/fabric.h> /* fid_t */
 
-struct fi_info;
-struct fid_fabric;
-struct fid_eq;
-
+class event_consumer;
 class event_producer;
-class Fabric;
+struct fid_ep;
+struct fid_pep;
 
-class Fabric_connection_client
-  : public Fabric_connection
+class event_registration
 {
   event_producer &_ev;
-  /* BEGIN Fabric_connection */
-  void solicit_event() const override;
-  void wait_event() const override;
-  /* END Fabric_connection */
-  void expect_event_sync(std::uint32_t event_exp) const;
+  ::fid_t _ep;
 public:
-  explicit Fabric_connection_client(Fabric &fabric, event_producer &ep, ::fi_info & info, const std::string & remote, std::uint16_t control_port);
-  ~Fabric_connection_client();
+  explicit event_registration(event_producer &ev, event_consumer &ec, ::fid_ep &ep);
+  explicit event_registration(event_producer &ev, event_consumer &ec, ::fid_pep &pep);
+  event_registration(const event_registration &) = delete;
+  event_registration& operator=(const event_registration &) = delete;
+  ~event_registration();
 };
 
 #endif

@@ -21,16 +21,20 @@
 
 #include "fabric_connection.h"
 
+#include "event_producer.h"
+#include "event_registration.h"
+#include "fabric.h"
+#include "fabric_check.h"
 #include "fabric_error.h"
 #include "fabric_comm.h"
-#include "fabric_util.h"
+#include "fabric_ptr.h"
+#include "fabric_util.h" /* make_fi_infodup, make_fid_cq, make_fid_aep, make_fid_mr_reg_ptr, get_event_name */
 #include "fd_pair.h"
 #include "fd_unblock_set_monitor.h"
 #include "async_req_record.h"
 #include "system_fail.h"
 
 #include <rdma/fabric.h> /* FI_TYPE_xxx */
-#include <rdma/fi_cm.h> /* fi_connect */
 #include <rdma/fi_domain.h> /* fi_wait */
 #include <rdma/fi_rma.h> /* fi_writev */
 
@@ -38,23 +42,35 @@
 #include <sys/uio.h> /* iovec */
 
 #include <algorithm> /* min */
+#include <cassert>
+#include <chrono> /* seconds */
+#include <iostream> /* cerr */
 #include <limits> /* <int>::max */
+#include <thread> /* sleep_for */
 
 /**
  * Fabric/RDMA-based network component
  *
  */
 
+#define CAN USE_WAIT_SETS 0
+
 /* Note: the info is owned by the caller, and must be copied if it is to be saved. */
-Fabric_connection::Fabric_connection(fid_fabric &fabric_, fid_eq &eq_, fi_info &info_, Fd_control &&control_, fabric_types::addr_ep_t (*set_peer_early)(Fd_control &control, fi_info &info))
+Fabric_connection::Fabric_connection(
+    Fabric &fabric_
+    , event_producer &ev_
+    , fi_info &info_
+    , std::unique_ptr<Fd_control> control_
+    , fabric_types::addr_ep_t (*set_peer_early)(std::unique_ptr<Fd_control> control, fi_info &info)
+  )
   : Fabric_comm(*this)
-  , _control(std::move(control_))
+  , _fabric(fabric_)
   , _domain_info(make_fi_infodup(info_, "domain"))
   /* NOTE: "this" is returned for context when domain-level events appear in the event queue bound to the domain
    * and not bound to a more specific entity (an endpoint, mr, av, pr scalable_ep).
    */
-  , _domain(make_fid_domain(fabric_, *_domain_info, this))
-#if 0
+  , _domain(_fabric.make_fid_domain(*_domain_info, this))
+#if USE_WAIT_SETS
   /* verbs provider does not support wait sets */
   , _wait_attr{
     FI_WAIT_FD /* wait_obj type. verbs supports ony FI_WAIT_FD */
@@ -62,27 +78,30 @@ Fabric_connection::Fabric_connection(fid_fabric &fabric_, fid_eq &eq_, fi_info &
   }
   , _wait_set(make_fid_wait(fabric_, _wait_attr))
 #else
+#if 0
   , _fds_read{}
   , _fds_write{}
   , _fds_except{}
 #endif
+#endif
   , _m_fd_unblock_set{}
   , _fd_unblock_set{}
-#if 0
+#if USE_WAIT_SETS
   , _cq_attr{100, 0U, FI_CQ_FORMAT_CONTEXT, FI_WAIT_SET, 0U, FI_CQ_COND_NONE, &*_wait_set}
 #else
   , _cq_attr{100, 0U, FI_CQ_FORMAT_CONTEXT, FI_WAIT_FD, 0U, FI_CQ_COND_NONE, nullptr}
 #endif
   , _cq(make_fid_cq(*_domain, _cq_attr, this))
   , _ep_info(make_fi_infodup(*_domain_info, "endpoint construction"))
-  , _peer_addr(set_peer_early(_control, *_ep_info))
+  , _peer_addr(set_peer_early(std::move(control_), *_ep_info))
   , _ep(make_fid_aep(*_domain, *_ep_info, this))
   , _m{}
   , _mr_addr_to_desc{}
   , _mr_desc_to_addr{}
   , _m_comms{}
   , _comms{}
-{
+  /* events */
+  , _event_pipe{}
   /* NOTE: the various tests for type (FI_EP_MSG) should perhaps
    * move to derived classses.
    *                      connection  message boundaries  reliable
@@ -92,20 +111,15 @@ Fabric_connection::Fabric_connection(fid_fabric &fabric_, fid_eq &eq_, fi_info &
    * FI_EP_DGRAM:             N               Y              N
    * FI_EP_SOCK_DGRAM:        N               N              N
    */
-  if ( _ep_info->ep_attr->type == FI_EP_MSG )
-  {
-    CHECKZ(fi_ep_bind(&*_ep, &eq_.fid, 0));
-  }
-
-  CHECKZ(fi_ep_bind(&*_ep, &_cq->fid, FI_TRANSMIT | FI_RECV));
-
-  CHECKZ(fi_enable(&*_ep));
+  , _event_registration( ep_info().ep_attr->type == FI_EP_MSG ? new event_registration(ev_, *this, ep()) : nullptr )
+  , _shut_down(false)
+{
+  CHECK_FI_ERR(fi_ep_bind(&*_ep, &_cq->fid, FI_TRANSMIT | FI_RECV));
+  CHECK_FI_ERR(fi_enable(&*_ep));
 }
 
 Fabric_connection::~Fabric_connection()
 {
-  /* "the flags parameter is reserved and must be 0" */
-  fi_shutdown(&*_ep, 0);
 }
 
 /**
@@ -143,18 +157,17 @@ auto Fabric_connection::register_memory(const void * contig_addr, size_t size, s
    */
 void Fabric_connection::deregister_memory(const memory_region_t mr_)
 {
-  auto mr = static_cast<fid_mr *>(std::get<0>(mr_));
+  /* recover the memory region as a unique ptr */
+  auto mr = fid_ptr(static_cast<::fid_mr *>(std::get<0>(mr_)));
 
   {
-    auto desc = ::fi_mr_desc(mr);
+    auto desc = ::fi_mr_desc(&*mr);
     guard g{_m};
     auto itr = _mr_desc_to_addr.find(desc);
     assert(itr != _mr_desc_to_addr.end());
     _mr_addr_to_desc.erase(itr->first);
     _mr_desc_to_addr.erase(itr);
   }
-
-  fi_close(&mr->fid);
 }
 
 /* If local keys are needed, one local key per buffer. */
@@ -191,7 +204,7 @@ void Fabric_connection::post_send_internal(
   const std::vector<iovec>& buffers, void *context)
 {
   auto desc = populated_desc(buffers);
-  CHECKZ(fi_sendv(&*_ep, &*buffers.begin(), &*desc.begin(), buffers.size(), fi_addr_t{}, context));
+  CHECK_FI_ERR(fi_sendv(&*_ep, &*buffers.begin(), &*desc.begin(), buffers.size(), fi_addr_t{}, context));
 }
 
 /**
@@ -206,7 +219,7 @@ void Fabric_connection::post_recv_internal(
   const std::vector<iovec>& buffers, void *context)
 {
   auto desc = populated_desc(buffers);
-  CHECKZ(fi_recvv(&*_ep, &*buffers.begin(), &*desc.begin(), buffers.size(), fi_addr_t{}, context));
+  CHECK_FI_ERR(fi_recvv(&*_ep, &*buffers.begin(), &*desc.begin(), buffers.size(), fi_addr_t{}, context));
 }
 
   /**
@@ -226,8 +239,13 @@ void Fabric_connection::post_read_internal(
   void *context)
 {
   auto desc = populated_desc(buffers);
-  CHECKZ(fi_readv(&*_ep, &*buffers.begin(), &*desc.begin(),
-    buffers.size(), fi_addr_t{}, remote_addr, key, context));
+  CHECK_FI_ERR(
+    fi_readv(
+      &*_ep
+      , &*buffers.begin(), &*desc.begin()
+      , buffers.size(), fi_addr_t{}, remote_addr, key, context
+    )
+  );
 }
 
   /**
@@ -247,7 +265,7 @@ void Fabric_connection::post_write_internal(
   void *context)
 {
   auto desc = populated_desc(buffers);
-  CHECKZ(::fi_writev(&*_ep, &*buffers.begin(), &*desc.begin(),
+  CHECK_FI_ERR(::fi_writev(&*_ep, &*buffers.begin(), &*desc.begin(),
     buffers.size(), fi_addr_t{}, remote_addr, key, context));
 }
 
@@ -259,14 +277,13 @@ void Fabric_connection::post_write_internal(
    */
 void Fabric_connection::inject_send(const std::vector<iovec>& buffers)
 {
-  CHECKZ(::fi_inject(&*_ep, &*buffers.begin(), buffers.size(), fi_addr_t{}));
+  CHECK_FI_ERR(::fi_inject(&*_ep, &*buffers.begin(), buffers.size(), fi_addr_t{}));
 }
 
-#include <iostream>
-std::size_t get_cq_comp_err(fid_cq &cq_, std::function<void(void *connection, status_t st)> completion_callback)
+void *Fabric_connection::get_cq_comp_err() const
 {
   fi_cq_err_entry err{0,0,0,0,0,0,0,0,0,0,0};
-  CHECKZ(fi_cq_readerr(&cq_, &err, 0));
+  CHECK_FI_ERR(cq_readerr(&err, 0));
 
   std::cerr << __func__ << " : "
                   << " op_context " << err.op_context
@@ -281,8 +298,12 @@ std::size_t get_cq_comp_err(fid_cq &cq_, std::function<void(void *connection, st
                   << " err_data " << err.err_data
                   << " err_data_size " << err.err_data_size
         << std::endl;
-  completion_callback(err.op_context, E_FAIL);
+  return err.op_context;
+}
 
+std::size_t Fabric_connection::process_cq_comp_err(std::function<void(void *connection, status_t st)> completion_callback)
+{
+  completion_callback(get_cq_comp_err(), E_FAIL);
   return 1U;
 }
 
@@ -311,29 +332,40 @@ std::size_t Fabric_connection::poll_completions(std::function<void(void *context
   bool drained = false;
   while ( ! drained )
   {
-    switch ( auto ct = cq_sread(&entry, ct_max, nullptr, 0) )
+#if 1
+    auto timeout = 0; /* immediate timeout */
+    auto ct = cq_sread(&entry, ct_max, nullptr, timeout);
+#else
+    auto ct = cq_read(&entry, ct_max);
+#endif
+    if ( ct < 0 )
     {
-    case -FI_EAVAIL:
-      ct_total += ::get_cq_comp_err(*_cq, cb_);
-      break;
-    case -FI_EAGAIN:
-      drained = true;
-      break;
-    default:
-      if ( ct < 0 )
+      switch ( auto e = unsigned(-ct) )
       {
-        throw fabric_error(int(-ct), __FILE__, __LINE__);
+      case FI_EAVAIL:
+        ct_total += process_cq_comp_err(cb_);
+        break;
+      case FI_EAGAIN:
+        drained = true;
+        break;
+      default:
+        throw fabric_error(e, __FILE__, __LINE__);
       }
-
+    }
+    else
+    {
       std::unique_ptr<async_req_record> g_context(static_cast<async_req_record *>(entry.op_context));
       cb_(g_context->context(), S_OK);
       ++ct_total;
 
       g_context.release();
-      break;
     }
   }
 
+  if ( _shut_down && ct_total == 0 )
+  {
+    throw std::logic_error("Connection closed");
+  }
   return ct_total;
 }
 
@@ -351,42 +383,53 @@ std::size_t Fabric_connection::stalled_completion_count()
  */
 void Fabric_connection::wait_for_next_completion(std::chrono::milliseconds timeout)
 {
-/* verbs provider does not support wait sets */
-#if 0
-  fi_wait(&*_wait_set, std::min(std::numeric_limits<int>::max(), int(timeout.count())));
-#else
-  int fd;
-  CHECKZ(fi_control(&_cq->fid, FI_GETWAIT, &fd));
-  FD_ZERO(&_fds_read);
-  FD_SET(fd, &_fds_read);
   Fd_pair fd_unblock;
   fd_unblock_set_monitor(_m_fd_unblock_set, _fd_unblock_set, fd_unblock.fd_write());
-  FD_SET(fd_unblock.fd_read(), &_fds_read);
-  FD_ZERO(&_fds_write);
-  FD_SET(fd, &_fds_write);
-  FD_ZERO(&_fds_except);
-  FD_SET(fd, &_fds_except);
-  struct timespec ts {
-    timeout.count() / 1000 /* seconds */
-    , (timeout.count() % 1000) * 1000000 /* nanoseconds */
-  };
-
-  auto ready = ::pselect(fd+1, &_fds_read, &_fds_write, &_fds_except, &ts, nullptr);
-  if ( -1 == ready )
+  /* Only block if we have not seen FI_SHUTDOWN */
+  if ( ! _shut_down )
   {
-    switch ( auto e = errno )
+/* verbs provider does not support wait sets */
+#if USE_WAIT_SETS
+    fi_wait(&*_wait_set, std::min(std::numeric_limits<int>::max(), int(timeout.count())));
+#else
+    ::fid_t f[1] = { &_cq->fid };
+    if ( _fabric.trywait(f, 1) == FI_SUCCESS )
     {
-    case EINTR:
-      break;
-    default:
-      system_fail(e, "wait_for_next_completion");
+      int fd;
+      CHECK_FI_ERR(fi_control(&_cq->fid, FI_GETWAIT, &fd));
+      fd_set fds_read;
+      fd_set fds_write;
+      fd_set fds_except;
+      FD_ZERO(&fds_read);
+      FD_SET(fd, &fds_read);
+      FD_SET(fd_unblock.fd_read(), &fds_read);
+      FD_ZERO(&fds_write);
+      FD_SET(fd, &fds_write);
+      FD_ZERO(&fds_except);
+      FD_SET(fd, &fds_except);
+      struct timespec ts {
+        timeout.count() / 1000 /* seconds */
+        , (timeout.count() % 1000) * 1000000 /* nanoseconds */
+      };
+
+      auto ready = ::pselect(std::max(fd,fd_unblock.fd_read())+1, &fds_read, &fds_write, &fds_except, &ts, nullptr);
+      if ( -1 == ready )
+      {
+        switch ( auto e = errno )
+        {
+        case EINTR:
+          break;
+        default:
+          system_fail(e, "wait_for_next_completion");
+        }
+      }
+      /* Note: there is no reason to act on the fd's because either
+       *  - fi_cq_read will take care of them, or
+       *  - the fd_unblock_set_monitor will take care of them.
+       */
+#endif
     }
   }
-  /* Note: there is no reason to act on the fd's because either
-   *  - fi_cq_read will take care of them, or
-   *  - the fd_unblock_set_monitor will take care of them.
-   */
-#endif
 }
 
 void Fabric_connection::wait_for_next_completion(unsigned polls_limit)
@@ -415,6 +458,12 @@ auto Fabric_connection::allocate_group() -> IFabric_communicator *
   return comm;
 }
 
+void Fabric_connection::forget_group(Fabric_comm *comm)
+{
+  std::lock_guard<std::mutex> g{_m_comms};
+  _comms.erase(comm);
+}
+
 /**
  * Unblock any threads waiting on completions
  *
@@ -428,6 +477,14 @@ void Fabric_connection::unblock_completions()
     auto sz = ::write(fd, &c, 1);
     (void) sz;
   }
+}
+
+auto Fabric_connection::get_name() const -> fabric_types::addr_ep_t
+{
+  auto it = static_cast<const char *>(_ep_info->src_addr);
+  return fabric_types::addr_ep_t(
+     std::vector<char>(it, it+_ep_info->src_addrlen)
+  );
 }
 
   /**
@@ -456,41 +513,119 @@ std::string Fabric_connection::get_local_addr()
   return std::string(v.begin(), v.end());
 }
 
-auto Fabric_connection::get_name() const -> fabric_types::addr_ep_t
-{
-  auto it = static_cast<const char *>(_ep_info->src_addr);
-  return fabric_types::addr_ep_t(
-     std::vector<char>(it, it+_ep_info->src_addrlen)
-  );
-}
-
-void Fabric_connection::await_connected(fid_eq &eq_) const
-{
-  fi_eq_cm_entry entry;
-  std:: uint32_t event;
-  CHECKZ(fi_eq_sread(&eq_, &event, &entry, sizeof entry, -1, 0));
-  assert(event == FI_CONNECTED);
-}
-
-std::size_t Fabric_connection::get_cq_comp_err(std::function<void(void *connection, status_t st)> completion_callback)
-{
-  return ::get_cq_comp_err(*_cq, completion_callback);
-}
-
-ssize_t Fabric_connection::cq_sread(void *buf, size_t count, const void *cond, int timeout) noexcept
-{
-  return fi_cq_sread(&*_cq, buf, count, cond, timeout);
-}
-
-ssize_t Fabric_connection::cq_readerr(fi_cq_err_entry *buf, uint64_t flags) noexcept
-{
-  return fi_cq_readerr(&*_cq, buf, flags);
-}
-
 void Fabric_connection::queue_completion(Fabric_comm *comm_, void *context_, status_t status_)
 {
   std::lock_guard<std::mutex> k{_m_comms};
   auto it = _comms.find(comm_);
   assert(it != _comms.end());
   (*it)->queue_completion(context_, status_);
+}
+
+#if 1
+ssize_t Fabric_connection::cq_sread(void *buf, size_t count, const void *cond, int timeout) noexcept
+{
+  return ::fi_cq_sread(&*_cq, buf, count, cond, timeout);
+}
+#else
+ssize_t Fabric_connection::cq_read(void *buf, size_t count) noexcept
+{
+  return ::fi_cq_read(&*_cq, buf, count);
+}
+#endif
+ssize_t Fabric_connection::cq_readerr(fi_cq_err_entry *buf, uint64_t flags) const noexcept
+{
+  return ::fi_cq_readerr(&*_cq, buf, flags);
+}
+
+/* EVENTS */
+void Fabric_connection::cb(std::uint32_t event, fi_eq_cm_entry &) noexcept
+try
+{
+  if ( event == FI_SHUTDOWN )
+  {
+    _shut_down = true;
+    unblock_completions();
+  }
+  _event_pipe.write(&event, sizeof event);
+}
+catch ( const std::exception &e )
+{
+  std::cerr << __func__ << " (Fabric_connection) " << e.what() << "\n";
+}
+
+void Fabric_connection::err(fi_eq_err_entry &) noexcept
+try
+{
+  /* An error event; not what we were expecting */
+  std::uint32_t event = FI_NOTIFY;
+  _event_pipe.write(&event, sizeof event);
+}
+catch ( const std::exception &e )
+{
+  std::cerr << __func__ << " (Fabric_connection) " << e.what() << "\n";
+}
+
+void Fabric_connection::ensure_event() const
+{
+  /* First, ensure that expect_event will see an event */
+  for ( bool have_event = false
+    ; ! have_event
+    ;
+      /* Make some effort to wait until the event queue is readable.
+       * NOTE: Seems to block for too long, as fi_trywait is not
+       * behaving as expected. See Fabric::wait_eq.
+       */
+      wait_event()
+  )
+  {
+    solicit_event(); /* _ev.read_eq() in client, no-op in server */
+    auto fd = _event_pipe.fd_read();
+    fd_set fds_read;
+    FD_ZERO(&fds_read);
+    FD_SET(fd, &fds_read);
+    struct timespec ts {
+      0 /* seconds */
+      , 0 /* nanoseconds */
+    };
+
+    auto ready = ::pselect(fd+1, &fds_read, nullptr, nullptr, &ts, nullptr);
+
+    if ( -1 == ready )
+    {
+      switch ( auto e = errno )
+      {
+      case EINTR:
+        break;
+      default:
+        system_fail(e, "expect_event_sync");
+      }
+    }
+    /* Note: there is no reason to act on the fd because
+     *  - expect_event will read it
+     */
+    else
+    {
+      have_event = FD_ISSET(fd, &fds_read);
+#if 0
+      if ( have_event )
+      {
+        std::cerr << __func__ << " ready count " << ready << "\n";
+      }
+      else
+      {
+        std::cerr << __func__ << " timeout, ready count " << ready << "\n";
+      }
+#endif
+    }
+  }
+}
+
+void Fabric_connection::expect_event(std::uint32_t event_exp) const
+{
+  std::uint32_t event = 0;
+  _event_pipe.read(&event, sizeof event);
+  if ( event != event_exp )
+  {
+    throw std::logic_error(std::string("expected ") + get_event_name(event_exp) + " got " + get_event_name(event) );
+  }
 }

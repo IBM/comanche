@@ -14,46 +14,26 @@
    limitations under the License.
 */
 
-#ifndef _FABRIC_FID_PTR_H_
-#define _FABRIC_FID_PTR_H_
+#ifndef _FABRIC_UTIL_WAIT_H_
+#define _FABRIC_UTIL_WAIT_H_
 
 /*
  * Authors:
+ *
  */
 
-#include <rdma/fabric.h>
+#include "fabric_ptr.h" /* fid_unique_ptr */
 
-#include <memory> /* shared_ptr, unique_ptr */
+struct fi_wait_attr;
+
+struct fid_fabric;
+struct fid_wait;
 
 /**
  * Fabric/RDMA-based network component
+ *
  */
 
-#include <iostream>
-template <typename T>
-  int fid_close(T *f)
-  {
-    return ::fi_close(&f->fid);
-  }
-
-/* fid is shared not so much for true sharing as for automatic lifetime control.
- * A unique_ptr might work as well.
- */
-
-template <typename T>
-  std::shared_ptr<T> fid_ptr(T *f)
-  {
-    return std::shared_ptr<T>(f, fid_close<T>);
-  }
-
-template <typename T>
-  class fid_delete
-  {
-  public:
-    void operator()(T *f) { fid_close(f); }
-  };
-
-template <typename T>
-  using fid_unique_ptr = std::unique_ptr<T, fid_delete<T>>;
+fid_unique_ptr<::fid_wait> make_fid_wait(::fid_fabric &fabric, ::fi_wait_attr &attr);
 
 #endif
