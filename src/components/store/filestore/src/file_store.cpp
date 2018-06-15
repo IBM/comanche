@@ -123,7 +123,8 @@ FileStore::~FileStore()
 IKVStore::pool_t FileStore::create_pool(const std::string path,
                                         const std::string name,
                                         const size_t size,
-                                        unsigned int flags)
+                                        unsigned int flags,
+                                        uint64_t args)
 {
   if(!fs::exists(path))
     throw API_exception("path (%s) does not exist", path.c_str());

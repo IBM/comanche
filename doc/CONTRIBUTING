@@ -8,6 +8,25 @@ Design Guidelines
 * Parameter ordering
   - owner, name
 
+Component design
+====================
 
+To add a component, you can follow the posix_blk component example:
+
+1. declare interfaces:
+  ````
+  components/api/block_itf.h
+  ````
+
+2. declare this specific component:
+  ```
+  src/components/block_posix_component.h
+  ```
+
+3. uuid also need to be declared in the component.h:
+  ```
+  src/components/api/components.h
+  ```
+ 
 
 

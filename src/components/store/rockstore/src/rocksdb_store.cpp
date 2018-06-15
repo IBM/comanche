@@ -3,6 +3,7 @@
 #include <string>
 #include <stdio.h>
 #include <api/kvstore_itf.h>
+#include <common/exceptions.h>
 #include <common/city.h>
 #include <boost/filesystem.hpp>
 #include <tbb/concurrent_hash_map.h>
@@ -25,7 +26,8 @@ RockStore::~RockStore()
 IKVStore::pool_t RockStore::create_pool(const std::string path,
                                         const std::string name,
                                         const size_t size,
-                                        unsigned int flags)
+                                        unsigned int flags,
+                                        uint64_t args)
 {
   rocksdb::Options options;
   options.error_if_exists = true;

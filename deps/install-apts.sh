@@ -9,9 +9,11 @@ apt-get install -y gcc libpciaccess-dev make libcunit1-dev pkg-config \
         rapidjson-dev libfuse-dev libpcap-dev sqlite3 libsqlite3-dev libomp-dev \
 	      libtbb-dev libtbb-doc libboost-python-dev libkmod-dev libjson-c-dev libbz2-dev \
         linux-headers-`uname -r` libelf-dev libsnappy-dev liblz4-dev \
-        asciidoc xmlto libtool graphviz
+        asciidoc xmlto libtool graphviz \
+        google-perftools libgoogle-perftools-dev
+
 
 # optional
 #
-# apt-get install emacs elpa-company google-perftools libgoogle-perftools-dev
+# apt-get install emacs elpa-company 
 #

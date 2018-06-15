@@ -7,6 +7,8 @@ project(comanche-mdfixobd CXX)
 
 add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 
+include_directories(../../../../src/lib/tbb/include/)
+
 file(GLOB SOURCES src/*.cpp)
 
 add_library(${PROJECT_NAME} SHARED ${SOURCES})

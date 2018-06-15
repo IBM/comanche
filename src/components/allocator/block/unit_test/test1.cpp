@@ -201,6 +201,8 @@ TEST_F(Block_allocator_test, TestAllocation)
     used_lbas.insert(lba);
     //    PLOG("[%lu]: lba(%ld) allocated %ld blocks", i, lba, s);
     v.push_back({lba,p});
+
+    // TODO redundent?
     i++;
 
     if(i % 1000 == 0) PLOG("allocations:%ld", i);

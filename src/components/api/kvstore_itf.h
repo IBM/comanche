@@ -18,8 +18,11 @@
 #ifndef __API_KVSTORE_ITF__
 #define __API_KVSTORE_ITF__
 
-#include <api/components.h>
 #include <functional>
+
+#include <api/components.h>
+#include <api/block_itf.h>
+#include <api/block_allocator_itf.h>
 
 namespace Component
 {
@@ -43,6 +46,7 @@ public:
 
   enum {
     FLAGS_READ_ONLY = 1,
+    FLAGS_SET_SIZE = 2,
   };
 
   enum {
@@ -77,13 +81,15 @@ public:
    * @param name Name of object pool
    * @param size Size of object in bytes
    * @param flags Creation flags
+   * @param
    * 
    * @return Pool handle
    */
   virtual pool_t create_pool(const std::string path,
                              const std::string name,
                              const size_t size,
-                             unsigned int flags = 0) = 0;
+                             unsigned int flags = 0,
+                             uint64_t expected_obj_count = 0) = 0;
 
   /** 
    * Open an existing pool
@@ -315,8 +321,7 @@ public:
   DECLARE_INTERFACE_UUID(0xface829f,0x0405,0x4c19,0x9898,0xa3,0xae,0x21,0x5a,0x3e,0xe8);
 
   virtual IKVStore * create(const std::string owner,
-                            const std::string name) = 0;
-  
+                            const std::string name) =0;
 
 };
 
