@@ -49,6 +49,7 @@ public:
   virtual void initialize(unsigned core) = 0; /*< called once */
   virtual void do_work(unsigned core) = 0; /*< called in tight loop */
   virtual void cleanup(unsigned core) = 0; /*< called once */
+  virtual bool ready() { return true; }
 };
 
 
@@ -75,6 +76,13 @@ class Per_core_tasking
         _threads[c] = nullptr;
       }
     }
+
+    for (unsigned c = 0; c < sysconf(_SC_NPROCESSORS_ONLN); c++) {
+      if (cpus.check_core(c)) {        
+        while(!_tasklet[c]->ready()) sleep(100);
+      }
+    }
+
     _start_flag = true;
   }
 
@@ -91,6 +99,17 @@ class Per_core_tasking
       PLOG("Per_core_tasking: threads joined");
   }
 
+  void wait_for_all() {
+    for (unsigned c = 0; c < sysconf(_SC_NPROCESSORS_ONLN); c++) {
+      if(_threads[c]) {
+        _threads[c]->join();
+        delete _threads[c];
+        _threads[c] = nullptr;
+      }
+    }
+  }
+
+
 private:
 
   void thread_entry(unsigned core)
@@ -102,7 +121,13 @@ private:
     while(!_start_flag) usleep(1000);
       
     while (!_exit_flag) {
+      try {
         _tasklet[core]->do_work(core); /* call tasklet */
+      }
+      catch(...) {
+        _exit_flag = true;
+        break;
+      }
     }
 
     _tasklet[core]->cleanup(core);      

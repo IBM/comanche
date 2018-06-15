@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.6)
+cmake_minimum_required(VERSION 3.5)
 
 # force out-of-tree build
 option(FORCE_OTT_BUILD "force out of tree build" ON)
@@ -14,6 +14,10 @@ set(ENV{COMANCHE_HOME} ${CMAKE_SOURCE_DIR})
 
 include(${CMAKE_SOURCE_DIR}/mk/common.cmake)
 project(comanche)
+
+# locate FindXXX.cmake
+set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/mk)
+message("CMAKE_MODULE_PATH: ${CMAKE_MODULE_PATH}")
 
 # make COMANCHE HOME visible in config.h
 set(CONF_COMANCHE_HOME ${CMAKE_SOURCE_DIR})
@@ -55,5 +59,9 @@ add_custom_target(doc
 endif(DOXYGEN_FOUND)
 
 if (USE_RESTRICTED)
+  # currently PMDK packages are only used for Restricted
+    set(PMDK_PREFIX ${CONF_COMANCHE_HOME}/src/lib/pmdk)
+    find_package(PMDK REQUIRED)
+
     add_subdirectory(comanche-restricted)
 endif(USE_RESTRICTED)

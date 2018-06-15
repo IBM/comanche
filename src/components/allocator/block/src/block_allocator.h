@@ -165,6 +165,14 @@ public:
     return obj;
   }
 
+virtual Component::IBlock_allocator * open_allocator(  size_t max_lba,
+                                                       std::string path,
+                                                       std::string name,
+                                                       int numa_node,
+                                                       bool force_init) override{
+    throw API_exception("not implemented.");
+  }
+
 };
 
 
