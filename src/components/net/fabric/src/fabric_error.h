@@ -38,8 +38,8 @@ class fabric_error
   const char *_file;
   int _line;
 public:
-  fabric_error(int i, const char *file, int line);
-  fabric_error(int i, const char *file, int line, const std::string &desc);
+  explicit fabric_error(int i, const char *file, int line);
+  explicit fabric_error(int i, const char *file, int line, const std::string &desc);
   fabric_error(const fabric_error &) = default;
   fabric_error& operator=(const fabric_error &) = default;
   fabric_error add(const std::string &added) const;

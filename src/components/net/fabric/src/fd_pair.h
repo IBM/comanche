@@ -17,13 +17,18 @@
 #ifndef _FD_PAIR_H_
 #define _FD_PAIR_H_
 
+#include <cstddef> /* size_t */
+
 class Fd_pair
 {
   int _pair[2];
 public:
   Fd_pair();
+  explicit Fd_pair(int read_flags);
   int fd_read() const { return _pair[0]; }
   int fd_write() const { return _pair[1]; }
+  std::size_t read(void *, std::size_t) const;
+  std::size_t write(const void *, std::size_t) const;
   ~Fd_pair();
 };
 

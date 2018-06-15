@@ -19,24 +19,34 @@
  *
  */
 
-#include "fd_unblock_set_monitor.h"
+#include "event_registration.h"
+
+#include "event_producer.h"
+
+#include <rdma/fi_endpoint.h> /* fi_ep_bind */
 
 #include <iostream> /* cerr */
 
-fd_unblock_set_monitor:: fd_unblock_set_monitor(std::mutex &m_, std::set<int> &s_, int fd_)
-  : _m(m_)
-  , _s(s_)
-  , _fd(fd_)
+event_registration::event_registration(event_producer &ev_, event_consumer &ec_, ::fid_ep &ep_)
+  : _ev(ev_)
+  , _ep(&ep_.fid)
 {
-  guard g{_m};
-  _s.insert(_fd);
+  _ev.register_aep(_ep, ec_);
+  _ev.bind(ep_);
 }
 
-fd_unblock_set_monitor::~fd_unblock_set_monitor()
+event_registration::event_registration(event_producer &ev_, event_consumer &ec_, ::fid_pep &ep_)
+  : _ev(ev_)
+  , _ep(&ep_.fid)
+{
+  _ev.register_pep(_ep, ec_);
+  _ev.bind(ep_);
+}
+
+event_registration::~event_registration()
 try
 {
-  guard g{_m};
-  _s.erase(_fd);
+  _ev.deregister_endpoint(_ep);
 }
 catch ( const std::exception &e )
 {

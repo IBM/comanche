@@ -14,28 +14,32 @@
    limitations under the License.
 */
 
-#ifndef _FABRIC_CONNECTION_SERVER_H_
-#define _FABRIC_CONNECTION_SERVER_H_
+/*
+ * Authors:
+ *
+ */
 
-#include "fabric_connection.h"
+#include "pending_cnxns.h"
 
-#include <memory> /* unique_ptr */
+Pending_cnxns::Pending_cnxns()
+  : _m{}
+  , _q{}
+{}
 
-class Fd_control;
-struct fi_info;
-struct fid_fabric;
-struct fid_eq;
-
-class Fabric_connection_server
-  : public Fabric_connection
+void Pending_cnxns::push(cnxn_t c)
 {
-  /* BEGIN Fabric_connection */
-  void solicit_event() const override;
-  void wait_event() const override;
-  /* END Fabric_connection */
-public:
-  explicit Fabric_connection_server(Fabric &fabric, event_producer &ep, ::fi_info & info);
-  ~Fabric_connection_server();
-};
+  guard g{_m};
+  _q.push(c);
+}
 
-#endif
+auto Pending_cnxns::remove() -> cnxn_t
+{
+  cnxn_t c;
+  guard g{_m};
+  if ( _q.size() != 0 )
+  {
+    c = _q.front();
+    _q.pop();
+  }
+  return c;
+}

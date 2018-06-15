@@ -14,28 +14,13 @@
    limitations under the License.
 */
 
-#ifndef _FABRIC_CONNECTION_SERVER_H_
-#define _FABRIC_CONNECTION_SERVER_H_
+/*
+ * Authors:
+ *
+ */
 
-#include "fabric_connection.h"
+#include "fabric_str.h"
 
-#include <memory> /* unique_ptr */
+#include <mutex>
 
-class Fd_control;
-struct fi_info;
-struct fid_fabric;
-struct fid_eq;
-
-class Fabric_connection_server
-  : public Fabric_connection
-{
-  /* BEGIN Fabric_connection */
-  void solicit_event() const override;
-  void wait_event() const override;
-  /* END Fabric_connection */
-public:
-  explicit Fabric_connection_server(Fabric &fabric, event_producer &ep, ::fi_info & info);
-  ~Fabric_connection_server();
-};
-
-#endif
+std::mutex m_fi_tostr;

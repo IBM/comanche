@@ -21,6 +21,8 @@
 #include <unistd.h> /* close, pipe */
 #include <fcntl.h> /* fcntl, O_NONBLOCK */
 
+#include <cerrno>
+
 Fd_pair::Fd_pair()
   : _pair{}
 {
@@ -29,11 +31,38 @@ Fd_pair::Fd_pair()
     auto e = errno;
     system_fail(e, "creating Fd_pair");
   }
-  if ( -1 == ::fcntl(fd_read(), F_SETFL, O_NONBLOCK) )
+}
+
+#if 0
+Fd_pair::Fd_pair(int read_flags)
+  : Fd_pair{}
+{
+  if ( -1 == ::fcntl(fd_read(), F_SETFL, read_flags) )
   {
     auto e = errno;
-    system_fail(e, "setting O_NONBLOCK on Fd_pair");
+    system_fail(e, "setting flags " + std::to_string(read_flags) + " on Fd_pair");
   }
+}
+#endif
+
+std::size_t Fd_pair::read(void *b, std::size_t sz) const
+{
+  auto ct = ::read(fd_read(), b, sz);
+  if ( ct < 0 )
+  {
+    system_fail(errno, __func__);
+  }
+  return std::size_t(ct);
+}
+
+std::size_t Fd_pair::write(const void *b, std::size_t sz) const
+{
+  auto ct = ::write(fd_write(), const_cast<void *>(b), sz);
+  if ( ct < 0 )
+  {
+    system_fail(errno, std::string(__func__) + " fd=" + std::to_string(fd_write()));
+  }
+  return std::size_t(ct);
 }
 
 Fd_pair::~Fd_pair()

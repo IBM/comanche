@@ -23,7 +23,7 @@
 
 #include "fabric_connection.h"
 
-#include "fabric_util.h"
+#include "fabric_check.h"
 #include "fabric_error.h"
 #include "async_req_record.h"
 
@@ -44,7 +44,9 @@ Fabric_comm::Fabric_comm(Fabric_connection &conn_)
 
 Fabric_comm::~Fabric_comm()
 {
+
 /* wait until all completions are reaped */
+  _conn.forget_group(this);
 }
 
 /**
@@ -96,6 +98,7 @@ void Fabric_comm::post_read(
   uint64_t key,
   void *context)
 {
+  /* provide a read buffer */
   std::unique_ptr<async_req_record> gc{new async_req_record(this, context)};
   _conn.post_read_internal(buffers, remote_addr, key, &*gc);
   gc.release();
@@ -130,7 +133,8 @@ void Fabric_comm::post_write(
    */
 void Fabric_comm::inject_send(const std::vector<iovec>& buffers)
 {
-  _conn.inject_send(buffers);
+  Fabric_comm &comm = _conn;
+  comm.inject_send(buffers);
 }
 
 void Fabric_comm::queue_completion(void *context_, status_t status_)
@@ -158,26 +162,10 @@ std::size_t Fabric_comm::process_or_queue_completion(async_req_record *g_context
 }
 
 #include <iostream>
-std::size_t Fabric_comm::get_cq_comp_err(std::function<void(void *context, status_t st)> cb_)
+std::size_t Fabric_comm::process_cq_comp_err(std::function<void(void *context, status_t st)> cb_)
 {
-  fi_cq_err_entry err{0,0,0,0,0,0,0,0,0,0,0};
-  CHECKZ(_conn.cq_readerr(&err, 0));
-
-  std::cerr << __func__ << " : "
-                  << " op_context " << err.op_context
-                  << " flags " << err.flags
-                  << " len " << err.len
-                  << " buf " << err.buf
-                  << " data " << err.data
-                  << " tag " << err.tag
-                  << " olen " << err.olen
-                  << " err " << err.err
-                  << " errno " << err.prov_errno
-                  << " err_data " << err.err_data
-                  << " err_data_size " << err.err_data_size
-        << std::endl;
-
-  return process_or_queue_completion(static_cast<async_req_record *>(err.op_context), cb_, E_FAIL);
+  /* ERROR: the error context is not necessarily the expected context, and therefore may not be an async_req_record */
+  return process_or_queue_completion(static_cast<async_req_record *>(_conn.get_cq_comp_err()), cb_, E_FAIL);
 }
 
   /**
@@ -213,10 +201,14 @@ std::size_t Fabric_comm::poll_completions(std::function<void(void *context, stat
   {
     std::size_t constexpr ct_max = 1;
     fi_cq_tagged_entry entry; /* We dont actually expect a tagged entry. Spefifying this to provide the largest buffer. */
+#if 1
     switch ( auto ct = _conn.cq_sread(&entry, ct_max, nullptr, 0) )
+#else
+    switch ( auto ct = _conn.cq_read(&entry, ct_max) )
+#endif
     {
     case -FI_EAVAIL:
-      ct_total += get_cq_comp_err(completion_callback);
+      ct_total += process_cq_comp_err(completion_callback);
       break;
     case -FI_EAGAIN:
       drained = true;
@@ -250,12 +242,14 @@ std::size_t Fabric_comm::stalled_completion_count()
  */
 void Fabric_comm::wait_for_next_completion(std::chrono::milliseconds timeout)
 {
-  return _conn.wait_for_next_completion(timeout);
+  Fabric_comm &comm = _conn;
+  return comm.wait_for_next_completion(timeout);
 }
 
 void Fabric_comm::wait_for_next_completion(unsigned polls_limit)
 {
-  return _conn.wait_for_next_completion(polls_limit);
+  Fabric_comm &comm = _conn;
+  return comm.wait_for_next_completion(polls_limit);
 }
 
 /**
@@ -264,5 +258,6 @@ void Fabric_comm::wait_for_next_completion(unsigned polls_limit)
  */
 void Fabric_comm::unblock_completions()
 {
-  return _conn.unblock_completions();
+  Fabric_comm &comm = _conn;
+  return comm.unblock_completions();
 }

@@ -16,38 +16,68 @@
 
 #include "fabric_connection_server.h"
 
-#include "fabric_util.h" /* CHECKZ */
+#include "fabric_check.h" /* CHECK_FI_ERR */
 
-#include <rdma/fi_cm.h> /* fi_accept */
+#include <rdma/fi_cm.h> /* fi_accept, fi_shutdown */
 
 #include <algorithm> /* move */
 #include <cstdint> /* size_t */
+#include <iostream> /* cerr */
 
 namespace
 {
   /*
    * Callback for verbs behavior on client side; a no-op on the server side;
    */
-  fabric_types::addr_ep_t set_peer_early(Fd_control &, fi_info &)
+  fabric_types::addr_ep_t set_peer_early(std::unique_ptr<Fd_control>, ::fi_info &)
   {
     return fabric_types::addr_ep_t{};
   }
 }
 
 Fabric_connection_server::Fabric_connection_server(
-  fid_fabric & fabric_
-  , fid_eq &eq_
-  , fi_info &info_
-  , Fd_control &&conn_fd_
+  Fabric &fabric_
+  , event_producer &ev_
+  , ::fi_info &info_
 )
-  : Fabric_connection(fabric_, eq_, info_, std::move(conn_fd_), set_peer_early)
+  : Fabric_connection(fabric_, ev_, info_, std::unique_ptr<Fd_control>(), set_peer_early)
 {
   if ( ep_info().ep_attr->type == FI_EP_MSG )
   {
     std::size_t paramlen = 0;
     auto param = nullptr;
-    CHECKZ(fi_accept(&ep(), param, paramlen));
-
-    await_connected(eq_);
+    CHECK_FI_ERR(::fi_accept(&ep(), param, paramlen));
+#if 0
+    /* According to fi_cm man page
+     *  "An FI_CONNECTED event will also be generated on the passive side for the accepting endpoint once the connection has been properly established."
+     * But it is not clear what "properly established" means.
+     * It seems that the fi_accept is insufficient. Therefore, the expectation of FI_CONNECTED is moved to the destructor.
+     */
+    expect_event(FI_CONNECTED);
+#endif
   }
+}
+
+Fabric_connection_server::~Fabric_connection_server()
+try
+{
+  expect_event(FI_CONNECTED);
+  /* "the flags parameter is reserved and must be 0" */
+  ::fi_shutdown(&ep(), 0);
+/* The client may in turn call fi_shutdown, giving us an event. We do not need to see it.
+ */
+}
+catch ( const std::exception &e )
+{
+  std::cerr << "SERVER connection shutdown error " << e.what();
+}
+
+/* The server does not need to do anything to solicit an event,
+ * as the server_factory continuously reads the server's event queue
+ */
+void Fabric_connection_server::solicit_event() const
+{
+}
+void Fabric_connection_server::wait_event() const
+{
 }

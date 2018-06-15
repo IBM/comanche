@@ -21,15 +21,24 @@
 
 #include "fabric.h"
 
-#include "fabric_connection_factory.h"
+#include "fabric_check.h" /* FI_CHECK_ERR */
+#include "event_consumer.h"
+#include "fabric_connection_server_factory.h"
 #include "fabric_connection_client.h"
 #include "fabric_error.h"
 #include "fabric_json.h"
+#include "fabric_str.h"
 #include "fabric_util.h"
+#include "system_fail.h"
 
 #include <rdma/fabric.h> /* fi_info */
+#include <rdma/fi_endpoint.h> /* fi_ep_bind, fi_pep_bind */
 
+#include <sys/select.h> /* pselect */
+
+#include <chrono> /* seconds */
 #include <stdexcept> /* system_error */
+#include <thread> /* sleep_for */
 
 /**
  * Fabric/RDMA-based network component
@@ -52,10 +61,14 @@
 
 namespace
 {
-  fi_eq_attr &eq_attr_init(fi_eq_attr &attr_)
+  ::fi_eq_attr &eq_attr_init(::fi_eq_attr &attr_)
   {
     attr_.size = 10;
-    attr_.wait_obj = FI_WAIT_NONE;
+    /*
+     * Defaults to FI_WAIT_NONE, in which case we may not call fi_eq_sread.
+     * (We would rely on the verbs provider to configure the eq wait type.)
+     */
+    attr_.wait_obj = FI_WAIT_FD;
     return attr_;
   }
 }
@@ -64,14 +77,189 @@ Fabric::Fabric(const std::string& json_configuration)
   : _info(make_fi_info(json_configuration))
   , _fabric(make_fid_fabric(*_info->fabric_attr, this))
   , _eq_attr{}
-  , _eq(make_fid_eq(*_fabric, eq_attr_init(_eq_attr), this))
+  , _eq(make_fid_eq(eq_attr_init(_eq_attr), this))
+  , _fd()
+  , _m_eq_dispatch_pep{}
+  , _eq_dispatch_pep{}
+  , _m_eq_dispatch_aep{}
+  , _eq_dispatch_aep{}
 {
+  CHECK_FI_ERR(::fi_control(&_eq->fid, FI_GETWAIT, &_fd));
 }
 
 Component::IFabric_endpoint * Fabric::open_endpoint(const std::string& json_configuration, std::uint16_t control_port_)
 {
   _info = parse_info(json_configuration, _info);
-  return new Fabric_connection_factory(*_fabric, *_eq, *_info, control_port_);
+  return new Fabric_connection_server_factory(*this, *this, *_info, control_port_);
+}
+
+void Fabric::readerr_eq()
+{
+  ::fi_eq_err_entry entry{};
+  auto flags = 0U;
+  ::fi_eq_readerr(&*_eq, &entry, flags);
+
+  {
+    std::lock_guard<std::mutex> g{_m_eq_dispatch_pep};
+    auto p = _eq_dispatch_pep.find(entry.fid);
+    if ( p != _eq_dispatch_pep.end() )
+    {
+      p->second->err(entry);
+    }
+  }
+  {
+    std::lock_guard<std::mutex> g{_m_eq_dispatch_aep};
+    auto p = _eq_dispatch_aep.find(entry.fid);
+    if ( p != _eq_dispatch_aep.end() )
+    {
+      p->second->err(entry);
+    }
+  }
+}
+
+#include <iostream>
+
+namespace
+{
+  [[noreturn]] void get_eq_err(::fid_eq &eq_)
+  {
+    ::fi_eq_err_entry entry{};
+    auto flags = 0U;
+    ::fi_eq_readerr(&eq_, &entry, flags);
+    throw fabric_error(int(entry.err), __FILE__, __LINE__);
+  }
+}
+
+int Fabric::trywait(::fid **fids_, std::size_t count_) const
+{
+  /* NOTE: the man page and header file disagree on the signature to fi_trywait.
+   * man page says count is size_t; header file says int.
+   * NOTE: the man page example for fi_trywait does not include an fds for write,
+   *  ignoring this statetment in fi_cq:
+   *    "a provider may signal an FD wait object by marking it as readable, writable, or with an error."
+   * NOTE: the man page example for fi_trywait is missing the fabric parameter.
+   */
+  return ::fi_trywait(&*_fabric, fids_, int(count_));
+}
+
+void Fabric::wait_eq()
+{
+  ::fid_t f[1] = { &_eq->fid };
+  /* NOTE: although trywait is supposed to fail if there is the queue is non-empty,
+   * the pselect seems to time out. The sugests that the indication is edge-riggered
+   * and has been missed, and that fi_trywait did not tell us that.
+   */
+  if ( trywait(f, 1) == FI_SUCCESS )
+  {
+    int fd;
+    CHECK_FI_ERR(::fi_control(&_eq->fid, FI_GETWAIT, &fd));
+    fd_set fds_read;
+    fd_set fds_write;
+    fd_set fds_except;
+    FD_ZERO(&fds_read);
+    FD_SET(fd, &fds_read);
+    FD_ZERO(&fds_write);
+    FD_SET(fd, &fds_write);
+    FD_ZERO(&fds_except);
+    FD_SET(fd, &fds_except);
+    struct timespec ts {
+      0 /* seconds */
+      , 1000000 /* nanoseconds */
+    };
+
+    auto ready = ::pselect(fd+1, &fds_read, &fds_write, &fds_except, &ts, nullptr);
+    if ( -1 == ready )
+    {
+      switch ( auto e = errno )
+      {
+      case EINTR:
+        break;
+      default:
+        system_fail(e, __func__);
+      }
+    }
+  }
+}
+
+void Fabric::read_eq()
+try
+{
+  ::fi_eq_cm_entry entry;
+  std::uint32_t event = 0;
+  auto flags = 0U;
+  auto ct = ::fi_eq_read(&*_eq, &event, &entry, sizeof entry, flags);
+  if ( ct < 0 )
+  {
+    try
+    {
+      switch ( auto e = unsigned(-ct) )
+      {
+      case FI_EAVAIL:
+        readerr_eq();
+        break;
+      case FI_EAGAIN:
+        break;
+      default:
+        std::cerr << __func__ << ": fabric error " << e << " (" << ::fi_strerror(e) << ")\n";
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+#if 0
+        throw fabric_error(e, __FILE__, __LINE__);
+#endif
+        break;
+      }
+    }
+    catch ( const std::exception &e )
+    {
+      std::cerr << __func__ << " (non-error path): exception: " << e.what() << "\n";
+      throw;
+    }
+  }
+  else
+  {
+    bool found = false;
+#if 0
+    std::cerr << "read_eq: fid " << entry.fid << " event " << get_event_name(event) << "\n";
+#endif
+    try
+    {
+      std::unique_lock<std::mutex> g{_m_eq_dispatch_pep};
+      auto p = _eq_dispatch_pep.find(entry.fid);
+      if ( p != _eq_dispatch_pep.end() )
+      {
+        auto d = p->second;
+        d->cb(event, entry);
+        found = true;
+      }
+    }
+    catch ( const std::exception &e )
+    {
+      std::cerr << __func__ << " (aep event path): exception: " << e.what() << "\n";
+      throw;
+    }
+
+    if ( ! found )
+    try
+    {
+      std::unique_lock<std::mutex> g{_m_eq_dispatch_aep};
+      auto p = _eq_dispatch_aep.find(entry.fid);
+      if ( p != _eq_dispatch_aep.end() )
+      {
+        auto d = p->second;
+        d->cb(event, entry);
+        found = true;
+      }
+    }
+    catch ( const std::exception &e )
+    {
+      std::cerr << __func__ << " (pep event path): exception: " << e.what() << "\n";
+      throw;
+    }
+  }
+}
+catch ( const std::exception &e )
+{
+std::cerr << __func__ << ": exception: " << e.what() << "\n";
+  throw;
 }
 
 namespace
@@ -86,7 +274,7 @@ Component::IFabric_connection * Fabric::open_connection(const std::string& json_
 try
 {
   _info = parse_info(json_configuration_, _info);
-  return new Fabric_connection_client(*_fabric, *_eq, *_info, remote_, control_port_);
+  return new Fabric_connection_client(*this, *this, *_info, remote_, control_port_);
 }
 catch ( const fabric_error &e )
 {
@@ -95,4 +283,77 @@ catch ( const fabric_error &e )
 catch ( const std::system_error &e )
 {
   throw std::system_error(e.code(), e.what() + while_in(__func__));
+}
+
+void Fabric::bind(::fid_ep &ep_)
+{
+  CHECK_FI_ERR(::fi_ep_bind(&ep_, &_eq->fid, 0));
+}
+void Fabric::bind(::fid_pep &ep_)
+{
+  CHECK_FI_ERR(::fi_pep_bind(&ep_, &_eq->fid, 0));
+}
+
+void Fabric::register_pep(::fid_t ep_, event_consumer &ec_)
+{
+  std::lock_guard<std::mutex> g{_m_eq_dispatch_pep};
+  auto p = _eq_dispatch_pep.insert(eq_dispatch_t::value_type(ep_, &ec_));
+  assert(p.second);
+}
+
+void Fabric::register_aep(::fid_t ep_, event_consumer &ec_)
+{
+  std::lock_guard<std::mutex> g{_m_eq_dispatch_aep};
+  auto p = _eq_dispatch_aep.insert(eq_dispatch_t::value_type(ep_, &ec_));
+  assert(p.second);
+}
+
+void Fabric::deregister_endpoint(::fid_t ep_)
+{
+  /* Don't know whether this in a active ep or a passive ep, so try to erase both */
+  {
+    std::lock_guard<std::mutex> g{_m_eq_dispatch_pep};
+    _eq_dispatch_pep.erase(ep_);
+  }
+  {
+    std::lock_guard<std::mutex> g{_m_eq_dispatch_aep};
+    _eq_dispatch_aep.erase(ep_);
+  }
+}
+
+int Fabric::fd() const
+{
+  return _fd;
+}
+
+std::shared_ptr<::fid_domain> Fabric::make_fid_domain(::fi_info &info_, void *context_) const
+try
+{
+  ::fid_domain *f(nullptr);
+  CHECK_FI_ERR(::fi_domain(&*_fabric, &info_, &f, context_));
+  return fid_ptr(f);
+}
+catch ( const fabric_error &e )
+{
+  throw e.add(tostr(info_));
+}
+
+std::shared_ptr<::fid_pep> Fabric::make_fid_pep(::fi_info &info_, void *context_) const
+try
+{
+  ::fid_pep *e;
+  CHECK_FI_ERR(::fi_passive_ep(&*_fabric, &info_, &e, context_));
+  static_assert(0 == FI_SUCCESS, "FI_SUCCESS not 0, which means that we need to distinguish between these types of \"successful\" returns");
+  return fid_ptr(e);
+}
+catch ( const fabric_error &e )
+{
+  throw e.add(tostr(info_));
+}
+
+std::shared_ptr<::fid_eq> Fabric::make_fid_eq(::fi_eq_attr &attr_, void *context_) const
+{
+  ::fid_eq *e;
+  CHECK_FI_ERR(::fi_eq_open(&*_fabric, &attr_, &e, context_));
+  return fid_ptr(e);
 }

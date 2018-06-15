@@ -21,28 +21,75 @@
 
 #include <rdma/fi_domain.h> /* fi_eq_attr */
 
+#include <map>
 #include <memory> /* shared_ptr */
+#include <mutex>
+
+#include "event_producer.h"
 
 struct fi_info;
 struct fid_fabric;
 struct fid_eq;
+struct fid;
 
 /*
  * Note: Fabric is a fabric which can create servers (IFabric_endpoint) and clients (IFabric_connection)
  */
 class Fabric
   : public Component::IFabric
+  , private event_producer
 {
-  std::shared_ptr<fi_info> _info;
-  std::shared_ptr<fid_fabric> _fabric;
+  std::shared_ptr<::fi_info> _info;
+  std::shared_ptr<::fid_fabric> _fabric;
   /* an event queue, in case the endpoint is connection-oriented */
-  fi_eq_attr _eq_attr;
-  std::shared_ptr<fid_eq> _eq;
-public:
+  ::fi_eq_attr _eq_attr;
+  std::shared_ptr<::fid_eq> _eq;
+  int _fd;
+  /* A limited number of fids use the event queue:
+   *  - connection server factories created by open_endpoint will use it to
+   *    - receive connection requests FI_CONNREQ)
+   *  - connection clients use it to
+   *    - be notified when their connection is accepted (FI_CONNECTION) or rejected (some error event)
+   *    - be notified when their connection is shut down (FI_SHUTDOWN)
+   *
+   * These events are not expected:
+   *   FI_NOTIFY (libfabric internal)
+   *   FI_MR_COMPLETE (asymc MR)
+   *   FI_AV_COMPLETE (async AV)
+   *   FI_JOIN_COMPLETE (multicast join)
+   */
+  using eq_dispatch_t = std::map<::fid_t, event_consumer *>;
+  /* Need to add active endpoint in passive endpoint callback, so use separate maps and separate locks */
+  std::mutex _m_eq_dispatch_pep;
+  eq_dispatch_t _eq_dispatch_pep;
+  std::mutex _m_eq_dispatch_aep;
+  eq_dispatch_t _eq_dispatch_aep;
 
-  Fabric(const std::string& json_configuration);
+  /* BEGIN Component::IFabric */
   Component::IFabric_endpoint * open_endpoint(const std::string& json_configuration, std::uint16_t control_port) override;
   Component::IFabric_connection * open_connection(const std::string& json_configuration, const std::string & remote, std::uint16_t control_port) override;
+  /* END Component::IFabric */
+
+  /* BEGIN event_producer */
+  void register_pep(::fid_t ep, event_consumer &ec) override;
+  void register_aep(::fid_t ep, event_consumer &ec) override;
+  void deregister_endpoint(::fid_t ep) override;
+  void bind(::fid_ep &ep) override;
+  void bind(::fid_pep &ep) override;
+  int fd() const override;
+  void wait_eq() override;
+  void read_eq() override;
+  /* END event_producer */
+  void readerr_eq();
+
+  /* The help text does not say whether attr may be null, but the provider source expects that it is not. */
+  std::shared_ptr<::fid_eq> make_fid_eq(::fi_eq_attr &attr, void *context) const;
+
+public:
+  explicit Fabric(const std::string& json_configuration);
+  int trywait(::fid **fids, std::size_t count) const;
+  std::shared_ptr<::fid_domain> make_fid_domain(::fi_info &info, void *context) const;
+  std::shared_ptr<::fid_pep> make_fid_pep(::fi_info &info, void *context) const;
 };
 
 #endif

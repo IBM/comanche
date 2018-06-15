@@ -14,28 +14,21 @@
    limitations under the License.
 */
 
-#ifndef _FABRIC_CONNECTION_SERVER_H_
-#define _FABRIC_CONNECTION_SERVER_H_
+#ifndef _EVENT_CONSUMER_H_
+#define _EVENT_CONSUMER_H_
 
-#include "fabric_connection.h"
+#include <cstdint> /* uint32_t */
 
-#include <memory> /* unique_ptr */
+struct fi_eq_cm_entry;
+struct fi_eq_err_entry;
 
-class Fd_control;
-struct fi_info;
-struct fid_fabric;
-struct fid_eq;
-
-class Fabric_connection_server
-  : public Fabric_connection
+class event_consumer
 {
-  /* BEGIN Fabric_connection */
-  void solicit_event() const override;
-  void wait_event() const override;
-  /* END Fabric_connection */
+protected:
+  ~event_consumer() {}
 public:
-  explicit Fabric_connection_server(Fabric &fabric, event_producer &ep, ::fi_info & info);
-  ~Fabric_connection_server();
+  virtual void cb(std::uint32_t event, fi_eq_cm_entry &entry) noexcept = 0;
+  virtual void err(fi_eq_err_entry &entry) noexcept = 0;
 };
 
 #endif

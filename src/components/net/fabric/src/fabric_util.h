@@ -22,6 +22,7 @@
  *
  */
 
+#include <rdma/fabric.h> /* fi_tostr */
 #include <rdma/fi_errno.h> /* FI_AGAIN */
 
 #include "fabric_types.h" /* addr_ep_t */
@@ -32,13 +33,13 @@
 #include <cstddef> /* size_t */
 #include <cstdint> /* uinat32_t, uint64_t */
 #include <memory> /* shared_ptr */
+#include <mutex>
 #include <string>
 
 struct fi_cq_attr;
 struct fi_info;
 struct fi_eq_attr;
 struct fi_fabric_attr;
-struct fi_wait_attr;
 
 struct fid_cq;
 struct fid_domain;
@@ -47,68 +48,32 @@ struct fid_ep;
 struct fid_eq;
 struct fid_mr;
 struct fid_pep;
-struct fid_wait;
 
 /**
  * Fabric/RDMA-based network component
  *
  */
+void fi_void_connect(::fid_ep &ep, const ::fi_info &ep_info, const void *addr, const void *param, std::size_t paramlen);
 
-void fi_void_connect(fid_ep &ep, const fi_info &ep_info, const void *addr, const void *param, std::size_t paramlen);
+std::shared_ptr<::fid_fabric> make_fid_fabric(::fi_fabric_attr &attr, void *context);
 
-std::shared_ptr<fid_domain> make_fid_domain(fid_fabric &fabric, fi_info &info, void *context);
+std::shared_ptr<::fi_info> make_fi_info(const std::string& json_configuration);
 
-std::shared_ptr<fid_fabric> make_fid_fabric(fi_fabric_attr &attr, void *context);
+std::shared_ptr<::fid_ep> make_fid_aep(::fid_domain &domain, ::fi_info &info, void *context);
 
-std::shared_ptr<fi_info> make_fi_info(std::uint32_t version, const char *node, const char *service, const fi_info *hints);
+std::shared_ptr<::fi_info> make_fi_info();
 
-std::shared_ptr<fi_info> make_fi_info(const std::string &, std::uint64_t caps, fi_info &hints);
-
-std::shared_ptr<fi_info> make_fi_info(fi_info &hints);
-
-std::shared_ptr<fi_info> make_fi_info(const std::string& json_configuration);
-
-std::shared_ptr<fid_ep> make_fid_aep(fid_domain &domain, fi_info &info, void *context);
-
-std::shared_ptr<fid_pep> make_fid_pep(fid_fabric &fabric, fi_info &info, void *context);
-
-std::shared_ptr<fid_pep> make_fid_pep_listener(fid_fabric &fabric, fi_info &info, fid_eq &eq, void *context);
-
-fid_unique_ptr<fid_wait> make_fid_wait(fid_fabric &fabric, fi_wait_attr &attr);
-
-/* The help text does not say whether attr may be null, but the provider source expects that it is not. */
-std::shared_ptr<fid_eq> make_fid_eq(fid_fabric &fabric, fi_eq_attr &attr, void *context);
-
-std::shared_ptr<fi_info> make_fi_info();
-
-std::shared_ptr<fi_info> make_fi_infodup(const fi_info &info_, const std::string &why_);
+std::shared_ptr<::fi_info> make_fi_infodup(const ::fi_info &info_, const std::string &why_);
 
 fid_mr *make_fid_mr_reg_ptr(
-  fid_domain &domain, const void *buf, std::size_t len,
+  ::fid_domain &domain, const void *buf, std::size_t len,
   std::uint64_t access, std::uint64_t key,
   std::uint64_t flags);
 
-fid_unique_ptr<fid_cq> make_fid_cq(fid_domain &domain, fi_cq_attr &attr, void *context);
+fid_unique_ptr<::fid_cq> make_fid_cq(::fid_domain &domain, ::fi_cq_attr &attr, void *context);
 
-auto get_name(fid_t fid) -> fabric_types::addr_ep_t;
+auto get_name(::fid_t fid) -> fabric_types::addr_ep_t;
 
-/* fi_fabric, fi_close (when called on a fabric) and most fi_poll functions FI_SUCCESS; others return 0 */
-void (check_ge_zero)(int r, const char *file, int line);
-void (check_ge_zero)(ssize_t r, const char *file, int line);
-
-#define CHECKZ(V) (check_ge_zero)((V), __FILE__, __LINE__)
-
-template <class ... Args>
-  void post(ssize_t (*post_fn)(Args ... args), void (*comp_fn)(void *, std::uint64_t), std::uint64_t seq, void *ctx, const char *op, Args &&... args)
-  {
-    auto r = post_fn(args ...);
-    while ( r == -FI_EAGAIN )
-    {
-      comp_fn(ctx, seq);
-      ++seq;
-      r = post_fn(args ...);
-    }
-    (check_ge_zero)(r, op, 0);
-  }
+const char *get_event_name(std::uint32_t e);
 
 #endif

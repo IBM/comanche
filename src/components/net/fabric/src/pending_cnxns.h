@@ -14,23 +14,14 @@
    limitations under the License.
 */
 
-#ifndef _SERVER_CONTROL_H_
-#define _SERVER_CONTROL_H_
+#ifndef _PENDING_CONNECTIONS_H_
+#define _PENDING_CONNECTIONS_H_
 
-#include "fabric_types.h" /* addr_ep_t */
-#include "fd_pair.h"
-
-#include <cstddef> /* uint16_t */
-#include <map>
 #include <memory> /* shared_ptr */
 #include <mutex>
 #include <queue>
-#include <thread>
 
-struct fid_fabric;
-struct fid_eq;
 class Fabric_connection;
-class Fd_socket;
 
 class Pending_cnxns
 {
@@ -44,29 +35,6 @@ public:
   Pending_cnxns();
   void push(cnxn_t c);
   cnxn_t remove();
-};
-
-/*
- */
-
-class Server_control
-{
-  using cnxn_t = std::shared_ptr<Fabric_connection>;
-  Pending_cnxns _pending;
-
-  using open_t = std::map<Fabric_connection *, cnxn_t>;
-  open_t _open;
-  Fd_pair _end;
-  std::thread _th;
-
-  static Fd_socket make_listener(std::uint16_t port);
-  static void listen(Fd_socket &&listen_fd, int end_fd, fid_fabric &fabric, fid_eq &eq, fabric_types::addr_ep_t name, Pending_cnxns &pend);
-public:
-  Server_control(fid_fabric &fabric, fid_eq &eq, fabric_types::addr_ep_t name, std::uint16_t port);
-  ~Server_control();
-  Fabric_connection * get_new_connection();
-  std::vector<Fabric_connection *> connections();
-  void close_connection(Fabric_connection * cnxn);
 };
 
 #endif
