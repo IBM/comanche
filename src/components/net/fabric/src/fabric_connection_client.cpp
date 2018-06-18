@@ -31,16 +31,6 @@
 #include <cerrno>
 #include <cstdint> /* size_t */
 
-#if 0
-#include "duration_stat.h"
-#include "timer_split.h"
-#include "timer_to_exit.h"
-#include "writer_at_exit.h"
-using timer_split = toad::ut::timer_split;
-using timer_to_exit = toad::ut::timer_to_exit;
-using wr_dur = toad::ut::writer_at_exit<toad::ut::duration_stat>;
-#endif
-
 namespace
 {
   /*
@@ -133,15 +123,6 @@ void Fabric_connection_client::wait_event() const
 
 void Fabric_connection_client::expect_event_sync(std::uint32_t event_exp) const
 {
-#if 0
-  timer_split tm{};
-  wr_dur ee0{std::cerr, "ee0"};
-  wr_dur ee1{std::cerr, "ee1"};
-  timer_to_exit tte{tm, ee1};
-#endif
   ensure_event();
-#if 0
-  tte.split(ee0);
-#endif
   expect_event(event_exp);
 }
