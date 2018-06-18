@@ -98,9 +98,9 @@ namespace
     Component::IFabric_connection &_cnxn;
     Component::IFabric_connection::memory_region_t _region;
   public:
-    explicit registration(Component::IFabric_connection &cnxn_, const void *contig_addr, size_t size, uint64_t key, uint64_t flags)
+    explicit registration(Component::IFabric_connection &cnxn_, const void *contig_addr_, size_t size_, uint64_t key_, uint64_t flags_)
       : _cnxn(cnxn_)
-      , _region(_cnxn.register_memory(contig_addr, size, key, flags))
+      , _region(_cnxn.register_memory(contig_addr_, size_, key_, flags_))
     {
     }
     ~registration()
@@ -190,14 +190,14 @@ namespace
     std::uint64_t key() const { return _registration.key(); }
   };
 
-  void wait_poll(Component::IFabric_communicator &comm, std::function<void(void *context, status_t)> cb)
+  void wait_poll(Component::IFabric_communicator &comm_, std::function<void(void *context, status_t)> cb_)
   {
     size_t ct = 0;
     unsigned delay = 0;
     while ( ct == 0 )
     {
-      comm.wait_for_next_completion(std::chrono::seconds(6000));
-      ct = comm.poll_completions(cb);
+      comm_.wait_for_next_completion(std::chrono::seconds(6000));
+      ct = comm_.poll_completions(cb_);
       ++delay;
     }
     /* poll_completions does not always get a completion after wait_for_next_completion returns
@@ -212,19 +212,19 @@ namespace
   {
   public:
     /* using rm as a buffer, send message */
-    void send_msg(Component::IFabric_connection &cnxn, registered_memory &rm, const void *msg, std::size_t len)
+    void send_msg(Component::IFabric_connection &cnxn_, registered_memory &rm_, const void *msg_, std::size_t len_)
     {
       std::vector<iovec> v;
-      std::memcpy(&rm[0], msg, len);
+      std::memcpy(&rm_[0], msg_, len_);
       iovec iv;
-      iv.iov_base = &rm[0];
-      iv.iov_len = len;
+      iv.iov_base = &rm_[0];
+      iv.iov_len = len_;
       v.emplace_back(iv);
       try
       {
-        cnxn.post_send(v, this);
+        cnxn_.post_send(v, this);
         wait_poll(
-          cnxn
+          cnxn_
           , [&v,this] (void *ctxt, status_t st) -> void
             {
               ASSERT_EQ(ctxt, this);
@@ -370,9 +370,9 @@ namespace
       std::cerr << "Remote memory client addr " << _vaddr << " key " << _key << std::endl;
     }
 
-    void send_disconnect(Component::IFabric_connection &cnxn, registered_memory &rm, char quit_flag)
+    void send_disconnect(Component::IFabric_connection &cnxn_, registered_memory &rm_, char quit_flag_)
     {
-      send_msg(cnxn, rm, &quit_flag, sizeof quit_flag);
+      send_msg(cnxn_, rm_, &quit_flag_, sizeof quit_flag_);
     }
 
     ~remote_memory_client()
@@ -389,13 +389,13 @@ namespace
     std::uint64_t key() const { return _key; }
     Component::IFabric_connection &cnxn() { return *_cnxn; }
 
-    void write(const std::string &msg)
+    void write(const std::string &msg_)
     {
-      std::copy(msg.begin(), msg.end(), &_rm_out[0]);
+      std::copy(msg_.begin(), msg_.end(), &_rm_out[0]);
       std::vector<iovec> buffers(1);
       {
         buffers[0].iov_base = &_rm_out[0];
-        buffers[0].iov_len = msg.size();
+        buffers[0].iov_len = msg_.size();
         _cnxn->post_write(buffers, _vaddr + remote_memory_offset, _key, this);
       }
       wait_poll(
@@ -405,20 +405,20 @@ namespace
 
     }
 
-    void read_verify(const std::string &msg)
+    void read_verify(const std::string &msg_)
     {
       std::vector<iovec> buffers(1);
       {
         buffers[0].iov_base = &_rm_in[0];
-        buffers[0].iov_len = msg.size();
+        buffers[0].iov_len = msg_.size();
         _cnxn->post_read(buffers, _vaddr + remote_memory_offset, _key, this);
       }
       wait_poll(
         *_cnxn
         , [this] (void *rmc_, status_t stat_) { check_complete_static_2(this, rmc_, stat_); } /* WAS: check_complete_static */
       );
-      std::string remote_msg(&_rm_in[0], &_rm_in[0] + msg.size());
-      ASSERT_EQ(msg, remote_msg);
+      std::string remote_msg(&_rm_in[0], &_rm_in[0] + msg_.size());
+      ASSERT_EQ(msg_, remote_msg);
     }
 
     Component::IFabric_communicator *allocate_group() const
@@ -469,13 +469,13 @@ namespace
     {
     }
 
-    void write(const std::string &msg)
+    void write(const std::string &msg_)
     {
-      std::copy(msg.begin(), msg.end(), &_rm_out[0]);
+      std::copy(msg_.begin(), msg_.end(), &_rm_out[0]);
       std::vector<iovec> buffers(1);
       {
         buffers[0].iov_base = &_rm_out[0];
-        buffers[0].iov_len = msg.size();
+        buffers[0].iov_len = msg_.size();
         _cnxn->post_write(buffers, _parent.vaddr() + remote_memory_offset, _parent.key(), this);
       }
       wait_poll(
@@ -484,20 +484,20 @@ namespace
       );
     }
 
-    void read_verify(const std::string &msg)
+    void read_verify(const std::string &msg_)
     {
       std::vector<iovec> buffers(1);
       {
         buffers[0].iov_base = &_rm_in[0];
-        buffers[0].iov_len = msg.size();
+        buffers[0].iov_len = msg_.size();
         _cnxn->post_read(buffers, _parent.vaddr() + remote_memory_offset, _parent.key(), this);
       }
       wait_poll(
         *_cnxn
         , [this] (void *rmc_, status_t stat_) { check_complete_static_2(this, rmc_, stat_); } /* WAS: check_complete_static */
       );
-      std::string remote_msg(&_rm_in[0], &_rm_in[0] + msg.size());
-      ASSERT_EQ(msg, remote_msg);
+      std::string remote_msg(&_rm_in[0], &_rm_in[0] + msg_.size());
+      ASSERT_EQ(msg_, remote_msg);
     }
   };
 }
@@ -706,6 +706,7 @@ std::cerr << "SERVER end " << iter0 << std::endl;
       for ( auto iter1 = 0; iter1 != count_inner; ++iter1 )
       {
 std::cerr << "CLIENT begin " << iter0 << "." << iter1 << " port " << control_port << std::endl;
+
         /* Feed the endpoint a good JSON spec */
         remote_memory_client client(*fabric, "{}", remote_host, control_port);
         /* Feed the endpoint some terrible text */
@@ -758,7 +759,6 @@ std::cerr << "SERVER end " << iter0 << std::endl;
       std::this_thread::sleep_for(std::chrono::seconds(3));
       for ( auto iter1 = 0; iter1 != count_inner; ++iter1 )
       {
-
         /* Feed the endpoint a good JSON spec */
         remote_memory_client client(*fabric, "{}", remote_host, control_port);
 
