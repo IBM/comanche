@@ -31,7 +31,11 @@ struct Pool_handle
   int get(const std::string key,
           void*& out_value,
           size_t& out_value_len);
-
+  
+  int get_direct(const std::string key,
+                 void* out_value,
+                 size_t out_value_len);
+  
   int erase(const std::string key);
 
 };
@@ -95,6 +99,37 @@ int Pool_handle::get(const std::string key,
   close(fd);
   return S_OK;
 }
+
+int Pool_handle::get_direct(const std::string key,
+                            void* out_value,
+                            size_t out_value_len)
+{
+  PLOG("get: key=(%s) path=(%s)", key.c_str(), path.string().c_str());
+  
+  std::string full_path = path.string() + "/" + key;
+  if(!fs::exists(full_path)) {
+    PERR("key not found: (%s)", full_path.c_str());
+    return IKVStore::E_KEY_NOT_FOUND;
+  }
+
+  int fd = open(full_path.c_str(), O_RDONLY, 0644);
+  
+  struct stat buffer;
+  if(stat(full_path.c_str(), &buffer))
+    throw General_exception("stat failed on file (%s)", full_path.c_str());
+
+  if(out_value_len < buffer.st_size)
+    return IKVStore::E_INSUFFICIENT_BUFFER;
+  
+  ssize_t rs = read(fd, out_value, out_value_len);
+  if(rs != out_value_len)
+    throw General_exception("file read failed");
+
+  close(fd);
+  return S_OK;
+}
+
+
 
 int Pool_handle::erase(const std::string key)
 {
@@ -212,6 +247,19 @@ int FileStore::get(const pool_t pid,
     
   return handle->get(key, out_value, out_value_len);
 }
+
+int FileStore::get_direct(const pool_t pid,
+                          const std::string key,
+                          void* out_value,
+                          size_t out_value_len)
+{
+  auto handle = reinterpret_cast<Pool_handle*>(pid);
+  if(_pool_sessions.count(handle) != 1)
+    throw API_exception("bad pool handle");
+  
+  return handle->get_direct(key, out_value, out_value_len);
+}
+
 
 int FileStore::erase(const pool_t pid,
                      const std::string key)
