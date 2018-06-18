@@ -47,21 +47,12 @@ Fabric_connection_server::Fabric_connection_server(
     std::size_t paramlen = 0;
     auto param = nullptr;
     CHECK_FI_ERR(::fi_accept(&ep(), param, paramlen));
-#if 0
-    /* According to fi_cm man page
-     *  "An FI_CONNECTED event will also be generated on the passive side for the accepting endpoint once the connection has been properly established."
-     * But it is not clear what "properly established" means.
-     * It seems that the fi_accept is insufficient. Therefore, the expectation of FI_CONNECTED is moved to the destructor.
-     */
-    expect_event(FI_CONNECTED);
-#endif
   }
 }
 
 Fabric_connection_server::~Fabric_connection_server()
 try
 {
-  expect_event(FI_CONNECTED);
   /* "the flags parameter is reserved and must be 0" */
   ::fi_shutdown(&ep(), 0);
 /* The client may in turn call fi_shutdown, giving us an event. We do not need to see it.

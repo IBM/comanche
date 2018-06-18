@@ -132,7 +132,6 @@ protected:
   const ::fi_info &ep_info() const { return *_ep_info; }
   ::fid_ep &ep() { return *_ep; }
   void ensure_event() const;
-  void expect_event(std::uint32_t) const;
   virtual void solicit_event() const = 0;
   virtual void wait_event() const = 0;
 public:
@@ -173,6 +172,7 @@ public:
 #endif
   ssize_t cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) const noexcept;
   void queue_completion(Fabric_comm *comm, void *context, status_t status);
+  void expect_event(std::uint32_t) const;
 };
 
 #endif

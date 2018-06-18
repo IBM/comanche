@@ -256,6 +256,7 @@ Component::IFabric_connection * Fabric_connection_server_factory::get_new_connec
   auto c = _pending.remove();
   if ( c )
   {
+    c->expect_event(FI_CONNECTED);
     r = &*(c);
     _open.insert({r, c});
   }
