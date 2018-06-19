@@ -128,6 +128,16 @@ class Fabric_connection
   /* END event_consumer */
 
   std::size_t process_cq_comp_err(std::function<void(void *connection, status_t st)> completion_callback);
+
+  std::shared_ptr<::fid_ep> make_fid_aep(::fi_info &info, void *context) const;
+
+  fid_mr *make_fid_mr_reg_ptr(
+    const void *buf, std::size_t len,
+    std::uint64_t access, std::uint64_t key,
+    std::uint64_t flags) const;
+
+  fid_unique_ptr<::fid_cq> make_fid_cq(::fi_cq_attr &attr, void *context) const;
+
 protected:
   const ::fi_info &ep_info() const { return *_ep_info; }
   ::fid_ep &ep() { return *_ep; }
