@@ -1,5 +1,5 @@
 /*
-   Copyright [2017] [IBM Corporation]
+   Copyright [2017,2018] [IBM Corporation]
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -64,6 +64,9 @@ public:
     E_ALREADY_EXISTS = -6,
     E_TOO_LARGE = -7,
     E_BAD_PARAM = -8,
+    E_BAD_ALIGNMENT = -9,
+    E_INSUFFICIENT_BUFFER = -10,
+    
   };
 
   /** 
@@ -147,6 +150,34 @@ public:
                   const std::string key,
                   void*& out_value, /* release with free() */
                   size_t& out_value_len) = 0;
+
+
+  /** 
+   * Read an object value directly into client-provided memory
+   * 
+   * @param pool Pool handle
+   * @param key Object key
+   * @param out_value Client provided buffer for value
+   * @param out_value_len Size of value memory in bytes
+   * 
+   * @return S_OK, E_BAD_ALIGNMENT on invalid alignment, or other error code
+   */
+  virtual int get_direct(const pool_t pool,
+                         const std::string key,
+                         void* out_value,
+                         size_t out_value_len) { return E_NOT_SUPPORTED; }
+
+
+  /** 
+   * Register memory for zero copy DMA
+   * 
+   * @param vaddr Appropriately aligned memory buffer
+   * @param len Length of memory buffer in bytes
+   * 
+   * @return S_OK on success
+   */
+  virtual int register_direct_memory(void * vaddr, size_t len) { return E_NOT_SUPPORTED; }
+  
 
   /** 
    * Allocate an object but do not populate data

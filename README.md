@@ -21,10 +21,16 @@ programs as root.
 
 ```bash
 ( cd deps
-  ./install-apts.sh
-  ./fetch-deps.sh
+  sudo ./install-apts.sh # use ./install-yum.sh for fedora
+  sudo ./fetch-deps.sh
 )
 ```
+
+* populate submodules
+```
+git submodule update --init --recursive
+```
+
 
 * Build
 **Now we enforce out-of-source build**
@@ -33,7 +39,8 @@ programs as root.
 mkdir build
 cd build
 cmake ..
-make
+make   # build the core and dependencies
+make components # build comanche components & tests, etc
 
 ** To override the install destination
 
@@ -53,6 +60,7 @@ sudo ./load-module.sh
 sudo ./tools/nvme_setup.sh /* optionally attach ALL Nvme devices to VFIO */
 cmake .
 make
+make components
 ```
 
 * Build components in debug mode (e.g., with asan)

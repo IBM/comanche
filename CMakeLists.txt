@@ -5,6 +5,8 @@ option(FORCE_OTT_BUILD "force out of tree build" ON)
 
 option(USE_RESTRICTED "include build restricted components" OFF)
 
+option(BOOTSTRAP_DEPS "bootstrap to build deps" ON)
+
 if(CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR AND FORCE_OTT_BUILD)
     message(FATAL_ERROR "Cannot use in-source build ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR}. You should delete any CMakeCache.txt and CMakeFiles and then try out-of-tree build")
 endif(CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR AND FORCE_OTT_BUILD)
@@ -34,9 +36,36 @@ include_directories(${CMAKE_BINARY_DIR})
 install (FILES "${CMAKE_BINARY_DIR}/config_comanche.h"
     DESTINATION include)
 
-add_subdirectory(src)
-add_subdirectory(apps)
-add_subdirectory(testing)
+# this flag is only for GNU compiler version number smaller than 8 and clang compilers
+if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" AND NOT CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 8.0)
+  set(FLAG_DUMP_CLASS "-fdump-class-hierarchy")
+endif()
+
+# run 'make components' to trigger compoents build
+add_custom_target(components
+  ${CMAKE_COMMAND} -DBOOTSTRAP_DEPS=off ${CMAKE_CURRENT_SOURCE_DIR}
+  COMMAND make all
+  )
+
+# default make will only build core and dependencies
+if(BOOTSTRAP_DEPS)
+  add_subdirectory(src/lib)
+  message("\n[IMPORTANT]: first run 'make' to build core and dependencies")
+  message("             then run 'make components' to build components")
+
+else(BOOTSTRAP_DEPS)
+  set(PMDK_PREFIX ${CONF_COMANCHE_HOME}/src/lib/pmdk)
+  #find_package(PMDK REQUIRED)
+  set(PMDK_INCLUDE_DIRS  ${PMDK_PREFIX}/src/include)
+
+  add_subdirectory(src)
+  add_subdirectory(apps)
+  add_subdirectory(testing)
+
+  if (USE_RESTRICTED)
+     add_subdirectory(comanche-restricted)
+  endif(USE_RESTRICTED)
+endif(BOOTSTRAP_DEPS)
 
 # add a target to generate API documentation with Doxygen
 find_package(Doxygen)
@@ -58,10 +87,4 @@ add_custom_target(doc
 
 endif(DOXYGEN_FOUND)
 
-if (USE_RESTRICTED)
-  # currently PMDK packages are only used for Restricted
-    set(PMDK_PREFIX ${CONF_COMANCHE_HOME}/src/lib/pmdk)
-    find_package(PMDK REQUIRED)
 
-    add_subdirectory(comanche-restricted)
-endif(USE_RESTRICTED)
