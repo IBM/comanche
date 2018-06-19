@@ -64,7 +64,9 @@ public:
     E_ALREADY_EXISTS = -6,
     E_TOO_LARGE = -7,
     E_BAD_PARAM = -8,
-    E_INSUFFICIENT_BUFFER = -9,
+    E_BAD_ALIGNMENT = -9,
+    E_INSUFFICIENT_BUFFER = -10,
+    
   };
 
   /** 
@@ -158,7 +160,7 @@ public:
    * @param out_value Client provided buffer for value
    * @param out_value_len Size of value memory in bytes
    * 
-   * @return S_OK or error code
+   * @return S_OK, E_BAD_ALIGNMENT on invalid alignment, or other error code
    */
   virtual int get_direct(const pool_t pool,
                          const std::string key,
