@@ -30,6 +30,6 @@ ExternalProject_Add(pmdk
   SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/pmdk
   CONFIGURE_COMMAND ""
   BUILD_COMMAND make -j
-  INSTALL_COMMAND make install prefix=${CMAKE_INSTALL_PREFIX}
+  INSTALL_COMMAND  "" # make install prefix=${CMAKE_INSTALL_PREFIX} don't need to be installed
   )
 
