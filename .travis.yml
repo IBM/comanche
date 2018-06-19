@@ -7,6 +7,7 @@ branches:
     - unstable
     - nvmestore
     - travis-CI-test
+    - build-fedora
 
 sudo: required
 
@@ -20,23 +21,31 @@ compiler:
 # see https://docs.docker.com/docker-cloud/builds/automated-build
 env:
   global:
-    - DOCKERIMG="fengggli/comanche-env:ubuntu1604-180525.a"
-    - CONTAINER_NAME="comanche-build-test"
+  matrix:
+    - CONTAINER_NAME="comanche-build-fedora27"
+      DOCKERIMG="fedora:27" 
+      BOOTSTRAP_FILE="./install-yum.sh"
+      HOSTMODULE="-v /lib/modules:/lib/modules:ro -v /usr/src:/usr/src:ro"
+    - CONTAINER_NAME="comanche-build-ubuntu1604"
+      DOCKERIMG="ubuntu:16.04"  
+      BOOTSTRAP_FILE="./install-apts.sh"
+
+
 
 # comanche requires cmake 3.6.2 (to build google/benchmark)
 # for local building testing, remener to run git submodule init/update
+# https://stackoverflow.com/questions/33013539/docker-loading-kernel-modules
 before_install:
-  - docker run -d --name ${CONTAINER_NAME} -v $(pwd):/travis ${DOCKERIMG} tail -f /dev/null
+  - sudo apt-get update
+  - sudo apt-get install linux-headers-`uname -r`
+  - docker run -d --name ${CONTAINER_NAME} --privileged --cap-add=ALL
+    -v $(pwd):/travis ${HOSTMODULE}
+    ${DOCKERIMG}
+    tail -f /dev/null
   - docker ps
-  - docker exec -t ${CONTAINER_NAME} bash -c "
+  - docker exec -t ${CONTAINER_NAME} bash  -c "
     cd /travis/deps;
-    ./install-apts.sh;
-    sudo apt -y install clang;
-    sudo apt -y remove cmake;
-    sudo apt purge -y --auto-remove cmake;
-    wget https://cmake.org/files/v3.11/cmake-3.11.2-Linux-x86_64.sh;
-    sh cmake-3.11.2-Linux-x86_64.sh  --skip-license  --prefix=/usr"
-
+    ${BOOTSTRAP_FILE};"
 
 install:
   - docker exec -t ${CONTAINER_NAME} bash -c "
@@ -52,6 +61,7 @@ script:
     cd build;
     cmake .. -DCOMANCHE_LIMIT_MAKE_JOB=2;
     make;
+    make components;
     make install"
 
 after_success:
