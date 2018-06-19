@@ -1,5 +1,6 @@
 #!/bin/bash
-apt-get install -y gcc libpciaccess-dev make libcunit1-dev pkg-config \
+apt-get update
+apt-get install -y wget git gcc libpciaccess-dev make libcunit1-dev pkg-config \
         libaio-dev libssl-dev libibverbs-dev librdmacm-dev libudev-dev uuid uuid-dev\
         cmake global gdb build-essential\
         sloccount doxygen synaptic libnuma-dev libaio-dev libcunit1 \

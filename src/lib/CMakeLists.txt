@@ -12,16 +12,10 @@ if (BUILD_TBB AND "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
   add_subdirectory(tbb)
 endif()
 
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ndctl")
-  message("Skipping NDCTL ... already built")
-else()
+# libkmod missing in fedora
+if(0)
   ExternalProject_Add(ndctl
-    GIT_REPOSITORY https://github.com/pmem/ndctl.git
-    GIT_TAG v60.3
-    #DOWNLOAD_COMMAND git clone -b v60.3 https://github.com/pmem/ndctl.git
     BUILD_IN_SOURCE 1
-    UPDATE_DISCONNECTED 1
-    DOWNLOAD_DIR ${CMAKE_CURRENT_SOURCE_DIR}
     SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ndctl
     CONFIGURE_COMMAND ./autogen.sh COMMAND  ./configure --prefix=/usr --sysconfdir=/etc --libdir=/usr/lib64
     BUILD_COMMAND make -j
@@ -29,20 +23,13 @@ else()
     )
 endif()
 
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/pmdk")
-  message("Skipping PMDK ... already built")
-else()
-  ExternalProject_Add(pmdk  
-    GIT_REPOSITORY https://github.com/pmem/pmdk.git
-    GIT_TAG stable-1.4
-    #DOWNLOAD_COMMAND git clone -b stable-1.4 https://github.com/pmem/pmdk.git
-    BUILD_IN_SOURCE 1
-    UPDATE_DISCONNECTED 1
-    DOWNLOAD_DIR ${CMAKE_CURRENT_SOURCE_DIR}
-    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/pmdk
-    CONFIGURE_COMMAND ""
-    BUILD_COMMAND make -j
-    INSTALL_COMMAND make install prefix=${CMAKE_INSTALL_PREFIX}
-    )
-endif()
+
+# build pmdk
+ExternalProject_Add(pmdk  
+  BUILD_IN_SOURCE 1
+  SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/pmdk
+  CONFIGURE_COMMAND ""
+  BUILD_COMMAND make -j
+  INSTALL_COMMAND make install prefix=${CMAKE_INSTALL_PREFIX}
+  )
 
