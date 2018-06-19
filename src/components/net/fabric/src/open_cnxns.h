@@ -33,13 +33,9 @@ class Open_cnxns
 {
 public:
   using cnxn_t = std::shared_ptr<Fabric_connection>;
-#if 0
-  using open_t = std::map<Fabric_connection *, cnxn_t>;
-#else
   using open_t = std::set<cnxn_t>;
-#endif
 private:
-  std::mutex _m; /* protects _m */
+  std::mutex _m; /* protects _s */
   using guard = std::unique_lock<std::mutex>;
   std::set<cnxn_t> _s;
 public:

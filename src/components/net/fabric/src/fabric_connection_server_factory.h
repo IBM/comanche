@@ -27,6 +27,7 @@
 #include "fd_pair.h"
 #include "fd_socket.h"
 #include "pending_cnxns.h"
+#include "open_cnxns.h"
 
 #include <cstdint> /* uint16_t */
 #include <memory> /* shared_ptr */
@@ -55,9 +56,7 @@ class Fabric_connection_server_factory
 
   using cnxn_t = std::shared_ptr<Fabric_connection>;
   Pending_cnxns _pending;
-
-  using open_t = std::map<Fabric_connection *, cnxn_t>;
-  open_t _open;
+  Open_cnxns _open;
   /* a write tells the listener thread to exit */
   Fd_pair _end;
 

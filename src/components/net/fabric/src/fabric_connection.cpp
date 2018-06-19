@@ -28,7 +28,8 @@
 #include "fabric_error.h"
 #include "fabric_comm.h"
 #include "fabric_ptr.h"
-#include "fabric_util.h" /* make_fi_infodup, make_fid_cq, make_fid_aep, make_fid_mr_reg_ptr, get_event_name */
+#include "fabric_str.h" /* tostr */
+#include "fabric_util.h" /* make_fi_infodup, get_event_name */
 #include "fd_pair.h"
 #include "fd_unblock_set_monitor.h"
 #include "async_req_record.h"
@@ -40,6 +41,8 @@
 
 #include <sys/select.h> /* pselect */
 #include <sys/uio.h> /* iovec */
+
+#include <boost/io/ios_state.hpp>
 
 #include <algorithm> /* min */
 #include <cassert>
@@ -91,10 +94,10 @@ Fabric_connection::Fabric_connection(
 #else
   , _cq_attr{100, 0U, FI_CQ_FORMAT_CONTEXT, FI_WAIT_FD, 0U, FI_CQ_COND_NONE, nullptr}
 #endif
-  , _cq(make_fid_cq(*_domain, _cq_attr, this))
+  , _cq(make_fid_cq(_cq_attr, this))
   , _ep_info(make_fi_infodup(*_domain_info, "endpoint construction"))
   , _peer_addr(set_peer_early(std::move(control_), *_ep_info))
-  , _ep(make_fid_aep(*_domain, *_ep_info, this))
+  , _ep(make_fid_aep(*_ep_info, this))
   , _m{}
   , _mr_addr_to_desc{}
   , _mr_desc_to_addr{}
@@ -133,7 +136,7 @@ Fabric_connection::~Fabric_connection()
  */
 auto Fabric_connection::register_memory(const void * contig_addr, size_t size, std::uint64_t key, std::uint64_t flags) -> Component::IFabric_connection::memory_region_t
 {
-  auto mr = make_fid_mr_reg_ptr(*_domain, contig_addr, size, std::uint64_t(FI_SEND|FI_RECV|FI_READ|FI_WRITE|FI_REMOTE_READ|FI_REMOTE_WRITE), key, flags);
+  auto mr = make_fid_mr_reg_ptr(contig_addr, size, std::uint64_t(FI_SEND|FI_RECV|FI_READ|FI_WRITE|FI_REMOTE_READ|FI_REMOTE_WRITE), key, flags);
 
   /* operations which access local memory will need the memory "descriptor." Record it here. */
   auto desc = ::fi_mr_desc(mr);
@@ -553,10 +556,27 @@ catch ( const std::exception &e )
   std::cerr << __func__ << " (Fabric_connection) " << e.what() << "\n";
 }
 
-void Fabric_connection::err(fi_eq_err_entry &) noexcept
+void Fabric_connection::err(fi_eq_err_entry &e_) noexcept
 try
 {
   /* An error event; not what we were expecting */
+  std::cerr << "Fabric error event "
+    << " fid " << e_.fid
+    << "context " << e_.context
+    << " data " << e_.data
+    << " err " << e_.err
+    << " prov_errno " << e_.prov_errno
+    << " err_data ";
+    boost::io::ios_base_all_saver sv(std::cerr);
+    for ( auto i = static_cast<uint8_t *>(e_.err_data)
+      ; i != static_cast<uint8_t *>(e_.err_data) + e_.err_data_size
+      ; ++i
+    )
+    {
+      std::cerr << std::setfill('0') << std::setw(2) << std::hex << *i;
+    }
+    std::cerr << std::endl;
+
   std::uint32_t event = FI_NOTIFY;
   _event_pipe.write(&event, sizeof event);
 }
@@ -628,4 +648,48 @@ void Fabric_connection::expect_event(std::uint32_t event_exp) const
   {
     throw std::logic_error(std::string("expected ") + get_event_name(event_exp) + " got " + get_event_name(event) );
   }
+}
+
+/* (no context, synchronous only) */
+fid_mr * Fabric_connection::make_fid_mr_reg_ptr(
+  const void *buf, size_t len,
+  uint64_t access, uint64_t key,
+  uint64_t flags) const
+try
+{
+  ::fid_mr *f;
+  auto constexpr offset = 0U; /* "reserved and must be zero" */
+  /* used iff the registration completes asynchronously
+   * (in which case the domain has been bound to an event queue with FI_REG_MR)
+   */
+  auto constexpr context = nullptr;
+  CHECK_FI_ERR(::fi_mr_reg(&*_domain, buf, len, access, offset, key, flags, &f, context));
+  FABRIC_TRACE_FID(f);
+  return f;
+}
+catch ( const fabric_error &e )
+{
+  throw e.add(std::string(std::string(" in ") + __func__ + " " + std::to_string(len)));
+}
+
+fid_unique_ptr<::fid_cq> Fabric_connection::make_fid_cq(::fi_cq_attr &attr, void *context) const
+{
+  ::fid_cq *f;
+  CHECK_FI_ERR(::fi_cq_open(&*_domain, &attr, &f, context));
+  FABRIC_TRACE_FID(f);
+  return fid_unique_ptr<::fid_cq>(f);
+}
+
+std::shared_ptr<::fid_ep> Fabric_connection::make_fid_aep(::fi_info &info, void *context) const
+try
+{
+  ::fid_ep *f;
+  CHECK_FI_ERR(::fi_endpoint(&*_domain, &info, &f, context));
+  static_assert(0 == FI_SUCCESS, "FI_SUCCESS not 0, which means that we need to distinguish between these types of \"successful\" returns");
+  FABRIC_TRACE_FID(f);
+  return fid_ptr(f);
+}
+catch ( const fabric_error &e )
+{
+  throw e.add(tostr(info));
 }

@@ -38,6 +38,7 @@
 #include <cerrno>
 #include <chrono> /* seconds */
 #include <functional> /* ref */
+#include <iostream> /* cerr */
 #include <memory> /* make_shared */
 #include <stdexcept>
 #include <string> /* to_string */
@@ -123,6 +124,9 @@ Fd_socket Fabric_connection_server_factory::make_listener(std::uint16_t port)
   Fd_socket fd(::socket(domain, SOCK_STREAM, 0));
 
   {
+    /* Note: setsockopt usually does more good than harm, but the decision to
+     * use it should probably be left to the user.
+     */
     int optval = 1;
     if ( -1 == ::setsockopt(fd.fd(), SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval) )
     {
@@ -160,7 +164,7 @@ Fd_socket Fabric_connection_server_factory::make_listener(std::uint16_t port)
  *  info_ should be used only in by (threadsafe) libfabric calls.
  * _pending: has a mutex
  */
-#include <iostream>
+
 void Fabric_connection_server_factory::listen(
   std::uint16_t port_
   , int end_fd_
@@ -258,30 +262,23 @@ Component::IFabric_connection * Fabric_connection_server_factory::get_new_connec
   {
     c->expect_event(FI_CONNECTED);
     r = &*(c);
-    _open.insert({r, c});
+    _open.add(c);
   }
 
   return r;
 }
+
 std::vector<Component::IFabric_connection*> Fabric_connection_server_factory::connections()
 {
-  std::vector<Fabric_connection *> v;
-  std::transform(_open.begin(), _open.end(), std::back_inserter(v), [] (const open_t::value_type &v_) { return &*v_.second; });
-
-  /* EXTRA COPY to change type */
-  return std::vector<Component::IFabric_connection *>(v.begin(), v.end());
+  return _open.enumerate();
 }
 
 void Fabric_connection_server_factory::close_connection(Component::IFabric_connection * cnxn_)
 {
   /*
-   * If a server-side connection, remove it from the map.
+   * If a server-side connection, remove it from the collection.
    * If not in the map, presumably a client-side connection.
    * We do not own those.
    */
-  auto it = _open.find(static_cast<Fabric_connection *>(cnxn_));
-  if ( it != _open.end() )
-  {
-    _open.erase(it);
-  }
+  _open.remove(cnxn_);
 }
