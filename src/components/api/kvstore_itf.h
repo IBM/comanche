@@ -166,6 +166,17 @@ public:
                          const std::string key,
                          void* out_value,
                          size_t out_value_len) { return E_NOT_SUPPORTED; }
+
+
+  /** 
+   * Register memory for zero copy DMA
+   * 
+   * @param vaddr Appropriately aligned memory buffer
+   * @param len Length of memory buffer in bytes
+   * 
+   * @return S_OK on success
+   */
+  virtual int register_direct_memory(void * vaddr, size_t len) { return E_NOT_SUPPORTED; }
   
 
   /** 
