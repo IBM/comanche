@@ -1,7 +1,7 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
-include(CheckIncludeFile) check_include_file("infiniband/verbs_exp.h"
-HAVE_IBVERBS_H)
+include(CheckIncludeFile)
+check_include_file("infiniband/verbs_exp.h" HAVE_IBVERBS_H)
 
 if(HAVE_IBVERBS_H)
 
