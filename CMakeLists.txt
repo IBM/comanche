@@ -12,9 +12,9 @@ if(CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR AND FORCE_OTT_BUILD)
 endif(CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR AND FORCE_OTT_BUILD)
 
 # used for kernel
-set(ENV{COMANCHE_HOME} ${CMAKE_SOURCE_DIR})
+set(ENV{COMANCHE_HOME} ${CMAKE_CURRENT_SOURCE_DIR})
 
-include(${CMAKE_SOURCE_DIR}/mk/common.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/mk/common.cmake)
 project(comanche)
 
 # locate FindXXX.cmake
@@ -22,18 +22,18 @@ set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/mk)
 message("CMAKE_MODULE_PATH: ${CMAKE_MODULE_PATH}")
 
 # make COMANCHE HOME visible in config.h
-set(CONF_COMANCHE_HOME ${CMAKE_SOURCE_DIR})
+set(CONF_COMANCHE_HOME ${CMAKE_CURRENT_SOURCE_DIR})
 
 # override this at cmake time with 'cmake -DCMAKE_INSTALL_PREFIX:PATH=/foo ..'
 set(CONF_COMANCHE_INSTALL ${CMAKE_INSTALL_PREFIX})
 
 configure_file(
-    "${CMAKE_SOURCE_DIR}/config_comanche.h.in"
-    "${CMAKE_BINARY_DIR}/config_comanche.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/config_comanche.h.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/config_comanche.h"
     @ONLY)
 
-include_directories(${CMAKE_BINARY_DIR})
-install (FILES "${CMAKE_BINARY_DIR}/config_comanche.h"
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+install (FILES "${CMAKE_CURRENT_BINARY_DIR}/config_comanche.h"
     DESTINATION include)
 
 # this flag is only for GNU compiler version number smaller than 8 and clang compilers
