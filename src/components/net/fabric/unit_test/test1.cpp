@@ -13,6 +13,8 @@
 
 #include <sys/mman.h>
 #include <sys/uio.h> /* iovec */
+#include <boost/core/noncopyable.hpp>
+#include <boost/io/ios_state.hpp>
 #include <chrono> /* seconds */
 #include <cstring>
 #include <memory>
@@ -94,6 +96,7 @@ namespace
   }
 
   class registration
+    : private boost::noncopyable
   {
     Component::IFabric_connection &_cnxn;
     Component::IFabric_connection::memory_region_t _region;
@@ -149,6 +152,8 @@ namespace
   {
     Component::IFabric_endpoint &_ep;
     Component::IFabric_connection *_cnxn;
+    server_connection(const server_connection &) = delete;
+    server_connection& operator=(const server_connection &) = delete;
   public:
     Component::IFabric_connection &cnxn() const { return *_cnxn; }
     server_connection(Component::IFabric_endpoint &ep_)
@@ -157,8 +162,6 @@ namespace
     {
       while ( ! ( _cnxn = _ep.get_new_connections() ) ) {}
     }
-    server_connection(const server_connection &) = delete;
-    server_connection& operator=(const server_connection &) = delete;
     ~server_connection()
     try
     {
@@ -210,6 +213,16 @@ namespace
 
   class remote_memory_accessor
   {
+  protected:
+    void send_memory_info(Component::IFabric_connection &cnxn_, registered_memory &rm_)
+    {
+      std::uint64_t vaddr = reinterpret_cast<std::uint64_t>(&rm_[0]);
+      std::uint64_t key = rm_.key();
+      char msg[(sizeof vaddr) + (sizeof key)];
+      std::memcpy(msg, &vaddr, sizeof vaddr);
+      std::memcpy(&msg[sizeof vaddr], &key, sizeof key);
+      send_msg(cnxn_, rm_, msg, sizeof msg);
+    }
   public:
     /* using rm as a buffer, send message */
     void send_msg(Component::IFabric_connection &cnxn_, registered_memory &rm_, const void *msg_, std::size_t len_)
@@ -225,7 +238,7 @@ namespace
         cnxn_.post_send(v, this);
         wait_poll(
           cnxn_
-          , [&v,this] (void *ctxt, status_t st) -> void
+          , [&v, this] (void *ctxt, status_t st) -> void
             {
               ASSERT_EQ(ctxt, this);
               ASSERT_EQ(st, S_OK);
@@ -239,25 +252,50 @@ namespace
     }
   };
 
+  class server_connection_and_memory
+    : public server_connection
+    , public registered_memory
+    , public remote_memory_accessor
+    , private boost::noncopyable
+  {
+  public:
+    server_connection_and_memory(Component::IFabric_endpoint &ep_)
+      : server_connection(ep_)
+      , registered_memory(cnxn())
+    {
+      /* send the address, and the key to memory */
+      send_memory_info(cnxn(), *this);
+    }
+    ~server_connection_and_memory()
+    {
+      std::vector<iovec> v;
+      iovec iv;
+      iv.iov_base = &((*this)[0]);
+      iv.iov_len = 1;
+      v.emplace_back(iv);
+      cnxn().post_recv(v, this);
+      wait_poll(
+        cnxn()
+        , [&v, this] (void *ctxt, status_t st) -> void
+          {
+            ASSERT_EQ(ctxt, this);
+            ASSERT_EQ(st, S_OK);
+            ASSERT_EQ(v[0].iov_len, 1);
+          }
+      );
+    }
+  };
+
   /*
    * A Component::IFabric_endpoint ought to be able to support multiple clients,
    * but remote_memory_server uses it for jsut a single client, then folds up shop.
    */
   class remote_memory_server
     : public remote_memory_accessor
+    , private boost::noncopyable
   {
     std::shared_ptr<Component::IFabric_endpoint> _ep;
     std::thread _th;
-
-    void send_memory_info(Component::IFabric_connection &cnxn_, registered_memory &rm_)
-    {
-      std::uint64_t vaddr = reinterpret_cast<std::uint64_t>(&rm_[0]);
-      std::uint64_t key = rm_.key();
-      char msg[(sizeof vaddr) + (sizeof key)];
-      std::memcpy(msg, &vaddr, sizeof vaddr);
-      std::memcpy(&msg[sizeof vaddr], &key, sizeof key);
-      send_msg(cnxn_, rm_, msg, sizeof msg);
-    }
 
     void listener(Component::IFabric_endpoint &ep_)
     {
@@ -291,10 +329,24 @@ namespace
         }
       }
     }
+
+    void listener_counted(Component::IFabric_endpoint &ep_, unsigned cnxn_count_)
+    {
+      std::vector<std::shared_ptr<server_connection_and_memory>> scrm;
+      for ( auto i = 0U; i != cnxn_count_; ++i )
+      {
+        scrm.emplace_back(std::make_shared<server_connection_and_memory>(ep_));
+      }
+    }
   public:
     remote_memory_server(Component::IFabric &fabric_, const std::string &fabric_spec_, std::uint16_t control_port_)
       : _ep(fabric_.open_endpoint(fabric_spec_, control_port_))
       , _th(&remote_memory_server::listener, this, std::ref(*_ep))
+    {
+    }
+    remote_memory_server(Component::IFabric &fabric_, const std::string &fabric_spec_, std::uint16_t control_port_, unsigned cnxn_limit_)
+      : _ep(fabric_.open_endpoint(fabric_spec_, control_port_))
+      , _th(&remote_memory_server::listener_counted, this, std::ref(*_ep), cnxn_limit_)
     {
     }
     ~remote_memory_server()
@@ -331,11 +383,14 @@ namespace
     }
 
     std::shared_ptr<Component::IFabric_connection> _cnxn;
-    registered_memory _rm_out;
-    registered_memory _rm_in;
+    std::shared_ptr<registered_memory> _rm_out;
+    std::shared_ptr<registered_memory> _rm_in;
     std::uint64_t _vaddr;
     std::uint64_t _key;
     char _quit_flag;
+
+    registered_memory &rm_in() const { return *_rm_in; }
+    registered_memory &rm_out() const { return *_rm_out; }
   protected:
     void do_quit()
     {
@@ -344,15 +399,15 @@ namespace
   public:
     remote_memory_client(Component::IFabric &fabric_, const std::string &fabric_spec_, const std::string ip_address_, std::uint16_t port_)
       : _cnxn(open_connection_patiently(fabric_, fabric_spec_, ip_address_, port_))
-      , _rm_out{*_cnxn}
-      , _rm_in{*_cnxn}
+      , _rm_out{std::make_shared<registered_memory>(*_cnxn)}
+      , _rm_in{std::make_shared<registered_memory>(*_cnxn)}
       , _vaddr{}
       , _key{}
       , _quit_flag('n')
     {
       std::vector<iovec> v;
       iovec iv;
-      iv.iov_base = &_rm_out[0];
+      iv.iov_base = &rm_out()[0];
       iv.iov_len = (sizeof _vaddr) + (sizeof _key);
       v.emplace_back(iv);
       _cnxn->post_recv(v, this);
@@ -363,12 +418,16 @@ namespace
             ASSERT_EQ(ctxt, this);
             ASSERT_EQ(st, S_OK);
             ASSERT_EQ(v[0].iov_len, (sizeof _vaddr) + sizeof( _key));
-            std::memcpy(&_vaddr, &_rm_out[0], sizeof _vaddr);
-            std::memcpy(&_key, &_rm_out[sizeof _vaddr], sizeof _key);
+            std::memcpy(&_vaddr, &rm_out()[0], sizeof _vaddr);
+            std::memcpy(&_key, &rm_out()[sizeof _vaddr], sizeof _key);
           }
       );
-      std::cerr << "Remote memory client addr " << _vaddr << " key " << _key << std::endl;
+      boost::io::ios_flags_saver sv(std::cerr);
+      std::cerr << "Remote memory client addr " << reinterpret_cast<void*>(_vaddr) << " key " << std::hex << _key << std::endl;
     }
+
+    remote_memory_client(remote_memory_client &&) = default;
+    remote_memory_client &operator=(remote_memory_client &&) = default;
 
     void send_disconnect(Component::IFabric_connection &cnxn_, registered_memory &rm_, char quit_flag_)
     {
@@ -378,7 +437,10 @@ namespace
     ~remote_memory_client()
     try
     {
-      send_disconnect(cnxn(), _rm_out, _quit_flag);
+      if ( _cnxn )
+      {
+        send_disconnect(cnxn(), rm_out(), _quit_flag);
+      }
     }
     catch ( std::exception &e )
     {
@@ -391,10 +453,10 @@ namespace
 
     void write(const std::string &msg_)
     {
-      std::copy(msg_.begin(), msg_.end(), &_rm_out[0]);
+      std::copy(msg_.begin(), msg_.end(), &rm_out()[0]);
       std::vector<iovec> buffers(1);
       {
-        buffers[0].iov_base = &_rm_out[0];
+        buffers[0].iov_base = &rm_out()[0];
         buffers[0].iov_len = msg_.size();
         _cnxn->post_write(buffers, _vaddr + remote_memory_offset, _key, this);
       }
@@ -409,7 +471,7 @@ namespace
     {
       std::vector<iovec> buffers(1);
       {
-        buffers[0].iov_base = &_rm_in[0];
+        buffers[0].iov_base = &rm_in()[0];
         buffers[0].iov_len = msg_.size();
         _cnxn->post_read(buffers, _vaddr + remote_memory_offset, _key, this);
       }
@@ -417,7 +479,7 @@ namespace
         *_cnxn
         , [this] (void *rmc_, status_t stat_) { check_complete_static_2(this, rmc_, stat_); } /* WAS: check_complete_static */
       );
-      std::string remote_msg(&_rm_in[0], &_rm_in[0] + msg_.size());
+      std::string remote_msg(&rm_in()[0], &rm_in()[0] + msg_.size());
       ASSERT_EQ(msg_, remote_msg);
     }
 
@@ -460,6 +522,8 @@ namespace
     std::shared_ptr<Component::IFabric_communicator> _cnxn;
     registered_memory _rm_out;
     registered_memory _rm_in;
+    registered_memory &rm_out() { return _rm_out; }
+    registered_memory &rm_in () { return _rm_in; }
   public:
     remote_memory_subclient(remote_memory_client &parent_)
       : _parent(parent_)
@@ -471,10 +535,10 @@ namespace
 
     void write(const std::string &msg_)
     {
-      std::copy(msg_.begin(), msg_.end(), &_rm_out[0]);
+      std::copy(msg_.begin(), msg_.end(), &rm_out()[0]);
       std::vector<iovec> buffers(1);
       {
-        buffers[0].iov_base = &_rm_out[0];
+        buffers[0].iov_base = &rm_out()[0];
         buffers[0].iov_len = msg_.size();
         _cnxn->post_write(buffers, _parent.vaddr() + remote_memory_offset, _parent.key(), this);
       }
@@ -488,7 +552,7 @@ namespace
     {
       std::vector<iovec> buffers(1);
       {
-        buffers[0].iov_base = &_rm_in[0];
+        buffers[0].iov_base = &rm_in()[0];
         buffers[0].iov_len = msg_.size();
         _cnxn->post_read(buffers, _parent.vaddr() + remote_memory_offset, _parent.key(), this);
       }
@@ -496,7 +560,7 @@ namespace
         *_cnxn
         , [this] (void *rmc_, status_t stat_) { check_complete_static_2(this, rmc_, stat_); } /* WAS: check_complete_static */
       );
-      std::string remote_msg(&_rm_in[0], &_rm_in[0] + msg_.size());
+      std::string remote_msg(&rm_in()[0], &rm_in()[0] + msg_.size());
       ASSERT_EQ(msg_, remote_msg);
     }
   };
@@ -513,11 +577,11 @@ TEST_F(Fabric_test, InstantiateServer)
 
   {
     auto srv1 = std::shared_ptr<Component::IFabric_endpoint>(fabric->open_endpoint("{}", control_port_0));
-    describe_ep(std::cerr << "IS Endpoint 1 ", *srv1) << std::endl;
+    describe_ep(std::cerr << "InstantiateServer Endpoint 1 ", *srv1) << std::endl;
   }
   {
     auto srv2 = std::shared_ptr<Component::IFabric_endpoint>(fabric->open_endpoint("{}", control_port_0));
-    describe_ep(std::cerr << "IS Endpoint 2 ", *srv2) << std::endl;
+    describe_ep(std::cerr << "InstantiateServer Endpoint 2 ", *srv2) << std::endl;
   }
   factory->release_ref();
 }
@@ -671,7 +735,7 @@ TEST_F(Fabric_test, InstantiateServerAndClient)
 static constexpr auto count_outer = 5U;
 static constexpr auto count_inner = 10U;
 
-TEST_F(Fabric_test, WriteRead)
+TEST_F(Fabric_test, WriteReadSequential)
 {
   for ( auto iter0 = 0U; iter0 != count_outer; ++iter0 )
   {
@@ -718,8 +782,72 @@ std::cerr << "CLIENT begin " << iter0 << "." << iter1 << " port " << control_por
 std::cerr << "CLIENT end " << iter0 << "." << iter1 << std::endl;
       }
 
-      /* A special client to tell the server to shut down. Placed after other clients because the server apparently cannot abide concurrent clients. */
+      /* A special client to tell the server factory to shut down. Placed after other clients because the server apparently cannot abide concurrent clients. */
       remote_memory_client_for_shutdown client_shutdown(*fabric, "{}", remote_host, control_port);
+    }
+
+    factory->release_ref();
+  }
+}
+
+TEST_F(Fabric_test, WriteReadParallel)
+{
+  for ( auto iter0 = 0U; iter0 != count_outer; ++iter0 )
+  {
+    /* To avoid conflicts with server which are slow to shut down, use a different control port on every pass
+     * But, what happens if a server is shut down (fi_shutdown) while a client is expecting to receive data?
+     * Shouldn't the client see some sort of error?
+     */
+    auto control_port = std::uint16_t(control_port_2 + iter0);
+    /* create object instance through factory */
+    Component::IBase * comp = Component::load_component("libcomanche-fabric.so",
+                                                        Component::net_fabric_factory);
+    ASSERT_TRUE(comp);
+
+    auto factory = std::shared_ptr<Component::IFabric_factory>(static_cast<IFabric_factory *>(comp->query_interface(IFabric_factory::iid())));
+
+    auto fabric = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec_static));
+    if ( is_server )
+    {
+std::cerr << "SERVER begin " << iter0 << " port " << control_port << std::endl;
+      {
+        auto expected_client_count = count_inner;
+        remote_memory_server server(*fabric, "{}", control_port, expected_client_count);
+      }
+std::cerr << "SERVER end " << iter0 << std::endl;
+    }
+    else
+    {
+      /* allow time for the server to listen before the client restarts.
+       * For an unknown reason, client "connect" puts the port in "ESTABSLISHED"
+       * state, causing server "bind" to fail with EADDRINUSE.
+       */
+      std::this_thread::sleep_for(std::chrono::milliseconds(2500));
+      {
+        std::vector<remote_memory_client> vv;
+        for ( auto iter1 = 0; iter1 != count_inner; ++iter1 )
+        {
+          /* Ordinary clients which test RDMA to server memory.
+           * Should be able to control them via pointers or (using move semantics) in a vector of objects.
+           */
+          vv.emplace_back(*fabric, "{}", remote_host, control_port);
+        }
+
+        /* Feed the endpoints some terrible text */
+        std::string msg = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.";
+
+        for ( auto &client : vv )
+        {
+          client.write(msg);
+        }
+
+        for ( auto &client : vv )
+        {
+          client.read_verify(msg);
+        }
+        /* client destructors send FI_SHUTDOWNs to server */
+      }
+      /* The remote_memory servr will shut down after it has seen a specified number of clients. */
     }
 
     factory->release_ref();

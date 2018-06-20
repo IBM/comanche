@@ -161,7 +161,6 @@ std::size_t Fabric_comm::process_or_queue_completion(async_req_record *g_context
   return ct_total;
 }
 
-#include <iostream>
 std::size_t Fabric_comm::process_cq_comp_err(std::function<void(void *context, status_t st)> cb_)
 {
   /* ERROR: the error context is not necessarily the expected context, and therefore may not be an async_req_record */

@@ -59,18 +59,9 @@ std::shared_ptr<::fid_fabric> make_fid_fabric(::fi_fabric_attr &attr, void *cont
 
 std::shared_ptr<::fi_info> make_fi_info(const std::string& json_configuration);
 
-std::shared_ptr<::fid_ep> make_fid_aep(::fid_domain &domain, ::fi_info &info, void *context);
-
 std::shared_ptr<::fi_info> make_fi_info();
 
 std::shared_ptr<::fi_info> make_fi_infodup(const ::fi_info &info_, const std::string &why_);
-
-fid_mr *make_fid_mr_reg_ptr(
-  ::fid_domain &domain, const void *buf, std::size_t len,
-  std::uint64_t access, std::uint64_t key,
-  std::uint64_t flags);
-
-fid_unique_ptr<::fid_cq> make_fid_cq(::fid_domain &domain, ::fi_cq_attr &attr, void *context);
 
 auto get_name(::fid_t fid) -> fabric_types::addr_ep_t;
 

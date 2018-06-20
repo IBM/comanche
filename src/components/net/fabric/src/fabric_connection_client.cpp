@@ -30,6 +30,7 @@
 #include <algorithm> /* copy */
 #include <cerrno>
 #include <cstdint> /* size_t */
+#include <iostream> /* cerr */
 
 namespace
 {

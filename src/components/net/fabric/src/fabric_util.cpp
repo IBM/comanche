@@ -55,6 +55,7 @@ try
 {
   ::fid_fabric *f(nullptr);
   CHECK_FI_ERR(::fi_fabric(&attr_, &f, context_));
+  FABRIC_TRACE_FID(f);
   return fid_ptr(f);
 }
 catch ( const fabric_error &e )
@@ -104,19 +105,6 @@ std::shared_ptr<::fi_info> make_fi_info(const std::string& json_configuration)
     make_fi_info(h.mode(FI_CONTEXT | FI_CONTEXT2).data());
 }
 
-std::shared_ptr<::fid_ep> make_fid_aep(::fid_domain &domain, ::fi_info &info, void *context)
-try
-{
-  ::fid_ep *e;
-  CHECK_FI_ERR(::fi_endpoint(&domain, &info, &e, context));
-  static_assert(0 == FI_SUCCESS, "FI_SUCCESS not 0, which means that we need to distinguish between these types of \"successful\" returns");
-  return fid_ptr(e);
-}
-catch ( const fabric_error &e )
-{
-  throw e.add(tostr(info));
-}
-
 std::shared_ptr<::fi_info> make_fi_info()
 {
   std::shared_ptr<::fi_info> info(::fi_allocinfo(), ::fi_freeinfo);
@@ -146,34 +134,6 @@ std::shared_ptr<::fi_info> make_fi_infodup(const ::fi_info &info_, const std::st
   }
 
   return info;
-}
-
-/* (no context, synchronous only) */
-fid_mr * make_fid_mr_reg_ptr(
-  ::fid_domain &domain, const void *buf, size_t len,
-  uint64_t access, uint64_t key,
-  uint64_t flags)
-try
-{
-  ::fid_mr *mr;
-  auto constexpr offset = 0U; /* "reserved and must be zero" */
-  /* used iff the registration completes asynchronously
-   * (in which case the domain has been bound to an event queue with FI_REG_MR)
-   */
-  auto constexpr context = nullptr;
-  CHECK_FI_ERR(::fi_mr_reg(&domain, buf, len, access, offset, key, flags, &mr, context));
-  return mr;
-}
-catch ( const fabric_error &e )
-{
-  throw e.add(std::string(std::string(" in ") + __func__ + " " + std::to_string(len)));
-}
-
-fid_unique_ptr<::fid_cq> make_fid_cq(::fid_domain &domain, ::fi_cq_attr &attr, void *context)
-{
-  ::fid_cq *cq;
-  CHECK_FI_ERR(::fi_cq_open(&domain, &attr, &cq, context));
-  return fid_unique_ptr<::fid_cq>(cq);
 }
 
 auto get_name(::fid_t fid) -> fabric_types::addr_ep_t
