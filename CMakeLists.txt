@@ -14,6 +14,7 @@ endif(CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR AND FORCE_OTT_BUILD)
 # used for kernel
 set(ENV{COMANCHE_HOME} ${CMAKE_CURRENT_SOURCE_DIR})
 
+include(CheckIncludeFiles)
 include(${CMAKE_CURRENT_SOURCE_DIR}/mk/common.cmake)
 project(comanche)
 
@@ -41,10 +42,12 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" AND NOT CMAKE_CXX_COMPILER_VERSION
   set(FLAG_DUMP_CLASS "-fdump-class-hierarchy")
 endif()
 
-# run 'make components' to trigger compoents build
+# run 'make components' to trigger compoents build,
+# it's requireqd to wrap compoents targets with BOOTSTRAP_DEPS in the parent projects
 add_custom_target(components
-  ${CMAKE_COMMAND} -DBOOTSTRAP_DEPS=off ${CMAKE_CURRENT_SOURCE_DIR}
+  ${CMAKE_COMMAND} -DBOOTSTRAP_DEPS=off ${CMAKE_SOURCE_DIR}
   COMMAND make all
+  WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   )
 
 # default make will only build core and dependencies
