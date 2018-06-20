@@ -1,6 +1,5 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
-
 project(block-perf CXX)
 
 add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
