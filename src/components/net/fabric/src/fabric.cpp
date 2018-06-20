@@ -37,6 +37,7 @@
 #include <sys/select.h> /* pselect */
 
 #include <chrono> /* seconds */
+#include <iostream> /* cerr */
 #include <stdexcept> /* system_error */
 #include <thread> /* sleep_for */
 
@@ -116,8 +117,6 @@ void Fabric::readerr_eq()
     }
   }
 }
-
-#include <iostream>
 
 namespace
 {
@@ -258,7 +257,7 @@ try
 }
 catch ( const std::exception &e )
 {
-std::cerr << __func__ << ": exception: " << e.what() << "\n";
+  std::cerr << __func__ << ": exception: " << e.what() << "\n";
   throw;
 }
 
@@ -331,6 +330,7 @@ try
 {
   ::fid_domain *f(nullptr);
   CHECK_FI_ERR(::fi_domain(&*_fabric, &info_, &f, context_));
+  FABRIC_TRACE_FID(f);
   return fid_ptr(f);
 }
 catch ( const fabric_error &e )
@@ -341,10 +341,11 @@ catch ( const fabric_error &e )
 std::shared_ptr<::fid_pep> Fabric::make_fid_pep(::fi_info &info_, void *context_) const
 try
 {
-  ::fid_pep *e;
-  CHECK_FI_ERR(::fi_passive_ep(&*_fabric, &info_, &e, context_));
+  ::fid_pep *f;
+  CHECK_FI_ERR(::fi_passive_ep(&*_fabric, &info_, &f, context_));
   static_assert(0 == FI_SUCCESS, "FI_SUCCESS not 0, which means that we need to distinguish between these types of \"successful\" returns");
-  return fid_ptr(e);
+  FABRIC_TRACE_FID(f);
+  return fid_ptr(f);
 }
 catch ( const fabric_error &e )
 {
@@ -353,7 +354,8 @@ catch ( const fabric_error &e )
 
 std::shared_ptr<::fid_eq> Fabric::make_fid_eq(::fi_eq_attr &attr_, void *context_) const
 {
-  ::fid_eq *e;
-  CHECK_FI_ERR(::fi_eq_open(&*_fabric, &attr_, &e, context_));
-  return fid_ptr(e);
+  ::fid_eq *f;
+  CHECK_FI_ERR(::fi_eq_open(&*_fabric, &attr_, &f, context_));
+  FABRIC_TRACE_FID(f);
+  return fid_ptr(f);
 }
