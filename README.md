@@ -26,14 +26,14 @@ programs as root.
 )
 ```
 
-* populate submodules
+* Populate submodules
+
 ```
 git submodule update --init --recursive
 ```
 
 
-* Build
-**Now we enforce out-of-source build**
+* Build (now we enforce out-of-source build)
 
 ```bash
 mkdir build
@@ -41,8 +41,9 @@ cd build
 cmake ..
 make   # build the core and dependencies
 make components # build comanche components & tests, etc
+```
 
-** To override the install destination
+To override the install destination:
 
 ```bash
 cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX:PATH=`pwd`/dist ..
