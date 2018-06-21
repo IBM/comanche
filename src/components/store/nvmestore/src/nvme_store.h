@@ -9,6 +9,9 @@
  * Feng Li (fengggli@yahoo.com)
  */
 
+/*
+ * nvme store support both ikv_store and i_zerocopy interfaces
+ */
 
 #ifndef NVME_STORE_H_
 #define NVME_STORE_H_
@@ -213,6 +216,7 @@ public:
     else return NULL; // we don't support this interface
   }
 
+
   void unload() override {
     delete this;
   }
@@ -225,7 +229,6 @@ public:
     obj->add_ref();
     return obj;
   }
-
 };
 
 

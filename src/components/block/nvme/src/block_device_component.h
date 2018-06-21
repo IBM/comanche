@@ -20,7 +20,7 @@
 #include <core/physical_memory.h>
 #include <core/poller.h>
 #include <api/block_itf.h>
-#include <api/memory_itf.h>
+//#include <api/memory_itf.h>
 #include "types.h"
 
 using namespace Component;
