@@ -3,8 +3,6 @@ cmake_minimum_required(VERSION 3.5)
 # force out-of-tree build
 option(FORCE_OTT_BUILD "force out of tree build" ON)
 
-option(USE_RESTRICTED "include build restricted components" OFF)
-
 option(BOOTSTRAP_DEPS "bootstrap to build deps" ON)
 
 if(CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR AND FORCE_OTT_BUILD)
@@ -65,9 +63,6 @@ else(BOOTSTRAP_DEPS)
   add_subdirectory(apps)
   add_subdirectory(testing)
 
-  if (USE_RESTRICTED)
-     add_subdirectory(comanche-restricted)
-  endif(USE_RESTRICTED)
 endif(BOOTSTRAP_DEPS)
 
 # add a target to generate API documentation with Doxygen
