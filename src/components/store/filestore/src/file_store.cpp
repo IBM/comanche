@@ -34,7 +34,7 @@ struct Pool_handle
   
   int get_direct(const std::string key,
                  void* out_value,
-                 size_t out_value_len);
+                 size_t& out_value_len);
   
   int erase(const std::string key);
 
@@ -102,7 +102,7 @@ int Pool_handle::get(const std::string key,
 
 int Pool_handle::get_direct(const std::string key,
                             void* out_value,
-                            size_t out_value_len)
+                            size_t& out_value_len)
 {
   PLOG("get: key=(%s) path=(%s)", key.c_str(), path.string().c_str());
   
@@ -120,6 +120,8 @@ int Pool_handle::get_direct(const std::string key,
 
   if(out_value_len < buffer.st_size)
     return IKVStore::E_INSUFFICIENT_BUFFER;
+
+  out_value_len = buffer.st_size;
   
   ssize_t rs = read(fd, out_value, out_value_len);
   if(rs != out_value_len)
@@ -251,7 +253,7 @@ int FileStore::get(const pool_t pid,
 int FileStore::get_direct(const pool_t pid,
                           const std::string key,
                           void* out_value,
-                          size_t out_value_len)
+                          size_t& out_value_len)
 {
   auto handle = reinterpret_cast<Pool_handle*>(pid);
   if(_pool_sessions.count(handle) != 1)

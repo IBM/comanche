@@ -158,14 +158,14 @@ public:
    * @param pool Pool handle
    * @param key Object key
    * @param out_value Client provided buffer for value
-   * @param out_value_len Size of value memory in bytes
+   * @param out_value_len [in] size of value memory in bytes [out] size of value
    * 
    * @return S_OK, E_BAD_ALIGNMENT on invalid alignment, or other error code
    */
   virtual int get_direct(const pool_t pool,
                          const std::string key,
                          void* out_value,
-                         size_t out_value_len) { return E_NOT_SUPPORTED; }
+                         size_t& out_value_len) { return E_NOT_SUPPORTED; }
 
 
   /** 

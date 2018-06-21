@@ -85,7 +85,7 @@ public:
   virtual int get_direct(const pool_t pool,
                          const std::string key,
                          void* out_value,
-                         size_t out_value_len) override;
+                         size_t& out_value_len) override;
   
   virtual int erase(const pool_t pool,
                     const std::string key) override;
