@@ -49,7 +49,7 @@ To override the install destination:
 cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX:PATH=`pwd`/dist ..
 ```
 
-## All libs will be installed in cmake installation prefix
+* Install libs into cmake installation prefix
 
 ```bash
 make install
