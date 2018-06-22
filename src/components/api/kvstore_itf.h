@@ -56,6 +56,7 @@ public:
 
   enum {
     S_OK = 0,
+    S_MORE = 1,
     E_FAIL = -1,
     E_KEY_EXISTS = -2,
     E_KEY_NOT_FOUND = -3,
@@ -66,7 +67,7 @@ public:
     E_BAD_PARAM = -8,
     E_BAD_ALIGNMENT = -9,
     E_INSUFFICIENT_BUFFER = -10,
-    
+    E_BAD_OFFSET = -11,    
   };
 
   /** 
@@ -131,10 +132,10 @@ public:
    * 
    * @return S_OK or error code
    */
-  virtual int put(const pool_t pool,
-                  const std::string key,
-                  const void * value,
-                  const size_t value_len) = 0;
+  virtual status_t put(const pool_t pool,
+                       const std::string key,
+                       const void * value,
+                       const size_t value_len) = 0;
 
   /** 
    * Read an object value
@@ -146,26 +147,31 @@ public:
    * 
    * @return S_OK or error code
    */
-  virtual int get(const pool_t pool,
-                  const std::string key,
-                  void*& out_value, /* release with free() */
-                  size_t& out_value_len) = 0;
+  virtual status_t get(const pool_t pool,
+                       const std::string key,
+                       void*& out_value, /* release with free() */
+                       size_t& out_value_len) = 0;
 
 
   /** 
-   * Read an object value directly into client-provided memory
+   * Read an object value directly into client-provided memory.  To perform partial gets you can 
+   * use the offset parameter and limit the size of the buffer (out_value_len).  Loop on return of
+   * S_MORE, and increment offset, to read fragments.  This is useful for very large objects that 
+   * for instance you want to start sending over the network while the device is pulling the data in.
    * 
    * @param pool Pool handle
    * @param key Object key
    * @param out_value Client provided buffer for value
    * @param out_value_len [in] size of value memory in bytes [out] size of value
+   * @param offset Offset from beginning of value in bytes.
    * 
-   * @return S_OK, E_BAD_ALIGNMENT on invalid alignment, or other error code
+   * @return S_OK, S_MORE if only a portion of value is read, E_BAD_ALIGNMENT on invalid alignment, or other error code
    */
-  virtual int get_direct(const pool_t pool,
-                         const std::string key,
-                         void* out_value,
-                         size_t& out_value_len) { return E_NOT_SUPPORTED; }
+  virtual status_t get_direct(const pool_t pool,
+                              const std::string key,
+                              void* out_value,
+                              size_t& out_value_len,
+                              size_t offset = 0) { return E_NOT_SUPPORTED; }
 
 
   /** 
@@ -176,7 +182,7 @@ public:
    * 
    * @return S_OK on success
    */
-  virtual int register_direct_memory(void * vaddr, size_t len) { return E_NOT_SUPPORTED; }
+  virtual status_t register_direct_memory(void * vaddr, size_t len) { return E_NOT_SUPPORTED; }
   
 
   /** 
@@ -189,11 +195,11 @@ public:
    * 
    * @return S_OK or error code
    */
-  virtual int allocate(const pool_t pool,
-                       const std::string key,
-                       const size_t nbytes,
-                       uint64_t& out_key_hash) { return E_NOT_SUPPORTED; }
-
+  virtual status_t allocate(const pool_t pool,
+                            const std::string key,
+                            const size_t nbytes,
+                            uint64_t& out_key_hash) { return E_NOT_SUPPORTED; }
+  
   /** 
    * Take a lock on an object
    * 
@@ -204,11 +210,11 @@ public:
    * 
    * @return S_OK or error code
    */
-  virtual int lock(const pool_t pool,
-                   uint64_t key_hash,
-                   int type,
-                   void*& out_value,
-                   size_t& out_value_len) { return E_NOT_SUPPORTED; }
+  virtual status_t lock(const pool_t pool,
+                        uint64_t key_hash,
+                        int type,
+                        void*& out_value,
+                        size_t& out_value_len) { return E_NOT_SUPPORTED; }
 
   /** 
    * Unlock an object
@@ -218,9 +224,9 @@ public:
    * 
    * @return S_OK or error code
    */
-  virtual int unlock(const pool_t pool,
-                     uint64_t key_hash) { return E_NOT_SUPPORTED; }
-                         
+  virtual status_t unlock(const pool_t pool,
+                          uint64_t key_hash) { return E_NOT_SUPPORTED; }
+  
   /** 
    * Apply a functor to an object as a transaction
    * 
@@ -232,11 +238,11 @@ public:
    * 
    * @return S_OK or error code
    */
-  virtual int apply(const pool_t pool,
-                    uint64_t key_hash,
-                    std::function<void(void*,const size_t)> functor,
-                    size_t offset = 0,
-                    size_t size = 0) { return E_NOT_SUPPORTED; }
+  virtual status_t apply(const pool_t pool,
+                         uint64_t key_hash,
+                         std::function<void(void*,const size_t)> functor,
+                         size_t offset = 0,
+                         size_t size = 0) { return E_NOT_SUPPORTED; }
   
   /** 
    * Apply a functor to an object as a transaction
@@ -249,11 +255,11 @@ public:
    * 
    * @return S_OK or error code
    */
-  virtual int apply(const pool_t pool,
-                    const std::string key,
-                    std::function<void(void*,const size_t)> functor,
-                    size_t offset = 0,
-                    size_t size = 0) { return E_NOT_SUPPORTED; }
+  virtual status_t apply(const pool_t pool,
+                         const std::string key,
+                         std::function<void(void*,const size_t)> functor,
+                         size_t offset = 0,
+                         size_t size = 0) { return E_NOT_SUPPORTED; }
 
   /** 
    * Apply a functor to an already locked object
@@ -266,11 +272,11 @@ public:
    * 
    * @return S_OK or error code
    */
-  virtual int locked_apply(const pool_t pool,
-                           const std::string key,
-                           std::function<void(void*,const size_t)> functor,
-                           size_t offset = 0,
-                           size_t size = 0) { return E_NOT_SUPPORTED; }
+  virtual status_t locked_apply(const pool_t pool,
+                                const std::string key,
+                                std::function<void(void*,const size_t)> functor,
+                                size_t offset = 0,
+                                size_t size = 0) { return E_NOT_SUPPORTED; }
 
   /** 
    * Apply a functor to an already locked object
@@ -283,11 +289,11 @@ public:
    * 
    * @return S_OK or error code
    */
-  virtual int locked_apply(const pool_t pool,
-                           uint64_t key_hash,
-                           std::function<void(void*,const size_t)> functor,
-                           size_t offset = 0,
-                           size_t size = 0) { return E_NOT_SUPPORTED; }
+  virtual status_t locked_apply(const pool_t pool,
+                                uint64_t key_hash,
+                                std::function<void(void*,const size_t)> functor,
+                                size_t offset = 0,
+                                size_t size = 0) { return E_NOT_SUPPORTED; }
 
   /** 
    * Erase an object
@@ -297,9 +303,9 @@ public:
    * 
    * @return S_OK or error code
    */
-  virtual int erase(const pool_t pool,
-                    const std::string key)= 0;
-
+  virtual status_t erase(const pool_t pool,
+                         const std::string key)= 0;
+  
   /** 
    * Erase an object
    * 
@@ -308,8 +314,8 @@ public:
    * 
    * @return S_OK or error code
    */  
-  virtual int erase(const pool_t pool,
-                    uint64_t key_hash) { return E_NOT_SUPPORTED; }
+  virtual status_t erase(const pool_t pool,
+                         uint64_t key_hash) { return E_NOT_SUPPORTED; }
 
 
   /** 
@@ -330,11 +336,11 @@ public:
    * 
    * @return S_OK or error code
    */
-  virtual int map(const pool_t pool,
-                  std::function<int(uint64_t key,
-                                    const void * value,
-                                    const size_t value_len)> function) { return E_NOT_SUPPORTED; }
-
+  virtual status_t map(const pool_t pool,
+                       std::function<int(uint64_t key,
+                                         const void * value,
+                                         const size_t value_len)> function) { return E_NOT_SUPPORTED; }
+  
   /** 
    * Debug routine
    * 
