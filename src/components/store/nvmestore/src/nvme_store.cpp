@@ -258,7 +258,7 @@ void NVME_store::delete_pool(const pool_t pid)
 /*
  * when using NVMe, only insert the block range descriptor into the mapping 
  */
-int NVME_store::put(IKVStore::pool_t pool,
+status_t NVME_store::put(IKVStore::pool_t pool,
                   std::string key,
                   const void * value,
                   size_t value_len)
@@ -332,7 +332,7 @@ int NVME_store::put(IKVStore::pool_t pool,
   return S_OK;
 }
 
-int NVME_store::get(const pool_t pool,
+status_t NVME_store::get(const pool_t pool,
                  const std::string key,
                  void*& out_value,
                  size_t& out_value_len)
@@ -389,7 +389,7 @@ int NVME_store::get(const pool_t pool,
   return S_OK;
 }
 
-int NVME_store::allocate(const pool_t pool,
+status_t NVME_store::allocate(const pool_t pool,
                       const std::string key,
                       const size_t nbytes,
                       uint64_t& out_key_hash)
@@ -455,7 +455,7 @@ int NVME_store::allocate(const pool_t pool,
 /*
  * nvmestore will fetch data from nvme if it obtain the lock
  */
-int NVME_store::lock(const pool_t pool,
+status_t NVME_store::lock(const pool_t pool,
                   uint64_t key_hash,
                   int type,
                   void*& out_value,
@@ -521,7 +521,7 @@ int NVME_store::lock(const pool_t pool,
 /*
  * this will send async io to nvme and return, the completion will be checked for either get() or the nect lock()/apply
  */
-int NVME_store::unlock(const pool_t pool,
+status_t NVME_store::unlock(const pool_t pool,
                     uint64_t key_hash)
 {
   open_session_t * session = get_session(pool);
@@ -570,7 +570,7 @@ int NVME_store::unlock(const pool_t pool,
   return S_OK;
 }
 
-int NVME_store::apply(const pool_t pool,
+status_t NVME_store::apply(const pool_t pool,
                    const std::string key,
                    std::function<void(void*,const size_t)> functor,
                    size_t offset,
@@ -584,7 +584,7 @@ int NVME_store::apply(const pool_t pool,
   return __apply(pool,CityHash64(key.c_str(), key.length()),functor, offset, size);
 }
 
-int NVME_store::apply(const pool_t pool,
+status_t NVME_store::apply(const pool_t pool,
                    uint64_t key_hash,
                    std::function<void(void*,const size_t)> functor,
                    size_t offset,
@@ -597,7 +597,7 @@ int NVME_store::apply(const pool_t pool,
   return __apply(pool, key_hash, functor, offset, size);
 }
 
-int NVME_store::locked_apply(const pool_t pool,
+status_t NVME_store::locked_apply(const pool_t pool,
                           const std::string key,
                           std::function<void(void*,const size_t)> functor,
                           size_t offset,
@@ -606,7 +606,7 @@ int NVME_store::locked_apply(const pool_t pool,
   return __apply(pool, CityHash64(key.c_str(), key.length()), functor, offset, size);
 }
 
-int NVME_store::locked_apply(const pool_t pool,
+status_t NVME_store::locked_apply(const pool_t pool,
                           uint64_t key_hash,
                           std::function<void(void*,const size_t)> functor,
                           size_t offset,
@@ -670,13 +670,13 @@ int NVME_store::__apply(const pool_t pool,
   return S_OK;
 }
 
-int NVME_store::erase(const pool_t pool,
+status_t NVME_store::erase(const pool_t pool,
                    const std::string key)
 {
   return erase(pool,CityHash64(key.c_str(), key.length())); 
 }
 
-int NVME_store::erase(const pool_t pool,
+status_t NVME_store::erase(const pool_t pool,
                    uint64_t key_hash)
 {
   open_session_t * session = get_session(pool);
