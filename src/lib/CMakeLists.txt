@@ -12,14 +12,18 @@ if (BUILD_TBB AND "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
   add_subdirectory(tbb)
 endif()
 
-ExternalProject_Add(ndctl
-  BUILD_IN_SOURCE 1
-  SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ndctl
-  CONFIGURE_COMMAND ./autogen.sh COMMAND  ./configure --prefix=/usr --sysconfdir=/etc --libdir=/usr/lib64
-  BUILD_COMMAND make -j
-  INSTALL_COMMAND "" # cannot install, needs sudo privs to do so; install manual from 
-  )
+# libkmod is required but missing in fedora
+pkg_check_modules(KMOD libkmod)
 
+if(KMOD)
+  ExternalProject_Add(ndctl
+    BUILD_IN_SOURCE 1
+    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ndctl
+    CONFIGURE_COMMAND ./autogen.sh COMMAND  ./configure --prefix=/usr --sysconfdir=/etc --libdir=/usr/lib64
+    BUILD_COMMAND make -j
+    INSTALL_COMMAND "" # cannot install, needs sudo privs to do so; install manual from 
+    )
+endif()
 
 # build pmdk
 ExternalProject_Add(pmdk  

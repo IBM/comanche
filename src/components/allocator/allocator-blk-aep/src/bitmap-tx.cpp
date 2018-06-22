@@ -9,8 +9,12 @@
 
 #include <common/exceptions.h>
 #include <common/logging.h>
+#include <common/cycles.h>
 #include <stdlib.h>
 #include <string.h>
+#include <common/rand.h>
+
+//#define ENABLE_TIMING
 
 enum{
   REG_OP_ISFREE,  // region is all zero bits
@@ -38,6 +42,10 @@ static int __reg_op(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap, unsigned i
 	int i;			/* scans bitmap by longs */
 	int ret = 0;		/* return value */
 
+#ifdef ENABLE_TIMING
+  uint64_t _start; /*for timing*/
+#endif
+
 	/*
 	 * Either nlongs_reg == 1 (for small orders that fit in one long)
 	 * or (offset == 0 && mask == ~0UL) (for larger multiword orders.)
@@ -54,18 +62,27 @@ static int __reg_op(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap, unsigned i
 	 */
 	mask = (1UL << (nbitsinlong - 1));
 	mask += mask - 1;
-	mask <<= offset;
+	mask <<= offset; // 1111...[offset]
 
   TOID(word_t) bitdata = D_RO(bitmap)->bitdata;
-  
+
+  /*copy the spanned longs*/
+#ifdef ENABLE_TIMING 
+  _start = rdtsc();
+#endif
+
   switch (reg_op) {
   case REG_OP_ISFREE:
-    for (i = 0; i < nlongs_reg; i++) {
-      if (D_RO(bitdata)[index + i] & mask)
-        goto done;
+    {
+      const word_t * tab_start = D_RO(bitdata);
+      for (i = 0; i < nlongs_reg; i++) {
+        if (tab_start[index + i] & mask)
+          goto done;
+      }
+
+      ret = 1;	/* all bits in region free (zero) */
+      break;
     }
-    ret = 1;	/* all bits in region free (zero) */
-    break;
 
   case REG_OP_ALLOC:
     TX_BEGIN(pop){
@@ -96,14 +113,16 @@ done:
     ;
   }
 
+#ifdef ENABLE_TIMING
+  PDBG("\t[%s]: op: %d: time %lu",__func__, reg_op,   rdtsc()- _start);
+#endif
+
   return ret;
 }
 
 int bitmap_tx_zero(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap){
   size_t nbits = D_RO(bitmap)->nbits;
-  
   size_t mem_size = BITS_TO_LONGS(nbits)*sizeof(long);
-
 
   // TX_MEMSET has the add_range built in
   TX_BEGIN(pop){
@@ -118,7 +137,6 @@ int bitmap_tx_zero(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap){
 }
 
 int bitmap_tx_create(PMEMobjpool *pop, TOID(struct bitmap_tx) bitmap, unsigned nbits){
-
   // space for all the bits
   size_t sz = BITS_TO_LONGS(nbits)*sizeof(long);
 
@@ -126,7 +144,6 @@ int bitmap_tx_create(PMEMobjpool *pop, TOID(struct bitmap_tx) bitmap, unsigned n
     TX_ADD(bitmap); // since we need let the root obj konw where is bitdata
 
     D_RW(bitmap)->nbits = nbits;
-
     D_RW(bitmap)->bitdata = TX_ZALLOC(word_t, sz);
   }TX_ONABORT{
 		PERR("%s: transaction aborted create sz=%lu bitmap: %s\n",
@@ -137,7 +154,6 @@ int bitmap_tx_create(PMEMobjpool *pop, TOID(struct bitmap_tx) bitmap, unsigned n
 
   return 0;
 }
-
 
 int bitmap_tx_destroy(PMEMobjpool *pop, TOID(struct bitmap_tx)  bitmap){
   int ret = -1;
@@ -155,7 +171,6 @@ int bitmap_tx_destroy(PMEMobjpool *pop, TOID(struct bitmap_tx)  bitmap){
     return ret;
 	} TX_END
 
-
   // free root object
   ret = 0;
   return ret;
@@ -166,15 +181,40 @@ int bitmap_tx_destroy(PMEMobjpool *pop, TOID(struct bitmap_tx)  bitmap){
  * this will scan the bitmap by regions of size order
  */
 int bitmap_tx_find_free_region(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap, int order){
-  unsigned int pos, end;
-  size_t nbits = D_RO(bitmap)->nbits;
+  uint64_t pos, offset;
+  size_t nbits = D_RO(bitmap)->nbits; // total bits in the bitmap
 
-  for(pos = 0; (end = pos + (1U << order))<=nbits; pos = end){
 
+  unsigned int step =(1U << order); // size of a tab
+  unsigned int ntabs = nbits/step;
+
+#if ENABLE_TIMING
+  uint64_t _start, _end_search, _end_set;
+  uint64_t cycle_search, cycle_set;
+  _start = rdtsc();
+#endif
+  PDBG(" step = %u, ntabs = %u", step, ntabs);
+
+  uint64_t pos_origin = (genrand64_int64()%ntabs)*step; // the origin of the scan, star from a random tab
+
+  for(offset = 0; offset + step <=nbits; offset += step){ // go to right most and then start from the left most
+
+    //PINF("    [%s]: end is %d, try to search region order %d from pos %u",__func__, end,  order, pos );
+    pos = (offset + pos_origin)%nbits;
     if(! __reg_op(pop, bitmap, pos, order, REG_OP_ISFREE))
       continue;
+#if ENABLE_TIMING
+    _end_search = rdtsc();
+#endif
 
     __reg_op(pop, bitmap, pos, order, REG_OP_ALLOC);
+
+#if ENABLE_TIMING
+    _end_set = rdtsc();
+    cycle_search = _end_search - _start;
+    cycle_set = _end_set - _end_search;
+    PDBG("[%s]: cycle used: search region: %.5lu, set used bits %.5lu",__func__,  cycle_search, cycle_set);
+#endif
     return pos;
   }
   return -1;
