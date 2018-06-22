@@ -14,6 +14,7 @@ endif()
 
 # libkmod is required but missing in fedora
 pkg_check_modules(KMOD libkmod)
+
 if(KMOD)
   ExternalProject_Add(ndctl
     BUILD_IN_SOURCE 1
@@ -24,13 +25,14 @@ if(KMOD)
     )
 endif()
 
-
 # build pmdk
 ExternalProject_Add(pmdk  
   BUILD_IN_SOURCE 1
   SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/pmdk
   CONFIGURE_COMMAND ""
   BUILD_COMMAND make -j
-  INSTALL_COMMAND  "" # make install prefix=${CMAKE_INSTALL_PREFIX} don't need to be installed
+  INSTALL_COMMAND make install prefix=${CMAKE_INSTALL_PREFIX}
   )
+
+
 

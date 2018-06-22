@@ -72,24 +72,25 @@ public:
 
   virtual void delete_pool(const pool_t pid) override;
 
-  virtual int put(const pool_t pool,
-                  const std::string key,
-                  const void * value,
-                  const size_t value_len) override;
+  virtual status_t put(const pool_t pool,
+                       const std::string key,
+                       const void * value,
+                       const size_t value_len) override;
 
-  virtual int get(const pool_t pool,
-                  const std::string key,
-                  void*& out_value,
-                  size_t& out_value_len) override;
+  virtual status_t get(const pool_t pool,
+                       const std::string key,
+                       void*& out_value,
+                       size_t& out_value_len) override;
   
-  virtual int get_direct(const pool_t pool,
-                         const std::string key,
-                         void* out_value,
-                         size_t out_value_len) override;
+  virtual status_t get_direct(const pool_t pool,
+                              const std::string key,
+                              void* out_value,
+                              size_t& out_value_len,
+                              size_t offset) override;
   
-  virtual int erase(const pool_t pool,
-                    const std::string key) override;
-
+  virtual status_t erase(const pool_t pool,
+                         const std::string key) override;
+  
   virtual size_t count(const pool_t pool) override;
 
   virtual void debug(const pool_t pool, unsigned cmd, uint64_t arg) override;
