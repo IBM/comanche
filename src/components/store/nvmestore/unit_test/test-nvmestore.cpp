@@ -114,7 +114,6 @@ TEST_F(KVStore_test, BasicGet)
   PINF("Value=(%.50s) %lu", ((char*)value), value_len);
 }
 
-#if 0
 
 // TEST_F(KVStore_test, BasicGetRef)
 // {
@@ -127,6 +126,7 @@ TEST_F(KVStore_test, BasicGet)
 //   _kvstore->release_reference(pool, value);
 // }
 
+#if 0
 
 TEST_F(KVStore_test, BasicMap)
 {
