@@ -9,7 +9,6 @@
  * Feng Li (fengggli@yahoo.com)
  */
 
-
 #ifndef NVME_STORE_H_
 #define NVME_STORE_H_
 
@@ -18,6 +17,8 @@
 #include <unordered_map>
 #include <pthread.h>
 #include <common/rwlock.h>
+#include <common/types.h>
+
 #include <api/kvstore_itf.h>
 
 #include "state_map.h"
@@ -109,58 +110,58 @@ public:
   
   virtual void close_pool(const pool_t pid) override;
 
-  virtual int put(const pool_t pool,
+  virtual status_t put(const pool_t pool,
                   const std::string key,
                   const void * value,
                   const size_t value_len) override;
 
-  virtual int get(const pool_t pool,
+  virtual status_t get(const pool_t pool,
                   const std::string key,
                   void*& out_value,
                   size_t& out_value_len) override;
 
-  virtual int allocate(const pool_t pool,
+  virtual status_t allocate(const pool_t pool,
                        const std::string key,
                        const size_t nbytes,
                        uint64_t& out_key_hash);
 
-  virtual int lock(const pool_t pool,
+  virtual status_t lock(const pool_t pool,
                    uint64_t key_hash,
                    int type,
                    void*& out_value,
                    size_t& out_value_len);
 
-  virtual int unlock(const pool_t pool,
+  virtual status_t unlock(const pool_t pool,
                      uint64_t key_hash);
 
-  virtual int apply(const pool_t pool,
+  virtual status_t apply(const pool_t pool,
                     uint64_t key_hash,
                     std::function<void(void*,const size_t)> functor,
                     size_t offset,
                     size_t size = 0);
 
-  virtual int apply(const pool_t pool,
+  virtual status_t apply(const pool_t pool,
                     const std::string key,
                     std::function<void(void*,const size_t)> functor,
                     size_t offset = 0,
                     size_t size = 0);
 
-  virtual int locked_apply(const pool_t pool,
+  virtual status_t locked_apply(const pool_t pool,
                            const std::string key,
                            std::function<void(void*,const size_t)> functor,
                            size_t offset = 0,
                            size_t size = 0);
 
-  virtual int locked_apply(const pool_t pool,
+  virtual status_t locked_apply(const pool_t pool,
                            uint64_t key_hash,
                            std::function<void(void*,const size_t)> functor,
                            size_t offset = 0,
                            size_t size = 0);
 
-  virtual int erase(const pool_t pool,
+  virtual status_t erase(const pool_t pool,
                     const std::string key);
   
-  virtual int erase(const pool_t pool,
+  virtual status_t erase(const pool_t pool,
                     uint64_t key_hash);
 
   virtual size_t count(const pool_t pool) override{return E_NOT_IMPL;}
@@ -213,6 +214,7 @@ public:
     else return NULL; // we don't support this interface
   }
 
+
   void unload() override {
     delete this;
   }
@@ -225,7 +227,6 @@ public:
     obj->add_ref();
     return obj;
   }
-
 };
 
 
