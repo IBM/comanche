@@ -9,10 +9,6 @@
  * Feng Li (fengggli@yahoo.com)
  */
 
-/*
- * nvme store support both ikv_store and i_zerocopy interfaces
- */
-
 #ifndef NVME_STORE_H_
 #define NVME_STORE_H_
 

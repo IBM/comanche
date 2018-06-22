@@ -14,6 +14,8 @@
 #include <string.h>
 #include <common/rand.h>
 
+//#define ENABLE_TIMING
+
 enum{
   REG_OP_ISFREE,  // region is all zero bits
   REG_OP_ALLOC,   //set all bits in this region
@@ -40,7 +42,9 @@ static int __reg_op(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap, unsigned i
 	int i;			/* scans bitmap by longs */
 	int ret = 0;		/* return value */
 
+#ifdef ENABLE_TIMING
   uint64_t _start; /*for timing*/
+#endif
 
 	/*
 	 * Either nlongs_reg == 1 (for small orders that fit in one long)
@@ -63,8 +67,9 @@ static int __reg_op(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap, unsigned i
   TOID(word_t) bitdata = D_RO(bitmap)->bitdata;
 
   /*copy the spanned longs*/
-  
+#ifdef ENABLE_TIMING 
   _start = rdtsc();
+#endif
 
   switch (reg_op) {
   case REG_OP_ISFREE:
@@ -108,7 +113,9 @@ done:
     ;
   }
 
+#ifdef ENABLE_TIMING
   PDBG("\t[%s]: op: %d: time %lu",__func__, reg_op,   rdtsc()- _start);
+#endif
 
   return ret;
 }
@@ -177,13 +184,15 @@ int bitmap_tx_find_free_region(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap,
   uint64_t pos, offset;
   size_t nbits = D_RO(bitmap)->nbits; // total bits in the bitmap
 
-  uint64_t _start, _end_search, _end_set;
-  uint64_t cycle_search, cycle_set;
 
   unsigned int step =(1U << order); // size of a tab
   unsigned int ntabs = nbits/step;
 
+#if ENABLE_TIMING
+  uint64_t _start, _end_search, _end_set;
+  uint64_t cycle_search, cycle_set;
   _start = rdtsc();
+#endif
   PDBG(" step = %u, ntabs = %u", step, ntabs);
 
   uint64_t pos_origin = (genrand64_int64()%ntabs)*step; // the origin of the scan, star from a random tab
@@ -194,15 +203,18 @@ int bitmap_tx_find_free_region(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap,
     pos = (offset + pos_origin)%nbits;
     if(! __reg_op(pop, bitmap, pos, order, REG_OP_ISFREE))
       continue;
+#if ENABLE_TIMING
     _end_search = rdtsc();
+#endif
 
     __reg_op(pop, bitmap, pos, order, REG_OP_ALLOC);
-    _end_set = rdtsc();
 
+#if ENABLE_TIMING
+    _end_set = rdtsc();
     cycle_search = _end_search - _start;
     cycle_set = _end_set - _end_search;
-
     PDBG("[%s]: cycle used: search region: %.5lu, set used bits %.5lu",__func__,  cycle_search, cycle_set);
+#endif
     return pos;
   }
   return -1;

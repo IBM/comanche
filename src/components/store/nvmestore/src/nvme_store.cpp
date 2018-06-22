@@ -32,7 +32,7 @@ extern "C"
 #include "hashmap_tx.h"
 }
 
-#undef USE_ASYNC
+//#define USE_ASYNC
 
 using namespace Component;
 
