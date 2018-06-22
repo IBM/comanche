@@ -13,6 +13,7 @@ endif(CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR AND FORCE_OTT_BUILD)
 set(ENV{COMANCHE_HOME} ${CMAKE_CURRENT_SOURCE_DIR})
 
 include(CheckIncludeFiles)
+find_package(PkgConfig)
 include(${CMAKE_CURRENT_SOURCE_DIR}/mk/common.cmake)
 project(comanche)
 
