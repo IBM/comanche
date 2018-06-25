@@ -7,6 +7,7 @@
 
 #include "bitmap-tx.h"
 
+#include <boost/smart_ptr/detail/spinlock.hpp>
 #include <common/exceptions.h>
 #include <common/logging.h>
 #include <common/cycles.h>
@@ -15,7 +16,8 @@
 #include <mutex>
 #include <common/rand.h>
 
-static std::mutex _mutex;
+static boost::detail::spinlock _spinlock;
+//static std::mutex _mutex;
 
 //#define ENABLE_TIMING
 enum{
@@ -201,7 +203,8 @@ int bitmap_tx_find_free_region(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap,
 
   /* TODO: this mutex can be avoid by manipulating the tab pos to avoid contention!*/
   {
-    std::lock_guard<std::mutex> guard(_mutex);
+    std::lock_guard<boost::detail::spinlock> guard(_spinlock);
+    //std::lock_guard<std::mutex> guard(_mutex);
 
     for(offset = 0; offset + step <=nbits; offset += step){ // go to right most and then start from the left most
 

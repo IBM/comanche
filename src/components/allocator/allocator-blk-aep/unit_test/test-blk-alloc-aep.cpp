@@ -15,6 +15,7 @@
 #include <set>
 #include <thread>
 #include <chrono>
+#include <gperftools/profiler.h>
 
 #include <common/cycles.h>
 #include <common/rand.h>
@@ -63,7 +64,7 @@ class Block_allocator_test : public ::testing::Test {
 };
 
 Component::IBlock_allocator * Block_allocator_test::_alloc;
-size_t Block_allocator_test::_nr_blocks = 100000;
+size_t Block_allocator_test::_nr_blocks = 1000000;
 
 #if 0
 TEST_F(Block_allocator_test, InitDPDK)
@@ -160,6 +161,7 @@ static void allocate_bit(Component::IBlock_allocator * alloc, size_t num_bits){
   //Core::AVL_range_allocator ra(0, n_blocks*KB(4));
   
   //PLOG("total blocks = %ld (%lx)", n_blocks, n_blocks); 
+  ProfilerRegisterThread();
 
   _start = std::chrono::high_resolution_clock::now();
 
@@ -179,7 +181,7 @@ static void allocate_bit(Component::IBlock_allocator * alloc, size_t num_bits){
 
   _end = std::chrono::high_resolution_clock::now();
   double secs = std::chrono::duration_cast<std::chrono::milliseconds>(_end - _start).count() / 1000.0;
-  PINF("*block allocator*: allocations per sec: %2g", ((double) n_blocks) / secs);
+  PINF("*block allocator*: %lu allocations in %.1lf sec, rate: %2g",n_blocks, secs,  ((double) n_blocks) / secs);
 
   for(auto& e: v) {
     alloc->free(e.lba, e.handle);
@@ -189,14 +191,26 @@ static void allocate_bit(Component::IBlock_allocator * alloc, size_t num_bits){
 TEST_F(Block_allocator_test, TestConcurrentAlloc)
 {
   int i;
-  const int nr_threads = 4;
+  int nr_threads;
+
+  PINF("how many work threads?");
+  std::cin >> nr_threads;
+  PINF("now starting %d working thread ...", nr_threads);
+  
   size_t blocks_per_thread = _nr_blocks/nr_threads;
   std::vector<std::thread> threads;
+
+  char profile_name[60];
+  sprintf(profile_name, "bitmap-alloc-thread-%d.profile", nr_threads);
+  ProfilerStart(profile_name);
   for(i = 0; i< nr_threads; i++){
     threads.push_back(std::thread(allocate_bit, _alloc,  blocks_per_thread));
   }
+
   for (auto& th : threads) th.join();
   PINF("*block allocator* all thread joined");
+
+  ProfilerStop();
 }
 
 
