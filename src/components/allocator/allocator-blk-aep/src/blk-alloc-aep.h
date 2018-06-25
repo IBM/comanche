@@ -6,8 +6,8 @@
 /* 
  * Author: Feng Li
  * e-mail: fengggli@yahoo.com
- *
  */
+
 
 #ifndef __BLOCK_ALLOC_AEP_COMPONENT_H__
 #define __BLOCK_ALLOC_AEP_COMPONENT_H__

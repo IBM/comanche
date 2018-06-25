@@ -12,10 +12,12 @@
 #include <common/cycles.h>
 #include <stdlib.h>
 #include <string.h>
+#include <mutex>
 #include <common/rand.h>
 
-//#define ENABLE_TIMING
+static std::mutex _mutex;
 
+//#define ENABLE_TIMING
 enum{
   REG_OP_ISFREE,  // region is all zero bits
   REG_OP_ALLOC,   //set all bits in this region
@@ -29,9 +31,8 @@ enum{
  * @param pos the posion of the bit
  * @param order order of the region
  * @param operation type
- *
  */
-static int __reg_op(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap, unsigned int pos, int order, int reg_op)
+static int __reg_op(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap, unsigned int pos, unsigned order, int reg_op)
 {
 	int nbits_reg;		/* number of bits in region */
 	int index;		/* index first long of region in bitmap */
@@ -55,6 +56,7 @@ static int __reg_op(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap, unsigned i
 	offset = pos - (index * BITS_PER_LONG);
 	nlongs_reg = BITS_TO_LONGS(nbits_reg);
 	nbitsinlong = nbits_reg < BITS_PER_LONG ? nbits_reg: BITS_PER_LONG;
+
 
 	/*
 	 * Can't do "mask = (1UL << nbitsinlong) - 1", as that
@@ -180,7 +182,7 @@ int bitmap_tx_destroy(PMEMobjpool *pop, TOID(struct bitmap_tx)  bitmap){
 /* 
  * this will scan the bitmap by regions of size order
  */
-int bitmap_tx_find_free_region(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap, int order){
+int bitmap_tx_find_free_region(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap, unsigned order){
   uint64_t pos, offset;
   size_t nbits = D_RO(bitmap)->nbits; // total bits in the bitmap
 
@@ -197,30 +199,37 @@ int bitmap_tx_find_free_region(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap,
 
   uint64_t pos_origin = (genrand64_int64()%ntabs)*step; // the origin of the scan, star from a random tab
 
-  for(offset = 0; offset + step <=nbits; offset += step){ // go to right most and then start from the left most
+  /* TODO: this mutex can be avoid by manipulating the tab pos to avoid contention!*/
+  {
+    std::lock_guard<std::mutex> guard(_mutex);
 
-    //PINF("    [%s]: end is %d, try to search region order %d from pos %u",__func__, end,  order, pos );
-    pos = (offset + pos_origin)%nbits;
-    if(! __reg_op(pop, bitmap, pos, order, REG_OP_ISFREE))
-      continue;
+    for(offset = 0; offset + step <=nbits; offset += step){ // go to right most and then start from the left most
+
+      //PINF("    [%s]: end is %d, try to search region order %d from pos %u",__func__, end,  order, pos );
+      pos = (offset + pos_origin)%nbits;
+
+      if(! __reg_op(pop, bitmap, pos, order, REG_OP_ISFREE))
+        continue;
+
 #if ENABLE_TIMING
-    _end_search = rdtsc();
+      _end_search = rdtsc();
 #endif
 
-    __reg_op(pop, bitmap, pos, order, REG_OP_ALLOC);
+      __reg_op(pop, bitmap, pos, order, REG_OP_ALLOC);
 
 #if ENABLE_TIMING
-    _end_set = rdtsc();
-    cycle_search = _end_search - _start;
-    cycle_set = _end_set - _end_search;
-    PDBG("[%s]: cycle used: search region: %.5lu, set used bits %.5lu",__func__,  cycle_search, cycle_set);
+      _end_set = rdtsc();
+      cycle_search = _end_search - _start;
+      cycle_set = _end_set - _end_search;
+      PDBG("[%s]: cycle used: search region: %.5lu, set used bits %.5lu",__func__,  cycle_search, cycle_set);
 #endif
-    return pos;
+      return pos;
+    }
+    return -1;
   }
-  return -1;
 }
 
-int bitmap_tx_release_region(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap, unsigned int pos, int order){
+int bitmap_tx_release_region(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap, unsigned int pos, unsigned order){
   if(__reg_op(pop, bitmap, pos, order, REG_OP_RELEASE)){
       throw(General_exception("region release failed"));
       }
