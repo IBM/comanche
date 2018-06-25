@@ -13,6 +13,9 @@
 #include <string>
 #include <list>
 #include <set>
+#include <thread>
+#include <chrono>
+
 #include <common/cycles.h>
 #include <common/rand.h>
 #include <common/exceptions.h>
@@ -55,68 +58,23 @@ class Block_allocator_test : public ::testing::Test {
   }
   
   // Objects declared here can be used by all tests in the test case
-  static Component::IBlock_device *      _block;
   static Component::IBlock_allocator *   _alloc;
-  static size_t _nr_blks; //number of blocks from IBlockdev
+  static size_t  _nr_blocks;
 };
 
-Component::IBlock_device * Block_allocator_test::_block;
 Component::IBlock_allocator * Block_allocator_test::_alloc;
-size_t Block_allocator_test::_nr_blks;;
+size_t Block_allocator_test::_nr_blocks = 100000;
 
+#if 0
 TEST_F(Block_allocator_test, InitDPDK)
 {
   DPDK::eal_init(512);
 }
-
-TEST_F(Block_allocator_test, InstantiateBlockDevice)
-{
-#ifdef USE_SPDK_NVME_DEVICE
-  
-  Component::IBase * comp = Component::load_component("libcomanche-blknvme.so",
-                                                      Component::block_nvme_factory);
-
-  assert(comp);
-  PLOG("Block_device factory loaded OK.");
-  IBlock_device_factory * fact = (IBlock_device_factory *) comp->query_interface(IBlock_device_factory::iid());
-  
-  cpu_mask_t cpus;
-  cpus.add_core(2);
-
-  _block = fact->create("86:00.0", &cpus);
-
-  assert(_block);
-  fact->release_ref();
-  PINF("Lower block-layer component loaded OK.");
-
-#else
-  
-  Component::IBase * comp = Component::load_component("libcomanche-blkposix.so",
-                                                      Component::block_posix_factory);
-  assert(comp);
-  PLOG("Block_device factory loaded OK.");
-
-  IBlock_device_factory * fact = (IBlock_device_factory *) comp->query_interface(IBlock_device_factory::iid());
-  std::string config_string;
-  config_string = "{\"path\":\"";
-  //  config_string += "/dev/nvme0n1";1
-  config_string += "./blockfile.dat";
-  //  config_string += "\"}";
-  config_string += "\",\"size_in_blocks\":1000}";
-  PLOG("config: %s", config_string.c_str());
-
-  _nr_blks = 1000;
-
-  _block = fact->create(config_string);
-  assert(_block);
-  fact->release_ref();
-  PINF("Block-layer component loaded OK (itf=%p)", _block);
-
 #endif
-}
 
 TEST_F(Block_allocator_test, InstantiateBlockAllocator)
 {
+  size_t num_blocks = _nr_blocks;
   using namespace Component;
   
   IBase * comp = load_component("libcomanche-blkalloc-aep.so",
@@ -125,7 +83,6 @@ TEST_F(Block_allocator_test, InstantiateBlockAllocator)
   IBlock_allocator_factory * fact = static_cast<IBlock_allocator_factory *>
     (comp->query_interface(IBlock_allocator_factory::iid()));
 
-  size_t num_blocks = _nr_blks;
   PLOG("Opening allocator to support %lu blocks", num_blocks);
   _alloc = fact->open_allocator(
                                 num_blocks,
@@ -135,9 +92,10 @@ TEST_F(Block_allocator_test, InstantiateBlockAllocator)
 }
 	
 
-#if 1
+#if 0
 TEST_F(Block_allocator_test, TestAllocation)
 {
+  size_t n_blocks = 100000;
   struct Record {
     lba_t lba;
     void* handle;
@@ -145,7 +103,6 @@ TEST_F(Block_allocator_test, TestAllocation)
 
   std::vector<Record> v;
   std::set<lba_t> used_lbas;
-  size_t n_blocks = _nr_blks;
   //Core::AVL_range_allocator ra(0, n_blocks*KB(4));
   
   PLOG("total blocks = %ld (%lx)", n_blocks, n_blocks); 
@@ -189,6 +146,61 @@ TEST_F(Block_allocator_test, Exhaust)
 }
 #endif
 
+static void allocate_bit(Component::IBlock_allocator * alloc, size_t num_bits){
+  size_t n_blocks = num_bits;// blocks
+  std::chrono::system_clock::time_point _start, _end;
+
+  struct Record {
+    lba_t lba;
+    void* handle;
+  };
+
+  std::vector<Record> v;
+  std::set<lba_t> used_lbas;
+  //Core::AVL_range_allocator ra(0, n_blocks*KB(4));
+  
+  //PLOG("total blocks = %ld (%lx)", n_blocks, n_blocks); 
+
+  _start = std::chrono::high_resolution_clock::now();
+
+  for(unsigned long i=0;i<n_blocks;i++) {
+    void * p;
+    size_t s = 1; // (genrand64_int64() % 5) + 2;
+    lba_t lba = alloc->alloc(s,&p);    
+    //PLOG("lba=%lx", lba);
+    
+    //ASSERT_TRUE(used_lbas.find(lba) == used_lbas.end()); // not already in set
+    //used_lbas.insert(lba);
+    //    PLOG("[%lu]: lba(%ld) allocated %ld blocks", i, lba, s);
+    v.push_back({lba,p});
+
+    //if(i % 1000 == 0) PLOG("allocations:%ld", i);
+  }
+
+  _end = std::chrono::high_resolution_clock::now();
+  double secs = std::chrono::duration_cast<std::chrono::milliseconds>(_end - _start).count() / 1000.0;
+  PINF("*block allocator*: allocations per sec: %2g", ((double) n_blocks) / secs);
+
+  for(auto& e: v) {
+    alloc->free(e.lba, e.handle);
+  }
+}
+
+TEST_F(Block_allocator_test, TestConcurrentAlloc)
+{
+  int i;
+  const int nr_threads = 4;
+  size_t blocks_per_thread = _nr_blocks/nr_threads;
+  std::vector<std::thread> threads;
+  for(i = 0; i< nr_threads; i++){
+    threads.push_back(std::thread(allocate_bit, _alloc,  blocks_per_thread));
+  }
+  for (auto& th : threads) th.join();
+  PINF("*block allocator* all thread joined");
+}
+
+
+
 /* 
  * erase the allocation info
  * 
@@ -202,10 +214,8 @@ TEST_F(Block_allocator_test, EraseAllocator){
 TEST_F(Block_allocator_test, ReleaseAllocator)
 {
   ASSERT_TRUE(_alloc);
-  ASSERT_TRUE(_block);
 
   _alloc->release_ref();
-  _block->release_ref();
 }
 
 
