@@ -74,6 +74,7 @@ static int __reg_op(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap, unsigned i
 #ifdef ENABLE_TIMING 
   _start = rdtsc();
 #endif
+  word_t * tab_start;
 
   switch (reg_op) {
   case REG_OP_ISFREE:
@@ -89,19 +90,35 @@ static int __reg_op(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap, unsigned i
     }
 
   case REG_OP_ALLOC:
+#if 1
+    /* transaction api is too slow */
+    tab_start = static_cast<word_t *>(pmemobj_direct(bitdata.oid)) + index ;
+
+    //word_t * tab_start = (word_t *)D_RO(bitdata);
+    for (i = 0; i < nlongs_reg; i++)
+      tab_start[i] |= mask;
+    pmemobj_persist(pop, tab_start, sizeof(word_t)*nlongs_reg);
+#else
     TX_BEGIN(pop){
       pmemobj_tx_add_range(bitdata.oid, index*sizeof(long), nlongs_reg*sizeof(long) );
+      word_t * tab_start = D_RW(bitdata);
       for (i = 0; i < nlongs_reg; i++)
-        D_RW(bitdata)[index + i] |= mask;
+        tab_start[index + i] |= mask;
     }TX_ONABORT{
     PERR("%s: transaction aborted: %s\n", __func__,
       pmemobj_errormsg());
     abort();
     }TX_END
+#endif
     break;
 
   case REG_OP_RELEASE:
-
+#if 1
+    tab_start = static_cast<word_t *>(pmemobj_direct(bitdata.oid)) + index ;
+    for (i = 0; i < nlongs_reg; i++)
+      tab_start[i] &= ~mask;
+    pmemobj_persist(pop, tab_start, sizeof(word_t)*nlongs_reg);
+#else
     TX_BEGIN(pop){
       pmemobj_tx_add_range(bitdata.oid, index*sizeof(long), nlongs_reg*sizeof(long) );
       for (i = 0; i < nlongs_reg; i++)
@@ -111,6 +128,7 @@ static int __reg_op(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap, unsigned i
       pmemobj_errormsg());
     abort();
     }TX_END
+#endif
 
     break;
 done:
@@ -156,6 +174,8 @@ int bitmap_tx_create(PMEMobjpool *pop, TOID(struct bitmap_tx) bitmap, unsigned n
 		abort();
   }TX_END
 
+  PINF("%s: bitmap data created at %p", __func__, pmemobj_direct((D_RO(bitmap)->bitdata).oid));
+
   return 0;
 }
 
@@ -192,7 +212,7 @@ int bitmap_tx_find_free_region(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap,
   unsigned int step =(1U << order); // size of a tab
   unsigned int ntabs = nbits/step;
 
-#if ENABLE_TIMING
+#ifdef ENABLE_TIMING
   uint64_t _start, _end_search, _end_set;
   uint64_t cycle_search, cycle_set;
   _start = rdtsc();
@@ -203,7 +223,6 @@ int bitmap_tx_find_free_region(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap,
 
   /* TODO: this mutex can be avoid by manipulating the tab pos to avoid contention!*/
   {
-
     for(offset = 0; offset + step <=nbits; offset += step){ // go to right most and then start from the left most
 
       //PINF("    [%s]: end is %d, try to search region order %d from pos %u",__func__, end,  order, pos );
@@ -212,7 +231,7 @@ int bitmap_tx_find_free_region(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap,
       if(! __reg_op(pop, bitmap, pos, order, REG_OP_ISFREE))
         continue;
 
-#if ENABLE_TIMING
+#ifdef ENABLE_TIMING
       _end_search = rdtsc();
 #endif
 
@@ -224,11 +243,11 @@ int bitmap_tx_find_free_region(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap,
         __reg_op(pop, bitmap, pos, order, REG_OP_ALLOC);
       }
 
-#if ENABLE_TIMING
+#ifdef ENABLE_TIMING
       _end_set = rdtsc();
       cycle_search = _end_search - _start;
       cycle_set = _end_set - _end_search;
-      PDBG("[%s]: cycle used: search region: %.5lu, set used bits %.5lu",__func__,  cycle_search, cycle_set);
+      PINF("[%s]: cycle used: search region: %.5lu, set used bits %.5lu",__func__,  cycle_search, cycle_set);
 #endif
       return pos;
     }
