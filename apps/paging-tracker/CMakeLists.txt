@@ -1,6 +1,5 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
-
 project(paging-tracker CXX)
 
 link_directories(/usr/local/lib)
