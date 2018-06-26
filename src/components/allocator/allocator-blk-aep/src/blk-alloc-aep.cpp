@@ -12,7 +12,7 @@
 #include <assert.h>
 #include <core/physical_memory.h>
 #include "blk-alloc-aep.h"
-
+#include <thread>
 #include <libpmemobj.h>
 #include <libpmempool.h>
 
@@ -22,6 +22,7 @@
 
 using namespace Component;
 
+static std::mutex _mutex;
 
 static unsigned size_to_bin(uint64_t size)
 {
@@ -154,7 +155,7 @@ lba_t Block_allocator_AEP::alloc(size_t count, void ** handle)
       throw API_exception("%s: cannot find avail blk with order %lu and nbits %lu!, bitmap  map already full", __func__, order, _nbits);
     }
 
-  PDBG("%s: find free region at lba %lu, order= %lu", __func__, pos, order);
+  PDBG("%s: (%lu) find free region at lba %lu, order= %u", __func__,std::hash<std::thread::id>{}(std::this_thread::get_id()), pos, order);
 
   *handle = new BlockAllocRecord(pos, order);
 

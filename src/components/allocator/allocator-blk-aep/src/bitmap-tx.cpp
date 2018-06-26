@@ -12,6 +12,7 @@
 #include <common/logging.h>
 #include <common/cycles.h>
 #include <stdlib.h>
+#include <thread>
 #include <string.h>
 #include <mutex>
 #include <common/rand.h>
@@ -228,8 +229,10 @@ int bitmap_tx_find_free_region(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap,
       //PINF("    [%s]: end is %d, try to search region order %d from pos %u",__func__, end,  order, pos );
       pos = (offset + pos_origin)%nbits;
 
-      if(! __reg_op(pop, bitmap, pos, order, REG_OP_ISFREE))
+      if(! __reg_op(pop, bitmap, pos, order, REG_OP_ISFREE)){
+        PDBG("%s: (%lu) reg not free at %lu", __func__,std::hash<std::thread::id>{}(std::this_thread::get_id()), pos);
         continue;
+      }
 
 #ifdef ENABLE_TIMING
       _end_search = rdtsc();
@@ -238,9 +241,12 @@ int bitmap_tx_find_free_region(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap,
       {
         //std::lock_guard<std::mutex> guard(_mutex);
         std::lock_guard<boost::detail::spinlock> guard(_spinlock);
-        if(! __reg_op(pop, bitmap, pos, order, REG_OP_ISFREE))
+        if(! __reg_op(pop, bitmap, pos, order, REG_OP_ISFREE)){
+          PDBG("%s: (%lu) retest: reg not free at %lu", __func__,std::hash<std::thread::id>{}(std::this_thread::get_id()), pos);
           continue;
+        }
         __reg_op(pop, bitmap, pos, order, REG_OP_ALLOC);
+          PDBG("%s: (%lu) set! at %lu", __func__,std::hash<std::thread::id>{}(std::this_thread::get_id()), pos);
       }
 
 #ifdef ENABLE_TIMING
