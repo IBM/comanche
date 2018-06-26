@@ -204,7 +204,7 @@ Shared_memory::Shared_memory(std::string name)
   open_shared_memory(name.c_str(), false);
 }
 
-Shared_memory::~Shared_memory()
+Shared_memory::~Shared_memory() noexcept(false)
 {
   PLOG("unmapping shared memory: %p", _vaddr);
   

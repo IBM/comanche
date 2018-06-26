@@ -139,7 +139,7 @@ class Lazily_extending_region
        * Destructor
        * 
        */
-  ~Lazily_extending_region()
+  ~Lazily_extending_region() noexcept(false)
   {
     assert(_ptr);
     int rc = ::munmap(_ptr, _max_size);
