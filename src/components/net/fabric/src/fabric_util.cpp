@@ -24,13 +24,12 @@
 #include "fabric_check.h" /* CHECK_FI_ERR */
 #include "fabric_error.h"
 #include "fabric_json.h"
-#include "fabric_ptr.h"
+#include "fabric_ptr.h" /* FABRIC_TRACE_FID, fid_ptr */
 #include "fabric_str.h" /* tostr */
 #include "hints.h"
 
-#include <rdma/fi_cm.h>
-#include <rdma/fi_endpoint.h> /* fi_endpoint */
-#include <rdma/fi_errno.h> /* fi_strerror */
+#include <rdma/fabric.h> /* FI_VERSION */
+#include <rdma/fi_cm.h> /* fi_connect */
 
 #include <map>
 #include <memory> /* shared_ptr */

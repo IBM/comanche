@@ -34,14 +34,59 @@ namespace Component
  * Fabric/RDMA-based network component
  *
  */
-class IFabric_communicator
+class IFabric_op_completer
 {
 public:
-#if 0
-  /* not currently used */
-  using context_t=void*;
-#endif
-  virtual ~IFabric_communicator() {}
+  virtual ~IFabric_op_completer() {}
+
+  /**
+   * Poll completion events; service completion queues and store
+   * events not belonging to group (stall them).  This method will
+   * BOTH service the completion queues and service those events
+   * stalled previously
+   *
+   * @param completion_callback (context_t, status_t status, void* error_data, IFabric_communicator *)
+   *
+   * @return Number of completions processed
+   */
+  virtual size_t poll_completions(std::function<void(void *context, status_t) noexcept> completion_callback) = 0;
+
+  /**
+   * Get count of stalled completions.
+   *
+   */
+  virtual size_t stalled_completion_count() = 0;
+
+  /**
+   * Block and wait for next completion.
+   *
+   * @param polls_limit Maximum number of polls (throws exception on exceeding limit)
+   *
+   * @return (was next completion context. But poll_completions can retrieve that)
+   */
+  virtual void wait_for_next_completion(unsigned polls_limit = 0) = 0;
+  virtual void wait_for_next_completion(std::chrono::milliseconds timeout) = 0;
+
+  /**
+   * Unblock any threads waiting on completions
+   * 
+   */
+  virtual void unblock_completions() = 0;
+
+  /* Additional TODO:
+     - support for completion and event counters
+     - support for statistics collection
+  */
+};
+
+/**
+ * Fabric/RDMA-based network component
+ *
+ */
+class IFabric_communicator
+  : public IFabric_op_completer
+{
+public:
 
   /**
    * Asynchronously post a buffer to the connection
@@ -98,63 +143,20 @@ public:
    */
   virtual void inject_send(const std::vector<iovec>& buffers) = 0;
 
-  /**
-   * Poll completion events; service completion queues and store
-   * events not belonging to group (stall them).  This method will
-   * BOTH service the completion queues and service those events
-   * stalled previously
-   *
-   * @param completion_callback (context_t, status_t status, void* error_data, IFabric_communicator *)
-   *
-   * @return Number of completions processed
-   */
-  virtual size_t poll_completions(std::function<void(void *context, status_t) noexcept> completion_callback) = 0;
-
-  /**
-   * Get count of stalled completions.
-   *
-   */
-  virtual size_t stalled_completion_count() = 0;
-
-  /**
-   * Block and wait for next completion.
-   *
-   * @param polls_limit Maximum number of polls (throws exception on exceeding limit)
-   *
-   * @return (was next completion context. But poll_completions can retrieve that)
-   */
-  virtual void wait_for_next_completion(unsigned polls_limit = 0) = 0;
-  virtual void wait_for_next_completion(std::chrono::milliseconds timeout) = 0;
-
-  /**
-   * Unblock any threads waiting on completions
-   * 
-   */
-  virtual void unblock_completions() = 0;
-
   /* Additional TODO:
      - support for atomic RMA operations
-     - support for completion and event counters
      - support for statistics collection
   */
 };
 
-/**
- * Fabric/RDMA-based network component
- *
- */
+
 class IFabric_connection
- : public IFabric_communicator
 {
 public:
 
+  virtual ~IFabric_connection() {}
+
   using memory_region_t=std::tuple<void *, std::uint64_t>;
-#if 0
-  /* not currently used */
-  using context_t=IFabric_communicator::context_t;
-  using endpoint_t=void*;
-  using connection_t=void*;
-#endif
 
   /**
    * Register buffer for RDMA
@@ -173,12 +175,6 @@ public:
    * @param memory_region Memory region to de-register
    */
   virtual void deregister_memory(memory_region_t memory_region) = 0;
-
-  /**
-   * Allocate group (for partitioned completion handling)
-   *
-   */
-  virtual IFabric_communicator *allocate_group() = 0;
 
   /**
    * Get address of connected peer (taken from fi_getpeer during
@@ -204,47 +200,95 @@ public:
      - support for completion and event counters
      - support for statistics collection
   */
-
 };
 
 
 /**
- * Fabric endpoint.  Instantiation of this interface normally creates
- * an active thread that uses the fabric connection manager to handle
- * connections (see man fi_cm).  On release of the interface, the
- * endpoint is destroyed.
+ * An endpoint with a communication channel. Distinguished from a connection
+ * which can provide grouped communications channels, but does not of itself
+ * provide communications.
+ *
  */
-class IFabric_endpoint : public Component::IBase
+class IFabric_active_endpoint_comm
+  : public IFabric_connection
+  , public IFabric_communicator
+{
+};
+
+
+/**
+ * An endpoint established as a server.
+ *
+ */
+class IFabric_server
+  : public IFabric_active_endpoint_comm
+{
+};
+
+
+/**
+ * An endpoint established as a client.
+ *
+ */
+class IFabric_client
+  : public IFabric_active_endpoint_comm
+{
+};
+
+
+/**
+ * An endpoint "grouped", without a communication channel.
+ * Can provide grouped communications channels, but does not of itself
+ * provide communications.
+ *
+ */
+class IFabric_active_endpoint_grouped
+  : public IFabric_connection
+  , public IFabric_op_completer
 {
 public:
-  DECLARE_INTERFACE_UUID(0xc373d083,0xe629,0x46c9,0x86fa,0x6f,0x96,0x40,0x61,0x10,0xdf);
 
   /**
-   * Server/accept side handling of new connections (handled by the
-   * active thread) are queued so that they can be taken by a polling
-   * thread an integrated into the processing loop.  This method is
-   * normally invoked until NULL is returned.
-   * 
-   * 
-   * @return New connection or NULL on no new connections.
+   * Allocate group (for partitioned completion handling)
+   *
    */
-  virtual IFabric_connection * get_new_connections() = 0;
- 
-  /**
-   * Close connection and release any associated resources
-   * 
-   * @param connection
-   */
-  virtual void close_connection(IFabric_connection * connection) = 0;
+  virtual IFabric_communicator *allocate_group() = 0;
+};
 
-  /**
-   * Used to get a vector of active connection belonging to this
-   * end point.
-   * 
-   * @return Vector of new connections
-   */
-  virtual std::vector<IFabric_connection*> connections() = 0;
- 
+
+/**
+ * A client endpoint which cannot initiate commands but which
+ * can allocate "commuicators" which can initiate commands.
+ *
+ */
+class IFabric_client_grouped
+  : public IFabric_active_endpoint_grouped
+{
+};
+
+
+/**
+ * A server endpoint which cannot initiate commands but which
+ * can allocate "commuicators" which can initiate commands.
+ *
+ */
+class IFabric_server_grouped
+  : public IFabric_active_endpoint_grouped
+{
+};
+
+
+/**
+ * Fabric passive endpoint. Instantiation of this interface normally creates
+ * an active thread that uses the fabric connection manager to handle
+ * connections (see man fi_cm).  On release of the interface, the endpoint
+ * is destroyed.
+ */
+class IFabric_passive_endpoint
+{
+public:
+  virtual ~IFabric_passive_endpoint() {}
+
   /**
    * Get the maximum message size for the provider
    * 
@@ -261,19 +305,137 @@ public:
   virtual std::string get_provider_name() const = 0;
 };
 
-class IFabric
+
+/**
+ * Fabric passive endpoint providing servers with ordinary (not grouped)
+ * communicators.
+ */
+class IFabric_server_factory
+  : public IFabric_passive_endpoint
+{
+public:
+
+  /**
+   * Server/accept side handling of new connections (handled by the
+   * active thread) are queued so that they can be taken by a polling
+   * thread an integrated into the processing loop.  This method is
+   * normally invoked until NULL is returned.
+   * 
+   * 
+   * @return New connection or NULL on no new connections.
+   */
+  virtual IFabric_server * get_new_connections() = 0;
+
+  /**
+   * Close connection and release any associated resources
+   * 
+   * @param connection
+   */
+  virtual void close_connection(IFabric_server * connection) = 0;
+
+  /**
+   * Used to get a vector of active connection belonging to this
+   * end point.
+   * 
+   * @return Vector of new connections
+   */
+  virtual std::vector<IFabric_server *> connections() = 0;
+
+  /**
+   * Get the maximum message size for the provider
+   * 
+   * @return Max message size in bytes
+   */
+  virtual size_t max_message_size() const = 0;
+
+  /**
+   * Get provider name
+   * 
+   * 
+   * @return Provider name
+   */
+  virtual std::string get_provider_name() const = 0;
+};
+
+
+/* Fabric passive endpoint providing servers with grouped communicators.
+ */
+class IFabric_server_grouped_factory
+  : public IFabric_passive_endpoint
 {
 public:
   /**
-   * Open a fabric endpoint.  Endpoints usually correspond with hardware resources, e.g. verbs queue pair
-   * Options may not conflict with those specified for the fabric.
+   * Server/accept side handling of new connections (handled by the
+   * active thread) are queued so that they can be taken by a polling
+   * thread an integrated into the processing loop.  This method is
+   * normally invoked until NULL is returned.
+   * 
+   * 
+   * @return New connection or NULL on no new connections.
+   */
+  virtual IFabric_server_grouped * get_new_connections() = 0;
+
+  /**
+   * Close connection and release any associated resources
+   * 
+   * @param connection
+   */
+  virtual void close_connection(IFabric_server_grouped * connection) = 0;
+
+  /**
+   * Used to get a vector of active connection belonging to this
+   * end point.
+   * 
+   * @return Vector of new connections
+   */
+  virtual std::vector<IFabric_server_grouped *> connections() = 0;
+};
+
+
+class IFabric
+{
+public:
+  DECLARE_INTERFACE_UUID(0xc373d083,0xe629,0x46c9,0x86fa,0x6f,0x96,0x40,0x61,0x10,0xdf);
+  virtual ~IFabric() {}
+  /**
+   * Open a fabric server factory. Endpoints usually correspond with hardware resources,
+   * e.g. verbs queue pair. Options may not conflict with those specified for the fabric.
    *
    * @param json_configuration Configuration string in JSON
    * @return the endpoint
    */
-  virtual ~IFabric() {}
-  virtual IFabric_endpoint * open_endpoint(const std::string& json_configuration, std::uint16_t port) = 0;
-  virtual IFabric_connection * open_connection(const std::string& json_configuration, const std::string& remote_endpoint, std::uint16_t port) = 0;
+  virtual IFabric_server_factory * open_server_factory(const std::string& json_configuration, std::uint16_t port) = 0;
+  /**
+   * Open a fabric "server grouped" factory. Endpoints usually correspond with hardware resources,
+   * e.g. verbs queue pair. Options may not conflict with those specified for the fabric.
+   * "Server groups" are servers in which each operation is assigned to a "communication group."
+   * Each "completion group" may be separately polled for completions.
+   *
+   * @param json_configuration Configuration string in JSON
+   * @return the endpoint
+   */
+  virtual IFabric_server_grouped_factory * open_server_grouped_factory(const std::string& json_configuration, std::uint16_t port) = 0;
+  /**
+   * Open a fabric client (active endpoint) connection to a server. Active endpoints
+   * usually correspond with hardware resources, e.g. verbs queue pair. Options may
+   * not conflict with those specified for the fabric.
+   *
+   * @param json_configuration Configuration string in JSON
+   * @param remote_endpoint The IP address (URL) of the server
+   * @param port The IP port on the server
+   * @return the endpoint
+   */
+  virtual IFabric_client * open_client(const std::string& json_configuration, const std::string& remote_endpoint, std::uint16_t port) = 0;
+  /**
+   * Open a fabric endpoint for which communications are divided into smaller entities (groups).
+   * Options may not conflict with those specified for the fabric.
+   *
+   * @param json_configuration Configuration string in JSON
+   * @param remote_endpoint The IP address (URL) of the server
+   * @param port The IP port on the server
+   * @return the endpoint
+   */
+  virtual IFabric_client_grouped * open_client_grouped(const std::string& json_configuration, const std::string& remote_endpoint, std::uint16_t port) = 0;
 };
 
 class IFabric_factory : public Component::IBase

@@ -19,20 +19,24 @@
  *
  */
 
-#ifndef _FABRIC_FD_UNBLOCK_SET_MONITOR_H_
-#define _FABRIC_FD_UNBLOCK_SET_MONITOR_H_
+#include "fabric_server_grouped.h"
 
-#include <mutex>
-#include <set>
+/**
+ * Fabric/RDMA-based network component
+ *
+ */
 
-class fd_unblock_set_monitor
+/* Note: the info is owned by the caller, and must be copied if it is to be saved. */
+Fabric_server_grouped::Fabric_server_grouped(
+    Fabric &fabric_
+    , event_producer &ep_
+    , ::fi_info & info_
+)
+  : Fabric_connection_server(fabric_, ep_, info_)
+  , _g(*this)
 {
-  std::mutex &_m;
-  std::set<int> &_s;
-  int _fd;
-public:
-  explicit fd_unblock_set_monitor(std::mutex &m_, std::set<int> &s_, int fd_);
-  ~fd_unblock_set_monitor();
-};
+}
 
-#endif
+Fabric_server_grouped::~Fabric_server_grouped()
+{
+}

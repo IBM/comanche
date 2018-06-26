@@ -14,37 +14,34 @@
    limitations under the License.
 */
 
-#include "fabric_connection_server_factory.h"
+#include "fabric_server_generic_factory.h"
 
 #include "event_producer.h"
 #include "fabric.h"
 #include "fabric_check.h"
-#include "fabric_connection.h"
-#include "fabric_connection_server.h"
+#include "fabric_memory_control.h"
+#include "fabric_op_control.h"
 #include "fabric_util.h" /* get_name */
+#include "fd_control.h"
 #include "pointer_cast.h"
 #include "system_fail.h"
 
 #include <rdma/fi_cm.h> /* fi_listen */
-#include <rdma/fi_endpoint.h>
 
 #include <netinet/in.h> /* sockaddr_in */
 #include <sys/select.h> /* fd_set, pselect */
 
-#include <unistd.h> /* close */
-
-#include <algorithm> /* max, move, transform */
-#include <cassert>
+#include <algorithm> /* max */
 #include <cerrno>
 #include <chrono> /* seconds */
+#include <exception>
 #include <functional> /* ref */
 #include <iostream> /* cerr */
 #include <memory> /* make_shared */
-#include <stdexcept>
 #include <string> /* to_string */
 #include <thread> /* sleep_for */
 
-Fabric_connection_server_factory::Fabric_connection_server_factory(Fabric &fabric_, event_producer &eq_, ::fi_info &info_, std::uint16_t port_)
+Fabric_server_generic_factory::Fabric_server_generic_factory(Fabric &fabric_, event_producer &eq_, ::fi_info &info_, std::uint16_t port_)
   : _info(info_)
   , _fabric(fabric_)
 
@@ -61,11 +58,11 @@ Fabric_connection_server_factory::Fabric_connection_server_factory(Fabric &fabri
   , _open{}
   , _end{}
   , _eq{eq_}
-  , _th{&Fabric_connection_server_factory::listen, this, port_, _end.fd_read(), std::ref(*_pep), get_name(&_pep->fid)}
+  , _th{&Fabric_server_generic_factory::listen, this, port_, _end.fd_read(), std::ref(*_pep), get_name(&_pep->fid)}
 {
 }
 
-Fabric_connection_server_factory::~Fabric_connection_server_factory()
+Fabric_server_generic_factory::~Fabric_server_generic_factory()
 try
 {
   char c{};
@@ -78,28 +75,24 @@ catch ( const std::exception &e )
   std::cerr << "SERVER connection shutdown error " << e.what();
 }
 
-void *Fabric_connection_server_factory::query_interface(Component::uuid_t& itf_uuid) {
-  return itf_uuid == IFabric_endpoint::iid() ? this : nullptr;
-}
-
-size_t Fabric_connection_server_factory::max_message_size() const
+size_t Fabric_server_generic_factory::max_message_size() const
 {
   return _info.ep_attr->max_msg_size;
 }
 
-std::string Fabric_connection_server_factory::get_provider_name() const
+std::string Fabric_server_generic_factory::get_provider_name() const
 {
   return _info.fabric_attr->prov_name;
 }
 
-void Fabric_connection_server_factory::cb(std::uint32_t event, ::fi_eq_cm_entry &entry_) noexcept
+void Fabric_server_generic_factory::cb(std::uint32_t event, ::fi_eq_cm_entry &entry_) noexcept
 try
 {
   switch ( event )
   {
   case FI_CONNREQ:
     {
-      auto conn = std::make_shared<Fabric_connection_server>(_fabric, _eq, *entry_.info);
+      auto conn = new_server(_fabric, _eq, *entry_.info);
       _pending.push(conn);
     }
     break;
@@ -109,16 +102,16 @@ try
 }
 catch ( const std::exception &e )
 {
-  std::cerr << __func__ << " (Fabric_connection_server_factory) " << e.what() << "\n";
+  std::cerr << __func__ << " (Fabric_server_factory) " << e.what() << "\n";
   throw;
 }
 
-void Fabric_connection_server_factory::err(::fi_eq_err_entry &) noexcept
+void Fabric_server_generic_factory::err(::fi_eq_err_entry &) noexcept
 {
   /* The passive endpoint receives an error. As it is not a connection request, ignore it. */
 }
 
-Fd_socket Fabric_connection_server_factory::make_listener(std::uint16_t port)
+Fd_socket Fabric_server_generic_factory::make_listener(std::uint16_t port)
 {
   constexpr int domain = AF_INET;
   Fd_socket fd(::socket(domain, SOCK_STREAM, 0));
@@ -165,7 +158,7 @@ Fd_socket Fabric_connection_server_factory::make_listener(std::uint16_t port)
  * _pending: has a mutex
  */
 
-void Fabric_connection_server_factory::listen(
+void Fabric_server_generic_factory::listen(
   std::uint16_t port_
   , int end_fd_
   , ::fid_pep &pep_
@@ -253,32 +246,27 @@ void Fabric_connection_server_factory::listen(
   }
 }
 
-Component::IFabric_connection * Fabric_connection_server_factory::get_new_connections()
+Fabric_memory_control * Fabric_server_generic_factory::get_new_connection()
 {
-  Fabric_connection *r = nullptr;
-
   auto c = _pending.remove();
   if ( c )
   {
-    c->expect_event(FI_CONNECTED);
-    r = &*(c);
+    std::static_pointer_cast<Fabric_op_control>(
+      std::static_pointer_cast<Fabric_memory_control>(c)
+    )->expect_event(FI_CONNECTED);
+
     _open.add(c);
   }
 
-  return r;
+  return &*c;
 }
 
-std::vector<Component::IFabric_connection*> Fabric_connection_server_factory::connections()
+std::vector<Fabric_memory_control *> Fabric_server_generic_factory::connections()
 {
   return _open.enumerate();
 }
 
-void Fabric_connection_server_factory::close_connection(Component::IFabric_connection * cnxn_)
+void Fabric_server_generic_factory::close_connection(Fabric_memory_control * cnxn_)
 {
-  /*
-   * If a server-side connection, remove it from the collection.
-   * If not in the map, presumably a client-side connection.
-   * We do not own those.
-   */
   _open.remove(cnxn_);
 }

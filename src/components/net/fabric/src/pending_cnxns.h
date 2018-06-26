@@ -21,15 +21,15 @@
 #include <mutex>
 #include <queue>
 
-class Fabric_connection;
+class Fabric_memory_control;
 
 class Pending_cnxns
 {
 public:
-  using cnxn_t = std::shared_ptr<Fabric_connection>;
+  using cnxn_t = std::shared_ptr<Fabric_memory_control>;
 private:
   std::mutex _m; /* protects _q */
-  using guard = std::unique_lock<std::mutex>;
+  using guard = std::lock_guard<std::mutex>;
   std::queue<cnxn_t> _q;
 public:
   Pending_cnxns();

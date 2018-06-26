@@ -14,28 +14,25 @@
    limitations under the License.
 */
 
-#ifndef _FABRIC_COMM_H_
-#define _FABRIC_COMM_H_
+#ifndef _FABRIC_COMM_GROUPED_H_
+#define _FABRIC_COMM_GROUPED_H_
 
-#include <api/fabric_itf.h>
+#include <api/fabric_itf.h> /* Component::IFabric_communicator */
 
 #include "fabric_types.h" /* addr_ep_t */
 
-#include <chrono>
 #include <cstddef> /* size_t */
-#include <cstdint> /* uint64_t */
 #include <mutex>
 #include <queue>
 #include <tuple>
-#include <vector>
 
-class Fabric_connection;
+class Fabric_generic_grouped;
 class async_req_record;
 
-class Fabric_comm
+class Fabric_comm_grouped
   : public Component::IFabric_communicator
 {
-  Fabric_connection &_conn;
+  Fabric_generic_grouped &_conn;
   using completion_t = std::tuple<void *, status_t>;
   /* completions for this comm processed but not yet forwarded */
   std::mutex _m_completions;
@@ -44,8 +41,8 @@ class Fabric_comm
   std::size_t process_cq_comp_err(std::function<void(void *context, status_t st)> completion_callback);
   std::size_t process_or_queue_completion(async_req_record *g_context_, std::function<void(void *context, status_t st)> cb_, status_t status_);
 public:
-  explicit Fabric_comm(Fabric_connection &);
-  ~Fabric_comm(); /* Note: need to notify the polling thread that this connection is going away, */
+  explicit Fabric_comm_grouped(Fabric_generic_grouped &);
+  ~Fabric_comm_grouped(); /* Note: need to notify the polling thread that this connection is going away, */
 
   /* BEGIN Component::IFabric_communicator */
   void post_send(const std::vector<iovec>& buffers, void *context) override;
@@ -53,16 +50,18 @@ public:
   void post_recv(const std::vector<iovec>& buffers, void *context) override;
 
   void post_read(
-    const std::vector<iovec>& buffers,
-    std::uint64_t remote_addr,
-    std::uint64_t key,
-    void *context) override;
+    const std::vector<iovec>& buffers
+    , std::uint64_t remote_addr
+    , std::uint64_t key
+    , void *context
+  ) override;
 
   void post_write(
-    const std::vector<iovec>& buffers,
-    std::uint64_t remote_addr,
-    std::uint64_t key,
-    void *context) override;
+    const std::vector<iovec>& buffers
+    , std::uint64_t remote_addr
+    , std::uint64_t key
+    , void *context
+  ) override;
 
   void inject_send(const std::vector<iovec>& buffers) override;
 

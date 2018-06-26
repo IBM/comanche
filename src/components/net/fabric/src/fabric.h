@@ -17,15 +17,15 @@
 #ifndef _FABRIC_H_
 #define _FABRIC_H_
 
-#include <api/fabric_itf.h>
+#include <api/fabric_itf.h> /* Component::IFabric */
+#include "event_producer.h"
 
+#include <rdma/fabric.h> /* fid_t */
 #include <rdma/fi_domain.h> /* fi_eq_attr */
 
 #include <map>
 #include <memory> /* shared_ptr */
 #include <mutex>
-
-#include "event_producer.h"
 
 struct fi_info;
 struct fid_fabric;
@@ -33,7 +33,7 @@ struct fid_eq;
 struct fid;
 
 /*
- * Note: Fabric is a fabric which can create servers (IFabric_endpoint) and clients (IFabric_connection)
+ * Note: Fabric is a fabric which can create servers (IFabric_server_factory) and clients (IFabric_op_completer)
  */
 class Fabric
   : public Component::IFabric
@@ -46,7 +46,7 @@ class Fabric
   std::shared_ptr<::fid_eq> _eq;
   int _fd;
   /* A limited number of fids use the event queue:
-   *  - connection server factories created by open_endpoint will use it to
+   *  - connection server factories created by open_server_factory will use it to
    *    - receive connection requests FI_CONNREQ)
    *  - connection clients use it to
    *    - be notified when their connection is accepted (FI_CONNECTION) or rejected (some error event)
@@ -66,8 +66,10 @@ class Fabric
   eq_dispatch_t _eq_dispatch_aep;
 
   /* BEGIN Component::IFabric */
-  Component::IFabric_endpoint * open_endpoint(const std::string& json_configuration, std::uint16_t control_port) override;
-  Component::IFabric_connection * open_connection(const std::string& json_configuration, const std::string & remote, std::uint16_t control_port) override;
+  Component::IFabric_server_factory * open_server_factory(const std::string& json_configuration, std::uint16_t control_port) override;
+  Component::IFabric_client * open_client(const std::string& json_configuration, const std::string & remote, std::uint16_t control_port) override;
+  Component::IFabric_server_grouped_factory * open_server_grouped_factory(const std::string& json_configuration, std::uint16_t control_port) override;
+  Component::IFabric_client_grouped * open_client_grouped(const std::string& json_configuration, const std::string& remote_endpoint, std::uint16_t port) override;
   /* END Component::IFabric */
 
   /* BEGIN event_producer */
