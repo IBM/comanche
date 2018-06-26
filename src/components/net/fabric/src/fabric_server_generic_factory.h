@@ -45,8 +45,6 @@ class Fabric_server_generic_factory
   std::shared_ptr<::fid_pep> _pep;
   event_registration _event_registration;
 
-  /* The CONNREQ callback uses _info, so at most one connection request may be pending */
-  ::fi_info *_conn_info;
   Pending_cnxns _pending;
   Open_cnxns _open;
   /* a write tells the listener thread to exit */

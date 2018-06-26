@@ -53,7 +53,6 @@ Fabric_server_generic_factory::Fabric_server_generic_factory(Fabric &fabric_, ev
   , _pep(fabric_.make_fid_pep(_info, this))
   /* register as an event consumer */
   , _event_registration(eq_, *this, *_pep)
-  , _conn_info{nullptr}
   , _pending{}
   , _open{}
   , _end{}
