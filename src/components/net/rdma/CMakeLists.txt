@@ -1,25 +1,29 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
+include(CheckIncludeFile)
+check_include_file("infiniband/verbs_exp.h" HAVE_IBVERBS_H)
 
-add_subdirectory(./unit_test)
+if(HAVE_IBVERBS_H)
 
-project(comanche-rdma CXX)
+  add_subdirectory(./unit_test)
 
-add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
+  project(comanche-rdma CXX)
 
-file(GLOB SOURCES src/*.cpp)
+  add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 
-add_library(${PROJECT_NAME} SHARED ${SOURCES})
+  file(GLOB SOURCES src/*.cpp)
 
-set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--no-undefined")
+  add_library(${PROJECT_NAME} SHARED ${SOURCES})
 
-target_link_libraries(${PROJECT_NAME} common comanche-core pthread numa dl rt z rdmacm ibverbs)
+  set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--no-undefined")
 
-# set the linkage in the install/lib
-set_target_properties(${PROJECT_NAME} PROPERTIES 
-                          INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib)
-install (TARGETS ${PROJECT_NAME}
-    LIBRARY 
-    DESTINATION lib)
+  target_link_libraries(${PROJECT_NAME} common comanche-core pthread
+  numa dl rt z rdmacm ibverbs)
 
+  # set the linkage in the install/lib
+  set_target_properties(${PROJECT_NAME} PROPERTIES INSTALL_RPATH
+  ${CMAKE_INSTALL_PREFIX}/lib)
+  
+  install (TARGETS ${PROJECT_NAME} LIBRARY DESTINATION lib)
 
+endif()

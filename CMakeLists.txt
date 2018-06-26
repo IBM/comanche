@@ -3,8 +3,6 @@ cmake_minimum_required(VERSION 3.5)
 # force out-of-tree build
 option(FORCE_OTT_BUILD "force out of tree build" ON)
 
-option(USE_RESTRICTED "include build restricted components" OFF)
-
 option(BOOTSTRAP_DEPS "bootstrap to build deps" ON)
 
 if(CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR AND FORCE_OTT_BUILD)
@@ -12,9 +10,11 @@ if(CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR AND FORCE_OTT_BUILD)
 endif(CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR AND FORCE_OTT_BUILD)
 
 # used for kernel
-set(ENV{COMANCHE_HOME} ${CMAKE_SOURCE_DIR})
+set(ENV{COMANCHE_HOME} ${CMAKE_CURRENT_SOURCE_DIR})
 
-include(${CMAKE_SOURCE_DIR}/mk/common.cmake)
+include(CheckIncludeFiles)
+find_package(PkgConfig)
+include(${CMAKE_CURRENT_SOURCE_DIR}/mk/common.cmake)
 project(comanche)
 
 # locate FindXXX.cmake
@@ -22,18 +22,18 @@ set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/mk)
 message("CMAKE_MODULE_PATH: ${CMAKE_MODULE_PATH}")
 
 # make COMANCHE HOME visible in config.h
-set(CONF_COMANCHE_HOME ${CMAKE_SOURCE_DIR})
+set(CONF_COMANCHE_HOME ${CMAKE_CURRENT_SOURCE_DIR})
 
 # override this at cmake time with 'cmake -DCMAKE_INSTALL_PREFIX:PATH=/foo ..'
 set(CONF_COMANCHE_INSTALL ${CMAKE_INSTALL_PREFIX})
 
 configure_file(
-    "${CMAKE_SOURCE_DIR}/config_comanche.h.in"
-    "${CMAKE_BINARY_DIR}/config_comanche.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/config_comanche.h.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/config_comanche.h"
     @ONLY)
 
-include_directories(${CMAKE_BINARY_DIR})
-install (FILES "${CMAKE_BINARY_DIR}/config_comanche.h"
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+install (FILES "${CMAKE_CURRENT_BINARY_DIR}/config_comanche.h"
     DESTINATION include)
 
 # this flag is only for GNU compiler version number smaller than 8 and clang compilers
@@ -41,10 +41,12 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" AND NOT CMAKE_CXX_COMPILER_VERSION
   set(FLAG_DUMP_CLASS "-fdump-class-hierarchy")
 endif()
 
-# run 'make components' to trigger compoents build
+# run 'make components' to trigger compoents build,
+# it's requireqd to wrap compoents targets with BOOTSTRAP_DEPS in the parent projects
 add_custom_target(components
-  ${CMAKE_COMMAND} -DBOOTSTRAP_DEPS=off ${CMAKE_CURRENT_SOURCE_DIR}
+  ${CMAKE_COMMAND} -DBOOTSTRAP_DEPS=off ${CMAKE_SOURCE_DIR}
   COMMAND make all
+  WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   )
 
 # default make will only build core and dependencies
@@ -62,9 +64,6 @@ else(BOOTSTRAP_DEPS)
   add_subdirectory(apps)
   add_subdirectory(testing)
 
-  if (USE_RESTRICTED)
-     add_subdirectory(comanche-restricted)
-  endif(USE_RESTRICTED)
 endif(BOOTSTRAP_DEPS)
 
 # add a target to generate API documentation with Doxygen

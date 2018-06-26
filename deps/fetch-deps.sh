@@ -60,12 +60,12 @@ cmake . && make
 make install
 cd $BASE
 
-echo "Cloning Flatbuffers ..."
-git clone https://github.com/google/flatbuffers.git
-cd flatbuffers
-cmake . && make
-make install
-cd $BASE
+# echo "Cloning Flatbuffers ..."
+# git clone https://github.com/google/flatbuffers.git
+# cd flatbuffers
+# cmake . && make
+# make install
+# cd $BASE
 
 # END OF MANDATORT DEPS
 jumpto end

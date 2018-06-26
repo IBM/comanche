@@ -141,7 +141,7 @@ TEST_F(Block_nvme_test, PartitionIntegrity)
 
 
 #if 1
-TEST_F(Block_nvme_test, WriteThroughput)
+TEST_F(Block_nvme_test, Throughput)
 {
   using namespace Component;
   
@@ -172,8 +172,22 @@ TEST_F(Block_nvme_test, WriteThroughput)
 
 
   cpu_time_t cycles_per_iop = (rdtsc() - start)/(ITERATIONS);
-  PINF("took %ld cycles (%f usec) per IOP", cycles_per_iop,  cycles_per_iop / 2400.0f);
-  PINF("rate: %f KIOPS", (2400.0 * 1000.0)/cycles_per_iop);
+  PINF("[async write]: took %ld cycles (%f usec) per IOP", cycles_per_iop,  cycles_per_iop / 2400.0f);
+  PINF("[async write]: rate: %f KIOPS", (2400.0 * 1000.0)/cycles_per_iop);
+
+  /* also check the the sync read */
+  start = rdtsc();
+
+  for(unsigned i=0;i<ITERATIONS;i++) {
+    _block->read(mem, 0, i, 1);
+  }
+  while(!_block->check_completion(tag));
+
+  cycles_per_iop = (rdtsc() - start)/(ITERATIONS);
+  PINF("[sync_read]: took %ld cycles (%f usec) per IOP", cycles_per_iop,  cycles_per_iop / 2400.0f);
+  PINF("[sync_read]: rate: %f KIOPS", (2400.0 * 1000.0)/cycles_per_iop);
+
+
 
   _block->free_io_buffer(mem);
 }

@@ -107,18 +107,22 @@ extern "C"
 #define REDUCE_KB(X) (X >> 10)
 #define REDUCE_MB(X) (X >> 20)
 #define REDUCE_GB(X) (X >> 30)
+#define REDUCE_TB(X) (X >> 40)
 
 #define KB(X) (X << 10)
 #define MB(X) (X << 20)
 #define GB(X) (((unsigned long)X) << 30)
+#define TB(X) (((unsigned long)X) << 40)
 
 #define REDUCE_KiB(X) (X >> 10)
 #define REDUCE_MiB(X) (X >> 20)
 #define REDUCE_GiB(X) (X >> 30)
+#define REDUCE_TiB(X) (X >> 40)
 
 #define KiB(X) (X << 10)
 #define MiB(X) (X << 20)
 #define GiB(X) (((unsigned long)X) << 30)
+#define TiB(X) (((unsigned long)X) << 40)
 
 #define PAGE_SHIFT_512 9
 #define PAGE_SHIFT_4K 12
