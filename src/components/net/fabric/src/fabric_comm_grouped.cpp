@@ -214,7 +214,7 @@ std::size_t Fabric_comm_grouped::poll_completions(std::function<void(void *conte
     default:
       if ( ct < 0 )
       {
-        throw fabric_error(int(-ct), __FILE__, __LINE__);
+        throw fabric_error(unsigned(-ct), __FILE__, __LINE__);
       }
 
       ct_total += process_or_queue_completion(static_cast<async_req_record *>(entry.op_context), completion_callback, S_OK);

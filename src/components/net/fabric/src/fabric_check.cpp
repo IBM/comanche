@@ -39,7 +39,7 @@ unsigned check_ge_zero(int r, const char *file, int line)
 {
   if ( r < 0 )
   {
-    throw fabric_error(-r, file, line);
+    throw fabric_error(unsigned(-r), file, line);
   }
   return unsigned(r);
 }
@@ -48,7 +48,7 @@ std::size_t check_ge_zero(ssize_t r, const char *file, int line)
 {
   if ( r < 0 )
   {
-    throw fabric_error(int(-r), file, line);
+    throw fabric_error(unsigned(-r), file, line);
   }
   return std::size_t(r);
 }

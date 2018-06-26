@@ -30,15 +30,15 @@
  * Fabric/RDMA-based network component
  */
 
-fabric_error::fabric_error(int i_, const char *file_, int line_)
-  : std::logic_error{std::string{"fabric_error \""} + fi_strerror(i_) + "\" at " + file_ + ":" + std::to_string(line_)}
+fabric_error::fabric_error(unsigned i_, const char *file_, int line_)
+  : std::logic_error{std::string{"fabric_error \""} + fi_strerror(int(i_)) + "\" at " + file_ + ":" + std::to_string(line_)}
   , _i(i_)
   , _file(file_)
   , _line(line_)
 {}
 
-fabric_error::fabric_error(int i_, const char *file_, int line_, const std::string &desc_)
-  : std::logic_error{std::string{"fabric_error ("} + std::to_string(i_) + ") \"" + fi_strerror(i_) + "\" at " + file_ + ":" + std::to_string(line_) + " " + desc_}
+fabric_error::fabric_error(unsigned i_, const char *file_, int line_, const std::string &desc_)
+  : std::logic_error{std::string{"fabric_error ("} + std::to_string(i_) + ") \"" + fi_strerror(int(i_)) + "\" at " + file_ + ":" + std::to_string(line_) + " " + desc_}
   , _i(i_)
   , _file(file_)
   , _line(line_)
