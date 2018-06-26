@@ -32,6 +32,7 @@
 #include <api/components.h>
 #include <api/block_itf.h>
 #include <api/block_allocator_itf.h>
+#include "tbb/concurrent_unordered_set.h"
 
 #define PMEM_PATH "/mnt/pmem0/pool/0/"
 #define DO_ERASE //erase blk allocation info?
@@ -61,10 +62,12 @@ class Block_allocator_test : public ::testing::Test {
   // Objects declared here can be used by all tests in the test case
   static Component::IBlock_allocator *   _alloc;
   static size_t  _nr_blocks;
+  //static tbb::concurrent_unordered_set<lba_t> _used_lbas;
 };
 
 Component::IBlock_allocator * Block_allocator_test::_alloc;
 size_t Block_allocator_test::_nr_blocks = 1000000;
+static tbb::concurrent_unordered_set<lba_t> _used_lbas;
 
 #if 0
 TEST_F(Block_allocator_test, InitDPDK)
@@ -157,7 +160,6 @@ static void allocate_bit(Component::IBlock_allocator * alloc, size_t num_bits){
   };
 
   std::vector<Record> v;
-  std::set<lba_t> used_lbas;
   //Core::AVL_range_allocator ra(0, n_blocks*KB(4));
   
   //PLOG("total blocks = %ld (%lx)", n_blocks, n_blocks); 
@@ -173,6 +175,9 @@ static void allocate_bit(Component::IBlock_allocator * alloc, size_t num_bits){
     
     //ASSERT_TRUE(used_lbas.find(lba) == used_lbas.end()); // not already in set
     //used_lbas.insert(lba);
+    auto ret_insertion = _used_lbas.insert(lba);
+    ASSERT_TRUE(ret_insertion.second);
+
     //    PLOG("[%lu]: lba(%ld) allocated %ld blocks", i, lba, s);
     v.push_back({lba,p});
 
@@ -197,7 +202,7 @@ TEST_F(Block_allocator_test, TestConcurrentAlloc)
   std::cin >> nr_threads;
   PINF("now starting %d working thread ...", nr_threads);
   
-  size_t blocks_per_thread = _nr_blocks/nr_threads;
+  size_t blocks_per_thread = _nr_blocks/nr_threads; //_nr_blocks/nr_threads;
   std::vector<std::thread> threads;
 
   char profile_name[60];
@@ -212,8 +217,6 @@ TEST_F(Block_allocator_test, TestConcurrentAlloc)
 
   ProfilerStop();
 }
-
-
 
 /* 
  * erase the allocation info
