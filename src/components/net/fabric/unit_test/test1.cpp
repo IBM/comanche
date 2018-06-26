@@ -446,7 +446,6 @@ private:
     registered_memory _rm_in;
     registered_memory &rm_out() { return _rm_out; }
     registered_memory &rm_in () { return _rm_in; }
-    static constexpr char _quit_flag = 'n';
   public:
     remote_memory_subserver(server_grouped_connection &parent_);
 
@@ -597,7 +596,6 @@ private:
     registered_memory _rm_in;
     registered_memory &rm_out() { return _rm_out; }
     registered_memory &rm_in () { return _rm_in; }
-    static constexpr char _quit_flag = 'n';
   public:
     remote_memory_subclient(remote_memory_client_grouped &parent_)
       : _parent(parent_)
