@@ -147,7 +147,7 @@ auto get_name(::fid_t fid) -> fabric_types::addr_ep_t
   return fabric_types::addr_ep_t(name);
 }
 
-const std::map<int, const char *> event_name
+const std::map<std::uint32_t, const char *> event_name
 {
   { FI_NOTIFY, "FI_NOTIFY" },
   { FI_CONNREQ, "FI_CONNREQ" },

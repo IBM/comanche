@@ -34,16 +34,16 @@
 class fabric_error
   : public std::logic_error
 {
-  int _i;
+  unsigned _i;
   const char *_file;
   int _line;
 public:
-  explicit fabric_error(int i, const char *file, int line);
-  explicit fabric_error(int i, const char *file, int line, const std::string &desc);
+  explicit fabric_error(unsigned i, const char *file, int line);
+  explicit fabric_error(unsigned i, const char *file, int line, const std::string &desc);
   fabric_error(const fabric_error &) = default;
   fabric_error& operator=(const fabric_error &) = default;
   fabric_error add(const std::string &added) const;
-  unsigned id() const { return unsigned(_i); }
+  unsigned id() const { return _i; }
 };
 
 class fabric_bad_alloc
