@@ -14,31 +14,36 @@
    limitations under the License.
 */
 
-#ifndef _FABRIC_CONNECTION_SERVER_H_
-#define _FABRIC_CONNECTION_SERVER_H_
+#ifndef _FABRIC_CLIENT_H_
+#define _FABRIC_CLIENT_H_
 
-#include <api/fabric_itf.h> /* Component::IFabric_server */
-#include "fabric_op_control.h"
+#include <api/fabric_itf.h> /* Component::IFabric_client */
+#include "fabric_connection_client.h"
+
+#include <cstdint> /* uint{16,64}_t */
+#include <string>
 
 struct fi_info;
 
-class Fabric_connection_server
-  : public Fabric_op_control
+class event_producer;
+class Fabric;
+
+class Fabric_client
+  : public Component::IFabric_client
+  , public Fabric_connection_client
 {
-  /* BEGIN Fabric_op_control */
-  void solicit_event() const override;
-  void wait_event() const override;
-  /* END Fabric_op_control */
 public:
-  explicit Fabric_connection_server(Fabric &fabric, event_producer &ep, ::fi_info & info);
-  ~Fabric_connection_server();
-  /* BEGIN IFabric_op_control */
-  std::size_t poll_completions(std::function<void(void *context, status_t)> completion_callback) override { return Fabric_op_control::poll_completions(completion_callback); }
+  explicit Fabric_client(Fabric &fabric, event_producer &ep, ::fi_info & info, const std::string & remote, std::uint16_t control_port);
+  ~Fabric_client();
+
+  /* BEGIN IFabric_op_completer */
+  std::size_t poll_completions(std::function<void(void *context, status_t)> completion_callback) override { return Fabric_connection_client::poll_completions(completion_callback); }
   std::size_t stalled_completion_count() override { return Fabric_op_control::stalled_completion_count(); }
   void wait_for_next_completion(unsigned polls_limit) override { return Fabric_op_control::wait_for_next_completion(polls_limit); };
   void wait_for_next_completion(std::chrono::milliseconds timeout) override { return Fabric_op_control::wait_for_next_completion(timeout); };
   void unblock_completions() override { return Fabric_op_control::unblock_completions(); };
-  /* END IFabric_op_control */
+  /* END IFabric_op_completer */
+
   memory_region_t register_memory(
     const void * contig_addr
     , std::size_t size
@@ -48,6 +53,31 @@ public:
   void deregister_memory(
     const memory_region_t memory_region
   ) override { return Fabric_memory_control::deregister_memory(memory_region); }
+
+  void  post_send(
+    const std::vector<iovec>& buffers
+    , void *context
+  ) override { return Fabric_connection_client::post_send(buffers, context); }
+  void  post_recv(
+    const std::vector<iovec>& buffers
+    , void *context
+  ) override { return Fabric_op_control::post_recv(buffers, context); }
+  void post_read(
+    const std::vector<iovec>& buffers,
+    std::uint64_t remote_addr,
+    std::uint64_t key,
+    void *context
+  ) override { return Fabric_op_control::post_read(buffers, remote_addr, key, context); }
+  void post_write(
+    const std::vector<iovec>& buffers,
+    std::uint64_t remote_addr,
+    std::uint64_t key,
+    void *context
+  ) override { return Fabric_op_control::post_write(buffers, remote_addr, key, context); }
+  void inject_send(
+    const std::vector<iovec>& buffers
+  ) override { return Fabric_op_control::inject_send(buffers); }
+
   std::string get_peer_addr() override { return Fabric_op_control::get_peer_addr(); }
   std::string get_local_addr() override { return Fabric_op_control::get_local_addr(); }
 };

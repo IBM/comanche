@@ -23,7 +23,7 @@
 
 #include "event_producer.h"
 
-#include <rdma/fi_endpoint.h> /* fi_ep_bind */
+#include <rdma/fi_endpoint.h> /* fid_ep */
 
 #include <iostream> /* cerr */
 

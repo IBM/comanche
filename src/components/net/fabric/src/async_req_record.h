@@ -22,7 +22,7 @@
 #ifndef _FABRIC_ASYNC_REQ_RECORD_H_
 #define _FABRIC_ASYNC_REQ_RECORD_H_
 
-class Fabric_comm;
+class Fabric_comm_grouped;
 
 /*
  * Additional layer of context for each async operation, to direct the
@@ -32,15 +32,15 @@ class Fabric_comm;
  */
 class async_req_record
 {
-  Fabric_comm *_comm;
+  Fabric_comm_grouped *_comm;
   void *_context;
 public:
-  explicit async_req_record(Fabric_comm *comm_, void *context_)
+  explicit async_req_record(Fabric_comm_grouped *comm_, void *context_)
     : _comm(comm_)
     , _context(context_)
   {
   }
-  Fabric_comm *comm() const { return _comm; }
+  Fabric_comm_grouped *comm() const { return _comm; }
   void *context() const { return _context; }
 };
 

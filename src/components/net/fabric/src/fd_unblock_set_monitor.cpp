@@ -23,6 +23,8 @@
 
 #include <iostream> /* cerr */
 
+using guard = std::lock_guard<std::mutex>;
+
 fd_unblock_set_monitor:: fd_unblock_set_monitor(std::mutex &m_, std::set<int> &s_, int fd_)
   : _m(m_)
   , _s(s_)

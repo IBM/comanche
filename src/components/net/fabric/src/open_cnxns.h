@@ -22,27 +22,21 @@
 #include <set>
 #include <vector>
 
-class Fabric_connection;
-
-namespace Component
-{
-  class IFabric_connection;
-}
+class Fabric_memory_control;
 
 class Open_cnxns
 {
 public:
-  using cnxn_t = std::shared_ptr<Fabric_connection>;
+  using cnxn_t = std::shared_ptr<Fabric_memory_control>;
   using open_t = std::set<cnxn_t>;
 private:
   std::mutex _m; /* protects _s */
-  using guard = std::unique_lock<std::mutex>;
   std::set<cnxn_t> _s;
 public:
   Open_cnxns();
   void add(cnxn_t c);
-  void remove(Component::IFabric_connection *);
-  std::vector<Component::IFabric_connection *> enumerate();
+  void remove(Fabric_memory_control *);
+  std::vector<Fabric_memory_control *> enumerate();
 };
 
 #endif

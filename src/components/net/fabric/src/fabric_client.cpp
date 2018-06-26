@@ -14,25 +14,11 @@
    limitations under the License.
 */
 
-/*
- * Authors:
- *
- */
+#include "fabric_client.h"
 
-#ifndef _FABRIC_FD_UNBLOCK_SET_MONITOR_H_
-#define _FABRIC_FD_UNBLOCK_SET_MONITOR_H_
+Fabric_client::Fabric_client(Fabric &fabric_, event_producer &ep_, ::fi_info & info_, const std::string & remote_, std::uint16_t control_port_)
+  : Fabric_connection_client(fabric_, ep_, info_, remote_, control_port_)
+{}
 
-#include <mutex>
-#include <set>
-
-class fd_unblock_set_monitor
-{
-  std::mutex &_m;
-  std::set<int> &_s;
-  int _fd;
-public:
-  explicit fd_unblock_set_monitor(std::mutex &m_, std::set<int> &s_, int fd_);
-  ~fd_unblock_set_monitor();
-};
-
-#endif
+Fabric_client::~Fabric_client()
+{}

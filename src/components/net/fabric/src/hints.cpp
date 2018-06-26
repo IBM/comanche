@@ -49,7 +49,7 @@ hints &hints::prov_name(const char *n)
 {
   assert(! _info->fabric_attr->prov_name);
   _info->fabric_attr->prov_name = ::strdup(n); return *this;
-} // e.g. FI_MR_LOCAL | FI_MR_ALLOCATED | FI_MR_PROV_KEY | FI_MR_VIRT_ADDR;
+}
 
 const char *hints::prov_name() const { return _info->fabric_attr->prov_name; }
 
