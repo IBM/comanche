@@ -203,8 +203,6 @@ int bitmap_tx_find_free_region(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap,
 
   /* TODO: this mutex can be avoid by manipulating the tab pos to avoid contention!*/
   {
-    std::lock_guard<boost::detail::spinlock> guard(_spinlock);
-    //std::lock_guard<std::mutex> guard(_mutex);
 
     for(offset = 0; offset + step <=nbits; offset += step){ // go to right most and then start from the left most
 
@@ -218,7 +216,13 @@ int bitmap_tx_find_free_region(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap,
       _end_search = rdtsc();
 #endif
 
-      __reg_op(pop, bitmap, pos, order, REG_OP_ALLOC);
+      {
+        //std::lock_guard<std::mutex> guard(_mutex);
+        std::lock_guard<boost::detail::spinlock> guard(_spinlock);
+        if(! __reg_op(pop, bitmap, pos, order, REG_OP_ISFREE))
+          continue;
+        __reg_op(pop, bitmap, pos, order, REG_OP_ALLOC);
+      }
 
 #if ENABLE_TIMING
       _end_set = rdtsc();
