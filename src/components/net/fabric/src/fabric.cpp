@@ -125,17 +125,6 @@ void Fabric::readerr_eq()
   }
 }
 
-namespace
-{
-  [[noreturn]] void get_eq_err(::fid_eq &eq_)
-  {
-    ::fi_eq_err_entry entry{};
-    auto flags = 0U;
-    ::fi_eq_readerr(&eq_, &entry, flags);
-    throw fabric_error(int(entry.err), __FILE__, __LINE__);
-  }
-}
-
 int Fabric::trywait(::fid **fids_, std::size_t count_) const
 {
   /* NOTE: the man page and header file disagree on the signature to fi_trywait.
@@ -206,7 +195,7 @@ try
       case FI_EAGAIN:
         break;
       default:
-        std::cerr << __func__ << ": fabric error " << e << " (" << ::fi_strerror(e) << ")\n";
+        std::cerr << __func__ << ": fabric error " << e << " (" << ::fi_strerror(int(e)) << ")\n";
         std::this_thread::sleep_for(std::chrono::seconds(1));
 #if 0
         throw fabric_error(e, __FILE__, __LINE__);
