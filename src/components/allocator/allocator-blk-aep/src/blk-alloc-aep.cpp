@@ -12,7 +12,7 @@
 #include <assert.h>
 #include <core/physical_memory.h>
 #include "blk-alloc-aep.h"
-
+#include <thread>
 #include <libpmemobj.h>
 #include <libpmempool.h>
 
@@ -22,6 +22,7 @@
 
 using namespace Component;
 
+static std::mutex _mutex;
 
 static unsigned size_to_bin(uint64_t size)
 {
@@ -38,10 +39,10 @@ static size_t bin_to_size(unsigned bin)
  */
 struct BlockAllocRecord{
   lba_t _offset; //start offset of the allocation
-  size_t _order; // allocation size is 2^order
+  unsigned _order; // allocation size is 2^order
 
-  BlockAllocRecord(lba_t offset, size_t order): _offset(offset), _order(order){
-    PDBG("record offset %lu, order %lu", _offset, _order);
+  BlockAllocRecord(lba_t offset, unsigned order): _offset(offset), _order(order){
+    PDBG("record offset %lu, order %u", _offset, _order);
   }
 
 };
@@ -142,7 +143,7 @@ Block_allocator_AEP::
 lba_t Block_allocator_AEP::alloc(size_t count, void ** handle)
 {
   lba_t pos; // the starting addr of the allocated addr
-  size_t order; // order of the allocation size
+  unsigned order; // order of the allocation size
   int ret = -1;
 
   order = size_to_bin(count) - 1;
@@ -154,7 +155,7 @@ lba_t Block_allocator_AEP::alloc(size_t count, void ** handle)
       throw API_exception("%s: cannot find avail blk with order %lu and nbits %lu!, bitmap  map already full", __func__, order, _nbits);
     }
 
-  PDBG("%s: find free region at lba %lu, order= %lu", __func__, pos, order);
+  PDBG("%s: (%lu) find free region at lba %lu, order= %u", __func__,std::hash<std::thread::id>{}(std::this_thread::get_id()), pos, order);
 
   *handle = new BlockAllocRecord(pos, order);
 
@@ -173,7 +174,14 @@ void Block_allocator_AEP::free(lba_t lba, void* handle)
   //PDBG("free: from %lu, order %lu", rec->_offset, rec->_order);
 
   // TODO actually free here
+  bitmap_tx_release_region(_pop, _map, rec->_offset, rec->_order);
+  if(rec){
+    delete rec;
+    rec = nullptr;
+  }
 }
+
+/* explicitly resize to 0 will remove this allocator*/
 status_t Block_allocator_AEP::resize(lba_t addr, size_t size)
 {
   status_t ret = -1;

@@ -85,7 +85,7 @@ extern "C" void cuda_run_test(Component::IBlock_device * block_device)
   PLOG("GDR vaddr=%p paddr=%p", (void*)host_vaddr, (void*)host_paddr);
 
 
-  addr_t new_paddr = round_up(host_paddr, MB(2));
+  addr_t new_paddr = round_up(host_paddr, MB(2)); // only 2MB of 32MB is used here, to enforce alignment
   unsigned offset = new_paddr - host_paddr;
   void * new_vaddr = ((char*)host_vaddr)+offset;
 
