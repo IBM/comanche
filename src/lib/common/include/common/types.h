@@ -37,7 +37,6 @@
 #define __COMP_TYPES_H__
 
 #include <stdint.h>
-#include <stdio.h>
 
 typedef int status_t;
 
