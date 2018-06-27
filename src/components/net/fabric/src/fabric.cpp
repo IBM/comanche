@@ -22,12 +22,13 @@
 #include "fabric.h"
 
 #include "fabric_check.h" /* FI_CHECK_ERR */
-#include "event_consumer.h"
-#include "fabric_connection_server_factory.h"
-#include "fabric_connection_client.h"
+#include "fabric_client.h"
+#include "fabric_client_grouped.h"
+#include "fabric_server_factory.h"
+#include "fabric_server_grouped_factory.h"
 #include "fabric_error.h"
 #include "fabric_json.h"
-#include "fabric_str.h"
+#include "fabric_str.h" /* tostr */
 #include "fabric_util.h"
 #include "system_fail.h"
 
@@ -38,7 +39,7 @@
 
 #include <chrono> /* seconds */
 #include <iostream> /* cerr */
-#include <stdexcept> /* system_error */
+#include <system_error> /* system_error */
 #include <thread> /* sleep_for */
 
 /**
@@ -74,8 +75,8 @@ namespace
   }
 }
 
-Fabric::Fabric(const std::string& json_configuration)
-  : _info(make_fi_info(json_configuration))
+Fabric::Fabric(const std::string& json_configuration_)
+  : _info(make_fi_info(json_configuration_))
   , _fabric(make_fid_fabric(*_info->fabric_attr, this))
   , _eq_attr{}
   , _eq(make_fid_eq(eq_attr_init(_eq_attr), this))
@@ -88,10 +89,16 @@ Fabric::Fabric(const std::string& json_configuration)
   CHECK_FI_ERR(::fi_control(&_eq->fid, FI_GETWAIT, &_fd));
 }
 
-Component::IFabric_endpoint * Fabric::open_endpoint(const std::string& json_configuration, std::uint16_t control_port_)
+Component::IFabric_server_factory * Fabric::open_server_factory(const std::string& json_configuration_, std::uint16_t control_port_)
 {
-  _info = parse_info(json_configuration, _info);
-  return new Fabric_connection_server_factory(*this, *this, *_info, control_port_);
+  _info = parse_info(json_configuration_, _info);
+  return new Fabric_server_factory(*this, *this, *_info, control_port_);
+}
+
+Component::IFabric_server_grouped_factory * Fabric::open_server_grouped_factory(const std::string& json_configuration_, std::uint16_t control_port_)
+{
+  _info = parse_info(json_configuration_, _info);
+  return new Fabric_server_grouped_factory(*this, *this, *_info, control_port_);
 }
 
 void Fabric::readerr_eq()
@@ -115,17 +122,6 @@ void Fabric::readerr_eq()
     {
       p->second->err(entry);
     }
-  }
-}
-
-namespace
-{
-  [[noreturn]] void get_eq_err(::fid_eq &eq_)
-  {
-    ::fi_eq_err_entry entry{};
-    auto flags = 0U;
-    ::fi_eq_readerr(&eq_, &entry, flags);
-    throw fabric_error(int(entry.err), __FILE__, __LINE__);
   }
 }
 
@@ -199,7 +195,7 @@ try
       case FI_EAGAIN:
         break;
       default:
-        std::cerr << __func__ << ": fabric error " << e << " (" << ::fi_strerror(e) << ")\n";
+        std::cerr << __func__ << ": fabric error " << e << " (" << ::fi_strerror(int(e)) << ")\n";
         std::this_thread::sleep_for(std::chrono::seconds(1));
 #if 0
         throw fabric_error(e, __FILE__, __LINE__);
@@ -269,11 +265,26 @@ namespace
   }
 }
 
-Component::IFabric_connection * Fabric::open_connection(const std::string& json_configuration_, const std::string &remote_, std::uint16_t control_port_)
+Component::IFabric_client * Fabric::open_client(const std::string& json_configuration_, const std::string &remote_, std::uint16_t control_port_)
 try
 {
   _info = parse_info(json_configuration_, _info);
-  return new Fabric_connection_client(*this, *this, *_info, remote_, control_port_);
+  return new Fabric_client(*this, *this, *_info, remote_, control_port_);
+}
+catch ( const fabric_error &e )
+{
+  throw e.add(while_in(__func__));
+}
+catch ( const std::system_error &e )
+{
+  throw std::system_error(e.code(), e.what() + while_in(__func__));
+}
+
+Component::IFabric_client_grouped * Fabric::open_client_grouped(const std::string& json_configuration_, const std::string& remote_, std::uint16_t control_port_)
+try
+{
+  _info = parse_info(json_configuration_, _info);
+  return static_cast<Component::IFabric_client_grouped *>(new Fabric_client_grouped(*this, *this, *_info, remote_, control_port_));
 }
 catch ( const fabric_error &e )
 {
@@ -288,6 +299,7 @@ void Fabric::bind(::fid_ep &ep_)
 {
   CHECK_FI_ERR(::fi_ep_bind(&ep_, &_eq->fid, 0));
 }
+
 void Fabric::bind(::fid_pep &ep_)
 {
   CHECK_FI_ERR(::fi_pep_bind(&ep_, &_eq->fid, 0));

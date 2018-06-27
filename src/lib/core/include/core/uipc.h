@@ -135,7 +135,7 @@ public:
   Shared_memory(std::string name, size_t n_pages); /*< initiator constructor */
   Shared_memory(std::string name); /*< target constructor */
   
-  virtual ~Shared_memory();
+  virtual ~Shared_memory() noexcept(false);
 
   void * get_addr(size_t offset = 0);
 

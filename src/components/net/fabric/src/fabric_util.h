@@ -22,32 +22,19 @@
  *
  */
 
-#include <rdma/fabric.h> /* fi_tostr */
-#include <rdma/fi_errno.h> /* FI_AGAIN */
+#include <rdma/fabric.h> /* fid_t */
 
 #include "fabric_types.h" /* addr_ep_t */
-#include "fabric_ptr.h" /* fid_unique_ptr */
-
-#include <unistd.h> /* ssize_t */
 
 #include <cstddef> /* size_t */
-#include <cstdint> /* uinat32_t, uint64_t */
+#include <cstdint> /* uinat32_t */
 #include <memory> /* shared_ptr */
-#include <mutex>
 #include <string>
 
-struct fi_cq_attr;
 struct fi_info;
-struct fi_eq_attr;
 struct fi_fabric_attr;
-
-struct fid_cq;
-struct fid_domain;
 struct fid_fabric;
 struct fid_ep;
-struct fid_eq;
-struct fid_mr;
-struct fid_pep;
 
 /**
  * Fabric/RDMA-based network component

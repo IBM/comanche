@@ -40,6 +40,7 @@
 
 #include <component/base.h>
 #include <common/errors.h>
+#include <common/logging.h>
 #include <config_comanche.h>
 
 namespace Component
@@ -97,6 +98,14 @@ namespace Component
     return comp;
   }
 
+  void IBase::release_ref() {
+    int val = _ref_count.fetch_sub(1) - 1;
+    assert(val >= 0);
+    if(val == 0) {
+      PLOG("unloading component (%p)", static_cast<void*>(this));
+      this->unload(); /* call virtual unload function */
+    }
+  }
 
   /** 
    * Perform pairwise binding of components

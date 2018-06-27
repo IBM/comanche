@@ -18,19 +18,19 @@
 
 #include "bad_dest_addr_alloc.h"
 #include "event_producer.h"
-#include "fabric.h"
 #include "fabric_check.h" /* CHECK_FI_ERR */
 #include "fabric_error.h"
-#include "fabric_str.h"
+#include "fabric_str.h" /* tostr */
 #include "fabric_types.h"
-#include "system_fail.h"
+#include "fd_control.h"
 
 #include <rdma/fi_cm.h> /* fi_connect, fi_shutdown */
 
 #include <algorithm> /* copy */
-#include <cerrno>
 #include <cstdint> /* size_t */
+#include <exception>
 #include <iostream> /* cerr */
+#include <memory> /* unique_ptr */
 
 namespace
 {
@@ -83,7 +83,7 @@ Fabric_connection_client::Fabric_connection_client(
   , std::uint16_t control_port_
 )
 try
-  : Fabric_connection(fabric_, ev_, info_, std::unique_ptr<Fd_control>(new Fd_control(remote_, control_port_)), set_peer_early)
+  : Fabric_op_control(fabric_, ev_, info_, std::unique_ptr<Fd_control>(new Fd_control(remote_, control_port_)), set_peer_early)
   , _ev(ev_)
 {
   if ( ep_info().ep_attr->type == FI_EP_MSG )

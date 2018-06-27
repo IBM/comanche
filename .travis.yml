@@ -59,7 +59,7 @@ script:
     cd /travis ;
     mkdir build;
     cd build;
-    cmake .. -DCOMANCHE_LIMIT_MAKE_JOB=2;
+    cmake .. -DTBB_CI_BUILD=ON -DCOMANCHE_LIMIT_MAKE_JOB=2;
     make;
     make components;
     make install"

@@ -17,12 +17,14 @@
 #include "fabric_connection_server.h"
 
 #include "fabric_check.h" /* CHECK_FI_ERR */
+#include "fd_control.h"
 
 #include <rdma/fi_cm.h> /* fi_accept, fi_shutdown */
 
-#include <algorithm> /* move */
 #include <cstdint> /* size_t */
+#include <exception>
 #include <iostream> /* cerr */
+#include <memory> /* unique_ptr */
 
 namespace
 {
@@ -40,7 +42,7 @@ Fabric_connection_server::Fabric_connection_server(
   , event_producer &ev_
   , ::fi_info &info_
 )
-  : Fabric_connection(fabric_, ev_, info_, std::unique_ptr<Fd_control>(), set_peer_early)
+  : Fabric_op_control(fabric_, ev_, info_, std::unique_ptr<Fd_control>(), set_peer_early)
 {
   if ( ep_info().ep_attr->type == FI_EP_MSG )
   {
@@ -69,6 +71,7 @@ catch ( const std::exception &e )
 void Fabric_connection_server::solicit_event() const
 {
 }
+
 void Fabric_connection_server::wait_event() const
 {
 }

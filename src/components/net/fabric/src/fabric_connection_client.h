@@ -17,29 +17,33 @@
 #ifndef _FABRIC_CONNECTION_CLIENT_H_
 #define _FABRIC_CONNECTION_CLIENT_H_
 
-#include "fabric_connection.h"
+#include "fabric_op_control.h"
 
 #include <cstdint> /* uint16_t */
 #include <string>
 
 struct fi_info;
-struct fid_fabric;
-struct fid_eq;
 
 class event_producer;
 class Fabric;
 
 class Fabric_connection_client
-  : public Fabric_connection
+  : public Fabric_op_control
 {
   event_producer &_ev;
-  /* BEGIN Fabric_connection */
+  /* BEGIN Fabric_op_control */
   void solicit_event() const override;
   void wait_event() const override;
-  /* END Fabric_connection */
+  /* END Fabric_op_control */
   void expect_event_sync(std::uint32_t event_exp) const;
 public:
-  explicit Fabric_connection_client(Fabric &fabric, event_producer &ep, ::fi_info & info, const std::string & remote, std::uint16_t control_port);
+  explicit Fabric_connection_client(
+    Fabric &fabric
+    , event_producer &ep
+    , ::fi_info & info
+    , const std::string & remote
+    , std::uint16_t control_port
+  );
   ~Fabric_connection_client();
 };
 

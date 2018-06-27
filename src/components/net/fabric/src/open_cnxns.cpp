@@ -21,22 +21,23 @@
 
 #include "open_cnxns.h"
 
-#include "fabric_connection.h"
-
 #include <algorithm> /* lower_bound, transform */
+#include <iterator> /* back_inserter */
+
+using guard = std::unique_lock<std::mutex>;
 
 Open_cnxns::Open_cnxns()
   : _m{}
   , _s{}
 {}
 
-void Open_cnxns::add(cnxn_t c)
+void Open_cnxns::add(cnxn_t c_)
 {
   guard g{_m};
-  _s.insert(c);
+  _s.insert(c_);
 }
 
-void Open_cnxns::remove(Component::IFabric_connection *c_)
+void Open_cnxns::remove(Fabric_memory_control *c_)
 {
   guard g{_m};
   auto it =
@@ -44,7 +45,7 @@ void Open_cnxns::remove(Component::IFabric_connection *c_)
       _s.begin()
       , _s.end()
       , c_
-      , [] (const cnxn_t &e, Component::IFabric_connection *c) { return e.get() < static_cast<Fabric_connection *>(c); }
+      , [] (const cnxn_t &e, Fabric_memory_control *c) { return e.get() < c; }
     );
   if ( it != _s.end() && it->get() == c_ )
   {
@@ -52,12 +53,20 @@ void Open_cnxns::remove(Component::IFabric_connection *c_)
   }
 }
 
-std::vector<Component::IFabric_connection*> Open_cnxns::enumerate()
+std::vector<Fabric_memory_control *> Open_cnxns::enumerate()
 {
-  std::vector<Fabric_connection *> v;
   guard g{_m};
-  std::transform(_s.begin(), _s.end(), std::back_inserter(v), [] (const open_t::value_type &v_) { return &*v_; });
+  std::vector<Fabric_memory_control *> v;
 
-  /* EXTRA COPY to change type */
-  return std::vector<Component::IFabric_connection *>(v.begin(), v.end());
+  std::transform(
+    _s.begin()
+    , _s.end()
+    , std::back_inserter(v)
+    , [] (const open_t::value_type &v_)
+      {
+        return &*v_;
+      }
+  );
+
+  return v;
 }
