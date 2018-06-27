@@ -15,11 +15,14 @@
 #include <gtest/gtest.h>
 #include <common/utils.h>
 #include <common/str_utils.h>
+#include <core/physical_memory.h>
 #include <api/components.h>
 #include <api/kvstore_itf.h>
 #include <api/block_itf.h>
 #include <api/block_allocator_itf.h>
 #include "data.h"
+
+#include <stdlib.h>
 
 #include <gperftools/profiler.h>
 
@@ -102,6 +105,30 @@ TEST_F(KVStore_test, BasicPut)
   EXPECT_TRUE(S_OK == _kvstore->put(pool, key, value.c_str(), value.length()));
 }
 
+TEST_F(KVStore_test, GetDirect)
+{
+
+  /*Register Mem is only from gdr memory*/
+  //ASSERT_TRUE(S_OK == _kvstore->register_direct_memory(user_buf, MB(8)));
+  io_buffer_t handle;
+  Core::Physical_memory  mem_alloc; // aligned and pinned mem allocator, TODO: should be provided through IZerocpy Memory interface of NVMestore
+  std::string key = "MyKey";
+  void * value = nullptr;
+  size_t value_len = 0;
+
+  handle = mem_alloc.allocate_io_buffer(MB(8), 4096, Component::NUMA_NODE_ANY);
+  ASSERT_TRUE(handle);
+  value = mem_alloc.virt_addr(handle);
+
+  _kvstore->get_direct(pool, key, value, value_len, 0);
+
+  EXPECT_FALSE(strcmp("Hello world!", (char*)value));
+  PINF("Value=(%.50s) %lu", ((char*)value), value_len);
+
+  mem_alloc.free_io_buffer(handle);
+}
+
+
 TEST_F(KVStore_test, BasicGet)
 {
   std::string key = "MyKey";
@@ -145,6 +172,7 @@ TEST_F(KVStore_test, BasicErase)
   _kvstore->erase(pool, "MyKey");
 }
 
+#if 0
 TEST_F(KVStore_test, Throughput)
 {
   ASSERT_TRUE(pool);
@@ -186,6 +214,7 @@ TEST_F(KVStore_test, Throughput)
 
 
 }
+#endif
 
 #if 0
 
