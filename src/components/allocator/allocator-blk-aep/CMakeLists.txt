@@ -22,7 +22,7 @@ add_library(${PROJECT_NAME} SHARED ${SOURCES})
 
 #add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 
-target_link_libraries(${PROJECT_NAME} common comanche-core pthread numa dl rt boost_system boost_filesystem tbb ${LIB_PMEM} ${LIB_PMEM_POOL} ${LIB_PMEM_OBJ})
+target_link_libraries(${PROJECT_NAME} common comanche-core pthread numa dl rt boost_system boost_filesystem ${TBB_LIBRARIES} ${LIB_PMEM} ${LIB_PMEM_POOL} ${LIB_PMEM_OBJ})
 
 set_target_properties(${PROJECT_NAME} PROPERTIES 
   INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib)
