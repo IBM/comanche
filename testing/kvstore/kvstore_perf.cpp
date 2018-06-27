@@ -6,6 +6,7 @@
 #include <api/kvstore_itf.h>
 #include <boost/program_options.hpp>
 #include <chrono>
+#include <iostream>
 #include <gperftools/profiler.h>
 #define PATH "/mnt/pmem0/"
 //#define PATH "/dev/dax0.0"

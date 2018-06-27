@@ -36,9 +36,6 @@
 #ifndef __ERRORS_H__
 #define __ERRORS_H__
 
-#include <iostream>
-#include <string>
-
 #ifndef ERROR_ENUMS
 #define ERROR_ENUMS                                                                 \
   enum {                                                                            \
