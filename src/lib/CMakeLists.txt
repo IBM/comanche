@@ -1,16 +1,19 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
 # option to build libraies, on by default
-option(BUILD_TBB "build tbb library" ON)
-
 include(${CMAKE_ROOT}/Modules/ExternalProject.cmake)
 
 add_subdirectory(common)
 add_subdirectory(core)
 
-if (BUILD_TBB AND "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-  add_subdirectory(tbb)
-endif()
+# tbb will be installed into the build-of-root-proj/install/lib/tbb
+ExternalProject_Add(tbb
+  BUILD_IN_SOURCE 1
+  SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tbb
+  CONFIGURE_COMMAND cmake . -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_INSTALL_PREFIX}/tbb
+  BUILD_COMMAND make -j2
+  INSTALL_COMMAND make install 
+  )
 
 # libkmod is required but missing in fedora
 pkg_check_modules(KMOD libkmod)
