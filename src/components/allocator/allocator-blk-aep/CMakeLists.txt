@@ -2,6 +2,8 @@ project(comanche-blkalloc-aep CXX)
 
 # required by pmdk
 include_directories(${PMDK_INCLUDE_DIRS})
+include_directories(${TBB_INCLUDE_DIRS})
+
 include_directories(./src)
 
 find_library(LIB_PMEM
