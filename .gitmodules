@@ -24,3 +24,9 @@
 	path = src/lib/pmdk
 	url = https://github.com/pmem/pmdk
 	branch = stable-1.4
+[submodule "src/lib/nanomsg"]
+	path = src/lib/nanomsg
+	url = https://github.com/nanomsg/nanomsg.git
+[submodule "src/lib/flatbuffers"]
+	path = src/lib/flatbuffers
+	url = https://github.com/google/flatbuffers.git

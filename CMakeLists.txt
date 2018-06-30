@@ -59,6 +59,7 @@ else(BOOTSTRAP_DEPS)
   set(PMDK_PREFIX ${CONF_COMANCHE_HOME}/src/lib/pmdk)
   #find_package(PMDK REQUIRED)
   find_package(TBB REQUIRED)
+  find_package(Nanomsg)
   set(PMDK_INCLUDE_DIRS  ${PMDK_PREFIX}/src/include)
 
   add_subdirectory(src)
