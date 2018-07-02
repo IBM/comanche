@@ -2,6 +2,8 @@ project(comanche-blkalloc-aep CXX)
 
 # required by pmdk
 include_directories(${PMDK_INCLUDE_DIRS})
+include_directories(${TBB_INCLUDE_DIRS})
+
 include_directories(./src)
 
 find_library(LIB_PMEM
@@ -20,7 +22,9 @@ file(GLOB SOURCES ./src/*.c*)
 
 add_library(${PROJECT_NAME} SHARED ${SOURCES})
 
-target_link_libraries(${PROJECT_NAME} common comanche-core pthread numa dl rt boost_system boost_filesystem ${LIB_PMEM} ${LIB_PMEM_POOL} ${LIB_PMEM_OBJ})
+#add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
+
+target_link_libraries(${PROJECT_NAME} common comanche-core pthread numa dl rt boost_system boost_filesystem ${TBB_LIBRARIES} ${LIB_PMEM} ${LIB_PMEM_POOL} ${LIB_PMEM_OBJ})
 
 set_target_properties(${PROJECT_NAME} PROPERTIES 
   INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib)

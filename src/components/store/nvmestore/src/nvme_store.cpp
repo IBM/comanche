@@ -20,6 +20,7 @@
 #include <common/city.h>
 #include <boost/filesystem.hpp>
 
+#include <core/xms.h>
 #include <component/base.h>
 #include <api/components.h>
 #include <api/block_itf.h>
@@ -376,9 +377,7 @@ status_t NVME_store::get(const pool_t pool,
     // transaction also happens in here
 
     assert(out_value);
-    /* memcpy for moment - the value can't be moved from underneath because
-       of the singleton-thread per pool threading model
-     */
+    /* memcpy for moment - can i pass the virt_addr(mem) directly? how to free from the client*/
     memcpy(out_value, blk_dev->virt_addr(mem), val_len);
 
     blk_dev->free_io_buffer(mem);
@@ -388,6 +387,81 @@ status_t NVME_store::get(const pool_t pool,
   }
   return S_OK;
 }
+
+status_t NVME_store::get_direct(const pool_t pool,
+                              const std::string key,
+                              void* out_value,
+                              size_t& out_value_len,
+                              size_t offset){
+  struct open_session_t * session = reinterpret_cast<struct open_session_t*>(pool);
+
+  if(g_sessions.find(session) == g_sessions.end())
+    throw API_exception("NVME_store::put invalid pool identifier");
+
+  auto& root = session->root;
+  auto& pop = session->pop;
+
+  auto& blk_alloc = _blk_alloc;
+  auto& blk_dev = _blk_dev;
+
+  uint64_t hashkey = CityHash64(key.c_str(), key.length());
+
+  TOID(struct block_range) val;
+  try {
+    val = hm_tx_get(pop, D_RW(root)->map, hashkey);
+    if(OID_IS_NULL(val.oid))
+      return E_KEY_NOT_FOUND;
+
+    auto val_len = D_RO(val)->size;
+    auto lba = D_RO(val)->offset;
+
+#ifdef USE_ASYNC
+    uint64_t tag = D_RO(val)->last_tag;
+    while(!blk_dev->check_completion(tag)) cpu_relax(); /* check the last completion, TODO: check each time makes the get slightly slow () */
+#endif
+
+    PDBG("prepare to read lba % lu with length %lu", lba, value_len);
+    assert(out_value);
+
+    /* TODO: safe? */
+    io_buffer_t mem = reinterpret_cast<Component::io_buffer_t>(out_value);
+
+    assert(mem);
+
+    size_t nr_io_blocks = (val_len+ BLOCK_SIZE -1)/BLOCK_SIZE;
+
+    blk_dev->read(mem, 0, lba, nr_io_blocks);
+    out_value_len = val_len;
+  }
+  catch(...) {
+    throw General_exception("hm_tx_get failed unexpectedly");
+  }
+  return S_OK;
+}
+
+
+/*
+ * Only used for the case when memory is pinned/aligned but not from spdk, e.g. cudadma
+ * should be 2MB aligned in both phsycial and virtual*/
+status_t NVME_store::register_direct_memory(void * vaddr, size_t len){
+  addr_t phys_addr; // physical address
+  io_buffer_t handle = 0;;
+
+  phys_addr = xms_get_phys(vaddr);
+  handle = _blk_dev->register_memory_for_io(vaddr, phys_addr, len);
+
+  /* save this this registration */
+  if(handle){
+    PINF("Register vaddr %p with paddr %lu, handle %lu", vaddr, phys_addr, handle );
+    return S_OK;
+  }
+  else{
+    PERR("%s: register user allocated memory failed", __func__);
+    return E_FAIL;
+  }
+}
+
+
 
 status_t NVME_store::allocate(const pool_t pool,
                       const std::string key,

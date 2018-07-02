@@ -74,7 +74,7 @@ int bitmap_tx_zero(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap);
  * @param bitmap the bitmap to operate on 
  * @param order, the order(2^order free blocks) to set from 0 to 1 
  */
-int bitmap_tx_find_free_region(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap, int order);
+int bitmap_tx_find_free_region(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap, unsigned order);
 
 /*
  * free a region from bitmap
@@ -84,6 +84,6 @@ int bitmap_tx_find_free_region(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap,
  * @param pos the starting bit to reset
  * @param order, the order(2^order bits) to reset
  */
-int bitmap_tx_release_region(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap, unsigned int pos, int order);
+int bitmap_tx_release_region(PMEMobjpool *pop,  TOID(struct bitmap_tx) bitmap, unsigned int pos, unsigned order);
 
 #endif

@@ -2,13 +2,12 @@ project(comanche-nvmestore CXX)
 
 
 #add_library(bitmap-tx bitmap-tx.cpp)
-include_directories(./src)
-
-
 include_directories(${PMDK_INCLUDE_DIRS})
 include_directories(${TBB_INCLUDE_DIRS})
 include_directories(${PMDK_PREFIX}/src/examples/libpmemobj/hashmap/)
 include_directories(${DPDK_DIR}/include/dpdk)
+
+include_directories(./src)
 
 
 find_library(LIB_PMEM
