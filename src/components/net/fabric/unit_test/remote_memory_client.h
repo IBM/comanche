@@ -37,10 +37,12 @@ protected:
   void do_quit();
 public:
   remote_memory_client(Component::IFabric &fabric_, const std::string &fabric_spec_, const std::string ip_address_, std::uint16_t port_);
-
-  void send_disconnect(Component::IFabric_communicator &cnxn_, registered_memory &rm_, char quit_flag_);
+  remote_memory_client(remote_memory_client &&) = default;
+  remote_memory_client &operator=(remote_memory_client &&) = default;
 
   ~remote_memory_client();
+
+  void send_disconnect(Component::IFabric_communicator &cnxn_, registered_memory &rm_, char quit_flag_);
 
   std::uint64_t vaddr() const { return _vaddr; }
   std::uint64_t key() const { return _key; }
