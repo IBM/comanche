@@ -46,6 +46,7 @@ typedef struct block_range{
 
 class NVME_store : public Component::IKVStore
 {  
+  using io_buffer_t = uint64_t;
 private:
   static constexpr bool option_DEBUG = true;
   static constexpr size_t BLOCK_SIZE = 4096;
@@ -119,6 +120,14 @@ public:
                   const std::string key,
                   void*& out_value,
                   size_t& out_value_len) override;
+
+  virtual status_t get_direct(const pool_t pool,
+                              const std::string key,
+                              void* out_value,
+                              size_t& out_value_len,
+                              size_t offset) override;
+
+  virtual status_t register_direct_memory(void * vaddr, size_t len) override;
 
   virtual status_t allocate(const pool_t pool,
                        const std::string key,
