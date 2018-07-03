@@ -40,7 +40,7 @@ public:
   Fabric_server_grouped_factory& operator=(const Fabric_server_grouped_factory &) = delete;
   ~Fabric_server_grouped_factory();
 
-  Component::IFabric_server_grouped * get_new_connections() override;
+  Component::IFabric_server_grouped * get_new_connection() override;
 
   void close_connection(Component::IFabric_server_grouped * connection) override;
 

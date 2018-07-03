@@ -322,9 +322,9 @@ public:
    * normally invoked until NULL is returned.
    * 
    * 
-   * @return New connection or NULL on no new connections.
+   * @return New connection, or NULL if no new connection.
    */
-  virtual IFabric_server * get_new_connections() = 0;
+  virtual IFabric_server * get_new_connection() = 0;
 
   /**
    * Close connection and release any associated resources
@@ -337,7 +337,7 @@ public:
    * Used to get a vector of active connection belonging to this
    * end point.
    * 
-   * @return Vector of new connections
+   * @return Vector of active connections
    */
   virtual std::vector<IFabric_server *> connections() = 0;
 
@@ -371,9 +371,9 @@ public:
    * normally invoked until NULL is returned.
    * 
    * 
-   * @return New connection or NULL on no new connections.
+   * @return New connection, or NULL if no new connection.
    */
-  virtual IFabric_server_grouped * get_new_connections() = 0;
+  virtual IFabric_server_grouped * get_new_connection() = 0;
 
   /**
    * Close connection and release any associated resources
@@ -386,7 +386,7 @@ public:
    * Used to get a vector of active connection belonging to this
    * end point.
    * 
-   * @return Vector of new connections
+   * @return Vector of active connections
    */
   virtual std::vector<IFabric_server_grouped *> connections() = 0;
 };

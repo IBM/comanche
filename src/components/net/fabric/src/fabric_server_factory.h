@@ -38,7 +38,7 @@ public:
   Fabric_server_factory& operator=(const Fabric_server_factory &) = delete;
   ~Fabric_server_factory();
 
-  Component::IFabric_server* get_new_connections() override;
+  Component::IFabric_server* get_new_connection() override;
 
   void close_connection(Component::IFabric_server* connection) override;
 

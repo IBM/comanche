@@ -41,7 +41,7 @@ std::shared_ptr<Fabric_memory_control> Fabric_server_grouped_factory::new_server
     );
 }
 
-Component::IFabric_server_grouped * Fabric_server_grouped_factory::get_new_connections()
+Component::IFabric_server_grouped * Fabric_server_grouped_factory::get_new_connection()
 {
   return static_cast<Fabric_server_grouped *>(Fabric_server_generic_factory::get_new_connection());
 }
