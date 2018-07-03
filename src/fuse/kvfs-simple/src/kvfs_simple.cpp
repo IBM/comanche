@@ -19,6 +19,12 @@
  * This is modified from the  hello example in the libfuse source tree.
  */
 
+/*
+ * File system abstraction
+ *
+ * each pool will be a folder in the mount root, each object will be a file
+ */
+
 #define FUSE_USE_VERSION 26
 
 #include <fuse.h>
@@ -27,8 +33,57 @@
 #include <errno.h>
 #include <fcntl.h>
 
+#include <api/components.h>
+#include <api/kvstore_itf.h>
+
+#define FILESTORE_PATH "libcomanche-storefile.so"
+
 static const char *kvfs_simple_str = "Hello World!\n";
 static const char *kvfs_simple_path = "/hello";
+
+/**
+ * Initialize filesystem
+ *
+ * This will just create/open a kvstore instance 
+ * fuse-api: The return value will passed in the private_data field of
+ * fuse_context to all file operations and as a parameter to the
+ * destroy() method.
+ *
+ */
+void * kvfs_simple_init (struct fuse_conn_info *conn){
+  (void)conn; // TODO: component owner, name  can be in the fuse option
+
+  Component::IKVStore *store;
+  Component::IBase * comp; 
+  comp = Component::load_component(FILESTORE_PATH, Component::filestore_factory);
+
+  Component::IKVStore_factory * fact = (Component::IKVStore_factory *) comp->query_interface(Component::IKVStore_factory::iid());
+
+  store = fact->create("owner","name");
+  fact->release_ref();
+  return store;
+}
+
+/**
+ * Clean up filesystem
+ *
+ * this will close a kvstore
+ * fuse-api: alled on filesystem exit.
+ */
+void kvfs_simple_destroy (void *user_data){
+  Component::IKVStore *store = reinterpret_cast<Component::IKVStore *>(user_data);
+  store->release_ref();
+  
+};
+
+//static int open(); 
+//static int create(); //allocate and get_direct? do we need write_direct
+//static  mkdir // ikv-create_pool
+
+/* read and write must operate on /pool/key */
+//static int read(); // pool->ikv-get
+//static int write(); // pool->ikv-put
+
 
 static int kvfs_simple_getattr(const char *path, struct stat *stbuf)
 {
@@ -54,13 +109,18 @@ static int kvfs_simple_readdir(const char *path, void *buf, fuse_fill_dir_t fill
 	(void) offset;
 	(void) fi;
 
-	if (strcmp(path, "/") != 0)
-		return -ENOENT;
+  filler(buf, ".", NULL, 0);
+  filler(buf, "..", NULL, 0);
 
-	filler(buf, ".", NULL, 0);
-	filler(buf, "..", NULL, 0);
-	filler(buf, kvfs_simple_path + 1, NULL, 0);
+	if (strcmp(path, "/") == 0){
+    // show pools
 
+  }else{
+    // show the objects in the pool
+  }
+
+  // this should give all the pool
+	//filler(buf, kvfs_simple_path + 1, NULL, 0);
 	return 0;
 }
 
@@ -104,6 +164,8 @@ int main(int argc, char *argv[])
 	oper.readdir	= kvfs_simple_readdir;
 	oper.open		= kvfs_simple_open;
 	oper.read		= kvfs_simple_read;
+  oper.init = kvfs_simple_init;
+  oper.destroy = kvfs_simple_destroy;
 
 	return fuse_main(argc, argv, &oper, NULL);
 }
