@@ -63,7 +63,7 @@ cd $BASE
 echo "Cloning libfabric (v1.6.1) ..."
 git clone https://github.com/ofiwg/libfabric.git
 ( cd libfabric
-  git checkout tags/release-1.6.1
+  git checkout tags/v1.6.1
   ./autogen.sh
   ./configure && make
   make install
