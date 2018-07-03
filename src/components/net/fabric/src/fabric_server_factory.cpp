@@ -40,7 +40,7 @@ std::shared_ptr<Fabric_memory_control> Fabric_server_factory::new_server(Fabric 
     );
 }
 
-Component::IFabric_server * Fabric_server_factory::get_new_connections()
+Component::IFabric_server * Fabric_server_factory::get_new_connection()
 {
   return static_cast<Fabric_server *>(Fabric_server_generic_factory::get_new_connection());
 }

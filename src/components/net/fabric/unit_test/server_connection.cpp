@@ -8,7 +8,7 @@
 Component::IFabric_server *server_connection::get_connection(Component::IFabric_server_factory &ep_)
 {
   Component::IFabric_server *cnxn = nullptr;
-  while ( ! ( cnxn = ep_.get_new_connections() ) ) {}
+  while ( ! ( cnxn = ep_.get_new_connection() ) ) {}
   return cnxn;
 }
 
