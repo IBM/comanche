@@ -48,6 +48,9 @@ public:
   void deregister_memory(
     const memory_region_t memory_region
   ) override { return Fabric_memory_control::deregister_memory(memory_region); }
+  std::uint64_t get_memory_remote_key(
+    const memory_region_t memory_region
+  ) override { return Fabric_memory_control::get_memory_remote_key(memory_region); }
   std::string get_peer_addr() override { return Fabric_op_control::get_peer_addr(); }
   std::string get_local_addr() override { return Fabric_op_control::get_local_addr(); }
 };

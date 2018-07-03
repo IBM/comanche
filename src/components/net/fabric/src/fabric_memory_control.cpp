@@ -26,6 +26,7 @@
 #include "fabric_error.h"
 #include "fabric_ptr.h" /* FABRIC_TACE_FID */
 #include "fabric_util.h" /* make_fi_infodup */
+#include "pointer_cast.h"
 
 #include <sys/uio.h> /* iovec */
 
@@ -59,16 +60,6 @@ Fabric_memory_control::~Fabric_memory_control()
 {
 }
 
-
-/**
- * Register buffer for RDMA
- *
- * @param contig_addr Pointer to contiguous region
- * @param size Size of buffer in bytes
- * @param flags Flags e.g., FI_REMOTE_READ|FI_REMOTE_WRITE
- *
- * @return Memory region handle
- */
 auto Fabric_memory_control::register_memory(const void * contig_addr, size_t size, std::uint64_t key, std::uint64_t flags) -> Component::IFabric_connection::memory_region_t
 {
   auto mr = make_fid_mr_reg_ptr(contig_addr, size, std::uint64_t(FI_SEND|FI_RECV|FI_READ|FI_WRITE|FI_REMOTE_READ|FI_REMOTE_WRITE), key, flags);
@@ -85,18 +76,13 @@ auto Fabric_memory_control::register_memory(const void * contig_addr, size_t siz
    * Operations which access remote memory will need the memory key.
    * If the domain has FI_MR_PROV_KEY set, we need to return the actual key.
    */
-  return Component::IFabric_connection::memory_region_t{mr, ::fi_mr_key(mr)};
+  return pointer_cast<Component::IFabric_memory_region>(mr);
 }
 
-  /**
-   * De-register memory region
-   *
-   * @param memory_region
-   */
 void Fabric_memory_control::deregister_memory(const memory_region_t mr_)
 {
   /* recover the memory region as a unique ptr */
-  auto mr = fid_ptr(static_cast<::fid_mr *>(std::get<0>(mr_)));
+  auto mr = fid_ptr(pointer_cast<::fid_mr>(mr_));
 
   {
     auto desc = ::fi_mr_desc(&*mr);
@@ -106,6 +92,14 @@ void Fabric_memory_control::deregister_memory(const memory_region_t mr_)
     _mr_addr_to_desc.erase(itr->first);
     _mr_desc_to_addr.erase(itr);
   }
+}
+
+std::uint64_t Fabric_memory_control::get_memory_remote_key(const memory_region_t mr_)
+{
+  /* recover the memory region as a unique ptr */
+  auto mr = pointer_cast<::fid_mr>(mr_);
+  /* ask fabric for the key */
+  return ::fi_mr_key(mr);
 }
 
 /* If local keys are needed, one local key per buffer. */

@@ -60,11 +60,19 @@ auto Fabric_generic_grouped::register_memory(
 {
   return cnxn().register_memory(contig_addr, size, key, flags);
 }
+
 void Fabric_generic_grouped::deregister_memory(
   const memory_region_t memory_region
 )
 {
   return cnxn().deregister_memory(memory_region);
+}
+
+std::uint64_t Fabric_generic_grouped::get_memory_remote_key(
+  const memory_region_t memory_region
+)
+{
+  return cnxn().get_memory_remote_key(memory_region);
 }
 
 std::string Fabric_generic_grouped::get_peer_addr() { return cnxn().get_peer_addr(); }
