@@ -46,9 +46,15 @@ public:
     , std::uint64_t key
     , std::uint64_t flags
   ) override { return Fabric_memory_control::register_memory(contig_addr, size, key, flags); }
+
   void deregister_memory(
     const memory_region_t memory_region
   ) override { return Fabric_memory_control::deregister_memory(memory_region); }
+
+  std::uint64_t get_memory_remote_key(
+    const memory_region_t memory_region
+  ) override { return Fabric_memory_control::get_memory_remote_key(memory_region); }
+
 
   void  post_send(
     const std::vector<iovec>& buffers

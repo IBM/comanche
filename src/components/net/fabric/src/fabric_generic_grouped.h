@@ -49,6 +49,9 @@ class Fabric_generic_grouped
   void deregister_memory(
     const memory_region_t memory_region
   ) override;
+  std::uint64_t get_memory_remote_key(
+    const memory_region_t memory_region
+  ) override;
 
   std::string get_peer_addr() override;
   std::string get_local_addr() override;

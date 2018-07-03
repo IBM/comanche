@@ -22,7 +22,6 @@
 #include <chrono>
 #include <cstdint>
 #include <functional>
-#include <tuple>
 #include <vector>
 
 struct iovec;
@@ -149,6 +148,7 @@ public:
   */
 };
 
+struct IFabric_memory_region;
 
 class IFabric_connection
 {
@@ -156,7 +156,7 @@ public:
 
   virtual ~IFabric_connection() {}
 
-  using memory_region_t=std::tuple<void *, std::uint64_t>;
+  using memory_region_t = IFabric_memory_region *;
 
   /**
    * Register buffer for RDMA
@@ -175,6 +175,8 @@ public:
    * @param memory_region Memory region to de-register
    */
   virtual void deregister_memory(memory_region_t memory_region) = 0;
+
+  virtual std::uint64_t get_memory_remote_key(memory_region_t) = 0;
 
   /**
    * Get address of connected peer (taken from fi_getpeer during
