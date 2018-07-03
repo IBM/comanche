@@ -163,7 +163,7 @@ public:
    *
    * @param contig_addr Pointer to contiguous region
    * @param size Size of buffer in bytes
-   * @param flags Flags e.g., FI_REMOTE_READ|FI_REMOTE_WRITE
+   * @param flags Flags e.g., FI_REMOTE_READ|FI_REMOTE_WRITE. #include <rdma/fabric.h> necessary to define the flags.
    * 
    * @return Memory region handle
    */
