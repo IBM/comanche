@@ -60,6 +60,15 @@ cmake . && make
 make install
 cd $BASE
 
+echo "Cloning libfabric (v1.6.1) ..."
+git clone https://github.com/ofiwg/libfabric.git
+( cd libfabric
+  git checkout tags/release-1.6.1
+  ./autogen.sh
+  ./configure && make
+  make install
+)
+
 # echo "Cloning Flatbuffers ..."
 # git clone https://github.com/google/flatbuffers.git
 # cd flatbuffers
@@ -67,7 +76,7 @@ cd $BASE
 # make install
 # cd $BASE
 
-# END OF MANDATORT DEPS
+# END OF MANDATORY DEPS
 jumpto end
 
 nanomsg:
