@@ -2,9 +2,11 @@ cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
 include($ENV{COMANCHE_HOME}/mk/common.cmake)
 
+if(Flatbuffers_FOUND)
+
 project(fuse-ustack CXX)
 
-include_directories(${Nanomsg_INCLUDE_DIRS} ${CMAKE_CURRENT_BINARY_DIR}/src)
+include_directories(${Nanomsg_INCLUDE_DIRS} ${TBB_INCLUDE_DIRS} ${Flatbuffers_INCLUDE_DIRS} ${CMAKE_CURRENT_BINARY_DIR}/src)
 
 add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG -D_FILE_OFFSET_BITS=64)
 
@@ -24,7 +26,11 @@ add_custom_command(
 add_custom_target(proto ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/src/protocol_generated.h)
 
 add_executable(fuse-ustack src/fuse_ustack.cpp src/ustack.cpp)
+add_dependencies(fuse-ustack proto)
+
 target_link_libraries(fuse-ustack ${ASAN_LIB} common comanche-core numa dl z ${Nanomsg_LIBRARIES} boost_system boost_program_options pthread ${TBB_LIBRARIES} fuse)
 
 add_executable(iotest src/iotest.cpp)
 target_link_libraries(iotest ${ASAN_LIB} common comanche-core numa dl z ${Nanomsg_LIBRARIES} boost_system boost_program_options pthread ${TBB_LIBRARIES} fuse)
+
+endif(Flatbuffers_FOUND)

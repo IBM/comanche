@@ -36,7 +36,9 @@
 #include <api/components.h>
 #include <api/kvstore_itf.h>
 
+#define PMSTORE_PATH "libcomanche-pmstore.so"
 #define FILESTORE_PATH "libcomanche-storefile.so"
+#define NVMESTORE_PATH "libcomanche-nvmestore.so"
 
 static const char *kvfs_simple_str = "Hello World!\n";
 static const char *kvfs_simple_path = "/hello";
@@ -55,12 +57,28 @@ void * kvfs_simple_init (struct fuse_conn_info *conn){
 
   Component::IKVStore *store;
   Component::IBase * comp; 
-  comp = Component::load_component(FILESTORE_PATH, Component::filestore_factory);
+
+  std::string component("filestore");
+
+  if(component == "pmstore") {
+    comp = Component::load_component(PMSTORE_PATH, Component::pmstore_factory);
+  }
+  else if(component == "filestore") {
+    comp = Component::load_component(FILESTORE_PATH, Component::filestore_factory);
+  }
+  else if(component == "nvmestore") {
+    comp = Component::load_component(NVMESTORE_PATH, Component::nvmestore_factory);
+  }
+  else throw General_exception("unknown --component option (%s)", component.c_str());
+
+  assert(comp);
 
   Component::IKVStore_factory * fact = (Component::IKVStore_factory *) comp->query_interface(Component::IKVStore_factory::iid());
 
   store = fact->create("owner","name");
   fact->release_ref();
+
+  PINF("[%s]: fs loaded using component %s ", __func__, component.c_str());
   return store;
 }
 

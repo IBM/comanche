@@ -60,6 +60,7 @@ else(BOOTSTRAP_DEPS)
   #find_package(PMDK REQUIRED)
   find_package(TBB REQUIRED)
   find_package(Nanomsg)
+  find_package(Flatbuffers)
   set(PMDK_INCLUDE_DIRS  ${PMDK_PREFIX}/src/include)
 
   add_subdirectory(src)
