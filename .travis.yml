@@ -33,7 +33,7 @@ env:
 
 
 # comanche requires cmake 3.6.2 (to build google/benchmark)
-# for local building testing, remener to run git submodule init/update
+# for local building testing, remember to run git submodule init/update
 # https://stackoverflow.com/questions/33013539/docker-loading-kernel-modules
 before_install:
   - sudo apt-get update
