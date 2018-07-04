@@ -6,6 +6,9 @@ add_subdirectory(./unit_test)
 
 project(comanche-fabric CXX)
 
+include_directories(${CMAKE_INSTALL_PREFIX}/include)
+link_directories(${CMAKE_INSTALL_PREFIX}/lib)
+
 add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 
 file(GLOB SOURCES src/*.cpp)
