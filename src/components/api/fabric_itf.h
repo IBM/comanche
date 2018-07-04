@@ -24,7 +24,7 @@
 #include <functional>
 #include <vector>
 
-struct iovec;
+struct iovec; /* definition in <sys/uio.h> */
 
 namespace Component
 {
@@ -163,7 +163,7 @@ public:
    *
    * @param contig_addr Pointer to contiguous region
    * @param size Size of buffer in bytes
-   * @param flags Flags e.g., FI_REMOTE_READ|FI_REMOTE_WRITE. #include <rdma/fabric.h> necessary to define the flags.
+   * @param flags Flags e.g., FI_REMOTE_READ|FI_REMOTE_WRITE. Flag definitions are in <rdma/fabric.h>
    * 
    * @return Memory region handle
    */
