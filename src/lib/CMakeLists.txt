@@ -15,6 +15,22 @@ ExternalProject_Add(tbb
   INSTALL_COMMAND make install 
   )
 
+ExternalProject_Add(flatbuffers
+  BUILD_IN_SOURCE 1
+  SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/flatbuffers
+  CONFIGURE_COMMAND cmake . -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_INSTALL_PREFIX}/flatbuffers
+  BUILD_COMMAND make -j2
+  INSTALL_COMMAND make install 
+  )
+
+ExternalProject_Add(nanomsg
+  BUILD_IN_SOURCE 1
+  SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/nanomsg
+  CONFIGURE_COMMAND cmake . -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_INSTALL_PREFIX}/nanomsg
+  BUILD_COMMAND make -j2
+  INSTALL_COMMAND make install 
+  )
+
 # libkmod is required but missing in fedora
 pkg_check_modules(KMOD libkmod)
 

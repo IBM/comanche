@@ -35,8 +35,7 @@ struct {
   std::string component;
   unsigned cores;
   unsigned time_secs;
-} Options;
-
+} Options; 
 
 int main(int argc, char * argv[])
 {
