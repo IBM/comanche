@@ -14,7 +14,7 @@
  *
  * Here "simple" means it uses default fuse interfaces for all file operations, 
  * which bounce between kernel/user space.
- * This can be improved greatly by intercept some of the intensive operations and handle them completel in userspace (as it's done in fuse/ustack)
+ * This can be improved greatly by intercept some of the intensive operations and handle them complete in userspace (as it's done in fuse/ustack)
  *
  * This is modified from the  hello example in the libfuse source tree.
  */
@@ -22,7 +22,8 @@
 /*
  * File system abstraction
  *
- * each pool will be a folder in the mount root, each object will be a file
+ * each object will be a file in the mountdir/
+ * TODO: add namespace, such the object name "ns1/item1" will be put into the corresponding subdir
  */
 
 #define FUSE_USE_VERSION 26
@@ -43,11 +44,7 @@
 #define FILESTORE_PATH "libcomanche-storefile.so"
 #define NVMESTORE_PATH "libcomanche-nvmestore.so"
 
-static const char *kvfs_simple_str = "Hello World!\n";
-static const char *kvfs_simple_path = "/hello";
-
 using pool_t     = uint64_t;
-
 
 /*
  * private information for this mounting, this only modifies metadata
@@ -135,7 +132,7 @@ class Mount_info{
       Component::IKVStore *_store;
       pool_t _pool;
 
-      std::unordered_map<uint64_t, std::string> _items; // file id and key
+      std::unordered_map<uint64_t, std::string> _items; // file id and key TODO: put the key to the File_meta!
       std::unordered_map<uint64_t, File_meta> _file_meta;  
       std::atomic<uint64_t> _asigned_ids; //current assigned ids, to identify each file
 };
@@ -252,13 +249,10 @@ static int kvfs_simple_getattr(const char *path, struct stat *stbuf)
 	if (strcmp(path, "/") == 0) {
 		stbuf->st_mode = S_IFDIR | 0755;
 		stbuf->st_nlink = 2;
-	} else if (strcmp(path, kvfs_simple_path) == 0) {
+	}else if(handle){
 		stbuf->st_mode = S_IFREG | 0444;
 		stbuf->st_nlink = 1;
-		stbuf->st_size = strlen(kvfs_simple_str);
-	} else if(handle){
-		stbuf->st_mode = S_IFREG | 0444;
-    PINF("[%s]: get attr!",__func__);
+    PDBG("[%s]: get attr!",__func__);
 		stbuf->st_size = info->get_item_size(handle);
   }
   else{
@@ -336,6 +330,7 @@ static int kvfs_simple_read(const char *path, char *buf, size_t size, off_t offs
 
   return size;
 }
+
 /** Write data to an open file
  *
  * Write should return exactly the number of bytes requested
