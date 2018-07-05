@@ -30,6 +30,8 @@
 
 #include <sys/uio.h> /* iovec */
 
+#include <stdexcept> /* domain_error, range_error */
+#include <sstream> /* ostringstream */
 #include <string>
 
 using guard = std::unique_lock<std::mutex>;
@@ -60,16 +62,36 @@ Fabric_memory_control::~Fabric_memory_control()
 {
 }
 
-auto Fabric_memory_control::register_memory(const void * contig_addr, size_t size, std::uint64_t key, std::uint64_t flags) -> Component::IFabric_connection::memory_region_t
+auto Fabric_memory_control::register_memory(const void * addr_, size_t size_, std::uint64_t key_, std::uint64_t flags_) -> Component::IFabric_connection::memory_region_t
 {
-  auto mr = make_fid_mr_reg_ptr(contig_addr, size, std::uint64_t(FI_SEND|FI_RECV|FI_READ|FI_WRITE|FI_REMOTE_READ|FI_REMOTE_WRITE), key, flags);
+  auto mr = make_fid_mr_reg_ptr(addr_, size_, std::uint64_t(FI_SEND|FI_RECV|FI_READ|FI_WRITE|FI_REMOTE_READ|FI_REMOTE_WRITE), key_, flags_);
 
   /* operations which access local memory will need the memory "descriptor." Record it here. */
   auto desc = ::fi_mr_desc(mr);
   {
     guard g{_m};
-    _mr_addr_to_desc[contig_addr] = desc;
-    _mr_desc_to_addr[desc] = contig_addr;
+    auto exists_a_to_d = _mr_addr_to_desc.find(addr_) != _mr_addr_to_desc.end();
+    auto exists_d_to_a = _mr_desc_to_addr.find(desc) != _mr_desc_to_addr.end();
+    if ( exists_a_to_d || exists_d_to_a )
+    {
+      std::ostringstream err;
+      err << __func__
+        << " address " << addr_ << " " << (exists_a_to_d ? "already" : "not") << " registered"
+        << ", descriptor " << desc << " " << (exists_d_to_a ? " already" : "not") << "registered";
+
+      throw std::range_error(err.str());
+    }
+    _mr_addr_to_desc.insert({addr_, desc});
+    _mr_desc_to_addr.insert({desc, addr_});
+
+    auto size_a_to_d = _mr_addr_to_desc.size();
+    auto size_d_to_a = _mr_desc_to_addr.size();
+    if ( size_a_to_d != size_d_to_a )
+    {
+      std::ostringstream err;
+      err << __func__ << " mismatch: addr_to_desc size " << size_a_to_d << ", desc_to_addr size " << size_d_to_a;
+      throw std::range_error(err.str());
+    }
   }
 
   /*
@@ -87,10 +109,33 @@ void Fabric_memory_control::deregister_memory(const memory_region_t mr_)
   {
     auto desc = ::fi_mr_desc(&*mr);
     guard g{_m};
-    auto itr = _mr_desc_to_addr.find(desc);
-    assert(itr != _mr_desc_to_addr.end());
-    _mr_addr_to_desc.erase(itr->first);
-    _mr_desc_to_addr.erase(itr);
+    auto size_a_to_d = _mr_addr_to_desc.size();
+    auto size_d_to_a = _mr_desc_to_addr.size();
+    if ( size_a_to_d != size_d_to_a )
+    {
+      std::ostringstream err;
+      err << __func__ << " mismatch: addr_to_desc size " << size_a_to_d << ", desc_to_addr size " << size_d_to_a;
+      throw std::range_error(err.str());
+    }
+
+    auto itr_d_to_a = _mr_desc_to_addr.find(desc);
+    if ( itr_d_to_a == _mr_desc_to_addr.end() )
+    {
+      std::ostringstream err;
+      err << __func__ << " descriptor " << desc << " not found in registry";
+      throw std::range_error(err.str());
+    }
+
+    auto addr = itr_d_to_a->second;
+    auto itr_a_to_d = _mr_addr_to_desc.find(addr);
+    if ( itr_a_to_d == _mr_addr_to_desc.end() )
+    {
+      std::ostringstream err;
+      err << __func__ << " descriptor " << desc << " in registry but address " << addr << " not found in registry";
+      throw std::range_error(err.str());
+    }
+    _mr_addr_to_desc.erase(itr_a_to_d);
+    _mr_desc_to_addr.erase(itr_d_to_a);
   }
 }
 
