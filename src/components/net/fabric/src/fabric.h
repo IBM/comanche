@@ -20,8 +20,16 @@
 #include <api/fabric_itf.h> /* Component::IFabric */
 #include "event_producer.h"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshadow"
 #include <rdma/fabric.h> /* fid_t */
+#pragma GCC diagnostic pop
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#pragma GCC diagnostic ignored "-Wshadow"
 #include <rdma/fi_domain.h> /* fi_eq_attr */
+#pragma GCC diagnostic pop
 
 #include <map>
 #include <memory> /* shared_ptr */

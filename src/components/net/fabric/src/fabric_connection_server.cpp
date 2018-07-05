@@ -19,7 +19,12 @@
 #include "fabric_check.h" /* CHECK_FI_ERR */
 #include "fd_control.h"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#pragma GCC diagnostic ignored "-Wshadow"
 #include <rdma/fi_cm.h> /* fi_accept, fi_shutdown */
+#pragma GCC diagnostic pop
 
 #include <cstdint> /* size_t */
 #include <exception>

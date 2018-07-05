@@ -22,7 +22,10 @@
  *
  */
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshadow"
 #include <rdma/fabric.h> /* fid_t */
+#pragma GCC diagnostic pop
 
 #include "fabric_types.h" /* addr_ep_t */
 
