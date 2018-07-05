@@ -22,10 +22,9 @@
 #include <chrono>
 #include <cstdint>
 #include <functional>
-#include <tuple>
 #include <vector>
 
-struct iovec;
+struct iovec; /* definition in <sys/uio.h> */
 
 namespace Component
 {
@@ -149,6 +148,7 @@ public:
   */
 };
 
+struct IFabric_memory_region;
 
 class IFabric_connection
 {
@@ -156,14 +156,14 @@ public:
 
   virtual ~IFabric_connection() {}
 
-  using memory_region_t=std::tuple<void *, std::uint64_t>;
+  using memory_region_t = IFabric_memory_region *;
 
   /**
    * Register buffer for RDMA
    *
    * @param contig_addr Pointer to contiguous region
    * @param size Size of buffer in bytes
-   * @param flags Flags e.g., FI_REMOTE_READ|FI_REMOTE_WRITE
+   * @param flags Flags e.g., FI_REMOTE_READ|FI_REMOTE_WRITE. Flag definitions are in <rdma/fabric.h>
    * 
    * @return Memory region handle
    */
@@ -175,6 +175,8 @@ public:
    * @param memory_region Memory region to de-register
    */
   virtual void deregister_memory(memory_region_t memory_region) = 0;
+
+  virtual std::uint64_t get_memory_remote_key(memory_region_t) = 0;
 
   /**
    * Get address of connected peer (taken from fi_getpeer during
@@ -322,9 +324,9 @@ public:
    * normally invoked until NULL is returned.
    * 
    * 
-   * @return New connection or NULL on no new connections.
+   * @return New connection, or NULL if no new connection.
    */
-  virtual IFabric_server * get_new_connections() = 0;
+  virtual IFabric_server * get_new_connection() = 0;
 
   /**
    * Close connection and release any associated resources
@@ -337,7 +339,7 @@ public:
    * Used to get a vector of active connection belonging to this
    * end point.
    * 
-   * @return Vector of new connections
+   * @return Vector of active connections
    */
   virtual std::vector<IFabric_server *> connections() = 0;
 
@@ -371,9 +373,9 @@ public:
    * normally invoked until NULL is returned.
    * 
    * 
-   * @return New connection or NULL on no new connections.
+   * @return New connection, or NULL if no new connection.
    */
-  virtual IFabric_server_grouped * get_new_connections() = 0;
+  virtual IFabric_server_grouped * get_new_connection() = 0;
 
   /**
    * Close connection and release any associated resources
@@ -386,7 +388,7 @@ public:
    * Used to get a vector of active connection belonging to this
    * end point.
    * 
-   * @return Vector of new connections
+   * @return Vector of active connections
    */
   virtual std::vector<IFabric_server_grouped *> connections() = 0;
 };

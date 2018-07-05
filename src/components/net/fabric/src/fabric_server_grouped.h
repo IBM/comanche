@@ -59,6 +59,12 @@ class Fabric_server_grouped
   {
     return Fabric_op_control::deregister_memory(memory_region);
   };
+  std::uint64_t get_memory_remote_key(
+    const memory_region_t memory_region
+  ) override
+  {
+    return Fabric_op_control::get_memory_remote_key(memory_region);
+  };
   std::string get_peer_addr() override { return Fabric_op_control::get_peer_addr(); }
   std::string get_local_addr() override { return Fabric_op_control::get_local_addr(); }
   /* END Component::IFabric_server_grouped (IFabric_connection) */
