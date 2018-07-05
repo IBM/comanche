@@ -26,7 +26,12 @@
 #include "pointer_cast.h"
 #include "system_fail.h"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#pragma GCC diagnostic ignored "-Wshadow"
 #include <rdma/fi_cm.h> /* fi_listen */
+#pragma GCC diagnostic pop
 
 #include <netinet/in.h> /* sockaddr_in */
 #include <sys/select.h> /* fd_set, pselect */

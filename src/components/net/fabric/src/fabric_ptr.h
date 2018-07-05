@@ -21,7 +21,10 @@
  * Authors:
  */
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshadow"
 #include <rdma/fabric.h>
+#pragma GCC diagnostic pop
 
 #if 1
 #define FABRIC_TRACE_FID(f) static_cast<void>(0)

@@ -32,7 +32,10 @@
 #include "fabric_util.h"
 #include "system_fail.h"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshadow"
 #include <rdma/fabric.h> /* fi_info */
+#pragma GCC diagnostic pop
 #include <rdma/fi_endpoint.h> /* fi_ep_bind, fi_pep_bind */
 
 #include <sys/select.h> /* pselect */

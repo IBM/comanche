@@ -28,8 +28,16 @@
 #include "fabric_str.h" /* tostr */
 #include "hints.h"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshadow"
 #include <rdma/fabric.h> /* FI_VERSION */
+#pragma GCC diagnostic pop
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#pragma GCC diagnostic ignored "-Wshadow"
 #include <rdma/fi_cm.h> /* fi_connect */
+#pragma GCC diagnostic pop
 
 #include <map>
 #include <memory> /* shared_ptr */

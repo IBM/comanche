@@ -25,7 +25,12 @@
 #include "fabric_types.h" /* addr_ep_t */
 #include "fd_pair.h"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#pragma GCC diagnostic ignored "-Wshadow"
 #include <rdma/fi_domain.h> /* fi_cq_attr */
+#pragma GCC diagnostic pop
 
 #include <unistd.h> /* ssize_t */
 

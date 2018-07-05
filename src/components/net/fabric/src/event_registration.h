@@ -22,7 +22,10 @@
 #ifndef _EVENT_REGISTRATION_H_
 #define _EVENT_REGISTRATION_H_
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshadow"
 #include <rdma/fabric.h> /* fid_t */
+#pragma GCC diagnostic pop
 
 class event_consumer;
 class event_producer;

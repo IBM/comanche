@@ -22,7 +22,10 @@
  *
  */
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshadow"
 #include <rdma/fabric.h> /* fi_tostr */
+#pragma GCC diagnostic pop
 
 #include <mutex>
 #include <string>

@@ -23,8 +23,18 @@
 
 #include "fabric_check.h" /* CHECK_FI_ERR */
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#pragma GCC diagnostic ignored "-Wshadow"
 #include <rdma/fi_cm.h>
+#pragma GCC diagnostic pop
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#pragma GCC diagnostic ignored "-Wshadow"
 #include <rdma/fi_domain.h> /* fid_wait, fi_wait_open */
+#pragma GCC diagnostic pop
 
 /**
  * Fabric/RDMA-based network component

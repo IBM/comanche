@@ -17,8 +17,16 @@
 #ifndef _EVEiNT_PRODUCER_H_
 #define _EVEiNT_PRODUCER_H_
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshadow"
 #include <rdma/fabric.h> /* fid_t */
+#pragma GCC diagnostic pop
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#pragma GCC diagnostic ignored "-Wshadow"
 #include <rdma/fi_domain.h> /* fi_eq_cm_entry */
+#pragma GCC diagnostic pop
 
 #include <cstdint>
 #include <tuple>
