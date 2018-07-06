@@ -41,19 +41,20 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" AND NOT CMAKE_CXX_COMPILER_VERSION
   set(FLAG_DUMP_CLASS "-fdump-class-hierarchy")
 endif()
 
-# run 'make components' to trigger compoents build,
-# it's requireqd to wrap compoents targets with BOOTSTRAP_DEPS in the parent projects
-add_custom_target(components
-  ${CMAKE_COMMAND} -DBOOTSTRAP_DEPS=off ${CMAKE_SOURCE_DIR}
+# run 'make bootstrap' to  make comanche deps and core
+# then run 'make' to build components/tests
+add_custom_target(bootstrap
+  ${CMAKE_COMMAND} -DBOOTSTRAP_DEPS=on ${CMAKE_SOURCE_DIR}
   COMMAND make all
+  COMMAND ${CMAKE_COMMAND} -DBOOTSTRAP_DEPS=off ${CMAKE_SOURCE_DIR}
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   )
 
 # default make will only build core and dependencies
 if(BOOTSTRAP_DEPS)
   add_subdirectory(src/lib)
-  message("\n[IMPORTANT]: first run 'make' to build core and dependencies")
-  message("             then run 'make components' to build components")
+  message("\n[IMPORTANT]: first run 'make bootstrap' to build core and dependencies")
+  message("             then run 'make' to build components")
 
 else(BOOTSTRAP_DEPS)
   set(PMDK_PREFIX ${CONF_COMANCHE_HOME}/src/lib/pmdk)

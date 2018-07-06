@@ -56,8 +56,8 @@ script:
     mkdir build;
     cd build;
     cmake .. -DTBB_CI_BUILD=ON -DCOMANCHE_LIMIT_MAKE_JOB=2;
+    make bootstrap;
     make;
-    make components;
     make install"
 
 after_success:

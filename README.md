@@ -39,8 +39,8 @@ git submodule update --init --recursive
 mkdir build
 cd build
 cmake ..
-make   # build the core and dependencies
-make components # build comanche components & tests, etc
+make bootstrap  # build the core and dependencies
+make # build comanche components & tests, etc
 ```
 
 To override the install destination:
@@ -60,8 +60,8 @@ make install
 sudo ./load-module.sh
 sudo ./tools/nvme_setup.sh /* optionally attach ALL Nvme devices to VFIO */
 cmake .
+make bootstrap
 make
-make components
 ```
 
 * Build components in debug mode (e.g., with asan)
