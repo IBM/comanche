@@ -1,6 +1,8 @@
 #ifndef _TEST_SERVER_CONNECTION_H_
 #define _TEST_SERVER_CONNECTION_H_
 
+#include "delete_copy.h"
+
 namespace Component
 {
   class IFabric_server;
@@ -11,15 +13,8 @@ class server_connection
 {
   Component::IFabric_server_factory &_ep;
   Component::IFabric_server *_cnxn;
-  server_connection(server_connection &&);
-#if 1
-  /* These lines would not be necessary except that -Weffc++ does nor recognize that
-   * the presence of a move constructor suppresses generation of copy constructor and
-   * assignment operator
-   */
-  server_connection(const server_connection &) = delete;
-  server_connection &operator=(const server_connection &) = delete;
-#endif
+  server_connection(server_connection &&) noexcept;
+  DELETE_COPY(server_connection);
   static Component::IFabric_server *get_connection(Component::IFabric_server_factory &ep);
 public:
   Component::IFabric_server &cnxn() const { return *_cnxn; }

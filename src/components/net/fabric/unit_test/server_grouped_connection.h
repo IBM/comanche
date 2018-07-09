@@ -1,6 +1,8 @@
 #ifndef _TEST_SERVERC_GROUPED_CONNECTION_H_
 #define _TEST_SERVERC_GROUPED_CONNECTION_H_
 
+#include "delete_copy.h"
+
 namespace Component
 {
   class IFabric_server_grouped_factory;
@@ -15,8 +17,8 @@ class server_grouped_connection
   Component::IFabric_server_grouped *_cnxn;
   Component::IFabric_communicator *_comm;
 
-  server_grouped_connection(const server_grouped_connection &) = delete;
-  server_grouped_connection& operator=(const server_grouped_connection &) = delete;
+  server_grouped_connection(server_grouped_connection &&) noexcept;
+  DELETE_COPY(server_grouped_connection);
   static Component::IFabric_server_grouped *get_connection(Component::IFabric_server_grouped_factory &ep);
 
 public:
