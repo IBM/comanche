@@ -33,6 +33,10 @@ private:
 
   void uipc_channel_thread_entry(Core::UIPC::Channel * channel);
   void release_resources(pid_t client_id);
+
+  /* actually do the io */
+  status_t do_kv_write(size_t offset, size_t io_sz ){return S_OK;}
+  status_t do_kv_read(size_t offset, size_t io_sz){return S_OK;}
   
   struct Shared_memory_instance
   {

@@ -257,6 +257,9 @@ void Ustack::release_resources(pid_t client_id)
 }
 
 
+/*
+ * Actual messages are saved in the slab_ring, with in_queue and out_queue saving the refernces 
+ */
 void Ustack::post_reply(void * reply_msg)
 {
   /* connect pending shared memory segments */
@@ -295,7 +298,30 @@ void Ustack::uipc_channel_thread_entry(Core::UIPC::Channel * channel)
     PMAJOR("recv'ed UIPC msg:status=%d, type=%d (%s)",s, msg->type, msg->data);
     
     assert(msg);
-    msg->type = 101;
+    switch(msg->type){
+
+      case IO_TYPE_WRITE:
+        /*write to kvstore*/
+        if(S_OK == do_kv_write(msg->offset, msg->sz_bytes)){
+          msg->type = IO_WRITE_OK;
+        }
+        else 
+          msg->type = IO_WRITE_FAIL;
+        break;
+
+      case IO_TYPE_READ:
+        /*read from kvstore*/
+        if(S_OK == do_kv_read(msg->offset, msg->sz_bytes)){
+          msg->type = IO_READ_OK;
+        }
+        else 
+          msg->type = IO_READ_FAIL;
+        break;
+
+      default:
+        /*wrong io type*/
+        msg->type = IO_WRONG_TYPE;
+    }
     channel->send(msg);   
   }
   PLOG("worker (%p) exiting", channel);

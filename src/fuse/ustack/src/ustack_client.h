@@ -219,6 +219,23 @@ public:
    * the message will be like(fd, phys(buf), count)
    */
   size_t write(int fd, const void *buf, size_t count){
+    PLOG("[stack-write]: try to write from %p to fd %d, size %lu", buf, fd, count);
+    assert(_channel);
+    struct IO_command * cmd = static_cast<struct IO_command *>(_channel->alloc_msg());
+
+    cmd->type = IO_TYPE_WRITE;
+    cmd->offset = 0;
+
+    //strcpy(cmd->data, "hello");
+    _channel->send(cmd);
+
+    void * reply = nullptr;
+    while(_channel->recv(reply));
+    PLOG("waiting for IO channel reply...");
+    PLOG("get IO channel reply with type %d", static_cast<struct IO_command *>(reply)->type);
+    _channel->free_msg(reply);
+    PLOG("send command and got reply.");
+
     return 0;
   }
 

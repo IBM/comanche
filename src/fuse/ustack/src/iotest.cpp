@@ -30,7 +30,7 @@ int main()
   PINF("[test]: ustack client constructed");
 
   ustack.get_uipc_channel();
-  ustack.get_shared_memory(MB(4));
+  //ustack.get_shared_memory(MB(4));
 
   PINF("[test]: got channel and shared memory");
 
