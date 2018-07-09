@@ -12,13 +12,13 @@
 #   Nanomsg_LIBRARIES 
 
 find_path(Nanomsg_INCLUDE_DIR
-  PATHS ${CMAKE_INSTALL_PREFIX}/nanomsg/include
+  PATHS ${CMAKE_INSTALL_PREFIX}/include
   NAMES nanomsg/nn.h
 )
 
 # installed libraries
 find_library(LIB_Nanomsg
-  PATHS ${CMAKE_INSTALL_PREFIX}/nanomsg/lib/
+  PATHS ${CMAKE_INSTALL_PREFIX}/lib/
   NAMES nanomsg)
 
 include(FindPackageHandleStandardArgs)
