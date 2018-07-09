@@ -49,12 +49,6 @@
 Fabric_server_generic_factory::Fabric_server_generic_factory(Fabric &fabric_, event_producer &eq_, ::fi_info &info_, std::uint16_t port_)
   : _info(info_)
   , _fabric(fabric_)
-
-  /*
-   * "this" is context for events occuring on the passive endpoint.
-   * Not really necessary, as the expected event so far is a CONNREQ
-   * which is handled synchronously by server_control.
-   */
   , _pep(fabric_.make_fid_pep(_info, this))
   /* register as an event consumer */
   , _event_registration(eq_, *this, *_pep)
@@ -62,7 +56,8 @@ Fabric_server_generic_factory::Fabric_server_generic_factory(Fabric &fabric_, ev
   , _open{}
   , _end{}
   , _eq{eq_}
-  , _th{&Fabric_server_generic_factory::listen, this, port_, _end.fd_read(), std::ref(*_pep), get_name(&_pep->fid)}
+  , _th{&Fabric_server_generic_factory::listen, this, port_, _end.fd_read(), std::ref(*_pep)
+  }
 {
 }
 
@@ -166,11 +161,13 @@ void Fabric_server_generic_factory::listen(
   std::uint16_t port_
   , int end_fd_
   , ::fid_pep &pep_
-  , fabric_types::addr_ep_t pep_name_
 )
 {
   Fd_socket listen_fd(make_listener(port_));
+  /* The endpoint now has a name, which we can advertise. */
   CHECK_FI_ERR(::fi_listen(&pep_));
+
+  fabric_types::addr_ep_t pep_name(get_name(&_pep->fid));
 
   auto run = true;
   while ( run )
@@ -213,9 +210,8 @@ void Fabric_server_generic_factory::listen(
           Fd_control conn_fd(r);
           /* NOTE: Fd_control needs a timeout. */
 
-          /* we have a "control connection". Send the name of the server passive endpoint to the client */
-          /* send the name to the client */
-          conn_fd.send_name(pep_name_);
+          /* We have a "control connection". Send the name of the server passive endpoint to the client */
+          conn_fd.send_name(pep_name);
         }
         catch ( const std::exception &e )
         {

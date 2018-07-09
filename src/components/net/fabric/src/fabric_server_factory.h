@@ -20,6 +20,8 @@
 #include <api/fabric_itf.h> /* Component::IFabric_server_factory */
 #include "fabric_server_generic_factory.h"
 
+#include "delete_copy.h"
+
 #include <cstdint> /* uint16_t */
 
 struct fi_info;
@@ -34,8 +36,8 @@ class Fabric_server_factory
 public:
   /* Note: fi_info is not const because we reuse it when constructing the passize endpoint */
   explicit Fabric_server_factory(Fabric &fabric, event_producer &ev_pr, ::fi_info &info, std::uint16_t control_port);
-  Fabric_server_factory(const Fabric_server_factory &) = delete;
-  Fabric_server_factory& operator=(const Fabric_server_factory &) = delete;
+  DELETE_COPY(Fabric_server_factory);
+  Fabric_server_factory(Fabric_server_factory &&) noexcept;
   ~Fabric_server_factory();
 
   Component::IFabric_server* get_new_connection() override;

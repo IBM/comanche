@@ -22,6 +22,8 @@
 #ifndef _EVENT_REGISTRATION_H_
 #define _EVENT_REGISTRATION_H_
 
+#include "delete_copy.h"
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wshadow"
 #include <rdma/fabric.h> /* fid_t */
@@ -39,8 +41,8 @@ class event_registration
 public:
   explicit event_registration(event_producer &ev, event_consumer &ec, ::fid_ep &ep);
   explicit event_registration(event_producer &ev, event_consumer &ec, ::fid_pep &pep);
-  event_registration(const event_registration &) = delete;
-  event_registration& operator=(const event_registration &) = delete;
+  DELETE_COPY(event_registration);
+  event_registration(event_registration &&) noexcept;
   ~event_registration();
 };
 
