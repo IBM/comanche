@@ -43,8 +43,8 @@ int main()
   data = ustack.malloc(data_sz);
   assert(data);
 
-  int fd = open("./mymount/fio.blob",O_RDWR);
-  assert(fd);
+  int fd = open("./mymount/fio.blob",O_CREAT|O_RDWR, 0666);
+  assert(fd >0);
   PINF("[test]: file opened");
 
   // shall I use write instead of fwrite?

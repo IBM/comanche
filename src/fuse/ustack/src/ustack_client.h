@@ -223,6 +223,7 @@ public:
     assert(_channel);
     struct IO_command * cmd = static_cast<struct IO_command *>(_channel->alloc_msg());
 
+    // TODO: local cache of the fd->fuse-fd?
     cmd->type = IO_TYPE_WRITE;
     cmd->offset = 0;
 
