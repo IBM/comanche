@@ -12,13 +12,13 @@
 #   Flatbuffers_LIBRARIES 
 
 find_path(Flatbuffers_INCLUDE_DIR
-  PATHS ${CMAKE_INSTALL_PREFIX}/flatbuffers/include
+  PATHS ${CMAKE_INSTALL_PREFIX}/include
   NAMES flatbuffers/flatbuffers.h
 )
 
 # installed libraries
 find_library(LIB_Flatbuffers
-  PATHS ${CMAKE_INSTALL_PREFIX}/flatbuffers/lib/
+  PATHS ${CMAKE_INSTALL_PREFIX}/lib/
   NAMES flatbuffers)
 
 include(FindPackageHandleStandardArgs)
