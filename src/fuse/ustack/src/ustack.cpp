@@ -12,37 +12,6 @@ static IBlock_device * create_posix_block_device(const std::string path);
 
 Ustack::Ustack(const std::string endpoint) : IPC_server(endpoint)
 {
-  /* block device */
-#ifdef USE_NVME_DEVICE
-  #error foo
-  block = create_nvme_block_device("01:00.0");
-#else
-  block = create_posix_block_device("./block.dat");
-#endif
-
-  /* create blob store */
-  assert(block);
-
-  IBase * comp = load_component("libcomanche-blob.so",
-                                Component::blob_factory);
-  assert(comp);
-  IBlob_factory* fact = (IBlob_factory *) comp->query_interface(IBlob_factory::iid());
-  assert(fact);
-
-  store = fact->open("cocotheclown",
-                     "mydb",
-                     block,
-                     IBlob_factory::FLAGS_FORMAT); //IBlob_factory::FLAGS_FORMAT); /* pass in lower-level block device */
-  
-  fact->release_ref();
-  
-  PINF("Blob component loaded OK.");
-
-  /* test insertion */
-  IBlob::blob_t b = store->create("fio.blob",
-                                  "dwaddington",
-                                  ".jelly",
-                                  KB(32));
 
   _ipc_thread = new std::thread([=]() { ipc_start(); });
 }

@@ -24,7 +24,8 @@ int main()
 #endif
   
 #if 1
-  Ustack_client ustack("ipc:///tmp//ustack.ipc", 64);
+  //Ustack_client ustack("ipc:///tmp//ustack.ipc", 64);
+  Ustack_client ustack("ipc:///tmp//kv-ustack.ipc", 64);
 
   PINF("[test]: ustack client constructed");
 

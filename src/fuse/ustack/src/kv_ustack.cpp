@@ -37,14 +37,23 @@
 #include <unordered_map>
 
 #include <common/logging.h>
+#include <core/dpdk.h>
 #include <api/components.h>
 #include <api/kvstore_itf.h>
+
+#include "ustack.h"
 
 #define PMSTORE_PATH "libcomanche-pmstore.so"
 #define FILESTORE_PATH "libcomanche-storefile.so"
 #define NVMESTORE_PATH "libcomanche-nvmestore.so"
 
+
 using pool_t     = uint64_t;
+
+
+
+// ustack: the userspace zero copy communiation mechenism
+Ustack *_ustack;
 
 /*
  * private information for this mounting, this only modifies metadata
@@ -58,10 +67,13 @@ class Mount_info{
     Mount_info(const std::string owner, const std::string name, Component::IKVStore *store)
       :_owner(owner), _name(name), _store(store), _asigned_ids(0){
 
+
       _pool = _store->create_pool("/mnt/pmem0", "pool-kvfs-simple", MB(12));
+("");
     }
 
     ~Mount_info(){
+      delete _ustack;
     }
 
     Component::IKVStore *get_store(){
@@ -126,9 +138,10 @@ class Mount_info{
 
 
   private:
-      //ownership of this store
+      // ownership of this store
       std::string _owner;      
       std::string _name;
+
       Component::IKVStore *_store;
       pool_t _pool;
 
@@ -151,6 +164,7 @@ void * kvfs_simple_init (struct fuse_conn_info *conn){
 
   Component::IKVStore *store;
   Component::IBase * comp; 
+
 
   std::string component("filestore");
 
@@ -175,6 +189,12 @@ void * kvfs_simple_init (struct fuse_conn_info *conn){
   PINF("[%s]: fs loaded using component %s ", __func__, component.c_str());
 
   Mount_info * info = new Mount_info("owner", "name", store);
+
+  // init ustack and start accepting connections
+  std::string ustack_name = "ipc:///tmp//kv-ustack.ipc";
+  DPDK::eal_init(1024);
+
+  _ustack = new Ustack(ustack_name.c_str());
   return info;
 }
 
@@ -191,6 +211,7 @@ void kvfs_simple_destroy (void *user_data){
   store->release_ref();
   
   delete info;
+  delete _ustack;
 };
 
 

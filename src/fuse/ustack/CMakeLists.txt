@@ -25,14 +25,14 @@ add_custom_command(
 
 add_custom_target(proto ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/src/protocol_generated.h)
 
-set(USTACK_FS kv_ustack blob_ustack)
+set(USTACK_FS kv_ustack) #blob_ustack is deprecated
 foreach(fs ${USTACK_FS})
   # ustack fs built upon blobstore
   add_executable(${fs} src/${fs}.cpp src/ustack.cpp)
   add_dependencies(${fs} proto)
 
   target_link_libraries(${fs} ${ASAN_LIB} common comanche-core numa dl z ${Nanomsg_LIBRARIES} boost_system boost_program_options pthread ${TBB_LIBRARIES} fuse)
-endforeach(ustackfs IN blob_ustack)
+endforeach(fs ${USTACK_FS})
 
 # test for ustack client
 add_executable(iotest src/iotest.cpp)
