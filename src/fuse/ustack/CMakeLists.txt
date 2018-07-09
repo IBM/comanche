@@ -25,11 +25,16 @@ add_custom_command(
 
 add_custom_target(proto ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/src/protocol_generated.h)
 
-add_executable(fuse-ustack src/fuse_ustack.cpp src/ustack.cpp)
-add_dependencies(fuse-ustack proto)
+set(USTACK_FS kv_ustack blob_ustack)
+foreach(fs ${USTACK_FS})
+  # ustack fs built upon blobstore
+  add_executable(${fs} src/${fs}.cpp src/ustack.cpp)
+  add_dependencies(${fs} proto)
 
-target_link_libraries(fuse-ustack ${ASAN_LIB} common comanche-core numa dl z ${Nanomsg_LIBRARIES} boost_system boost_program_options pthread ${TBB_LIBRARIES} fuse)
+  target_link_libraries(${fs} ${ASAN_LIB} common comanche-core numa dl z ${Nanomsg_LIBRARIES} boost_system boost_program_options pthread ${TBB_LIBRARIES} fuse)
+endforeach(ustackfs IN blob_ustack)
 
+# test for ustack client
 add_executable(iotest src/iotest.cpp)
 target_link_libraries(iotest ${ASAN_LIB} common comanche-core numa dl z ${Nanomsg_LIBRARIES} boost_system boost_program_options pthread ${TBB_LIBRARIES} fuse)
 

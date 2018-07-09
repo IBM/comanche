@@ -26,14 +26,22 @@ int main()
 #if 1
   Ustack_client ustack("ipc:///tmp//ustack.ipc", 64);
 
+  PINF("[test]: ustack client constructed");
+
   ustack.get_uipc_channel();
   ustack.get_shared_memory(MB(4));
+
+  PINF("[test]: got channel and shared memory");
+
   ustack.send_command();
 
-  FILE * fp = fopen("./fs/fio.blob","w+");
+  PINF("[test]: command sent");
+
+  FILE * fp = fopen("./mymount/fio.blob","w+");
   if(fp==NULL) {
     perror("error:");
   }
+  PINF("[test]: file opened");
 
   //  size_t rc = fread(buf, 4096, 1, fp);
   
@@ -46,7 +54,8 @@ int main()
   #endif
   
   fclose(fp);
+  PINF("[test]: file closed");
 
-  #endif
+#endif
   return 0;
 }

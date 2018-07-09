@@ -10,6 +10,11 @@
 #include "protocol_generated.h"
 #include "protocol_channel.h"
 
+/*
+ * IO Memory mapper for client.
+ *
+ * Client maps the iomem to its virtual space after get reply of IO_buffer_request
+ */
 class IO_memory_allocator : private Core::Region_allocator
 {
 public:
@@ -56,6 +61,11 @@ private:
 class Ustack_client: public Core::IPC_client
 {
 public:
+  /*
+   * Construct
+   * 
+   * io memory will be allocated in server and mapped locally
+   */
   Ustack_client(const std::string endpoint, size_t n_iopages = 64) :
     Core::IPC_client(endpoint),
     _iomem_allocator(get_io_memory(n_iopages),n_iopages * PAGE_SIZE)
@@ -73,6 +83,8 @@ public:
 
     if(_channel)
       delete _channel;
+
+    PLOG("UStack deallocated");
   }
 
   void send_shutdown() {
