@@ -212,6 +212,40 @@ public:
     PLOG("send command and got reply.");
   }
 
+  /*
+   * file write and read
+   * TODO: intercept posix ops
+   *
+   * the message will be like(fd, phys(buf), count)
+   */
+  size_t write(int fd, const void *buf, size_t count){
+    return 0;
+  }
+
+  size_t read(int fd, void *buf, size_t count){
+    return 0;
+  }
+
+  /* 
+   * passthrough memory management
+   **/
+  void * malloc(size_t n_bytes) {
+    return _iomem_allocator.malloc(n_bytes);
+  }
+
+  void free(void * ptr) {
+    return _iomem_allocator.free(ptr);
+  }
+
+  void * get_virt(addr_t paddr) {
+    return _iomem_allocator.get_virt(paddr);
+  }
+
+  addr_t get_phys(void * vaddr) {
+    return _iomem_allocator.get_phys(vaddr);
+  }
+
+
 private:
   IO_memory_allocator                      _iomem_allocator;
   std::vector<Core::UIPC::Shared_memory *> _shmem;

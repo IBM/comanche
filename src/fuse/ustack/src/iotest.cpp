@@ -34,16 +34,21 @@ int main()
 
   PINF("[test]: got channel and shared memory");
 
-  ustack.send_command();
+  //ustack.send_command();
 
-  PINF("[test]: command sent");
+ 
+  void  * data;
+  constexpr size_t data_sz = 4096;
 
-  FILE * fp = fopen("./mymount/fio.blob","w+");
-  if(fp==NULL) {
-    perror("error:");
-  }
+  data = ustack.malloc(data_sz);
+  assert(data);
+
+  int fd = open("./mymount/fio.blob",O_RDWR);
+  assert(fd);
   PINF("[test]: file opened");
 
+  // shall I use write instead of fwrite?
+  ustack.write(fd, data, data_sz);
   //  size_t rc = fread(buf, 4096, 1, fp);
   
   #if 0
@@ -54,7 +59,7 @@ int main()
   }
   #endif
   
-  fclose(fp);
+  close(fd);
   PINF("[test]: file closed");
 
 #endif
