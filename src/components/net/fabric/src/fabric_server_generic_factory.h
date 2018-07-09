@@ -19,8 +19,8 @@
 
 #include "event_consumer.h"
 
+#include "delete_copy.h"
 #include "event_registration.h"
-#include "fabric_types.h" /* addr_ep_t */
 #include "fd_pair.h"
 #include "fd_socket.h"
 #include "pending_cnxns.h"
@@ -54,7 +54,7 @@ class Fabric_server_generic_factory
   std::thread _th;
 
   static Fd_socket make_listener(std::uint16_t port);
-  void listen(std::uint16_t port, int end_fd, ::fid_pep &pep, fabric_types::addr_ep_t name);
+  void listen(std::uint16_t port, int end_fd, ::fid_pep &pep);
 
   virtual std::shared_ptr<Fabric_memory_control> new_server(Fabric &fabric, event_producer &eq, ::fi_info &info) = 0;
 protected:
@@ -62,8 +62,8 @@ protected:
 public:
   /* Note: fi_info is not const because we reuse it when constructing the passize endpoint */
   explicit Fabric_server_generic_factory(Fabric &fabric, event_producer &ev_pr, ::fi_info &info, std::uint16_t control_port);
-  Fabric_server_generic_factory(const Fabric_server_generic_factory &) = delete;
-  Fabric_server_generic_factory& operator=(const Fabric_server_generic_factory &) = delete;
+  DELETE_COPY(Fabric_server_generic_factory);
+  Fabric_server_generic_factory(Fabric_server_generic_factory &&) noexcept;
 
   Fabric_memory_control* get_new_connection();
 

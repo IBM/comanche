@@ -17,18 +17,19 @@
 #ifndef _FD_SOCKET_H_
 #define _FD_SOCKET_H_
 
+#include "delete_copy.h"
+
 #include <cstddef> /* size_t */
 
 class Fd_socket
 {
   int _fd;
   void close() noexcept;
+  DELETE_COPY(Fd_socket);
 public:
   Fd_socket();
   explicit Fd_socket(int fd_);
   ~Fd_socket();
-  Fd_socket(const Fd_socket &) = delete;
-  Fd_socket &operator=(const Fd_socket &) = delete;
   Fd_socket(Fd_socket &&) noexcept;
   Fd_socket &operator=(Fd_socket &&) noexcept;
   void send(const void *buf, std::size_t size) const;
