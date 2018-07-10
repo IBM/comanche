@@ -233,6 +233,8 @@ int kvfs_simple_create (const char *path, mode_t mode, struct fuse_file_info * f
 
   Mount_info *info = reinterpret_cast<Mount_info *>(fuse_get_context()->private_data);
 
+  //unsigned long ino = (fuse_get_context()->fuse->ctr); // this require lowlevel api
+
   handle = info->alloc_id();
   assert(handle);
 

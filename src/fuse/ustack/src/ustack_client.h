@@ -10,6 +10,7 @@
 #include "protocol_generated.h"
 #include "protocol_channel.h"
 
+
 /*
  * IO Memory mapper for client.
  *
@@ -17,6 +18,8 @@
  */
 class IO_memory_allocator : private Core::Region_allocator
 {
+constexpr std::string MOUNT_ROOT="/home/fengggli/comanche/build/mymount";
+
 public:
   IO_memory_allocator(addr_t phys_base, size_t n_bytes) :
     _phys_base(phys_base),    
@@ -212,6 +215,56 @@ public:
     PLOG("send command and got reply.");
   }
 
+  /********************************************
+   * File operations
+   *
+   * parameters are consistent with posix calls. 
+   *********************************************/
+
+  /*
+   * check a path is in under the mount dir or not
+   *
+   * @return 1 if true.
+   */
+   int _is_ustack_path(const char *pathname, std::string &fullpath){
+     constexpr size_t MAX_PATH_LENGTH = 160;
+     std::string fullpath;
+     char cur_dir[MAX_PATH_LENGTH];
+
+     if(pathname[0] == '/'){
+       fullpath = pathname;
+     }
+     else{
+       getcwd(cur_dir, MAX_PATH_LENGTH);
+
+       if(strncmp(pathname, "./", 2);
+         fullpath = cur_dir + "/" + std::string(pathname+2);
+       else
+         fullpath = cur_dir + "/" + pathname;
+
+     }
+
+     return !strncmp(fullpath.c_str(), MOUNT_ROOT.c_str(), MOUNT_ROOT.size())
+   }
+
+   int open(const char *pathname, int flags, mode_t mode){
+     
+     // full path to fd
+     int fd = -1;
+     std::string fullpath;
+     
+
+
+     // fall into the mountdir?
+     fd = ::open(pathname, flags, mode);
+     
+     if( _is_ustack_path(pathname, fullpath) && fd >0){
+       PLOG("{ustack_client]: register file %s with fd %d", fullpath.c_str(), fd);
+
+       ustack_fds.insert(fd);
+     }
+   };
+
   /*
    * file write and read
    * TODO: intercept posix ops
@@ -219,34 +272,46 @@ public:
    * the message will be like(fd, phys(buf), count)
    */
   size_t write(int fd, const void *buf, size_t count){
-    PLOG("[stack-write]: try to write from %p to fd %d, size %lu", buf, fd, count);
-    assert(_channel);
-    struct IO_command * cmd = static_cast<struct IO_command *>(_channel->alloc_msg());
+    if(ustack_fds.find(fd)){
+      /* ustack tracked file */
+      PLOG("[stack-write]: try to write from %p to fd %d, size %lu", buf, fd, count);
+      assert(_channel);
+      struct IO_command * cmd = static_cast<struct IO_command *>(_channel->alloc_msg());
 
-    // TODO: local cache of the fd->fuse-fd?
-    cmd->type = IO_TYPE_WRITE;
-    cmd->offset = 0;
+      // TODO: local cache of the fd->fuse-fd?
+      cmd->type = IO_TYPE_WRITE;
+      cmd->offset = 0;
 
-    //strcpy(cmd->data, "hello");
-    _channel->send(cmd);
+      //strcpy(cmd->data, "hello");
+      _channel->send(cmd);
 
-    void * reply = nullptr;
-    while(_channel->recv(reply));
-    PLOG("waiting for IO channel reply...");
-    PLOG("get IO channel reply with type %d", static_cast<struct IO_command *>(reply)->type);
-    _channel->free_msg(reply);
-    PLOG("send command and got reply.");
+      void * reply = nullptr;
+      while(_channel->recv(reply));
+      PLOG("waiting for IO channel reply...");
+      PLOG("get IO channel reply with type %d", static_cast<struct IO_command *>(reply)->type);
+      _channel->free_msg(reply);
+      PLOG("send command and got reply.");
 
-    return 0;
+      return 0;
+    }
+    else{
+      /* regular file */
+      return ::write(fd, buf, count);
+    }
+
   }
 
   size_t read(int fd, void *buf, size_t count){
     return 0;
   }
 
-  /* 
-   * passthrough memory management
-   **/
+  int close(int fd){
+    return ::close(fd);
+  };
+
+  /******************************** 
+   * Memory management
+   ********************************/
   void * malloc(size_t n_bytes) {
     return _iomem_allocator.malloc(n_bytes);
   }
@@ -268,6 +333,7 @@ private:
   IO_memory_allocator                      _iomem_allocator;
   std::vector<Core::UIPC::Shared_memory *> _shmem;
   Core::UIPC::Channel *                    _channel = nullptr;
+  std::unorustack_fds;
 };
 
 

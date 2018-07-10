@@ -35,7 +35,18 @@ private:
   void release_resources(pid_t client_id);
 
   /* actually do the io */
-  status_t do_kv_write(size_t offset, size_t io_sz ){return S_OK;}
+  // will be called through slow path
+  // status_t do_kv_open();
+  // status_t do_kv_close();
+
+  status_t do_kv_write(size_t offset, size_t io_sz ){
+    //get the virtual address
+    
+    //get the current fd -> fuse-fd
+    
+    return S_OK;
+
+  }
   status_t do_kv_read(size_t offset, size_t io_sz){return S_OK;}
   
   struct Shared_memory_instance
