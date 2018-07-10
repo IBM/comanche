@@ -7,6 +7,7 @@
 #include <api/kvstore_itf.h>
 #include <common/city.h>
 #include <common/exceptions.h>
+#include <common/utils.h>
 #include <boost/filesystem.hpp>
 #include <sys/stat.h>
 #include <tbb/concurrent_hash_map.h>
@@ -14,6 +15,7 @@
 
 #include "file_store.h"
 
+//#define FORCE_FLUSH  // enable this for GPU testing
 using namespace Component;
 
 namespace fs=boost::filesystem;
@@ -126,6 +128,10 @@ int Pool_handle::get_direct(const std::string key,
   ssize_t rs = read(fd, out_value, out_value_len);
   if(rs != out_value_len)
     throw General_exception("file read failed");
+
+#ifdef FORCE_FLUSH
+  clflush_area(out_value, out_value_len);
+#endif
 
   close(fd);
   return S_OK;
