@@ -64,7 +64,8 @@ public:
    * @param blk_alloc Block allocator
    */
   NVME_store(const std::string owner,
-             const std::string name);
+             const std::string name,
+             std::string pci);
 
   /** 
    * Destructor
@@ -196,7 +197,7 @@ private:
   /*
    * init the block device
    */
-  void init_block_device();
+  void init_block_device(std::string pci);
 
   /*
    * open an allocator for block device
@@ -229,10 +230,11 @@ public:
   }
 
   virtual Component::IKVStore * create(const std::string owner,
-                                       const std::string name)
+                                       const std::string name,
+                                       std::string pci)
                                        override
   {    
-    Component::IKVStore * obj = static_cast<Component::IKVStore*>(new NVME_store(owner, name));   
+    Component::IKVStore * obj = static_cast<Component::IKVStore*>(new NVME_store(owner, name,pci));   
     obj->add_ref();
     return obj;
   }

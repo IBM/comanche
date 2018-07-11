@@ -129,11 +129,12 @@ static int check_pool(const char * path)
 
 
 NVME_store::NVME_store(const std::string owner,
-                       const std::string name)
+                       const std::string name,
+                       std::string pci)
                        {
   PLOG("PMEMOBJ_MAX_ALLOC_SIZE: %lu MB", REDUCE_MB(PMEMOBJ_MAX_ALLOC_SIZE));
 
-  init_block_device();
+  init_block_device(pci);
   init_block_allocator();
 
   PINF("NVME_store: using block device %p with allocator %p", _blk_dev, _blk_alloc);

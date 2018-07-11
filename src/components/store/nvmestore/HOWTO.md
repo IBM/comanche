@@ -8,6 +8,14 @@ Use the following parameter, huge page is for pmdk, memmap is for the pmem, inte
 hugepagesz=2M hugepages=4096 intel_iommu=on text memmap=2G!4G
 ```
 
+```
+mkdir /mnt/huge
+mount -t hugetlbfs nodev /mnt/huge
+
+```
+
+rerun tool/nvmesetup.sh
+
 Enable the fake pmem
 --------------------
 ```
@@ -28,4 +36,9 @@ Add those two lines to /et/security/limits.conf:
   fengggli hard memlock unlimited 
   fengggli soft memlock unlimited
 ```
+
+Note
+---------------
+
+you can se the clear_pmempool.sh  to clear all data from pmem
 

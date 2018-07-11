@@ -32,7 +32,13 @@ using namespace Component;
 
 static Component::IKVStore::pool_t pool;
 
+struct
+{
+  std::string pci;
+} opt;
+
 namespace {
+
 
 // The fixture for testing class Foo.
 class KVStore_test : public ::testing::Test {
@@ -79,7 +85,7 @@ TEST_F(KVStore_test, Instantiate)
   IKVStore_factory * fact = (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
 
   // this nvme-store use a block device and a block allocator
-  _kvstore = fact->create("owner","name");
+  _kvstore = fact->create("owner","name", opt.pci.c_str());
   
   fact->release_ref();
 }
@@ -267,6 +273,13 @@ TEST_F(KVStore_test, ReleaseStore)
 } // namespace
 
 int main(int argc, char **argv) {
+  if(argc!=2) {
+    PINF("test-nvmestore <pci-address>");
+    return 0;
+  }
+
+  opt.pci = argv[1];
+
   
   ::testing::InitGoogleTest(&argc, argv);
   auto r = RUN_ALL_TESTS();

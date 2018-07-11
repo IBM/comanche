@@ -31,7 +31,7 @@
 
 using namespace Component;
 
-void NVME_store:: init_block_device()
+void NVME_store:: init_block_device(std::string pci)
   {
     IBlock_device *block;
 
@@ -49,7 +49,7 @@ void NVME_store:: init_block_device()
     cpu_mask_t cpus;
     cpus.add_core(2);
 
-    block = fact->create("86:00.0", &cpus);
+    block = fact->create(pci.c_str(), &cpus);
 
 
     assert(block);
