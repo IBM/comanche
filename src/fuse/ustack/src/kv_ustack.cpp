@@ -42,6 +42,7 @@
 #include <api/kvstore_itf.h>
 
 #include "ustack.h"
+#include "ustack_client_ioctl.h"
 
 #define PMSTORE_PATH "libcomanche-pmstore.so"
 #define FILESTORE_PATH "libcomanche-storefile.so"
@@ -378,6 +379,25 @@ int (kvfs_simple_write) (const char *path, const char *buf, size_t size, off_t o
   return size;
 }
 
+static int kvfs_simple_ioctl(const char *path, int cmd, void *arg,
+		      struct fuse_file_info *fi, unsigned int flags, void *data)
+{
+	(void) arg;
+
+	/*if (fioc_file_type(path) != FIOC_FILE)*/
+		/*return -EINVAL;*/
+
+	if (flags & FUSE_IOCTL_COMPAT)
+		return -ENOSYS;
+
+	switch (cmd) {
+	case USTACK_GET_FUSE_FH:
+		*(uint64_t *)data = fi->fh;
+		return 0;
+	}
+
+	return -EINVAL;
+}
 int main(int argc, char *argv[])
 {
   static struct fuse_operations oper;
@@ -390,6 +410,7 @@ int main(int argc, char *argv[])
   oper.init = kvfs_simple_init;
   oper.create = kvfs_simple_create;
   oper.destroy = kvfs_simple_destroy;
+  oper.ioctl = kvfs_simple_ioctl;
 
 	return fuse_main(argc, argv, &oper, NULL);
 }

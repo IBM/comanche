@@ -302,7 +302,7 @@ void Ustack::uipc_channel_thread_entry(Core::UIPC::Channel * channel)
 
       case IO_TYPE_WRITE:
         /*write to kvstore*/
-        if(S_OK == do_kv_write(msg->offset, msg->sz_bytes)){
+        if(S_OK == do_kv_write(msg->fuse_fh, msg->offset, msg->sz_bytes)){
           msg->type = IO_WRITE_OK;
         }
         else 
@@ -311,7 +311,7 @@ void Ustack::uipc_channel_thread_entry(Core::UIPC::Channel * channel)
 
       case IO_TYPE_READ:
         /*read from kvstore*/
-        if(S_OK == do_kv_read(msg->offset, msg->sz_bytes)){
+        if(S_OK == do_kv_read(msg->fuse_fh, msg->offset, msg->sz_bytes)){
           msg->type = IO_READ_OK;
         }
         else 

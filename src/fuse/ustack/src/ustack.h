@@ -39,15 +39,18 @@ private:
   // status_t do_kv_open();
   // status_t do_kv_close();
 
-  status_t do_kv_write(size_t offset, size_t io_sz ){
-    //get the virtual address
-    
-    //get the current fd -> fuse-fd
+  status_t do_kv_write(uint64_t fuse_fh, size_t offset, size_t io_sz ){
+    PLOG("[%s]: fuse_fh=%lu, offset=%lu, io_sz=%lu", __func__, fuse_fh, offset, io_sz);
+    //get the virtual address and issue the io
     
     return S_OK;
-
   }
-  status_t do_kv_read(size_t offset, size_t io_sz){return S_OK;}
+
+  status_t do_kv_read(uint64_t fuse_fh, size_t offset, size_t io_sz){
+    PLOG("[%s]: fuse_fh=%lu, offset=%lu, io_sz=%lu", __func__, fuse_fh, offset, io_sz);
+
+    return S_OK;
+  }
   
   struct Shared_memory_instance
   {

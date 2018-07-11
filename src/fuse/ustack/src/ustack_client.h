@@ -1,12 +1,16 @@
 #ifndef __USTACK_CLIENT_H__
 #define __USTACK_CLIENT_H__
 
+
+
 #include <assert.h>
+#include <unordered_map>
 #include <core/ipc.h>
 #include <core/uipc.h>
 #include <core/avl_malloc.h>
 #include <core/xms.h>
 
+#include "ustack_client_ioctl.h"
 #include "protocol_generated.h"
 #include "protocol_channel.h"
 
@@ -18,7 +22,7 @@
  */
 class IO_memory_allocator : private Core::Region_allocator
 {
-constexpr std::string MOUNT_ROOT="/home/fengggli/comanche/build/mymount";
+   std::string MOUNT_ROOT="/home/fengggli/comanche/build/mymount";
 
 public:
   IO_memory_allocator(addr_t phys_base, size_t n_bytes) :
@@ -226,6 +230,7 @@ public:
    *
    * @return 1 if true.
    */
+#if 0
    int _is_ustack_path(const char *pathname, std::string &fullpath){
      constexpr size_t MAX_PATH_LENGTH = 160;
      std::string fullpath;
@@ -246,23 +251,26 @@ public:
 
      return !strncmp(fullpath.c_str(), MOUNT_ROOT.c_str(), MOUNT_ROOT.size())
    }
+#endif
 
    int open(const char *pathname, int flags, mode_t mode){
      
      // full path to fd
      int fd = -1;
      std::string fullpath;
-     
-
 
      // fall into the mountdir?
      fd = ::open(pathname, flags, mode);
      
-     if( _is_ustack_path(pathname, fullpath) && fd >0){
-       PLOG("{ustack_client]: register file %s with fd %d", fullpath.c_str(), fd);
-
-       ustack_fds.insert(fd);
+     //if( _is_ustack_path(pathname, fullpath) && fd >0){
+     uint64_t fuse_fh = 0;
+     if(0 == ioctl(fd, USTACK_GET_FUSE_FH, &fuse_fh)){
+       PLOG("{ustack_client]: register file %s with fd %d, fuse_fh = %lu", fullpath.c_str(), fd, fuse_fh);
+       assert(fuse_fh > 0);
+       _fd_map.insert(std::pair<int, uint64_t>(fd, fuse_fh));
      }
+
+     return fd;
    };
 
   /*
@@ -272,15 +280,19 @@ public:
    * the message will be like(fd, phys(buf), count)
    */
   size_t write(int fd, const void *buf, size_t count){
-    if(ustack_fds.find(fd)){
+    auto search = _fd_map.find(fd);
+    if(search != _fd_map.end()){
+      uint64_t fuse_fh = search->second;
       /* ustack tracked file */
-      PLOG("[stack-write]: try to write from %p to fd %d, size %lu", buf, fd, count);
+      PLOG("[stack-write]: try to write from %p to fuse_fh %lu, size %lu", buf, fuse_fh, count);
       assert(_channel);
       struct IO_command * cmd = static_cast<struct IO_command *>(_channel->alloc_msg());
 
       // TODO: local cache of the fd->fuse-fd?
+      cmd->fuse_fh = fuse_fh;
       cmd->type = IO_TYPE_WRITE;
       cmd->offset = 0;
+      cmd->sz_bytes = count;
 
       //strcpy(cmd->data, "hello");
       _channel->send(cmd);
@@ -333,7 +345,7 @@ private:
   IO_memory_allocator                      _iomem_allocator;
   std::vector<Core::UIPC::Shared_memory *> _shmem;
   Core::UIPC::Channel *                    _channel = nullptr;
-  std::unorustack_fds;
+  std::unordered_map<int, uint64_t> _fd_map; //map from filesystem fd to fuse daemon fh
 };
 
 

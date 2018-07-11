@@ -43,7 +43,7 @@ int main()
   data = ustack.malloc(data_sz);
   assert(data);
 
-  int fd = ustack.open("./mymount/fio.blob",O_CREAT|O_RDWR, 0666);
+  int fd = ustack.open("./mymount/test.dat",O_CREAT|O_RDWR, 0666);
   assert(fd >0);
   PINF("[test]: file opened");
 

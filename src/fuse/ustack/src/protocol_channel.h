@@ -22,7 +22,8 @@ struct IO_command
   uint8_t       flags;
   uint16_t      offset; // this corresponds to the actual physical addr
   uint16_t      sz_bytes; // requested  io size
-  char          data[122];
+  uint64_t      fuse_fh;
+  char          data[58];
 }
 __attribute__((packed));
 
