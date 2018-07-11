@@ -34,7 +34,6 @@
 #include <errno.h>
 #include <fcntl.h>
 
-#include <unordered_map>
 
 #include <common/logging.h>
 #include <core/dpdk.h>
@@ -43,113 +42,19 @@
 
 #include "ustack.h"
 #include "ustack_client_ioctl.h"
+#include "kv_ustack_info.h"
 
 #define PMSTORE_PATH "libcomanche-pmstore.so"
 #define FILESTORE_PATH "libcomanche-storefile.so"
 #define NVMESTORE_PATH "libcomanche-nvmestore.so"
 
 
-using pool_t     = uint64_t;
 
 
 
 // ustack: the userspace zero copy communiation mechenism
 Ustack *_ustack;
 
-/*
- * private information for this mounting, this only modifies metadata
- */
-class Mount_info{
-  public:
-    struct File_meta{
-      size_t size;
-    };
-
-    Mount_info(const std::string owner, const std::string name, Component::IKVStore *store)
-      :_owner(owner), _name(name), _store(store), _asigned_ids(0){
-
-
-      _pool = _store->create_pool("/mnt/pmem0", "pool-kvfs-simple", MB(12));
-("");
-    }
-
-    ~Mount_info(){
-      delete _ustack;
-    }
-
-    Component::IKVStore *get_store(){
-      return _store;
-    }
-
-    std::unordered_map<uint64_t, std::string> get_all_items(){
-      return _items;
-    }; 
-
-    /*
-     * get a available file id
-     */
-    uint64_t alloc_id(){
-      return ++_asigned_ids;
-    }
-
-    uint64_t insert_item(uint64_t id, std::string key){
-      _items.insert(std::pair<uint64_t, std::string>(id, key));
-    }
-
-    /*
-     * look up this file based on the filename
-     *
-     * @return 0 if not found
-     */
-    uint64_t get_id(std::string item){
-      for(const auto & i : _items){
-        if(i.second == item)
-          return i.first;
-      }
-      return 0;
-    }
-
-    /* get the file size 
-     */
-    size_t get_item_size(uint64_t id){
-      return _file_meta[id].size;
-    }
-
-    void set_item_size(uint64_t id, size_t size){
-      _file_meta[id].size = size;
-    }
-
-    status_t write(uint64_t id, const void * value, size_t size){
-      const std::string key = _items[id];
-      return _store->put(_pool, key, value, size);
-    }
-
-    status_t read(uint64_t id, void * value, size_t size){
-      const std::string key = _items[id];
-      void * tmp;
-      size_t rd_size;
-      // tmp will be redirected
-      if(S_OK != _store->get(_pool, key, tmp, rd_size)){
-        return -1;
-      }
-      memcpy(value, tmp, size);
-      free(tmp);
-      return S_OK;
-    }
-
-
-  private:
-      // ownership of this store
-      std::string _owner;      
-      std::string _name;
-
-      Component::IKVStore *_store;
-      pool_t _pool;
-
-      std::unordered_map<uint64_t, std::string> _items; // file id and key TODO: put the key to the File_meta!
-      std::unordered_map<uint64_t, File_meta> _file_meta;  
-      std::atomic<uint64_t> _asigned_ids; //current assigned ids, to identify each file
-};
 
 /**
  * Initialize filesystem
@@ -189,13 +94,13 @@ void * kvfs_simple_init (struct fuse_conn_info *conn){
 
   PINF("[%s]: fs loaded using component %s ", __func__, component.c_str());
 
-  Mount_info * info = new Mount_info("owner", "name", store);
+  KV_ustack_info * info = new KV_ustack_info("owner", "name", store);
 
   // init ustack and start accepting connections
   std::string ustack_name = "ipc:///tmp//kv-ustack.ipc";
   DPDK::eal_init(1024);
 
-  _ustack = new Ustack(ustack_name.c_str());
+  _ustack = new Ustack(ustack_name.c_str(), info);
   return info;
 }
 
@@ -206,7 +111,7 @@ void * kvfs_simple_init (struct fuse_conn_info *conn){
  * fuse-api: alled on filesystem exit.
  */
 void kvfs_simple_destroy (void *user_data){
-  Mount_info *info = reinterpret_cast<Mount_info *>(user_data);
+  KV_ustack_info *info = reinterpret_cast<KV_ustack_info *>(user_data);
 
   Component::IKVStore *store = info->get_store();
   store->release_ref();
@@ -232,7 +137,7 @@ int kvfs_simple_create (const char *path, mode_t mode, struct fuse_file_info * f
   uint64_t handle;
   //PLOG("create: %s", filename);
 
-  Mount_info *info = reinterpret_cast<Mount_info *>(fuse_get_context()->private_data);
+  KV_ustack_info *info = reinterpret_cast<KV_ustack_info *>(fuse_get_context()->private_data);
 
   //unsigned long ino = (fuse_get_context()->fuse->ctr); // this require lowlevel api
 
@@ -265,7 +170,7 @@ static int kvfs_simple_getattr(const char *path, struct stat *stbuf)
 {
 	int res = 0;
 
-  Mount_info *info = reinterpret_cast<Mount_info *>(fuse_get_context()->private_data);
+  KV_ustack_info *info = reinterpret_cast<KV_ustack_info *>(fuse_get_context()->private_data);
 
   uint64_t handle = info->get_id(path+1);
 
@@ -293,7 +198,7 @@ static int kvfs_simple_readdir(const char *path, void *buf, fuse_fill_dir_t fill
 	(void) offset;
 	(void) fi;
 
-  Mount_info *info = reinterpret_cast<Mount_info *>(fuse_get_context()->private_data);
+  KV_ustack_info *info = reinterpret_cast<KV_ustack_info *>(fuse_get_context()->private_data);
 
   filler(buf, ".", NULL, 0);
   filler(buf, "..", NULL, 0);
@@ -320,7 +225,7 @@ static int kvfs_simple_open(const char *path, struct fuse_file_info *fi)
   uint64_t handle;
   //PLOG("create: %s", filename);
 
-  Mount_info *info = reinterpret_cast<Mount_info *>(fuse_get_context()->private_data);
+  KV_ustack_info *info = reinterpret_cast<KV_ustack_info *>(fuse_get_context()->private_data);
 
 
   //TODO: check access: return -EACCES;
@@ -344,7 +249,7 @@ static int kvfs_simple_read(const char *path, char *buf, size_t size, off_t offs
 	(void) fi;
 
 
-  Mount_info *info = reinterpret_cast<Mount_info *>(fuse_get_context()->private_data);
+  KV_ustack_info *info = reinterpret_cast<KV_ustack_info *>(fuse_get_context()->private_data);
   if(S_OK!=info->read(fi->fh, buf , size)){
     PERR("[%s]: read error", __func__);
     return -1;
@@ -370,7 +275,7 @@ int (kvfs_simple_write) (const char *path, const char *buf, size_t size, off_t o
 
   PINF("[%s]: write content %s to path %s", __func__,buf, path);
 
-  Mount_info *info = reinterpret_cast<Mount_info *>(fuse_get_context()->private_data);
+  KV_ustack_info *info = reinterpret_cast<KV_ustack_info *>(fuse_get_context()->private_data);
 
   id = fi->fh;
   info->write(id, buf, size);

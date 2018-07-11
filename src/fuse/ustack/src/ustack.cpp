@@ -10,11 +10,12 @@ using namespace Component;
 static IBlock_device * create_nvme_block_device(const std::string device_name);
 static IBlock_device * create_posix_block_device(const std::string path);
 
-Ustack::Ustack(const std::string endpoint) : IPC_server(endpoint)
+Ustack::Ustack(const std::string endpoint, KV_ustack_info *info ) : IPC_server(endpoint), _kv_ustack_info(info)
 {
 
   _ipc_thread = new std::thread([=]() { ipc_start(); });
 }
+
 
 Ustack::~Ustack()
 {

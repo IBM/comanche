@@ -37,10 +37,9 @@ int main()
   //ustack.send_command();
 
  
-  void  * data;
-  constexpr size_t data_sz = 4096;
+  const char data[] = "helloworld";
+  size_t data_sz = strlen(data) +1; //11 byte
 
-  data = ustack.malloc(data_sz);
   assert(data);
 
   int fd = ustack.open("./mymount/test.dat",O_CREAT|O_RDWR, 0666);

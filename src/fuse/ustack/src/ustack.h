@@ -12,10 +12,11 @@
 #include <api/blob_itf.h>
 
 #include "protocol_channel.h"
+#include "kv_ustack_info.h"
 
 class Ustack : public Core::IPC_server {
 public:
-  Ustack(const std::string endpoint);
+  Ustack(const std::string endpoint, KV_ustack_info * kv_ustack_info);
   ~Ustack();
 public:
   Component::IBlock_device * block = nullptr;
@@ -42,6 +43,13 @@ private:
   status_t do_kv_write(uint64_t fuse_fh, size_t offset, size_t io_sz ){
     PLOG("[%s]: fuse_fh=%lu, offset=%lu, io_sz=%lu", __func__, fuse_fh, offset, io_sz);
     //get the virtual address and issue the io
+    char *buf; //the mapped io mem
+
+    //TODO: check file 
+
+    _kv_ustack_info->write(fuse_fh, buf, io_sz);
+
+    _kv_ustack_info->set_item_size(fuse_fh, io_sz);
     
     return S_OK;
   }
@@ -113,6 +121,8 @@ private:
   std::map<pid_t, std::vector<Shared_memory_instance *>> _shmem_map;
   std::map<pid_t, Channel_instance *>                    _channel_map;
   std::map<pid_t, std::vector<IO_memory_instance*>>      _iomem_map;
+
+  KV_ustack_info * _kv_ustack_info; // where ustack will invoke file opers
 };
 
 
