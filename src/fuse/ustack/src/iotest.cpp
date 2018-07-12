@@ -41,7 +41,7 @@ int main()
   size_t data_sz = 4096; 
   data = (char *)ustack.malloc(data_sz);
 
-  strcpy(data, "helloworld");
+  strcpy(data, "helloworld, this is written using ustack writes");
 
   assert(data);
 

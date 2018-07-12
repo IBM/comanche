@@ -135,7 +135,7 @@ int Ustack::process_message(void* msg,
         FinishMessageBuffer(fbb, response);    
         memcpy(reply, fbb.GetBufferPointer(), fbb.GetSize());
 
-        PLOG("ustack: pid = %d creating iomem instance at %p", sender_id, iomem);
+        PLOG("ustack: pid = %ld creating iomem instance at %p", sender_id, iomem);
         break;
       }      
     case MessageType_Shutdown:

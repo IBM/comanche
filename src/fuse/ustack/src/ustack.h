@@ -50,7 +50,7 @@ private:
    * @param io_sz  I/O size
    */
   status_t do_kv_write(pid_t client_id, uint64_t fuse_fh, size_t offset, size_t io_sz ){
-    PLOG("[%s]: fuse_fh=%lu, offset=%lu, io_sz=%lu", __func__, fuse_fh, offset, io_sz);
+    PDBG("[%s]: fuse_fh=%lu, offset=%lu, io_sz=%lu", __func__, fuse_fh, offset, io_sz);
 
     //get the virtual address and issue the io
     void *buf; //the mapped io mem
@@ -61,10 +61,14 @@ private:
       return -1;
     }
     auto iomem = iomem_list[0];
-    PLOG("iomem for pid %d using instance at %p", client_id, iomem);
+
     buf = iomem->offset_to_virt(offset);
     //TODO: check file 
-    assert(buf != 0);
+    if(buf == 0){
+      PERR("mapped virtual address failed");
+      return -1;
+    }
+    PDBG("mapped to virtual address %p", buf);
 
     _kv_ustack_info->write(fuse_fh, buf, io_sz);
 
@@ -74,7 +78,7 @@ private:
   }
 
   status_t do_kv_read(pid_t client_id, uint64_t fuse_fh, size_t offset, size_t io_sz){
-    PLOG("[%s]: fuse_fh=%lu, offset=%lu, io_sz=%lu", __func__, fuse_fh, offset, io_sz);
+    PDBG("[%s]: fuse_fh=%lu, offset=%lu, io_sz=%lu", __func__, fuse_fh, offset, io_sz);
 
     return S_OK;
   }
@@ -123,7 +127,7 @@ private:
     void *offset_to_virt(addr_t offset){
       assert(offset < _n_pages*4096);
 
-      _allocator.virt_addr(_iob + offset);
+      return _allocator.virt_addr(_iob + offset);
     }
     
     Component::io_buffer_t _iob;
