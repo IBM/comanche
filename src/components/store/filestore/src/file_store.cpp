@@ -63,7 +63,7 @@ int Pool_handle::put(const std::string& key,
   }
   ssize_t ws = write(fd, value, value_len);
   if(ws != value_len)
-    throw General_exception("file write failed");
+    throw General_exception("file write failed, value=%p, len =%lu", value, value_len);
 
   close(fd);
   return S_OK;

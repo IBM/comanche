@@ -36,13 +36,17 @@ int main()
 
   //ustack.send_command();
 
+  char * data;
  
-  const char data[] = "helloworld";
-  size_t data_sz = strlen(data) +1; //11 byte
+  size_t data_sz = 4096; 
+  data = (char *)ustack.malloc(data_sz);
+
+  strcpy(data, "helloworld");
 
   assert(data);
 
   int fd = ustack.open("./mymount/test.dat",O_CREAT|O_RDWR, 0666);
+  //int fd = ustack.open("./regular.dat",O_CREAT|O_RDWR, 0666);
   assert(fd >0);
   PINF("[test]: file opened");
 

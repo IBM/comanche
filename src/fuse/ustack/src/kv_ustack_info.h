@@ -2,7 +2,7 @@
  * Description:
  *
  * First created: 2018 Jul 11
- * Last modified: 2018 Jul 11
+ * Last modified: 2018 Jul 12
  *
  * Author: Feng Li
  * e-mail: fengggli@yahoo.com
@@ -81,6 +81,7 @@ using pool_t     = uint64_t;
 
     status_t write(uint64_t id, const void * value, size_t size){
       const std::string key = _items[id];
+      assert(value !=  NULL);
       return _store->put(_pool, key, value, size);
     }
 

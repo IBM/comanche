@@ -32,7 +32,8 @@ protected:
 
 private:
 
-  void uipc_channel_thread_entry(Core::UIPC::Channel * channel);
+  /* TODO: client id should be accessible from the channel*/
+  void uipc_channel_thread_entry(Core::UIPC::Channel * channel, pid_t client_id);
   void release_resources(pid_t client_id);
 
   /* actually do the io */
@@ -40,12 +41,30 @@ private:
   // status_t do_kv_open();
   // status_t do_kv_close();
 
-  status_t do_kv_write(uint64_t fuse_fh, size_t offset, size_t io_sz ){
+  /*
+   * Do the write through the kvfs daemon
+   *
+   * @param client_id  client who issue this io, we need this to find the right iomem
+   * @param fuse_fh fuse daemon file handler
+   * @param offset offset of iobuffer inside the iomem
+   * @param io_sz  I/O size
+   */
+  status_t do_kv_write(pid_t client_id, uint64_t fuse_fh, size_t offset, size_t io_sz ){
     PLOG("[%s]: fuse_fh=%lu, offset=%lu, io_sz=%lu", __func__, fuse_fh, offset, io_sz);
-    //get the virtual address and issue the io
-    char *buf; //the mapped io mem
 
+    //get the virtual address and issue the io
+    void *buf; //the mapped io mem
+
+    auto iomem_list = _iomem_map[client_id] ;
+    if(iomem_list.empty()){
+      PERR("iomem for pid %d is empty", client_id);
+      return -1;
+    }
+    auto iomem = iomem_list[0];
+    PLOG("iomem for pid %d using instance at %p", client_id, iomem);
+    buf = iomem->offset_to_virt(offset);
     //TODO: check file 
+    assert(buf != 0);
 
     _kv_ustack_info->write(fuse_fh, buf, io_sz);
 
@@ -54,7 +73,7 @@ private:
     return S_OK;
   }
 
-  status_t do_kv_read(uint64_t fuse_fh, size_t offset, size_t io_sz){
+  status_t do_kv_read(pid_t client_id, uint64_t fuse_fh, size_t offset, size_t io_sz){
     PLOG("[%s]: fuse_fh=%lu, offset=%lu, io_sz=%lu", __func__, fuse_fh, offset, io_sz);
 
     return S_OK;
@@ -98,6 +117,13 @@ private:
     }
     ~IO_memory_instance() {
       _allocator.free_io_buffer(_iob);
+    }
+
+    /* offset from the beging of this io buf*/
+    void *offset_to_virt(addr_t offset){
+      assert(offset < _n_pages*4096);
+
+      _allocator.virt_addr(_iob + offset);
     }
     
     Component::io_buffer_t _iob;

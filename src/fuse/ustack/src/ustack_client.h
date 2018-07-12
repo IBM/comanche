@@ -32,7 +32,7 @@ public:
     void * ptr = xms_mmap((void*) 0x1100000000, phys_base, n_bytes);
     assert(ptr);
     _virt_base = reinterpret_cast<addr_t>(ptr);
-    _offset = _virt_base - _phys_base;
+    _offset_virt_phys = _virt_base - _phys_base;
 
     PMAJOR("IO_memory_allocator: %ld bytes (%p)", n_bytes, ptr);
   }
@@ -50,17 +50,21 @@ public:
   }
 
   void * get_virt(addr_t paddr) {
-    return reinterpret_cast<void*>(paddr + _offset);
+    return reinterpret_cast<void*>(paddr + _offset_virt_phys);
   }
 
   addr_t get_phys(void * vaddr) {
-    return reinterpret_cast<addr_t>(vaddr) - _offset;
+    return reinterpret_cast<addr_t>(vaddr) - _offset_virt_phys;
+  }
+
+  size_t get_offset(const void *vaddr){
+    return reinterpret_cast<addr_t>(vaddr) - _virt_base;
   }
 
 private:
   addr_t _virt_base;
   addr_t _phys_base;
-  ssize_t _offset;
+  ssize_t _offset_virt_phys;
   size_t _size;
   
 };
@@ -291,7 +295,7 @@ public:
       // TODO: local cache of the fd->fuse-fd?
       cmd->fuse_fh = fuse_fh;
       cmd->type = IO_TYPE_WRITE;
-      cmd->offset = 0;
+      cmd->offset = _iomem_allocator.get_offset(buf);
       cmd->sz_bytes = count;
 
       //strcpy(cmd->data, "hello");
@@ -332,6 +336,7 @@ public:
     return _iomem_allocator.free(ptr);
   }
 
+  /*
   void * get_virt(addr_t paddr) {
     return _iomem_allocator.get_virt(paddr);
   }
@@ -339,6 +344,7 @@ public:
   addr_t get_phys(void * vaddr) {
     return _iomem_allocator.get_phys(vaddr);
   }
+  */
 
 
 private:
