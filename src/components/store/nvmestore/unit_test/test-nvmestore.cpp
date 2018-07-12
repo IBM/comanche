@@ -141,7 +141,6 @@ TEST_F(KVStore_test, BasicGet)
   PINF("Value=(%.50s) %lu", ((char*)value), value_len);
 }
 
-
 // TEST_F(KVStore_test, BasicGetRef)
 // {
 //   std::string key = "MyKey";

@@ -6,7 +6,7 @@ branches:
     - master
     - unstable
     - nvmestore
-    - fuse
+    - fuse-ustack
 
 sudo: required
 
