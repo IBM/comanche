@@ -48,7 +48,7 @@ int main()
   int fd = ustack.open("./mymount/test.dat",O_CREAT|O_RDWR, 0666);
   //int fd = ustack.open("./regular.dat",O_CREAT|O_RDWR, 0666);
   assert(fd >0);
-  PINF("[test]: file opened");
+  PINF("[test]: file opened write");
 
   // shall I use write instead of fwrite?
   ustack.write(fd, data, data_sz);
@@ -63,7 +63,26 @@ int main()
   #endif
   
   ustack.close(fd);
+  ustack.free(data);
   PINF("[test]: file closed");
+
+  /*
+   * reopen the file and verify the results read
+   */
+
+  fd = ustack.open("./mymount/test.dat",O_RDONLY);
+  assert(fd >0);
+  PINF("[test]: file opened for read");
+
+  char *data2 = (char *)ustack.malloc(data_sz);
+
+  ustack.read(fd, data2, data_sz);
+
+  PINF("file content read:\n\t%s", data2);
+
+  ustack.close(fd);
+  PINF("[test]: file closed");
+  ustack.free(data2);
 
 #endif
   return 0;

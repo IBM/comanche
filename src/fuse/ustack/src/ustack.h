@@ -79,7 +79,29 @@ private:
 
   status_t do_kv_read(pid_t client_id, uint64_t fuse_fh, size_t offset, size_t io_sz){
     PDBG("[%s]: fuse_fh=%lu, offset=%lu, io_sz=%lu", __func__, fuse_fh, offset, io_sz);
+    void *buf; //the mapped io mem
 
+    auto iomem_list = _iomem_map[client_id] ;
+    if(iomem_list.empty()){
+      PERR("iomem for pid %d is empty", client_id);
+      return -1;
+    }
+    auto iomem = iomem_list[0];
+
+    buf = iomem->offset_to_virt(offset);
+    //TODO: check file 
+    if(buf == 0){
+      PERR("mapped virtual address failed");
+      return -1;
+    }
+    PDBG("mapped to virtual address %p", buf);
+
+    size_t file_size = _kv_ustack_info->get_item_size(fuse_fh);
+    if(io_sz > file_size){
+      PERR("write size larger than file size");
+      return -1;
+    }
+    _kv_ustack_info->read(fuse_fh, buf, io_sz);
     return S_OK;
   }
   

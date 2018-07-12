@@ -261,7 +261,6 @@ public:
      
      // full path to fd
      int fd = -1;
-     std::string fullpath;
 
      // fall into the mountdir?
      fd = ::open(pathname, flags, mode);
@@ -269,13 +268,31 @@ public:
      //if( _is_ustack_path(pathname, fullpath) && fd >0){
      uint64_t fuse_fh = 0;
      if(0 == ioctl(fd, USTACK_GET_FUSE_FH, &fuse_fh)){
-       PLOG("{ustack_client]: register file %s with fd %d, fuse_fh = %lu", fullpath.c_str(), fd, fuse_fh);
+       PLOG("{ustack_client]: register file %s with fd %d, fuse_fh = %lu", pathname, fd, fuse_fh);
        assert(fuse_fh > 0);
        _fd_map.insert(std::pair<int, uint64_t>(fd, fuse_fh));
      }
 
      return fd;
-   };
+   }
+
+   int open(const char *pathname, mode_t mode){
+  // full path to fd
+     int fd = -1;
+
+     // fall into the mountdir?
+     fd = ::open(pathname, mode);
+     
+     //if( _is_ustack_path(pathname, fullpath) && fd >0){
+     uint64_t fuse_fh = 0;
+     if(0 == ioctl(fd, USTACK_GET_FUSE_FH, &fuse_fh)){
+       PLOG("{ustack_client]: register file %s with fd %d, fuse_fh = %lu", pathname, fd, fuse_fh);
+       assert(fuse_fh > 0);
+       _fd_map.insert(std::pair<int, uint64_t>(fd, fuse_fh));
+     }
+
+     return fd;
+   }
 
   /*
    * file write and read
@@ -286,6 +303,7 @@ public:
   size_t write(int fd, const void *buf, size_t count){
     auto search = _fd_map.find(fd);
     if(search != _fd_map.end()){
+      int ret = -1;
       uint64_t fuse_fh = search->second;
       /* ustack tracked file */
       PLOG("[stack-write]: try to write from %p to fuse_fh %lu, size %lu", buf, fuse_fh, count);
@@ -304,11 +322,16 @@ public:
       void * reply = nullptr;
       while(_channel->recv(reply));
       PLOG("waiting for IO channel reply...");
-      PLOG("get IO channel reply with type %d", static_cast<struct IO_command *>(reply)->type);
+      //PLOG("get IO channel reply with type %d", static_cast<struct IO_command *>(reply)->type);
+      if(IO_WRITE_OK !=static_cast<struct IO_command *>(reply)->type){
+        PERR("[%s]: ustack write failed", __func__);
+        goto cleanup;
+      }
+      ret = 0;
+cleanup:
       _channel->free_msg(reply);
-      PLOG("send command and got reply.");
-
-      return 0;
+      PLOG("send write command and got reply.");
+      return ret;
     }
     else{
       /* regular file */
@@ -318,10 +341,47 @@ public:
   }
 
   size_t read(int fd, void *buf, size_t count){
-    return 0;
+     auto search = _fd_map.find(fd);
+    if(search != _fd_map.end()){
+      int ret = -1;
+      uint64_t fuse_fh = search->second;
+      /* ustack tracked file */
+      PLOG("[stack-write]: try to write from %p to fuse_fh %lu, size %lu", buf, fuse_fh, count);
+      assert(_channel);
+      struct IO_command * cmd = static_cast<struct IO_command *>(_channel->alloc_msg());
+
+      // TODO: local cache of the fd->fuse-fd?
+      cmd->fuse_fh = fuse_fh;
+      cmd->type = IO_TYPE_READ;
+      cmd->offset = _iomem_allocator.get_offset(buf);
+      cmd->sz_bytes = count;
+
+      //strcpy(cmd->data, "hello");
+      _channel->send(cmd);
+
+      void * reply = nullptr;
+      while(_channel->recv(reply));
+      PLOG("waiting for IO channel reply...");
+      //PLOG("get IO channel reply with type %d", static_cast<struct IO_command *>(reply)->type);
+      if(IO_READ_OK !=static_cast<struct IO_command *>(reply)->type){
+        PERR("[%s]: ustack write failed", __func__);
+        goto cleanup;
+      }
+      ret = 0;
+cleanup:
+      _channel->free_msg(reply);
+      PLOG("send read command and got reply.");
+      return ret;
+    }
+    else{
+      /* regular file */
+      return ::read(fd, buf, count);
+    }
   }
 
   int close(int fd){
+    /* TODO: free the maps*/
+    _fd_map.erase(fd);
     return ::close(fd);
   };
 
@@ -352,7 +412,7 @@ private:
   std::vector<Core::UIPC::Shared_memory *> _shmem;
   Core::UIPC::Channel *                    _channel = nullptr;
   std::unordered_map<int, uint64_t> _fd_map; //map from filesystem fd to fuse daemon fh
-};
+}; // end of UStack_Client
 
 
 #endif // __USTACK_CLIENT_H__
