@@ -26,23 +26,16 @@ int main()
 #if 1
   //Ustack_client ustack("ipc:///tmp//ustack.ipc", 64);
   Ustack_client ustack("ipc:///tmp//kv-ustack.ipc", 64);
-
   PINF("[test]: ustack client constructed");
 
   ustack.get_uipc_channel();
-  //ustack.get_shared_memory(MB(4));
-
   PINF("[test]: got channel and shared memory");
 
-  //ustack.send_command();
-
   char * data;
- 
   size_t data_sz = 4096; 
   data = (char *)ustack.malloc(data_sz);
 
   strcpy(data, "helloworld, this is written using ustack writes");
-
   assert(data);
 
   int fd = ustack.open("./mymount/test.dat",O_CREAT|O_RDWR, 0666);
@@ -54,14 +47,6 @@ int main()
   ustack.write(fd, data, data_sz);
   //  size_t rc = fread(buf, 4096, 1, fp);
   
-  #if 0
-  char buf[256];
-  for(unsigned i=0;i<100;i++) {
-    size_t rc = fread(buf, 256, 1, fp);
-    assert(rc == 256);
-  }
-  #endif
-  
   ustack.close(fd);
   ustack.free(data);
   PINF("[test]: file closed");
@@ -69,7 +54,6 @@ int main()
   /*
    * reopen the file and verify the results read
    */
-
   fd = ustack.open("./mymount/test.dat",O_RDONLY);
   assert(fd >0);
   PINF("[test]: file opened for read");
@@ -77,7 +61,6 @@ int main()
   char *data2 = (char *)ustack.malloc(data_sz);
 
   ustack.read(fd, data2, data_sz);
-
   PINF("file content read:\n\t%s", data2);
 
   ustack.close(fd);

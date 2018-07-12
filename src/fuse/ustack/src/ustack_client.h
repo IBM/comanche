@@ -229,34 +229,6 @@ public:
    * parameters are consistent with posix calls. 
    *********************************************/
 
-  /*
-   * check a path is in under the mount dir or not
-   *
-   * @return 1 if true.
-   */
-#if 0
-   int _is_ustack_path(const char *pathname, std::string &fullpath){
-     constexpr size_t MAX_PATH_LENGTH = 160;
-     std::string fullpath;
-     char cur_dir[MAX_PATH_LENGTH];
-
-     if(pathname[0] == '/'){
-       fullpath = pathname;
-     }
-     else{
-       getcwd(cur_dir, MAX_PATH_LENGTH);
-
-       if(strncmp(pathname, "./", 2);
-         fullpath = cur_dir + "/" + std::string(pathname+2);
-       else
-         fullpath = cur_dir + "/" + pathname;
-
-     }
-
-     return !strncmp(fullpath.c_str(), MOUNT_ROOT.c_str(), MOUNT_ROOT.size())
-   }
-#endif
-
    int open(const char *pathname, int flags, mode_t mode){
      
      // full path to fd

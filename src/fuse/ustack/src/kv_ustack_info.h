@@ -17,7 +17,8 @@
 #include <api/kvstore_itf.h>
 
 /*
- * private information for this mounting, this only modifies metadata
+ * private information for this mounting.
+ * Allocate the fuse daemon internal fh; interact with kvstore
  */
 class KV_ustack_info{
 using pool_t     = uint64_t;

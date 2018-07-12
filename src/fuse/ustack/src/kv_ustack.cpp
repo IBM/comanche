@@ -10,13 +10,11 @@
  */
 
 /*
- * Simple fuse integration of ikv interface.
+ * Fuse integration with ustack.
  *
- * Here "simple" means it uses default fuse interfaces for all file operations, 
- * which bounce between kernel/user space.
- * This can be improved greatly by intercept some of the intensive operations and handle them complete in userspace (as it's done in fuse/ustack)
+ * This is the slow path. e.g. creation/open/close the file.
+ * read/write operations are send from ustack channel
  *
- * This is modified from the  hello example in the libfuse source tree.
  */
 
 /*
@@ -48,13 +46,8 @@
 #define FILESTORE_PATH "libcomanche-storefile.so"
 #define NVMESTORE_PATH "libcomanche-nvmestore.so"
 
-
-
-
-
 // ustack: the userspace zero copy communiation mechenism
 Ustack *_ustack;
-
 
 /**
  * Initialize filesystem
@@ -65,12 +58,11 @@ Ustack *_ustack;
  * destroy() method.
  *
  */
-void * kvfs_simple_init (struct fuse_conn_info *conn){
+void * kvfs_ustack_init (struct fuse_conn_info *conn){
   (void)conn; // TODO: component owner, name  can be in the fuse option
 
   Component::IKVStore *store;
   Component::IBase * comp; 
-
 
   std::string component("filestore");
 
@@ -110,7 +102,7 @@ void * kvfs_simple_init (struct fuse_conn_info *conn){
  * this will close a kvstore
  * fuse-api: alled on filesystem exit.
  */
-void kvfs_simple_destroy (void *user_data){
+void kvfs_ustack_destroy (void *user_data){
   KV_ustack_info *info = reinterpret_cast<KV_ustack_info *>(user_data);
 
   Component::IKVStore *store = info->get_store();
@@ -133,7 +125,7 @@ void kvfs_simple_destroy (void *user_data){
  *
  * Introduced in version 2.5
  */
-int kvfs_simple_create (const char *path, mode_t mode, struct fuse_file_info * fi){
+int kvfs_ustack_create (const char *path, mode_t mode, struct fuse_file_info * fi){
   uint64_t handle;
   //PLOG("create: %s", filename);
 
@@ -150,23 +142,7 @@ int kvfs_simple_create (const char *path, mode_t mode, struct fuse_file_info * f
   return 0;
 }
 
-
-
-//static  mkdir // ikv-create_pool
-
-/* read and write must operate on /pool/key */
-//static int read(); // pool->ikv-get
-//static int write(); // pool->ikv-put
-
-
-/** Get file attributes.
- *
- * API: Similar to stat().  The 'st_dev' and 'st_blksize' fields are
- * ignored.	 The 'st_ino' field is ignored except if the 'use_ino'
- * mount option is given.
- */
-
-static int kvfs_simple_getattr(const char *path, struct stat *stbuf)
+static int kvfs_ustack_getattr(const char *path, struct stat *stbuf)
 {
 	int res = 0;
 
@@ -192,7 +168,7 @@ static int kvfs_simple_getattr(const char *path, struct stat *stbuf)
 	return res;
 }
 
-static int kvfs_simple_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
+static int kvfs_ustack_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 			 off_t offset, struct fuse_file_info *fi)
 {
 	(void) offset;
@@ -215,12 +191,12 @@ static int kvfs_simple_readdir(const char *path, void *buf, fuse_fill_dir_t fill
   }
   PINF("pool name all iterated");
 
-	//filler(buf, kvfs_simple_path + 1, NULL, 0);
+	//filler(buf, kvfs_ustack_path + 1, NULL, 0);
 	return 0;
 }
 
 
-static int kvfs_simple_open(const char *path, struct fuse_file_info *fi)
+static int kvfs_ustack_open(const char *path, struct fuse_file_info *fi)
 {
   uint64_t handle;
   //PLOG("create: %s", filename);
@@ -241,8 +217,11 @@ static int kvfs_simple_open(const char *path, struct fuse_file_info *fi)
   }
 }
 
-
-static int kvfs_simple_read(const char *path, char *buf, size_t size, off_t offset,
+/* 
+ * read and write are called if you don't use the file operations from the ustack_client.
+ * e.g. run "echo "hello world" > ./mymount/tmp.data"
+ */
+static int kvfs_ustack_read(const char *path, char *buf, size_t size, off_t offset,
 		      struct fuse_file_info *fi)
 {
   (void) offset;
@@ -261,14 +240,14 @@ static int kvfs_simple_read(const char *path, char *buf, size_t size, off_t offs
 }
 
 /** Write data to an open file
- *
+ * 
  * Write should return exactly the number of bytes requested
  * except on error.	 An exception to this is when the 'direct_io'
  * mount option is specified (see read operation).
  *
  * Changed in version 2.2
  */
-int (kvfs_simple_write) (const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi){
+int (kvfs_ustack_write) (const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi){
   (void)offset;
 
   uint64_t id;
@@ -284,7 +263,7 @@ int (kvfs_simple_write) (const char *path, const char *buf, size_t size, off_t o
   return size;
 }
 
-static int kvfs_simple_ioctl(const char *path, int cmd, void *arg,
+static int kvfs_ustack_ioctl(const char *path, int cmd, void *arg,
 		      struct fuse_file_info *fi, unsigned int flags, void *data)
 {
 	(void) arg;
@@ -307,15 +286,15 @@ int main(int argc, char *argv[])
 {
   static struct fuse_operations oper;
   memset(&oper, 0, sizeof(struct fuse_operations));
-	oper.getattr	= kvfs_simple_getattr;
-	oper.readdir	= kvfs_simple_readdir;
-	oper.open		= kvfs_simple_open;
-	oper.read		= kvfs_simple_read;
-	oper.write		= kvfs_simple_write;
-  oper.init = kvfs_simple_init;
-  oper.create = kvfs_simple_create;
-  oper.destroy = kvfs_simple_destroy;
-  oper.ioctl = kvfs_simple_ioctl;
+	oper.getattr	= kvfs_ustack_getattr;
+	oper.readdir	= kvfs_ustack_readdir;
+	oper.open		= kvfs_ustack_open;
+	oper.read		= kvfs_ustack_read;
+	oper.write		= kvfs_ustack_write;
+  oper.init = kvfs_ustack_init;
+  oper.create = kvfs_ustack_create;
+  oper.destroy = kvfs_ustack_destroy;
+  oper.ioctl = kvfs_ustack_ioctl;
 
 	return fuse_main(argc, argv, &oper, NULL);
 }
