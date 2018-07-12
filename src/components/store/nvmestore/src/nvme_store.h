@@ -33,7 +33,6 @@ POBJ_LAYOUT_TOID(nvme_store, struct block_range);
 POBJ_LAYOUT_END(nvme_store);
 
 
-
 /*
  * for block allocator
  */
@@ -50,11 +49,11 @@ class NVME_store : public Component::IKVStore
 private:
   static constexpr bool option_DEBUG = true;
   static constexpr size_t BLOCK_SIZE = 4096;
-
+  
   Component::IBlock_device *_blk_dev;
   Component::IBlock_allocator *_blk_alloc;
 
-   State_map _sm; // map control
+  State_map _sm; // map control
 
 public:
   /** 
@@ -75,7 +74,6 @@ public:
 
   /** 
    * Component/interface management
-   * 
    */
   DECLARE_VERSION(0.1);
   DECLARE_COMPONENT_UUID(0x59564581,0x9e1b,0x4811,0xbdb2,0x19,0x57,0xa0,0xa6,0x84,0x57);
@@ -104,6 +102,9 @@ public:
                              uint64_t expected_obj_count = 0
                              ) override;
   
+  /*
+   * I didn't implement this, you can call create_pool directly instead
+   */
   virtual pool_t open_pool(const std::string path,
                            const std::string name,
                            unsigned int flags) override {return E_NOT_IMPL; }
@@ -195,14 +196,20 @@ private:
                       
 
   /*
-   * init the block device
+   * open the block device, reuse if it exists already
+   *
+   * @param pci in pci address of the nvme
+   * @param block out reference of block device 
+   *
+   * @return S_OK if success
    */
-  void init_block_device(std::string pci);
+  status_t open_block_device(std::string pci, Component::IBlock_device* &block);
 
   /*
-   * open an allocator for block device
+   * open an allocator for block device, reuse if it  exsits already
    */
-  void init_block_allocator();
+
+  status_t open_block_allocator(Component::IBlock_device* block, Component::IBlock_allocator* &alloc);
 };
 
 

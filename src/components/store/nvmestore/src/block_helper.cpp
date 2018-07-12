@@ -16,6 +16,7 @@
 #include "nvme_store.h"
 
 #include <gtest/gtest.h>
+#include <mutex>
 
 #include <common/utils.h>
 #include <api/components.h>
@@ -26,19 +27,27 @@
 
 #include <core/dpdk.h>
 
+// don't change this, some functionanlity such as get_direct might only work with blk_nvme backend.
 #define USE_SPDK_NVME_DEVICE
 
 
 using namespace Component;
 
-void NVME_store:: init_block_device(std::string pci)
-  {
-    IBlock_device *block;
+static std::unordered_map<std::string, IBlock_device *> _dev_map; //pci->blk
+static std::unordered_map<IBlock_device *, IBlock_allocator *> _alloc_map; //blk->alloc
 
+std::mutex _dev_map_mutex;
+std::mutex _alloc_map_mutex;
+
+status_t NVME_store:: open_block_device(std::string pci, IBlock_device* &block)
+{
+  std::lock_guard<std::mutex> guard(_dev_map_mutex);
+
+  if(_dev_map.find(pci) == _dev_map.end()){
+    PLOG("[%s]: creating new block device...", __func__);
     DPDK::eal_init(512);
 
 #ifdef USE_SPDK_NVME_DEVICE
-    
     Component::IBase * comp = Component::load_component("libcomanche-blknvme.so",
                                                         Component::block_nvme_factory);
 
@@ -50,13 +59,10 @@ void NVME_store:: init_block_device(std::string pci)
     cpus.add_core(2);
 
     block = fact->create(pci.c_str(), &cpus);
-
-
     assert(block);
     fact->release_ref();
 
 #else
-    
     Component::IBase * comp = Component::load_component("libcomanche-blkposix.so",
                                                         Component::block_posix_factory);
     assert(comp);
@@ -77,15 +83,28 @@ void NVME_store:: init_block_device(std::string pci)
 #endif
 
     PINF("Block-layer component loaded OK (itf=%p)", block);
-    _blk_dev = block;
+    _dev_map.insert(std::pair<std::string, IBlock_device*>(pci, block));
+    return S_OK;
   }
+  else{ 
+    block = _dev_map[pci];
+    block->add_ref();
+    return S_OK;
+  }
+}
 
-  void NVME_store::init_block_allocator()
-  {
+status_t NVME_store::open_block_allocator(IBlock_device *block,Component::IBlock_allocator* &alloc)
+{
+
+  std::lock_guard<std::mutex> guard(_alloc_map_mutex);
+
+  if(_alloc_map.find(block) == _alloc_map.end()){
+    PLOG("[%s]: creating new block allocator... ", __func__);
     using namespace Component;
-    assert(_blk_dev);
+    assert(block);
     size_t nr_blocks_tracked;  // actual blocks tracked by the allocator
     VOLUME_INFO devinfo;
+
 
     constexpr size_t TO_MANY_BLOCKS = GB(128)/KB(4);
 
@@ -95,7 +114,7 @@ void NVME_store:: init_block_device(std::string pci)
     IBlock_allocator_factory * fact = static_cast<IBlock_allocator_factory *>
       (comp->query_interface(IBlock_allocator_factory::iid()));
 
-    _blk_dev->get_volume_info(devinfo);
+    block->get_volume_info(devinfo);
 
     size_t nr_blocks = devinfo.block_count; // actual blocks from this device
     assert(nr_blocks);
@@ -107,9 +126,18 @@ void NVME_store:: init_block_device(std::string pci)
 
     persist_id_t id_alloc = std::string(devinfo.volume_name) + ".alloc.pool";
 
-    _blk_alloc = fact->open_allocator(
+    alloc = fact->open_allocator(
                                   nr_blocks_tracked,
                                   PMEM_PATH_ALLOC,
                                   id_alloc);  
     fact->release_ref();  
+
+    _alloc_map.insert(std::pair<IBlock_device *, IBlock_allocator *>(block, alloc));
+    return S_OK;
   }
+  else{
+    alloc = _alloc_map[block];
+    alloc->add_ref();
+    return S_OK;
+  }
+}

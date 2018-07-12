@@ -44,9 +44,6 @@ struct store_root_t
 };
 //TOID_DECLARE_ROOT(struct store_root_t);
 
-
-
-
 struct open_session_t
 {
   TOID(struct store_root_t) root;
@@ -73,8 +70,6 @@ static open_session_t * get_session(IKVStore::pool_t pid) //open_session_t * ses
 
   return session;
 }
-
-
 
 static int check_pool(const char * path)
 {
@@ -132,10 +127,20 @@ NVME_store::NVME_store(const std::string owner,
                        const std::string name,
                        std::string pci)
                        {
+  status_t ret;
   PLOG("PMEMOBJ_MAX_ALLOC_SIZE: %lu MB", REDUCE_MB(PMEMOBJ_MAX_ALLOC_SIZE));
 
-  init_block_device(pci);
-  init_block_allocator();
+  ret = open_block_device(pci, _blk_dev);
+  if(S_OK != ret){
+    throw General_exception("failed to open block device at pci %s\n", pci.c_str());
+  }
+
+  ret = open_block_allocator(_blk_dev, _blk_alloc);
+
+  if(S_OK != ret){
+    throw General_exception("failed to open block block allocator for device at pci %s\n", pci.c_str());
+  }
+
 
   PINF("NVME_store: using block device %p with allocator %p", _blk_dev, _blk_alloc);
 }

@@ -62,12 +62,14 @@ class KVStore_test : public ::testing::Test {
   static Component::IBlock_device * _block;
   static Component::IBlock_allocator * _alloc;
   static Component::IKVStore * _kvstore;
+  static Component::IKVStore * _kvstore2;
 
   static std::string POOL_NAME;
 };
 
 
 Component::IKVStore * KVStore_test::_kvstore;
+Component::IKVStore * KVStore_test::_kvstore2;
 
 std::string KVStore_test::POOL_NAME = "test-nvme";
 
@@ -146,7 +148,6 @@ TEST_F(KVStore_test, BasicGet)
   EXPECT_FALSE(strcmp("Hello world!", (char*)value));
   PINF("Value=(%.50s) %lu", ((char*)value), value_len);
 }
-
 
 // TEST_F(KVStore_test, BasicGetRef)
 // {
@@ -262,12 +263,31 @@ TEST_F(KVStore_test, ClosePool)
   _kvstore->close_pool(pool);
 }
 
+/*
+ * multiple store on same nvmedevice will use the same _block and the _blk_alloc
+ */
+TEST_F(KVStore_test, Multiplestore)
+{
+  /* create object instance through factory */
+  Component::IBase * comp = Component::load_component("libcomanche-nvmestore.so",
+                                                      Component::nvmestore_factory);
+
+  ASSERT_TRUE(comp);
+  IKVStore_factory * fact = (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
+
+  // this nvme-store use a block device and a block allocator
+  _kvstore2 = fact->create("owner","name2", opt.pci.c_str());
+  
+  fact->release_ref();
+
+  pool = _kvstore2->create_pool(PMEM_PATH, "test-nvme2.pool", MB(128));
+  _kvstore2->release_ref();
+}
+
 TEST_F(KVStore_test, ReleaseStore)
 {
   _kvstore->release_ref();
 }
-
-
 
 
 } // namespace
