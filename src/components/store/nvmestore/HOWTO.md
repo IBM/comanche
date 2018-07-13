@@ -22,6 +22,10 @@ Enable the fake pmem
 ./setup_pmem.sh
 ```
 
+bypass clflush/msync
+```
+PMEM_IS_PMEM_FORCE=1 ./you-program
+```
 
 set pin memory limit for this user
 -------------------------------------

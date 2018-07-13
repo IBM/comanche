@@ -165,7 +165,7 @@ IKVStore::pool_t NVME_store::create_pool(const std::string path,
   
   PINF("NVME_store::create_pool path=%s name=%s", path.c_str(), name.c_str());
 
-  size_t max_sz_hxmap = MB(200);
+  size_t max_sz_hxmap = MB(500); // this can fit 1M objects (block_range_t)
 
   // TODO: need to check size
 
@@ -332,9 +332,11 @@ status_t NVME_store::put(IKVStore::pool_t pool,
   }
   TX_ONABORT {
     //TODO: free val
-    throw General_exception("TX abort (%s)", pmemobj_errormsg());
+    throw General_exception("TX abort (%s) during nvmeput, current nr_object = %lu, should try to increase max_sz_hxmap", pmemobj_errormsg(), this->count(pool));
   }
   TX_END
+
+  _cnt_elem_map[pool] ++;
 
   return S_OK;
 }
@@ -789,6 +791,8 @@ status_t NVME_store::erase(const pool_t pool,
   catch(...) {
     throw General_exception("hm_tx_remove failed unexpectedly");
   }
+
+  _cnt_elem_map[pool]--;
   return S_OK;
 }
 

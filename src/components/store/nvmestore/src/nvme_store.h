@@ -14,6 +14,7 @@
 
 #include <libpmemobj.h>
 
+#include <atomic>
 #include <unordered_map>
 #include <pthread.h>
 #include <common/rwlock.h>
@@ -40,7 +41,7 @@ typedef struct block_range{
   int offset;
   int size;
   void * handle; // handle to free this block
-  uint64_t last_tag; // tag for async block io
+  //uint64_t last_tag; // tag for async block io
 } block_range_t;
 
 class NVME_store : public Component::IKVStore
@@ -49,6 +50,7 @@ class NVME_store : public Component::IKVStore
 private:
   static constexpr bool option_DEBUG = true;
   static constexpr size_t BLOCK_SIZE = 4096;
+  std::unordered_map<pool_t, std::atomic<size_t>> _cnt_elem_map;
   
   Component::IBlock_device *_blk_dev;
   Component::IBlock_allocator *_blk_alloc;
@@ -175,7 +177,7 @@ public:
   virtual status_t erase(const pool_t pool,
                     uint64_t key_hash);
 
-  virtual size_t count(const pool_t pool) override{return E_NOT_IMPL;}
+  virtual size_t count(const pool_t pool) override{return _cnt_elem_map[pool];};
 
   virtual int map(const pool_t pool,
                   std::function<int(uint64_t key,
