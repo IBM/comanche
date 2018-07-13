@@ -45,4 +45,3 @@ Note
 ---------------
 
 you can se the clear_pmempool.sh  to clear all data from pmem
-

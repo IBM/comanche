@@ -23,10 +23,13 @@
 #include "data.h"
 
 #include <stdlib.h>
+#include <unordered_map>
 
 #include <gperftools/profiler.h>
+#include <boost/crc.hpp>
 
 
+#define PMEM_PATH "/mnt/pmem0/pool/0/"
 
 using namespace Component;
 
@@ -72,9 +75,10 @@ Component::IKVStore * KVStore_test::_kvstore;
 //Component::IKVStore * KVStore_test::_kvstore2;
 
 std::string KVStore_test::POOL_NAME = "test-nvme";
-constexpr static int nr_elem = 500; // number of the test elem in the pool
+static constexpr int nr_elem = 500; // number of the test elem in the pool
+static constexpr size_t VAL_LEN = MB(8);
+std::unordered_map<std::string, int> _crc_map;
 
-#define PMEM_PATH "/mnt/pmem0/pool/0/"
 //#define PMEM_PATH "/dev/pmem0"
 
 
@@ -108,11 +112,15 @@ TEST_F(KVStore_test, BasicPut)
   ASSERT_TRUE(pool);
   for(int i=0 ;i< nr_elem; i++){
     std::string key = "MyKey"+std::to_string(i);
-    std::string value = "Hello world!"+std::to_string(i);
-    //  value.resize(value.length()+1); /* append /0 */
-    value.resize(MB(8));
+    auto val = Common::random_string(VAL_LEN);
+
+		boost::crc_32_type result;
+    result.process_bytes(val.data(), val.length());
+    PDBG("Checksum: %d", result.checksum());
+
+		_crc_map[key]=result.checksum();
       
-    EXPECT_TRUE(S_OK == _kvstore->put(pool, key, value.c_str(), value.length()));
+    EXPECT_TRUE(S_OK == _kvstore->put(pool, key, val.c_str(), VAL_LEN));
   }
 }
 
@@ -151,9 +159,12 @@ TEST_F(KVStore_test, BasicGet)
     size_t value_len = 0;
     _kvstore->get(pool, key, value, value_len);
 
-    std::string expected_value = "Hello world!" + std::to_string(i);
-    EXPECT_FALSE(strcmp(expected_value.c_str(), (char*)value));
-    PINF("Value=(%.50s) %lu", ((char*)value), value_len);
+		boost::crc_32_type result;
+    result.process_bytes(value, value_len);
+    PDBG("Checksum: %d", result.checksum());
+		EXPECT_TRUE(_crc_map[key] == result.checksum());
+
+    //PINF("Value=(%.50s) %lu", ((char*)value), value_len);
   }
 }
 
