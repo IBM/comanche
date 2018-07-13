@@ -8,7 +8,7 @@
 [submodule "src/lib/libfabric"]
   path = src/lib/libfabric
   url = https://github.com/ofiwg/libfabric.git
-  branch = master
+  branch = v1.6.x
 [submodule "src/lib/cppzmq"]
   path = src/lib/cppzmq
   url = https://github.com/zeromq/cppzmq.git
