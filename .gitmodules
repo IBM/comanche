@@ -31,3 +31,6 @@
 [submodule "src/lib/flatbuffers"]
   path = src/lib/flatbuffers
   url = https://github.com/google/flatbuffers.git
+[submodule "src/lib/gdrcopy"]
+  path = src/lib/gdrcopy
+  url = https://github.com/NVIDIA/gdrcopy.git
