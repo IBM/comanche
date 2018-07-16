@@ -170,6 +170,12 @@ std::vector<void *> Fabric_memory_control::populated_desc(const std::vector<iove
 }
 
 /* (no context, synchronous only) */
+/*
+ * ERROR: the sixth parameter is named "requested key" in fi_mr_reg doc, but
+ * if the user asks for a key which is unavailable the error returned is
+ * "Required key not available." The parameter name and the error disagree:
+ * "requested" is not the same as "required."
+ */
 fid_mr * Fabric_memory_control::make_fid_mr_reg_ptr(
   const void *buf
   , size_t len
@@ -191,5 +197,5 @@ try
 }
 catch ( const fabric_error &e )
 {
-  throw e.add(std::string(std::string(" in ") + __func__ + " " + std::to_string(len)));
+  throw e.add(std::string(std::string(" in ") + __func__ + " " + std::to_string(len) + " " + std::to_string(key)));
 }
