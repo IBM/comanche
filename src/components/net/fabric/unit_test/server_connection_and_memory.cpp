@@ -6,15 +6,16 @@
 #include <sys/uio.h> /* iovec */
 #include <vector>
 
-server_connection_and_memory::server_connection_and_memory(Component::IFabric_server_factory &ep_)
+server_connection_and_memory::server_connection_and_memory(Component::IFabric_server_factory &ep_, std::uint64_t remote_key_)
   : server_connection(ep_)
-  , registered_memory(cnxn())
+  , registered_memory(cnxn(), remote_key_)
 {
   /* send the address, and the key to memory */
   send_memory_info(cnxn(), *this);
 }
 
 server_connection_and_memory::~server_connection_and_memory()
+try
 {
   std::vector<::iovec> v;
   ::iovec iv;
@@ -31,4 +32,8 @@ server_connection_and_memory::~server_connection_and_memory()
         ASSERT_EQ(v[0].iov_len, 1);
       }
   );
+}
+catch ( std::exception &e )
+{
+  std::cerr << "(destructor) " << __func__ << ": " << e.what() << "\n";
 }
