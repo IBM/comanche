@@ -62,5 +62,16 @@ ExternalProject_Add(libfabric
   INSTALL_COMMAND make install
   )
 
+find_package(CUDA)
+if(CUDA_FOUND)
+  ExternalProject_Add(gdrcopy  
+    BUILD_IN_SOURCE 1
+    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/gdrcopy
+    CONFIGURE_COMMAND ""
+    BUILD_COMMAND make PREFIX=${CMAKE_INSTALL_PREFIX}  CUDA=${CUDA_TOOLKIT_ROOT_DIR} all install
+    INSTALL_COMMAND ""
+    )
+endif()
+
 
 
