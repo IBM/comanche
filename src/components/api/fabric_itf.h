@@ -17,7 +17,7 @@
 #ifndef __API_FABRIC_ITF__
 #define __API_FABRIC_ITF__
 
-#include <component/base.h> /* Component::IBase */
+#include <component/base.h> /* Component::IBase, DECLARE_COMPONENT_UUID, DECLARE_INTERFACE_UUID */
 
 #include <chrono>
 #include <cstdint>
@@ -163,6 +163,12 @@ public:
    *
    * @param contig_addr Pointer to contiguous region
    * @param size Size of buffer in bytes
+   * @param key Requested key for the remote memory. Note: if the fabric provider
+   *            uses the key (i.e., the fabric provider memory region attributes
+   *            do not include the FI_MR_PROV_KEY bit), then the key must be
+   *            unique among registered memory regsions. As this API does not
+   *            expose these attributes, the only safe strategy is to assume thati
+   *            the key must be unique among registered memory regsions.
    * @param flags Flags e.g., FI_REMOTE_READ|FI_REMOTE_WRITE. Flag definitions are in <rdma/fabric.h>
    * 
    * @return Memory region handle
