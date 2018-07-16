@@ -301,8 +301,8 @@ TEST_F(Fabric_test, InstantiateServerAndClientSockets)
   instantiate_server_and_client(fabric_spec_sockets);
 }
 
-static constexpr auto count_outer = 1U;
-static constexpr auto count_inner = 1U;
+static constexpr auto count_outer = 3U;
+static constexpr auto count_inner = 3U;
 
 void write_read_sequential(const std::string &fabric_spec)
 {
@@ -580,15 +580,15 @@ TEST_F(Fabric_test, GroupedServer)
 
 int main(int argc, char **argv)
 {
-  is_client = argv[1] && 0 == strcmp(argv[1], "client");
-  is_server = argv[1] && 0 == strcmp(argv[1], "server");
+  is_client = bool(argv[1]);
+  is_server = ! is_client;
 
-  if ( ( ! is_client && ! is_server ) || ( is_client && argc < 3 ) )
+  if ( is_client && argc != 2 )
   {
-    PINF("%s [client <ipaddr> | server]", argv[0]);
+    PINF("%s [<ipaddr>]", argv[0]);
     return -1;
   }
-  remote_host = argv[2];
+  remote_host = argv[1];
 
   ::testing::InitGoogleTest(&argc, argv);
   auto r = RUN_ALL_TESTS();
