@@ -44,9 +44,6 @@ struct store_root_t
 };
 //TOID_DECLARE_ROOT(struct store_root_t);
 
-
-
-
 struct open_session_t
 {
   TOID(struct store_root_t) root;
@@ -73,8 +70,6 @@ static open_session_t * get_session(IKVStore::pool_t pid) //open_session_t * ses
 
   return session;
 }
-
-
 
 static int check_pool(const char * path)
 {
@@ -129,12 +124,23 @@ static int check_pool(const char * path)
 
 
 NVME_store::NVME_store(const std::string owner,
-                       const std::string name)
+                       const std::string name,
+                       std::string pci)
                        {
+  status_t ret;
   PLOG("PMEMOBJ_MAX_ALLOC_SIZE: %lu MB", REDUCE_MB(PMEMOBJ_MAX_ALLOC_SIZE));
 
-  init_block_device();
-  init_block_allocator();
+  ret = open_block_device(pci, _blk_dev);
+  if(S_OK != ret){
+    throw General_exception("failed to open block device at pci %s\n", pci.c_str());
+  }
+
+  ret = open_block_allocator(_blk_dev, _blk_alloc);
+
+  if(S_OK != ret){
+    throw General_exception("failed to open block block allocator for device at pci %s\n", pci.c_str());
+  }
+
 
   PINF("NVME_store: using block device %p with allocator %p", _blk_dev, _blk_alloc);
 }
@@ -159,7 +165,7 @@ IKVStore::pool_t NVME_store::create_pool(const std::string path,
   
   PINF("NVME_store::create_pool path=%s name=%s", path.c_str(), name.c_str());
 
-  size_t max_sz_hxmap = MB(200);
+  size_t max_sz_hxmap = MB(500); // this can fit 1M objects (block_range_t)
 
   // TODO: need to check size
 
@@ -326,9 +332,11 @@ status_t NVME_store::put(IKVStore::pool_t pool,
   }
   TX_ONABORT {
     //TODO: free val
-    throw General_exception("TX abort (%s)", pmemobj_errormsg());
+    throw General_exception("TX abort (%s) during nvmeput, current nr_object = %lu, should try to increase max_sz_hxmap", pmemobj_errormsg(), this->count(pool));
   }
   TX_END
+
+  _cnt_elem_map[pool] ++;
 
   return S_OK;
 }
@@ -783,6 +791,8 @@ status_t NVME_store::erase(const pool_t pool,
   catch(...) {
     throw General_exception("hm_tx_remove failed unexpectedly");
   }
+
+  _cnt_elem_map[pool]--;
   return S_OK;
 }
 

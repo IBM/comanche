@@ -42,7 +42,10 @@
 #include <cstdarg>
 #include <string>
 
+#ifndef STRINGIFY
 #define STRINGIFY(x) #x
+#endif
+
 #define TOSTRING(x) STRINGIFY(x)
 #define ADD_LOC(X) X __FILE__ ":" TOSTRING(__LINE__)
 

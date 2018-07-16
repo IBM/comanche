@@ -10,42 +10,12 @@ using namespace Component;
 static IBlock_device * create_nvme_block_device(const std::string device_name);
 static IBlock_device * create_posix_block_device(const std::string path);
 
-Ustack::Ustack(const std::string endpoint) : IPC_server(endpoint)
+Ustack::Ustack(const std::string endpoint, KV_ustack_info *info ) : IPC_server(endpoint), _kv_ustack_info(info)
 {
-  /* block device */
-#ifdef USE_NVME_DEVICE
-  #error foo
-  block = create_nvme_block_device("01:00.0");
-#else
-  block = create_posix_block_device("./block.dat");
-#endif
-
-  /* create blob store */
-  assert(block);
-
-  IBase * comp = load_component("libcomanche-blob.so",
-                                Component::blob_factory);
-  assert(comp);
-  IBlob_factory* fact = (IBlob_factory *) comp->query_interface(IBlob_factory::iid());
-  assert(fact);
-
-  store = fact->open("cocotheclown",
-                     "mydb",
-                     block,
-                     IBlob_factory::FLAGS_FORMAT); //IBlob_factory::FLAGS_FORMAT); /* pass in lower-level block device */
-  
-  fact->release_ref();
-  
-  PINF("Blob component loaded OK.");
-
-  /* test insertion */
-  IBlob::blob_t b = store->create("fio.blob",
-                                  "dwaddington",
-                                  ".jelly",
-                                  KB(32));
 
   _ipc_thread = new std::thread([=]() { ipc_start(); });
 }
+
 
 Ustack::~Ustack()
 {
@@ -164,6 +134,8 @@ int Ustack::process_message(void* msg,
 
         FinishMessageBuffer(fbb, response);    
         memcpy(reply, fbb.GetBufferPointer(), fbb.GetSize());
+
+        PLOG("ustack: pid = %ld creating iomem instance at %p", sender_id, iomem);
         break;
       }      
     case MessageType_Shutdown:
@@ -288,6 +260,9 @@ void Ustack::release_resources(pid_t client_id)
 }
 
 
+/*
+ * Actual messages are saved in the slab_ring, with in_queue and out_queue saving the refernces 
+ */
 void Ustack::post_reply(void * reply_msg)
 {
   /* connect pending shared memory segments */
@@ -307,12 +282,12 @@ void Ustack::post_reply(void * reply_msg)
     _channel_map[c->_client_id] = c;
 
     /* create thread */
-    _threads[c->_client_id].push_back(new std::thread([=]() { uipc_channel_thread_entry(c->_channel); }));
+    _threads[c->_client_id].push_back(new std::thread([=]() { uipc_channel_thread_entry(c->_channel, c->_client_id); }));
   }
   _pending_channels.clear();
 }
 
-void Ustack::uipc_channel_thread_entry(Core::UIPC::Channel * channel)
+void Ustack::uipc_channel_thread_entry(Core::UIPC::Channel * channel, pid_t client_id)
 {
   PLOG("worker (%p) starting", channel);
   while(!_shutdown) {
@@ -326,7 +301,30 @@ void Ustack::uipc_channel_thread_entry(Core::UIPC::Channel * channel)
     PMAJOR("recv'ed UIPC msg:status=%d, type=%d (%s)",s, msg->type, msg->data);
     
     assert(msg);
-    msg->type = 101;
+    switch(msg->type){
+
+      case IO_TYPE_WRITE:
+        /*write to kvstore*/
+        if(S_OK == do_kv_write(client_id, msg->fuse_fh, msg->offset, msg->sz_bytes)){
+          msg->type = IO_WRITE_OK;
+        }
+        else 
+          msg->type = IO_WRITE_FAIL;
+        break;
+
+      case IO_TYPE_READ:
+        /*read from kvstore*/
+        if(S_OK == do_kv_read(client_id, msg->fuse_fh, msg->offset, msg->sz_bytes)){
+          msg->type = IO_READ_OK;
+        }
+        else 
+          msg->type = IO_READ_FAIL;
+        break;
+
+      default:
+        /*wrong io type*/
+        msg->type = IO_WRONG_TYPE;
+    }
     channel->send(msg);   
   }
   PLOG("worker (%p) exiting", channel);
