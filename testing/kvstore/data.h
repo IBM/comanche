@@ -4,7 +4,7 @@
 class Data
 {
 public:
-  static constexpr size_t NUM_ELEMENTS = 1000000; // 10M
+  static constexpr size_t NUM_ELEMENTS = 1000000; // 1M
   static constexpr size_t KEY_LEN = 8;
   static constexpr size_t VAL_LEN = 64;
 

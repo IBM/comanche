@@ -173,7 +173,7 @@ Component::io_buffer_t Physical_memory::register_memory_for_io(void* vaddr, addr
   int rc = spdk_mem_register(vaddr, len);
 
   if(spdk_vtophys(vaddr) !=  paddr)
-    throw General_exception("SPDK address registration check failed (rc=%d)", rc);
+    throw General_exception("SPDK address registration check failed (rc=%d), spdk_vtophys returns physcial address 0x%lx != 0x%lx", rc,spdk_vtophys(vaddr), paddr);
   
   return reinterpret_cast<Component::io_buffer_t>(vaddr);
 }
