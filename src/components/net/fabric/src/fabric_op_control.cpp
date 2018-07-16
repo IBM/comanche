@@ -33,6 +33,7 @@
 #include "fd_unblock_set_monitor.h"
 #include "system_fail.h"
 
+#include <rdma/fi_errno.h> /* fi_strerror */
 #include <rdma/fi_rma.h> /* fi_{read,recv,send,write}v, fi_inject */
 
 #include <sys/select.h> /* pselect */
@@ -239,15 +240,19 @@ void *Fabric_op_control::get_cq_comp_err() const
   ::fi_cq_err_entry err{0,0,0,0,0,0,0,0,0,0,0};
   CHECK_FI_ERR(cq_readerr(&err, 0));
 
+  boost::io::ios_base_all_saver sv(std::cerr);
   std::cerr << __func__ << " : "
                   << " op_context " << err.op_context
+                  << std::hex
                   << " flags " << err.flags
+                  << std::dec
                   << " len " << err.len
                   << " buf " << err.buf
                   << " data " << err.data
                   << " tag " << err.tag
                   << " olen " << err.olen
                   << " err " << err.err
+                  << " (text) " << ::fi_strerror(err.err)
                   << " errno " << err.prov_errno
                   << " err_data " << err.err_data
                   << " err_data_size " << err.err_data_size
