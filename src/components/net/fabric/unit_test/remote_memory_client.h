@@ -20,9 +20,8 @@ class registered_memory;
 class remote_memory_client
   : public remote_memory_accessor
 {
-  static void check_complete_static(void *rmc_, ::status_t stat_);
-  static void check_complete_static_2(void *t_, void *rmc_, ::status_t stat_);
-  static void check_complete(::status_t stat_);
+  static void check_complete_static(void *t_, void *rmc_, ::status_t stat_);
+  void check_complete(::status_t stat_);
 
   std::shared_ptr<Component::IFabric_client> _cnxn;
   std::shared_ptr<registered_memory> _rm_out;
@@ -30,13 +29,20 @@ class remote_memory_client
   std::uint64_t _vaddr;
   std::uint64_t _key;
   char _quit_flag;
+  ::status_t _last_stat;
 
   registered_memory &rm_in() const { return *_rm_in; }
   registered_memory &rm_out() const { return *_rm_out; }
 protected:
   void do_quit();
 public:
-  remote_memory_client(Component::IFabric &fabric_, const std::string &fabric_spec_, const std::string ip_address_, std::uint16_t port_);
+  remote_memory_client(
+    Component::IFabric &fabric
+    , const std::string &fabric_spec
+    , const std::string ip_address
+    , std::uint16_t port
+    , std::uint64_t remote_key_base
+  );
   remote_memory_client(remote_memory_client &&) = default;
   remote_memory_client &operator=(remote_memory_client &&) = default;
 

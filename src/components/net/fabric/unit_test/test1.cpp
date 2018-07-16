@@ -59,16 +59,31 @@ class Fabric_test : public ::testing::Test {
   const std::string fabric_spec_verbs{
     "{ \"fabric_attr\" : { \"prov_name\" : \"verbs\" },"
     " \"domain_attr\" : "
-      "{ \"mr_mode\" : [ \"FI_MR_LOCAL\", \"FI_MR_VIRT_ADDR\", \"FI_MR_ALLOCATED\", \"FI_MR_PROV_KEY\" ] }"
+      "{ \"mr_mode\" : ["
+        "\"FI_MR_LOCAL\", \"FI_MR_VIRT_ADDR\", \"FI_MR_ALLOCATED\", \"FI_MR_PROV_KEY\""
+      " ] }"
     ","
     " \"ep_attr\" : { \"type\" : \"FI_EP_MSG\" }"
     "}"
   };
 
+  /* Although man fi_mr says "FI_MR_BASIC is maintained for backwards
+   * compatibility (libfabric version 1.4 or earlier)", sockets as of 1.6
+   * will not accept the newer, explicit list.
+   *
+   * Although man fi_mr says "providers that support basic registration
+   * usually required FI_MR_LOCAL", the socket provider will not accept
+   * FI_MR_LOCAL.
+   */
   const std::string fabric_spec_sockets{
     "{ \"fabric_attr\" : { \"prov_name\" : \"sockets\" },"
     " \"domain_attr\" : "
-      "{ \"mr_mode\" : [ \"FI_MR_LOCAL\", \"FI_MR_VIRT_ADDR\", \"FI_MR_ALLOCATED\", \"FI_MR_PROV_KEY\" ] }"
+      "{ \"mr_mode\" : ["
+        " \"FI_MR_BASIC\""
+#if 0
+        ", \"FI_MR_LOCAL\""
+#endif
+      " ] }"
     ","
     " \"ep_attr\" : { \"type\" : \"FI_EP_MSG\" }"
     "}"
@@ -89,6 +104,7 @@ namespace
 
 namespace
 {
+
 void instantiate_server(std::string fabric_spec)
 {
   /* create object instance through factory */
@@ -171,7 +187,7 @@ TEST_F(Fabric_test, JsonSucceed)
   catch ( const std::domain_error &e )
   {
     std::cerr << "Unexpected exception: " << e.what() << std::endl;
-    ASSERT_TRUE(false);
+    EXPECT_TRUE(false);
   }
   factory->release_ref();
 }
@@ -195,7 +211,7 @@ TEST_F(Fabric_test, JsonParseAddrStr)
     catch ( const std::exception &e )
     {
       std::cerr << "Unexpected exception: " << e.what() << std::endl;
-      ASSERT_TRUE(false);
+      EXPECT_TRUE(false);
     }
   }
   factory->release_ref();
@@ -216,12 +232,12 @@ TEST_F(Fabric_test, JsonParseFail)
     try
     {
       auto pep1 = std::shared_ptr<Component::IFabric_server_factory>(fabric->open_server_factory("{ \"tx_attr\" : { \"max\" : \"xyz\"} } }", control_port_1));
-      ASSERT_TRUE(false);
+      EXPECT_TRUE(false);
     }
     catch ( const std::domain_error &e )
     {
       /* Error mesage should mention "parse" */
-      ASSERT_TRUE(::strpbrk(e.what(), "parse"));
+      EXPECT_TRUE(::strpbrk(e.what(), "parse"));
     }
   }
   factory->release_ref();
@@ -242,14 +258,14 @@ TEST_F(Fabric_test, JsonKeyFail)
     try
     {
       auto pep1 = std::shared_ptr<Component::IFabric_server_factory>(fabric->open_server_factory("{ \"tx_attr\" : { \"maX\" : \"xyz\"} }", control_port_1));
-      ASSERT_TRUE(false);
+      EXPECT_TRUE(false);
     }
     catch ( const std::domain_error &e )
     {
       /* Error message should mention "key", "tx_attr", and "maX" */
-      ASSERT_TRUE(::strpbrk(e.what(), "key"));
-      ASSERT_TRUE(::strpbrk(e.what(), "tx_attr"));
-      ASSERT_TRUE(::strpbrk(e.what(), "maX"));
+      EXPECT_TRUE(::strpbrk(e.what(), "key"));
+      EXPECT_TRUE(::strpbrk(e.what(), "tx_attr"));
+      EXPECT_TRUE(::strpbrk(e.what(), "maX"));
     }
   }
   factory->release_ref();
@@ -285,8 +301,8 @@ TEST_F(Fabric_test, InstantiateServerAndClientSockets)
   instantiate_server_and_client(fabric_spec_sockets);
 }
 
-static constexpr auto count_outer = 3U;
-static constexpr auto count_inner = 5U;
+static constexpr auto count_outer = 1U;
+static constexpr auto count_inner = 1U;
 
 void write_read_sequential(const std::string &fabric_spec)
 {
@@ -309,7 +325,8 @@ void write_read_sequential(const std::string &fabric_spec)
     {
       std::cerr << "SERVER begin " << iter0 << " port " << control_port << std::endl;
       {
-        remote_memory_server server(*fabric, "{}", control_port);
+        auto remote_key_base = 0U;
+        remote_memory_server server(*fabric, "{}", control_port, "", remote_key_base);
       }
       std::cerr << "SERVER end " << iter0 << std::endl;
     }
@@ -320,12 +337,14 @@ void write_read_sequential(const std::string &fabric_spec)
        * state, causing server "bind" to fail with EADDRINUSE.
        */
       std::this_thread::sleep_for(std::chrono::milliseconds(2500));
-      for ( auto iter1 = 0; iter1 != count_inner; ++iter1 )
+      for ( auto iter1 = 0U; iter1 != count_inner; ++iter1 )
       {
         std::cerr << "CLIENT begin " << iter0 << "." << iter1 << " port " << control_port << std::endl;
 
+        /* In case the provider actually uses the remote keys which we provide, make them unique. */
+        auto remote_key_index = iter1;
         /* Feed the client a good JSON spec */
-        remote_memory_client client(*fabric, "{}", remote_host, control_port);
+        remote_memory_client client(*fabric, "{}", remote_host, control_port, remote_key_index);
         /* Feed the server_factory some terrible text */
         std::string msg = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.";
         /* An ordinary client which tests RDMA to server memory */
@@ -335,8 +354,12 @@ void write_read_sequential(const std::string &fabric_spec)
         std::cerr << "CLIENT end " << iter0 << "." << iter1 << std::endl;
       }
 
+      /* In case the provider actually uses the remote keys which we provide, make them unique.
+       * (At server shutdown time there are no other clients, so the shutdown client may use any value.)
+       */
+      auto remote_key_index = 0U;
       /* A special client to tell the server factory to shut down. Placed after other clients because the server apparently cannot abide concurrent clients. */
-      remote_memory_client_for_shutdown client_shutdown(*fabric, "{}", remote_host, control_port);
+      remote_memory_client_for_shutdown client_shutdown(*fabric, "{}", remote_host, control_port, remote_key_index);
     }
 
     factory->release_ref();
@@ -375,7 +398,8 @@ TEST_F(Fabric_test, WriteReadParallel)
       std::cerr << "SERVER begin " << iter0 << " port " << control_port << std::endl;
       {
         auto expected_client_count = count_inner;
-        remote_memory_server server(*fabric, "{}", control_port, expected_client_count);
+        auto remote_key_base = 0U;
+        remote_memory_server server(*fabric, "{}", control_port, "", remote_key_base, expected_client_count);
       }
       std::cerr << "SERVER end " << iter0 << std::endl;
     }
@@ -388,12 +412,15 @@ TEST_F(Fabric_test, WriteReadParallel)
       std::this_thread::sleep_for(std::chrono::milliseconds(2500));
       {
         std::vector<remote_memory_client> vv;
-        for ( auto iter1 = 0; iter1 != count_inner; ++iter1 )
+        for ( auto iter1 = 0U; iter1 != count_inner; ++iter1 )
         {
+          /* In case the provider actually uses the remote keys which we provide, make them unique. */
+          auto remote_key_index = iter1;
+
           /* Ordinary clients which test RDMA to server memory.
            * Should be able to control them via pointers or (using move semantics) in a vector of objects.
            */
-          vv.emplace_back(*fabric, "{}", remote_host, control_port);
+          vv.emplace_back(*fabric, "{}", remote_host, control_port, remote_key_index);
         }
 
         /* Feed the server_factory some terrible text */
@@ -440,7 +467,8 @@ TEST_F(Fabric_test, GroupedClients)
     {
       std::cerr << "SERVER begin " << iter0 << std::endl;
       {
-        remote_memory_server server(*fabric, "{}", control_port);
+        auto remote_key_base = 0U;
+        remote_memory_server server(*fabric, "{}", control_port, "", remote_key_base);
       }
       std::cerr << "SERVER end " << iter0 << std::endl;
     }
@@ -451,11 +479,14 @@ TEST_F(Fabric_test, GroupedClients)
       for ( auto iter1 = 0; iter1 != count_inner; ++iter1 )
       {
         std::cerr << "CLIENT begin " << iter0 << "." << iter1 << " port " << control_port << std::endl;
-        remote_memory_client_grouped client(*fabric, "{}", remote_host, control_port);
+        /* In case the provider actually uses the remote keys which we provide, make them unique. */
+        auto remote_key_index = iter1 * 3U;
 
-        /* make one "communicator (two, including the parent. */
-        remote_memory_subclient g0(client);
-        remote_memory_subclient g1(client);
+        remote_memory_client_grouped client(*fabric, "{}", remote_host, control_port, remote_key_index);
+
+        /* make two communicators (three, including the parent. */
+        remote_memory_subclient g0(client, remote_key_index + 1U);
+        remote_memory_subclient g1(client, remote_key_index + 2U);
         std::string msg = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.";
         /* ought to split send from completions so that we can test the separation of comms */
         g0.write(msg);
@@ -467,8 +498,12 @@ TEST_F(Fabric_test, GroupedClients)
         std::cerr << "CLIENT end " << iter0 << "." << iter1 << std::endl;
       }
 
+      /* In case the provider actually uses the remote keys which we provide, make them unique.
+       * (At server shutdown time there are no other clients, so the shutdown client may use any value.)
+       */
+      auto remote_key_index = 0U;
       /* A special client to tell the server to shut down. Placed after other clients because the server apparently cannot abide concurrent clients. */
-      remote_memory_client_for_shutdown client_shutdown(*fabric, "{}", remote_host, control_port);
+      remote_memory_client_for_shutdown client_shutdown(*fabric, "{}", remote_host, control_port, remote_key_index);
     }
 
     factory->release_ref();
@@ -498,7 +533,8 @@ TEST_F(Fabric_test, GroupedServer)
     {
       std::cerr << "SERVER begin " << iter0 << std::endl;
       {
-        remote_memory_server_grouped server(*fabric, "{}", control_port);
+        auto remote_key_base = 0U;
+        remote_memory_server_grouped server(*fabric, "{}", control_port, remote_key_base);
         /* The server needs one permanent communicator, to handle the client
          * "disconnect" message.  * It does not need any other communicators,
          * but if it did, then the server (created by remote_memory_server_grouped
@@ -511,10 +547,13 @@ TEST_F(Fabric_test, GroupedServer)
     {
       /* allow time for the server to listen before the client restarts */
       std::this_thread::sleep_for(std::chrono::seconds(3));
-      for ( auto iter1 = 0; iter1 != count_inner; ++iter1 )
+      for ( auto iter1 = 0U; iter1 != count_inner; ++iter1 )
       {
+        /* In case the provider actually uses the remote keys which we provide, make them unique. */
+        auto remote_key_index = iter1;
+
         std::cerr << "CLIENT begin " << iter0 << "." << iter1 << " port " << control_port << std::endl;
-        remote_memory_client  client(*fabric, "{}", remote_host, control_port);
+        remote_memory_client  client(*fabric, "{}", remote_host, control_port, remote_key_index);
 
         std::string msg = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.";
         /* ought to split send from completions so that we can test the separation of comms */
@@ -525,8 +564,12 @@ TEST_F(Fabric_test, GroupedServer)
         std::cerr << "CLIENT end " << iter0 << "." << iter1 << std::endl;
       }
 
+      /* In case the provider actually uses the remote keys which we provide, make them unique.
+       * (At server shutdown time there are no other clients, so the shutdown client may use any value.)
+       */
+      auto remote_key_index = 0U;
       /* A special client to tell the server to shut down. Placed after other clients because the server apparently cannot abide concurrent clients. */
-      remote_memory_client_for_shutdown client_shutdown(*fabric, "{}", remote_host, control_port);
+      remote_memory_client_for_shutdown client_shutdown(*fabric, "{}", remote_host, control_port, remote_key_index);
     }
 
     factory->release_ref();

@@ -4,7 +4,7 @@
 #include "remote_memory_accessor.h"
 
 #include <common/types.h> /* status_t */
-#include <cstdint> /* uint16_t */
+#include <cstdint> /* uint16_t, uint64_t */
 #include <cstring> /* string */
 #include <memory> /* shared_ptr */
 
@@ -22,20 +22,18 @@ class remote_memory_client_grouped
 {
   std::shared_ptr<Component::IFabric_client_grouped> _cnxn;
   std::shared_ptr<registered_memory> _rm_out;
-  std::shared_ptr<registered_memory> _rm_in;
   std::uint64_t _vaddr;
   std::uint64_t _key;
   char _quit_flag;
-
-  registered_memory &rm_in() const { return *_rm_in; }
+  std::uint64_t _remote_key_index_for_startup_and_shutdown;
   registered_memory &rm_out() const { return *_rm_out; }
-
-  static void check_complete_static(void *rmc, ::status_t stat);
-  static void check_complete_static_2(void *t, void *rmc, ::status_t stat);
-  static void check_complete(::status_t stat);
-
 public:
-  remote_memory_client_grouped(Component::IFabric &fabric_, const std::string &fabric_spec_, const std::string ip_address_, std::uint16_t port_);
+  remote_memory_client_grouped(Component::IFabric &fabric_
+    , const std::string &fabric_spec_
+    , const std::string ip_address_
+    , std::uint16_t port_
+    , std::uint64_t remote_key_base_
+  );
 
   remote_memory_client_grouped(remote_memory_client_grouped &&) = default;
   remote_memory_client_grouped &operator=(remote_memory_client_grouped &&) = default;

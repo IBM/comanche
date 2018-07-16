@@ -18,17 +18,18 @@
 #include <thread>
 #include <vector>
 
-void remote_memory_server::listener(Component::IFabric_server_factory &ep_)
+void remote_memory_server::listener(Component::IFabric_server_factory &ep_, std::uint64_t remote_key_index_)
 {
   auto quit = false;
-  while ( ! quit )
+  for ( ; ! quit; ++remote_key_index_ )
   {
     server_connection sc(ep_);
     /* register an RDMA memory region */
-    registered_memory rm{sc.cnxn()};
+    registered_memory rm{sc.cnxn(), remote_key_index_};
     /* send the client address and key to memory */
     send_memory_info(sc.cnxn(), rm);
     /* wait for client indicate exit (by sending one byte to us) */
+    try
     {
       std::vector<::iovec> v;
       ::iovec iv;
@@ -48,27 +49,45 @@ void remote_memory_server::listener(Component::IFabric_server_factory &ep_)
           }
       );
     }
+    catch ( std::exception &e )
+    {
+      std::cerr << "remote_memory_server::" << __func__ << ": " << e.what() << "\n";
+      throw;
+    }
   }
 }
 
-void remote_memory_server::listener_counted(Component::IFabric_server_factory &ep_, unsigned cnxn_count_)
+void remote_memory_server::listener_counted(Component::IFabric_server_factory &ep_, std::uint64_t remote_key_index_, unsigned cnxn_count_)
 {
   std::vector<std::shared_ptr<server_connection_and_memory>> scrm;
   for ( auto i = 0U; i != cnxn_count_; ++i )
   {
-    scrm.emplace_back(std::make_shared<server_connection_and_memory>(ep_));
+    scrm.emplace_back(std::make_shared<server_connection_and_memory>(ep_, remote_key_index_ + i));
   }
 }
 
-remote_memory_server::  remote_memory_server(Component::IFabric &fabric_, const std::string &fabric_spec_, std::uint16_t control_port_)
+remote_memory_server::remote_memory_server(
+  Component::IFabric &fabric_
+  , const std::string &fabric_spec_
+  , std::uint16_t control_port_
+  , const char *
+  , std::uint64_t remote_key_base_
+)
   : _ep(fabric_.open_server_factory(fabric_spec_, control_port_))
-  , _th(&remote_memory_server::listener, this, std::ref(*_ep))
+  , _th(&remote_memory_server::listener, this, std::ref(*_ep), remote_key_base_)
 {
 }
 
-remote_memory_server::remote_memory_server(Component::IFabric &fabric_, const std::string &fabric_spec_, std::uint16_t control_port_, unsigned cnxn_limit_)
+remote_memory_server::remote_memory_server(
+Component::IFabric &fabric_
+  , const std::string &fabric_spec_
+  , std::uint16_t control_port_
+  , const char *
+  , std::uint64_t remote_key_base_
+  , unsigned cnxn_limit_
+)
   : _ep(fabric_.open_server_factory(fabric_spec_, control_port_))
-  , _th(&remote_memory_server::listener_counted, this, std::ref(*_ep), cnxn_limit_)
+  , _th(&remote_memory_server::listener_counted, this, std::ref(*_ep), remote_key_base_, cnxn_limit_)
 {
 }
 

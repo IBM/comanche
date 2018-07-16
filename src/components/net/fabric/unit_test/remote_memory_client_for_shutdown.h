@@ -3,7 +3,7 @@
 
 #include "remote_memory_client.h"
 
-#include <cstdint> /* uint64_t */
+#include <cstdint> /* uint16_t, uint64_t */
 #include <cstring> /* string */
 
 namespace Component
@@ -15,7 +15,13 @@ class remote_memory_client_for_shutdown
   : private remote_memory_client
 {
 public:
-  remote_memory_client_for_shutdown(Component::IFabric &fabric, const std::string &fabric_spec, const std::string ip_address, std::uint16_t port);
+  remote_memory_client_for_shutdown(
+    Component::IFabric &fabric
+    , const std::string &fabric_spec
+    , const std::string ip_address
+    , std::uint16_t port
+    , std::uint64_t remote_key_base
+  );
 };
 
 #endif

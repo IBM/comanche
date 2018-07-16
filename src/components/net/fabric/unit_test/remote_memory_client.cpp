@@ -20,23 +20,23 @@
 #include <memory> /* make_shared */
 #include <vector>
 
-void remote_memory_client::check_complete_static(void *rmc_, ::status_t stat_)
+void remote_memory_client::check_complete_static(void *t_, void *rmc_, ::status_t stat_)
+try
 {
+  /* The callback context must be the object which was polling. */
+  ASSERT_EQ(t_, rmc_);
   auto rmc = static_cast<remote_memory_client *>(rmc_);
   ASSERT_TRUE(rmc);
   rmc->check_complete(stat_);
 }
-
-void remote_memory_client::check_complete_static_2(void *t_, void *rmc_, ::status_t stat_)
+catch ( std::exception &e )
 {
-  /* The callback context must be the object which was polling. */
-  ASSERT_EQ(t_, rmc_);
-  check_complete_static(rmc_, stat_);
+  std::cerr << "remote_memory_client::" << __func__ << e.what() << "\n";
 }
 
 void remote_memory_client::check_complete(::status_t stat_)
 {
-  ASSERT_EQ(stat_, S_OK);
+  _last_stat = stat_;
 }
 
 void remote_memory_client::do_quit()
@@ -44,13 +44,15 @@ void remote_memory_client::do_quit()
   _quit_flag = 'q';
 }
 
-remote_memory_client::remote_memory_client(Component::IFabric &fabric_, const std::string &fabric_spec_, const std::string ip_address_, std::uint16_t port_)
-: _cnxn(open_connection_patiently(fabric_, fabric_spec_, ip_address_, port_))
-  , _rm_out{std::make_shared<registered_memory>(*_cnxn)}
-  , _rm_in{std::make_shared<registered_memory>(*_cnxn)}
+remote_memory_client::remote_memory_client(Component::IFabric &fabric_, const std::string &fabric_spec_, const std::string ip_address_, std::uint16_t port_, std::uint64_t remote_key_base_)
+try
+  : _cnxn(open_connection_patiently(fabric_, fabric_spec_, ip_address_, port_))
+  , _rm_out{std::make_shared<registered_memory>(*_cnxn, remote_key_base_ * 2U)}
+  , _rm_in{std::make_shared<registered_memory>(*_cnxn, remote_key_base_ * 2U + 1)}
   , _vaddr{}
   , _key{}
   , _quit_flag('n')
+  , _last_stat(::E_FAIL)
 {
   std::vector<::iovec> v;
   ::iovec iv;
@@ -63,14 +65,19 @@ remote_memory_client::remote_memory_client(Component::IFabric &fabric_, const st
     , [&v, this] (void *ctxt, ::status_t st) -> void
       {
         ASSERT_EQ(ctxt, this);
-        ASSERT_EQ(st, S_OK);
+        ASSERT_EQ(st, ::S_OK);
         ASSERT_EQ(v[0].iov_len, (sizeof _vaddr) + sizeof( _key));
         std::memcpy(&_vaddr, &rm_out()[0], sizeof _vaddr);
         std::memcpy(&_key, &rm_out()[sizeof _vaddr], sizeof _key);
       }
   );
   boost::io::ios_flags_saver sv(std::cerr);
-  std::cerr << "Remote memory client addr " << reinterpret_cast<void*>(_vaddr) << " key " << std::hex << _key << std::endl;
+  std::cerr << "Client: remote memory addr " << reinterpret_cast<void*>(_vaddr) << " key " << std::hex << _key << std::endl;
+}
+catch ( std::exception &e )
+{
+  std::cerr << __func__ << ": " << e.what() << "\n";
+  throw;
 }
 
 void remote_memory_client::send_disconnect(Component::IFabric_communicator &cnxn_, registered_memory &rm_, char quit_flag_)
@@ -102,8 +109,13 @@ void remote_memory_client::write(const std::string &msg_)
   }
   wait_poll(
     *_cnxn
-    , [this] (void *rmc_, ::status_t stat_) { check_complete_static_2(this, rmc_, stat_); } /* WAS: check_complete_static */
+    , [this] (void *rmc_, ::status_t stat_) { check_complete_static(this, rmc_, stat_); }
   );
+  EXPECT_EQ(_last_stat, ::S_OK);
+  if ( _last_stat != ::S_OK )
+  {
+    std::cerr << "remote_memory_client::" << __func__ << ": " << _last_stat << "\n";
+  }
 }
 
 void remote_memory_client::read_verify(const std::string &msg_)
@@ -116,8 +128,13 @@ void remote_memory_client::read_verify(const std::string &msg_)
   }
   wait_poll(
     *_cnxn
-    , [this] (void *rmc_, ::status_t stat_) { check_complete_static_2(this, rmc_, stat_); } /* WAS: check_complete_static */
+    , [this] (void *rmc_, ::status_t stat_) { check_complete_static(this, rmc_, stat_); }
   );
+  EXPECT_EQ(_last_stat, ::S_OK);
+  if ( _last_stat != ::S_OK )
+  {
+    std::cerr << "remote_memory_client::" << __func__ << ": " << _last_stat << "\n";
+  }
   std::string remote_msg(&rm_in()[0], &rm_in()[0] + msg_.size());
-  ASSERT_EQ(msg_, remote_msg);
+  EXPECT_EQ(msg_, remote_msg);
 }

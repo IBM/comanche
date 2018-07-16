@@ -16,20 +16,24 @@
 #include <thread>
 #include <vector>
 
-void remote_memory_server_grouped::listener(Component::IFabric_server_grouped_factory &ep_)
+void remote_memory_server_grouped::listener(
+  Component::IFabric_server_grouped_factory &ep_
+  , std::uint64_t remote_key_index_
+)
 {
   auto quit = false;
-  while ( ! quit )
+  for ( ; ! quit ; ++remote_key_index_ )
   {
     /* Get a client to work with */
     /* Get a client to work with */
     server_grouped_connection sc(ep_);
     /* register an RDMA memory region */
-    registered_memory rm{sc.cnxn()};
+    registered_memory rm{sc.cnxn(), remote_key_index_};
     /* send the client address and key to memory */
     auto &cnxn = sc.comm();
     send_memory_info(cnxn, rm);
     /* wait for client indicate exit (by sending one byte to us) */
+    try
     {
       std::vector<::iovec> v;
       ::iovec iv;
@@ -49,12 +53,22 @@ void remote_memory_server_grouped::listener(Component::IFabric_server_grouped_fa
           }
       );
     }
+    catch ( std::exception &e )
+    {
+      std::cerr << "remote_memory_server_grouped::" << __func__ << ": " << e.what() << "\n";
+      throw;
+    }
   }
 }
 
-remote_memory_server_grouped::remote_memory_server_grouped(Component::IFabric &fabric_, const std::string &fabric_spec_, std::uint16_t control_port_)
+remote_memory_server_grouped::remote_memory_server_grouped(
+  Component::IFabric &fabric_
+  , const std::string &fabric_spec_
+  , std::uint16_t control_port_
+  , std::uint64_t remote_key_base_
+)
   : _ep(fabric_.open_server_grouped_factory(fabric_spec_, control_port_))
-  , _th(&remote_memory_server_grouped::listener, this, std::ref(*_ep))
+  , _th(&remote_memory_server_grouped::listener, this, std::ref(*_ep), remote_key_base_)
 {}
 
 remote_memory_server_grouped::~remote_memory_server_grouped()
