@@ -97,7 +97,8 @@ static long xms_dev_ioctl(struct file *filp,
                         ((IOCTL_GETPHYS_param *) arg),
                         sizeof(IOCTL_GETPHYS_param));
 
-    if((rc > 0) || (!access_ok(VERIFY_WRITE, params.out_paddr, sizeof(params.out_paddr)))) {
+    if(rc > 0) {
+
       printk(KERN_ERR "xms: dev_ioctl passed invalid out_data param\n");
       return r;
     }
