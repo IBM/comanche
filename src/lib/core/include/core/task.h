@@ -79,7 +79,7 @@ class Per_core_tasking
 
     for (unsigned c = 0; c < sysconf(_SC_NPROCESSORS_ONLN); c++) {
       if (cpus.check_core(c)) {        
-        while(!_tasklet[c]->ready()) sleep(100);
+        while(!_tasklet[c]->ready()) usleep(100);
       }
     }
 
@@ -118,7 +118,7 @@ private:
 
     _tasklet[core]->initialize(core);
 
-    while(!_start_flag) usleep(1000);
+    while(!_start_flag) usleep(100);
       
     while (!_exit_flag) {
       try {
