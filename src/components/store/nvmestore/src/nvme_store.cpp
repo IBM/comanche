@@ -142,7 +142,7 @@ NVME_store::NVME_store(const std::string owner,
   }
 
 
-  PINF("NVME_store: using block device %p with allocator %p", _blk_dev, _blk_alloc);
+  PDBG("NVME_store: using block device %p with allocator %p", _blk_dev, _blk_alloc);
 }
 
 NVME_store::~NVME_store()
@@ -296,7 +296,7 @@ status_t NVME_store::put(IKVStore::pool_t pool,
 
   // TODO: how fast is it?
   io_buffer_t mem = blk_dev->allocate_io_buffer(nr_io_blocks*4096, 4096,Component::NUMA_NODE_ANY);
-  PDBG("write to lba %lu with length %lu",lba, value_len);
+  PDBG("write to lba %lu with length %lu, key %lx",lba, value_len, hashkey);
 
   TOID(struct block_range) val;
   TX_BEGIN(pop) {
@@ -373,7 +373,7 @@ status_t NVME_store::get(const pool_t pool,
     while(!blk_dev->check_completion(tag)) cpu_relax(); /* check the last completion, TODO: check each time makes the get slightly slow () */
 #endif
 
-    PDBG("prepare to read lba % lu with length %lu", lba, value_len);
+    PDBG("prepare to read lba %d with length %d, key %lx", lba, val_len, hashkey);
     out_value = malloc(val_len);
     out_value_len = val_len;
 
