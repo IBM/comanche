@@ -20,7 +20,6 @@
 #include <api/kvstore_itf.h>
 #include <api/block_itf.h>
 #include <api/block_allocator_itf.h>
-#include "data.h"
 
 #include <stdlib.h>
 #include <unordered_map>
@@ -29,11 +28,11 @@
 #include <boost/crc.hpp>
 
 
-#define PMEM_PATH "/mnt/pmem0/pool/0/"
+#define PMEM_PATH "/mnt/pmem0/pool-nvmestore"
+#define POOL_NAME "test-integrity.pool"
 
 using namespace Component;
 
-static Component::IKVStore::pool_t pool;
 
 struct
 {
@@ -62,25 +61,17 @@ class KVStore_test : public ::testing::Test {
   }
   
   // Objects declared here can be used by all tests in the test case
-  static Component::IBlock_device * _block;
-  static Component::IBlock_allocator * _alloc;
   static Component::IKVStore * _kvstore;
-  static Component::IKVStore * _kvstore2;
-
-  static std::string POOL_NAME;
+  static Component::IKVStore::pool_t _pool;
 };
 
 
 Component::IKVStore * KVStore_test::_kvstore;
-//Component::IKVStore * KVStore_test::_kvstore2;
+Component::IKVStore::pool_t KVStore_test::_pool;
 
-std::string KVStore_test::POOL_NAME = "test-nvme";
 static constexpr int nr_elem = 500; // number of the test elem in the pool
 static constexpr size_t VAL_LEN = MB(8);
 std::unordered_map<std::string, int> _crc_map;
-
-//#define PMEM_PATH "/dev/pmem0"
-
 
 TEST_F(KVStore_test, Instantiate)
 {
@@ -101,15 +92,14 @@ TEST_F(KVStore_test, OpenPool)
 {
   PLOG(" test-nvmestore: try to openpool");
   ASSERT_TRUE(_kvstore);
-  std::string pool_name = POOL_NAME + ".pool";
   // pass blk and alloc here
-  pool = _kvstore->create_pool(PMEM_PATH, pool_name.c_str(), GB(8));
-  ASSERT_TRUE(pool > 0);
+  _pool = _kvstore->create_pool(PMEM_PATH, POOL_NAME, GB(8));
+  ASSERT_TRUE(_pool > 0);
 }
 
 TEST_F(KVStore_test, BasicPut)
 {
-  ASSERT_TRUE(pool);
+  ASSERT_TRUE(_pool);
   for(int i=0 ;i< nr_elem; i++){
     std::string key = "MyKey"+std::to_string(i);
     auto val = Common::random_string(VAL_LEN);
@@ -120,7 +110,7 @@ TEST_F(KVStore_test, BasicPut)
 
 		_crc_map[key]=result.checksum();
       
-    EXPECT_TRUE(S_OK == _kvstore->put(pool, key, val.c_str(), VAL_LEN));
+    EXPECT_TRUE(S_OK == _kvstore->put(_pool, key, val.c_str(), VAL_LEN));
   }
 }
 
@@ -140,7 +130,7 @@ TEST_F(KVStore_test, GetDirect)
   ASSERT_TRUE(handle);
   value = mem_alloc.virt_addr(handle);
 
-  _kvstore->get_direct(pool, key, value, value_len, 0);
+  _kvstore->get_direct(_pool, key, value, value_len, 0);
 
   EXPECT_FALSE(strcmp("Hello world!0", (char*)value));
   PINF("Value=(%.50s) %lu", ((char*)value), value_len);
@@ -157,7 +147,7 @@ TEST_F(KVStore_test, BasicGet)
 
     void * value = nullptr;
     size_t value_len = 0;
-    _kvstore->get(pool, key, value, value_len);
+    _kvstore->get(_pool, key, value, value_len);
 
 		boost::crc_32_type result;
     result.process_bytes(value, value_len);
@@ -172,7 +162,7 @@ TEST_F(KVStore_test, BasicErase)
 {
 
   for(int i=0 ;i< nr_elem; i++){
-    _kvstore->erase(pool, "MyKey"+std::to_string(i));
+    _kvstore->erase(_pool, "MyKey"+std::to_string(i));
   }
 
 }
@@ -180,7 +170,7 @@ TEST_F(KVStore_test, BasicErase)
 
 TEST_F(KVStore_test, ClosePool)
 {
-  _kvstore->close_pool(pool);
+  _kvstore->close_pool(_pool);
 }
 
 TEST_F(KVStore_test, ReleaseStore)
