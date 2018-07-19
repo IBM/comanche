@@ -27,6 +27,10 @@ bypass clflush/msync
 PMEM_IS_PMEM_FORCE=1 ./you-program
 ```
 
+```
+xms mod is inserted?
+```
+
 set pin memory limit for this user
 -------------------------------------
 
