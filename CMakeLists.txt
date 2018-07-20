@@ -45,7 +45,7 @@ endif()
 # then run 'make' to build components/tests
 add_custom_target(bootstrap
   ${CMAKE_COMMAND} -DBOOTSTRAP_DEPS=on ${CMAKE_SOURCE_DIR}
-  COMMAND make all
+  COMMAND make all install
   COMMAND ${CMAKE_COMMAND} -DBOOTSTRAP_DEPS=off ${CMAKE_SOURCE_DIR}
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   )
@@ -53,6 +53,8 @@ add_custom_target(bootstrap
 # default make will only build core and dependencies
 if(BOOTSTRAP_DEPS)
   add_subdirectory(src/lib)
+  add_subdirectory(src/components/api)
+
   message("\n[IMPORTANT]: first run 'make bootstrap' to build core and dependencies")
   message("             then run 'make' to build components")
 
