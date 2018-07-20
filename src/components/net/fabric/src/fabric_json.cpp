@@ -30,7 +30,12 @@
 #pragma GCC diagnostic ignored "-Wshadow"
 #include <rdma/fabric.h> /* fi_info */
 #pragma GCC diagnostic pop
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#pragma GCC diagnostic ignored "-Wshadow"
 #include <rdma/fi_endpoint.h> /* fi_tx_attr, fi_rx_attr */
+#pragma GCC diagnostic pop
 
 #include <cstdint> /* uint32_t, uint64_t */
 #include <cstring> /* strdup */

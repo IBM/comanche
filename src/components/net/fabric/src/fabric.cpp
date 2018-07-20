@@ -36,7 +36,12 @@
 #pragma GCC diagnostic ignored "-Wshadow"
 #include <rdma/fabric.h> /* fi_info */
 #pragma GCC diagnostic pop
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#pragma GCC diagnostic ignored "-Wshadow"
 #include <rdma/fi_endpoint.h> /* fi_ep_bind, fi_pep_bind */
+#pragma GCC diagnostic pop
 
 #include <sys/select.h> /* pselect */
 
