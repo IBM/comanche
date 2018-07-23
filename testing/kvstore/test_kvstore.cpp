@@ -150,6 +150,14 @@ int main(int argc, char **argv)
                 
                 pool_path = "/mnt/pmem0";
             }
+            else if (Options.component.compare("nvmestore") == 0) {
+                printf("USE NVMESTORE\n");
+
+                component_path = "libcomanche-nvmestore.so";
+                component_uuid = Component::nvmestore_factory;
+                
+                pool_path = "/mnt/pmem0";
+            }
             else
             {
                 printf("UNHANDLED COMPONENT\n");
