@@ -13,45 +13,52 @@
 
 using namespace Component;
 
-TEST(BasicFunctionality, PutGet)
+class PoolTest: public::testing::Test
 {
-    printf("load_test running\n");
-
+protected:
     Component::IKVStore * g_store;
     Component::IBase * comp;
+    IKVStore_factory * fact;
 
-    printf("variables declared\n");
-
-    comp = Component::load_component(FILESTORE_PATH, Component::filestore_factory);
-    assert(comp); // TODO: assert message possible here?
-
-    printf("component loaded\n");
-
-    IKVStore_factory * fact = (IKVStore_factory *)comp->query_interface(IKVStore_factory::iid());
-
-    printf("query_interface completed\n");
-
-    g_store = fact->create("owner", "name");  // TODO: what does this do?
-
-    printf("create done\n");
-
-    printf("setting up cores\n");
-    
-    cpu_mask_t cpus;
-    unsigned core = 1;
-    static unsigned core_count = 1;
-
-    for(unsigned core = 0; core < core_count; core++)
-    {
-        cpus.add_core(core);
-    }
-
-    printf("starting tests\n");
-//    Core::Per_core_tasking<Experiment_Put, Component::IKVStore*> exp(cpus, g_store);
+    Component::IKVStore::pool_t pool;
     std::string pool_path = "./data";
     std::string pool_name = "test.pool.0";
     size_t pool_size = MB(100);
-    const Component::IKVStore::pool_t pool = g_store->create_pool(pool_path, pool_name, pool_size);
+
+    void SetUp() override 
+    {
+        comp = Component::load_component(FILESTORE_PATH, Component::filestore_factory);
+        assert(comp); // TODO: assert message possible here?
+
+        fact = (IKVStore_factory *)comp->query_interface(IKVStore_factory::iid());
+
+        g_store = fact->create("owner", "name");  // TODO: what does this do?
+
+        cpu_mask_t cpus;
+        unsigned core = 1;
+        static unsigned core_count = 1;
+
+        for(unsigned core = 0; core < core_count; core++)
+        {
+            cpus.add_core(core);
+        }
+
+       //    Core::Per_core_tasking<Experiment_Put, Component::IKVStore*> exp(cpus, g_store);
+        Component::IKVStore::pool_t pool = g_store->create_pool(pool_path, pool_name, pool_size);
+    }
+
+    void TearDown() override
+    {
+        fact->release_ref();  // TODO: what does this do?
+     
+        const Component::IKVStore::pool_t pool = g_store->open_pool(pool_path, pool_name);
+        g_store->delete_pool(pool);
+    }
+};
+
+TEST_F(PoolTest, PutGet)
+{
+    const Component::IKVStore::pool_t pool = g_store->open_pool(pool_path, pool_name);
 
     // randomly generate key and value
     int key_length = 8;
@@ -62,7 +69,7 @@ TEST(BasicFunctionality, PutGet)
 
     printf("generated random key and value\n");
     status_t rc = g_store->put(pool, key, value.c_str(), value_length);
-//    status_t rc = 0;
+
     ASSERT_EQ(rc, S_OK); 
 
     void * pval;
@@ -73,15 +80,14 @@ TEST(BasicFunctionality, PutGet)
     printf("pval = %s, size %lu\n", static_cast<std::string*>(pval), pval_len);
 
     ASSERT_EQ(rc, S_OK);
-    //BOOST_CHECK(strcmp(((const char*)pval), value.c_str()) == 0);
     ASSERT_STREQ((const char*)pval, value.c_str());
 
     free(pval);
+}
 
-    printf("testing done\n");
-    fact->release_ref();  // TODO: what does this do?
-
-    printf("release_ref done\n");
+TEST_F(PoolTest, dummy_test)
+{
+    ASSERT_EQ(1, 1);
 }
 
 int main(int argc, char **argv) 
