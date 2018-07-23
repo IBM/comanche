@@ -128,7 +128,7 @@ static void initialize()
   IKVStore_factory * fact = (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
 
   if(Options.component == "nvmestore"){
-    g_store = fact->create("owner","name", "81:00.0");
+    g_store = fact->create("owner","name", "8b:00.0");
   }
   else{
     g_store = fact->create("owner","name");
