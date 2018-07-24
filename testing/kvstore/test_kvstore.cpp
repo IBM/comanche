@@ -1,5 +1,3 @@
-#include <gtest/gtest.h>
-
 /* note: we do not include component source, only the API definition */
 #include <api/components.h>
 #include <api/kvstore_itf.h>
@@ -7,8 +5,8 @@
 #include <common/utils.h>
 #include <common/str_utils.h>
 #include <core/task.h>
-//#include <chrono>
 #include <iostream>
+#include <gtest/gtest.h>
 
 #define DEFAULT_COMPONENT "filestore"
 #define FILESTORE_PATH "libcomanche-storefile.so"
@@ -29,17 +27,20 @@ protected:
     Component::IKVStore::pool_t pool;
 
     std::string pool_name = "test.pool.0";
+
     size_t pool_size = MB(100);
 
     void SetUp() override 
     {
+        // TODO: make sure pool_path directory exists
+
         comp = Component::load_component(component_path, component_uuid);
 
         assert(comp); // TODO: assert message possible here?
 
         fact = (IKVStore_factory *)comp->query_interface(IKVStore_factory::iid());
 
-        g_store = fact->create("owner", "name");  // TODO: what does this do?
+        g_store = fact->create("owner", "name");  // TODO: figure out why/if we need this
 
         cpu_mask_t cpus;
         unsigned core = 1;
@@ -55,7 +56,7 @@ protected:
 
     void TearDown() override
     {
-        fact->release_ref();  // TODO: what does this do?
+        fact->release_ref();  // TODO: figure out why we need this
      
         const Component::IKVStore::pool_t pool = g_store->open_pool(pool_path, pool_name);
         g_store->delete_pool(pool);
@@ -67,8 +68,8 @@ TEST_F(PoolTest, PutGet_RandomKVP)
     const Component::IKVStore::pool_t pool = g_store->open_pool(pool_path, pool_name);
 
     // randomly generate key and value
-    int key_length = 8;
-    int value_length = 64;
+    const int key_length = 8;
+    const int value_length = 64;
     const std::string key = Common::random_string(key_length);
     std::string value = Common::random_string(value_length);
     printf("random value: %s, size %d\n", value.c_str(), (int)value_length);
@@ -91,11 +92,115 @@ TEST_F(PoolTest, PutGet_RandomKVP)
     free(pval);
 }
 
-TEST_F(PoolTest, dummy_test)
+TEST_F(PoolTest, Get_NoValidKey)
 {
-    ASSERT_EQ(1, 1);
+    const Component::IKVStore::pool_t pool = g_store->open_pool(pool_path, pool_name);
+
+    // randomly generate key to look up (we shouldn't find it)
+    const int key_length = 8;
+    const std::string key = Common::random_string(key_length);
+
+    void * pval;
+    size_t pval_len;
+    
+    status_t rc  = g_store->get(pool, key, pval, pval_len);
+    ASSERT_EQ(rc, IKVStore::E_KEY_NOT_FOUND);  // expect failure here
+    ASSERT_STREQ((const char*)pval, nullptr);
+
+    free(pval);
 }
 
+TEST_F(PoolTest, Put_DuplicateKey)
+{
+    const Component::IKVStore::pool_t pool = g_store->open_pool(pool_path, pool_name);
+
+    // randomly generate key and value
+    const int key_length = 8;
+    const int value_length = 64;
+    const std::string key = Common::random_string(key_length);
+    std::string value = Common::random_string(value_length);
+    printf("random value: %s, size %d\n", value.c_str(), (int)value_length);
+
+    printf("generated random key and value\n");
+    status_t rc = g_store->put(pool, key, value.c_str(), value_length);
+
+    ASSERT_EQ(rc, S_OK); 
+
+    // now try to add another value to that key
+    rc = g_store->put(pool, key, value.c_str(), value_length);
+
+    ASSERT_EQ(rc, IKVStore::E_KEY_EXISTS);
+}
+
+
+TEST_F(PoolTest, Put_Erase)
+{
+    const Component::IKVStore::pool_t pool = g_store->open_pool(pool_path, pool_name);
+
+    // randomly generate key and value
+    const int key_length = 8;
+    const int value_length = 64;
+    const std::string key = Common::random_string(key_length);
+    const std::string value = Common::random_string(value_length);
+
+    printf("random value: %s, size %d\n", value.c_str(), (int)value_length);
+
+    printf("generated random key and value\n");
+    status_t rc = g_store->put(pool, key, value.c_str(), value_length);
+
+    ASSERT_EQ(rc, S_OK); 
+
+    // now delete key and try to get it again post-deletion
+    void * pval;
+    size_t pval_len;
+
+    rc = g_store->erase(pool, key);
+ 
+    rc  = g_store->get(pool, key, pval, pval_len);
+
+    ASSERT_EQ((int)rc, (int)IKVStore::E_KEY_NOT_FOUND);
+
+    free(pval);
+}
+
+TEST_F(PoolTest, DISABLED_Count_Changes)
+{
+    const int key_length = 8;
+    const int value_length = 64;
+
+    size_t size;
+    const Component::IKVStore::pool_t pool = g_store->open_pool(pool_path, pool_name);
+
+    // check size on creation (0)
+    size = g_store->count(pool);
+    ASSERT_EQ(size, 0);
+    
+    // put random key and value, check size again (1)
+    const std::string key_1 = Common::random_string(key_length);
+    std::string value = Common::random_string(value_length);
+
+    status_t rc = g_store->put(pool, key_1, value.c_str(), value_length);  
+    ASSERT_EQ(rc, S_OK);
+    ASSERT_EQ(g_store->count(pool), 1);
+
+    // put another random key, check size again (2) 
+    const std::string key_2 = Common::random_string(key_length);
+    value = Common::random_string(value_length);
+
+    rc = g_store->put(pool, key_2, value.c_str(), value_length);  
+
+    ASSERT_EQ(g_store->count(pool), 2);
+
+    // check size on delete (1)
+    rc = g_store->erase(pool, key_1);
+    ASSERT_EQ(rc, S_OK);
+    ASSERT_EQ(g_store->count(pool), 1);
+
+    // check size on delete again (0)
+    rc = g_store->erase(pool, key_2);
+    ASSERT_EQ(rc, S_OK);
+    ASSERT_EQ(g_store->count(pool), 0);
+}
 
 struct {
   std::string test;
