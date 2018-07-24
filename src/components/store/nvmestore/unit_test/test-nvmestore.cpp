@@ -12,6 +12,7 @@
 
 
 /* note: we do not include component source, only the API definition */
+#include "data.h"
 #include <gtest/gtest.h>
 #include <common/utils.h>
 #include <common/str_utils.h>
@@ -173,7 +174,6 @@ TEST_F(KVStore_test, BasicErase)
   _kvstore->erase(_pool, "MyKey");
 }
 
-#if 0
 TEST_F(KVStore_test, Throughput)
 {
   ASSERT_TRUE(_pool);
@@ -215,7 +215,6 @@ TEST_F(KVStore_test, Throughput)
 
 
 }
-#endif
 
 #if 0
 
