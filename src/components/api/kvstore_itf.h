@@ -208,8 +208,7 @@ public:
    * @return S_OK, S_MORE if only a portion of value is read, E_BAD_ALIGNMENT on invalid alignment, or other error code
    */
   virtual status_t get_direct(const pool_t pool,
-                              const void * key,
-                              const size_t key_len,
+                              uint64_t key_hash,
                               void* out_value,
                               size_t& out_value_len,
                               size_t offset = 0) { return E_NOT_SUPPORTED; }

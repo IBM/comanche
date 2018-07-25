@@ -66,7 +66,7 @@ public:
   virtual Component::IBlock_device * open_region(size_t size_in_blocks,
                                                   std::string owner,
                                                   std::string id,
-                                                  addr_t& vaddr) = 0;;
+                                                  addr_t& vaddr) = 0;
   
   /** 
    * Retrieve region information
