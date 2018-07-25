@@ -174,6 +174,8 @@ public:
    * use the offset parameter and limit the size of the buffer (out_value_len).  Loop on return of
    * S_MORE, and increment offset, to read fragments.  This is useful for very large objects that 
    * for instance you want to start sending over the network while the device is pulling the data in.
+   * Note: if the key does not exist, then the key is created and value space allocated according to 
+   * the size of out_value_len.
    * 
    * @param pool Pool handle
    * @param key Object key
@@ -217,7 +219,8 @@ public:
                             uint64_t& out_key_hash) { return E_NOT_SUPPORTED; }
   
   /** 
-   * Take a lock on an object
+   * Take a lock on an object. If the object does not exist, create it with
+   * value space according to out_value_len
    * 
    * @param pool Pool handle
    * @param key_hash Hash of key
@@ -242,6 +245,16 @@ public:
    */
   virtual status_t unlock(const pool_t pool,
                           uint64_t key_hash) { return E_NOT_SUPPORTED; }
+
+  /** 
+   * Get the key hash 
+   * 
+   * @param key Pointer to start of key
+   * @param key_len Length of key in bytes
+   * 
+   * @return Key hash code
+   */
+  virtual uint64_t key_hash(const void * key, const size_t key_len) { return E_NOT_SUPPORTED; }
   
   /** 
    * Apply a functor to an object as a transaction
