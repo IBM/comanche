@@ -169,7 +169,7 @@ public:
                        size_t& out_value_len) = 0;
 
 
-  /** 
+  /**
    * Read an object value directly into client-provided memory.  To perform partial gets you can 
    * use the offset parameter and limit the size of the buffer (out_value_len).  Loop on return of
    * S_MORE, and increment offset, to read fragments.  This is useful for very large objects that 
@@ -187,6 +187,29 @@ public:
    */
   virtual status_t get_direct(const pool_t pool,
                               const std::string key,
+                              void* out_value,
+                              size_t& out_value_len,
+                              size_t offset = 0) { return E_NOT_SUPPORTED; }
+
+  /**
+   * Read an object value directly into client-provided memory.  To perform partial gets you can 
+   * use the offset parameter and limit the size of the buffer (out_value_len).  Loop on return of
+   * S_MORE, and increment offset, to read fragments.  This is useful for very large objects that 
+   * for instance you want to start sending over the network while the device is pulling the data in.
+   * Note: if the key does not exist, then the key is created and value space allocated according to 
+   * the size of out_value_len.
+   * 
+   * @param pool Pool handle
+   * @param key Object key
+   * @param out_value Client provided buffer for value
+   * @param out_value_len [in] size of value memory in bytes [out] size of value
+   * @param offset Offset from beginning of value in bytes.
+   * 
+   * @return S_OK, S_MORE if only a portion of value is read, E_BAD_ALIGNMENT on invalid alignment, or other error code
+   */
+  virtual status_t get_direct(const pool_t pool,
+                              const void * key,
+                              const size_t key_len,
                               void* out_value,
                               size_t& out_value_len,
                               size_t offset = 0) { return E_NOT_SUPPORTED; }
