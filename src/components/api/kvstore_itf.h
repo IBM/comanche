@@ -123,7 +123,7 @@ public:
   virtual void delete_pool(const pool_t pool)  = 0;
 
   /** 
-   * Write an object value
+   * Write an object value. Key as string.
    * 
    * @param pool Pool handle
    * @param key Object key
@@ -136,6 +136,22 @@ public:
                        const std::string key,
                        const void * value,
                        const size_t value_len) = 0;
+
+    /** 
+   * Write an object value. Key as pointer-len pair.
+   * 
+   * @param pool Pool handle
+   * @param key Object key
+   * @param value Value data
+   * @param value_len Size of value in bytes
+   * 
+   * @return S_OK or error code
+   */
+  virtual status_t put(const pool_t pool,
+                       const void * key,
+                       const size_t key_len,
+                       const void * value,
+                       const size_t value_len) { return E_NOT_SUPPORTED; }
 
   /** 
    * Read an object value
