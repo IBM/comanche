@@ -1,6 +1,7 @@
 /* note: we do not include component source, only the API definition */
 #include <api/components.h>
 #include <api/kvstore_itf.h>
+#include <boost/filesystem.hpp>
 #include <boost/program_options.hpp>
 #include <common/utils.h>
 #include <common/str_utils.h>
@@ -29,7 +30,13 @@ protected:
 
     void SetUp() override 
     {
-        // TODO: make sure pool_path directory exists
+        // make sure pool_path directory exists
+        boost::filesystem::path dir(pool_path);
+        if (boost::filesystem::create_directory(dir))
+        {
+            std::cout << "Created directory for testing: " << pool_path << std::endl;
+        }
+
         Component::IBase * comp;
         comp = Component::load_component(component_path, component_uuid);
 
