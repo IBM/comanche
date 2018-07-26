@@ -239,6 +239,19 @@ public:
                             const std::string key,
                             const size_t nbytes,
                             uint64_t& out_key_hash) { return E_NOT_SUPPORTED; }
+
+  /** 
+   * Allocate an object but do not populate data
+   * 
+   * @param pool Pool handle
+   * @param key_hash Hash of key
+   * @param nbytes Size to allocate in bytes
+   * 
+   * @return S_OK or error code
+   */
+  virtual status_t allocate(const pool_t pool,
+                            uint64_t key_hash,
+                            const size_t nbytes) { return E_NOT_SUPPORTED; }
   
   /** 
    * Take a lock on an object. If the object does not exist, create it with
