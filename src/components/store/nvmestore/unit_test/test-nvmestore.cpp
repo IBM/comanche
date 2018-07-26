@@ -213,7 +213,26 @@ TEST_F(KVStore_test, Throughput)
   secs = std::chrono::duration_cast<std::chrono::milliseconds>(_end - _start).count() / 1000.0;
   PINF("*Get* IOPS: %2g, %.2lf seconds for %lu operations",  ((double)i) / secs, secs, i);
 
+  /* get direct */
+  io_buffer_t handle;
+  Core::Physical_memory  mem_alloc; // aligned and pinned mem allocator, TODO: should be provided through IZerocpy Memory interface of NVMestore
 
+  handle = mem_alloc.allocate_io_buffer(_data->VAL_LEN, 4096, Component::NUMA_NODE_ANY);
+  ASSERT_TRUE(handle);
+  pval = mem_alloc.virt_addr(handle);
+
+  _start = std::chrono::high_resolution_clock::now();
+  ProfilerStart("testnvmestore.get_direct.profile");
+  for(i = 0; i < _data->num_elements(); i ++){
+    _kvstore->get_direct(_pool, _data->key(i), pval, pval_len);
+  }
+  ProfilerStop();
+  _end = std::chrono::high_resolution_clock::now();
+
+  secs = std::chrono::duration_cast<std::chrono::milliseconds>(_end - _start).count() / 1000.0;
+  PINF("*Direct Get* IOPS: %2g, %.2lf seconds for %lu operations",  ((double)i) / secs, secs, i);
+
+  mem_alloc.free_io_buffer(handle);
 }
 
 #if 0

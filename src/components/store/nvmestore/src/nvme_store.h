@@ -109,7 +109,10 @@ public:
    */
   virtual pool_t open_pool(const std::string path,
                            const std::string name,
-                           unsigned int flags) override {return E_NOT_IMPL; }
+                           unsigned int flags) override {
+    throw API_exception("Not implemented");
+  }
+
 
   virtual void delete_pool(const pool_t pid) override;
   
@@ -182,10 +185,11 @@ public:
   virtual int map(const pool_t pool,
                   std::function<int(uint64_t key,
                                     const void * value,
-                                    const size_t value_len)> function) override{return E_NOT_IMPL;}
+                                    const size_t value_len)> function) override{
+    throw API_exception("Not implemented");}
   
   virtual void debug(const pool_t pool, unsigned cmd, uint64_t arg) override{
-    throw General_exception("Not implemented");
+    throw API_exception("Not implemented");
   }
 
 private:
@@ -237,6 +241,7 @@ public:
   void unload() override {
     delete this;
   }
+
 
   virtual Component::IKVStore * create(const std::string owner,
                                        const std::string name,
