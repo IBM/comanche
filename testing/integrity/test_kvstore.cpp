@@ -21,14 +21,26 @@ std::string pool_path = "./data";
 
 class PoolTest: public::testing::Test
 {
+public:
+    size_t _pool_size = MB(100);    
+
 protected:
     Component::IKVStore * _g_store;
     IKVStore_factory * _fact;
     Component::IKVStore::pool_t _pool;
     std::string _pool_name = "test.pool.0";
-    size_t _pool_size = MB(100);
-
+        
     void SetUp() override 
+    {
+        create_pool();
+    }
+
+    void TearDown() override
+    {
+        destroy_pool();
+    }
+
+    void create_pool()
     {
         // make sure pool_path directory exists
         boost::filesystem::path dir(pool_path);
@@ -40,7 +52,7 @@ protected:
         Component::IBase * comp;
         comp = Component::load_component(component_path, component_uuid);
 
-        ASSERT_TRUE(comp > 0);
+        ASSERT_TRUE(comp > 0) << "failed load_component";
 
         _fact = (IKVStore_factory *)comp->query_interface(IKVStore_factory::iid());
 
@@ -55,10 +67,10 @@ protected:
 
         _pool = _g_store->create_pool(pool_path, _pool_name, _pool_size);
 
-        ASSERT_TRUE(_pool > 0);  // just fail here if pool creation didn't work
+        ASSERT_TRUE(_pool > 0) << "failed create_pool";  // just fail here if pool creation didn't work
     }
 
-    void TearDown() override
+    void destroy_pool()
     {
         _fact->release_ref();  // TODO: figure out why we need this
      
@@ -67,8 +79,17 @@ protected:
            _pool = _g_store->open_pool(pool_path, _pool_name);
         }
         
-        ASSERT_TRUE(_pool > 0);
         _g_store->delete_pool(_pool);
+    }
+};
+
+// sometimes the default pool size is insufficient, but everything else should stay the same for creation/deletion
+class PoolTestLarge: public PoolTest
+{
+public:
+    PoolTestLarge()
+    {
+        _pool_size = GB(4);
     }
 };
 
@@ -77,6 +98,53 @@ TEST_F(PoolTest, OpenPool)
     const Component::IKVStore::pool_t pool = _g_store->open_pool(pool_path, _pool_name);
     
     ASSERT_TRUE(pool > 0);
+}
+
+int PutGetRandomKVPWithSizes(Component::IKVStore * store, IKVStore::pool_t pool, const int key_length, const int value_length)
+{
+    if (pool <= 0)
+    {
+        return 1;
+    }
+
+    const std::string key = Common::random_string(key_length);
+    const std::string value = Common::random_string(value_length);
+
+    // put
+    status_t rc = store->put(pool, key, value.c_str(), value_length);
+
+    if (rc != S_OK)
+    {
+        return (int)rc;
+    }
+
+    void *pval = NULL;
+    size_t pval_len;
+
+    // get
+    rc = store->get(pool, key, pval, pval_len);
+
+    if (rc != S_OK) 
+    {
+        if (pval != NULL)
+        {
+            free(pval);
+        }
+
+        return 1;
+    }
+
+    if (strcmp((const char*)pval, value.c_str()) != 0)
+    {
+        rc = 1;
+    }
+
+    if (pval != NULL)
+    {
+        free(pval);
+    }
+
+    return rc;
 }
 
 TEST_F(PoolTest, PutGet_RandomKVP)
@@ -100,6 +168,41 @@ TEST_F(PoolTest, PutGet_RandomKVP)
     ASSERT_STREQ((const char*)pval, value.c_str());
 
     free(pval);
+}
+
+TEST_F(PoolTestLarge, PutGet_VaryingSizedKVPs)
+{
+    int key_lengths[] = {8, 64};  // 7/26/2018: at 256 key length, boost::filesystem throws 'filename too long'
+    int value_lengths[] = {8, 64, 128, MB(1), MB(2), MB(4), MB(32), MB(128), GB(1)};
+
+    int num_keys = sizeof(key_lengths) / sizeof(key_lengths[0]);
+    int num_values = sizeof(value_lengths) / sizeof(value_lengths[0]);
+
+    int rc;
+
+    // validate size of all info to put into pool
+    IKVStore::pool_t total_size = 0;
+    for (int i = 0; i < num_keys; i++)
+    {
+        for (int j = 0; j < num_values; j++)
+        {
+            total_size += key_lengths[i] + value_lengths[j];
+        }
+    }
+
+    ASSERT_TRUE(_pool_size >= total_size) << "attempting to put too much data in pool. Have " << _pool_size << ", but want " << total_size << ". Increase the size of PoolTestLarge class.";
+
+    // put/get all combinations of key/value pairs
+    for (int i = 0; i < num_keys; i++ )
+    {
+        for (int j = 0; j < num_values; j++ )
+        {
+            printf("key: %d value: %d\n", key_lengths[i], value_lengths[j]);
+            rc = PutGetRandomKVPWithSizes(_g_store, _pool, key_lengths[i], value_lengths[j]);
+        }
+
+        ASSERT_EQ(rc, S_OK);
+    }
 }
 
 TEST_F(PoolTest, Get_NoValidKey)
@@ -167,6 +270,30 @@ TEST_F(PoolTest, Put_Erase)
         free(pval);
     }
 }
+
+TEST_F(PoolTest, Put_EraseInvalid)
+{
+    // randomly generate key and value
+    const int key_length = 8;
+
+    const std::string key = Common::random_string(key_length);
+    void * pval = NULL;
+    size_t pval_len;
+
+    // make sure key isn't somehow in pool already
+    int rc  = _g_store->get(_pool, key, pval, pval_len);
+    ASSERT_EQ(rc, IKVStore::E_KEY_NOT_FOUND);
+
+    rc = _g_store->erase(_pool, key);
+
+    if (pval != NULL)
+    {
+        free(pval);
+    }
+
+    ASSERT_EQ(rc, IKVStore::E_KEY_NOT_FOUND);
+}
+
 
 TEST_F(PoolTest, DISABLED_Count_Changes)
 {
