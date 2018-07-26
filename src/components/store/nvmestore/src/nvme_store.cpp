@@ -19,6 +19,7 @@
 #include <api/kvstore_itf.h>
 #include <common/city.h>
 #include <boost/filesystem.hpp>
+#include <common/cycles.h>
 
 #include <core/xms.h>
 #include <component/base.h>
@@ -360,6 +361,7 @@ status_t NVME_store::get(const pool_t pool,
   uint64_t hashkey = CityHash64(key.c_str(), key.length());
 
   TOID(struct block_range) val;
+  // TODO: can write to a shadowed copy
   try {
     val = hm_tx_get(pop, D_RW(root)->map, hashkey);
     if(OID_IS_NULL(val.oid))
@@ -416,12 +418,17 @@ status_t NVME_store::get_direct(const pool_t pool,
 
   TOID(struct block_range) val;
   try {
+    cpu_time_t start = rdtsc() ;
     val = hm_tx_get(pop, D_RW(root)->map, hashkey);
     if(OID_IS_NULL(val.oid))
       return E_KEY_NOT_FOUND;
 
     auto val_len = D_RO(val)->size;
     auto lba = D_RO(val)->offset;
+
+    cpu_time_t cycles_for_hm = rdtsc() - start;
+
+    PDBG("checked hxmap read latency took %ld cycles (%f usec) per hm access", cycles_for_hm,  cycles_for_hm / 2400.0f);
 
 #ifdef USE_ASYNC
     uint64_t tag = D_RO(val)->last_tag;
@@ -438,7 +445,31 @@ status_t NVME_store::get_direct(const pool_t pool,
 
     size_t nr_io_blocks = (val_len+ BLOCK_SIZE -1)/BLOCK_SIZE;
 
-    blk_dev->read(mem, 0, lba, nr_io_blocks);
+    start = rdtsc() ;
+    
+    if(nr_io_blocks < CHUNK_SIZE_IN_BLOCKS)
+      blk_dev->read(mem, 0, lba, nr_io_blocks);
+    else{
+      uint64_t tag;
+      lba_t offset = 0;  // offset in 4k blocks
+
+      // submit async IO
+      do{
+        tag = blk_dev->async_read(mem, offset*BLOCK_SIZE, lba+offset, CHUNK_SIZE_IN_BLOCKS);
+        offset += CHUNK_SIZE_IN_BLOCKS;
+      }while(offset < nr_io_blocks);
+
+      // leftover
+      if(offset > nr_io_blocks){
+        offset -= CHUNK_SIZE_IN_BLOCKS;
+        tag = blk_dev->async_read(mem, offset*BLOCK_SIZE, lba + offset, nr_io_blocks - offset);
+      }
+      while(!_blk_dev->check_completion(tag)); /* we only have to check the last completion */
+    }
+
+    cpu_time_t cycles_for_iop = rdtsc() - start;
+    PDBG("prepare to read lba % lu with nr_blocks %lu", lba, nr_io_blocks);
+    PDBG("checked read latency took %ld cycles (%f usec) per IOP", cycles_for_iop,  cycles_for_iop / 2400.0f);
     out_value_len = val_len;
   }
   catch(...) {
