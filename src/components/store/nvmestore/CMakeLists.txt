@@ -1,4 +1,5 @@
 project(comanche-nvmestore CXX)
+set(GCC_COVERAGE_COMPILE_FLAGS "-std=c++11 -g -O2 -fPIC -msse3")
 
 
 #add_library(bitmap-tx bitmap-tx.cpp)

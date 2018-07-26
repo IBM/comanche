@@ -14,6 +14,7 @@
 #define __DATA_H__
 
 #include <common/str_utils.h>
+#include <common/utils.h>
 #include <cstring>
 #include <common/logging.h>
 #include <common/exceptions.h>
@@ -21,9 +22,9 @@
 class Data
 {
 public:
-  static constexpr size_t NUM_ELEMENTS = 100000; 
+  static constexpr size_t NUM_ELEMENTS = 10000; 
   static constexpr size_t KEY_LEN = 8;
-  static constexpr size_t VAL_LEN = 4096;
+  static constexpr size_t VAL_LEN = KB(128);
 
   struct KV_pair {
     char key[KEY_LEN + 1];
