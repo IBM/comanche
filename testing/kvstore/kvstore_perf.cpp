@@ -8,7 +8,7 @@
 #include <chrono>
 #include <iostream>
 #include <gperftools/profiler.h>
-#define PATH "/mnt/pmem0/"
+#define DEFAULT_PATH "/mnt/pmem0/"
 //#define PATH "/dev/dax0.0"
 #define POOL_NAME "test.pool"
 
@@ -16,7 +16,7 @@
 #define FILESTORE_PATH "libcomanche-storefile.so"
 #define NVMESTORE_PATH "libcomanche-nvmestore.so"
 #define ROCKSTORE_PATH "libcomanche-rocksdb.so"
-#define DEFAULT_COMPONENT "pmstore"
+#define DEFAULT_COMPONENT "filestore"
 
 using namespace Component;
 
@@ -31,10 +31,14 @@ static void initialize();
 static void cleanup();
 
 struct {
-  std::string test;
-  std::string component;
-  unsigned cores;
-  unsigned time_secs;
+    std::string test;
+    std::string component;
+    unsigned cores;
+    unsigned time_secs;
+    std::string path;
+    unsigned int size;
+    int flags;
+    unsigned int elements;
 } Options; 
 
 int main(int argc, char * argv[])
@@ -49,6 +53,10 @@ int main(int argc, char * argv[])
     ("component", po::value<std::string>(), "Implementation selection <pmstore|nvmestore|filestore>")
     ("cores", po::value<int>(), "Number of threads/cores")
     ("time", po::value<int>(), "Duration to run in seconds")
+    ("path", po::value<std::string>(), "Path of directory for pool")
+    ("size", po::value<unsigned int>(), "Size of pool")
+    ("flags", po::value<int>(), "Flags for pool creation")
+    ("elements", po::value<unsigned int>(), "Number of data elements")
     ;
 
   try {
@@ -70,13 +78,24 @@ int main(int argc, char * argv[])
     
     Options.cores  = vm.count("cores") > 0 ? vm["cores"].as<int>() : 1;
     Options.time_secs  = vm.count("time") > 0 ? vm["time"].as<int>() : 4;
+
+    if(vm.count("path"))
+    {
+        Options.path = vm["path"].as<std::string>();
+    }
+    else 
+    {
+        Options.path = DEFAULT_PATH;
+    }
+
+    Options.elements = vm.count("elements") > 0 ? vm["elements"].as<unsigned int>() : 100000;
   }
   catch (const po::error &ex)
   {
     std::cerr << ex.what() << '\n';
   }
 
-  _data = new Data();
+  _data = new Data(Options.elements);
   initialize();
 
   cpu_mask_t cpus;
