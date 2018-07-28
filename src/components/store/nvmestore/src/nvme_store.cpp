@@ -129,6 +129,7 @@ NVME_store::NVME_store(const std::string owner,
                        std::string pci)
                        {
   status_t ret;
+  PLOG("NVMESTORE: chunk size in blocks: %lu", CHUNK_SIZE_IN_BLOCKS);
   PLOG("PMEMOBJ_MAX_ALLOC_SIZE: %lu MB", REDUCE_MB(PMEMOBJ_MAX_ALLOC_SIZE));
 
   ret = open_block_device(pci, _blk_dev);
@@ -435,7 +436,7 @@ status_t NVME_store::get_direct(const pool_t pool,
     while(!blk_dev->check_completion(tag)) cpu_relax(); /* check the last completion, TODO: check each time makes the get slightly slow () */
 #endif
 
-    PDBG("prepare to read lba % lu with length %lu", lba, value_len);
+    PDBG("prepare to read lba % lu with length %lu", lba, val_len);
     assert(out_value);
 
     /* TODO: safe? */

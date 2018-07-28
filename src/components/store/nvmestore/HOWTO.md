@@ -39,10 +39,10 @@ if you run deps/dpdk/user-tools/dpdk-setup.sh to set vfio permission and get  wa
 Current user memlock limit: 0 MB
 ```
 
-Add those two lines to /et/security/limits.conf:
+Add those two lines to /et/security/limits.conf(this allows users in the sudo group allocate more io meory. ):
 ```  
-  fengggli hard memlock unlimited 
-  fengggli soft memlock unlimited
+  @sudo hard memlock unlimited 
+  @sudo soft memlock unlimited
 ```
 
 Note

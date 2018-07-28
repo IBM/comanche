@@ -196,7 +196,10 @@ TEST_F(KVStore_test, Throughput)
   _end = std::chrono::high_resolution_clock::now();
 
   secs = std::chrono::duration_cast<std::chrono::milliseconds>(_end - _start).count() / 1000.0;
-  PINF("*Put* IOPS: %2g, %.2lf seconds for %lu operations",  ((double)i) / secs, secs, i);
+  PINF("*Put summary*:");
+  PINF("IOPS\tTP(MiB/s)\tValuesz(KiB)\tTime(s)\tnr_io");
+  PINF("%2g\t%.2f\t%lu\t%.2lf\t%lu",
+      ((double)i) / secs, ((double)i) / secs*_data->value_len()/(1024*1024), _data->value_len()/1024, secs, i);
 
   /* get */
   void * pval;
@@ -211,13 +214,17 @@ TEST_F(KVStore_test, Throughput)
   _end = std::chrono::high_resolution_clock::now();
 
   secs = std::chrono::duration_cast<std::chrono::milliseconds>(_end - _start).count() / 1000.0;
-  PINF("*Get* IOPS: %2g, %.2lf seconds for %lu operations",  ((double)i) / secs, secs, i);
+
+  PINF("*Get summary*:");
+  PINF("IOPS\tTP(MiB/s)\tValuesz(KiB)\tTime(s)\tnr_io");
+  PINF("%2g\t%.2f\t%lu\t%.2lf\t%lu",
+      ((double)i) / secs, ((double)i) / secs*_data->value_len()/(1024*1024), _data->value_len()/1024, secs, i);
 
   /* get direct */
   io_buffer_t handle;
   Core::Physical_memory  mem_alloc; // aligned and pinned mem allocator, TODO: should be provided through IZerocpy Memory interface of NVMestore
 
-  handle = mem_alloc.allocate_io_buffer(_data->VAL_LEN, 4096, Component::NUMA_NODE_ANY);
+  handle = mem_alloc.allocate_io_buffer(_data->value_len(), 4096, Component::NUMA_NODE_ANY);
   ASSERT_TRUE(handle);
   pval = mem_alloc.virt_addr(handle);
 
@@ -230,7 +237,11 @@ TEST_F(KVStore_test, Throughput)
   _end = std::chrono::high_resolution_clock::now();
 
   secs = std::chrono::duration_cast<std::chrono::milliseconds>(_end - _start).count() / 1000.0;
-  PINF("*Direct Get* IOPS: %2g, %.2lf seconds for %lu operations",  ((double)i) / secs, secs, i);
+
+  PINF("*Get direct summary*:");
+  PINF("IOPS\tTP(MiB/s)\tValuesz(KiB)\tTime(s)\tnr_io");
+  PINF("%2g\t%.2f\t%lu\t%.2lf\t%lu",
+      ((double)i) / secs, ((double)i) / secs*_data->value_len()/(1024*1024), _data->value_len()/1024, secs, i);
 
   mem_alloc.free_io_buffer(handle);
 }

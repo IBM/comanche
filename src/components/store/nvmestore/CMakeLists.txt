@@ -10,6 +10,7 @@ include_directories(${DPDK_DIR}/include/dpdk)
 
 include_directories(./src)
 
+#add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 
 find_library(LIB_PMEM
   NAMES pmem
