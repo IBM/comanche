@@ -195,4 +195,5 @@ status_t  NVME_store::do_block_io(Component::IBlock_device * block,
       throw General_exception("not implemented");
       break;
   }
+  return S_OK;
 }

@@ -51,6 +51,7 @@ private:
   static constexpr bool option_DEBUG = true;
   static constexpr size_t BLOCK_SIZE = 4096;
   static constexpr size_t CHUNK_SIZE_IN_BLOCKS= 8; // large IO will be splited into CHUNKs, 8*4k  seems gives optimal
+  static constexpr size_t DEFAULT_IO_MEM_SIZE= MB(8); // initial IO memory size in bytes 
   std::unordered_map<pool_t, std::atomic<size_t>> _cnt_elem_map;
   
   Component::IBlock_device *_blk_dev;

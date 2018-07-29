@@ -51,7 +51,8 @@ struct open_session_t
   PMEMobjpool *             pop; // the pool for mapping
   size_t                    pool_size;
   std::string               path;
-  uint64_t io_mem; // io memory for lock/unload TODO: this should be thead-safe
+  uint64_t io_mem; // io memory for lock/unload TODO: this should be thead-safe, this should be large enough store the allocated value
+  size_t io_mem_size; // io memory size which will an object;
 };
 
 struct tls_cache_t {
@@ -143,7 +144,6 @@ NVME_store::NVME_store(const std::string owner,
     throw General_exception("failed to open block block allocator for device at pci %s\n", pci.c_str());
   }
 
-
   PDBG("NVME_store: using block device %p with allocator %p", _blk_dev, _blk_alloc);
 }
 
@@ -224,7 +224,8 @@ IKVStore::pool_t NVME_store::create_pool(const std::string path,
   session->pop = pop;
   session->pool_size = size;
   session->path = fullpath;
-  session->io_mem = 0;
+  session->io_mem_size = DEFAULT_IO_MEM_SIZE;
+  session->io_mem = _blk_dev->allocate_io_buffer(DEFAULT_IO_MEM_SIZE, 4096,Component::NUMA_NODE_ANY);
   g_sessions.insert(session);
 
   return reinterpret_cast<uint64_t>(session);
@@ -239,9 +240,13 @@ void NVME_store::close_pool(pool_t pid)
     return;
   }
 
-  g_sessions.erase(session);
+  io_buffer_t mem = session->io_mem;
+  if(mem)
+    _blk_dev->free_io_buffer(mem);
 
   pmemobj_close(session->pop);
+
+  g_sessions.erase(session);
   PLOG("NVME_store::closed pool (%lx)", pid);
 }
 
@@ -279,6 +284,8 @@ status_t NVME_store::put(IKVStore::pool_t pool,
   
   auto& root = session->root;
   auto& pop = session->pop;
+  auto mem_size = session->io_mem_size;
+  io_buffer_t mem = session->io_mem;
 
   auto& blk_alloc = _blk_alloc;
   auto& blk_dev = _blk_dev;
@@ -291,13 +298,16 @@ status_t NVME_store::put(IKVStore::pool_t pool,
   if(hm_tx_lookup(pop, D_RO(root)->map, hashkey))
     return E_KEY_EXISTS; 
 
+  /* TODO: increase IO buffer sizes when value size is large*/
+  if(value_len > mem_size){
+    throw General_exception("Object size larger than MB(8)!");
+  }
+
   size_t nr_io_blocks = (value_len+ BLOCK_SIZE -1)/BLOCK_SIZE;
 
   // transaction also happens in here
   lba_t lba = blk_alloc->alloc(nr_io_blocks, &handle);
 
-  // TODO: how fast is it?
-  io_buffer_t mem = blk_dev->allocate_io_buffer(nr_io_blocks*4096, 4096,Component::NUMA_NODE_ANY);
   PDBG("write to lba %lu with length %lu, key %lx",lba, value_len, hashkey);
 
   TOID(struct block_range) val;
@@ -328,7 +338,6 @@ status_t NVME_store::put(IKVStore::pool_t pool,
     D_RW(val)->last_tag = tag;
 #else
     do_block_io(blk_dev, BLOCK_IO_WRITE, mem, lba, nr_io_blocks);
-    blk_dev->free_io_buffer(mem);
 #endif
 
   }
@@ -355,6 +364,7 @@ status_t NVME_store::get(const pool_t pool,
 
   auto& root = session->root;
   auto& pop = session->pop;
+  auto mem = session->io_mem;
 
   auto& blk_alloc = _blk_alloc;
   auto& blk_dev = _blk_dev;
@@ -381,7 +391,6 @@ status_t NVME_store::get(const pool_t pool,
     out_value_len = val_len;
 
     size_t nr_io_blocks = (val_len+ BLOCK_SIZE -1)/BLOCK_SIZE;
-    io_buffer_t mem = blk_dev->allocate_io_buffer(nr_io_blocks*4096, 4096,Component::NUMA_NODE_ANY);
 
     do_block_io(blk_dev, BLOCK_IO_READ, mem, lba, nr_io_blocks);
 
@@ -391,7 +400,6 @@ status_t NVME_store::get(const pool_t pool,
     /* memcpy for moment - can i pass the virt_addr(mem) directly? how to free from the client*/
     memcpy(out_value, blk_dev->virt_addr(mem), val_len);
 
-    blk_dev->free_io_buffer(mem);
   }
   catch(...) {
     throw General_exception("hm_tx_get failed unexpectedly");
@@ -461,7 +469,6 @@ status_t NVME_store::get_direct(const pool_t pool,
   return S_OK;
 }
 
-
 /*
  * Only used for the case when memory is pinned/aligned but not from spdk, e.g. cudadma
  * should be 2MB aligned in both phsycial and virtual*/
@@ -483,8 +490,6 @@ status_t NVME_store::register_direct_memory(void * vaddr, size_t len){
   }
 }
 
-
-
 status_t NVME_store::allocate(const pool_t pool,
                       const std::string key,
                       const size_t nbytes,
@@ -505,7 +510,6 @@ status_t NVME_store::allocate(const pool_t pool,
   /* check to see if key already exists */
   /*if(hm_tx_lookup(pop, d_ro(root)->map, key_hash))*/
     /*return e_key_exists;*/
-
 
   size_t nr_io_blocks = (nbytes+ BLOCK_SIZE -1)/BLOCK_SIZE;
 
@@ -562,6 +566,11 @@ status_t NVME_store::lock(const pool_t pool,
   auto& root = session->root;
   auto& pop = session->pop;
 
+  /*this will lock the io  memory size*/
+  if(session->io_mem){
+    _blk_dev->free_io_buffer(session->io_mem);
+    session->io_mem = 0;
+  }
   assert(session->io_mem == 0);
   auto& blk_dev = _blk_dev;
 
@@ -595,10 +604,12 @@ status_t NVME_store::lock(const pool_t pool,
     size_t nr_io_blocks = (value_len + BLOCK_SIZE -1)/BLOCK_SIZE;
     io_buffer_t mem = blk_dev->allocate_io_buffer(nr_io_blocks*4096, 4096,Component::NUMA_NODE_ANY);
 
-    blk_dev->read(mem, 0, lba, nr_io_blocks);
+    do_block_io(blk_dev, BLOCK_IO_READ, mem, lba, nr_io_blocks);
+
     PINF("NVME_store: read to io memory at %lu", mem);
 
     session->io_mem = mem; //TODO: can be placed in another place
+    session->io_mem_size = nr_io_blocks*4096;
 
     /* set output values */
     auto out_value = blk_dev->virt_addr(mem);
@@ -615,7 +626,7 @@ status_t NVME_store::lock(const pool_t pool,
 
 
 /*
- * this will send async io to nvme and return, the completion will be checked for either get() or the nect lock()/apply
+ * this will send async io to nvme and return, the completion will be checked for either get() or the next lock()/apply
  */
 status_t NVME_store::unlock(const pool_t pool,
                     uint64_t key_hash)
@@ -646,13 +657,8 @@ status_t NVME_store::unlock(const pool_t pool,
     uint64_t tag = blk_dev->async_write(mem, 0, lba, nr_io_blocks);
     D_RW(val)->last_tag = tag;
 #else
-    blk_dev->write(mem, 0, lba, nr_io_blocks);
-    blk_dev->free_io_buffer(mem);
-    session->io_mem = 0;
+    do_block_io(blk_dev, BLOCK_IO_WRITE, mem, lba, nr_io_blocks);
 #endif
-
-
-    PINF("NVME_store: io memory at %lu is freed", mem);
 
     /*release the lock*/
     _sm.state_unlock(pool, D_RO(val)->handle);
