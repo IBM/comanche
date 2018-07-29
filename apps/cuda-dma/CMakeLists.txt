@@ -15,12 +15,13 @@ message(STATUS "FoundCUDA              : ${CUDA_FOUND}")
 message(STATUS "Cuda cublas libraries  : ${CUDA_CUBLAS_LIBRARIES}")
 
 cuda_include_directories($ENV{COMANCHE_HOME}/deps/gdrcopy/)
+cuda_include_directories(${CMAKE_INSTALL_PREFIX}/include)
 cuda_include_directories($ENV{COMANCHE_HOME}/src/components/)
 
 # build cuda code into static library
 
 cuda_add_library(cuda_app_lib src/kernel.cu)
-
+include_directories(${CMAKE_INSTALL_PREFIX}/include)
 link_directories(/usr/local/cuda/lib64/)
 link_directories(${CMAKE_INSTALL_PREFIX}/lib64)
 

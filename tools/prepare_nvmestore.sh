@@ -81,7 +81,8 @@ lsmod|grep -q xms
 if [ 0  -ne $? ]; then
   PERR "no xms kernel module found!"
   PINPROGRESS "now mounting..." 
-  sudo load-module.sh
+  sudo rmmod xmsmod
+  sudo insmod ./lib/xmsmod.ko
   PPOSTMSG "xms loaded!!"
 fi
 PINF "OK."
