@@ -196,7 +196,7 @@ TEST_F(KVStore_test, Throughput)
   _end = std::chrono::high_resolution_clock::now();
 
   secs = std::chrono::duration_cast<std::chrono::milliseconds>(_end - _start).count() / 1000.0;
-  PINF("*Put summary*:");
+  PINF("*Put summary(with memcpy)*:");
   PINF("IOPS\tTP(MiB/s)\tValuesz(KiB)\tTime(s)\tnr_io");
   PINF("%2g\t%.2f\t%lu\t%.2lf\t%lu",
       ((double)i) / secs, ((double)i) / secs*_data->value_len()/(1024*1024), _data->value_len()/1024, secs, i);

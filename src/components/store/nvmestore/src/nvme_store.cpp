@@ -385,21 +385,14 @@ status_t NVME_store::get(const pool_t pool,
     uint64_t tag = D_RO(val)->last_tag;
     while(!blk_dev->check_completion(tag)) cpu_relax(); /* check the last completion, TODO: check each time makes the get slightly slow () */
 #endif
-
     PDBG("prepare to read lba %d with length %d, key %lx", lba, val_len, hashkey);
-    out_value = malloc(val_len);
-    out_value_len = val_len;
-
     size_t nr_io_blocks = (val_len+ BLOCK_SIZE -1)/BLOCK_SIZE;
 
     do_block_io(blk_dev, BLOCK_IO_READ, mem, lba, nr_io_blocks);
 
     // transaction also happens in here
-
-    assert(out_value);
-    /* memcpy for moment - can i pass the virt_addr(mem) directly? how to free from the client*/
-    memcpy(out_value, blk_dev->virt_addr(mem), val_len);
-
+    out_value = blk_dev->virt_addr(mem);
+    out_value_len = val_len;
   }
   catch(...) {
     throw General_exception("hm_tx_get failed unexpectedly");
