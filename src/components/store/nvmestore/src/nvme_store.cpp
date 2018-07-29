@@ -327,7 +327,7 @@ status_t NVME_store::put(IKVStore::pool_t pool,
     uint64_t tag = blk_dev->async_write(mem, 0, lba, nr_io_blocks);
     D_RW(val)->last_tag = tag;
 #else
-    blk_dev->write(mem, 0, lba, nr_io_blocks);
+    do_block_io(blk_dev, BLOCK_IO_WRITE, mem, lba, nr_io_blocks);
     blk_dev->free_io_buffer(mem);
 #endif
 
@@ -383,7 +383,7 @@ status_t NVME_store::get(const pool_t pool,
     size_t nr_io_blocks = (val_len+ BLOCK_SIZE -1)/BLOCK_SIZE;
     io_buffer_t mem = blk_dev->allocate_io_buffer(nr_io_blocks*4096, 4096,Component::NUMA_NODE_ANY);
 
-    blk_dev->read(mem, 0, lba, nr_io_blocks);
+    do_block_io(blk_dev, BLOCK_IO_READ, mem, lba, nr_io_blocks);
 
     // transaction also happens in here
 
@@ -447,26 +447,8 @@ status_t NVME_store::get_direct(const pool_t pool,
     size_t nr_io_blocks = (val_len+ BLOCK_SIZE -1)/BLOCK_SIZE;
 
     start = rdtsc() ;
-    
-    if(nr_io_blocks < CHUNK_SIZE_IN_BLOCKS)
-      blk_dev->read(mem, 0, lba, nr_io_blocks);
-    else{
-      uint64_t tag;
-      lba_t offset = 0;  // offset in 4k blocks
 
-      // submit async IO
-      do{
-        tag = blk_dev->async_read(mem, offset*BLOCK_SIZE, lba+offset, CHUNK_SIZE_IN_BLOCKS);
-        offset += CHUNK_SIZE_IN_BLOCKS;
-      }while(offset < nr_io_blocks);
-
-      // leftover
-      if(offset > nr_io_blocks){
-        offset -= CHUNK_SIZE_IN_BLOCKS;
-        tag = blk_dev->async_read(mem, offset*BLOCK_SIZE, lba + offset, nr_io_blocks - offset);
-      }
-      while(!_blk_dev->check_completion(tag)); /* we only have to check the last completion */
-    }
+    do_block_io(blk_dev, BLOCK_IO_READ, mem, lba, nr_io_blocks);
 
     cpu_time_t cycles_for_iop = rdtsc() - start;
     PDBG("prepare to read lba % lu with nr_blocks %lu", lba, nr_io_blocks);

@@ -58,6 +58,12 @@ private:
 
   State_map _sm; // map control
 
+  /* type of block io*/
+  enum {
+    BLOCK_IO_READ = 1,
+    BLOCK_IO_WRITE = 2,
+  };
+
 public:
   /** 
    * Constructor
@@ -213,10 +219,27 @@ private:
   status_t open_block_device(std::string pci, Component::IBlock_device* &block);
 
   /*
-   * open an allocator for block device, reuse if it  exsits already
+   * open an allocator for block device, reuse if it exsits already
    */
 
   status_t open_block_allocator(Component::IBlock_device* block, Component::IBlock_allocator* &alloc);
+
+  /*
+   * Issue block device io to one block device
+   *
+   * @param block block device
+   * @param type read/write
+   * @param mem io memory
+   * @param lba block address
+   * @param nr_io_blocks block to be operated on, all the blocks should fit in the IO memory
+   *
+   * This call itself is synchronous
+   */
+  status_t  do_block_io(Component::IBlock_device * block,
+                           int type,
+                           io_buffer_t mem,
+                           uint64_t lba,
+                           size_t nr_io_blocks);
 };
 
 
