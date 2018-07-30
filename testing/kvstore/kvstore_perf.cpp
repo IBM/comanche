@@ -23,28 +23,26 @@ using namespace Component;
 #include "data.h"
 #include "exp_put.h"
 #include "exp_get.h"
+#include "exp_put_latency.h"
+#include "kvstore_perf.h"
 
+ProgramOptions Options;
 Data * _data;
 
 static Component::IKVStore * g_store;
 static void initialize();
 static void cleanup();
 
-struct {
-    std::string test;
-    std::string component;
-    unsigned cores;
-    unsigned time_secs;
-    std::string path;
-    unsigned int size;
-    int flags;
-    unsigned int elements;
-} Options; 
+int g_argc;
+char ** g_argv;
 
 int main(int argc, char * argv[])
 {
   ProfilerDisable();
   
+    g_argc = argc;
+    g_argv = argv;
+
   namespace po = boost::program_options; 
   po::options_description desc("Options"); 
   desc.add_options()
@@ -78,7 +76,7 @@ int main(int argc, char * argv[])
     
     Options.cores  = vm.count("cores") > 0 ? vm["cores"].as<int>() : 1;
     Options.time_secs  = vm.count("time") > 0 ? vm["time"].as<int>() : 4;
-
+/*
     if(vm.count("path"))
     {
         Options.path = vm["path"].as<std::string>();
@@ -87,8 +85,9 @@ int main(int argc, char * argv[])
     {
         Options.path = DEFAULT_PATH;
     }
-
+*/
     Options.elements = vm.count("elements") > 0 ? vm["elements"].as<unsigned int>() : 100000;
+    
   }
   catch (const po::error &ex)
   {
@@ -106,16 +105,21 @@ int main(int argc, char * argv[])
   ProfilerStart("cpu.profile");
 
   if(Options.test == "all" || Options.test == "Put") {
-    Core::Per_core_tasking<Experiment_Put, Component::IKVStore*> exp(cpus, g_store);
+    Core::Per_core_tasking<ExperimentPut, Component::IKVStore*> exp(cpus, g_store);
     sleep(Options.time_secs);
   }
 
   if(Options.test == "all" || Options.test == "Get") {
-    Core::Per_core_tasking<Experiment_Get, Component::IKVStore*> exp(cpus, g_store);
+    Core::Per_core_tasking<ExperimentGet, Component::IKVStore*> exp(cpus, g_store);
     //    sleep(Options.time_secs + 8);
     exp.wait_for_all();
   }
 
+  if (Options.test == "all" || Options.test == "put_latency")
+  {
+      Core::Per_core_tasking<ExperimentPutLatency, Component::IKVStore*> exp(cpus, g_store);
+      exp.wait_for_all();
+  }
   
   ProfilerStop();
   
