@@ -117,9 +117,7 @@ public:
    */
   virtual pool_t open_pool(const std::string path,
                            const std::string name,
-                           unsigned int flags) override {
-    throw API_exception("Not implemented");
-  }
+                           unsigned int flags) override;
 
 
   virtual void delete_pool(const pool_t pid) override;

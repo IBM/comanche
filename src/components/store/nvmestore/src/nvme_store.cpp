@@ -42,6 +42,7 @@ using namespace Component;
 struct store_root_t
 {
   TOID(struct hashmap_tx) map; //name mappings
+  size_t pool_size;
 };
 //TOID_DECLARE_ROOT(struct store_root_t);
 
@@ -164,6 +165,7 @@ IKVStore::pool_t NVME_store::create_pool(const std::string path,
                                       uint64_t args)
 {
   PMEMobjpool *pop; //pool to allocate all mapping
+  int ret =0;
   
   PINF("NVME_store::create_pool path=%s name=%s", path.c_str(), name.c_str());
 
@@ -178,7 +180,10 @@ IKVStore::pool_t NVME_store::create_pool(const std::string path,
   else
     fullpath = path + name;
 
-  if (access(fullpath.c_str(), F_OK) != 0) {
+  if (access(fullpath.c_str(), F_OK) == 0) {
+      throw General_exception("nvmestore: creating exsiting pool");
+  }
+  else{
     PLOG("Creating new Pool: %s", name.c_str());
 
     boost::filesystem::path p(fullpath);
@@ -187,6 +192,69 @@ IKVStore::pool_t NVME_store::create_pool(const std::string path,
     pop = pmemobj_create(fullpath.c_str(), POBJ_LAYOUT_NAME(nvme_store), max_sz_hxmap, 0666);
     if(not pop)
       throw General_exception("failed to create new pool - %s\n", pmemobj_errormsg());
+  }
+
+
+  /* see: https://github.com/pmem/pmdk/blob/stable-1.4/src/examples/libpmemobj/map/kv_server.c */
+
+  TOID(struct store_root_t) root = POBJ_ROOT(pop, struct store_root_t);
+  assert(!TOID_IS_NULL(root));
+
+  assert(D_RO(root)->map.oid.off == 0);
+
+	TX_BEGIN(pop) {
+    PLOG("Root is empty: new hash required");
+    //    struct hashmap_args *args = (struct hashmap_args *)arg;
+    if(hm_tx_create(pop, &D_RW(root)->map, nullptr))
+      throw General_exception("hm_tx_create failed unexpectedly");
+    D_RW(root)->pool_size = size;
+  }TX_ONABORT {
+    ret = -1;
+  } TX_END
+ 
+  assert(ret == 0);
+
+  if(hm_tx_check(pop, D_RO(root)->map))
+    throw General_exception("hm_tx_check failed unexpectedly");
+
+  struct open_session_t * session = new open_session_t;
+  session->root = root;
+  session->pop = pop;
+  session->pool_size = size;
+  session->path = fullpath;
+  session->io_mem_size = DEFAULT_IO_MEM_SIZE;
+  session->io_mem = _blk_dev->allocate_io_buffer(DEFAULT_IO_MEM_SIZE, 4096,Component::NUMA_NODE_ANY);
+  g_sessions.insert(session);
+
+  return reinterpret_cast<uint64_t>(session);
+}
+
+IKVStore::pool_t NVME_store::open_pool(const std::string path,
+                                      const std::string name,
+                                      unsigned int flags)
+{
+  PMEMobjpool *pop; //pool to allocate all mapping
+  size_t max_sz_hxmap = MB(500); // this can fit 1M objects (block_range_t)
+
+  PINF("NVME_store::open_pool path=%s name=%s", path.c_str(), name.c_str());
+
+  std::string fullpath;
+
+  if(path[path.length()-1]!='/')
+    fullpath = path + "/" + name;
+  else
+    fullpath = path + name;
+
+  /* if trying to open a unclosed pool!*/
+  for(auto iter : g_sessions){
+    if(iter->path == fullpath){
+      PWRN("nvmestore: try to reopen a pool!");
+      return reinterpret_cast<uint64_t>(iter);
+    }
+  }
+
+  if (access(fullpath.c_str(), F_OK) != 0) {
+      throw General_exception("nvmestore: pool not existing at path %s", fullpath.c_str());
   }
   else {
     PLOG("Opening existing Pool: %s", name.c_str());
@@ -199,30 +267,19 @@ IKVStore::pool_t NVME_store::create_pool(const std::string path,
       throw General_exception("failed to re-open pool - %s\n", pmemobj_errormsg());
   }
 
-  /* see: https://github.com/pmem/pmdk/blob/stable-1.4/src/examples/libpmemobj/map/kv_server.c */
-
   TOID(struct store_root_t) root = POBJ_ROOT(pop, struct store_root_t);
   assert(!TOID_IS_NULL(root));
 
-  if(D_RO(root)->map.oid.off == 0) {
-    PLOG("Root is empty: new hash required");
-    //    struct hashmap_args *args = (struct hashmap_args *)arg;
-    if(hm_tx_create(pop, &D_RW(root)->map, nullptr))
-      throw General_exception("hm_tx_create failed unexpectedly");
-  }
-  else {
-    PLOG("Using existing root:");
-    if(hm_tx_init(pop, D_RW(root)->map))
-      throw General_exception("hm_tx_init failed unexpectedly");
-  }
-
-  if(hm_tx_check(pop, D_RO(root)->map))
-    throw General_exception("hm_tx_check failed unexpectedly");
+  assert(D_RO(root)->map.oid.off != 0);
+  assert(D_RO(root)->pool_size!= 0);
+  PLOG("Using existing root, pool size =  %lu:", D_RO(root)->pool_size);
+  if(hm_tx_init(pop, D_RW(root)->map))
+    throw General_exception("hm_tx_init failed unexpectedly");
 
   struct open_session_t * session = new open_session_t;
   session->root = root;
   session->pop = pop;
-  session->pool_size = size;
+  session->pool_size = D_RO(root)->pool_size;
   session->path = fullpath;
   session->io_mem_size = DEFAULT_IO_MEM_SIZE;
   session->io_mem = _blk_dev->allocate_io_buffer(DEFAULT_IO_MEM_SIZE, 4096,Component::NUMA_NODE_ANY);
@@ -256,7 +313,6 @@ void NVME_store::delete_pool(const pool_t pid)
    
   if(g_sessions.find(session) == g_sessions.end())
     throw API_exception("NVME_store::delete_pool invalid pool identifier");
-
 
   g_sessions.erase(session);
   pmemobj_close(session->pop);  
