@@ -112,9 +112,6 @@ public:
                              uint64_t expected_obj_count = 0
                              ) override;
   
-  /*
-   * I didn't implement this, you can call create_pool directly instead
-   */
   virtual pool_t open_pool(const std::string path,
                            const std::string name,
                            unsigned int flags) override;

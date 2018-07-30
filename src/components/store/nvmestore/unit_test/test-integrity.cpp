@@ -69,7 +69,7 @@ class KVStore_test : public ::testing::Test {
 Component::IKVStore * KVStore_test::_kvstore;
 Component::IKVStore::pool_t KVStore_test::_pool;
 
-static constexpr int nr_elem = 500; // number of the test elem in the pool
+static constexpr int nr_elem = 100; // number of the test elem in the pool
 static constexpr size_t VAL_LEN = MB(8);
 std::unordered_map<std::string, int> _crc_map;
 

@@ -20,7 +20,7 @@ public:
     _data = new KV_pair[NUM_ELEMENTS];
 
     for(size_t i=0;i<NUM_ELEMENTS;i++) {
-      auto key = Common::random_string(KEY_LEN);
+      std::string key = "elem" + i;
       auto val = Common::random_string(VAL_LEN);
       strncpy(_data[i].key, key.c_str(), key.length());
       _data[i].key[KEY_LEN] = '\0';
