@@ -17,7 +17,7 @@ class ExperimentPutLatency : public Experiment
 public:
     float _cycles_per_second;  // initialized in do_work first run
     std::vector<double> _latency;
-    std::string outputFilename = "put_latency.log";
+    std::string _outputDirectory = "put_latency";
 
     ExperimentPutLatency(Component::IKVStore * arg) : Experiment(arg) 
     {
@@ -66,12 +66,24 @@ public:
 
     void cleanup_custom(unsigned core)  
     {
+        boost::filesystem::path dir(_outputDirectory);
+        if (boost::filesystem::create_directory(dir))
+        {
+            std::cout << "Created directory for testing: " << _outputDirectory << std::endl;
+        }
+
+        // write one core per file for now. TODO: use synchronization construct for experiments
+        std::ostringstream filename;
+        filename << _outputDirectory << "/" << core << ".log";
+
+        std::cout << "filename = " << filename.str() << std::endl;
+
        // output latency info to file 
-       std::ofstream outf(outputFilename);
+       std::ofstream outf(filename.str());
 
        if (!outf)
        {
-           std::cerr << "Failed to open file " << outputFilename << " for writing" << std::endl;
+           std::cerr << "Failed to open file " << _outputDirectory << " for writing" << std::endl;
             exit(1);
        }
 

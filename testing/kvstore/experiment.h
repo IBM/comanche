@@ -122,6 +122,11 @@ public:
             {
                 _pool_flags = vm["flags"].as<int>();
             }
+
+            if (vm.count("cores") > 0)
+            {
+                _cores = vm["cores"].as<int>();
+            }
         } 
         catch (const po::error &ex)
         {
