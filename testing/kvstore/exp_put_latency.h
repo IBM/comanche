@@ -1,30 +1,32 @@
-#ifndef __EXP_PUT_H__
-#define __EXP_PUT_H__
+#ifndef __EXP_PUT_LATENCY_H__
+#define __EXP_PUT_LATENCY_H__
 
 #include "experiment.h"
+#include "kvstore_perf.h"
 
 extern Data * _data;
 
-class ExperimentPut : public Experiment
+class ExperimentPutLatency : public Experiment
 { 
 public:
-  
-    ExperimentPut(Component::IKVStore * arg) : Experiment(arg) 
+ 
+    ExperimentPutLatency(Component::IKVStore * arg) : Experiment(arg) 
     {
         assert(arg);
     }
-  
+
     void do_work(unsigned core) override 
     {
         if(_first_iter) 
         {
-            PLOG("Starting Put experiment...");
+            PLOG("Starting Put Latency experiment...");
 
-            _start = std::chrono::high_resolution_clock::now();
             _first_iter = false;
-        }
-      
+        }     
+
         _i++;
+
+        if (_i == _pool_num_components) throw std::exception(); // end experiment
 
         int rc = _store->put(_pool, _data->key(_i), _data->value(_i), _data->value_len());
 
@@ -40,4 +42,4 @@ public:
 };
 
 
-#endif //  __EXP_PUT_H__
+#endif //  __EXP_PUT_LATENCY_H__

@@ -7,11 +7,11 @@
 extern Data * _data;
 
 
-class Experiment_Get : public Experiment
+class ExperimentGet : public Experiment
 { 
 public:
 
-    Experiment_Get(Component::IKVStore * arg) : Experiment(arg) 
+    ExperimentGet(Component::IKVStore * arg) : Experiment(arg) 
     {
         assert(arg);
     }
