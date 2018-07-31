@@ -449,8 +449,9 @@ status_t NVME_store::get(const pool_t pool,
 
     do_block_io(blk_dev, BLOCK_IO_READ, mem, lba, nr_io_blocks);
 
-    // transaction also happens in here
-    out_value = blk_dev->virt_addr(mem);
+    out_value = malloc(val_len);
+    assert(out_value);
+    memcpy(out_value, blk_dev->virt_addr(mem), val_len);
     out_value_len = val_len;
   }
   catch(...) {

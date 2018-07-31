@@ -154,6 +154,8 @@ TEST_F(KVStore_test, BasicGet)
     PDBG("Checksum: %d", result.checksum());
 		EXPECT_TRUE(_crc_map[key] == result.checksum());
 
+    free(value);
+
     //PINF("Value=(%.50s) %lu", ((char*)value), value_len);
   }
 }

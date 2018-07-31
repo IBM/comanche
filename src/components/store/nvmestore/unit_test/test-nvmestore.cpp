@@ -30,6 +30,8 @@
 #define PMEM_PATH "/mnt/pmem0/pool-nvmestore"
 #define POOL_NAME "test-basic.pool"
 
+#define DO_BASIC_TEST
+
 //#define USE_FILESTORE
 #undef USE_FILESTORE
 
@@ -130,7 +132,7 @@ TEST_F(KVStore_test, OpenPool)
   ASSERT_TRUE(_pool > 0);
 }
 
-#if 0
+#ifdef DO_BASIC_TEST
 TEST_F(KVStore_test, BasicPut)
 {
   ASSERT_TRUE(_pool);
@@ -176,6 +178,8 @@ TEST_F(KVStore_test, BasicGet)
 
   EXPECT_FALSE(strcmp("Hello world!", (char*)value));
   PINF("Value=(%.50s) %lu", ((char*)value), value_len);
+
+  free(value);
 }
 
 // TEST_F(KVStore_test, BasicGetRef)
