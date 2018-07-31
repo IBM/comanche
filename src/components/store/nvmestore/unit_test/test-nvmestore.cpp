@@ -67,12 +67,14 @@ class KVStore_test : public ::testing::Test {
   static Component::IKVStore * _kvstore;
   static Component::IKVStore * _kvstore2;
   static Component::IKVStore::pool_t _pool;
+  static bool _pool_is_reopen;  // this run is open a previously created pool
 };
 
 
 Component::IKVStore * KVStore_test::_kvstore;
 Component::IKVStore * KVStore_test::_kvstore2;
 Component::IKVStore::pool_t KVStore_test::_pool;
+bool KVStore_test::_pool_is_reopen;
 
 TEST_F(KVStore_test, Instantiate)
 {
@@ -96,8 +98,6 @@ TEST_F(KVStore_test, Instantiate)
   // this nvme-store use a block device and a block allocator
   _kvstore = fact->create("owner","name");
 #endif
-
-
   
   fact->release_ref();
 }
@@ -108,17 +108,24 @@ TEST_F(KVStore_test, OpenPool)
   ASSERT_TRUE(_kvstore);
   // pass blk and alloc here
   std::string pool_path;
+  std::string pool_name;
+
+  pool_name = "basic-nr-"+std::to_string(Data::NUM_ELEMENTS) + "-sz-" + std::to_string(Data::VAL_LEN)+ ".pool";
+
 #ifndef USE_FILESTORE
   pool_path = PMEM_PATH;
 #else
   pool_path = "./";
 #endif
   try{
-  _pool = _kvstore->create_pool(pool_path, POOL_NAME, MB(128));
+  _pool = _kvstore->create_pool(pool_path, pool_name, MB(128));
+  _pool_is_reopen = false;
   }
   catch(...){
     // open the pool if it exists
-    _pool = _kvstore->open_pool(pool_path, POOL_NAME); 
+    _pool = _kvstore->open_pool(pool_path, pool_name); 
+    _pool_is_reopen = true;
+    PINF("NVMEStore:open a exsiting pool instead!");
   }
   ASSERT_TRUE(_pool > 0);
 }
@@ -204,32 +211,35 @@ TEST_F(KVStore_test, BasicErase)
 #endif
 
 
-TEST_F(KVStore_test, DISABLED_ThroughputPut)
+TEST_F(KVStore_test, ThroughputPut)
 {
   ASSERT_TRUE(_pool);
-
-  size_t i;
-  std::chrono::system_clock::time_point _start, _end;
-  double secs;
-
-  Data *_data = new Data();
-  
-  /* put */
-  _start = std::chrono::high_resolution_clock::now();
-
-  ProfilerStart("testnvmestore.put.profile");
-  for(i = 0; i < _data->num_elements(); i ++){
-    _kvstore->put(_pool, _data->key(i), _data->value(i), _data->value_len());
+  if(_pool_is_reopen){
+    PINF("open a exisitng pool, skip PUT");
   }
-  ProfilerStop();
-  _end = std::chrono::high_resolution_clock::now();
+  else{
+    size_t i;
+    std::chrono::system_clock::time_point _start, _end;
+    double secs;
 
-  secs = std::chrono::duration_cast<std::chrono::milliseconds>(_end - _start).count() / 1000.0;
-  PINF("*Put summary(with memcpy)*:");
-  PINF("IOPS\tTP(MiB/s)\tValuesz(KiB)\tTime(s)\tnr_io");
-  PINF("%2g\t%.2f\t%lu\t%.2lf\t%lu",
-      ((double)i) / secs, ((double)i) / secs*_data->value_len()/(1024*1024), _data->value_len()/1024, secs, i);
+    Data *_data = new Data();
 
+    /* put */
+    _start = std::chrono::high_resolution_clock::now();
+
+    ProfilerStart("testnvmestore.put.profile");
+    for(i = 0; i < _data->num_elements(); i ++){
+      _kvstore->put(_pool, _data->key(i), _data->value(i), _data->value_len());
+    }
+    ProfilerStop();
+    _end = std::chrono::high_resolution_clock::now();
+
+    secs = std::chrono::duration_cast<std::chrono::milliseconds>(_end - _start).count() / 1000.0;
+    PINF("*Put summary(with memcpy)*:");
+    PINF("IOPS\tTP(MiB/s)\tValuesz(KiB)\tTime(s)\tnr_io");
+    PINF("%2g\t%.2f\t%lu\t%.2lf\t%lu",
+        ((double)i) / secs, ((double)i) / secs*_data->value_len()/(1024*1024), _data->value_len()/1024, secs, i);
+    }
 }
 
 TEST_F(KVStore_test, ThroughputGetDirect){

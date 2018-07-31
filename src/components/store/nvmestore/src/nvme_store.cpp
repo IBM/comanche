@@ -271,7 +271,10 @@ IKVStore::pool_t NVME_store::open_pool(const std::string path,
   assert(!TOID_IS_NULL(root));
 
   assert(D_RO(root)->map.oid.off != 0);
-  assert(D_RO(root)->pool_size!= 0);
+  /*TODO; in caffe workload the poolsize is not persist somehow*/
+  if(D_RO(root)->pool_size == 0){
+    PWRN("nvmestore: pool size is ZERO!");
+  }
   PLOG("Using existing root, pool size =  %lu:", D_RO(root)->pool_size);
   if(hm_tx_init(pop, D_RW(root)->map))
     throw General_exception("hm_tx_init failed unexpectedly");
