@@ -123,7 +123,7 @@ public:
   virtual void delete_pool(const pool_t pool)  = 0;
 
   /** 
-   * Write an object value
+   * Write an object value. Key as string.
    * 
    * @param pool Pool handle
    * @param key Object key
@@ -136,6 +136,22 @@ public:
                        const std::string key,
                        const void * value,
                        const size_t value_len) = 0;
+
+    /** 
+   * Write an object value. Key as pointer-len pair.
+   * 
+   * @param pool Pool handle
+   * @param key Object key
+   * @param value Value data
+   * @param value_len Size of value in bytes
+   * 
+   * @return S_OK or error code
+   */
+  virtual status_t put(const pool_t pool,
+                       const void * key,
+                       const size_t key_len,
+                       const void * value,
+                       const size_t value_len) { return E_NOT_SUPPORTED; }
 
   /** 
    * Read an object value
@@ -153,11 +169,13 @@ public:
                        size_t& out_value_len) = 0;
 
 
-  /** 
+  /**
    * Read an object value directly into client-provided memory.  To perform partial gets you can 
    * use the offset parameter and limit the size of the buffer (out_value_len).  Loop on return of
    * S_MORE, and increment offset, to read fragments.  This is useful for very large objects that 
    * for instance you want to start sending over the network while the device is pulling the data in.
+   * Note: if the key does not exist, then the key is created and value space allocated according to 
+   * the size of out_value_len.
    * 
    * @param pool Pool handle
    * @param key Object key
@@ -169,6 +187,28 @@ public:
    */
   virtual status_t get_direct(const pool_t pool,
                               const std::string key,
+                              void* out_value,
+                              size_t& out_value_len,
+                              size_t offset = 0) { return E_NOT_SUPPORTED; }
+
+  /**
+   * Read an object value directly into client-provided memory.  To perform partial gets you can 
+   * use the offset parameter and limit the size of the buffer (out_value_len).  Loop on return of
+   * S_MORE, and increment offset, to read fragments.  This is useful for very large objects that 
+   * for instance you want to start sending over the network while the device is pulling the data in.
+   * Note: if the key does not exist, then the key is created and value space allocated according to 
+   * the size of out_value_len.
+   * 
+   * @param pool Pool handle
+   * @param key Object key
+   * @param out_value Client provided buffer for value
+   * @param out_value_len [in] size of value memory in bytes [out] size of value
+   * @param offset Offset from beginning of value in bytes.
+   * 
+   * @return S_OK, S_MORE if only a portion of value is read, E_BAD_ALIGNMENT on invalid alignment, or other error code
+   */
+  virtual status_t get_direct(const pool_t pool,
+                              uint64_t key_hash,
                               void* out_value,
                               size_t& out_value_len,
                               size_t offset = 0) { return E_NOT_SUPPORTED; }
@@ -199,9 +239,23 @@ public:
                             const std::string key,
                             const size_t nbytes,
                             uint64_t& out_key_hash) { return E_NOT_SUPPORTED; }
+
+  /** 
+   * Allocate an object but do not populate data
+   * 
+   * @param pool Pool handle
+   * @param key_hash Hash of key
+   * @param nbytes Size to allocate in bytes
+   * 
+   * @return S_OK or error code
+   */
+  virtual status_t allocate(const pool_t pool,
+                            uint64_t key_hash,
+                            const size_t nbytes) { return E_NOT_SUPPORTED; }
   
   /** 
-   * Take a lock on an object
+   * Take a lock on an object. If the object does not exist, create it with
+   * value space according to out_value_len
    * 
    * @param pool Pool handle
    * @param key_hash Hash of key
@@ -226,6 +280,16 @@ public:
    */
   virtual status_t unlock(const pool_t pool,
                           uint64_t key_hash) { return E_NOT_SUPPORTED; }
+
+  /** 
+   * Get the key hash 
+   * 
+   * @param key Pointer to start of key
+   * @param key_len Length of key in bytes
+   * 
+   * @return Key hash code
+   */
+  virtual uint64_t key_hash(const void * key, const size_t key_len) { return E_NOT_SUPPORTED; }
   
   /** 
    * Apply a functor to an object as a transaction

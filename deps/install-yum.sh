@@ -6,7 +6,7 @@ yum -y install wget git make automake gcc-c++ openssl-devel sqlite-devel kmod-li
 #yum -y install "kernel-devel-uname-r == $(uname -r)"
 
 # needed for SPDK and DPDK build
-yum -y install libpcap-devel uuid-devel libuuid libuuid-devel libaio-devel \
+yum -y install kmod-devel libudev-devel json-c-devel libpcap-devel uuid-devel libuuid libuuid-devel libaio-devel \
     CUnit CUnit-devel librdmacm-devel librdmacm cmake3 numactl-devel python-devel \
     rapidjson-devel gmp-devel mpfr-devel libmpc-devel \
     elfutils-libelf-devel libpcap-devel libuuid-devel libaio-devel boost boost-devel \

@@ -67,6 +67,8 @@ int Pool_handle::put(const std::string& key,
   if(ws != value_len)
     throw General_exception("file write failed, value=%p, len =%lu", value, value_len);
 
+  /*Turn on to avoid the effect of file cache*/
+  //fsync(fd);
   close(fd);
   return S_OK;
 }
