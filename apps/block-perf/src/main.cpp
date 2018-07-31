@@ -24,6 +24,7 @@ enum {
 struct {
   unsigned n_client_threads;
   unsigned n_io_threads = 1;
+  unsigned chunk_size_in_block = 8;
   int workload = WORKLOAD_RAND_READ;
 } Options;
 
@@ -74,6 +75,7 @@ int main(int argc, char * argv[])
     desc.add_options()
       ("pci", po::value< vector<string> >(), "PCIe id for NVMe drive")
       ("threads", po::value<int>(), "# client threads")
+      ("chunk_size_in_block", po::value<int>(), "# how many blocks to submit in one async call")
       ("iothreads", po::value<int>(), "# IO threads (default 1)")
       ("rw", "read-write workload")
       ("randwrite", "randomw-write workload")
@@ -92,6 +94,9 @@ int main(int argc, char * argv[])
 
     if(vm.count("iothreads"))
       Options.n_io_threads = vm["iothreads"].as<int>();
+
+    if(vm.count("chunk_size_in_block"))
+      Options.chunk_size_in_block = vm["chunk_size_in_block"].as<int>();
     
     if(vm.count("rw")) {
       PINF("Using RW 50:50 workload");
@@ -137,11 +142,11 @@ public:
     unsigned index = core % _bdv.size();
     _block = _bdv[index];
     _block->get_volume_info(_vi);
-    PLOG("IO_task: %p is using IBlock_device %p (%s) %u/%lu", this, _block, _vi.volume_name, index, _bdv.size());
+    PLOG("IO_task: %p is using IBlock_device %p (%s) %u/%lu, chunk size %u*4KB", this, _block, _vi.volume_name, index, _bdv.size(), Options.chunk_size_in_block);
 
     /* create buffers */
     for(unsigned i=0;i<NUM_BUFFERS;i++) {
-      auto iob = _block->allocate_io_buffer(KB(4),KB(4), Component::NUMA_NODE_ANY);
+      auto iob = _block->allocate_io_buffer(Options.chunk_size_in_block*KB(4),KB(4), Component::NUMA_NODE_ANY);
       _buffer_q.enqueue(iob);
     }
     
@@ -172,7 +177,7 @@ public:
       _last_gwid = _block->async_read(mp->iob,
                                       0,
                                       block,
-                                      1, /* n blocks */
+                                      Options.chunk_size_in_block, /* n blocks */
                                       (core % Options.n_io_threads) + START_IO_CORE,
                                       release_cb, (void*) mp);
       _io_count++;
@@ -218,10 +223,14 @@ public:
   }
   
   void cleanup(unsigned core) override {
-    //    _block->check_completion(_last_gwid, (core % Options.n_io_threads) + START_IO_CORE);
+    if(_last_gwid){
+      PINF("IO_task: check completion for gwid %lu", _last_gwid);
+      _block->check_completion(_last_gwid, (core % Options.n_io_threads) + START_IO_CORE);
+    }
+
     PINF("(%p) completed %lu IOPS %.2f MB/s", this,
          _io_count/10 /* period is 10sec */,
-         (_io_count/10 * 4.0f) / 1024.0);
+         (_io_count/10 * 4.0 * Options.chunk_size_in_block) / 1024.0);
   }
 
   Component::io_buffer_t alloc_buffer()
@@ -250,7 +259,7 @@ private:
   Component::IBlock_device *         _block;
   Component::io_buffer_t             _iob;
   Common::Spsc_bounded_lfq_sleeping<Component::io_buffer_t, NUM_BUFFERS> _buffer_q;
-  uint64_t _last_gwid;
+  uint64_t _last_gwid = 0;
 };
 
 void Main::run()
