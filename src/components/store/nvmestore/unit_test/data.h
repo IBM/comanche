@@ -23,11 +23,11 @@ class Data
 {
 public:
   static constexpr size_t NUM_ELEMENTS = 10000; 
-  static constexpr size_t KEY_LEN = 8;
+  static constexpr size_t MAX_KEY_LEN = 16;
   static constexpr size_t VAL_LEN = KB(128);
 
   struct KV_pair {
-    char key[KEY_LEN + 1];
+    char key[MAX_KEY_LEN];
     char value[VAL_LEN + 1];
   };
 
@@ -38,10 +38,9 @@ public:
     _data = new KV_pair[NUM_ELEMENTS];
 
     for(size_t i=0;i<NUM_ELEMENTS;i++) {
-      auto key = Common::random_string(KEY_LEN);
+      std::string key = "elem" + std::to_string(i);
       auto val = Common::random_string(VAL_LEN);
-      strncpy(_data[i].key, key.c_str(), key.length());
-      _data[i].key[KEY_LEN] = '\0';
+      strcpy(_data[i].key, key.c_str());
       strncpy(_data[i].value, val.c_str(), val.length());
      _data[i].value[VAL_LEN] = '\0';
     }

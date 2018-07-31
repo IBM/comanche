@@ -30,7 +30,6 @@
 // don't change this, some functionanlity such as get_direct might only work with blk_nvme backend.
 #define USE_SPDK_NVME_DEVICE
 
-
 using namespace Component;
 
 static std::unordered_map<std::string, IBlock_device *> _dev_map; //pci->blk
@@ -140,4 +139,61 @@ status_t NVME_store::open_block_allocator(IBlock_device *block,Component::IBlock
     alloc->add_ref();
     return S_OK;
   }
+}
+
+status_t  NVME_store::do_block_io(Component::IBlock_device * block,
+                         int type,
+                         io_buffer_t mem,
+                         lba_t lba,
+                         size_t nr_io_blocks){
+  switch (type){
+    case BLOCK_IO_READ:
+
+      if(nr_io_blocks < CHUNK_SIZE_IN_BLOCKS)
+        block->read(mem, 0, lba, nr_io_blocks);
+      else{
+        uint64_t tag;
+        lba_t offset = 0;  // offset in blocks
+
+        // submit async IO
+        do{
+          tag = block->async_read(mem, offset*BLOCK_SIZE, lba+offset, CHUNK_SIZE_IN_BLOCKS);
+          offset += CHUNK_SIZE_IN_BLOCKS;
+        }while(offset < nr_io_blocks);
+
+        // leftover
+        if(offset > nr_io_blocks){
+          offset -= CHUNK_SIZE_IN_BLOCKS;
+          tag = block->async_read(mem, offset*BLOCK_SIZE, lba + offset, nr_io_blocks - offset);
+        }
+        while(!block->check_completion(tag)); /* we only have to check the last completion */
+      }
+      break;
+
+    case BLOCK_IO_WRITE:
+      if(nr_io_blocks < CHUNK_SIZE_IN_BLOCKS)
+        block->write(mem, 0, lba, nr_io_blocks);
+      else{
+        uint64_t tag;
+        lba_t offset = 0;  // offset in blocks
+
+        // submit async IO
+        do{
+          tag = block->async_write(mem, offset*BLOCK_SIZE, lba+offset, CHUNK_SIZE_IN_BLOCKS);
+          offset += CHUNK_SIZE_IN_BLOCKS;
+        }while(offset < nr_io_blocks);
+
+        // leftover
+        if(offset > nr_io_blocks){
+          offset -= CHUNK_SIZE_IN_BLOCKS;
+          tag = block->async_write(mem, offset*BLOCK_SIZE, lba + offset, nr_io_blocks - offset);
+        }
+        while(!block->check_completion(tag)); /* we only have to check the last completion */
+      }
+      break;
+    default:
+      throw General_exception("not implemented");
+      break;
+  }
+  return S_OK;
 }

@@ -1,51 +1,35 @@
-Kernel parameters
+Setup
 -----------------
+Run the [prepare_nvmestore.sh](comanche/tools/prepare_nvmestore.sh)
+(Run with regular user, input sudo password when necessary)
 
-Use the following parameter, huge page is for pmdk, memmap is for the pmem, intel_iommu must be on for vfio
-(if you are working in a machine with small memory size(e.g.no more than 8G), you should modify this correspondingly)
+If you met any issues, see [this REAME](comanche/src/components/store/nvmestore/README.md) for more information.
 
-``` 
-hugepagesz=2M hugepages=4096 intel_iommu=on text memmap=2G!4G
+Run
+------------------
+
+Get your pcie address of the nvme:
+```
+lspci|grep Non
 ```
 
-```
-mkdir /mnt/huge
-mount -t hugetlbfs nodev /mnt/huge
+test-nvmestore
+===============
 
+This will check basic functionality:
 ```
-
-rerun tool/nvmesetup.sh
-
-Enable the fake pmem
---------------------
-```
-./setup_pmem.sh
+PMEM_IS_PMEM_FORCE=1 ./comanche/src/components/store/nvmestore/unit_test/test-nvmestore pci-address 
 ```
 
-bypass clflush/msync
+Actually it can be also used to test the latency/throughput of file store, if you set the the USE_FILESTORE in the test-nvmestore.cpp
+
+test-integrity
+===============
+
+TODO: I should merge two tests together..
+
+This check data integrity of nvmestore using crc32 checksums
 ```
-PMEM_IS_PMEM_FORCE=1 ./you-program
+PMEM_IS_PMEM_FORCE=1 ./comanche/src/components/store/nvmestore/unit_test/test-integrity pci-address 
 ```
 
-```
-xms mod is inserted?
-```
-
-set pin memory limit for this user
--------------------------------------
-
-if you run deps/dpdk/user-tools/dpdk-setup.sh to set vfio permission and get  warning to set the ulimit:
-```
-Current user memlock limit: 0 MB
-```
-
-Add those two lines to /et/security/limits.conf:
-```  
-  fengggli hard memlock unlimited 
-  fengggli soft memlock unlimited
-```
-
-Note
----------------
-
-you can se the clear_pmempool.sh  to clear all data from pmem
