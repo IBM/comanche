@@ -33,6 +33,7 @@ PINF "check kernel cmdline..."
 less /proc/cmdline|grep "intel_iommu=on" |grep -q memmap
 if [ 0  -ne $? ]; then
   PERR "intel_iommu should be on and reserve space to simulate pmem"
+  PINPROGRESS "see comanche/src/components/store/nvmestore/HOWTO.md #Kernel Parameters# for more details"
   PINPROGRESS "you should change it upgrade-grub and reboot "
   exit -1
 fi
@@ -81,7 +82,8 @@ lsmod|grep -q xms
 if [ 0  -ne $? ]; then
   PERR "no xms kernel module found!"
   PINPROGRESS "now mounting..." 
-  sudo load-module.sh
+  sudo rmmod xmsmod
+  sudo insmod ./lib/xmsmod.ko
   PPOSTMSG "xms loaded!!"
 fi
 PINF "OK."
@@ -90,6 +92,7 @@ PINF "OK."
 if [ x$(ulimit -l) != x"unlimited" ]; then
   PERR "the memlock limit for current user is low"
   PINPROGRESS "YOU SHOULD: set memlock to unlimited at /et/security/limits.conf, and reboot"
+  PINPROGRESS "see comanche/src/components/store/nvmestore/HOWTO.md # memlock limit# for more details"
   exit
 fi
 
