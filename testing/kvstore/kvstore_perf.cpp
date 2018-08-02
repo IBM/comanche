@@ -8,7 +8,7 @@
 #include <chrono>
 #include <iostream>
 #include <gperftools/profiler.h>
-#define PATH "/mnt/pmem0/"
+#define DEFAULT_PATH "/mnt/pmem0/"
 //#define PATH "/dev/dax0.0"
 #define POOL_NAME "test.pool"
 
@@ -16,31 +16,33 @@
 #define FILESTORE_PATH "libcomanche-storefile.so"
 #define NVMESTORE_PATH "libcomanche-nvmestore.so"
 #define ROCKSTORE_PATH "libcomanche-rocksdb.so"
-#define DEFAULT_COMPONENT "pmstore"
+#define DEFAULT_COMPONENT "filestore"
 
 using namespace Component;
 
 #include "data.h"
 #include "exp_put.h"
 #include "exp_get.h"
+#include "exp_put_latency.h"
+#include "kvstore_perf.h"
 
+ProgramOptions Options;
 Data * _data;
 
 static Component::IKVStore * g_store;
 static void initialize();
 static void cleanup();
 
-struct {
-  std::string test;
-  std::string component;
-  unsigned cores;
-  unsigned time_secs;
-} Options; 
+int g_argc;
+char ** g_argv;
 
 int main(int argc, char * argv[])
 {
   ProfilerDisable();
   
+    g_argc = argc;
+    g_argv = argv;
+
   namespace po = boost::program_options; 
   po::options_description desc("Options"); 
   desc.add_options()
@@ -49,6 +51,10 @@ int main(int argc, char * argv[])
     ("component", po::value<std::string>(), "Implementation selection <pmstore|nvmestore|filestore>")
     ("cores", po::value<int>(), "Number of threads/cores")
     ("time", po::value<int>(), "Duration to run in seconds")
+    ("path", po::value<std::string>(), "Path of directory for pool")
+    ("size", po::value<unsigned int>(), "Size of pool")
+    ("flags", po::value<int>(), "Flags for pool creation")
+    ("elements", po::value<unsigned int>(), "Number of data elements")
     ;
 
   try {
@@ -70,13 +76,25 @@ int main(int argc, char * argv[])
     
     Options.cores  = vm.count("cores") > 0 ? vm["cores"].as<int>() : 1;
     Options.time_secs  = vm.count("time") > 0 ? vm["time"].as<int>() : 4;
+/*
+    if(vm.count("path"))
+    {
+        Options.path = vm["path"].as<std::string>();
+    }
+    else 
+    {
+        Options.path = DEFAULT_PATH;
+    }
+*/
+    Options.elements = vm.count("elements") > 0 ? vm["elements"].as<unsigned int>() : 100000;
+    
   }
   catch (const po::error &ex)
   {
     std::cerr << ex.what() << '\n';
   }
 
-  _data = new Data();
+  _data = new Data(Options.elements);
   initialize();
 
   cpu_mask_t cpus;
@@ -87,16 +105,21 @@ int main(int argc, char * argv[])
   ProfilerStart("cpu.profile");
 
   if(Options.test == "all" || Options.test == "Put") {
-    Core::Per_core_tasking<Experiment_Put, Component::IKVStore*> exp(cpus, g_store);
+    Core::Per_core_tasking<ExperimentPut, Component::IKVStore*> exp(cpus, g_store);
     sleep(Options.time_secs);
   }
 
   if(Options.test == "all" || Options.test == "Get") {
-    Core::Per_core_tasking<Experiment_Get, Component::IKVStore*> exp(cpus, g_store);
+    Core::Per_core_tasking<ExperimentGet, Component::IKVStore*> exp(cpus, g_store);
     //    sleep(Options.time_secs + 8);
     exp.wait_for_all();
   }
 
+  if (Options.test == "all" || Options.test == "put_latency")
+  {
+      Core::Per_core_tasking<ExperimentPutLatency, Component::IKVStore*> exp(cpus, g_store);
+      exp.wait_for_all();
+  }
   
   ProfilerStop();
   
@@ -128,7 +151,7 @@ static void initialize()
   IKVStore_factory * fact = (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
 
   if(Options.component == "nvmestore"){
-    g_store = fact->create("owner","name", "81:00.0");
+    g_store = fact->create("owner","name", "09:00.0");
   }
   else{
     g_store = fact->create("owner","name");
