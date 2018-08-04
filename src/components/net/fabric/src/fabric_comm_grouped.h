@@ -34,12 +34,14 @@ class Fabric_comm_grouped
 {
   Fabric_generic_grouped &_conn;
   using completion_t = std::tuple<void *, status_t>;
-  /* completions for this comm processed but not yet forwarded */
+  /* completions for this comm processed but not yet forwarded, or processed and forwarded but rejected with CB_REJECTED status */
   std::mutex _m_completions;
   std::queue<completion_t> _completions;
 
   std::size_t process_cq_comp_err(std::function<void(void *context, status_t st)> completion_callback);
+  std::size_t process_cq_comp_err(std::function<cb_acceptance(void *context, status_t st)> completion_callback);
   std::size_t process_or_queue_completion(async_req_record *g_context_, std::function<void(void *context, status_t st)> cb_, status_t status_);
+  std::size_t process_or_queue_completion(async_req_record *g_context_, std::function<cb_acceptance(void *context, status_t st)> cb_, status_t status_);
 public:
   explicit Fabric_comm_grouped(Fabric_generic_grouped &);
   ~Fabric_comm_grouped(); /* Note: need to notify the polling thread that this connection is going away, */
@@ -66,6 +68,7 @@ public:
   void inject_send(const std::vector<iovec>& buffers) override;
 
   std::size_t poll_completions(std::function<void(void *context, status_t)> completion_callback) override;
+  std::size_t poll_completions(std::function<cb_acceptance(void *context, status_t)> completion_callback) override;
 
   std::size_t stalled_completion_count() override;
 
@@ -79,6 +82,7 @@ public:
 
   void queue_completion(void *context, status_t status);
   std::size_t drain_old_completions(std::function<void(void *context, status_t st) noexcept> completion_callback);
+  std::size_t drain_old_completions(std::function<cb_acceptance(void *context, status_t st) noexcept> completion_callback);
 };
 
 #endif
