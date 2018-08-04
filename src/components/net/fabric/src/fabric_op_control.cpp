@@ -64,6 +64,8 @@ Fabric_op_control::Fabric_op_control(
   : Fabric_memory_control(
       fabric_, info_
   )
+  , _m_completions{}
+  , _completions{}
 #if CAN_USE_WAIT_SETS
   /* verbs provider does not support wait sets */
   , _wait_attr{
@@ -266,6 +268,11 @@ std::size_t Fabric_op_control::process_cq_comp_err(std::function<void(void *conn
   return 1U;
 }
 
+auto Fabric_op_control::process_cq_comp_err(std::function<cb_acceptance(void *connection, status_t st)> completion_callback) -> cb_acceptance
+{
+  return completion_callback(get_cq_comp_err(), E_FAIL);
+}
+
 /**
  * Poll completions (e.g., completions)
  *
@@ -305,12 +312,76 @@ std::size_t Fabric_op_control::poll_completions(std::function<void(void *context
     }
   }
 
+  ct_total += drain_old_completions(cb_);
+
   if ( _shut_down && ct_total == 0 )
   {
     throw std::logic_error("Connection closed");
   }
   return ct_total;
 }
+
+std::size_t Fabric_op_control::poll_completions(std::function<cb_acceptance(void *context, status_t st) noexcept> cb_)
+{
+  std::size_t constexpr ct_max = 1;
+  std::size_t ct_total = 0;
+  ::fi_cq_tagged_entry entry; /* We dont actually expect a tagged entry. Specifying this to provide the largest buffer. */
+  bool drained = false;
+  while ( ! drained )
+  {
+    auto timeout = 0; /* immediate timeout */
+    auto ct = cq_sread(&entry, ct_max, nullptr, timeout);
+    if ( ct < 0 )
+    {
+      switch ( auto e = unsigned(-ct) )
+      {
+      case FI_EAVAIL:
+        {
+          auto c = process_cq_comp_err(cb_);
+          ++ct_total;
+          if ( c != cb_acceptance::ACCEPTED )
+          {
+            throw std::logic_error("Attempt to reject an error completion");
+          }
+        }
+        break;
+      case FI_EAGAIN:
+        drained = true;
+        break;
+      default:
+        throw fabric_error(e, __FILE__, __LINE__);
+      }
+    }
+    else
+    {
+      process_or_queue_completion(entry.op_context, cb_, S_OK);
+    }
+  }
+
+  ct_total += drain_old_completions(cb_);
+
+  if ( _shut_down && ct_total == 0 )
+  {
+    throw std::logic_error("Connection closed");
+  }
+  return ct_total;
+}
+
+std::size_t Fabric_op_control::process_or_queue_completion(void *context_, std::function<cb_acceptance(void *context, status_t st)> cb_, status_t status_)
+{
+  std::size_t ct_total = 0U;
+  if ( cb_(context_, status_) == cb_acceptance::ACCEPTED )
+  {
+    ++ct_total;
+  }
+  else
+  {
+    queue_completion(context_, status_);
+  }
+
+  return ct_total;
+}
+
 
 /**
  * Block and wait for next completion.
@@ -577,4 +648,50 @@ try
 catch ( const fabric_error &e )
 {
   throw e.add(tostr(info));
+}
+
+void Fabric_op_control::queue_completion(void *context_, status_t status_)
+{
+  std::lock_guard<std::mutex> k2{_m_completions};
+  _completions.push(completion_t(context_, status_));
+}
+
+std::size_t Fabric_op_control::drain_old_completions(std::function<void(void *context, status_t st) noexcept> completion_callback)
+{
+  std::size_t ct_total = 0U;
+  std::unique_lock<std::mutex> k{_m_completions};
+  while ( ! _completions.empty() )
+  {
+    auto c = _completions.front();
+    _completions.pop();
+    k.unlock();
+    completion_callback(std::get<0>(c), std::get<1>(c));
+    ++ct_total;
+    k.lock();
+  }
+  return ct_total;
+}
+
+std::size_t Fabric_op_control::drain_old_completions(std::function<cb_acceptance(void *context, status_t st) noexcept> completion_callback)
+{
+  std::size_t ct_total = 0U;
+  std::unique_lock<std::mutex> k{_m_completions};
+  std::queue<completion_t> deferred_completions;
+  while ( ! _completions.empty() )
+  {
+    auto c = _completions.front();
+    _completions.pop();
+    k.unlock();
+    if ( completion_callback(std::get<0>(c), std::get<1>(c)) == cb_acceptance::ACCEPTED )
+    {
+      ++ct_total;
+    }
+    else
+    {
+      deferred_completions.push(c);
+    }
+    k.lock();
+  }
+  std::swap(deferred_completions, _completions);
+  return ct_total;
 }

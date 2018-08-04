@@ -184,14 +184,6 @@ std::size_t Fabric_generic_grouped::poll_completions(std::function<void(void *co
   std::size_t ct_total = 0;
   fi_cq_tagged_entry entry; /* We dont actually expect a tagged entry. Spefifying this to provide the largest buffer. */
 
-  {
-    std::unique_lock<std::mutex> k0{_m_comms};
-    for ( auto &g : _comms )
-    {
-      g->drain_old_completions(cb_);
-    }
-  }
-
   bool drained = false;
   while ( ! drained )
   {
@@ -217,6 +209,88 @@ std::size_t Fabric_generic_grouped::poll_completions(std::function<void(void *co
       cb_(g_context->context(), S_OK);
       ++ct_total;
 
+      g_context.release();
+    }
+  }
+
+  /*
+   * Note: There are two reasons why a completion might end in our local "queue":
+   *  (1) It was seen by another group running poll_completions, or
+   *  (2) it was rejected by a client who hoped to see some other completion first.
+   * In case (1) it would be reasonable to process the queued completions before
+   * newer completions. But in case (2), the client will want to see later completions
+   * before returning to the rejected completion.
+   */
+  {
+    std::unique_lock<std::mutex> k0{_m_comms};
+    for ( auto &g : _comms )
+    {
+      g->drain_old_completions(cb_);
+    }
+  }
+
+  if ( cnxn().is_shut_down() && ct_total == 0 )
+  {
+    throw std::logic_error("Connection closed");
+  }
+  return ct_total;
+}
+
+std::size_t Fabric_generic_grouped::poll_completions(std::function<cb_acceptance(void *context, status_t st) noexcept> cb_)
+{
+  std::size_t constexpr ct_max = 1;
+  std::size_t ct_total = 0;
+  fi_cq_tagged_entry entry; /* We dont actually expect a tagged entry. Spefifying this to provide the largest buffer. */
+
+  {
+    std::unique_lock<std::mutex> k0{_m_comms};
+    for ( auto &g : _comms )
+    {
+      g->drain_old_completions(cb_);
+    }
+  }
+
+  bool drained = false;
+  while ( ! drained )
+  {
+    auto timeout = 0; /* immediate timeout */
+    auto ct = cq_sread(&entry, ct_max, nullptr, timeout);
+    if ( ct < 0 )
+    {
+      switch ( auto e = unsigned(-ct) )
+      {
+      case FI_EAVAIL:
+        {
+          auto c = cnxn().process_cq_comp_err(cb_);
+          ++ct_total;
+          if ( c != cb_acceptance::ACCEPTED )
+          {
+            throw std::logic_error("Completion error rejected");
+          }
+        }
+        break;
+      case FI_EAGAIN:
+        drained = true;
+        break;
+      default:
+        throw fabric_error(e, __FILE__, __LINE__);
+      }
+    }
+    else
+    {
+      std::unique_ptr<async_req_record> g_context(static_cast<async_req_record *>(entry.op_context));
+#if 1
+      ct_total += _cnxn.process_or_queue_completion(g_context->context(), cb_, S_OK);
+#else
+      if ( cb_(g_context->context(), S_OK) == cb:accepteance::CB_ACCEPTED )
+      {
+        ++ct_total;
+      }
+      else
+      {
+        _cnxn.queue_completion(g_context->context(), S_OK);
+      }
+#endif
       g_context.release();
     }
   }

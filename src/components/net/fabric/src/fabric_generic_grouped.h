@@ -71,6 +71,7 @@ public:
 
   /* BEGIN IFabric_active_endpoint_grouped (IFabric_op_completer) */
   std::size_t poll_completions(std::function<void(void *context, status_t)> completion_callback) override;
+  std::size_t poll_completions(std::function<cb_acceptance(void *context, status_t)> completion_callback) override;
   std::size_t stalled_completion_count() override;
   void wait_for_next_completion(unsigned polls_limit) override;
   void wait_for_next_completion(std::chrono::milliseconds timeout) override;
@@ -94,6 +95,7 @@ public:
   fabric_types::addr_ep_t get_name() const;
 
   void poll_completions_for_comm(Fabric_comm_grouped *, std::function<void(void *context, status_t)> completion_callback);
+  void poll_completions_for_comm(Fabric_comm_grouped *, std::function<cb_acceptance(void *context, status_t)> completion_callback);
   void forget_group(Fabric_comm_grouped *);
 
   void *get_cq_comp_err() const;

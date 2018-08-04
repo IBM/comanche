@@ -38,6 +38,17 @@ class IFabric_op_completer
 public:
   virtual ~IFabric_op_completer() {}
 
+  /*
+   * Function which probably belongs to a higher layer, but ended up here.
+   * Callbacks which return CB_REJECTED are placed at the end of a queue to be
+   * retried after later callbacks are given a first chance to run.
+   */
+  enum class cb_acceptance
+  {
+    ACCEPTED
+    , REJECTED
+  };
+
   /**
    * Poll completion events; service completion queues and store
    * events not belonging to group (stall them).  This method will
@@ -48,6 +59,7 @@ public:
    *
    * @return Number of completions processed
    */
+  virtual size_t poll_completions(std::function<cb_acceptance(void *context, status_t) noexcept> completion_callback) = 0;
   virtual size_t poll_completions(std::function<void(void *context, status_t) noexcept> completion_callback) = 0;
 
   /**

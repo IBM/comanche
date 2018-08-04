@@ -38,6 +38,7 @@
 #include <cstdint> /* uint{64,64}_t */
 #include <memory> /* shared_ptr, unique_ptr */
 #include <mutex>
+#include <queue>
 #include <set>
 #include <vector>
 
@@ -57,6 +58,11 @@ class Fabric_op_control
   , public Fabric_memory_control
   , public event_consumer
 {
+  using completion_t = std::tuple<void *, status_t>;
+  /* completions forwarded to client but rejected with CB_REJECTED status, to be retried later */
+  std::mutex _m_completions;
+  std::queue<completion_t> _completions;
+
 #if CAN_USE_WAIT_SETS
   ::fi_wait_attr _wait_attr;
   fid_unique_ptr<::fid_wait> _wait_set; /* make_fid_wait(fid_fabric &fabric, fi_wait_attr &attr) */
@@ -112,6 +118,8 @@ public:
   virtual void wait_event() const = 0;
 
   std::size_t poll_completions(std::function<void(void *context, status_t)> completion_callback) override;
+  std::size_t poll_completions(std::function<cb_acceptance(void *context, status_t)> completion_callback) override;
+  std::size_t process_or_queue_completion(void *context, std::function<cb_acceptance(void *context, status_t st)> cb, status_t status);
   std::size_t stalled_completion_count() override { return 0U; }
   void wait_for_next_completion(unsigned polls_limit) override;
   void wait_for_next_completion(std::chrono::milliseconds timeout) override;
@@ -156,15 +164,21 @@ public:
   fabric_types::addr_ep_t get_name() const;
 
   void poll_completions_for_comm(Fabric_comm_grouped *, std::function<void(void *context, status_t)> completion_callback);
+  void poll_completions_for_comm(Fabric_comm_grouped *, std::function<cb_acceptance(void *context, status_t)> completion_callback);
 
   void *get_cq_comp_err() const;
   std::size_t process_cq_comp_err(std::function<void(void *connection, status_t st)> completion_callback);
+  cb_acceptance process_cq_comp_err(std::function<cb_acceptance(void *connection, status_t st)> completion_callback);
 
   ssize_t cq_sread(void *buf, std::size_t count, const void *cond, int timeout) noexcept;
   ssize_t cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) const noexcept;
   void queue_completion(Fabric_comm_grouped *comm, void *context, status_t status);
   void expect_event(std::uint32_t) const;
   bool is_shut_down() const { return _shut_down; }
+
+  void queue_completion(void *context, status_t status);
+  std::size_t drain_old_completions(std::function<void(void *context, status_t st) noexcept> completion_callback);
+  std::size_t drain_old_completions(std::function<cb_acceptance(void *context, status_t st) noexcept> completion_callback);
 };
 
 #endif

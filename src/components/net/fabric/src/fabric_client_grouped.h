@@ -86,6 +86,7 @@ public:
 
   /* BEGIN IFabric_client_grouped (IFabric_op_completer) */
   std::size_t poll_completions(std::function<void(void *context, status_t)> completion_callback) override { return Fabric_connection_client::poll_completions(completion_callback); }
+  std::size_t poll_completions(std::function<cb_acceptance(void *context, status_t)> completion_callback) override { return Fabric_connection_client::poll_completions(completion_callback); }
   std::size_t stalled_completion_count() override { return Fabric_connection_client::stalled_completion_count(); }
   void wait_for_next_completion(unsigned polls_limit) override { return Fabric_connection_client::wait_for_next_completion(polls_limit); }
   void wait_for_next_completion(std::chrono::milliseconds timeout) override { return Fabric_connection_client::wait_for_next_completion(timeout); }
@@ -111,6 +112,7 @@ public:
   fabric_types::addr_ep_t get_name() const { return _g.get_name(); }
 
   void poll_completions_for_comm(Fabric_comm_grouped *c, std::function<void(void *context, status_t)> completion_callback) { return _g.poll_completions_for_comm(c, completion_callback); }
+  void poll_completions_for_comm(Fabric_comm_grouped *c, std::function<cb_acceptance(void *context, status_t)> completion_callback) { return _g.poll_completions_for_comm(c, completion_callback); }
 
   void *get_cq_comp_err() const { return _g.get_cq_comp_err(); }
   ssize_t cq_sread(void *buf, std::size_t count, const void *cond, int timeout) noexcept { return _g.cq_sread(buf, count, cond, timeout); }
