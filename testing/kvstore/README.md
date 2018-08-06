@@ -26,3 +26,7 @@ You can run with different command line options as input. Just add these to your
 * size: size of pool to create.
 * flags: flags specified for pool creation.
 * elements: number of data elements to create for testing; this value will also be passed to pool creation as the expected number of elements in the pool.
+
+### Output
+Information is stored in `results/<component_name>/<test_name>/results_<date>.json`
+Example: `results/filestore/get_latency/results_2018_08_06_14-28.json` would be the results file of an experiment conducted on the filestore component using the get_latency test on 8/6/2018 at 2:28pm.
