@@ -71,7 +71,7 @@ public:
 
   /* BEGIN IFabric_active_endpoint_grouped (IFabric_op_completer) */
   std::size_t poll_completions(std::function<void(void *context, status_t)> completion_callback) override;
-  std::size_t poll_completions(std::function<cb_acceptance(void *context, status_t)> completion_callback) override;
+  std::size_t poll_completions_tentative(std::function<cb_acceptance(void *context, status_t)> completion_callback) override;
   std::size_t stalled_completion_count() override;
   void wait_for_next_completion(unsigned polls_limit) override;
   void wait_for_next_completion(std::chrono::milliseconds timeout) override;

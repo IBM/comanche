@@ -59,8 +59,8 @@ public:
    *
    * @return Number of completions processed
    */
-  virtual size_t poll_completions(std::function<cb_acceptance(void *context, status_t) noexcept> completion_callback) = 0;
   virtual size_t poll_completions(std::function<void(void *context, status_t) noexcept> completion_callback) = 0;
+  virtual size_t poll_completions_tentative(std::function<cb_acceptance(void *context, status_t) noexcept> completion_callback) = 0;
 
   /**
    * Get count of stalled completions.

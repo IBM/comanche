@@ -38,7 +38,7 @@ public:
 
   /* BEGIN IFabric_op_completer */
   std::size_t poll_completions(std::function<void(void *context, status_t)> completion_callback) override { return Fabric_connection_client::poll_completions(completion_callback); }
-  std::size_t poll_completions(std::function<cb_acceptance(void *context, status_t)> completion_callback) override { return Fabric_connection_client::poll_completions(completion_callback); }
+  std::size_t poll_completions_tentative(std::function<cb_acceptance(void *context, status_t)> completion_callback) override { return Fabric_connection_client::poll_completions(completion_callback); }
   std::size_t stalled_completion_count() override { return Fabric_op_control::stalled_completion_count(); }
   void wait_for_next_completion(unsigned polls_limit) override { return Fabric_op_control::wait_for_next_completion(polls_limit); };
   void wait_for_next_completion(std::chrono::milliseconds timeout) override { return Fabric_op_control::wait_for_next_completion(timeout); };
