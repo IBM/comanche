@@ -40,13 +40,13 @@ public:
 
   /*
    * Function which probably belongs to a higher layer, but ended up here.
-   * Callbacks which return CB_REJECTED are placed at the end of a queue to be
+   * Callbacks which return DEFER are placed at the end of a queue to be
    * retried after later callbacks are given a first chance to run.
    */
   enum class cb_acceptance
   {
-    ACCEPTED
-    , REJECTED
+    ACCEPT
+    , DEFER
   };
 
   /**

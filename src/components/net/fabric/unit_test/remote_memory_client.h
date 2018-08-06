@@ -20,8 +20,8 @@ class registered_memory;
 class remote_memory_client
   : public remote_memory_accessor
 {
-  static void check_complete_static(void *t_, void *rmc_, ::status_t stat_);
-  void check_complete(::status_t stat_);
+  static void check_complete_static(void *t, void *ctxt, ::status_t stat);
+  void check_complete(::status_t stat);
 
   std::shared_ptr<Component::IFabric_client> _cnxn;
   std::shared_ptr<registered_memory> _rm_out;

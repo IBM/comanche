@@ -172,7 +172,7 @@ std::size_t Fabric_comm_grouped::process_or_queue_completion(async_req_record *g
 {
   std::size_t ct_total = 0U;
   std::unique_ptr<async_req_record> g_context(g_context_);
-  if ( g_context->comm() == this && cb_(g_context->context(), status_) == cb_acceptance::ACCEPTED )
+  if ( g_context->comm() == this && cb_(g_context->context(), status_) == cb_acceptance::ACCEPT )
   {
     ++ct_total;
   }
@@ -231,7 +231,7 @@ std::size_t Fabric_comm_grouped::drain_old_completions(std::function<cb_acceptan
     auto c = _completions.front();
     _completions.pop();
     k.unlock();
-    if ( completion_callback(std::get<0>(c), std::get<1>(c)) == cb_acceptance::ACCEPTED )
+    if ( completion_callback(std::get<0>(c), std::get<1>(c)) == cb_acceptance::ACCEPT )
     {
       ++ct_total;
     }

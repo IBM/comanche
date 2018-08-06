@@ -20,12 +20,12 @@
 #include <memory> /* make_shared */
 #include <vector>
 
-void remote_memory_client::check_complete_static(void *t_, void *rmc_, ::status_t stat_)
+void remote_memory_client::check_complete_static(void *t_, void *ctxt_, ::status_t stat_)
 try
 {
   /* The callback context must be the object which was polling. */
-  ASSERT_EQ(t_, rmc_);
-  auto rmc = static_cast<remote_memory_client *>(rmc_);
+  ASSERT_EQ(t_, ctxt_);
+  auto rmc = static_cast<remote_memory_client *>(ctxt_);
   ASSERT_TRUE(rmc);
   rmc->check_complete(stat_);
 }
@@ -62,10 +62,10 @@ try
   _cnxn->post_recv(v, this);
   wait_poll(
       *_cnxn
-    , [&v, this] (void *ctxt, ::status_t st) -> void
+    , [&v, this] (void *ctxt_, ::status_t stat_) -> void
       {
-        ASSERT_EQ(ctxt, this);
-        ASSERT_EQ(st, ::S_OK);
+        ASSERT_EQ(ctxt_, this);
+        ASSERT_EQ(stat_, ::S_OK);
         ASSERT_EQ(v[0].iov_len, (sizeof _vaddr) + sizeof( _key));
         std::memcpy(&_vaddr, &rm_out()[0], sizeof _vaddr);
         std::memcpy(&_key, &rm_out()[sizeof _vaddr], sizeof _key);
@@ -109,7 +109,10 @@ void remote_memory_client::write(const std::string &msg_)
   }
   wait_poll(
     *_cnxn
-    , [this] (void *rmc_, ::status_t stat_) { check_complete_static(this, rmc_, stat_); }
+    , [this] (void *ctxt_, ::status_t stat_)
+      {
+        check_complete_static(this, ctxt_, stat_);
+      }
   );
   EXPECT_EQ(_last_stat, ::S_OK);
   if ( _last_stat != ::S_OK )
@@ -126,9 +129,12 @@ void remote_memory_client::read_verify(const std::string &msg_)
     buffers[0].iov_len = msg_.size();
     _cnxn->post_read(buffers, _vaddr + remote_memory_offset, _key, this);
   }
-  wait_poll(
+  ::wait_poll(
     *_cnxn
-    , [this] (void *rmc_, ::status_t stat_) { check_complete_static(this, rmc_, stat_); }
+    , [this] (void *ctxt_, ::status_t stat_)
+      {
+        check_complete_static(this, ctxt_, stat_);
+      }
   );
   EXPECT_EQ(_last_stat, ::S_OK);
   if ( _last_stat != ::S_OK )
