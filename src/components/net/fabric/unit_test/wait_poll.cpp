@@ -4,6 +4,19 @@
 #include <chrono> /* seconds */
 #include <cstddef> /* size_t */
 
+namespace
+{
+  /* A callback which simply rejects (for requeue) any callback it comes across */
+  Component::IFabric_communicator::cb_acceptance reject(void *ctxt_, ::status_t stat_)
+  {
+    return
+      stat_ == S_OK
+      ? Component::IFabric_communicator::cb_acceptance::DEFER
+      : Component::IFabric_communicator::cb_acceptance::ACCEPT
+      ;
+  }
+}
+
 void wait_poll(Component::IFabric_communicator &comm_, std::function<void(void *context, ::status_t)> cb_)
 {
   std::size_t ct = 0;
@@ -11,7 +24,14 @@ void wait_poll(Component::IFabric_communicator &comm_, std::function<void(void *
   while ( ct == 0 )
   {
     comm_.wait_for_next_completion(std::chrono::seconds(6000));
-    ct = comm_.poll_completions(cb_);
+    /* To test deferral of completions (poll_completions_tentative), call it. */
+    ct += comm_.poll_completions_tentative(reject);
+    /* To test deferral of deferred completions, call it again. */
+    ct += comm_.poll_completions_tentative(reject);
+    /* deferrals should not count as completions */
+    EXPECT_EQ(ct,0);
+
+    ct += comm_.poll_completions(cb_);
     ++delay;
   }
   /* poll_completions does not always get a completion after wait_for_next_completion returns

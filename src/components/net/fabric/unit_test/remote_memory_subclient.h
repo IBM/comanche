@@ -23,7 +23,7 @@ class remote_memory_subclient
 
   registered_memory &rm_out() { return _rm_out; }
   registered_memory &rm_in () { return _rm_in; }
-  static void check_complete_static(void *t, void *rmc, ::status_t stat);
+  static void check_complete_static(void *t, void *ctxt, ::status_t stat);
   void check_complete(::status_t stat);
 
 public:

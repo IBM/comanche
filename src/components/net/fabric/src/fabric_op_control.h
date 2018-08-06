@@ -168,7 +168,7 @@ public:
 
   void *get_cq_comp_err() const;
   std::size_t process_cq_comp_err(std::function<void(void *connection, status_t st)> completion_callback);
-  cb_acceptance process_cq_comp_err(std::function<cb_acceptance(void *connection, status_t st)> completion_callback);
+  std::size_t process_or_queue_cq_comp_err(std::function<cb_acceptance(void *connection, status_t st)> completion_callback);
 
   ssize_t cq_sread(void *buf, std::size_t count, const void *cond, int timeout) noexcept;
   ssize_t cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) const noexcept;

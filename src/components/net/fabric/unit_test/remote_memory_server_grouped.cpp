@@ -41,12 +41,12 @@ void remote_memory_server_grouped::listener(
       iv.iov_len = 1;
       v.emplace_back(iv);
       cnxn.post_recv(v, this);
-      wait_poll(
+      ::wait_poll(
         cnxn
-        , [&v, &quit, &rm, this] (void *ctxt, ::status_t st) -> void
+        , [&v, &quit, &rm, this] (void *ctxt_, ::status_t stat_) -> void
           {
-            ASSERT_EQ(ctxt, this);
-            ASSERT_EQ(st, S_OK);
+            ASSERT_EQ(ctxt_, this);
+            ASSERT_EQ(stat_, S_OK);
             ASSERT_EQ(v[0].iov_len, 1);
             /* did client leave with the "quit byte" set to 'q'? */
             quit |= rm[0] == 'q';

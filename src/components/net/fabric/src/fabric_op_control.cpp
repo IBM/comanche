@@ -262,15 +262,30 @@ void *Fabric_op_control::get_cq_comp_err() const
   return err.op_context;
 }
 
-std::size_t Fabric_op_control::process_cq_comp_err(std::function<void(void *connection, status_t st)> completion_callback)
+std::size_t Fabric_op_control::process_or_queue_completion(void *context_, std::function<cb_acceptance(void *context, status_t st)> cb_, status_t status_)
 {
-  completion_callback(get_cq_comp_err(), E_FAIL);
+  std::size_t ct_total = 0U;
+  if ( cb_(context_, status_) == cb_acceptance::ACCEPT )
+  {
+    ++ct_total;
+  }
+  else
+  {
+    queue_completion(context_, status_);
+  }
+
+  return ct_total;
+}
+
+std::size_t Fabric_op_control::process_cq_comp_err(std::function<void(void *context, status_t st)> cb_)
+{
+  cb_(get_cq_comp_err(), E_FAIL);
   return 1U;
 }
 
-auto Fabric_op_control::process_cq_comp_err(std::function<cb_acceptance(void *connection, status_t st)> completion_callback) -> cb_acceptance
+std::size_t Fabric_op_control::process_or_queue_cq_comp_err(std::function<cb_acceptance(void *context, status_t st)> cb_)
 {
-  return completion_callback(get_cq_comp_err(), E_FAIL);
+  return process_or_queue_completion(get_cq_comp_err(), cb_, E_FAIL);
 }
 
 /**
@@ -336,14 +351,7 @@ std::size_t Fabric_op_control::poll_completions_tentative(std::function<cb_accep
       switch ( auto e = unsigned(-ct) )
       {
       case FI_EAVAIL:
-        {
-          auto c = process_cq_comp_err(cb_);
-          ++ct_total;
-          if ( c != cb_acceptance::ACCEPTED )
-          {
-            throw std::logic_error("Attempt to reject an error completion");
-          }
-        }
+        ct_total += process_cq_comp_err(cb_);
         break;
       case FI_EAGAIN:
         drained = true;
@@ -354,7 +362,7 @@ std::size_t Fabric_op_control::poll_completions_tentative(std::function<cb_accep
     }
     else
     {
-      process_or_queue_completion(entry.op_context, cb_, S_OK);
+      ct_total += process_or_queue_completion(entry.op_context, cb_, S_OK);
     }
   }
 
@@ -366,22 +374,6 @@ std::size_t Fabric_op_control::poll_completions_tentative(std::function<cb_accep
   }
   return ct_total;
 }
-
-std::size_t Fabric_op_control::process_or_queue_completion(void *context_, std::function<cb_acceptance(void *context, status_t st)> cb_, status_t status_)
-{
-  std::size_t ct_total = 0U;
-  if ( cb_(context_, status_) == cb_acceptance::ACCEPTED )
-  {
-    ++ct_total;
-  }
-  else
-  {
-    queue_completion(context_, status_);
-  }
-
-  return ct_total;
-}
-
 
 /**
  * Block and wait for next completion.
@@ -682,7 +674,7 @@ std::size_t Fabric_op_control::drain_old_completions(std::function<cb_acceptance
     auto c = _completions.front();
     _completions.pop();
     k.unlock();
-    if ( completion_callback(std::get<0>(c), std::get<1>(c)) == cb_acceptance::ACCEPTED )
+    if ( completion_callback(std::get<0>(c), std::get<1>(c)) == cb_acceptance::ACCEPT )
     {
       ++ct_total;
     }

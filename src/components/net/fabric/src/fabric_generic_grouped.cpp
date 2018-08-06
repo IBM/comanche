@@ -260,14 +260,7 @@ std::size_t Fabric_generic_grouped::poll_completions_tentative(std::function<cb_
       switch ( auto e = unsigned(-ct) )
       {
       case FI_EAVAIL:
-        {
-          auto c = cnxn().process_cq_comp_err(cb_);
-          ++ct_total;
-          if ( c != cb_acceptance::ACCEPTED )
-          {
-            throw std::logic_error("Completion error rejected");
-          }
-        }
+        ct_total += cnxn().process_or_queue_cq_comp_err(cb_);
         break;
       case FI_EAGAIN:
         drained = true;
@@ -279,18 +272,7 @@ std::size_t Fabric_generic_grouped::poll_completions_tentative(std::function<cb_
     else
     {
       std::unique_ptr<async_req_record> g_context(static_cast<async_req_record *>(entry.op_context));
-#if 1
       ct_total += _cnxn.process_or_queue_completion(g_context->context(), cb_, S_OK);
-#else
-      if ( cb_(g_context->context(), S_OK) == cb:accepteance::CB_ACCEPTED )
-      {
-        ++ct_total;
-      }
-      else
-      {
-        _cnxn.queue_completion(g_context->context(), S_OK);
-      }
-#endif
       g_context.release();
     }
   }
