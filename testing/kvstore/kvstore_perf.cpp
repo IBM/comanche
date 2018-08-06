@@ -25,6 +25,7 @@ using namespace Component;
 #include "exp_get.h"
 #include "exp_put_latency.h"
 #include "exp_get_latency.h"
+#include "exp_get_direct_latency.h"
 #include "kvstore_perf.h"
 
 ProgramOptions Options;
@@ -125,6 +126,12 @@ int main(int argc, char * argv[])
   if (Options.test == "all" || Options.test == "get_latency")
   {
       Core::Per_core_tasking<ExperimentGetLatency, Component::IKVStore*> exp(cpus, g_store);
+      exp.wait_for_all();
+  }
+
+  if (Options.test == "all" || Options.test == "get_direct_latency")
+  {
+      Core::Per_core_tasking<ExperimentGetDirectLatency, Component::IKVStore*> exp(cpus, g_store);
       exp.wait_for_all();
   }
   

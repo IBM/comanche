@@ -19,6 +19,7 @@ public:
     unsigned int _pool_num_components = 100;
     unsigned int _cores = 1;
     unsigned int _execution_time;
+    std::string _component = "filestore";
   
     Experiment(Component::IKVStore * arg) : _store(arg) 
     {
@@ -102,6 +103,11 @@ public:
         {
             po::variables_map vm; 
             po::store(po::parse_command_line(g_argc, g_argv, desc),  vm);
+
+            if (vm.count("component") > 0)
+            {
+                _component = vm["component"].as<std::string>();
+            }
 
             if(vm.count("path"))
             {
