@@ -68,7 +68,7 @@ public:
   void inject_send(const std::vector<iovec>& buffers) override;
 
   std::size_t poll_completions(std::function<void(void *context, status_t)> completion_callback) override;
-  std::size_t poll_completions(std::function<cb_acceptance(void *context, status_t)> completion_callback) override;
+  std::size_t poll_completions_tentative(std::function<cb_acceptance(void *context, status_t)> completion_callback) override;
 
   std::size_t stalled_completion_count() override;
 

@@ -118,7 +118,7 @@ public:
   virtual void wait_event() const = 0;
 
   std::size_t poll_completions(std::function<void(void *context, status_t)> completion_callback) override;
-  std::size_t poll_completions(std::function<cb_acceptance(void *context, status_t)> completion_callback) override;
+  std::size_t poll_completions_tentative(std::function<cb_acceptance(void *context, status_t)> completion_callback) override;
   std::size_t process_or_queue_completion(void *context, std::function<cb_acceptance(void *context, status_t st)> cb, status_t status);
   std::size_t stalled_completion_count() override { return 0U; }
   void wait_for_next_completion(unsigned polls_limit) override;

@@ -277,7 +277,7 @@ std::size_t Fabric_comm_grouped::poll_completions(std::function<void(void *conte
   return ct_total;
 }
 
-std::size_t Fabric_comm_grouped::poll_completions(std::function<cb_acceptance(void *context, status_t st) noexcept> completion_callback)
+std::size_t Fabric_comm_grouped::poll_completions_tentative(std::function<cb_acceptance(void *context, status_t st) noexcept> completion_callback)
 {
   std::size_t ct_total = 0U;
   bool drained = false;

@@ -236,7 +236,7 @@ std::size_t Fabric_generic_grouped::poll_completions(std::function<void(void *co
   return ct_total;
 }
 
-std::size_t Fabric_generic_grouped::poll_completions(std::function<cb_acceptance(void *context, status_t st) noexcept> cb_)
+std::size_t Fabric_generic_grouped::poll_completions_tentative(std::function<cb_acceptance(void *context, status_t st) noexcept> cb_)
 {
   std::size_t constexpr ct_max = 1;
   std::size_t ct_total = 0;
