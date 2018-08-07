@@ -1,12 +1,12 @@
 /* note: we do not include component source, only the API definition */
-#include <gtest/gtest.h>
-
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Weffc++"
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 #pragma GCC diagnostic ignored "-Wold-style-cast"
 #include <api/components.h>
 #pragma GCC diagnostic pop
+
+#include <gtest/gtest.h>
 
 #pragma GCC diagnostic push
 #if __clang__
@@ -285,7 +285,10 @@ void instantiate_server_and_client(const std::string &fabric_spec)
   {
     /* Feed the server_factory a good JSON spec */
     auto server = std::shared_ptr<Component::IFabric_server_factory>(fabric0->open_server_factory(fabric_spec, control_port_1));
+    EXPECT_LT(0U, server->max_message_size());
     auto client = std::shared_ptr<Component::IFabric_client>(open_connection_patiently(*fabric1, fabric_spec, "127.0.0.1", control_port_1));
+    EXPECT_LT(0U, client->max_message_size());
+    EXPECT_EQ(server->max_message_size(), client->max_message_size());
   }
 
   factory->release_ref();
@@ -327,6 +330,7 @@ void write_read_sequential(const std::string &fabric_spec)
       {
         auto remote_key_base = 0U;
         remote_memory_server server(*fabric, "{}", control_port, "", remote_key_base);
+        EXPECT_LT(0U, server.max_message_size());
       }
       std::cerr << "SERVER end " << iter0 << std::endl;
     }
@@ -337,6 +341,7 @@ void write_read_sequential(const std::string &fabric_spec)
        * state, causing server "bind" to fail with EADDRINUSE.
        */
       std::this_thread::sleep_for(std::chrono::milliseconds(2500));
+      std::size_t msg_max(0U);
       for ( auto iter1 = 0U; iter1 != count_inner; ++iter1 )
       {
         std::cerr << "CLIENT begin " << iter0 << "." << iter1 << " port " << control_port << std::endl;
@@ -345,6 +350,18 @@ void write_read_sequential(const std::string &fabric_spec)
         auto remote_key_index = iter1;
         /* Feed the client a good JSON spec */
         remote_memory_client client(*fabric, "{}", remote_host, control_port, remote_key_index);
+
+        /* expect that all max messages are greater than 0, and the same */
+        EXPECT_LT(0U, client.max_message_size());
+        if ( 0 == iter1 )
+        {
+          msg_max = client.max_message_size();
+        }
+        else
+        {
+          EXPECT_EQ(client.max_message_size(), msg_max);
+        }
+
         /* Feed the server_factory some terrible text */
         std::string msg = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.";
         /* An ordinary client which tests RDMA to server memory */
@@ -360,6 +377,7 @@ void write_read_sequential(const std::string &fabric_spec)
       auto remote_key_index = 0U;
       /* A special client to tell the server factory to shut down. Placed after other clients because the server apparently cannot abide concurrent clients. */
       remote_memory_client_for_shutdown client_shutdown(*fabric, "{}", remote_host, control_port, remote_key_index);
+      EXPECT_EQ(client_shutdown.max_message_size(), msg_max);
     }
 
     factory->release_ref();
@@ -400,6 +418,7 @@ TEST_F(Fabric_test, WriteReadParallel)
         auto expected_client_count = count_inner;
         auto remote_key_base = 0U;
         remote_memory_server server(*fabric, "{}", control_port, "", remote_key_base, expected_client_count);
+        EXPECT_LT(0U, server.max_message_size());
       }
       std::cerr << "SERVER end " << iter0 << std::endl;
     }
@@ -421,6 +440,9 @@ TEST_F(Fabric_test, WriteReadParallel)
            * Should be able to control them via pointers or (using move semantics) in a vector of objects.
            */
           vv.emplace_back(*fabric, "{}", remote_host, control_port, remote_key_index);
+          /* expect that all max messages are greater than 0, and the same */
+          EXPECT_LT(0U, vv.back().max_message_size());
+          EXPECT_EQ(vv.front().max_message_size(), vv.back().max_message_size());
         }
 
         /* Feed the server_factory some terrible text */
@@ -469,6 +491,7 @@ TEST_F(Fabric_test, GroupedClients)
       {
         auto remote_key_base = 0U;
         remote_memory_server server(*fabric, "{}", control_port, "", remote_key_base);
+        EXPECT_LT(0U, server.max_message_size());
       }
       std::cerr << "SERVER end " << iter0 << std::endl;
     }
@@ -476,6 +499,7 @@ TEST_F(Fabric_test, GroupedClients)
     {
       /* allow time for the server to listen before the client restarts */
       std::this_thread::sleep_for(std::chrono::seconds(3));
+      std::size_t msg_max(0U);
       for ( auto iter1 = 0; iter1 != count_inner; ++iter1 )
       {
         std::cerr << "CLIENT begin " << iter0 << "." << iter1 << " port " << control_port << std::endl;
@@ -484,9 +508,21 @@ TEST_F(Fabric_test, GroupedClients)
 
         remote_memory_client_grouped client(*fabric, "{}", remote_host, control_port, remote_key_index);
 
+        /* expect that all max messages are greater than 0, and the same */
+        EXPECT_LT(0U, client.max_message_size());
+        if ( 0 == iter1 )
+        {
+          msg_max = client.max_message_size();
+        }
+        else
+        {
+          EXPECT_EQ(client.max_message_size(), msg_max);
+        }
+
         /* make two communicators (three, including the parent. */
         remote_memory_subclient g0(client, remote_key_index + 1U);
         remote_memory_subclient g1(client, remote_key_index + 2U);
+
         std::string msg = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.";
         /* ought to split send from completions so that we can test the separation of comms */
         g0.write(msg);
@@ -504,6 +540,7 @@ TEST_F(Fabric_test, GroupedClients)
       auto remote_key_index = 0U;
       /* A special client to tell the server to shut down. Placed after other clients because the server apparently cannot abide concurrent clients. */
       remote_memory_client_for_shutdown client_shutdown(*fabric, "{}", remote_host, control_port, remote_key_index);
+      EXPECT_EQ(client_shutdown.max_message_size(), msg_max);
     }
 
     factory->release_ref();
@@ -540,6 +577,7 @@ TEST_F(Fabric_test, GroupedServer)
          * but if it did, then the server (created by remote_memory_server_grouped
          * when it sees a client) would be the entity to create them.
          */
+        EXPECT_LT(0U, server.max_message_size());
       }
       std::cerr << "SERVER end " << iter0 << std::endl;
     }

@@ -57,6 +57,7 @@ public:
   void write(const std::string &msg_);
 
   void read_verify(const std::string &msg_);
+  std::size_t max_message_size() const;
 };
 
 #endif

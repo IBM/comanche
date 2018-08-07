@@ -25,12 +25,12 @@ void remote_memory_server_grouped::listener(
   for ( ; ! quit ; ++remote_key_index_ )
   {
     /* Get a client to work with */
-    /* Get a client to work with */
     server_grouped_connection sc(ep_);
     /* register an RDMA memory region */
     registered_memory rm{sc.cnxn(), remote_key_index_};
     /* send the client address and key to memory */
     auto &cnxn = sc.comm();
+    EXPECT_EQ(sc.cnxn().max_message_size(), this->max_message_size());
     send_memory_info(cnxn, rm);
     /* wait for client indicate exit (by sending one byte to us) */
     try
@@ -79,4 +79,9 @@ try
 catch ( std::exception &e )
 {
   std::cerr << __func__ << " exception " << e.what() << eyecatcher << std::endl;
+}
+
+std::size_t remote_memory_server_grouped::max_message_size() const
+{
+  return _ep->max_message_size();
 }
