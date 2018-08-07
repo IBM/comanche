@@ -11,17 +11,21 @@
 #include "kvstore_perf.h"
 
 extern Data * _data;
+extern pthread_mutex_t g_write_lock;
 
 class ExperimentGetLatency : public Experiment
 { 
 public:
     float _cycles_per_second;  // initialized in do_work first run
     std::vector<double> _latency;
-    std::string _outputDirectory = "get_latency";
+    std::string _test_name = "get_latency";
+    std::string _report_filename;
 
-    ExperimentGetLatency(Component::IKVStore * arg) : Experiment(arg) 
+    ExperimentGetLatency(struct ProgramOptions options): Experiment(options.store)
     {
-        assert(arg);
+       _report_filename = options.report_file_name;
+
+       assert(options.store); 
     }
 
     void initialize_custom(unsigned core)
@@ -80,31 +84,47 @@ public:
 
     void cleanup_custom(unsigned core)  
     {
-        boost::filesystem::path dir(_outputDirectory);
-        if (boost::filesystem::create_directory(dir))
-        {
-            std::cout << "Created directory for testing: " << _outputDirectory << std::endl;
-        }
+       // get existing results, read to document variable
+       pthread_mutex_lock(&g_write_lock);
 
-        // write one core per file for now. TODO: use synchronization construct for experiments
-        std::ostringstream filename;
-        filename << _outputDirectory << "/" << core << ".log";
+       FILE *pFile = fopen(_report_filename.c_str(), "r+");
+       rapidjson::FileStream is(pFile);
+       rapidjson::Document document;
+       document.ParseStream<0>(is);
 
-        std::cout << "filename = " << filename.str() << std::endl;
+       rapidjson::Value temp_value;
+       rapidjson::Value temp_object(rapidjson::kObjectType);
+       rapidjson::Value temp_array(rapidjson::kArrayType);
 
-       // output latency info to file 
-       std::ofstream outf(filename.str());
-
-       if (!outf)
+       // add per-core results here        
+       for (int i = 0; i < _pool_num_components; i++)  
        {
-           std::cerr << "Failed to open file " << _outputDirectory << " for writing" << std::endl;
-            exit(1);
+            temp_array.PushBack(_latency[i], document.GetAllocator());
        }
 
-       for (int i = 0; i < _pool_num_components; i++)
+       std::string core_string = std::to_string(core);
+       temp_value.SetString(rapidjson::StringRef(core_string.c_str()));
+
+       if (!document.HasMember(_test_name.c_str()))
        {
-            outf << _latency[i] << std::endl;
+           temp_object.AddMember(temp_value, temp_array, document.GetAllocator());
+            document.AddMember(rapidjson::StringRef(_test_name.c_str()), temp_object, document.GetAllocator()); 
        }
+       else 
+       {
+            rapidjson::Value &items = document[_test_name.c_str()];
+            &items.AddMember(temp_value, temp_array, document.GetAllocator());
+       }
+
+        // write back to file
+       rapidjson::StringBuffer strbuf;
+       rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(strbuf);
+       document.Accept(writer);
+
+        std::ofstream outf(_report_filename.c_str());
+        outf << strbuf.GetString() << std::endl; 
+
+       pthread_mutex_unlock(&g_write_lock);
     }
 };
 
