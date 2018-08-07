@@ -144,3 +144,8 @@ void remote_memory_client::read_verify(const std::string &msg_)
   std::string remote_msg(&rm_in()[0], &rm_in()[0] + msg_.size());
   EXPECT_EQ(msg_, remote_msg);
 }
+
+std::size_t remote_memory_client::max_message_size() const
+{
+  return _cnxn->max_message_size();
+}
