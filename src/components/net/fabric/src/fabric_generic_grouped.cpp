@@ -231,7 +231,7 @@ std::size_t Fabric_generic_grouped::poll_completions(std::function<void(void *co
 
   if ( cnxn().is_shut_down() && ct_total == 0 )
   {
-    throw std::logic_error("Connection closed");
+    throw std::logic_error(std::string("Fabric_generic_grouped") + __func__ + ": Connection closed");
   }
   return ct_total;
 }
@@ -279,7 +279,7 @@ std::size_t Fabric_generic_grouped::poll_completions_tentative(std::function<cb_
 
   if ( cnxn().is_shut_down() && ct_total == 0 )
   {
-    throw std::logic_error("Connection closed");
+    throw std::logic_error(std::string("Fabric_generic_grouped") + __func__ + ": Connection closed");
   }
   return ct_total;
 }
@@ -314,4 +314,9 @@ ssize_t Fabric_generic_grouped::cq_sread(void *buf_, size_t count_, const void *
 ssize_t Fabric_generic_grouped::cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) const noexcept
 {
   return cnxn().cq_readerr(buf, flags);
+}
+
+std::size_t Fabric_generic_grouped::max_message_size() const
+{
+  return cnxn().max_message_size();
 }

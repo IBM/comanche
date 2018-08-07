@@ -59,7 +59,7 @@ class Fabric_op_control
   , public event_consumer
 {
   using completion_t = std::tuple<void *, status_t>;
-  /* completions forwarded to client but rejected with CB_REJECTED status, to be retried later */
+  /* completions forwarded to client but deferred with DEFER status, to be retried later */
   std::mutex _m_completions;
   std::queue<completion_t> _completions;
 
@@ -179,6 +179,7 @@ public:
   void queue_completion(void *context, status_t status);
   std::size_t drain_old_completions(std::function<void(void *context, status_t st) noexcept> completion_callback);
   std::size_t drain_old_completions(std::function<cb_acceptance(void *context, status_t st) noexcept> completion_callback);
+  std::size_t max_message_size() const override;
 };
 
 #endif

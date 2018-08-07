@@ -89,6 +89,7 @@ public:
 
   std::string get_peer_addr() override { return Fabric_op_control::get_peer_addr(); }
   std::string get_local_addr() override { return Fabric_op_control::get_local_addr(); }
+  std::size_t max_message_size() const override { return Fabric_op_control::max_message_size(); }
 };
 
 #endif

@@ -119,6 +119,7 @@ public:
   ssize_t cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) const noexcept { return _g.cq_readerr(buf, flags); }
   void queue_completion(Fabric_comm_grouped *comm, void *context, status_t status) { return _g.queue_completion(comm, context, status); }
   void expect_event(std::uint32_t i) const { return _g.expect_event(i); }
+  std::size_t max_message_size() const override { return Fabric_connection_client::max_message_size(); }
 };
 
 #endif
