@@ -7,7 +7,7 @@
 namespace
 {
   /* A callback which simply rejects (for requeue) any callback it comes across */
-  Component::IFabric_communicator::cb_acceptance reject(void *ctxt_, ::status_t stat_)
+  Component::IFabric_communicator::cb_acceptance reject(void *, ::status_t stat_)
   {
     return
       stat_ == S_OK
