@@ -37,6 +37,9 @@ static void cleanup();
 
 int g_argc;
 char ** g_argv;
+pthread_mutex_t g_write_lock = PTHREAD_MUTEX_INITIALIZER;
+
+std::string create_report(ProgramOptions);
 
 int main(int argc, char * argv[])
 {
@@ -99,6 +102,9 @@ int main(int argc, char * argv[])
   _data = new Data(Options.elements);
   initialize();
 
+  Options.store = g_store;
+  Options.report_file_name = create_report(Options);
+
   cpu_mask_t cpus;
   unsigned core = 1;
   for(unsigned core = 0; core < Options.cores; core++)
@@ -125,7 +131,8 @@ int main(int argc, char * argv[])
 
   if (Options.test == "all" || Options.test == "get_latency")
   {
-      Core::Per_core_tasking<ExperimentGetLatency, Component::IKVStore*> exp(cpus, g_store);
+      Core::Per_core_tasking<ExperimentGetLatency, ProgramOptions> exp(cpus, Options);
+
       exp.wait_for_all();
   }
 
@@ -179,4 +186,93 @@ static void cleanup()
 }
 
 
+std::string get_time_string()
+{
+    time_t rawtime;
+    struct tm *timeinfo;
+    time(&rawtime); 
+    timeinfo = localtime(&rawtime);
+    char buffer[80];
+
+    // want YYYY_MM_DD_HH_MM format
+    strftime(buffer, sizeof(buffer), "%Y_%m_%d_%H_%M", timeinfo);
+    std::string timestring(buffer);
+
+    return timestring;
+}
+
+
+/* create_report: output a report in JSON format with experiment data
+ * Report format: 
+ *      experiment object - contains experiment parameters 
+ *      data object - actual results
+ */ 
+std::string create_report(ProgramOptions options)
+{
+    std::string timestring = get_time_string();
+
+    // create json document/object
+    rapidjson::Document document;
+    document.SetObject();
+
+    rapidjson::Document::AllocatorType &allocator = document.GetAllocator();
+
+    rapidjson::Value temp_object(rapidjson::kObjectType);
+    rapidjson::Value temp_value;
+
+    // experiment parameters
+    temp_value.SetString(rapidjson::StringRef(options.component.c_str()));
+    temp_object.AddMember("component", temp_value, allocator);
+
+    temp_value.SetInt(options.cores);
+    temp_object.AddMember("cores", temp_value, allocator);
+
+    temp_value.SetInt(options.elements);
+    temp_object.AddMember("elements", temp_value, allocator);
+
+    temp_value.SetInt(options.size);
+    temp_object.AddMember("pool_size", temp_value, allocator);
+
+    temp_value.SetInt(options.flags);
+    temp_object.AddMember("pool_flags", temp_value, allocator);
+
+    temp_value.SetString(rapidjson::StringRef(timestring.c_str()));
+    temp_object.AddMember("date", temp_value, allocator);
+
+    document.AddMember("experiment", temp_object, allocator);
+
+
+    // write to file
+    std::string results_path = "./results";
+    boost::filesystem::path dir(results_path);
+    if (boost::filesystem::create_directory(dir))
+    {
+        std::cout << "Created directory for testing: " << results_path << std::endl;
+    }
+
+    std::string specific_results_path = results_path;
+    specific_results_path.append("/" + options.component);
+
+    boost::filesystem::path sub_dir(specific_results_path);
+    if (boost::filesystem::create_directory(sub_dir))
+    {
+        std::cout << "Created directory for testing: " << specific_results_path << std::endl;
+    }
+
+    rapidjson::StringBuffer sb;
+    rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(sb);
+    document.Accept(writer); 
+
+    std::string output_file_name = specific_results_path + "/results_" + timestring + ".json"; 
+    std::ofstream outf(output_file_name);
+
+    if (!outf)
+    {
+        std::cerr << "couldn't open report file to write. Exiting.\n";
+    }
+
+    outf << sb.GetString() << std::endl;
+
+    return output_file_name;
+}
 

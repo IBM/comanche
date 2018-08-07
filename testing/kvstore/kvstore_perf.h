@@ -2,6 +2,11 @@
 #define __KVSTORE_PERF_H__
 
 #include <api/kvstore_itf.h>
+#include <pthread.h>
+#include "rapidjson/document.h"
+#include "rapidjson/filestream.h"
+#include "rapidjson/prettywriter.h"
+#include "rapidjson/stringbuffer.h"
 
 struct ProgramOptions {
     std::string test;
@@ -12,6 +17,8 @@ struct ProgramOptions {
     unsigned int size;
     int flags;
     unsigned int elements;
+    Component::IKVStore * store;
+    std::string report_file_name;
 }; 
 
 #endif
