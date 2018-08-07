@@ -135,9 +135,11 @@ public:
   virtual status_t put(const pool_t pool,
                        const std::string key,
                        const void * value,
-                       const size_t value_len) = 0;
+                       const size_t value_len) {
+    return put(pool, key.c_str(), key.length(), value, value_len);
+  }
 
-    /** 
+  /** 
    * Write an object value. Key as pointer-len pair.
    * 
    * @param pool Pool handle
@@ -152,6 +154,23 @@ public:
                        const size_t key_len,
                        const void * value,
                        const size_t value_len) { return E_NOT_SUPPORTED; }
+
+  /** 
+   * Zero-copy put operation.
+   * 
+   * @param pool Pool handle
+   * @param key Key
+   * @param key_len Key length in bytes
+   * @param value Value
+   * @param value_len Value length in bytes
+   * 
+   * @return S_OK or error code
+   */
+  virtual status_t put_direct(const pool_t pool,
+                              const void * key,
+                              const size_t key_len,
+                              const void * value,
+                              const size_t value_len) { return E_NOT_SUPPORTED; }
 
   /** 
    * Read an object value
