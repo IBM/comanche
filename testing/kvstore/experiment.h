@@ -24,10 +24,14 @@ public:
     unsigned int _execution_time;
     std::string _component = "filestore";
     std::string _results_path = "./results";
-  
-    Experiment(Component::IKVStore * arg) : _store(arg) 
+    std::string _report_filename;
+    std::string _test_name;
+
+    Experiment(struct ProgramOptions options): _store(options.store)
     {
-        assert(arg);
+        assert(options.store);
+
+        _report_filename = options.report_file_name;
     }
     
     void initialize(unsigned core) override 
@@ -113,12 +117,12 @@ public:
                 _component = vm["component"].as<std::string>();
             }
 
-            if(vm.count("path"))
+            if(vm.count("path") > 0)
             {
                 _pool_path = vm["path"].as<std::string>();
             }
 
-            if(vm.count("size"))
+            if(vm.count("size") > 0)
             {
                 _pool_size = vm["size"].as<unsigned int>();
             }
@@ -143,7 +147,140 @@ public:
           std::cerr << ex.what() << '\n';
         }
     }
-     
+    
+    rapidjson::Document _get_report_document()
+    {
+       assert(!_report_filename.empty());  // make sure report_filename is set
+
+       FILE *pFile = fopen(_report_filename.c_str(), "r+");
+       assert(pFile);
+
+       rapidjson::FileStream is(pFile);
+       rapidjson::Document document;
+       document.ParseStream<0>(is);
+
+       return document;
+    }
+
+    void _report_document_save(rapidjson::Document& document, unsigned core, rapidjson::Value& new_info)
+    {
+       assert(!_test_name.empty());  // make sure _test_name is set
+
+       rapidjson::Value temp_value;
+       rapidjson::Value temp_object(rapidjson::kObjectType);
+
+       std::string core_string = std::to_string(core);
+       temp_value.SetString(rapidjson::StringRef(core_string.c_str()));
+
+       if (!document.HasMember(_test_name.c_str()))
+       {
+           temp_object.AddMember(temp_value, new_info, document.GetAllocator());
+            document.AddMember(rapidjson::StringRef(_test_name.c_str()), temp_object, document.GetAllocator()); 
+       }
+       else 
+       {
+            rapidjson::Value &items = document[_test_name.c_str()];
+            &items.AddMember(temp_value, new_info, document.GetAllocator());
+       }
+
+        // write back to file
+       rapidjson::StringBuffer strbuf;
+       rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(strbuf);
+       document.Accept(writer);
+
+       std::ofstream outf(_report_filename.c_str());
+       outf << strbuf.GetString() << std::endl; 
+    }
+
+    static std::string get_time_string()
+    {
+        time_t rawtime;
+        struct tm *timeinfo;
+        time(&rawtime); 
+        timeinfo = localtime(&rawtime);
+        char buffer[80];
+
+        // want YYYY_MM_DD_HH_MM format
+        strftime(buffer, sizeof(buffer), "%Y_%m_%d_%H_%M", timeinfo);
+        std::string timestring(buffer);
+
+        return timestring;
+    }
+
+    /* create_report: output a report in JSON format with experiment data
+     * Report format: 
+     *      experiment object - contains experiment parameters 
+     *      data object - actual results
+     */ 
+    static std::string create_report(ProgramOptions options)
+    {
+        std::string timestring = get_time_string();
+
+        // create json document/object
+        rapidjson::Document document;
+        document.SetObject();
+
+        rapidjson::Document::AllocatorType &allocator = document.GetAllocator();
+
+        rapidjson::Value temp_object(rapidjson::kObjectType);
+        rapidjson::Value temp_value;
+
+        // experiment parameters
+        temp_value.SetString(rapidjson::StringRef(options.component.c_str()));
+        temp_object.AddMember("component", temp_value, allocator);
+
+        temp_value.SetInt(options.cores);
+        temp_object.AddMember("cores", temp_value, allocator);
+
+        temp_value.SetInt(options.elements);
+        temp_object.AddMember("elements", temp_value, allocator);
+
+        temp_value.SetInt(options.size);
+        temp_object.AddMember("pool_size", temp_value, allocator);
+
+        temp_value.SetInt(options.flags);
+        temp_object.AddMember("pool_flags", temp_value, allocator);
+
+        temp_value.SetString(rapidjson::StringRef(timestring.c_str()));
+        temp_object.AddMember("date", temp_value, allocator);
+
+        document.AddMember("experiment", temp_object, allocator);
+
+
+        // write to file
+        std::string results_path = "./results";
+        boost::filesystem::path dir(results_path);
+        if (boost::filesystem::create_directory(dir))
+        {
+            std::cout << "Created directory for testing: " << results_path << std::endl;
+        }
+
+        std::string specific_results_path = results_path;
+        specific_results_path.append("/" + options.component);
+
+        boost::filesystem::path sub_dir(specific_results_path);
+        if (boost::filesystem::create_directory(sub_dir))
+        {
+            std::cout << "Created directory for testing: " << specific_results_path << std::endl;
+        }
+
+        rapidjson::StringBuffer sb;
+        rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(sb);
+        document.Accept(writer); 
+
+        std::string output_file_name = specific_results_path + "/results_" + timestring + ".json"; 
+        std::ofstream outf(output_file_name);
+
+        if (!outf)
+        {
+            std::cerr << "couldn't open report file to write. Exiting.\n";
+        }
+
+        outf << sb.GetString() << std::endl;
+
+        return output_file_name;
+    }
+
     size_t                                _i = 0;
     Component::IKVStore *                 _store;
     Component::IKVStore::pool_t           _pool;

@@ -18,11 +18,12 @@ class ExperimentGetDirectLatency : public Experiment
 public:
     float _cycles_per_second;  // initialized in do_work first run
     std::vector<double> _latency;
-    std::string _outputDirectory = "get_direct_latency";
 
-    ExperimentGetDirectLatency(Component::IKVStore * arg) : Experiment(arg) 
-    {
-        assert(arg);
+    ExperimentGetDirectLatency(struct ProgramOptions options) : Experiment(options) 
+    {    
+        _test_name = "get_direct_latency";
+        
+        assert(options.store);
     }
 
     void initialize_custom(unsigned core)
@@ -98,31 +99,23 @@ public:
 
     void cleanup_custom(unsigned core)  
     {
-        boost::filesystem::path dir(_outputDirectory);
-        if (boost::filesystem::create_directory(dir))
-        {
-            std::cout << "Created directory for testing: " << _outputDirectory << std::endl;
-        }
+        pthread_mutex_lock(&g_write_lock);
 
-        // write one core per file for now. TODO: use synchronization construct for experiments
-        std::ostringstream filename;
-        filename << _outputDirectory << "/" << core << ".log";
+       // get existing results, read to document variable
+       rapidjson::Document document = _get_report_document();
 
-        std::cout << "filename = " << filename.str() << std::endl;
-
-       // output latency info to file 
-       std::ofstream outf(filename.str());
-
-       if (!outf)
+       // add per-core results here
+       rapidjson::Value temp_array(rapidjson::kArrayType);
+ 
+       for (int i = 0; i < _pool_num_components; i++)  
        {
-           std::cerr << "Failed to open file " << _outputDirectory << " for writing" << std::endl;
-            exit(1);
+            temp_array.PushBack(_latency[i], document.GetAllocator());
        }
 
-       for (int i = 0; i < _pool_num_components; i++)
-       {
-            outf << _latency[i] << std::endl;
-       }
+       // add new info to report
+       _report_document_save(document, core, temp_array);
+
+       pthread_mutex_unlock(&g_write_lock);
     }
 };
 
