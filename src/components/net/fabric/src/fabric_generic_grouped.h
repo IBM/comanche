@@ -55,6 +55,8 @@ class Fabric_generic_grouped
 
   std::string get_peer_addr() override;
   std::string get_local_addr() override;
+public:
+  std::size_t max_message_size() const override;
   /* END Component::IFabric_active_endpoint_grouped (IFabric_connection) */
 
 public:

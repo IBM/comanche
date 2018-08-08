@@ -255,9 +255,10 @@ void *Fabric_op_control::get_cq_comp_err() const
                   << " olen " << err.olen
                   << " err " << err.err
                   << " (text) " << ::fi_strerror(err.err)
-                  << " errno " << err.prov_errno
+                  << " prov_errno " << err.prov_errno
                   << " err_data " << err.err_data
                   << " err_data_size " << err.err_data_size
+                  << " (text) " << ::fi_cq_strerror(&*_cq, err.prov_errno, err.err_data, nullptr, 0U)
         << std::endl;
   return err.op_context;
 }
@@ -331,7 +332,7 @@ std::size_t Fabric_op_control::poll_completions(std::function<void(void *context
 
   if ( _shut_down && ct_total == 0 )
   {
-    throw std::logic_error("Connection closed");
+    throw std::logic_error(__func__ + std::string(": Connection closed"));
   }
   return ct_total;
 }
@@ -370,7 +371,7 @@ std::size_t Fabric_op_control::poll_completions_tentative(std::function<cb_accep
 
   if ( _shut_down && ct_total == 0 )
   {
-    throw std::logic_error("Connection closed");
+    throw std::logic_error(__func__ + std::string(": Connection closed"));
   }
   return ct_total;
 }
@@ -686,4 +687,9 @@ std::size_t Fabric_op_control::drain_old_completions(std::function<cb_acceptance
   }
   std::swap(deferred_completions, _completions);
   return ct_total;
+}
+
+std::size_t Fabric_op_control::max_message_size() const
+{
+  return _ep_info->ep_attr->max_msg_size;
 }

@@ -22,6 +22,7 @@ public:
     , std::uint16_t port
     , std::uint64_t remote_key_base
   );
+  using remote_memory_client::max_message_size;
 };
 
 #endif

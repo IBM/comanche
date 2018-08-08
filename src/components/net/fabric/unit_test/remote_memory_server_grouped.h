@@ -32,6 +32,7 @@ public:
   );
 
   ~remote_memory_server_grouped();
+  std::size_t max_message_size() const;
 };
 
 #endif

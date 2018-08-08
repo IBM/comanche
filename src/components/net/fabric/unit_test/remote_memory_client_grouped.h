@@ -47,6 +47,7 @@ public:
   Component::IFabric_client_grouped &cnxn() { return *_cnxn; }
 
   Component::IFabric_communicator *allocate_group() const;
+  std::size_t max_message_size() const;
 };
 
 #endif
