@@ -98,14 +98,19 @@ catch ( std::exception &e )
   std::cerr << __func__ << " exception " << e.what() << eyecatcher << std::endl;
 }
 
-void remote_memory_client::write(const std::string &msg_)
+void remote_memory_client::write(const std::string &msg_, bool force_error_)
 {
   std::copy(msg_.begin(), msg_.end(), &rm_out()[0]);
   std::vector<::iovec> buffers(1);
   {
     buffers[0].iov_base = &rm_out()[0];
+    std::ptrdiff_t adjust = 0;
+    if ( force_error_ )
+    {
+      adjust = -8192;
+    }
     buffers[0].iov_len = msg_.size();
-    _cnxn->post_write(buffers, _vaddr + remote_memory_offset, _key, this);
+    _cnxn->post_write(buffers, _vaddr + remote_memory_offset - adjust, _key, this);
   }
   wait_poll(
     *_cnxn
@@ -114,7 +119,14 @@ void remote_memory_client::write(const std::string &msg_)
         check_complete_static(this, ctxt_, stat_);
       }
   );
-  EXPECT_EQ(_last_stat, ::S_OK);
+  if ( force_error_ )
+  {
+    EXPECT_NE(_last_stat, ::S_OK);
+  }
+  else
+  {
+    EXPECT_EQ(_last_stat, ::S_OK);
+  }
   if ( _last_stat != ::S_OK )
   {
     std::cerr << "remote_memory_client::" << __func__ << ": " << _last_stat << "\n";
