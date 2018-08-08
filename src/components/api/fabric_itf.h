@@ -20,7 +20,8 @@
 #include <component/base.h> /* Component::IBase, DECLARE_COMPONENT_UUID, DECLARE_INTERFACE_UUID */
 
 #include <chrono>
-#include <cstdint>
+#include <cstddef> /* size_t */
+#include <cstdint> /* uint16_t, uint64_t */
 #include <functional>
 #include <vector>
 
@@ -98,14 +99,14 @@ public:
    *
    * @return Number of completions processed
    */
-  virtual size_t poll_completions(std::function<void(void *context, status_t) noexcept> completion_callback) = 0;
-  virtual size_t poll_completions_tentative(std::function<cb_acceptance(void *context, status_t) noexcept> completion_callback) = 0;
+  virtual std::size_t poll_completions(std::function<void(void *context, status_t) noexcept> completion_callback) = 0;
+  virtual std::size_t poll_completions_tentative(std::function<cb_acceptance(void *context, status_t) noexcept> completion_callback) = 0;
 
   /**
    * Get count of stalled completions.
    *
    */
-  virtual size_t stalled_completion_count() = 0;
+  virtual std::size_t stalled_completion_count() = 0;
 
   /**
    * Block and wait for next completion.
@@ -167,8 +168,8 @@ public:
    *
    */
   virtual void post_read(const std::vector<iovec>& buffers,
-                         uint64_t remote_addr,
-                         uint64_t key,
+                         std::uint64_t remote_addr,
+                         std::uint64_t key,
                          void *context) = 0;
 
   /**
@@ -181,8 +182,8 @@ public:
    *
    */
   virtual void post_write(const std::vector<iovec>& buffers,
-                          uint64_t remote_addr,
-                          uint64_t key,
+                          std::uint64_t remote_addr,
+                          std::uint64_t key,
                           void *context) = 0;
 
   /**
@@ -224,7 +225,7 @@ public:
    * 
    * @return Memory region handle
    */
-  virtual memory_region_t register_memory(const void * contig_addr, size_t size, uint64_t key, uint64_t flags) = 0;
+  virtual memory_region_t register_memory(const void * contig_addr, std::size_t size, std::uint64_t key, std::uint64_t flags) = 0;
 
   /**
    * De-register memory region
@@ -253,6 +254,12 @@ public:
    */
   virtual std::string get_local_addr() = 0;
 
+  /**
+   * Get the maximum message size for the provider
+   * 
+   * @return Max message size in bytes
+   */
+  virtual std::size_t max_message_size() const = 0;
 
   /* Additional TODO:
      - support for atomic RMA operations
@@ -353,7 +360,7 @@ public:
    * 
    * @return Max message size in bytes
    */
-  virtual size_t max_message_size() const = 0;
+  virtual std::size_t max_message_size() const = 0;
 
   /**
    * Get provider name
@@ -399,13 +406,6 @@ public:
    * @return Vector of active connections
    */
   virtual std::vector<IFabric_server *> connections() = 0;
-
-  /**
-   * Get the maximum message size for the provider
-   * 
-   * @return Max message size in bytes
-   */
-  virtual size_t max_message_size() const = 0;
 
   /**
    * Get provider name

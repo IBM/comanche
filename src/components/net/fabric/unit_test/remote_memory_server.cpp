@@ -24,6 +24,7 @@ void remote_memory_server::listener(Component::IFabric_server_factory &ep_, std:
   for ( ; ! quit; ++remote_key_index_ )
   {
     server_connection sc(ep_);
+    EXPECT_EQ(sc.cnxn().max_message_size(), this->max_message_size());
     /* register an RDMA memory region */
     registered_memory rm{sc.cnxn(), remote_key_index_};
     /* send the client address and key to memory */
@@ -99,4 +100,9 @@ try
 catch ( std::exception &e )
 {
   std::cerr << __func__ << " exception " << e.what() << eyecatcher << std::endl;
+}
+
+std::size_t remote_memory_server::max_message_size() const
+{
+  return _ep->max_message_size();
 }

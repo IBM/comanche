@@ -67,8 +67,10 @@ class Fabric_server_grouped
   };
   std::string get_peer_addr() override { return Fabric_op_control::get_peer_addr(); }
   std::string get_local_addr() override { return Fabric_op_control::get_local_addr(); }
+public:
+  std::size_t max_message_size() const override { return Fabric_op_control::max_message_size(); }
   /* END Component::IFabric_server_grouped (IFabric_connection) */
-
+private:
   Component::IFabric_communicator *allocate_group() override { return _g.allocate_group(); }
 
 public:

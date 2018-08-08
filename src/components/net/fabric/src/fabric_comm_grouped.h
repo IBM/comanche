@@ -34,7 +34,7 @@ class Fabric_comm_grouped
 {
   Fabric_generic_grouped &_conn;
   using completion_t = std::tuple<void *, status_t>;
-  /* completions for this comm processed but not yet forwarded, or processed and forwarded but rejected with CB_REJECTED status */
+  /* completions for this comm processed but not yet forwarded, or processed and forwarded but deferred with DEFER status */
   std::mutex _m_completions;
   std::queue<completion_t> _completions;
 

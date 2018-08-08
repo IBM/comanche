@@ -76,3 +76,8 @@ Component::IFabric_communicator *remote_memory_client_grouped::allocate_group() 
 {
   return _cnxn->allocate_group();
 }
+
+std::size_t remote_memory_client_grouped::max_message_size() const
+{
+  return _cnxn->max_message_size();
+}

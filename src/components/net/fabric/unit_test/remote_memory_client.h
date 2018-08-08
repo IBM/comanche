@@ -54,9 +54,11 @@ public:
   std::uint64_t key() const { return _key; }
   Component::IFabric_client &cnxn() { return *_cnxn; }
 
-  void write(const std::string &msg_);
+  void write(const std::string &msg_, bool force_error = false);
+  void write_badly(const std::string &msg_) { return write(msg_, true); }
 
   void read_verify(const std::string &msg_);
+  std::size_t max_message_size() const;
 };
 
 #endif
