@@ -255,9 +255,10 @@ void *Fabric_op_control::get_cq_comp_err() const
                   << " olen " << err.olen
                   << " err " << err.err
                   << " (text) " << ::fi_strerror(err.err)
-                  << " errno " << err.prov_errno
+                  << " prov_errno " << err.prov_errno
                   << " err_data " << err.err_data
                   << " err_data_size " << err.err_data_size
+                  << " (text) " << ::fi_cq_strerror(&*_cq, err.prov_errno, err.err_data, nullptr, 0U)
         << std::endl;
   return err.op_context;
 }

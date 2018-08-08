@@ -307,7 +307,7 @@ TEST_F(Fabric_test, InstantiateServerAndClientSockets)
 static constexpr auto count_outer = 3U;
 static constexpr auto count_inner = 3U;
 
-void write_read_sequential(const std::string &fabric_spec)
+void write_read_sequential(const std::string &fabric_spec, bool force_error_)
 {
   for ( auto iter0 = 0U; iter0 != count_outer; ++iter0 )
   {
@@ -365,8 +365,11 @@ void write_read_sequential(const std::string &fabric_spec)
         /* Feed the server_factory some terrible text */
         std::string msg = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.";
         /* An ordinary client which tests RDMA to server memory */
-        client.write(msg);
-        client.read_verify(msg);
+        client.write(msg, force_error_);
+        if ( ! force_error_ )
+        {
+          client.read_verify(msg);
+        }
         /* client destructor sends FI_SHUTDOWN to server */
         std::cerr << "CLIENT end " << iter0 << "." << iter1 << std::endl;
       }
@@ -386,12 +389,17 @@ void write_read_sequential(const std::string &fabric_spec)
 
 TEST_F(Fabric_test, WriteReadSequential)
 {
-  write_read_sequential(fabric_spec_verbs);
+  write_read_sequential(fabric_spec_verbs, false);
 }
 
 TEST_F(Fabric_test, WriteReadSequentialSockets)
 {
-  write_read_sequential(fabric_spec_sockets);
+  write_read_sequential(fabric_spec_sockets, false);
+}
+
+TEST_F(Fabric_test, WriteReadSequentialWithError)
+{
+  write_read_sequential(fabric_spec_sockets, true);
 }
 
 TEST_F(Fabric_test, WriteReadParallel)
