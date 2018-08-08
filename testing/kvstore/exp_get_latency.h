@@ -18,14 +18,12 @@ class ExperimentGetLatency : public Experiment
 public:
     float _cycles_per_second;  // initialized in do_work first run
     std::vector<double> _latency;
-    std::string _test_name = "get_latency";
-    std::string _report_filename;
 
-    ExperimentGetLatency(struct ProgramOptions options): Experiment(options.store)
+    ExperimentGetLatency(struct ProgramOptions options): Experiment(options)
     {
-       _report_filename = options.report_file_name;
+        _test_name = "get_latency";
 
-       assert(options.store); 
+        assert(options.store); 
     }
 
     void initialize_custom(unsigned core)
@@ -84,45 +82,21 @@ public:
 
     void cleanup_custom(unsigned core)  
     {
-       // get existing results, read to document variable
        pthread_mutex_lock(&g_write_lock);
 
-       FILE *pFile = fopen(_report_filename.c_str(), "r+");
-       rapidjson::FileStream is(pFile);
-       rapidjson::Document document;
-       document.ParseStream<0>(is);
+       // get existing results, read to document variable
+       rapidjson::Document document = _get_report_document();
 
-       rapidjson::Value temp_value;
-       rapidjson::Value temp_object(rapidjson::kObjectType);
+       // add per-core results here
        rapidjson::Value temp_array(rapidjson::kArrayType);
-
-       // add per-core results here        
+ 
        for (int i = 0; i < _pool_num_components; i++)  
        {
             temp_array.PushBack(_latency[i], document.GetAllocator());
        }
 
-       std::string core_string = std::to_string(core);
-       temp_value.SetString(rapidjson::StringRef(core_string.c_str()));
-
-       if (!document.HasMember(_test_name.c_str()))
-       {
-           temp_object.AddMember(temp_value, temp_array, document.GetAllocator());
-            document.AddMember(rapidjson::StringRef(_test_name.c_str()), temp_object, document.GetAllocator()); 
-       }
-       else 
-       {
-            rapidjson::Value &items = document[_test_name.c_str()];
-            &items.AddMember(temp_value, temp_array, document.GetAllocator());
-       }
-
-        // write back to file
-       rapidjson::StringBuffer strbuf;
-       rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(strbuf);
-       document.Accept(writer);
-
-        std::ofstream outf(_report_filename.c_str());
-        outf << strbuf.GetString() << std::endl; 
+       // add new info to report
+       _report_document_save(document, core, temp_array);
 
        pthread_mutex_unlock(&g_write_lock);
     }
