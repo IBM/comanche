@@ -268,12 +268,10 @@ std::size_t Fabric_op_control::process_or_queue_completion(const ::fi_cq_tagged_
   std::size_t ct_total = 0U;
   if ( cb_(cq_entry_.op_context, status_, cq_entry_.flags, cq_entry_.len, nullptr) == cb_acceptance::ACCEPT )
   {
-    std::cerr << __func__ << "(" << status_ << ") ACCEPT\n";
     ++ct_total;
   }
   else
   {
-    std::cerr << __func__ << "(" << status_ << ") DEFER\n";
     queue_completion(cq_entry_, status_);
   }
 
