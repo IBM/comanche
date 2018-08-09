@@ -25,6 +25,45 @@
 #include <functional>
 #include <vector>
 
+#ifndef FABRIC_H
+#define FI_READ                 (1ULL << 8)
+#define FI_WRITE                (1ULL << 9)
+#define FI_RECV                 (1ULL << 10)
+#define FI_SEND                 (1ULL << 11)
+#define FI_TRANSMIT             FI_SEND
+#define FI_REMOTE_READ          (1ULL << 12)
+#define FI_REMOTE_WRITE         (1ULL << 13)
+
+#define FI_MULTI_RECV           (1ULL << 16)
+#define FI_REMOTE_CQ_DATA       (1ULL << 17)
+#define FI_MORE                 (1ULL << 18)
+#define FI_PEEK                 (1ULL << 19)
+#define FI_TRIGGER              (1ULL << 20)
+#define FI_FENCE                (1ULL << 21)
+
+#define FI_COMPLETION           (1ULL << 24)
+#define FI_EVENT                FI_COMPLETION
+#define FI_INJECT               (1ULL << 25)
+#define FI_INJECT_COMPLETE      (1ULL << 26)
+#define FI_TRANSMIT_COMPLETE    (1ULL << 27)
+#define FI_DELIVERY_COMPLETE    (1ULL << 28)
+#define FI_AFFINITY             (1ULL << 29)
+#define FI_COMMIT_COMPLETE      (1ULL << 30)
+
+#define FI_VARIABLE_MSG         (1ULL << 48)
+#define FI_RMA_PMEM             (1ULL << 49)
+#define FI_SOURCE_ERR           (1ULL << 50)
+#define FI_LOCAL_COMM           (1ULL << 51)
+#define FI_REMOTE_COMM          (1ULL << 52)
+#define FI_SHARED_AV            (1ULL << 53)
+#define FI_PROV_ATTR_ONLY       (1ULL << 54)
+#define FI_NUMERICHOST          (1ULL << 55)
+#define FI_RMA_EVENT            (1ULL << 56)
+#define FI_SOURCE               (1ULL << 57)
+#define FI_NAMED_RX_CTX         (1ULL << 58)
+#define FI_DIRECTED_RECV        (1ULL << 59)
+#endif
+
 struct iovec; /* definition in <sys/uio.h> */
 
 namespace Component
@@ -185,7 +224,7 @@ public:
    *            uses the key (i.e., the fabric provider memory region attributes
    *            do not include the FI_MR_PROV_KEY bit), then the key must be
    *            unique among registered memory regsions. As this API does not
-   *            expose these attributes, the only safe strategy is to assume thati
+   *            expose these attributes, the only safe strategy is to assume that
    *            the key must be unique among registered memory regsions.
    * @param flags Flags e.g., FI_REMOTE_READ|FI_REMOTE_WRITE. Flag definitions are in <rdma/fabric.h>
    * 
