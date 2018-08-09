@@ -56,12 +56,17 @@ public:
    * BOTH service the completion queues and service those events
    * stalled previously
    *
-   * @param completion_callback (context_t, status_t status, void* error_data, IFabric_communicator *)
+   * @param completion_callback (context_t, completion_flags, std::size_t len, status_t status, void* error_data)
    *
    * @return Number of completions processed
    */
-  virtual std::size_t poll_completions(std::function<void(void *context, status_t) noexcept> completion_callback) = 0;
-  virtual std::size_t poll_completions_tentative(std::function<cb_acceptance(void *context, status_t) noexcept> completion_callback) = 0;
+  using complete_old = std::function<void(void *context, ::status_t) noexcept>;
+  using complete_definite = std::function<void(void *context, ::status_t, std::uint64_t completion_flags, std::size_t len, void *error_data) noexcept>;
+  using complete_tentative = std::function<cb_acceptance(void *context, ::status_t, std::uint64_t completion_flags, std::size_t len, void *error_data) noexcept>;
+
+  virtual std::size_t poll_completions(complete_old completion_callback) = 0;
+  virtual std::size_t poll_completions(complete_definite completion_callback) = 0;
+  virtual std::size_t poll_completions_tentative(complete_tentative completion_callback) = 0;
 
   /**
    * Get count of stalled completions.

@@ -28,20 +28,23 @@
 
 class Fabric_generic_grouped;
 class async_req_record;
+struct fi_cq_tagged_entry;
 
 class Fabric_comm_grouped
   : public Component::IFabric_communicator
 {
   Fabric_generic_grouped &_conn;
-  using completion_t = std::tuple<void *, status_t>;
+  using completion_t = std::tuple<::fi_cq_tagged_entry, ::status_t>;
   /* completions for this comm processed but not yet forwarded, or processed and forwarded but deferred with DEFER status */
   std::mutex _m_completions;
   std::queue<completion_t> _completions;
 
-  std::size_t process_cq_comp_err(std::function<void(void *context, status_t st)> completion_callback);
-  std::size_t process_cq_comp_err(std::function<cb_acceptance(void *context, status_t st)> completion_callback);
-  std::size_t process_or_queue_completion(async_req_record *g_context_, std::function<void(void *context, status_t st)> cb_, status_t status_);
-  std::size_t process_or_queue_completion(async_req_record *g_context_, std::function<cb_acceptance(void *context, status_t st)> cb_, status_t status_);
+  std::size_t process_cq_comp_err(Component::IFabric_op_completer::complete_old completion_callback);
+  std::size_t process_cq_comp_err(Component::IFabric_op_completer::complete_definite completion_callback);
+  std::size_t process_cq_comp_err(Component::IFabric_op_completer::complete_tentative completion_callback);
+  std::size_t process_or_queue_completion(const ::fi_cq_tagged_entry &cq_entry, Component::IFabric_op_completer::complete_old cb, ::status_t status);
+  std::size_t process_or_queue_completion(const ::fi_cq_tagged_entry &cq_entry, Component::IFabric_op_completer::complete_definite cb, ::status_t status);
+  std::size_t process_or_queue_completion(const ::fi_cq_tagged_entry &cq_entry, Component::IFabric_op_completer::complete_tentative cb, ::status_t status);
 public:
   explicit Fabric_comm_grouped(Fabric_generic_grouped &);
   ~Fabric_comm_grouped(); /* Note: need to notify the polling thread that this connection is going away, */
@@ -67,8 +70,9 @@ public:
 
   void inject_send(const std::vector<iovec>& buffers) override;
 
-  std::size_t poll_completions(std::function<void(void *context, status_t)> completion_callback) override;
-  std::size_t poll_completions_tentative(std::function<cb_acceptance(void *context, status_t)> completion_callback) override;
+  std::size_t poll_completions(Component::IFabric_op_completer::complete_old completion_callback) override;
+  std::size_t poll_completions(Component::IFabric_op_completer::complete_definite completion_callback) override;
+  std::size_t poll_completions_tentative(Component::IFabric_op_completer::complete_tentative completion_callback) override;
 
   std::size_t stalled_completion_count() override;
 
@@ -80,9 +84,10 @@ public:
 
   fabric_types::addr_ep_t get_name() const;
 
-  void queue_completion(void *context, status_t status);
-  std::size_t drain_old_completions(std::function<void(void *context, status_t st) noexcept> completion_callback);
-  std::size_t drain_old_completions(std::function<cb_acceptance(void *context, status_t st) noexcept> completion_callback);
+  void queue_completion(void *context, ::status_t status, const ::fi_cq_tagged_entry &cq_entry);
+  std::size_t drain_old_completions(Component::IFabric_op_completer::complete_old completion_callback);
+  std::size_t drain_old_completions(Component::IFabric_op_completer::complete_definite completion_callback);
+  std::size_t drain_old_completions(Component::IFabric_op_completer::complete_tentative completion_callback);
 };
 
 #endif

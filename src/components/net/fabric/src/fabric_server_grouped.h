@@ -83,11 +83,15 @@ public:
   ~Fabric_server_grouped();
 
   /* BEGIN IFabric_server_grouped (IFabric_op_completer) */
-  std::size_t poll_completions(std::function<void(void *context, status_t)> completion_callback) override
+  std::size_t poll_completions(Component::IFabric_op_completer::complete_old completion_callback) override
   {
     return Fabric_connection_server::poll_completions(completion_callback);
   }
-  std::size_t poll_completions_tentative(std::function<cb_acceptance(void *context, status_t)> completion_callback) override
+  std::size_t poll_completions(Component::IFabric_op_completer::complete_definite completion_callback) override
+  {
+    return Fabric_connection_server::poll_completions(completion_callback);
+  }
+  std::size_t poll_completions_tentative(Component::IFabric_op_completer::complete_tentative completion_callback) override
   {
     return Fabric_connection_server::poll_completions_tentative(completion_callback);
   }
@@ -114,14 +118,15 @@ public:
   void inject_send(const std::vector<iovec>& buffers) override { return _g.inject_send(buffers); }
   fabric_types::addr_ep_t get_name() const;
 
-  void poll_completions_for_comm(Fabric_comm_grouped *, std::function<void(void *context, status_t)> completion_callback);
-  void poll_completions_for_comm(Fabric_comm_grouped *, std::function<cb_acceptance(void *context, status_t)> completion_callback);
+  void poll_completions_for_comm(Fabric_comm_grouped *, Component::IFabric_op_completer::complete_old completion_callback);
+  void poll_completions_for_comm(Fabric_comm_grouped *, Component::IFabric_op_completer::complete_definite completion_callback);
+  void poll_completions_for_comm(Fabric_comm_grouped *, Component::IFabric_op_completer::complete_tentative completion_callback);
   void forget_group(Fabric_comm_grouped *);
 
   void *get_cq_comp_err() const;
   ssize_t cq_sread(void *buf, std::size_t count, const void *cond, int timeout) noexcept;
   ssize_t cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) const noexcept { return _g.cq_readerr(buf, flags); }
-  void queue_completion(Fabric_comm_grouped *comm, void *context, status_t status);
+  void queue_completion(Fabric_comm_grouped *comm, void *context, ::status_t status);
   void expect_event(std::uint32_t) const;
 };
 

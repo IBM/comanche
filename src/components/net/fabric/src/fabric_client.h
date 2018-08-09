@@ -37,11 +37,15 @@ public:
   ~Fabric_client();
 
   /* BEGIN IFabric_op_completer */
-  std::size_t poll_completions(std::function<void(void *context, status_t)> completion_callback) override
+  std::size_t poll_completions(Component::IFabric_op_completer::complete_old completion_callback) override
   {
     return Fabric_connection_client::poll_completions(completion_callback);
   }
-  std::size_t poll_completions_tentative(std::function<cb_acceptance(void *context, status_t)> completion_callback) override
+  std::size_t poll_completions(Component::IFabric_op_completer::complete_definite completion_callback) override
+  {
+    return Fabric_connection_client::poll_completions(completion_callback);
+  }
+  std::size_t poll_completions_tentative(Component::IFabric_op_completer::complete_tentative completion_callback) override
   {
     return Fabric_connection_client::poll_completions_tentative(completion_callback);
   }

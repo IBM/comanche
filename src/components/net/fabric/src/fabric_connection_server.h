@@ -33,11 +33,15 @@ public:
   explicit Fabric_connection_server(Fabric &fabric, event_producer &ep, ::fi_info & info);
   ~Fabric_connection_server();
   /* BEGIN IFabric_op_control */
-  std::size_t poll_completions(std::function<void(void *context, status_t)> completion_callback) override
+  std::size_t poll_completions(Component::IFabric_op_completer::complete_old completion_callback) override
   {
     return Fabric_op_control::poll_completions(completion_callback);
   }
-  std::size_t poll_completions_tentative(std::function<cb_acceptance(void *context, status_t)> completion_callback) override
+  std::size_t poll_completions(Component::IFabric_op_completer::complete_definite completion_callback) override
+  {
+    return Fabric_op_control::poll_completions(completion_callback);
+  }
+  std::size_t poll_completions_tentative(Component::IFabric_op_completer::complete_tentative completion_callback) override
   {
     return Fabric_op_control::poll_completions_tentative(completion_callback);
   }

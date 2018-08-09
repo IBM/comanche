@@ -23,6 +23,13 @@
 #include "fabric_generic_grouped.h"
 #include "fabric_types.h" /* addr_ep_t */
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#pragma GCC diagnostic ignored "-Wshadow"
+#include <rdma/fi_domain.h> /* fi_cq_err_entry */
+#pragma GCC diagnostic pop
+
 #include <unistd.h> /* ssize_t */
 
 #include <cstdint> /* uint{16,32,64}_t */
@@ -85,8 +92,18 @@ public:
   void forget_group(Fabric_comm_grouped *g) { return _g.forget_group(g); }
 
   /* BEGIN IFabric_client_grouped (IFabric_op_completer) */
-  std::size_t poll_completions(std::function<void(void *context, status_t)> completion_callback) override { return Fabric_connection_client::poll_completions(completion_callback); }
-  std::size_t poll_completions_tentative(std::function<cb_acceptance(void *context, status_t)> completion_callback) override { return Fabric_connection_client::poll_completions_tentative(completion_callback); }
+  std::size_t poll_completions(Component::IFabric_op_completer::complete_old completion_callback) override
+  {
+    return Fabric_connection_client::poll_completions(completion_callback);
+  }
+  std::size_t poll_completions(Component::IFabric_op_completer::complete_definite completion_callback) override
+  {
+    return Fabric_connection_client::poll_completions(completion_callback);
+  }
+  std::size_t poll_completions_tentative(Component::IFabric_op_completer::complete_tentative completion_callback) override
+  {
+    return Fabric_connection_client::poll_completions_tentative(completion_callback);
+  }
   std::size_t stalled_completion_count() override { return Fabric_connection_client::stalled_completion_count(); }
   void wait_for_next_completion(unsigned polls_limit) override { return Fabric_connection_client::wait_for_next_completion(polls_limit); }
   void wait_for_next_completion(std::chrono::milliseconds timeout) override { return Fabric_connection_client::wait_for_next_completion(timeout); }
@@ -111,13 +128,23 @@ public:
 
   fabric_types::addr_ep_t get_name() const { return _g.get_name(); }
 
-  void poll_completions_for_comm(Fabric_comm_grouped *c, std::function<void(void *context, status_t)> completion_callback) { return _g.poll_completions_for_comm(c, completion_callback); }
-  void poll_completions_for_comm(Fabric_comm_grouped *c, std::function<cb_acceptance(void *context, status_t)> completion_callback) { return _g.poll_completions_for_comm(c, completion_callback); }
+  void poll_completions_for_comm(Fabric_comm_grouped *c, Component::IFabric_op_completer::complete_old completion_callback)
+  {
+    return _g.poll_completions_for_comm(c, completion_callback);
+  }
+  void poll_completions_for_comm(Fabric_comm_grouped *c, Component::IFabric_op_completer::complete_definite completion_callback)
+  {
+    return _g.poll_completions_for_comm(c, completion_callback);
+  }
+  void poll_completions_for_comm(Fabric_comm_grouped *c, Component::IFabric_op_completer::complete_tentative completion_callback)
+  {
+    return _g.poll_completions_for_comm(c, completion_callback);
+  }
 
-  void *get_cq_comp_err() const { return _g.get_cq_comp_err(); }
+  ::fi_cq_err_entry get_cq_comp_err() const { return _g.get_cq_comp_err(); }
   ssize_t cq_sread(void *buf, std::size_t count, const void *cond, int timeout) noexcept { return _g.cq_sread(buf, count, cond, timeout); }
   ssize_t cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) const noexcept { return _g.cq_readerr(buf, flags); }
-  void queue_completion(Fabric_comm_grouped *comm, void *context, status_t status) { return _g.queue_completion(comm, context, status); }
+  void queue_completion(Fabric_comm_grouped *comm, void *context, ::status_t status, const ::fi_cq_tagged_entry &cq_entry) { return _g.queue_completion(comm, context, status, cq_entry); }
   void expect_event(std::uint32_t i) const { return _g.expect_event(i); }
   std::size_t max_message_size() const override { return Fabric_connection_client::max_message_size(); }
 };
