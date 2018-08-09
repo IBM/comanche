@@ -165,7 +165,7 @@ void Fabric_generic_grouped::inject_send(const std::vector<iovec>& buffers_)
   return cnxn().inject_send(buffers_);
 }
 
-void *Fabric_generic_grouped::get_cq_comp_err() const
+::fi_cq_err_entry Fabric_generic_grouped::get_cq_comp_err() const
 {
   return cnxn().get_cq_comp_err();
 }
@@ -173,12 +173,12 @@ void *Fabric_generic_grouped::get_cq_comp_err() const
 /**
  * Poll completions (e.g., completions)
  *
- * @param completion_callback (context_t, status_t status, void* error_data)
+ * @param completion_callback (context_t, ::status_t status, void* error_data)
  *
  * @return Number of completions processed
  */
 
-std::size_t Fabric_generic_grouped::poll_completions(std::function<void(void *context, status_t st) noexcept> cb_)
+std::size_t Fabric_generic_grouped::poll_completions(Component::IFabric_op_completer::complete_old cb_)
 {
   std::size_t constexpr ct_max = 1;
   std::size_t ct_total = 0;
@@ -236,7 +236,65 @@ std::size_t Fabric_generic_grouped::poll_completions(std::function<void(void *co
   return ct_total;
 }
 
-std::size_t Fabric_generic_grouped::poll_completions_tentative(std::function<cb_acceptance(void *context, status_t st) noexcept> cb_)
+std::size_t Fabric_generic_grouped::poll_completions(Component::IFabric_op_completer::complete_definite cb_)
+{
+  std::size_t constexpr ct_max = 1;
+  std::size_t ct_total = 0;
+  fi_cq_tagged_entry entry; /* We dont actually expect a tagged entry. Spefifying this to provide the largest buffer. */
+
+  bool drained = false;
+  while ( ! drained )
+  {
+    auto timeout = 0; /* immediate timeout */
+    auto ct = cq_sread(&entry, ct_max, nullptr, timeout);
+    if ( ct < 0 )
+    {
+      switch ( auto e = unsigned(-ct) )
+      {
+      case FI_EAVAIL:
+        ct_total += cnxn().process_cq_comp_err(cb_);
+        break;
+      case FI_EAGAIN:
+        drained = true;
+        break;
+      default:
+        throw fabric_error(e, __FILE__, __LINE__);
+      }
+    }
+    else
+    {
+      std::unique_ptr<async_req_record> g_context(static_cast<async_req_record *>(entry.op_context));
+      cb_(g_context->context(), S_OK, entry.flags, entry.len, nullptr);
+      ++ct_total;
+
+      g_context.release();
+    }
+  }
+
+  /*
+   * Note: There are two reasons why a completion might end in our local "queue":
+   *  (1) It was seen by another group running poll_completions, or
+   *  (2) it was rejected by a client who hoped to see some other completion first.
+   * In case (1) it would be reasonable to process the queued completions before
+   * newer completions. But in case (2), the client will want to see later completions
+   * before returning to the rejected completion.
+   */
+  {
+    std::unique_lock<std::mutex> k0{_m_comms};
+    for ( auto &g : _comms )
+    {
+      g->drain_old_completions(cb_);
+    }
+  }
+
+  if ( cnxn().is_shut_down() && ct_total == 0 )
+  {
+    throw std::logic_error(std::string("Fabric_generic_grouped") + __func__ + ": Connection closed");
+  }
+  return ct_total;
+}
+
+std::size_t Fabric_generic_grouped::poll_completions_tentative(Component::IFabric_op_completer::complete_tentative cb_)
 {
   std::size_t constexpr ct_max = 1;
   std::size_t ct_total = 0;
@@ -272,7 +330,8 @@ std::size_t Fabric_generic_grouped::poll_completions_tentative(std::function<cb_
     else
     {
       std::unique_ptr<async_req_record> g_context(static_cast<async_req_record *>(entry.op_context));
-      ct_total += _cnxn.process_or_queue_completion(g_context->context(), cb_, S_OK);
+      entry.op_context = g_context->context();
+      ct_total += _cnxn.process_or_queue_completion(entry, cb_, S_OK);
       g_context.release();
     }
   }
@@ -298,12 +357,12 @@ void Fabric_generic_grouped::forget_group(Fabric_comm_grouped *comm_)
   _comms.erase(comm_);
 }
 
-void Fabric_generic_grouped::queue_completion(Fabric_comm_grouped *comm_, void *context_, status_t status_)
+void Fabric_generic_grouped::queue_completion(Fabric_comm_grouped *comm_, void *context_, ::status_t status_, const fi_cq_tagged_entry &cq_entry_)
 {
   std::lock_guard<std::mutex> k{_m_comms};
   auto it = _comms.find(comm_);
   assert(it != _comms.end());
-  (*it)->queue_completion(context_, status_);
+  (*it)->queue_completion(context_, status_, cq_entry_);
 }
 
 ssize_t Fabric_generic_grouped::cq_sread(void *buf_, size_t count_, const void *cond_, int timeout_) noexcept

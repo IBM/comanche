@@ -29,7 +29,7 @@
 #pragma GCC diagnostic ignored "-Wpedantic"
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 #pragma GCC diagnostic ignored "-Wshadow"
-#include <rdma/fi_domain.h> /* fi_cq_attr */
+#include <rdma/fi_domain.h> /* fi_cq_attr, fi_cq_err_entry */
 #pragma GCC diagnostic pop
 
 #include <unistd.h> /* ssize_t */
@@ -58,7 +58,7 @@ class Fabric_op_control
   , public Fabric_memory_control
   , public event_consumer
 {
-  using completion_t = std::tuple<void *, status_t>;
+  using completion_t = std::tuple<::status_t, ::fi_cq_tagged_entry>;
   /* completions forwarded to client but deferred with DEFER status, to be retried later */
   std::mutex _m_completions;
   std::queue<completion_t> _completions;
@@ -117,9 +117,10 @@ public:
   virtual void solicit_event() const = 0;
   virtual void wait_event() const = 0;
 
-  std::size_t poll_completions(std::function<void(void *context, status_t)> completion_callback) override;
-  std::size_t poll_completions_tentative(std::function<cb_acceptance(void *context, status_t)> completion_callback) override;
-  std::size_t process_or_queue_completion(void *context, std::function<cb_acceptance(void *context, status_t st)> cb, status_t status);
+  std::size_t poll_completions(Component::IFabric_op_completer::complete_old completion_callback) override;
+  std::size_t poll_completions(Component::IFabric_op_completer::complete_definite completion_callback) override;
+  std::size_t poll_completions_tentative(Component::IFabric_op_completer::complete_tentative completion_callback) override;
+  std::size_t process_or_queue_completion(const ::fi_cq_tagged_entry &cq_entry, Component::IFabric_op_completer::complete_tentative cb, ::status_t status);
   std::size_t stalled_completion_count() override { return 0U; }
   void wait_for_next_completion(unsigned polls_limit) override;
   void wait_for_next_completion(std::chrono::milliseconds timeout) override;
@@ -163,22 +164,25 @@ public:
 
   fabric_types::addr_ep_t get_name() const;
 
-  void poll_completions_for_comm(Fabric_comm_grouped *, std::function<void(void *context, status_t)> completion_callback);
-  void poll_completions_for_comm(Fabric_comm_grouped *, std::function<cb_acceptance(void *context, status_t)> completion_callback);
+  void poll_completions_for_comm(Fabric_comm_grouped *, Component::IFabric_op_completer::complete_old completion_callback);
+  void poll_completions_for_comm(Fabric_comm_grouped *, Component::IFabric_op_completer::complete_definite completion_callback);
+  void poll_completions_for_comm(Fabric_comm_grouped *, Component::IFabric_op_completer::complete_tentative completion_callback);
 
-  void *get_cq_comp_err() const;
-  std::size_t process_cq_comp_err(std::function<void(void *connection, status_t st)> completion_callback);
-  std::size_t process_or_queue_cq_comp_err(std::function<cb_acceptance(void *connection, status_t st)> completion_callback);
+  ::fi_cq_err_entry get_cq_comp_err() const;
+  std::size_t process_cq_comp_err(Component::IFabric_op_completer::complete_old completion_callback);
+  std::size_t process_cq_comp_err(Component::IFabric_op_completer::complete_definite completion_callback);
+  std::size_t process_or_queue_cq_comp_err(Component::IFabric_op_completer::complete_tentative completion_callback);
 
   ssize_t cq_sread(void *buf, std::size_t count, const void *cond, int timeout) noexcept;
   ssize_t cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) const noexcept;
-  void queue_completion(Fabric_comm_grouped *comm, void *context, status_t status);
+  void queue_completion(Fabric_comm_grouped *comm, void *context, ::status_t status);
   void expect_event(std::uint32_t) const;
   bool is_shut_down() const { return _shut_down; }
 
-  void queue_completion(void *context, status_t status);
-  std::size_t drain_old_completions(std::function<void(void *context, status_t st) noexcept> completion_callback);
-  std::size_t drain_old_completions(std::function<cb_acceptance(void *context, status_t st) noexcept> completion_callback);
+  void queue_completion(const ::fi_cq_tagged_entry &entry, ::status_t status);
+  std::size_t drain_old_completions(Component::IFabric_op_completer::complete_old completion_callback);
+  std::size_t drain_old_completions(Component::IFabric_op_completer::complete_definite completion_callback);
+  std::size_t drain_old_completions(Component::IFabric_op_completer::complete_tentative completion_callback);
   std::size_t max_message_size() const override;
 };
 
