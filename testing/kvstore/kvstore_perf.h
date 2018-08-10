@@ -19,6 +19,8 @@ struct ProgramOptions {
     unsigned int elements;
     Component::IKVStore * store;
     std::string report_file_name;
+    unsigned int key_length;
+    unsigned int value_length;
 }; 
 
 #endif
