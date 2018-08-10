@@ -28,11 +28,20 @@ class Fd_socket
   DELETE_COPY(Fd_socket);
 public:
   Fd_socket();
+  /*
+   * @throw std::logic_error : initialized with a negative value
+   */
   explicit Fd_socket(int fd_);
   ~Fd_socket();
   Fd_socket(Fd_socket &&) noexcept;
   Fd_socket &operator=(Fd_socket &&) noexcept;
+  /*
+   * @throw std::system_error - sending data on socket
+   */
   void send(const void *buf, std::size_t size) const;
+  /*
+   * @throw std::system_error - receiving data on socket
+   */
   void recv(void *buf, std::size_t size) const;
   int fd() const { return _fd; }
   bool good() const  { return _fd != -1; }

@@ -74,7 +74,7 @@ catch ( const std::exception &e )
   std::cerr << "SERVER connection shutdown error " << e.what();
 }
 
-size_t Fabric_server_generic_factory::max_message_size() const
+size_t Fabric_server_generic_factory::max_message_size() const noexcept
 {
   return _info.ep_attr->max_msg_size;
 }
@@ -110,6 +110,11 @@ void Fabric_server_generic_factory::err(::fi_eq_err_entry &) noexcept
   /* The passive endpoint receives an error. As it is not a connection request, ignore it. */
 }
 
+/*
+ * @throw std::system_error - ::setsockopt
+ * @throw std::system_error - ::bind
+ * @throw std::system_error - ::listem
+ */
 Fd_socket Fabric_server_generic_factory::make_listener(std::uint16_t port)
 {
   constexpr int domain = AF_INET;
@@ -164,21 +169,31 @@ void Fabric_server_generic_factory::listen(
 )
 {
   Fd_socket listen_fd(make_listener(port_));
+
   /* The endpoint now has a name, which we can advertise. */
   CHECK_FI_ERR(::fi_listen(&pep_));
 
   fabric_types::addr_ep_t pep_name(get_name(&_pep->fid));
 
+  listen_loop(end_fd_, pep_name, listen_fd);
+}
+
+void Fabric_server_generic_factory::listen_loop(
+  int end_fd_
+  , const fabric_types::addr_ep_t &pep_name_
+  , const Fd_socket &listen_fd_
+) noexcept
+{
   auto run = true;
   while ( run )
   {
     fd_set fds_read;
     FD_ZERO(&fds_read);
-    FD_SET(listen_fd.fd(), &fds_read);
+    FD_SET(listen_fd_.fd(), &fds_read);
     FD_SET(_eq.fd(), &fds_read);
     FD_SET(end_fd_, &fds_read);
 
-    auto n = ::pselect(std::max(std::max(_eq.fd(), listen_fd.fd()), end_fd_)+1, &fds_read, nullptr, nullptr, nullptr, nullptr);
+    auto n = ::pselect(std::max(std::max(_eq.fd(), listen_fd_.fd()), end_fd_)+1, &fds_read, nullptr, nullptr, nullptr, nullptr);
     if ( n < 0 )
     {
       auto e = errno;
@@ -197,28 +212,27 @@ void Fabric_server_generic_factory::listen(
     else
     {
       run = ! FD_ISSET(end_fd_, &fds_read);
-      if ( FD_ISSET(listen_fd.fd(), &fds_read) )
+      if ( FD_ISSET(listen_fd_.fd(), &fds_read) )
       {
         try
         {
-          auto r = ::accept(listen_fd.fd(), nullptr, nullptr);
+          auto r = ::accept(listen_fd_.fd(), nullptr, nullptr);
           if ( r == -1 )
           {
             auto e = errno;
-            system_fail(e, (" in accept fd " + std::to_string(listen_fd.fd())));
+            system_fail(e, (" in accept fd " + std::to_string(listen_fd_.fd())));
           }
           Fd_control conn_fd(r);
           /* NOTE: Fd_control needs a timeout. */
 
           /* We have a "control connection". Send the name of the server passive endpoint to the client */
-          conn_fd.send_name(pep_name);
+          conn_fd.send_name(pep_name_);
         }
         catch ( const std::exception &e )
         {
           std::cerr << "exception establishing connection: " << e.what() << "\n";
-#if 1
           std::this_thread::sleep_for(std::chrono::seconds(1));
-#else
+#if 0
           throw;
           /* An exception may not cause the loop to exit; only the destructor may do that. */
 #endif
@@ -231,12 +245,16 @@ void Fabric_server_generic_factory::listen(
           /* There may be something in the event queue. Go see what it is. */
           _eq.read_eq();
         }
+        catch ( const std::bad_alloc &e )
+        {
+          std::cerr << "bad_alloc in event queue: " << e.what() << "\n";
+          std::this_thread::sleep_for(std::chrono::seconds(1));
+        }
         catch ( const std::exception &e )
         {
           std::cerr << "exception handling event queue: " << e.what() << "\n";
-#if 1
           std::this_thread::sleep_for(std::chrono::seconds(1));
-#else
+#if 0
           throw;
           /* An exception may not cause the loop to exit; only the destructor may do that. */
 #endif

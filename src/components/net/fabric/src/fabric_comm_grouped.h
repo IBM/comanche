@@ -50,10 +50,19 @@ public:
   ~Fabric_comm_grouped(); /* Note: need to notify the polling thread that this connection is going away, */
 
   /* BEGIN Component::IFabric_communicator */
+  /*
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_sendv fail
+   */
   void post_send(const std::vector<iovec>& buffers, void *context) override;
 
+  /*
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_recvv fail
+   */
   void post_recv(const std::vector<iovec>& buffers, void *context) override;
 
+  /*
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_readv fail
+   */
   void post_read(
     const std::vector<iovec>& buffers
     , std::uint64_t remote_addr
@@ -61,6 +70,9 @@ public:
     , void *context
   ) override;
 
+  /*
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_writev fail
+   */
   void post_write(
     const std::vector<iovec>& buffers
     , std::uint64_t remote_addr
@@ -68,15 +80,38 @@ public:
     , void *context
   ) override;
 
+  /*
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_inject fail
+   */
   void inject_send(const std::vector<iovec>& buffers) override;
 
+  /*
+   * @throw fabric_runtime_error : std::runtime_error - cq_sread unhandled error
+   * @throw std::logic_error - called on closed connection
+   */
   std::size_t poll_completions(Component::IFabric_op_completer::complete_old completion_callback) override;
+  /*
+   * @throw fabric_runtime_error : std::runtime_error - cq_sread unhandled error
+   * @throw std::logic_error - called on closed connection
+   */
   std::size_t poll_completions(Component::IFabric_op_completer::complete_definite completion_callback) override;
+  /*
+   * @throw fabric_runtime_error : std::runtime_error - cq_sread unhandled error
+   * @throw std::logic_error - called on closed connection
+   */
   std::size_t poll_completions_tentative(Component::IFabric_op_completer::complete_tentative completion_callback) override;
 
   std::size_t stalled_completion_count() override;
 
+  /*
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_control fail
+   * @throw std::system_error : pselect fail
+   */
   void wait_for_next_completion(unsigned polls_limit) override;
+  /*
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_control fail
+   * @throw std::system_error : pselect fail
+   */
   void wait_for_next_completion(std::chrono::milliseconds timeout) override;
 
   void unblock_completions() override;

@@ -23,11 +23,20 @@ class Fd_pair
 {
   int _pair[2];
 public:
+  /*
+   * @throw std::system_error - creating fd pair
+   */
   Fd_pair();
   explicit Fd_pair(int read_flags);
   int fd_read() const { return _pair[0]; }
   int fd_write() const { return _pair[1]; }
+  /*
+   * @throw std::system_error - reading fd of pair
+   */
   std::size_t read(void *, std::size_t) const;
+  /*
+   * @throw std::system_error - writing fd of pair
+   */
   std::size_t write(const void *, std::size_t) const;
   ~Fd_pair();
 };

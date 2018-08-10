@@ -29,11 +29,24 @@ class Fd_control
 {
 public:
   Fd_control();
+  /*
+   * @throw std::logic_error : socket initialized with a negative value
+   */
   explicit Fd_control(int fd_);
+  /*
+   * @throw std::logic_error : socket initialized with a negative value (from ::socket)
+   * @throw std::system_error : resolving address
+   */
   explicit Fd_control(std::string dst_addr, std::uint16_t port);
   Fd_control(Fd_control &&) = default;
   Fd_control &operator=(Fd_control &&) = default;
+  /*
+   * @throw std::system_error - sending data on socket
+   */
   void send_name(const fabric_types::addr_ep_t &name) const;
+  /*
+   * @throw std::system_error - receiving data on socket
+   */
   fabric_types::addr_ep_t recv_name() const;
 };
 

@@ -24,8 +24,8 @@
 #include "event_registration.h"
 #include "fabric.h" /* trywait() */
 #include "fabric_check.h" /* CHECK_FI_ERR */
-#include "fabric_error.h"
 #include "fabric_ptr.h" /* fid_unique_ptr */
+#include "fabric_runtime_error.h"
 #include "fabric_str.h" /* tostr */
 #include "fabric_util.h" /* make_fi_infodup, get_event_name */
 #include "fd_control.h"
@@ -329,7 +329,7 @@ std::size_t Fabric_op_control::poll_completions(Component::IFabric_op_completer:
         drained = true;
         break;
       default:
-        throw fabric_error(e, __FILE__, __LINE__);
+        throw fabric_runtime_error(e, __FILE__, __LINE__);
       }
     }
     else
@@ -369,7 +369,7 @@ std::size_t Fabric_op_control::poll_completions(Component::IFabric_op_completer:
         drained = true;
         break;
       default:
-        throw fabric_error(e, __FILE__, __LINE__);
+        throw fabric_runtime_error(e, __FILE__, __LINE__);
       }
     }
     else
@@ -409,7 +409,7 @@ std::size_t Fabric_op_control::poll_completions_tentative(Component::IFabric_op_
         drained = true;
         break;
       default:
-        throw fabric_error(e, __FILE__, __LINE__);
+        throw fabric_runtime_error(e, __FILE__, __LINE__);
       }
     }
     else
@@ -433,6 +433,7 @@ std::size_t Fabric_op_control::poll_completions_tentative(Component::IFabric_op_
  * @param polls_limit Maximum number of polls (throws exception on exceeding limit)
  *
  * @return Next completion context
+ * @throw std::system_error - creating fd pair
  */
 void Fabric_op_control::wait_for_next_completion(std::chrono::milliseconds timeout)
 {
@@ -493,7 +494,7 @@ void Fabric_op_control::wait_for_next_completion(unsigned polls_limit)
     {
       return wait_for_next_completion(std::chrono::milliseconds(0));
     }
-    catch ( const fabric_error &e )
+    catch ( const fabric_runtime_error &e )
     {
       if ( e.id() != FI_ETIMEDOUT )
       {
@@ -689,7 +690,7 @@ try
   FABRIC_TRACE_FID(f);
   return fid_ptr(f);
 }
-catch ( const fabric_error &e )
+catch ( const fabric_runtime_error &e )
 {
   throw e.add(tostr(info));
 }
@@ -759,7 +760,7 @@ std::size_t Fabric_op_control::drain_old_completions(Component::IFabric_op_compl
   return ct_total;
 }
 
-std::size_t Fabric_op_control::max_message_size() const
+std::size_t Fabric_op_control::max_message_size() const noexcept
 {
   return _ep_info->ep_attr->max_msg_size;
 }
