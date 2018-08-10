@@ -108,7 +108,7 @@ public:
    * 
    * @return New, trimmerd, logical block address of start
    */
-  virtual lba_t ltrim(lba_t addr, size_t) { return E_NOT_IMPL; }
+  virtual lba_t ltrim(lba_t addr, size_t) { return ((lba_t) -1); }
   
   /** 
    * Get number of free units

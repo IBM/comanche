@@ -278,8 +278,9 @@ public:
    * 
    * @param pool Pool handle
    * @param key_hash Hash of key
+   * @param type STORE_LOCK_READ | STORE_LOCK_WRITE
    * @param out_value [out] Pointer to data
-   * @param out_value_len [out] Size of data in bytes
+   * @param out_value_len [in-out] Size of data in bytes
    * 
    * @return S_OK or error code
    */
@@ -308,7 +309,7 @@ public:
    * 
    * @return Key hash code
    */
-  virtual uint64_t key_hash(const void * key, const size_t key_len) { return E_NOT_SUPPORTED; }
+  virtual uint64_t key_hash(const void * key, const size_t key_len) { return ((uint64_t)-1); }
   
   /** 
    * Apply a functor to an object as a transaction
