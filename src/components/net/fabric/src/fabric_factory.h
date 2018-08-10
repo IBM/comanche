@@ -34,6 +34,23 @@ public:
   void *query_interface(Component::uuid_t& itf_uuid) override;
 
   Fabric_factory();
+  /**
+   * Open a fabric provider instance
+   *
+   * @param json_configuration Configuration string in JSON
+   * form. e.g. {
+   *   "caps":["FI_MSG","FI_RMA"],
+   *   "fabric_attr": { "prov_name" : "verbs" },
+   *   "bootstrap_addr":"10.0.0.1:9999" }
+   * @return
+   *
+   * caps:
+   * prov_name: same format as fi_fabric_attr::prov_name
+   *
+   * @throw fabric_bad_alloc : std::bad_alloc - out of memory
+   * @throw std::domain_error : json file parse-detected error
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_control fail
+   */
   Component::IFabric * make_fabric(const std::string& json_configuration) override;
 };
 

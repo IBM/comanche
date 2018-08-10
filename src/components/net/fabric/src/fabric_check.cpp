@@ -21,7 +21,7 @@
 
 #include "fabric_check.h"
 
-#include "fabric_error.h"
+#include "fabric_runtime_error.h"
 
 /* The man pages do not say where FI_SUCCESS is defined, but it turns out to be fi_errno.h */
 #include <rdma/fi_errno.h> /* FI_SUCCESS */
@@ -39,7 +39,7 @@ unsigned check_ge_zero(int r, const char *file, int line)
 {
   if ( r < 0 )
   {
-    throw fabric_error(unsigned(-r), file, line);
+    throw fabric_runtime_error(unsigned(-r), file, line);
   }
   return unsigned(r);
 }
@@ -48,7 +48,7 @@ std::size_t check_ge_zero(ssize_t r, const char *file, int line)
 {
   if ( r < 0 )
   {
-    throw fabric_error(unsigned(-r), file, line);
+    throw fabric_runtime_error(unsigned(-r), file, line);
   }
   return std::size_t(r);
 }

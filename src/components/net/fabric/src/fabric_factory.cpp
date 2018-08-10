@@ -32,20 +32,6 @@ Fabric_factory::Fabric_factory()
 {
 }
 
-/**
- * Open a fabric provider instance
- *
- * @param json_configuration Configuration string in JSON
- * form. e.g. {
- *   "caps":["FI_MSG","FI_RMA"],
- *   "fabric_attr": { "prov_name" : "verbs" },
- *   "bootstrap_addr":"10.0.0.1:9999" }
- * @return
- *
- * caps:
- * prov_name: same format as fi_fabric_attr::prov_name
- */
-
 auto Fabric_factory::make_fabric(const std::string & json_configuration) -> Component::IFabric *
 {
   return new Fabric(json_configuration);

@@ -21,10 +21,10 @@
 
 #include "fabric_generic_grouped.h"
 
-#include "fabric_error.h"
+#include "async_req_record.h"
 #include "fabric_comm_grouped.h"
 #include "fabric_op_control.h"
-#include "async_req_record.h"
+#include "fabric_runtime_error.h"
 
 #include <cassert>
 #include <stdexcept> /* logic_error */
@@ -70,7 +70,7 @@ void Fabric_generic_grouped::deregister_memory(
 
 std::uint64_t Fabric_generic_grouped::get_memory_remote_key(
   const memory_region_t memory_region
-)
+) const noexcept
 {
   return cnxn().get_memory_remote_key(memory_region);
 }
@@ -200,7 +200,7 @@ std::size_t Fabric_generic_grouped::poll_completions(Component::IFabric_op_compl
         drained = true;
         break;
       default:
-        throw fabric_error(e, __FILE__, __LINE__);
+        throw fabric_runtime_error(e, __FILE__, __LINE__);
       }
     }
     else
@@ -258,7 +258,7 @@ std::size_t Fabric_generic_grouped::poll_completions(Component::IFabric_op_compl
         drained = true;
         break;
       default:
-        throw fabric_error(e, __FILE__, __LINE__);
+        throw fabric_runtime_error(e, __FILE__, __LINE__);
       }
     }
     else
@@ -324,7 +324,7 @@ std::size_t Fabric_generic_grouped::poll_completions_tentative(Component::IFabri
         drained = true;
         break;
       default:
-        throw fabric_error(e, __FILE__, __LINE__);
+        throw fabric_runtime_error(e, __FILE__, __LINE__);
       }
     }
     else
@@ -375,7 +375,7 @@ ssize_t Fabric_generic_grouped::cq_readerr(::fi_cq_err_entry *buf, std::uint64_t
   return cnxn().cq_readerr(buf, flags);
 }
 
-std::size_t Fabric_generic_grouped::max_message_size() const
+std::size_t Fabric_generic_grouped::max_message_size() const noexcept
 {
   return cnxn().max_message_size();
 }

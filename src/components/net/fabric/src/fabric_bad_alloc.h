@@ -14,8 +14,8 @@
    limitations under the License.
 */
 
-#ifndef _FABRIC_ERROR_H_
-#define _FABRIC_ERROR_H_
+#ifndef _FABRIC_BAD_ALLOC_H_
+#define _FABRIC_BAD_ALLOC_H_
 
 /*
  * Authors:
@@ -30,28 +30,12 @@
  * Fabric/RDMA-based network component
  */
 
-/* A simplification; most fabric errors will not be logic errors */
-class fabric_error
-  : public std::logic_error
-{
-  unsigned _i;
-  const char *_file;
-  int _line;
-public:
-  explicit fabric_error(unsigned i, const char *file, int line);
-  explicit fabric_error(unsigned i, const char *file, int line, const std::string &desc);
-  fabric_error(const fabric_error &) = default;
-  fabric_error& operator=(const fabric_error &) = default;
-  fabric_error add(const std::string &added) const;
-  unsigned id() const { return _i; }
-};
-
 class fabric_bad_alloc
   : public std::bad_alloc
 {
   std::string _what;
 public:
-  fabric_bad_alloc(std::string which);
+  fabric_bad_alloc(const std::string &what);
   const char *what() const noexcept override;
 };
 

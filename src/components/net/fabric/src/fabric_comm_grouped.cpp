@@ -21,9 +21,9 @@
 
 #include "fabric_comm_grouped.h"
 
-#include "fabric_generic_grouped.h"
 #include "async_req_record.h"
-#include "fabric_error.h"
+#include "fabric_generic_grouped.h"
+#include "fabric_runtime_error.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
@@ -303,7 +303,7 @@ std::size_t Fabric_comm_grouped::poll_completions(Component::IFabric_op_complete
   while ( ! drained )
   {
     std::size_t constexpr ct_max = 1;
-    fi_cq_tagged_entry entry; /* We dont actually expect a tagged entry. Spefifying this to provide the largest buffer. */
+    fi_cq_tagged_entry entry; /* We do not expect a tagged entry, but specify it to provide the largest buffer. */
 
     switch ( const auto ct = _conn.cq_sread(&entry, ct_max, nullptr, 0) )
     {
@@ -316,7 +316,7 @@ std::size_t Fabric_comm_grouped::poll_completions(Component::IFabric_op_complete
     default:
       if ( ct < 0 )
       {
-        throw fabric_error(unsigned(-ct), __FILE__, __LINE__);
+        throw fabric_runtime_error(unsigned(-ct), __FILE__, __LINE__);
       }
 
       ct_total += process_or_queue_completion(entry, cb_, S_OK);
@@ -335,7 +335,7 @@ std::size_t Fabric_comm_grouped::poll_completions(Component::IFabric_op_complete
   while ( ! drained )
   {
     std::size_t constexpr ct_max = 1;
-    fi_cq_tagged_entry entry; /* We dont actually expect a tagged entry. Spefifying this to provide the largest buffer. */
+    fi_cq_tagged_entry entry; /* We do not expect a tagged entry, but specify it to provide the largest buffer. */
 
     switch ( const auto ct = _conn.cq_sread(&entry, ct_max, nullptr, 0) )
     {
@@ -348,7 +348,7 @@ std::size_t Fabric_comm_grouped::poll_completions(Component::IFabric_op_complete
     default:
       if ( ct < 0 )
       {
-        throw fabric_error(unsigned(-ct), __FILE__, __LINE__);
+        throw fabric_runtime_error(unsigned(-ct), __FILE__, __LINE__);
       }
 
       ct_total += process_or_queue_completion(entry, cb_, S_OK);
@@ -366,7 +366,7 @@ std::size_t Fabric_comm_grouped::poll_completions_tentative(Component::IFabric_o
   while ( ! drained )
   {
     std::size_t constexpr ct_max = 1;
-    fi_cq_tagged_entry entry; /* We dont actually expect a tagged entry. Spefifying this to provide the largest buffer. */
+    fi_cq_tagged_entry entry; /* We do not expect a tagged entry, but specify it to provide the largest buffer. */
 
     switch ( auto ct = _conn.cq_sread(&entry, ct_max, nullptr, 0) )
     {
@@ -379,7 +379,7 @@ std::size_t Fabric_comm_grouped::poll_completions_tentative(Component::IFabric_o
     default:
       if ( ct < 0 )
       {
-        throw fabric_error(unsigned(-ct), __FILE__, __LINE__);
+        throw fabric_runtime_error(unsigned(-ct), __FILE__, __LINE__);
       }
 
       ct_total += process_or_queue_completion(entry, cb_, S_OK);
