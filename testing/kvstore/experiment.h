@@ -105,7 +105,9 @@ public:
           ("size", po::value<unsigned int>(), "Size of pool")
           ("flags", po::value<int>(), "Flags for pool creation")
           ("elements", po::value<unsigned int>(), "Number of data elements")
-          ;
+          ("key_length", po::value<unsigned int>(), "Key length of data")
+          ("value_length", po::value<unsigned int>(), "Value length of data")
+              ;
       
         try 
         {
@@ -231,6 +233,12 @@ public:
 
         temp_value.SetInt(options.cores);
         temp_object.AddMember("cores", temp_value, allocator);
+
+        temp_value.SetInt(options.key_length);
+        temp_object.AddMember("key_length", temp_value, allocator);
+
+        temp_value.SetInt(options.value_length);
+        temp_object.AddMember("value_length", temp_value, allocator);
 
         temp_value.SetInt(options.elements);
         temp_object.AddMember("elements", temp_value, allocator);

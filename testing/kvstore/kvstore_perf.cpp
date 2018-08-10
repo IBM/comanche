@@ -58,6 +58,8 @@ int main(int argc, char * argv[])
     ("size", po::value<unsigned int>(), "Size of pool")
     ("flags", po::value<int>(), "Flags for pool creation")
     ("elements", po::value<unsigned int>(), "Number of data elements")
+    ("key_length", po::value<unsigned int>(), "Key length of data")
+    ("value_length", po::value<unsigned int>(), "Value length of data")
     ;
 
   try {
@@ -93,14 +95,15 @@ int main(int argc, char * argv[])
     }
 */
     Options.elements = vm.count("elements") > 0 ? vm["elements"].as<unsigned int>() : 100000;
-    
+    Options.key_length = vm.count("key_length") > 0 ? vm["key_length"].as<unsigned int>() : 8;
+    Options.value_length = vm.count("value_length") > 0 ? vm["value_length"].as<unsigned int>() : 64; 
   }
   catch (const po::error &ex)
   {
     std::cerr << ex.what() << '\n';
   }
 
-  _data = new Data(Options.elements);
+  _data = new Data(Options.elements, Options.key_length, Options.value_length);
   initialize();
 
   Options.store = g_store;

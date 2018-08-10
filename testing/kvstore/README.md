@@ -26,6 +26,8 @@ You can run with different command line options as input. Just add these to your
 * size: size of pool to create.
 * flags: flags specified for pool creation.
 * elements: number of data elements to create for testing; this value will also be passed to pool creation as the expected number of elements in the pool.
+* key_length: length of the key in the Key-Value Store to test (defaults to length 8)
+* value_length: length of the value in the Key-Value Store (defaults to length 64)
 
 ### Output
 Information is stored in `results/<component_name>/results_<date>_<time>.json`
