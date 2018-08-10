@@ -18,6 +18,8 @@ class ExperimentPutLatency : public Experiment
 public:
     float _cycles_per_second;  // initialized in do_work first run
     std::vector<double> _latency;
+    std::vector<double> _start_time;
+    unsigned int _start_rdtsc;
 
     ExperimentPutLatency(struct ProgramOptions options): Experiment(options) 
     {
@@ -30,6 +32,7 @@ public:
     {
         _cycles_per_second = Core::get_rdtsc_frequency_mhz() * 1000000;
         _latency.resize(_pool_num_components);
+        _start_time.resize(_pool_num_components);
     }
 
     void do_work(unsigned core) override 
@@ -40,6 +43,7 @@ public:
             PLOG("Starting Put Latency experiment...");
 
             _first_iter = false;
+            _start_rdtsc = rdtsc();
         }     
 
         // end experiment if we've reached the total number of components
@@ -50,16 +54,22 @@ public:
 
         // check time it takes to complete a single put operation
         unsigned int cycles, start, end;
+        int rc;
 
         start = rdtsc();
-        int rc = _store->put(_pool, _data->key(_i), _data->value(_i), _data->value_len());
+        rc = _store->put(_pool, _data->key(_i), _data->value(_i), _data->value_len());
         end = rdtsc();
+
         cycles = end - start;
         double time = (cycles / _cycles_per_second);
         //printf("start: %u  end: %u  cycles: %u seconds: %f\n", start, end, cycles, time);
 
+        unsigned int cycles_since_start = end - _start_rdtsc;
+        double time_since_start = (cycles_since_start / _cycles_per_second);
+
         // store the information for later use
         _latency.at(_i) = time;
+        _start_time.at(_i) = time_since_start;
 
         assert(rc == S_OK);
 
@@ -75,17 +85,26 @@ public:
 
        // add per-core results here
        rapidjson::Value temp_array(rapidjson::kArrayType);
-
+       rapidjson::Value temp_value;
+ 
        for (int i = 0; i < _pool_num_components; i++)  
        {
-            temp_array.PushBack(_latency[i], document.GetAllocator());
+            // PushBack requires unique object
+            rapidjson::Value temp_object(rapidjson::kObjectType); 
+
+            temp_value.SetDouble(_start_time[i]);
+            temp_object.AddMember("time_since_start", temp_value, document.GetAllocator());
+
+            temp_value.SetDouble(_latency[i]);
+            temp_object.AddMember("latency", temp_value, document.GetAllocator());
+
+            temp_array.PushBack(temp_object, document.GetAllocator());
        }
 
        // add new info to report
        _report_document_save(document, core, temp_array);
 
        pthread_mutex_unlock(&g_write_lock);
-
     }
 };
 
