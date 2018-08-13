@@ -23,8 +23,8 @@
 
 #include "fabric.h"
 #include "fabric_check.h" /* CHECK_FI_ERR */
-#include "fabric_error.h"
 #include "fabric_ptr.h" /* FABRIC_TACE_FID */
+#include "fabric_runtime_error.h"
 #include "fabric_util.h" /* make_fi_infodup */
 #include "pointer_cast.h"
 
@@ -90,7 +90,7 @@ auto Fabric_memory_control::register_memory(const void * addr_, size_t size_, st
     {
       std::ostringstream err;
       err << __func__ << " mismatch: addr_to_desc size " << size_a_to_d << ", desc_to_addr size " << size_d_to_a;
-      throw std::range_error(err.str());
+      throw std::logic_error(err.str());
     }
   }
 
@@ -115,7 +115,7 @@ void Fabric_memory_control::deregister_memory(const memory_region_t mr_)
     {
       std::ostringstream err;
       err << __func__ << " mismatch: addr_to_desc size " << size_a_to_d << ", desc_to_addr size " << size_d_to_a;
-      throw std::range_error(err.str());
+      throw std::logic_error(err.str());
     }
 
     auto itr_d_to_a = _mr_desc_to_addr.find(desc);
@@ -132,14 +132,14 @@ void Fabric_memory_control::deregister_memory(const memory_region_t mr_)
     {
       std::ostringstream err;
       err << __func__ << " descriptor " << desc << " in registry but address " << addr << " not found in registry";
-      throw std::range_error(err.str());
+      throw std::logic_error(err.str());
     }
     _mr_addr_to_desc.erase(itr_a_to_d);
     _mr_desc_to_addr.erase(itr_d_to_a);
   }
 }
 
-std::uint64_t Fabric_memory_control::get_memory_remote_key(const memory_region_t mr_)
+std::uint64_t Fabric_memory_control::get_memory_remote_key(const memory_region_t mr_) const noexcept
 {
   /* recover the memory region as a unique ptr */
   auto mr = pointer_cast<::fid_mr>(mr_);
@@ -195,7 +195,7 @@ try
   FABRIC_TRACE_FID(f);
   return f;
 }
-catch ( const fabric_error &e )
+catch ( const fabric_runtime_error &e )
 {
   throw e.add(std::string(std::string(" in ") + __func__ + " " + std::to_string(len) + " " + std::to_string(key)));
 }

@@ -14,8 +14,8 @@
    limitations under the License.
 */
 
-#ifndef _EVEiNT_PRODUCER_H_
-#define _EVEiNT_PRODUCER_H_
+#ifndef _EVENT_PRODUCER_H_
+#define _EVENT_PRODUCER_H_
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wshadow"
@@ -41,14 +41,28 @@ public:
   virtual void register_pep(::fid_t ep, event_consumer &ec) = 0;
   virtual void register_aep(::fid_t ep, event_consumer &ec) = 0;
   virtual void deregister_endpoint(::fid_t ep) = 0;
+  /*
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_ep_bind fail
+   */
   virtual void bind(::fid_ep &ep) = 0;
+  /*
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_pep_bind fail
+   */
   virtual void bind(::fid_pep &ep) = 0;
   /* file descriptor for detecting activity on the event queue */
   virtual int fd() const = 0;
-  /* read functions for the event queue */
+  /**
+   * read functions for the event queue
+   *
+   * @throw fabric_bad_alloc : std::bad_alloc - libfabric out of memory (creating a new server)
+   * @throw std::system_error : pselect fail
+   */
   virtual void read_eq() = 0;
-  /* NOTE: the wait is edge-triggered, so a wait on an fd which already has an event
+  /*
+   * NOTE: the wait is edge-triggered, so a wait on an fd which already has an event
    * will time out.
+   *
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_control fail
    */
   virtual void wait_eq() = 0;
 };

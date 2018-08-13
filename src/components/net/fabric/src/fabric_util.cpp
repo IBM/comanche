@@ -21,22 +21,14 @@
 
 #include "fabric_util.h"
 
+#include "fabric_bad_alloc.h"
 #include "fabric_check.h" /* CHECK_FI_ERR */
-#include "fabric_error.h"
-#include "fabric_json.h"
-#include "fabric_ptr.h" /* FABRIC_TRACE_FID, fid_ptr */
-#include "fabric_str.h" /* tostr */
-#include "hints.h"
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wshadow"
-#include <rdma/fabric.h> /* FI_VERSION */
-#pragma GCC diagnostic pop
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 #pragma GCC diagnostic ignored "-Wshadow"
-#include <rdma/fi_cm.h> /* fi_connect */
+#include <rdma/fi_cm.h> /* fi_getname */
 #pragma GCC diagnostic pop
 
 #include <map>
@@ -47,71 +39,6 @@
  *
  */
 
-void fi_void_connect(::fid_ep &ep_, const ::fi_info &ep_info_, const void *addr_, const void *param_, size_t paramlen_)
-try
-{
-  CHECK_FI_ERR(::fi_connect(&ep_, addr_, param_, paramlen_));
-}
-catch ( const fabric_error &e )
-{
-  throw e.add(tostr(ep_info_));
-}
-
-std::shared_ptr<::fid_fabric> make_fid_fabric(::fi_fabric_attr &attr_, void *context_)
-try
-{
-  ::fid_fabric *f(nullptr);
-  CHECK_FI_ERR(::fi_fabric(&attr_, &f, context_));
-  FABRIC_TRACE_FID(f);
-  return fid_ptr(f);
-}
-catch ( const fabric_error &e )
-{
-  throw e.add(tostr(attr_));
-}
-
-namespace {
-  std::shared_ptr<::fi_info> make_fi_info(
-    std::uint32_t version_
-    , const char *node_
-    , const char *service_
-    , const ::fi_info *hints_
-  )
-  try
-  {
-    ::fi_info *f;
-    CHECK_FI_ERR(::fi_getinfo(version_, node_, service_, 0, hints_, &f));
-    return std::shared_ptr<::fi_info>(f,::fi_freeinfo);
-  }
-  catch ( const fabric_error &e_ )
-  {
-    if ( hints_ )
-    {
-      throw e_.add(tostr(*hints_));
-    }
-    throw;
-  }
-
-  std::shared_ptr<::fi_info> make_fi_info(const ::fi_info &hints)
-  {
-    return make_fi_info(FI_VERSION(FI_MAJOR_VERSION,FI_MINOR_VERSION), nullptr, nullptr, &hints);
-  }
-}
-
-std::shared_ptr<::fi_info> make_fi_info(const std::string& json_configuration)
-{
-  auto h = hints(parse_info(json_configuration));
-
-  const auto default_provider = "verbs";
-  if ( h.prov_name() == nullptr )
-  {
-    h.prov_name(default_provider);
-  }
-
-  return
-    make_fi_info(h.mode(FI_CONTEXT | FI_CONTEXT2).data());
-}
-
 std::shared_ptr<::fi_info> make_fi_info()
 {
   std::shared_ptr<::fi_info> info(::fi_allocinfo(), ::fi_freeinfo);
@@ -120,16 +47,6 @@ std::shared_ptr<::fi_info> make_fi_info()
     throw fabric_bad_alloc("fi_info (alloc)");
   }
   return info;
-}
-
-std::shared_ptr<::fi_fabric_attr> make_fi_fabric_attr()
-{
-  std::shared_ptr<::fi_fabric_attr> fabric_attr(new ::fi_fabric_attr{});
-  if ( ! fabric_attr )
-  {
-    throw fabric_bad_alloc("fi_fabric_attr (alloc)");
-  }
-  return fabric_attr;
 }
 
 std::shared_ptr<::fi_info> make_fi_infodup(const ::fi_info &info_, const std::string &)

@@ -14,39 +14,37 @@
    limitations under the License.
 */
 
+#ifndef _FABRIC_ERROR_H_
+#define _FABRIC_ERROR_H_
+
 /*
  * Authors:
  *
  */
 
-#ifndef _FABRIC_HINTS_H_
-#define _FABRIC_HINTS_H_
+#include <api/fabric_itf.h>
 
-#include <cstdint> /* uint64_t */
-#include <memory> /* shared_ptr */
+#include <stdexcept>
 
-struct fi_info;
+#include <string>
 
 /**
  * Fabric/RDMA-based network component
- *
  */
 
-class hints
+class fabric_runtime_error
+  : public Component::IFabric_runtime_error
 {
-  std::shared_ptr<fi_info> _info;
+  unsigned _i;
+  const char *_file;
+  int _line;
 public:
-  explicit hints();
-  /**
-   * @throw std::bad_alloc : fabric_bad_alloc - out of memory
-   */
-  explicit hints(std::shared_ptr<fi_info> info);
-  hints &caps(std::uint64_t c);
-  hints &mode(std::uint64_t c);
-  hints &mr_mode(int m);
-  hints &prov_name(const char *n);
-  const char *prov_name() const;
-  const fi_info &data();
+  explicit fabric_runtime_error(unsigned i, const char *file, int line);
+  explicit fabric_runtime_error(unsigned i, const char *file, int line, const std::string &desc);
+  fabric_runtime_error(const fabric_runtime_error &) = default;
+  fabric_runtime_error& operator=(const fabric_runtime_error &) = default;
+  fabric_runtime_error add(const std::string &added) const;
+  unsigned id() const noexcept { return _i; }
 };
 
 #endif

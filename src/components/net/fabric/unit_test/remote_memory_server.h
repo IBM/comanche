@@ -46,6 +46,7 @@ public:
     , unsigned cnxn_limit
   );
   ~remote_memory_server();
+  std::size_t max_message_size() const;
 };
 
 #endif
