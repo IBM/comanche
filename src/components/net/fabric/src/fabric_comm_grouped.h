@@ -28,27 +28,41 @@
 
 class Fabric_generic_grouped;
 class async_req_record;
+struct fi_cq_tagged_entry;
 
 class Fabric_comm_grouped
   : public Component::IFabric_communicator
 {
   Fabric_generic_grouped &_conn;
-  using completion_t = std::tuple<void *, status_t>;
-  /* completions for this comm processed but not yet forwarded */
+  using completion_t = std::tuple<::fi_cq_tagged_entry, ::status_t>;
+  /* completions for this comm processed but not yet forwarded, or processed and forwarded but deferred with DEFER status */
   std::mutex _m_completions;
   std::queue<completion_t> _completions;
 
-  std::size_t process_cq_comp_err(std::function<void(void *context, status_t st)> completion_callback);
-  std::size_t process_or_queue_completion(async_req_record *g_context_, std::function<void(void *context, status_t st)> cb_, status_t status_);
+  std::size_t process_cq_comp_err(Component::IFabric_op_completer::complete_old completion_callback);
+  std::size_t process_cq_comp_err(Component::IFabric_op_completer::complete_definite completion_callback);
+  std::size_t process_cq_comp_err(Component::IFabric_op_completer::complete_tentative completion_callback);
+  std::size_t process_or_queue_completion(const ::fi_cq_tagged_entry &cq_entry, Component::IFabric_op_completer::complete_old cb, ::status_t status);
+  std::size_t process_or_queue_completion(const ::fi_cq_tagged_entry &cq_entry, Component::IFabric_op_completer::complete_definite cb, ::status_t status);
+  std::size_t process_or_queue_completion(const ::fi_cq_tagged_entry &cq_entry, Component::IFabric_op_completer::complete_tentative cb, ::status_t status);
 public:
   explicit Fabric_comm_grouped(Fabric_generic_grouped &);
   ~Fabric_comm_grouped(); /* Note: need to notify the polling thread that this connection is going away, */
 
   /* BEGIN Component::IFabric_communicator */
+  /*
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_sendv fail
+   */
   void post_send(const std::vector<iovec>& buffers, void *context) override;
 
+  /*
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_recvv fail
+   */
   void post_recv(const std::vector<iovec>& buffers, void *context) override;
 
+  /*
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_readv fail
+   */
   void post_read(
     const std::vector<iovec>& buffers
     , std::uint64_t remote_addr
@@ -56,6 +70,9 @@ public:
     , void *context
   ) override;
 
+  /*
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_writev fail
+   */
   void post_write(
     const std::vector<iovec>& buffers
     , std::uint64_t remote_addr
@@ -63,13 +80,38 @@ public:
     , void *context
   ) override;
 
+  /*
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_inject fail
+   */
   void inject_send(const std::vector<iovec>& buffers) override;
 
-  std::size_t poll_completions(std::function<void(void *context, status_t)> completion_callback) override;
+  /*
+   * @throw fabric_runtime_error : std::runtime_error - cq_sread unhandled error
+   * @throw std::logic_error - called on closed connection
+   */
+  std::size_t poll_completions(Component::IFabric_op_completer::complete_old completion_callback) override;
+  /*
+   * @throw fabric_runtime_error : std::runtime_error - cq_sread unhandled error
+   * @throw std::logic_error - called on closed connection
+   */
+  std::size_t poll_completions(Component::IFabric_op_completer::complete_definite completion_callback) override;
+  /*
+   * @throw fabric_runtime_error : std::runtime_error - cq_sread unhandled error
+   * @throw std::logic_error - called on closed connection
+   */
+  std::size_t poll_completions_tentative(Component::IFabric_op_completer::complete_tentative completion_callback) override;
 
   std::size_t stalled_completion_count() override;
 
+  /*
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_control fail
+   * @throw std::system_error : pselect fail
+   */
   void wait_for_next_completion(unsigned polls_limit) override;
+  /*
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_control fail
+   * @throw std::system_error : pselect fail
+   */
   void wait_for_next_completion(std::chrono::milliseconds timeout) override;
 
   void unblock_completions() override;
@@ -77,8 +119,10 @@ public:
 
   fabric_types::addr_ep_t get_name() const;
 
-  void queue_completion(void *context, status_t status);
-  std::size_t drain_old_completions(std::function<void(void *context, status_t st) noexcept> completion_callback);
+  void queue_completion(void *context, ::status_t status, const ::fi_cq_tagged_entry &cq_entry);
+  std::size_t drain_old_completions(Component::IFabric_op_completer::complete_old completion_callback);
+  std::size_t drain_old_completions(Component::IFabric_op_completer::complete_definite completion_callback);
+  std::size_t drain_old_completions(Component::IFabric_op_completer::complete_tentative completion_callback);
 };
 
 #endif

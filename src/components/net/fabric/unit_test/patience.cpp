@@ -1,5 +1,6 @@
 #include "patience.h"
 
+#include <gtest/gtest.h>
 #include <api/fabric_itf.h> /* IFabric, IFabric_client, IFabric_client_grouped */
 #include <system_error>
 
@@ -22,6 +23,7 @@ Component::IFabric_client *open_connection_patiently(Component::IFabric &fabric_
     }
     ++try_count;
   }
+  EXPECT_LT(0U, cnxn->max_message_size());
   return cnxn;
 }
 
@@ -44,5 +46,6 @@ Component::IFabric_client_grouped *open_connection_grouped_patiently(Component::
     }
     ++try_count;
   }
+  EXPECT_LT(0U, cnxn->max_message_size());
   return cnxn;
 }

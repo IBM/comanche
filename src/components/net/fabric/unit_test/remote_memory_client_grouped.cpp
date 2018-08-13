@@ -35,12 +35,12 @@ try
   auto &cnxn = rms.cnxn();
 
   cnxn.post_recv(v, this);
-  wait_poll(
+  ::wait_poll(
     cnxn
-    , [&v, this] (void *ctxt, ::status_t st) -> void
+    , [&v, this] (void *ctxt_, ::status_t stat_) -> void
       {
-        ASSERT_EQ(ctxt, this);
-        ASSERT_EQ(st, S_OK);
+        ASSERT_EQ(ctxt_, this);
+        ASSERT_EQ(stat_, S_OK);
         ASSERT_EQ(v[0].iov_len, (sizeof _vaddr) + sizeof( _key));
         std::memcpy(&_vaddr, &rm_out()[0], sizeof _vaddr);
         std::memcpy(&_key, &rm_out()[sizeof _vaddr], sizeof _key);
@@ -75,4 +75,9 @@ void remote_memory_client_grouped::send_disconnect(Component::IFabric_communicat
 Component::IFabric_communicator *remote_memory_client_grouped::allocate_group() const
 {
   return _cnxn->allocate_group();
+}
+
+std::size_t remote_memory_client_grouped::max_message_size() const
+{
+  return _cnxn->max_message_size();
 }

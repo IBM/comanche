@@ -21,9 +21,9 @@
 
 #include "fabric_comm_grouped.h"
 
-#include "fabric_generic_grouped.h"
 #include "async_req_record.h"
-#include "fabric_error.h"
+#include "fabric_generic_grouped.h"
+#include "fabric_runtime_error.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
@@ -144,16 +144,17 @@ void Fabric_comm_grouped::inject_send(const std::vector<iovec>& buffers_)
   _conn.inject_send(buffers_);
 }
 
-void Fabric_comm_grouped::queue_completion(void *context_, status_t status_)
+void Fabric_comm_grouped::queue_completion(void *context_, ::status_t status_, const ::fi_cq_tagged_entry &cq_entry_)
 {
   std::lock_guard<std::mutex> k2{_m_completions};
-  _completions.push(completion_t(context_, status_));
+  _completions.push(completion_t(cq_entry_, status_));
+  std::get<0>(_completions.back()).op_context = context_;
 }
 
-std::size_t Fabric_comm_grouped::process_or_queue_completion(async_req_record *g_context_, std::function<void(void *context, status_t st)> cb_, status_t status_)
+std::size_t Fabric_comm_grouped::process_or_queue_completion(const ::fi_cq_tagged_entry &cq_entry_, Component::IFabric_op_completer::complete_old cb_, ::status_t status_)
 {
   std::size_t ct_total = 0U;
-  std::unique_ptr<async_req_record> g_context(g_context_);
+  std::unique_ptr<async_req_record> g_context(static_cast<async_req_record *>(cq_entry_.op_context));
   if ( g_context->comm() == this )
   {
     cb_(g_context->context(), status_);
@@ -161,57 +162,153 @@ std::size_t Fabric_comm_grouped::process_or_queue_completion(async_req_record *g
   }
   else
   {
-    _conn.queue_completion(g_context->comm(), g_context->context(), status_);
+    _conn.queue_completion(g_context->comm(), g_context->context(), status_, cq_entry_);
   }
   g_context.release();
 
   return ct_total;
 }
 
-std::size_t Fabric_comm_grouped::process_cq_comp_err(std::function<void(void *context, status_t st)> cb_)
+std::size_t Fabric_comm_grouped::process_or_queue_completion(const ::fi_cq_tagged_entry &cq_entry_, Component::IFabric_op_completer::complete_definite cb_, ::status_t status_)
+{
+  std::size_t ct_total = 0U;
+  std::unique_ptr<async_req_record> g_context(static_cast<async_req_record *>(cq_entry_.op_context));
+  if ( g_context->comm() == this )
+  {
+    cb_(g_context->context(), status_, cq_entry_.flags, cq_entry_.len, nullptr);
+    ++ct_total;
+  }
+  else
+  {
+    _conn.queue_completion(g_context->comm(), g_context->context(), status_, cq_entry_);
+  }
+  g_context.release();
+
+  return ct_total;
+}
+
+std::size_t Fabric_comm_grouped::process_or_queue_completion(const ::fi_cq_tagged_entry &cq_entry_, Component::IFabric_op_completer::complete_tentative cb_, ::status_t status_)
+{
+  std::size_t ct_total = 0U;
+  std::unique_ptr<async_req_record> g_context(static_cast<async_req_record *>(cq_entry_.op_context));
+  if ( g_context->comm() == this && cb_(g_context->context(), status_, cq_entry_.flags, cq_entry_.len, nullptr) == cb_acceptance::ACCEPT )
+  {
+    ++ct_total;
+  }
+  else
+  {
+    _conn.queue_completion(g_context->comm(), g_context->context(), status_, cq_entry_);
+  }
+  g_context.release();
+
+  return ct_total;
+}
+
+std::size_t Fabric_comm_grouped::process_cq_comp_err(Component::IFabric_op_completer::complete_old cb_)
 {
   /* ERROR: the error context is not necessarily the expected context, and therefore may not be an async_req_record */
-  return process_or_queue_completion(static_cast<async_req_record *>(_conn.get_cq_comp_err()), cb_, E_FAIL);
+  const ::fi_cq_err_entry e{_conn.get_cq_comp_err()};
+  const ::fi_cq_tagged_entry err_entry{e.op_context, e.flags, e.len, e.buf, e.data, e.tag};
+  return process_or_queue_completion(err_entry, cb_, E_FAIL);
+}
+
+std::size_t Fabric_comm_grouped::process_cq_comp_err(Component::IFabric_op_completer::complete_definite cb_)
+{
+  /* ERROR: the error context is not necessarily the expected context, and therefore may not be an async_req_record */
+  const ::fi_cq_err_entry e{_conn.get_cq_comp_err()};
+  const ::fi_cq_tagged_entry err_entry{e.op_context, e.flags, e.len, e.buf, e.data, e.tag};
+  return process_or_queue_completion(err_entry, cb_, E_FAIL);
+}
+
+std::size_t Fabric_comm_grouped::process_cq_comp_err(Component::IFabric_op_completer::complete_tentative cb_)
+{
+  /* ERROR: the error context is not necessarily the expected context, and therefore may not be an async_req_record */
+  const ::fi_cq_err_entry e{_conn.get_cq_comp_err()};
+  const ::fi_cq_tagged_entry err_entry{e.op_context, e.flags, e.len, e.buf, e.data, e.tag};
+  return process_or_queue_completion(err_entry, cb_, E_FAIL);
 }
 
   /**
    * Poll completions (e.g., completions)
    *
-   * @param completion_callback (context_t, status_t status, void* error_data)
+   * @param cb_ (context_t, ::status_t status, void* error_data)
    *
    * @return Number of completions processed
    */
 
-std::size_t Fabric_comm_grouped::drain_old_completions(std::function<void(void *context, status_t st) noexcept> completion_callback)
+std::size_t Fabric_comm_grouped::drain_old_completions(Component::IFabric_op_completer::complete_old cb_)
 {
   std::size_t ct_total = 0U;
   std::unique_lock<std::mutex> k{_m_completions};
   while ( ! _completions.empty() )
   {
-    auto &c = _completions.front();
+    auto c = _completions.front();
     _completions.pop();
     k.unlock();
-    completion_callback(std::get<0>(c), std::get<1>(c));
+    const auto cq_entry{std::get<0>(c)};
+    cb_(cq_entry.op_context, std::get<1>(c));
     ++ct_total;
     k.lock();
   }
   return ct_total;
 }
 
-std::size_t Fabric_comm_grouped::poll_completions(std::function<void(void *context, status_t st) noexcept> completion_callback)
+std::size_t Fabric_comm_grouped::drain_old_completions(Component::IFabric_op_completer::complete_definite cb_)
 {
-  auto ct_total = drain_old_completions(completion_callback);
+  std::size_t ct_total = 0U;
+  std::unique_lock<std::mutex> k{_m_completions};
+  while ( ! _completions.empty() )
+  {
+    auto c = _completions.front();
+    _completions.pop();
+    k.unlock();
+    const auto cq_entry{std::get<0>(c)};
+    cb_(cq_entry.op_context, std::get<1>(c), cq_entry.flags, cq_entry.len, nullptr);
+    ++ct_total;
+    k.lock();
+  }
+  return ct_total;
+}
+
+std::size_t Fabric_comm_grouped::drain_old_completions(Component::IFabric_op_completer::complete_tentative cb_)
+{
+  std::size_t ct_total = 0U;
+  std::unique_lock<std::mutex> k{_m_completions};
+  std::queue<completion_t> deferred_completions;
+  while ( ! _completions.empty() )
+  {
+    auto c = _completions.front();
+    _completions.pop();
+    k.unlock();
+    const auto cq_entry{std::get<0>(c)};
+    if ( cb_(cq_entry.op_context, std::get<1>(c), cq_entry.flags, cq_entry.len, nullptr) == cb_acceptance::ACCEPT )
+    {
+      ++ct_total;
+    }
+    else
+    {
+      deferred_completions.push(c);
+    }
+    k.lock();
+  }
+  std::swap(deferred_completions, _completions);
+  return ct_total;
+}
+
+std::size_t Fabric_comm_grouped::poll_completions(Component::IFabric_op_completer::complete_old cb_)
+{
+  auto ct_total = drain_old_completions(cb_);
 
   bool drained = false;
   while ( ! drained )
   {
     std::size_t constexpr ct_max = 1;
-    fi_cq_tagged_entry entry; /* We dont actually expect a tagged entry. Spefifying this to provide the largest buffer. */
+    fi_cq_tagged_entry entry; /* We do not expect a tagged entry, but specify it to provide the largest buffer. */
 
-    switch ( auto ct = _conn.cq_sread(&entry, ct_max, nullptr, 0) )
+    switch ( const auto ct = _conn.cq_sread(&entry, ct_max, nullptr, 0) )
     {
     case -FI_EAVAIL:
-      ct_total += process_cq_comp_err(completion_callback);
+      ct_total += process_cq_comp_err(cb_);
       break;
     case -FI_EAGAIN:
       drained = true;
@@ -219,13 +316,78 @@ std::size_t Fabric_comm_grouped::poll_completions(std::function<void(void *conte
     default:
       if ( ct < 0 )
       {
-        throw fabric_error(unsigned(-ct), __FILE__, __LINE__);
+        throw fabric_runtime_error(unsigned(-ct), __FILE__, __LINE__);
       }
 
-      ct_total += process_or_queue_completion(static_cast<async_req_record *>(entry.op_context), completion_callback, S_OK);
+      ct_total += process_or_queue_completion(entry, cb_, S_OK);
       break;
     }
   }
+
+  return ct_total;
+}
+
+std::size_t Fabric_comm_grouped::poll_completions(Component::IFabric_op_completer::complete_definite cb_)
+{
+  auto ct_total = drain_old_completions(cb_);
+
+  bool drained = false;
+  while ( ! drained )
+  {
+    std::size_t constexpr ct_max = 1;
+    fi_cq_tagged_entry entry; /* We do not expect a tagged entry, but specify it to provide the largest buffer. */
+
+    switch ( const auto ct = _conn.cq_sread(&entry, ct_max, nullptr, 0) )
+    {
+    case -FI_EAVAIL:
+      ct_total += process_cq_comp_err(cb_);
+      break;
+    case -FI_EAGAIN:
+      drained = true;
+      break;
+    default:
+      if ( ct < 0 )
+      {
+        throw fabric_runtime_error(unsigned(-ct), __FILE__, __LINE__);
+      }
+
+      ct_total += process_or_queue_completion(entry, cb_, S_OK);
+      break;
+    }
+  }
+
+  return ct_total;
+}
+
+std::size_t Fabric_comm_grouped::poll_completions_tentative(Component::IFabric_op_completer::complete_tentative cb_)
+{
+  std::size_t ct_total = 0U;
+  bool drained = false;
+  while ( ! drained )
+  {
+    std::size_t constexpr ct_max = 1;
+    fi_cq_tagged_entry entry; /* We do not expect a tagged entry, but specify it to provide the largest buffer. */
+
+    switch ( auto ct = _conn.cq_sread(&entry, ct_max, nullptr, 0) )
+    {
+    case -FI_EAVAIL:
+      ct_total += process_cq_comp_err(cb_);
+      break;
+    case -FI_EAGAIN:
+      drained = true;
+      break;
+    default:
+      if ( ct < 0 )
+      {
+        throw fabric_runtime_error(unsigned(-ct), __FILE__, __LINE__);
+      }
+
+      ct_total += process_or_queue_completion(entry, cb_, S_OK);
+      break;
+    }
+  }
+
+  ct_total += drain_old_completions(cb_);
 
   return ct_total;
 }

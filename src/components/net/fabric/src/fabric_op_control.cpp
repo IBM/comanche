@@ -24,8 +24,8 @@
 #include "event_registration.h"
 #include "fabric.h" /* trywait() */
 #include "fabric_check.h" /* CHECK_FI_ERR */
-#include "fabric_error.h"
 #include "fabric_ptr.h" /* fid_unique_ptr */
+#include "fabric_runtime_error.h"
 #include "fabric_str.h" /* tostr */
 #include "fabric_util.h" /* make_fi_infodup, get_event_name */
 #include "fd_control.h"
@@ -64,6 +64,8 @@ Fabric_op_control::Fabric_op_control(
   : Fabric_memory_control(
       fabric_, info_
   )
+  , _m_completions{}
+  , _completions{}
 #if CAN_USE_WAIT_SETS
   /* verbs provider does not support wait sets */
   , _wait_attr{
@@ -235,7 +237,7 @@ void Fabric_op_control::inject_send(const std::vector<iovec>& buffers)
   CHECK_FI_ERR(::fi_inject(&ep(), &*buffers.begin(), buffers.size(), ::fi_addr_t{}));
 }
 
-void *Fabric_op_control::get_cq_comp_err() const
+::fi_cq_err_entry Fabric_op_control::get_cq_comp_err() const
 {
   ::fi_cq_err_entry err{0,0,0,0,0,0,0,0,0,0,0};
   CHECK_FI_ERR(cq_readerr(&err, 0));
@@ -253,28 +255,60 @@ void *Fabric_op_control::get_cq_comp_err() const
                   << " olen " << err.olen
                   << " err " << err.err
                   << " (text) " << ::fi_strerror(err.err)
-                  << " errno " << err.prov_errno
+                  << " prov_errno " << err.prov_errno
                   << " err_data " << err.err_data
                   << " err_data_size " << err.err_data_size
+                  << " (text) " << ::fi_cq_strerror(&*_cq, err.prov_errno, err.err_data, nullptr, 0U)
         << std::endl;
-  return err.op_context;
+  return err;
 }
 
-std::size_t Fabric_op_control::process_cq_comp_err(std::function<void(void *connection, status_t st)> completion_callback)
+std::size_t Fabric_op_control::process_or_queue_completion(const ::fi_cq_tagged_entry &cq_entry_, Component::IFabric_op_completer::complete_tentative cb_, ::status_t status_)
 {
-  completion_callback(get_cq_comp_err(), E_FAIL);
+  std::size_t ct_total = 0U;
+  if ( cb_(cq_entry_.op_context, status_, cq_entry_.flags, cq_entry_.len, nullptr) == cb_acceptance::ACCEPT )
+  {
+    ++ct_total;
+  }
+  else
+  {
+    queue_completion(cq_entry_, status_);
+  }
+
+  return ct_total;
+}
+
+std::size_t Fabric_op_control::process_cq_comp_err(Component::IFabric_op_completer::complete_old cb_)
+{
+  const auto cq_entry = get_cq_comp_err();
+  cb_(cq_entry.op_context, E_FAIL);
   return 1U;
+}
+
+std::size_t Fabric_op_control::process_cq_comp_err(Component::IFabric_op_completer::complete_definite cb_)
+{
+  const auto cq_entry = get_cq_comp_err();
+  cb_(cq_entry.op_context, E_FAIL, cq_entry.flags, cq_entry.len, nullptr);
+  return 1U;
+}
+
+#include <iostream>
+std::size_t Fabric_op_control::process_or_queue_cq_comp_err(Component::IFabric_op_completer::complete_tentative cb_)
+{
+  const auto e = get_cq_comp_err();
+  const ::fi_cq_tagged_entry err_entry{e.op_context, e.flags, e.len, e.buf, e.data, e.tag};
+  return process_or_queue_completion(err_entry, cb_, E_FAIL);
 }
 
 /**
  * Poll completions (e.g., completions)
  *
- * @param completion_callback (context_t, status_t status, void* error_data)
+ * @param completion_callback (context_t, ::status_t status, void* error_data)
  *
  * @return Number of completions processed
  */
 
-std::size_t Fabric_op_control::poll_completions(std::function<void(void *context, status_t st) noexcept> cb_)
+std::size_t Fabric_op_control::poll_completions(Component::IFabric_op_completer::complete_old cb_)
 {
   std::size_t constexpr ct_max = 1;
   std::size_t ct_total = 0;
@@ -295,7 +329,7 @@ std::size_t Fabric_op_control::poll_completions(std::function<void(void *context
         drained = true;
         break;
       default:
-        throw fabric_error(e, __FILE__, __LINE__);
+        throw fabric_runtime_error(e, __FILE__, __LINE__);
       }
     }
     else
@@ -305,9 +339,90 @@ std::size_t Fabric_op_control::poll_completions(std::function<void(void *context
     }
   }
 
+  ct_total += drain_old_completions(cb_);
+
   if ( _shut_down && ct_total == 0 )
   {
-    throw std::logic_error("Connection closed");
+    throw std::logic_error(__func__ + std::string(": Connection closed"));
+  }
+  return ct_total;
+}
+
+std::size_t Fabric_op_control::poll_completions(Component::IFabric_op_completer::complete_definite cb_)
+{
+  std::size_t constexpr ct_max = 1;
+  std::size_t ct_total = 0;
+  ::fi_cq_tagged_entry entry; /* We dont actually expect a tagged entry. Spefifying this to provide the largest buffer. */
+  bool drained = false;
+  while ( ! drained )
+  {
+    auto timeout = 0; /* immediate timeout */
+    auto ct = cq_sread(&entry, ct_max, nullptr, timeout);
+    if ( ct < 0 )
+    {
+      switch ( auto e = unsigned(-ct) )
+      {
+      case FI_EAVAIL:
+        ct_total += process_cq_comp_err(cb_);
+        break;
+      case FI_EAGAIN:
+        drained = true;
+        break;
+      default:
+        throw fabric_runtime_error(e, __FILE__, __LINE__);
+      }
+    }
+    else
+    {
+      cb_(entry.op_context, S_OK, entry.flags, entry.len, nullptr);
+      ++ct_total;
+    }
+  }
+
+  ct_total += drain_old_completions(cb_);
+
+  if ( _shut_down && ct_total == 0 )
+  {
+    throw std::logic_error(__func__ + std::string(": Connection closed"));
+  }
+  return ct_total;
+}
+
+std::size_t Fabric_op_control::poll_completions_tentative(Component::IFabric_op_completer::complete_tentative cb_)
+{
+  std::size_t constexpr ct_max = 1;
+  std::size_t ct_total = 0;
+  ::fi_cq_tagged_entry entry; /* We dont actually expect a tagged entry. Specifying this to provide the largest buffer. */
+  bool drained = false;
+  while ( ! drained )
+  {
+    auto timeout = 0; /* immediate timeout */
+    auto ct = cq_sread(&entry, ct_max, nullptr, timeout);
+    if ( ct < 0 )
+    {
+      switch ( auto e = unsigned(-ct) )
+      {
+      case FI_EAVAIL:
+        ct_total += process_or_queue_cq_comp_err(cb_);
+        break;
+      case FI_EAGAIN:
+        drained = true;
+        break;
+      default:
+        throw fabric_runtime_error(e, __FILE__, __LINE__);
+      }
+    }
+    else
+    {
+      ct_total += process_or_queue_completion(entry, cb_, S_OK);
+    }
+  }
+
+  ct_total += drain_old_completions(cb_);
+
+  if ( _shut_down && ct_total == 0 )
+  {
+    throw std::logic_error(__func__ + std::string(": Connection closed"));
   }
   return ct_total;
 }
@@ -318,6 +433,7 @@ std::size_t Fabric_op_control::poll_completions(std::function<void(void *context
  * @param polls_limit Maximum number of polls (throws exception on exceeding limit)
  *
  * @return Next completion context
+ * @throw std::system_error - creating fd pair
  */
 void Fabric_op_control::wait_for_next_completion(std::chrono::milliseconds timeout)
 {
@@ -378,7 +494,7 @@ void Fabric_op_control::wait_for_next_completion(unsigned polls_limit)
     {
       return wait_for_next_completion(std::chrono::milliseconds(0));
     }
-    catch ( const fabric_error &e )
+    catch ( const fabric_runtime_error &e )
     {
       if ( e.id() != FI_ETIMEDOUT )
       {
@@ -574,7 +690,77 @@ try
   FABRIC_TRACE_FID(f);
   return fid_ptr(f);
 }
-catch ( const fabric_error &e )
+catch ( const fabric_runtime_error &e )
 {
   throw e.add(tostr(info));
+}
+
+void Fabric_op_control::queue_completion(const ::fi_cq_tagged_entry &entry_, ::status_t status_)
+{
+  std::lock_guard<std::mutex> k2{_m_completions};
+  _completions.push(completion_t(status_, entry_));
+}
+
+std::size_t Fabric_op_control::drain_old_completions(Component::IFabric_op_completer::complete_old completion_callback)
+{
+  std::size_t ct_total = 0U;
+  std::unique_lock<std::mutex> k{_m_completions};
+  while ( ! _completions.empty() )
+  {
+    auto c = _completions.front();
+    _completions.pop();
+    k.unlock();
+    const auto &cq_entry = std::get<1>(c);
+    completion_callback(cq_entry.op_context, std::get<0>(c));
+    ++ct_total;
+    k.lock();
+  }
+  return ct_total;
+}
+
+std::size_t Fabric_op_control::drain_old_completions(Component::IFabric_op_completer::complete_definite completion_callback)
+{
+  std::size_t ct_total = 0U;
+  std::unique_lock<std::mutex> k{_m_completions};
+  while ( ! _completions.empty() )
+  {
+    auto c = _completions.front();
+    _completions.pop();
+    k.unlock();
+    const auto &cq_entry = std::get<1>(c);
+    completion_callback(cq_entry.op_context, std::get<0>(c), cq_entry.flags, cq_entry.len, nullptr);
+    ++ct_total;
+    k.lock();
+  }
+  return ct_total;
+}
+
+std::size_t Fabric_op_control::drain_old_completions(Component::IFabric_op_completer::complete_tentative completion_callback)
+{
+  std::size_t ct_total = 0U;
+  std::unique_lock<std::mutex> k{_m_completions};
+  std::queue<completion_t> deferred_completions;
+  while ( ! _completions.empty() )
+  {
+    auto c = _completions.front();
+    _completions.pop();
+    k.unlock();
+    const auto &cq_entry = std::get<1>(c);
+    if ( completion_callback(cq_entry.op_context, std::get<0>(c), cq_entry.flags, cq_entry.len, nullptr) == cb_acceptance::ACCEPT )
+    {
+      ++ct_total;
+    }
+    else
+    {
+      deferred_completions.push(c);
+    }
+    k.lock();
+  }
+  std::swap(deferred_completions, _completions);
+  return ct_total;
+}
+
+std::size_t Fabric_op_control::max_message_size() const noexcept
+{
+  return _ep_info->ep_attr->max_msg_size;
 }
