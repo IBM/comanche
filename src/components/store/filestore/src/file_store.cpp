@@ -37,7 +37,11 @@ struct Pool_handle
   int get_direct(const std::string key,
                  void* out_value,
                  size_t& out_value_len);
-  
+
+  int put_direct(const std::string& key,
+                 const void * value,
+                 const size_t value_len);
+
   int erase(const std::string key);
 
 };
@@ -139,6 +143,14 @@ int Pool_handle::get_direct(const std::string key,
   return S_OK;
 }
 
+
+int Pool_handle::put_direct(const std::string& key,
+                            const void * value,
+                            const size_t value_len)
+{
+  // FileStore doesn't support direct memory access, but API is supported for testing
+  return Pool_handle::put(key, value, value_len);
+}
 
 
 int Pool_handle::erase(const std::string key)
@@ -274,6 +286,16 @@ status_t FileStore::get_direct(const pool_t pid,
   return handle->get_direct(key, out_value, out_value_len);
 }
 
+status_t FileStore::put_direct(const IKVStore::pool_t pool,
+                    const void * key,
+                    const size_t key_len,
+                    const void * value,
+                    const size_t value_len)
+{
+  std::string key_string(static_cast<const char*>(key), key_len);
+
+  return FileStore::put(pool, key_string, value, value_len);
+}
 
 status_t FileStore::erase(const pool_t pid,
                           const std::string key)
