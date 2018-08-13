@@ -157,11 +157,22 @@ public:
        FILE *pFile = fopen(_report_filename.c_str(), "r+");
        assert(pFile);
 
-       rapidjson::FileStream is(pFile);
+       char readBuffer[GetFileSize(_report_filename)];
+
+       rapidjson::FileReadStream is(pFile, readBuffer, sizeof(readBuffer));
        rapidjson::Document document;
        document.ParseStream<0>(is);
 
        return document;
+    }
+
+    long GetFileSize(std::string filename)
+    {
+        struct stat stat_buf;
+
+        int rc = stat(filename.c_str(), &stat_buf);
+
+        return rc == 0 ? stat_buf.st_size : -1;
     }
 
     void _report_document_save(rapidjson::Document& document, unsigned core, rapidjson::Value& new_info)
