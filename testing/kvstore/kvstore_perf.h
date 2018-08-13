@@ -3,8 +3,10 @@
 
 #include <api/kvstore_itf.h>
 #include <pthread.h>
+#include <sys/stat.h>
+
 #include "rapidjson/document.h"
-#include "rapidjson/filestream.h"
+#include "rapidjson/filereadstream.h"
 #include "rapidjson/prettywriter.h"
 #include "rapidjson/stringbuffer.h"
 
