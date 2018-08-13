@@ -19,7 +19,7 @@
 #include "bad_dest_addr_alloc.h"
 #include "event_producer.h"
 #include "fabric_check.h" /* CHECK_FI_ERR */
-#include "fabric_error.h"
+#include "fabric_runtime_error.h"
 #include "fabric_str.h" /* tostr */
 #include "fabric_types.h"
 #include "fd_control.h"
@@ -46,6 +46,9 @@ namespace
    *
    * (This is a work-around for what looks like a bug in the verbs provider.
    * It should probably accept addr, as the sockets provider does.)
+   *
+   * @throw bad_dest_addr_alloc
+   * @throw std::system_error (receiving fabric server name)
    */
   fabric_types::addr_ep_t set_peer_early(std::unique_ptr<Fd_control> control_, ::fi_info &ep_info_)
   {
@@ -69,12 +72,15 @@ namespace
     return remote_addr;
   }
 
+  /*
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_connect fail
+   */
   void fi_void_connect(::fid_ep &ep_, const ::fi_info &ep_info_, const void *addr_, const void *param_, size_t paramlen_)
   try
   {
     CHECK_FI_ERR(::fi_connect(&ep_, addr_, param_, paramlen_));
   }
-  catch ( const fabric_error &e )
+  catch ( const fabric_runtime_error &e )
   {
     throw e.add(tostr(ep_info_));
   }
@@ -99,7 +105,7 @@ try
     expect_event_sync(FI_CONNECTED);
   }
 }
-catch ( fabric_error &e )
+catch ( fabric_runtime_error &e )
 {
   throw e.add("in Fabric_connection_client constuctor");
 }

@@ -34,6 +34,10 @@ struct fid_wait;
  *
  */
 
+/**
+ *
+ * @throw fabric_runtime_error : std::runtime_error : ::fi_wait_open fail
+ */
 fid_unique_ptr<::fid_wait> make_fid_wait(::fid_fabric &fabric, ::fi_wait_attr &attr);
 
 #endif

@@ -21,6 +21,7 @@
 
 #include "delete_copy.h"
 #include "event_registration.h"
+#include "fabric_types.h"
 #include "fd_pair.h"
 #include "fd_socket.h"
 #include "pending_cnxns.h"
@@ -53,28 +54,62 @@ class Fabric_server_generic_factory
   event_producer &_eq;
   std::thread _th;
 
+  /*
+   * @throw std::logic_error : socket initialized with a negative value (from ::socket)
+   */
   static Fd_socket make_listener(std::uint16_t port);
+  /*
+   * @throw std::system_error - ::setsockopt
+   * @throw std::system_error - ::bind
+   * @throw std::system_error - ::listem
+   *
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_listen fail
+   * @throw std::logic_error : socket initialized with a negative value (from ::socket)
+   */
   void listen(std::uint16_t port, int end_fd, ::fid_pep &pep);
+  void listen_loop(int end_fd, const fabric_types::addr_ep_t &pep_name, const Fd_socket &listen_fd) noexcept;
 
+  /**
+   * @throw fabric_bad_alloc : std::bad_alloc - libfabric out of memory
+   */
   virtual std::shared_ptr<Fabric_memory_control> new_server(Fabric &fabric, event_producer &eq, ::fi_info &info) = 0;
 protected:
   ~Fabric_server_generic_factory();
 public:
-  /* Note: fi_info is not const because we reuse it when constructing the passize endpoint */
+  /**
+   * Note: fi_info is not const because we reuse it when constructing the passize endpoint
+   *
+   * @throw std::system_error - ::setsockopt
+   * @throw std::system_error - ::bind
+   * @throw std::system_error - ::listen
+   *
+   * @throw std::logic_error : socket initialized with a negative value (from ::socket)
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_passive_ep fail
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_pep_bind fail
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_listen fail
+   * @throw std::system_error - creating end fd pair
+   */
   explicit Fabric_server_generic_factory(Fabric &fabric, event_producer &ev_pr, ::fi_info &info, std::uint16_t control_port);
   DELETE_COPY(Fabric_server_generic_factory);
   Fabric_server_generic_factory(Fabric_server_generic_factory &&) noexcept;
 
+  /*
+   * @throw std::logic_error : unexpected event
+   * @throw std::system_error : read error on event pipe
+   */
   Fabric_memory_control* get_new_connection();
 
   void close_connection(Fabric_memory_control* connection);
 
   std::vector<Fabric_memory_control*> connections();
 
-  std::size_t max_message_size() const;
+  std::size_t max_message_size() const noexcept;
 
   std::string get_provider_name() const;
 
+  /**
+   * @throw fabric_bad_alloc : std::bad_alloc - libfabric out of memory
+   */
   void cb(std::uint32_t event, ::fi_eq_cm_entry &entry) noexcept override;
   void err(::fi_eq_err_entry &entry) noexcept override;
 };

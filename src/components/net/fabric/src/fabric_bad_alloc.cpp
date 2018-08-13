@@ -14,14 +14,22 @@
    limitations under the License.
 */
 
-#include "bad_aligned_alloc.h"
+#include "fabric_bad_alloc.h"
 
-bad_aligned_alloc::bad_aligned_alloc(std::size_t sz_, long align_)
-  : std::bad_alloc()
-  , _what{"Could not aligned_alloc " + std::to_string(sz_) + "," + std::to_string(align_)}
+/*
+ * Authors:
+ *
+ */
+
+#include <stdexcept> /* bad_alloc */
+#include <string>
+
+fabric_bad_alloc::fabric_bad_alloc(const std::string &what)
+  : std::bad_alloc{}
+  , _what{"fabric_bad_alloc: " + what}
 {}
 
-const char *bad_aligned_alloc::what() const noexcept
+const char *fabric_bad_alloc::what() const noexcept
 {
   return _what.c_str();
 }

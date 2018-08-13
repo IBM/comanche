@@ -20,8 +20,8 @@ class registered_memory;
 class remote_memory_client
   : public remote_memory_accessor
 {
-  static void check_complete_static(void *t_, void *rmc_, ::status_t stat_);
-  void check_complete(::status_t stat_);
+  static void check_complete_static(void *t, void *ctxt, ::status_t stat);
+  void check_complete(::status_t stat);
 
   std::shared_ptr<Component::IFabric_client> _cnxn;
   std::shared_ptr<registered_memory> _rm_out;
@@ -54,9 +54,11 @@ public:
   std::uint64_t key() const { return _key; }
   Component::IFabric_client &cnxn() { return *_cnxn; }
 
-  void write(const std::string &msg_);
+  void write(const std::string &msg_, bool force_error = false);
+  void write_badly(const std::string &msg_) { return write(msg_, true); }
 
   void read_verify(const std::string &msg_);
+  std::size_t max_message_size() const;
 };
 
 #endif

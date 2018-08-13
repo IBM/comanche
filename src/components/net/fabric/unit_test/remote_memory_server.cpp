@@ -24,6 +24,7 @@ void remote_memory_server::listener(Component::IFabric_server_factory &ep_, std:
   for ( ; ! quit; ++remote_key_index_ )
   {
     server_connection sc(ep_);
+    EXPECT_EQ(sc.cnxn().max_message_size(), this->max_message_size());
     /* register an RDMA memory region */
     registered_memory rm{sc.cnxn(), remote_key_index_};
     /* send the client address and key to memory */
@@ -37,12 +38,12 @@ void remote_memory_server::listener(Component::IFabric_server_factory &ep_, std:
       iv.iov_len = 1;
       v.emplace_back(iv);
       sc.cnxn().post_recv(v, this);
-      wait_poll(
+      ::wait_poll(
         sc.cnxn()
-        , [&v, &quit, &rm, this] (void *ctxt, ::status_t st) -> void
+        , [&v, &quit, &rm, this] (void *ctxt_, ::status_t stat_) -> void
           {
-            ASSERT_EQ(ctxt, this);
-            ASSERT_EQ(st, S_OK);
+            ASSERT_EQ(ctxt_, this);
+            ASSERT_EQ(stat_, S_OK);
             ASSERT_EQ(v[0].iov_len, 1);
             /* did client leave with the "quit byte" set to 'q'? */
             quit |= rm[0] == 'q';
@@ -99,4 +100,9 @@ try
 catch ( std::exception &e )
 {
   std::cerr << __func__ << " exception " << e.what() << eyecatcher << std::endl;
+}
+
+std::size_t remote_memory_server::max_message_size() const
+{
+  return _ep->max_message_size();
 }

@@ -24,17 +24,18 @@
 #include "fabric_check.h" /* FI_CHECK_ERR */
 #include "fabric_client.h"
 #include "fabric_client_grouped.h"
+#include "fabric_json.h"
+#include "fabric_runtime_error.h"
 #include "fabric_server_factory.h"
 #include "fabric_server_grouped_factory.h"
-#include "fabric_error.h"
-#include "fabric_json.h"
 #include "fabric_str.h" /* tostr */
 #include "fabric_util.h"
+#include "hints.h"
 #include "system_fail.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wshadow"
-#include <rdma/fabric.h> /* fi_info */
+#include <rdma/fabric.h> /* fi_info, FI_VERSION */
 #pragma GCC diagnostic pop
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
@@ -80,6 +81,59 @@ namespace
      */
     attr_.wait_obj = FI_WAIT_FD;
     return attr_;
+  }
+
+  std::shared_ptr<::fid_fabric> make_fid_fabric(::fi_fabric_attr &attr_, void *context_)
+  try
+  {
+    ::fid_fabric *f(nullptr);
+    CHECK_FI_ERR(::fi_fabric(&attr_, &f, context_));
+    FABRIC_TRACE_FID(f);
+    return fid_ptr(f);
+  }
+  catch ( const fabric_runtime_error &e )
+  {
+    throw e.add(tostr(attr_));
+  }
+
+  std::shared_ptr<::fi_info> make_fi_info(
+    std::uint32_t version_
+    , const char *node_
+    , const char *service_
+    , const ::fi_info *hints_
+  )
+  try
+  {
+    ::fi_info *f;
+    CHECK_FI_ERR(::fi_getinfo(version_, node_, service_, 0, hints_, &f));
+    return std::shared_ptr<::fi_info>(f,::fi_freeinfo);
+  }
+  catch ( const fabric_runtime_error &e_ )
+  {
+    if ( hints_ )
+    {
+      throw e_.add(tostr(*hints_));
+    }
+    throw;
+  }
+
+  std::shared_ptr<::fi_info> make_fi_info(const ::fi_info &hints)
+  {
+    return make_fi_info(FI_VERSION(FI_MAJOR_VERSION,FI_MINOR_VERSION), nullptr, nullptr, &hints);
+  }
+
+  std::shared_ptr<::fi_info> make_fi_info(const std::string& json_configuration)
+  {
+    auto h = hints(parse_info(json_configuration));
+
+    const auto default_provider = "verbs";
+    if ( h.prov_name() == nullptr )
+    {
+      h.prov_name(default_provider);
+    }
+
+    return
+      make_fi_info(h.mode(FI_CONTEXT | FI_CONTEXT2).data());
   }
 }
 
@@ -184,6 +238,11 @@ void Fabric::wait_eq()
   }
 }
 
+/*
+ * @throw fabric_bad_alloc : std::bad_alloc - libfabric out of memory
+ * @throw std::system_error - writing event pipe (normal callback)
+ * @throw std::system_error - writing event pipe (readerr_eq)
+ */
 void Fabric::read_eq()
 try
 {
@@ -206,7 +265,7 @@ try
         std::cerr << __func__ << ": fabric error " << e << " (" << ::fi_strerror(int(e)) << ")\n";
         std::this_thread::sleep_for(std::chrono::seconds(1));
 #if 0
-        throw fabric_error(e, __FILE__, __LINE__);
+        throw fabric_runtime_error(e, __FILE__, __LINE__);
 #endif
         break;
       }
@@ -234,6 +293,11 @@ try
         found = true;
       }
     }
+    catch ( const std::bad_alloc &e )
+    {
+      std::cerr << __func__ << " (aep event path): bad_alloc: " << e.what() << "\n";
+      throw;
+    }
     catch ( const std::exception &e )
     {
       std::cerr << __func__ << " (aep event path): exception: " << e.what() << "\n";
@@ -252,12 +316,22 @@ try
         found = true;
       }
     }
+    catch ( const std::bad_alloc &e )
+    {
+      std::cerr << __func__ << " (pep event path): bad_alloc: " << e.what() << "\n";
+      throw;
+    }
     catch ( const std::exception &e )
     {
       std::cerr << __func__ << " (pep event path): exception: " << e.what() << "\n";
       throw;
     }
   }
+}
+catch ( const std::bad_alloc &e )
+{
+  std::cerr << __func__ << ": bad_alloc: " << e.what() << "\n";
+  throw;
 }
 catch ( const std::exception &e )
 {
@@ -279,7 +353,7 @@ try
   _info = parse_info(json_configuration_, _info);
   return new Fabric_client(*this, *this, *_info, remote_, control_port_);
 }
-catch ( const fabric_error &e )
+catch ( const fabric_runtime_error &e )
 {
   throw e.add(while_in(__func__));
 }
@@ -294,7 +368,7 @@ try
   _info = parse_info(json_configuration_, _info);
   return static_cast<Component::IFabric_client_grouped *>(new Fabric_client_grouped(*this, *this, *_info, remote_, control_port_));
 }
-catch ( const fabric_error &e )
+catch ( const fabric_runtime_error &e )
 {
   throw e.add(while_in(__func__));
 }
@@ -353,7 +427,7 @@ try
   FABRIC_TRACE_FID(f);
   return fid_ptr(f);
 }
-catch ( const fabric_error &e )
+catch ( const fabric_runtime_error &e )
 {
   throw e.add(tostr(info_));
 }
@@ -367,7 +441,7 @@ try
   FABRIC_TRACE_FID(f);
   return fid_ptr(f);
 }
-catch ( const fabric_error &e )
+catch ( const fabric_runtime_error &e )
 {
   throw e.add(tostr(info_));
 }

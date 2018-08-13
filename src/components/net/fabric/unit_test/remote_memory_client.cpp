@@ -20,12 +20,12 @@
 #include <memory> /* make_shared */
 #include <vector>
 
-void remote_memory_client::check_complete_static(void *t_, void *rmc_, ::status_t stat_)
+void remote_memory_client::check_complete_static(void *t_, void *ctxt_, ::status_t stat_)
 try
 {
   /* The callback context must be the object which was polling. */
-  ASSERT_EQ(t_, rmc_);
-  auto rmc = static_cast<remote_memory_client *>(rmc_);
+  ASSERT_EQ(t_, ctxt_);
+  auto rmc = static_cast<remote_memory_client *>(ctxt_);
   ASSERT_TRUE(rmc);
   rmc->check_complete(stat_);
 }
@@ -62,10 +62,10 @@ try
   _cnxn->post_recv(v, this);
   wait_poll(
       *_cnxn
-    , [&v, this] (void *ctxt, ::status_t st) -> void
+    , [&v, this] (void *ctxt_, ::status_t stat_) -> void
       {
-        ASSERT_EQ(ctxt, this);
-        ASSERT_EQ(st, ::S_OK);
+        ASSERT_EQ(ctxt_, this);
+        ASSERT_EQ(stat_, ::S_OK);
         ASSERT_EQ(v[0].iov_len, (sizeof _vaddr) + sizeof( _key));
         std::memcpy(&_vaddr, &rm_out()[0], sizeof _vaddr);
         std::memcpy(&_key, &rm_out()[sizeof _vaddr], sizeof _key);
@@ -98,20 +98,35 @@ catch ( std::exception &e )
   std::cerr << __func__ << " exception " << e.what() << eyecatcher << std::endl;
 }
 
-void remote_memory_client::write(const std::string &msg_)
+void remote_memory_client::write(const std::string &msg_, bool force_error_)
 {
   std::copy(msg_.begin(), msg_.end(), &rm_out()[0]);
   std::vector<::iovec> buffers(1);
   {
     buffers[0].iov_base = &rm_out()[0];
+    std::ptrdiff_t adjust = 0;
+    if ( force_error_ )
+    {
+      adjust = -8192;
+    }
     buffers[0].iov_len = msg_.size();
-    _cnxn->post_write(buffers, _vaddr + remote_memory_offset, _key, this);
+    _cnxn->post_write(buffers, _vaddr + remote_memory_offset - adjust, _key, this);
   }
   wait_poll(
     *_cnxn
-    , [this] (void *rmc_, ::status_t stat_) { check_complete_static(this, rmc_, stat_); }
+    , [this] (void *ctxt_, ::status_t stat_)
+      {
+        check_complete_static(this, ctxt_, stat_);
+      }
   );
-  EXPECT_EQ(_last_stat, ::S_OK);
+  if ( force_error_ )
+  {
+    EXPECT_NE(_last_stat, ::S_OK);
+  }
+  else
+  {
+    EXPECT_EQ(_last_stat, ::S_OK);
+  }
   if ( _last_stat != ::S_OK )
   {
     std::cerr << "remote_memory_client::" << __func__ << ": " << _last_stat << "\n";
@@ -126,9 +141,12 @@ void remote_memory_client::read_verify(const std::string &msg_)
     buffers[0].iov_len = msg_.size();
     _cnxn->post_read(buffers, _vaddr + remote_memory_offset, _key, this);
   }
-  wait_poll(
+  ::wait_poll(
     *_cnxn
-    , [this] (void *rmc_, ::status_t stat_) { check_complete_static(this, rmc_, stat_); }
+    , [this] (void *ctxt_, ::status_t stat_)
+      {
+        check_complete_static(this, ctxt_, stat_);
+      }
   );
   EXPECT_EQ(_last_stat, ::S_OK);
   if ( _last_stat != ::S_OK )
@@ -137,4 +155,9 @@ void remote_memory_client::read_verify(const std::string &msg_)
   }
   std::string remote_msg(&rm_in()[0], &rm_in()[0] + msg_.size());
   EXPECT_EQ(msg_, remote_msg);
+}
+
+std::size_t remote_memory_client::max_message_size() const
+{
+  return _cnxn->max_message_size();
 }
