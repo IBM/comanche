@@ -42,10 +42,10 @@ void remote_memory_accessor::send_msg(Component::IFabric_communicator &cnxn_, re
     cnxn_.post_send(v, this);
     ::wait_poll(
       cnxn_
-      , [&v, this] (void *ctxt, ::status_t st) -> void
+      , [&v, this] (void *ctxt_, ::status_t stat_) -> void
         {
-          EXPECT_EQ(ctxt, this);
-          EXPECT_EQ(st, S_OK);
+          EXPECT_EQ(ctxt_, this);
+          EXPECT_EQ(stat_, S_OK);
         }
     );
   }

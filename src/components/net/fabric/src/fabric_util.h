@@ -29,30 +29,30 @@
 
 #include "fabric_types.h" /* addr_ep_t */
 
-#include <cstddef> /* size_t */
-#include <cstdint> /* uinat32_t */
+#include <cstdint> /* uint32_t */
 #include <memory> /* shared_ptr */
 #include <string>
 
 struct fi_info;
-struct fi_fabric_attr;
-struct fid_fabric;
-struct fid_ep;
 
 /**
  * Fabric/RDMA-based network component
  *
  */
-void fi_void_connect(::fid_ep &ep, const ::fi_info &ep_info, const void *addr, const void *param, std::size_t paramlen);
 
-std::shared_ptr<::fid_fabric> make_fid_fabric(::fi_fabric_attr &attr, void *context);
-
-std::shared_ptr<::fi_info> make_fi_info(const std::string& json_configuration);
-
+/**
+ * @throw std::bad_alloc : fabric_bad_alloc - libfabric out of memory
+ */
 std::shared_ptr<::fi_info> make_fi_info();
 
+/**
+ * @throw std::bad_alloc : fabric_bad_alloc - libfabric out of memory
+ */
 std::shared_ptr<::fi_info> make_fi_infodup(const ::fi_info &info_, const std::string &why_);
 
+/**
+ * @throw fabric_runtime_error : std::runtime_error : ::fi_getname fail
+ */
 auto get_name(::fid_t fid) -> fabric_types::addr_ep_t;
 
 const char *get_event_name(std::uint32_t e);

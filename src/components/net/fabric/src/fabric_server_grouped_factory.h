@@ -36,20 +36,37 @@ class Fabric_server_grouped_factory
   , public Fabric_server_generic_factory
 {
 public:
-  /* Note: fi_info is not const because we reuse it when constructing the passize endpoint */
+  /**
+   * Note: fi_info is not const because we reuse it when constructing the passize endpoint
+   *
+   * @throw std::system_error - ::setsockopt
+   * @throw std::system_error - ::bind
+   * @throw std::system_error - ::listen
+   *
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_passive_ep fail
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_pep_bind fail
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_listen fail
+   */
   explicit Fabric_server_grouped_factory(Fabric &fabric, event_producer &ev_pr, ::fi_info &info, std::uint16_t control_port);
   DELETE_COPY(Fabric_server_grouped_factory);
   Fabric_server_grouped_factory(Fabric_server_grouped_factory &&) noexcept;
   ~Fabric_server_grouped_factory();
 
+  /*
+   * @throw std::logic_error : unexpected event
+   * @throw std::system_error : read error on event pipe
+   */
   Component::IFabric_server_grouped * get_new_connection() override;
 
   void close_connection(Component::IFabric_server_grouped * connection) override;
 
   std::vector<Component::IFabric_server_grouped *> connections() override;
 
+  /**
+   * @throw std::bad_alloc : fabric_bad_alloc - libfabric out of memory
+   */
   std::shared_ptr<Fabric_memory_control> new_server(Fabric &fabric, event_producer &eq, ::fi_info &entry) override;
-  std::size_t max_message_size() const override { return Fabric_server_generic_factory::max_message_size(); }
+  std::size_t max_message_size() const noexcept override { return Fabric_server_generic_factory::max_message_size(); }
   std::string get_provider_name() const override { return Fabric_server_generic_factory::get_provider_name(); }
   void cb(std::uint32_t event, ::fi_eq_cm_entry &entry) noexcept override { return Fabric_server_generic_factory::cb(event, entry); }
   void err(::fi_eq_err_entry &entry) noexcept override { return Fabric_server_generic_factory::err(entry); }
