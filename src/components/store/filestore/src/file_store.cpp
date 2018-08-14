@@ -132,8 +132,12 @@ int Pool_handle::get_direct(const std::string key,
   out_value_len = buffer.st_size;
   
   ssize_t rs = read(fd, out_value, out_value_len);
+
   if(rs != out_value_len)
+  {
+    perror("get_direct read size didn't match expected out_value_len");
     throw General_exception("file read failed");
+  }
 
 #ifdef FORCE_FLUSH
   clflush_area(out_value, out_value_len);
