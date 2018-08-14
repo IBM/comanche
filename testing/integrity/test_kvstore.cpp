@@ -72,8 +72,8 @@ protected:
 
     void destroy_pool()
     {
-        _fact->release_ref();  // TODO: figure out why we need this
-     
+        _fact->release_ref();
+
         if (_pool <= 0)
         {
            _pool = _g_store->open_pool(pool_path, _pool_name);
@@ -331,6 +331,67 @@ TEST_F(PoolTest, DISABLED_Count_Changes)
     rc = _g_store->erase(_pool, key_2);
     ASSERT_EQ(rc, S_OK);
     ASSERT_EQ(_g_store->count(_pool), 0);
+}
+
+TEST_F(PoolTest, PutDirectGetDirect_RandomKVP)
+{
+    // randomly generate key and value
+    const int key_length = 8;
+    const int value_length = 64;
+    const std::string key = Common::random_string(key_length);
+
+    std::string value = Common::random_string(value_length);
+    status_t rc = _g_store->put_direct(_pool, key.c_str(), key_length, value.c_str(), value_length);
+
+    ASSERT_EQ(rc, S_OK) << "put_direct return code failed";
+
+    void * pval = malloc(sizeof(char) * value_length);  // get_direct requires memory allocation
+    size_t pval_len;
+ 
+    rc  = _g_store->get_direct(_pool, key, pval, pval_len, 0);  // offset = 0
+
+    ASSERT_EQ(rc, S_OK) << "get_direct return code failed";
+    ASSERT_STREQ((const char*)pval, value.c_str()) << "strings didn't match";
+
+    free(pval);
+}
+
+TEST_F(PoolTest, GetDirect_NoValidKey)
+{
+    // randomly generate key to look up (we shouldn't find it)
+    const int key_length = 8;
+    const std::string key = Common::random_string(key_length);
+
+    void * pval = NULL;  // initialize so we can check if value has been changed
+    size_t pval_len;
+ 
+    status_t rc  = _g_store->get_direct(_pool, key, pval, pval_len, 0);  // offset = 0
+    ASSERT_EQ((int)rc, (int)IKVStore::E_KEY_NOT_FOUND);  // expect failure code here
+
+    if(pval != NULL)
+    {
+        free(pval);
+    } 
+}
+
+
+TEST_F(PoolTest, PutDirect_DuplicateKey)
+{
+    // randomly generate key and value
+    const int key_length = 8;
+    const int value_length = 64;
+
+    const std::string key = Common::random_string(key_length);
+    std::string value = Common::random_string(value_length);
+
+    status_t rc = _g_store->put_direct(_pool, key.c_str(), key_length, value.c_str(), value_length);
+
+    ASSERT_EQ(rc, S_OK);
+
+    // now try to add another value to that key
+    rc = _g_store->put_direct(_pool, key.c_str(), key_length, value.c_str(), value_length);
+
+    ASSERT_EQ(rc, IKVStore::E_KEY_EXISTS);
 }
 
 struct {
