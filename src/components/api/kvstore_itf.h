@@ -242,8 +242,18 @@ public:
    * @return S_OK on success
    */
   virtual status_t register_direct_memory(void * vaddr, size_t len) { return E_NOT_SUPPORTED; }
-  
 
+  
+  /** 
+   * Durict memory regions should be unregistered before the memory is released on the client side.
+   * 
+   * @param vaddr Address of region to unregister.
+   * 
+   * @return S_OK on success
+   */
+  virtual status_t unregister_direct_memory(void * vaddr) { return E_NOT_SUPPORTED; }
+
+  
   /** 
    * Allocate an object but do not populate data
    * 
