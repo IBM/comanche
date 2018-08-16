@@ -32,6 +32,8 @@
 #include <rdma/fi_domain.h> /* fi_cq_tagged_entry */
 #pragma GCC diagnostic pop
 
+#include <sys/uio.h> /* struct iovec */
+
 /**
  * Fabric/RDMA-based network component
  *
@@ -61,12 +63,24 @@ Fabric_comm_grouped::~Fabric_comm_grouped()
  * @return Work (context) identifier
  */
 void Fabric_comm_grouped::post_send(
-  const std::vector<iovec>& buffers_
+  const ::iovec *first_
+  , const ::iovec *last_
+  , void **desc_
   , void *context_
 )
 {
   std::unique_ptr<async_req_record> gc{new async_req_record(this, context_)};
-  _conn.post_send(buffers_, &*gc);
+  _conn.post_send(first_, last_, desc_, &*gc);
+  gc.release();
+}
+
+void Fabric_comm_grouped::post_send(
+  const std::vector<::iovec>& buffers_
+  , void *context_
+)
+{
+  std::unique_ptr<async_req_record> gc{new async_req_record(this, context_)};
+  _conn.post_send(&*buffers_.begin(), &*buffers_.end(), &*gc);
   gc.release();
 }
 
@@ -79,7 +93,7 @@ void Fabric_comm_grouped::post_send(
  * @return Work (context) identifier
  */
 void Fabric_comm_grouped::post_recv(
-  const std::vector<iovec>& buffers_
+  const std::vector<::iovec>& buffers_
   , void *context_
 )
 {
@@ -99,7 +113,7 @@ void Fabric_comm_grouped::post_recv(
    *
    */
 void Fabric_comm_grouped::post_read(
-  const std::vector<iovec>& buffers_,
+  const std::vector<::iovec>& buffers_,
   uint64_t remote_addr_,
   uint64_t key_,
   void *context_
@@ -122,7 +136,7 @@ void Fabric_comm_grouped::post_read(
    *
    */
 void Fabric_comm_grouped::post_write(
-  const std::vector<iovec>& buffers_,
+  const std::vector<::iovec>& buffers_,
   uint64_t remote_addr_,
   uint64_t key_,
   void *context_
@@ -139,16 +153,15 @@ void Fabric_comm_grouped::post_write(
    * @param connection Connection to inject on
    * @param buffers Buffer vector (containing regions should be registered)
    */
-void Fabric_comm_grouped::inject_send(const std::vector<iovec>& buffers_)
+void Fabric_comm_grouped::inject_send(const std::vector<::iovec>& buffers_)
 {
   _conn.inject_send(buffers_);
 }
 
-void Fabric_comm_grouped::queue_completion(void *context_, ::status_t status_, const ::fi_cq_tagged_entry &cq_entry_)
+void Fabric_comm_grouped::queue_completion(::status_t status_, const ::fi_cq_tagged_entry &cq_entry_)
 {
   std::lock_guard<std::mutex> k2{_m_completions};
   _completions.push(completion_t(cq_entry_, status_));
-  std::get<0>(_completions.back()).op_context = context_;
 }
 
 std::size_t Fabric_comm_grouped::process_or_queue_completion(const ::fi_cq_tagged_entry &cq_entry_, Component::IFabric_op_completer::complete_old cb_, ::status_t status_)
@@ -162,9 +175,9 @@ std::size_t Fabric_comm_grouped::process_or_queue_completion(const ::fi_cq_tagge
   }
   else
   {
-    _conn.queue_completion(g_context->comm(), g_context->context(), status_, cq_entry_);
+    _conn.queue_completion(g_context->comm(), status_, cq_entry_);
+    g_context.release();
   }
-  g_context.release();
 
   return ct_total;
 }
@@ -180,9 +193,9 @@ std::size_t Fabric_comm_grouped::process_or_queue_completion(const ::fi_cq_tagge
   }
   else
   {
-    _conn.queue_completion(g_context->comm(), g_context->context(), status_, cq_entry_);
+    _conn.queue_completion(g_context->comm(), status_, cq_entry_);
+    g_context.release();
   }
-  g_context.release();
 
   return ct_total;
 }
@@ -197,9 +210,9 @@ std::size_t Fabric_comm_grouped::process_or_queue_completion(const ::fi_cq_tagge
   }
   else
   {
-    _conn.queue_completion(g_context->comm(), g_context->context(), status_, cq_entry_);
+    _conn.queue_completion(g_context->comm(), status_, cq_entry_);
+    g_context.release();
   }
-  g_context.release();
 
   return ct_total;
 }
@@ -245,8 +258,9 @@ std::size_t Fabric_comm_grouped::drain_old_completions(Component::IFabric_op_com
     auto c = _completions.front();
     _completions.pop();
     k.unlock();
-    const auto cq_entry{std::get<0>(c)};
-    cb_(cq_entry.op_context, std::get<1>(c));
+    auto &cq_entry{std::get<0>(c)};
+    std::unique_ptr<async_req_record> g_context(static_cast<async_req_record *>(cq_entry.op_context));
+    cb_(g_context->context(), std::get<1>(c));
     ++ct_total;
     k.lock();
   }
@@ -262,8 +276,9 @@ std::size_t Fabric_comm_grouped::drain_old_completions(Component::IFabric_op_com
     auto c = _completions.front();
     _completions.pop();
     k.unlock();
-    const auto cq_entry{std::get<0>(c)};
-    cb_(cq_entry.op_context, std::get<1>(c), cq_entry.flags, cq_entry.len, nullptr);
+    auto &cq_entry{std::get<0>(c)};
+    std::unique_ptr<async_req_record> g_context(static_cast<async_req_record *>(cq_entry.op_context));
+    cb_(g_context->context(), std::get<1>(c), cq_entry.flags, cq_entry.len, nullptr);
     ++ct_total;
     k.lock();
   }
@@ -280,14 +295,16 @@ std::size_t Fabric_comm_grouped::drain_old_completions(Component::IFabric_op_com
     auto c = _completions.front();
     _completions.pop();
     k.unlock();
-    const auto cq_entry{std::get<0>(c)};
-    if ( cb_(cq_entry.op_context, std::get<1>(c), cq_entry.flags, cq_entry.len, nullptr) == cb_acceptance::ACCEPT )
+    auto &cq_entry{std::get<0>(c)};
+    std::unique_ptr<async_req_record> g_context(static_cast<async_req_record *>(cq_entry.op_context));
+    if ( cb_(g_context->context(), std::get<1>(c), cq_entry.flags, cq_entry.len, nullptr) == cb_acceptance::ACCEPT )
     {
       ++ct_total;
     }
     else
     {
       deferred_completions.push(c);
+      g_context.release();
     }
     k.lock();
   }

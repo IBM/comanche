@@ -147,18 +147,31 @@ std::uint64_t Fabric_memory_control::get_memory_remote_key(const memory_region_t
   return ::fi_mr_key(mr);
 }
 
+void *Fabric_memory_control::get_memory_descriptor(const memory_region_t mr_) const noexcept
+{
+  /* recover the memory region as a unique ptr */
+  auto mr = pointer_cast<::fid_mr>(mr_);
+  /* ask fabric for the descriptor */
+  return ::fi_mr_desc(mr);
+}
+
 /* If local keys are needed, one local key per buffer. */
-std::vector<void *> Fabric_memory_control::populated_desc(const std::vector<iovec> & buffers)
+std::vector<void *> Fabric_memory_control::populated_desc(const std::vector<::iovec> & buffers)
+{
+  return populated_desc(&*buffers.begin(), &*buffers.end());
+}
+
+std::vector<void *> Fabric_memory_control::populated_desc(const ::iovec *first, const ::iovec *last)
 {
   std::vector<void *> desc;
-  for ( const auto it : buffers )
+  for ( auto cursor = first; cursor != last; ++cursor )
   {
     {
       guard g{_m};
       /* find a key equal to k or, if none, the largest key less than k */
-      auto dit = _mr_addr_to_desc.lower_bound(it.iov_base);
+      auto dit = _mr_addr_to_desc.lower_bound(cursor->iov_base);
       /* If not at k, lower_bound has left us with an iterator beyond k. Back up */
-      if ( dit->first != it.iov_base && dit != _mr_addr_to_desc.begin() )
+      if ( dit->first != cursor->iov_base && dit != _mr_addr_to_desc.begin() )
       {
         --dit;
       }

@@ -119,21 +119,32 @@ Fabric_op_control::~Fabric_op_control()
  * @return Work (context) identifier
  */
 void Fabric_op_control::post_send(
-  const std::vector<iovec>& buffers_
+  const ::iovec *first_
+  , const ::iovec *last_
+  , void **desc_
   , void *context_
 )
 {
-  auto desc = populated_desc(buffers_);
   CHECK_FI_ERR(
     ::fi_sendv(
       &ep()
-      , &*buffers_.begin()
-      , &*desc.begin()
-      , buffers_.size()
+      , first_
+      , desc_
+      , last_ - first_
       , ::fi_addr_t{}
       , context_
     )
   );
+}
+
+void Fabric_op_control::post_send(
+  const ::iovec *first_
+  , const ::iovec *last_
+  , void *context_
+)
+{
+  auto desc = populated_desc(first_, last_);
+  post_send(first_, last_, &*desc.begin(), context_);
 }
 
 /**
@@ -312,12 +323,12 @@ std::size_t Fabric_op_control::poll_completions(Component::IFabric_op_completer:
 {
   std::size_t constexpr ct_max = 1;
   std::size_t ct_total = 0;
-  ::fi_cq_tagged_entry entry; /* We dont actually expect a tagged entry. Spefifying this to provide the largest buffer. */
+  ::fi_cq_tagged_entry cq_entry; /* We do not expect a tagged entry. Specifying this to provide the largest buffer. */
   bool drained = false;
   while ( ! drained )
   {
     auto timeout = 0; /* immediate timeout */
-    auto ct = cq_sread(&entry, ct_max, nullptr, timeout);
+    auto ct = cq_sread(&cq_entry, ct_max, nullptr, timeout);
     if ( ct < 0 )
     {
       switch ( auto e = unsigned(-ct) )
@@ -334,7 +345,7 @@ std::size_t Fabric_op_control::poll_completions(Component::IFabric_op_completer:
     }
     else
     {
-      cb_(entry.op_context, S_OK);
+      cb_(cq_entry.op_context, S_OK);
       ++ct_total;
     }
   }
@@ -352,12 +363,12 @@ std::size_t Fabric_op_control::poll_completions(Component::IFabric_op_completer:
 {
   std::size_t constexpr ct_max = 1;
   std::size_t ct_total = 0;
-  ::fi_cq_tagged_entry entry; /* We dont actually expect a tagged entry. Spefifying this to provide the largest buffer. */
+  ::fi_cq_tagged_entry cq_entry; /* We do not expect a tagged entry. Specifying this to provide the largest buffer. */
   bool drained = false;
   while ( ! drained )
   {
     auto timeout = 0; /* immediate timeout */
-    auto ct = cq_sread(&entry, ct_max, nullptr, timeout);
+    auto ct = cq_sread(&cq_entry, ct_max, nullptr, timeout);
     if ( ct < 0 )
     {
       switch ( auto e = unsigned(-ct) )
@@ -374,7 +385,7 @@ std::size_t Fabric_op_control::poll_completions(Component::IFabric_op_completer:
     }
     else
     {
-      cb_(entry.op_context, S_OK, entry.flags, entry.len, nullptr);
+      cb_(cq_entry.op_context, S_OK, cq_entry.flags, cq_entry.len, nullptr);
       ++ct_total;
     }
   }
@@ -392,12 +403,12 @@ std::size_t Fabric_op_control::poll_completions_tentative(Component::IFabric_op_
 {
   std::size_t constexpr ct_max = 1;
   std::size_t ct_total = 0;
-  ::fi_cq_tagged_entry entry; /* We dont actually expect a tagged entry. Specifying this to provide the largest buffer. */
+  ::fi_cq_tagged_entry cq_entry; /* We do not expect a tagged entry. Specifying this to provide the largest buffer. */
   bool drained = false;
   while ( ! drained )
   {
     auto timeout = 0; /* immediate timeout */
-    auto ct = cq_sread(&entry, ct_max, nullptr, timeout);
+    auto ct = cq_sread(&cq_entry, ct_max, nullptr, timeout);
     if ( ct < 0 )
     {
       switch ( auto e = unsigned(-ct) )
@@ -414,7 +425,7 @@ std::size_t Fabric_op_control::poll_completions_tentative(Component::IFabric_op_
     }
     else
     {
-      ct_total += process_or_queue_completion(entry, cb_, S_OK);
+      ct_total += process_or_queue_completion(cq_entry, cb_, S_OK);
     }
   }
 
@@ -695,10 +706,10 @@ catch ( const fabric_runtime_error &e )
   throw e.add(tostr(info));
 }
 
-void Fabric_op_control::queue_completion(const ::fi_cq_tagged_entry &entry_, ::status_t status_)
+void Fabric_op_control::queue_completion(const ::fi_cq_tagged_entry &cq_entry_, ::status_t status_)
 {
   std::lock_guard<std::mutex> k2{_m_completions};
-  _completions.push(completion_t(status_, entry_));
+  _completions.push(completion_t(status_, cq_entry_));
 }
 
 std::size_t Fabric_op_control::drain_old_completions(Component::IFabric_op_completer::complete_old completion_callback)

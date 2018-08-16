@@ -68,6 +68,9 @@ class Fabric_generic_grouped
   std::uint64_t get_memory_remote_key(
     const memory_region_t memory_region
   ) const noexcept override;
+  void *get_memory_descriptor(
+    const memory_region_t memory_region
+  ) const noexcept override;
 
   std::string get_peer_addr() override;
   std::string get_local_addr() override;
@@ -120,16 +123,17 @@ public:
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_sendv fail
    */
-  void  post_send(const std::vector<iovec>& buffers, void *context);
+  void post_send(const ::iovec *first, const ::iovec *last, void *context);
+  void post_send(const ::iovec *first, const ::iovec *last, void **desc, void *context);
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_recvv fail
    */
-  void  post_recv(const std::vector<iovec>& buffers, void *context);
+  void post_recv(const std::vector<::iovec>& buffers, void *context);
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_readv fail
    */
   void post_read(
-    const std::vector<iovec>& buffers,
+    const std::vector<::iovec>& buffers,
     std::uint64_t remote_addr,
     std::uint64_t key,
     void *context);
@@ -137,14 +141,14 @@ public:
    * @throw fabric_runtime_error : std::runtime_error : ::fi_writev fail
    */
   void post_write(
-    const std::vector<iovec>& buffers,
+    const std::vector<::iovec>& buffers,
     std::uint64_t remote_addr,
     std::uint64_t key,
     void *context);
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_inject fail
    */
-  void inject_send(const std::vector<iovec>& buffers);
+  void inject_send(const std::vector<::iovec>& buffers);
 
   fabric_types::addr_ep_t get_name() const;
 
@@ -156,7 +160,7 @@ public:
   ::fi_cq_err_entry get_cq_comp_err() const;
   ssize_t cq_sread(void *buf, std::size_t count, const void *cond, int timeout) noexcept;
   ssize_t cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) const noexcept;
-  void queue_completion(Fabric_comm_grouped *comm, void *context, ::status_t status, const ::fi_cq_tagged_entry &cq_entry);
+  void queue_completion(Fabric_comm_grouped *comm, ::status_t status, const ::fi_cq_tagged_entry &cq_entry);
 };
 
 #endif

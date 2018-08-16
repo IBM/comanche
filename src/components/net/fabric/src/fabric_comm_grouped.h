@@ -53,18 +53,19 @@ public:
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_sendv fail
    */
-  void post_send(const std::vector<iovec>& buffers, void *context) override;
+  void post_send(const ::iovec *first, const ::iovec *last, void **desc, void *context) override;
+  void post_send(const std::vector<::iovec>& buffers, void *context) override;
 
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_recvv fail
    */
-  void post_recv(const std::vector<iovec>& buffers, void *context) override;
+  void post_recv(const std::vector<::iovec>& buffers, void *context) override;
 
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_readv fail
    */
   void post_read(
-    const std::vector<iovec>& buffers
+    const std::vector<::iovec>& buffers
     , std::uint64_t remote_addr
     , std::uint64_t key
     , void *context
@@ -74,7 +75,7 @@ public:
    * @throw fabric_runtime_error : std::runtime_error : ::fi_writev fail
    */
   void post_write(
-    const std::vector<iovec>& buffers
+    const std::vector<::iovec>& buffers
     , std::uint64_t remote_addr
     , std::uint64_t key
     , void *context
@@ -83,7 +84,7 @@ public:
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_inject fail
    */
-  void inject_send(const std::vector<iovec>& buffers) override;
+  void inject_send(const std::vector<::iovec>& buffers) override;
 
   /*
    * @throw fabric_runtime_error : std::runtime_error - cq_sread unhandled error
@@ -119,7 +120,7 @@ public:
 
   fabric_types::addr_ep_t get_name() const;
 
-  void queue_completion(void *context, ::status_t status, const ::fi_cq_tagged_entry &cq_entry);
+  void queue_completion(::status_t status, const ::fi_cq_tagged_entry &cq_entry);
   std::size_t drain_old_completions(Component::IFabric_op_completer::complete_old completion_callback);
   std::size_t drain_old_completions(Component::IFabric_op_completer::complete_definite completion_callback);
   std::size_t drain_old_completions(Component::IFabric_op_completer::complete_tentative completion_callback);

@@ -178,22 +178,31 @@ public:
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_sendv fail
    */
-  void  post_send(
-    const std::vector<iovec>& buffers
+
+  void post_send(
+    const ::iovec *first
+    , const ::iovec *last
+    , void **desc
+    , void *context
+  );
+
+  void post_send(
+    const ::iovec *first
+    , const ::iovec *last
     , void *context
   );
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_recvv fail
    */
-  void  post_recv(
-    const std::vector<iovec>& buffers
+  void post_recv(
+    const std::vector<::iovec>& buffers
     , void *context
   );
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_readv fail
    */
   void post_read(
-    const std::vector<iovec>& buffers
+    const std::vector<::iovec>& buffers
     , std::uint64_t remote_addr
     , std::uint64_t key
     , void *context
@@ -202,7 +211,7 @@ public:
    * @throw fabric_runtime_error : std::runtime_error : ::fi_writev fail
    */
   void post_write(
-    const std::vector<iovec>& buffers
+    const std::vector<::iovec>& buffers
     , std::uint64_t remote_addr
     , std::uint64_t key
     , void *context
@@ -210,7 +219,7 @@ public:
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_inject fail
    */
-  void inject_send(const std::vector<iovec>& buffers);
+  void inject_send(const std::vector<::iovec>& buffers);
 
 public:
   /*

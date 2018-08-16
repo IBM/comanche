@@ -56,38 +56,32 @@ class Fabric_test : public ::testing::Test {
   }
 
   // Objects declared here can be used by all tests in the test case
-  const std::string fabric_spec_verbs{
-    "{ \"fabric_attr\" : { \"prov_name\" : \"verbs\" },"
-    " \"domain_attr\" : "
-      "{ \"mr_mode\" : ["
-        "\"FI_MR_LOCAL\", \"FI_MR_VIRT_ADDR\", \"FI_MR_ALLOCATED\", \"FI_MR_PROV_KEY\""
-      " ] }"
-    ","
-    " \"ep_attr\" : { \"type\" : \"FI_EP_MSG\" }"
-    "}"
-  };
+  static std::string fabric_spec(const std::string &prov_name) {
+    const std::string verbs_mr_mode =
+      "[ \"FI_MR_LOCAL\", \"FI_MR_VIRT_ADDR\", \"FI_MR_ALLOCATED\", \"FI_MR_PROV_KEY\" ]";
 
-  /* Although man fi_mr says "FI_MR_BASIC is maintained for backwards
-   * compatibility (libfabric version 1.4 or earlier)", sockets as of 1.6
-   * will not accept the newer, explicit list.
-   *
-   * Although man fi_mr says "providers that support basic registration
-   * usually required FI_MR_LOCAL", the socket provider will not accept
-   * FI_MR_LOCAL.
-   */
-  const std::string fabric_spec_sockets{
-    "{ \"fabric_attr\" : { \"prov_name\" : \"sockets\" },"
-    " \"domain_attr\" : "
-      "{ \"mr_mode\" : ["
-        " \"FI_MR_BASIC\""
-#if 0
-        ", \"FI_MR_LOCAL\""
-#endif
-      " ] }"
-    ","
-    " \"ep_attr\" : { \"type\" : \"FI_EP_MSG\" }"
-    "}"
-  };
+    /* Although man fi_mr says "FI_MR_BASIC is maintained for backwards
+     * compatibility (libfabric version 1.4 or earlier)", sockets as of 1.6
+     * will not accept the newer, explicit list.
+     *
+     * Although man fi_mr says "providers that support basic registration
+     * usually required FI_MR_LOCAL", the socket provider will not accept
+     * FI_MR_LOCAL.
+     */
+    const std::string sockets_mr_mode =
+      "[ \"FI_MR_BASIC\" ]";
+
+    const std::string &mr_mode = prov_name == std::string("sockets") ? sockets_mr_mode : verbs_mr_mode;
+
+    return
+      "{ \"fabric_attr\" : { \"prov_name\" : \"" + prov_name + "\" },"
+      " \"domain_attr\" : "
+        "{ \"mr_mode\" : " + mr_mode + " }"
+      ","
+      " \"ep_attr\" : { \"type\" : \"FI_EP_MSG\" }"
+      "}"
+      ;
+  }
 };
 
 std::ostream &describe_ep(std::ostream &o_, const Component::IFabric_server_factory &e_)
@@ -125,189 +119,10 @@ void instantiate_server(std::string fabric_spec)
   factory->release_ref();
 }
 
-TEST_F(Fabric_test, InstantiateServer)
-{
-  instantiate_server(fabric_spec_verbs);
-}
-
-TEST_F(Fabric_test, InstantiateServer_Socket)
-{
-  instantiate_server(fabric_spec_sockets);
-}
-
-void instantiate_server_dual(const std::string &fabric_spec)
-{
-  /* create object instance through factory */
-  Component::IBase * comp = Component::load_component("libcomanche-fabric.so",
-                                                      Component::net_fabric_factory);
-
-  ASSERT_TRUE(comp);
-  auto factory = std::shared_ptr<Component::IFabric_factory>(static_cast<Component::IFabric_factory *>(comp->query_interface(Component::IFabric_factory::iid())));
-  auto fabric = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec));
-
-  try {
-    /* fails, because both servers use the same port */
-    auto srv1 = std::shared_ptr<Component::IFabric_server_factory>(fabric->open_server_factory("{}", control_port_0));
-    auto srv2 = std::shared_ptr<Component::IFabric_server_factory>(fabric->open_server_factory("{}", control_port_1));
-    describe_ep(std::cerr << "ISD Endpoint 1 ", *srv1) << std::endl;
-    describe_ep(std::cerr << "ISD Endpoint 2 ", *srv2) << std::endl;
-  }
-  catch ( std::exception & )
-  {
-  }
-  factory->release_ref();
-}
-
-TEST_F(Fabric_test, InstantiateServerDual)
-{
-  instantiate_server_dual(fabric_spec_verbs);
-}
-
-TEST_F(Fabric_test, InstantiateServerDual_Sockets)
-{
-  instantiate_server_dual(fabric_spec_sockets);
-}
-
-TEST_F(Fabric_test, JsonSucceed)
-{
-  /* create object instance through factory */
-  Component::IBase * comp = Component::load_component("libcomanche-fabric.so",
-                                                      Component::net_fabric_factory);
-
-  ASSERT_TRUE(comp);
-  auto factory = std::shared_ptr<Component::IFabric_factory>(static_cast<Component::IFabric_factory *>(comp->query_interface(Component::IFabric_factory::iid())));
-  auto fabric = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec_verbs));
-  /* Feed the server_factory a good JSON spec */
-
-  try
-  {
-    auto pep1 = std::shared_ptr<Component::IFabric_server_factory>(fabric->open_server_factory("{ \"tx_attr\" : { \"comp_order\" : [ \"FI_ORDER_STRICT\", \"FI_ORDER_DATA\" ], \"inject_size\" : 16 } }", control_port_1));
-    describe_ep(std::cerr << "Endpoint 1 ", *pep1) << std::endl;
-  }
-  catch ( const std::domain_error &e )
-  {
-    std::cerr << "Unexpected exception: " << e.what() << std::endl;
-    EXPECT_TRUE(false);
-  }
-  factory->release_ref();
-}
-
-TEST_F(Fabric_test, JsonParseAddrStr)
-{
-  /* create object instance through factory */
-  Component::IBase * comp = Component::load_component("libcomanche-fabric.so",
-                                                      Component::net_fabric_factory);
-
-  ASSERT_TRUE(comp);
-  auto factory = std::shared_ptr<Component::IFabric_factory>(static_cast<Component::IFabric_factory *>(comp->query_interface(Component::IFabric_factory::iid())));
-  auto fabric = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec_verbs));
-
-  {
-    /* Feed the ednpoint a good JSON spec */
-    try
-    {
-      auto pep1 = std::shared_ptr<Component::IFabric_server_factory>(fabric->open_server_factory(("{ \"addr_format\" : \"FI_ADDR_STR\", \"dest\" : \"fi_shm://" + std::to_string(getpid()) + "\" }").c_str(), control_port_1));
-    }
-    catch ( const std::exception &e )
-    {
-      std::cerr << "Unexpected exception: " << e.what() << std::endl;
-      EXPECT_TRUE(false);
-    }
-  }
-  factory->release_ref();
-}
-
-TEST_F(Fabric_test, JsonParseFail)
-{
-  /* create object instance through factory */
-  Component::IBase * comp = Component::load_component("libcomanche-fabric.so",
-                                                      Component::net_fabric_factory);
-
-  ASSERT_TRUE(comp);
-  auto factory = std::shared_ptr<Component::IFabric_factory>(static_cast<Component::IFabric_factory *>(comp->query_interface(Component::IFabric_factory::iid())));
-  auto fabric = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec_verbs));
-
-  {
-    /* Feed the ednpoint a good JSON spec */
-    try
-    {
-      auto pep1 = std::shared_ptr<Component::IFabric_server_factory>(fabric->open_server_factory("{ \"tx_attr\" : { \"max\" : \"xyz\"} } }", control_port_1));
-      EXPECT_TRUE(false);
-    }
-    catch ( const std::domain_error &e )
-    {
-      /* Error mesage should mention "parse" */
-      EXPECT_TRUE(::strpbrk(e.what(), "parse"));
-    }
-  }
-  factory->release_ref();
-}
-
-TEST_F(Fabric_test, JsonKeyFail)
-{
-  /* create object instance through factory */
-  Component::IBase * comp = Component::load_component("libcomanche-fabric.so",
-                                                      Component::net_fabric_factory);
-
-  ASSERT_TRUE(comp);
-  auto factory = std::shared_ptr<Component::IFabric_factory>(static_cast<Component::IFabric_factory *>(comp->query_interface(Component::IFabric_factory::iid())));
-  auto fabric = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec_verbs));
-
-  {
-    /* Feed the ednpoint a good JSON spec */
-    try
-    {
-      auto pep1 = std::shared_ptr<Component::IFabric_server_factory>(fabric->open_server_factory("{ \"tx_attr\" : { \"maX\" : \"xyz\"} }", control_port_1));
-      EXPECT_TRUE(false);
-    }
-    catch ( const std::domain_error &e )
-    {
-      /* Error message should mention "key", "tx_attr", and "maX" */
-      EXPECT_TRUE(::strpbrk(e.what(), "key"));
-      EXPECT_TRUE(::strpbrk(e.what(), "tx_attr"));
-      EXPECT_TRUE(::strpbrk(e.what(), "maX"));
-    }
-  }
-  factory->release_ref();
-}
-
-void instantiate_server_and_client(const std::string &fabric_spec)
-{
-  /* create object instance through factory */
-  Component::IBase * comp = Component::load_component("libcomanche-fabric.so",
-                                                      Component::net_fabric_factory);
-
-  ASSERT_TRUE(comp);
-  auto factory = std::shared_ptr<Component::IFabric_factory>(static_cast<Component::IFabric_factory *>(comp->query_interface(Component::IFabric_factory::iid())));
-  auto fabric0 = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec));
-  auto fabric1 = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec));
-
-  {
-    /* Feed the server_factory a good JSON spec */
-    auto server = std::shared_ptr<Component::IFabric_server_factory>(fabric0->open_server_factory(fabric_spec, control_port_1));
-    EXPECT_LT(0U, server->max_message_size());
-    auto client = std::shared_ptr<Component::IFabric_client>(open_connection_patiently(*fabric1, fabric_spec, "127.0.0.1", control_port_1));
-    EXPECT_LT(0U, client->max_message_size());
-    EXPECT_EQ(server->max_message_size(), client->max_message_size());
-  }
-
-  factory->release_ref();
-}
-
-TEST_F(Fabric_test, InstantiateServerAndClient)
-{
-  instantiate_server_and_client(fabric_spec_verbs);
-}
-
-TEST_F(Fabric_test, InstantiateServerAndClientSockets)
-{
-  instantiate_server_and_client(fabric_spec_sockets);
-}
-
 static constexpr auto count_outer = 3U;
 static constexpr auto count_inner = 3U;
 
-void write_read_sequential(const std::string &fabric_spec, bool force_error_)
+void write_read_sequential(const std::string &fabric_spec_, bool force_error_)
 {
   for ( auto iter0 = 0U; iter0 != count_outer; ++iter0 )
   {
@@ -323,7 +138,7 @@ void write_read_sequential(const std::string &fabric_spec, bool force_error_)
 
     auto factory = std::shared_ptr<Component::IFabric_factory>(static_cast<Component::IFabric_factory *>(comp->query_interface(Component::IFabric_factory::iid())));
 
-    auto fabric = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec));
+    auto fabric = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec_));
     if ( is_server )
     {
       std::cerr << "SERVER begin " << iter0 << " port " << control_port << std::endl;
@@ -387,19 +202,198 @@ void write_read_sequential(const std::string &fabric_spec, bool force_error_)
   }
 }
 
+TEST_F(Fabric_test, InstantiateServer)
+{
+  instantiate_server(fabric_spec("verbs"));
+}
+
+TEST_F(Fabric_test, InstantiateServer_Socket)
+{
+  instantiate_server(fabric_spec("sockets"));
+}
+
+void instantiate_server_dual(const std::string &fabric_spec)
+{
+  /* create object instance through factory */
+  Component::IBase * comp = Component::load_component("libcomanche-fabric.so",
+                                                      Component::net_fabric_factory);
+
+  ASSERT_TRUE(comp);
+  auto factory = std::shared_ptr<Component::IFabric_factory>(static_cast<Component::IFabric_factory *>(comp->query_interface(Component::IFabric_factory::iid())));
+  auto fabric = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec));
+
+  try {
+    /* fails, because both servers use the same port */
+    auto srv1 = std::shared_ptr<Component::IFabric_server_factory>(fabric->open_server_factory("{}", control_port_0));
+    auto srv2 = std::shared_ptr<Component::IFabric_server_factory>(fabric->open_server_factory("{}", control_port_1));
+    describe_ep(std::cerr << "ISD Endpoint 1 ", *srv1) << std::endl;
+    describe_ep(std::cerr << "ISD Endpoint 2 ", *srv2) << std::endl;
+  }
+  catch ( std::exception & )
+  {
+  }
+  factory->release_ref();
+}
+
+TEST_F(Fabric_test, InstantiateServerDual)
+{
+  instantiate_server_dual(fabric_spec("verbs"));
+}
+
+TEST_F(Fabric_test, InstantiateServerDual_Sockets)
+{
+  instantiate_server_dual(fabric_spec("sockets"));
+}
+
+TEST_F(Fabric_test, JsonSucceed)
+{
+  /* create object instance through factory */
+  Component::IBase * comp = Component::load_component("libcomanche-fabric.so",
+                                                      Component::net_fabric_factory);
+
+  ASSERT_TRUE(comp);
+  auto factory = std::shared_ptr<Component::IFabric_factory>(static_cast<Component::IFabric_factory *>(comp->query_interface(Component::IFabric_factory::iid())));
+  auto fabric = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec("verbs")));
+  /* Feed the server_factory a good JSON spec */
+
+  try
+  {
+    auto pep1 = std::shared_ptr<Component::IFabric_server_factory>(fabric->open_server_factory("{ \"tx_attr\" : { \"comp_order\" : [ \"FI_ORDER_STRICT\", \"FI_ORDER_DATA\" ], \"inject_size\" : 16 } }", control_port_1));
+    describe_ep(std::cerr << "Endpoint 1 ", *pep1) << std::endl;
+  }
+  catch ( const std::domain_error &e )
+  {
+    std::cerr << "Unexpected exception: " << e.what() << std::endl;
+    EXPECT_TRUE(false);
+  }
+  factory->release_ref();
+}
+
+TEST_F(Fabric_test, JsonParseAddrStr)
+{
+  /* create object instance through factory */
+  Component::IBase * comp = Component::load_component("libcomanche-fabric.so",
+                                                      Component::net_fabric_factory);
+
+  ASSERT_TRUE(comp);
+  auto factory = std::shared_ptr<Component::IFabric_factory>(static_cast<Component::IFabric_factory *>(comp->query_interface(Component::IFabric_factory::iid())));
+  auto fabric = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec("verbs")));
+
+  {
+    /* Feed the ednpoint a good JSON spec */
+    try
+    {
+      auto pep1 = std::shared_ptr<Component::IFabric_server_factory>(fabric->open_server_factory(("{ \"addr_format\" : \"FI_ADDR_STR\", \"dest\" : \"fi_shm://" + std::to_string(getpid()) + "\" }").c_str(), control_port_1));
+    }
+    catch ( const std::exception &e )
+    {
+      std::cerr << "Unexpected exception: " << e.what() << std::endl;
+      EXPECT_TRUE(false);
+    }
+  }
+  factory->release_ref();
+}
+
+TEST_F(Fabric_test, JsonParseFail)
+{
+  /* create object instance through factory */
+  Component::IBase * comp = Component::load_component("libcomanche-fabric.so",
+                                                      Component::net_fabric_factory);
+
+  ASSERT_TRUE(comp);
+  auto factory = std::shared_ptr<Component::IFabric_factory>(static_cast<Component::IFabric_factory *>(comp->query_interface(Component::IFabric_factory::iid())));
+  auto fabric = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec("verbs")));
+
+  {
+    /* Feed the ednpoint a good JSON spec */
+    try
+    {
+      auto pep1 = std::shared_ptr<Component::IFabric_server_factory>(fabric->open_server_factory("{ \"tx_attr\" : { \"max\" : \"xyz\"} } }", control_port_1));
+      EXPECT_TRUE(false);
+    }
+    catch ( const std::domain_error &e )
+    {
+      /* Error mesage should mention "parse" */
+      EXPECT_TRUE(::strpbrk(e.what(), "parse"));
+    }
+  }
+  factory->release_ref();
+}
+
+TEST_F(Fabric_test, JsonKeyFail)
+{
+  /* create object instance through factory */
+  Component::IBase * comp = Component::load_component("libcomanche-fabric.so",
+                                                      Component::net_fabric_factory);
+
+  ASSERT_TRUE(comp);
+  auto factory = std::shared_ptr<Component::IFabric_factory>(static_cast<Component::IFabric_factory *>(comp->query_interface(Component::IFabric_factory::iid())));
+  auto fabric = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec("verbs")));
+
+  {
+    /* Feed the ednpoint a good JSON spec */
+    try
+    {
+      auto pep1 = std::shared_ptr<Component::IFabric_server_factory>(fabric->open_server_factory("{ \"tx_attr\" : { \"maX\" : \"xyz\"} }", control_port_1));
+      EXPECT_TRUE(false);
+    }
+    catch ( const std::domain_error &e )
+    {
+      /* Error message should mention "key", "tx_attr", and "maX" */
+      EXPECT_TRUE(::strpbrk(e.what(), "key"));
+      EXPECT_TRUE(::strpbrk(e.what(), "tx_attr"));
+      EXPECT_TRUE(::strpbrk(e.what(), "maX"));
+    }
+  }
+  factory->release_ref();
+}
+
+void instantiate_server_and_client(const std::string &fabric_spec)
+{
+  /* create object instance through factory */
+  Component::IBase * comp = Component::load_component("libcomanche-fabric.so",
+                                                      Component::net_fabric_factory);
+
+  ASSERT_TRUE(comp);
+  auto factory = std::shared_ptr<Component::IFabric_factory>(static_cast<Component::IFabric_factory *>(comp->query_interface(Component::IFabric_factory::iid())));
+  auto fabric0 = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec));
+  auto fabric1 = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec));
+
+  {
+    /* Feed the server_factory a good JSON spec */
+    auto server = std::shared_ptr<Component::IFabric_server_factory>(fabric0->open_server_factory(fabric_spec, control_port_1));
+    EXPECT_LT(0U, server->max_message_size());
+    auto client = std::shared_ptr<Component::IFabric_client>(open_connection_patiently(*fabric1, fabric_spec, "127.0.0.1", control_port_1));
+    EXPECT_LT(0U, client->max_message_size());
+    EXPECT_EQ(server->max_message_size(), client->max_message_size());
+  }
+
+  factory->release_ref();
+}
+
+TEST_F(Fabric_test, InstantiateServerAndClient)
+{
+  instantiate_server_and_client(fabric_spec("verbs"));
+}
+
+TEST_F(Fabric_test, InstantiateServerAndClientSockets)
+{
+  instantiate_server_and_client(fabric_spec("sockets"));
+}
+
 TEST_F(Fabric_test, WriteReadSequential)
 {
-  write_read_sequential(fabric_spec_verbs, false);
+  write_read_sequential(fabric_spec("verbs"), false);
 }
 
 TEST_F(Fabric_test, WriteReadSequentialSockets)
 {
-  write_read_sequential(fabric_spec_sockets, false);
+  write_read_sequential(fabric_spec("sockets"), false);
 }
 
 TEST_F(Fabric_test, WriteReadSequentialWithError)
 {
-  write_read_sequential(fabric_spec_sockets, true);
+  write_read_sequential(fabric_spec("sockets"), true);
 }
 
 TEST_F(Fabric_test, WriteReadParallel)
@@ -418,7 +412,7 @@ TEST_F(Fabric_test, WriteReadParallel)
 
     auto factory = std::shared_ptr<Component::IFabric_factory>(static_cast<Component::IFabric_factory *>(comp->query_interface(Component::IFabric_factory::iid())));
 
-    auto fabric = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec_verbs));
+    auto fabric = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec("verbs")));
     if ( is_server )
     {
       std::cerr << "SERVER begin " << iter0 << " port " << control_port << std::endl;
@@ -485,7 +479,7 @@ TEST_F(Fabric_test, GroupedClients)
 
     auto factory = std::shared_ptr<Component::IFabric_factory>(static_cast<Component::IFabric_factory *>(comp->query_interface(Component::IFabric_factory::iid())));
 
-    auto fabric = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec_verbs));
+    auto fabric = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec("verbs")));
 
     /* To avoid conflicts with server which are slow to shut down, use a different control port on every pass
      * But, what happens if a server is shut down (fi_shutdown) while a client is expecting to receive data?
@@ -566,7 +560,7 @@ TEST_F(Fabric_test, GroupedServer)
 
     auto factory = std::shared_ptr<Component::IFabric_factory>(static_cast<Component::IFabric_factory *>(comp->query_interface(Component::IFabric_factory::iid())));
 
-    auto fabric = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec_verbs));
+    auto fabric = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec("verbs")));
 
     /* To avoid conflicts with server which are slow to shut down, use a different control port on every pass
      * But, what happens if a server is shut down (fi_shutdown) while a client is expecting to receive data?

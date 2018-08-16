@@ -26,9 +26,9 @@
 #include "fabric_op_control.h"
 #include "fabric_runtime_error.h"
 
-#include <cassert>
 #include <stdexcept> /* logic_error */
 #include <memory> /* unique_ptr */
+#include <sstream> /* ostringstream */
 
 class event_producer;
 
@@ -75,15 +75,33 @@ std::uint64_t Fabric_generic_grouped::get_memory_remote_key(
   return cnxn().get_memory_remote_key(memory_region);
 }
 
+void *Fabric_generic_grouped::get_memory_descriptor(
+  const memory_region_t memory_region
+) const noexcept
+{
+  return cnxn().get_memory_descriptor(memory_region);
+}
+
 std::string Fabric_generic_grouped::get_peer_addr() { return cnxn().get_peer_addr(); }
 std::string Fabric_generic_grouped::get_local_addr() { return cnxn().get_local_addr(); }
 
 void Fabric_generic_grouped::post_send(
-  const std::vector<iovec>& buffers_
+  const ::iovec *first_
+  , const ::iovec *last_
+  , void **desc_
   , void *context_
 )
 {
-  return cnxn().post_send(buffers_, context_);
+  return cnxn().post_send(first_, last_, desc_, context_);
+}
+
+void Fabric_generic_grouped::post_send(
+  const ::iovec *first_
+  , const ::iovec *last_
+  , void *context_
+)
+{
+  return cnxn().post_send(first_, last_, context_);
 }
 
 std::size_t Fabric_generic_grouped::stalled_completion_count()
@@ -107,7 +125,7 @@ void Fabric_generic_grouped::unblock_completions()
 }
 
 void Fabric_generic_grouped::post_recv(
-  const std::vector<iovec>& buffers_
+  const std::vector<::iovec>& buffers_
   , void *context_
 )
 {
@@ -125,7 +143,7 @@ void Fabric_generic_grouped::post_recv(
    *
    */
 void Fabric_generic_grouped::post_read(
-  const std::vector<iovec>& buffers_
+  const std::vector<::iovec>& buffers_
   , uint64_t remote_addr_
   , uint64_t key_
   , void *context_
@@ -145,7 +163,7 @@ void Fabric_generic_grouped::post_read(
    *
    */
 void Fabric_generic_grouped::post_write(
-  const std::vector<iovec>& buffers_
+  const std::vector<::iovec>& buffers_
   , uint64_t remote_addr_
   , uint64_t key_
   , void *context_
@@ -160,7 +178,7 @@ void Fabric_generic_grouped::post_write(
    * @param connection Connection to inject on
    * @param buffers Buffer vector (containing regions should be registered)
    */
-void Fabric_generic_grouped::inject_send(const std::vector<iovec>& buffers_)
+void Fabric_generic_grouped::inject_send(const std::vector<::iovec>& buffers_)
 {
   return cnxn().inject_send(buffers_);
 }
@@ -182,7 +200,7 @@ std::size_t Fabric_generic_grouped::poll_completions(Component::IFabric_op_compl
 {
   std::size_t constexpr ct_max = 1;
   std::size_t ct_total = 0;
-  fi_cq_tagged_entry entry; /* We dont actually expect a tagged entry. Spefifying this to provide the largest buffer. */
+  fi_cq_tagged_entry entry; /* We do not expect a tagged entry. Specifying this to provide the largest buffer. */
 
   bool drained = false;
   while ( ! drained )
@@ -240,7 +258,7 @@ std::size_t Fabric_generic_grouped::poll_completions(Component::IFabric_op_compl
 {
   std::size_t constexpr ct_max = 1;
   std::size_t ct_total = 0;
-  fi_cq_tagged_entry entry; /* We dont actually expect a tagged entry. Spefifying this to provide the largest buffer. */
+  fi_cq_tagged_entry entry; /* We do not expect a tagged entry. Specifying this to provide the largest buffer. */
 
   bool drained = false;
   while ( ! drained )
@@ -298,7 +316,7 @@ std::size_t Fabric_generic_grouped::poll_completions_tentative(Component::IFabri
 {
   std::size_t constexpr ct_max = 1;
   std::size_t ct_total = 0;
-  fi_cq_tagged_entry entry; /* We dont actually expect a tagged entry. Spefifying this to provide the largest buffer. */
+  fi_cq_tagged_entry entry; /* We do not expect a tagged entry. Specifying this to provide the largest buffer. */
 
   {
     std::unique_lock<std::mutex> k0{_m_comms};
@@ -357,12 +375,22 @@ void Fabric_generic_grouped::forget_group(Fabric_comm_grouped *comm_)
   _comms.erase(comm_);
 }
 
-void Fabric_generic_grouped::queue_completion(Fabric_comm_grouped *comm_, void *context_, ::status_t status_, const fi_cq_tagged_entry &cq_entry_)
+void Fabric_generic_grouped::queue_completion(Fabric_comm_grouped *comm_, ::status_t status_, const fi_cq_tagged_entry &cq_entry_)
 {
   std::lock_guard<std::mutex> k{_m_comms};
   auto it = _comms.find(comm_);
-  assert(it != _comms.end());
-  (*it)->queue_completion(context_, status_, cq_entry_);
+  if ( it == _comms.end() )
+  {
+    std::ostringstream s;
+    s << "communicator " << comm_ << " not found in set of " <<_comms.size() << " communicators { ";
+    for ( auto jt : _comms )
+    {
+      s << jt << ", ";
+    }
+    s << "}";
+    throw std::logic_error(s.str());
+  }
+  (*it)->queue_completion(status_, cq_entry_);
 }
 
 ssize_t Fabric_generic_grouped::cq_sread(void *buf_, size_t count_, const void *cond_, int timeout_) noexcept

@@ -28,6 +28,7 @@ public:
   volatile char &first_char() { return _memory[0]; }
 
   std::uint64_t key() const { return _registration.key(); }
+  void *desc() const { return _registration.desc(); }
 };
 
 #endif

@@ -40,6 +40,11 @@ public:
     , _context(context_)
   {
   }
+  ~async_req_record()
+  {
+  }
+  async_req_record(const async_req_record &) = delete;
+  async_req_record &operator=(const async_req_record &) = delete;
   Fabric_comm_grouped *comm() const { return _comm; }
   void *context() const { return _context; }
 };

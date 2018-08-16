@@ -97,26 +97,37 @@ public:
     const memory_region_t memory_region
   ) const noexcept override { return Fabric_memory_control::get_memory_remote_key(memory_region); }
 
+  void *get_memory_descriptor(
+    const memory_region_t memory_region
+  ) const noexcept override { return Fabric_memory_control::get_memory_descriptor(memory_region); }
 
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_sendv fail
    */
-  void  post_send(
-    const std::vector<iovec>& buffers
+  void post_send(
+    const ::iovec *first
+    , const ::iovec *last
+    , void **desc
     , void *context
-  ) override { return Fabric_connection_server::post_send(buffers, context); }
+  ) override { return Fabric_connection_server::post_send(first, last, desc, context); }
+
+  void post_send(
+    const std::vector<::iovec>& buffers
+    , void *context
+  ) override { return Fabric_connection_server::post_send(&*buffers.begin(), &*buffers.end(), context); }
+
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_recvv fail
    */
-  void  post_recv(
-    const std::vector<iovec>& buffers
+  void post_recv(
+    const std::vector<::iovec>& buffers
     , void *context
   ) override { return Fabric_op_control::post_recv(buffers, context); }
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_readv fail
    */
   void post_read(
-    const std::vector<iovec>& buffers,
+    const std::vector<::iovec>& buffers,
     std::uint64_t remote_addr,
     std::uint64_t key,
     void *context
@@ -125,7 +136,7 @@ public:
    * @throw fabric_runtime_error : std::runtime_error : ::fi_writev fail
    */
   void post_write(
-    const std::vector<iovec>& buffers,
+    const std::vector<::iovec>& buffers,
     std::uint64_t remote_addr,
     std::uint64_t key,
     void *context
@@ -134,7 +145,7 @@ public:
    * @throw fabric_runtime_error : std::runtime_error : ::fi_inject fail
    */
   void inject_send(
-    const std::vector<iovec>& buffers
+    const std::vector<::iovec>& buffers
   ) override { return Fabric_op_control::inject_send(buffers); }
 
   std::string get_peer_addr() override { return Fabric_op_control::get_peer_addr(); }
