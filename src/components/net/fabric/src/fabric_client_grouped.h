@@ -81,6 +81,12 @@ class Fabric_client_grouped
   {
     return Fabric_op_control::get_memory_remote_key(memory_region);
   };
+  void *get_memory_descriptor(
+    const memory_region_t memory_region
+  ) const noexcept override
+  {
+    return Fabric_op_control::get_memory_descriptor(memory_region);
+  };
   std::string get_peer_addr() override { return Fabric_op_control::get_peer_addr(); }
   std::string get_local_addr() override { return Fabric_op_control::get_local_addr(); }
 
@@ -166,16 +172,17 @@ public:
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_sendv fail
    */
-  void  post_send(const std::vector<iovec>& buffers, void *context) override { return _g.post_send(buffers, context); }
+  void post_send(const std::vector<::iovec>& buffers, void *context) override { return _g.post_send(&*buffers.begin(), &*buffers.end(), context); }
+  void post_send(const ::iovec *first, const ::iovec *last, void **desc, void *context) override { return _g.post_send(first, last, desc, context); }
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_recvv fail
    */
-  void  post_recv(const std::vector<iovec>& buffers, void *context) override { return _g.post_recv(buffers, context); }
+  void post_recv(const std::vector<::iovec>& buffers, void *context) override { return _g.post_recv(buffers, context); }
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_readv fail
    */
   void post_read(
-    const std::vector<iovec>& buffers,
+    const std::vector<::iovec>& buffers,
     std::uint64_t remote_addr,
     std::uint64_t key,
     void *context
@@ -184,7 +191,7 @@ public:
    * @throw fabric_runtime_error : std::runtime_error : ::fi_writev fail
    */
   void post_write(
-    const std::vector<iovec>& buffers,
+    const std::vector<::iovec>& buffers,
     std::uint64_t remote_addr,
     std::uint64_t key,
     void *context
@@ -192,7 +199,7 @@ public:
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_inject fail
    */
-  void inject_send(const std::vector<iovec>& buffers) override { return _g.inject_send(buffers); }
+  void inject_send(const std::vector<::iovec>& buffers) override { return _g.inject_send(buffers); }
 
   fabric_types::addr_ep_t get_name() const { return _g.get_name(); }
 
@@ -202,7 +209,7 @@ public:
   ::fi_cq_err_entry get_cq_comp_err() const { return _g.get_cq_comp_err(); }
   ssize_t cq_sread(void *buf, std::size_t count, const void *cond, int timeout) noexcept { return _g.cq_sread(buf, count, cond, timeout); }
   ssize_t cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) const noexcept { return _g.cq_readerr(buf, flags); }
-  void queue_completion(Fabric_comm_grouped *comm, void *context, ::status_t status, const ::fi_cq_tagged_entry &cq_entry) { return _g.queue_completion(comm, context, status, cq_entry); }
+  void queue_completion(Fabric_comm_grouped *comm, ::status_t status, const ::fi_cq_tagged_entry &cq_entry) { return _g.queue_completion(comm, status, cq_entry); }
   /*
    * @throw std::logic_error : unexpected event
    * @throw std::system_error : read error on event pipe

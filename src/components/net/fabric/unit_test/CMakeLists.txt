@@ -30,4 +30,7 @@ add_executable(fabric-test1 test1.cpp
   wait_poll.cpp
 )
 
+# add_executable(send_lat send_lat.C perftest_parameters.C perftest_resources.C)
+
 target_link_libraries(fabric-test1 ${ASAN_LIB} common comanche-core fabric gtest pthread dl) # dl
+# target_link_libraries(send_lat ${ASAN_LIB} common comanche-core fabric gtest pthread dl) # dl

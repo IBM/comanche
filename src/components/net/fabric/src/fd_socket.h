@@ -44,8 +44,8 @@ public:
    */
   void recv(void *buf, std::size_t size) const;
   int fd() const { return _fd; }
-  bool good() const  { return _fd != -1; }
-  operator bool() const  { return good(); }
+  bool good() const { return _fd != -1; }
+  operator bool() const { return good(); }
 };
 
 #endif

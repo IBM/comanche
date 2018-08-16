@@ -9,6 +9,7 @@ registration::registration(Component::IFabric_connection &cnxn_, const void *con
   : _cnxn(cnxn_)
   , _region(_cnxn.register_memory(contig_addr_, size_, key_, flags_))
   , _key(_cnxn.get_memory_remote_key(_region))
+  , _desc(_cnxn.get_memory_descriptor(_region))
 {
 }
 
