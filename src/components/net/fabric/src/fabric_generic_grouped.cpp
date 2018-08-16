@@ -242,17 +242,20 @@ std::size_t Fabric_generic_grouped::poll_completions(Component::IFabric_op_compl
   bool drained = false;
   while ( ! drained )
   {
-    auto timeout = 0; /* immediate timeout */
-    auto ct = cq_sread(&entry, ct_max, nullptr, timeout);
+    constexpr auto timeout = 0; /* immediate timeout */
+    const auto ct = cq_sread(&entry, ct_max, nullptr, timeout);
     if ( ct < 0 )
     {
-      switch ( auto e = unsigned(-ct) )
+      switch ( const auto e = unsigned(-ct) )
       {
       case FI_EAVAIL:
         ct_total += cnxn().process_cq_comp_err(cb_);
         break;
       case FI_EAGAIN:
         drained = true;
+        break;
+      case FI_EINTR:
+        /* seen when profiling with gperftools */
         break;
       default:
         throw fabric_runtime_error(e, __FILE__, __LINE__);
@@ -263,7 +266,6 @@ std::size_t Fabric_generic_grouped::poll_completions(Component::IFabric_op_compl
       std::unique_ptr<async_req_record> g_context(static_cast<async_req_record *>(entry.op_context));
       cb_(g_context->context(), S_OK);
       ++ct_total;
-
       g_context.release();
     }
   }
@@ -300,17 +302,20 @@ std::size_t Fabric_generic_grouped::poll_completions(Component::IFabric_op_compl
   bool drained = false;
   while ( ! drained )
   {
-    auto timeout = 0; /* immediate timeout */
-    auto ct = cq_sread(&entry, ct_max, nullptr, timeout);
+    constexpr auto timeout = 0; /* immediate timeout */
+    const auto ct = cq_sread(&entry, ct_max, nullptr, timeout);
     if ( ct < 0 )
     {
-      switch ( auto e = unsigned(-ct) )
+      switch ( const auto e = unsigned(-ct) )
       {
       case FI_EAVAIL:
         ct_total += cnxn().process_cq_comp_err(cb_);
         break;
       case FI_EAGAIN:
         drained = true;
+        break;
+      case FI_EINTR:
+        /* seen when profiling with gperftools */
         break;
       default:
         throw fabric_runtime_error(e, __FILE__, __LINE__);
@@ -321,7 +326,6 @@ std::size_t Fabric_generic_grouped::poll_completions(Component::IFabric_op_compl
       std::unique_ptr<async_req_record> g_context(static_cast<async_req_record *>(entry.op_context));
       cb_(g_context->context(), S_OK, entry.flags, entry.len, nullptr);
       ++ct_total;
-
       g_context.release();
     }
   }
@@ -366,17 +370,20 @@ std::size_t Fabric_generic_grouped::poll_completions_tentative(Component::IFabri
   bool drained = false;
   while ( ! drained )
   {
-    auto timeout = 0; /* immediate timeout */
-    auto ct = cq_sread(&entry, ct_max, nullptr, timeout);
+    constexpr auto timeout = 0; /* immediate timeout */
+    const auto ct = cq_sread(&entry, ct_max, nullptr, timeout);
     if ( ct < 0 )
     {
-      switch ( auto e = unsigned(-ct) )
+      switch ( const auto e = unsigned(-ct) )
       {
       case FI_EAVAIL:
         ct_total += cnxn().process_or_queue_cq_comp_err(cb_);
         break;
       case FI_EAGAIN:
         drained = true;
+        break;
+      case FI_EINTR:
+        /* seen when profiling with gperftools */
         break;
       default:
         throw fabric_runtime_error(e, __FILE__, __LINE__);
