@@ -363,17 +363,20 @@ std::size_t Fabric_op_control::poll_completions(Component::IFabric_op_completer:
   bool drained = false;
   while ( ! drained )
   {
-    auto timeout = 0; /* immediate timeout */
-    auto ct = cq_sread(&cq_entry, ct_max, nullptr, timeout);
+    constexpr auto timeout = 0; /* immediate timeout */
+    const auto ct = cq_sread(&cq_entry, ct_max, nullptr, timeout);
     if ( ct < 0 )
     {
-      switch ( auto e = unsigned(-ct) )
+      switch ( const auto e = unsigned(-ct) )
       {
       case FI_EAVAIL:
         ct_total += process_cq_comp_err(cb_);
         break;
       case FI_EAGAIN:
         drained = true;
+        break;
+      case FI_EINTR:
+        /* seen when profiling with gperftools */
         break;
       default:
         throw fabric_runtime_error(e, __FILE__, __LINE__);
@@ -403,17 +406,20 @@ std::size_t Fabric_op_control::poll_completions(Component::IFabric_op_completer:
   bool drained = false;
   while ( ! drained )
   {
-    auto timeout = 0; /* immediate timeout */
-    auto ct = cq_sread(&cq_entry, ct_max, nullptr, timeout);
+    constexpr auto timeout = 0; /* immediate timeout */
+    const auto ct = cq_sread(&cq_entry, ct_max, nullptr, timeout);
     if ( ct < 0 )
     {
-      switch ( auto e = unsigned(-ct) )
+      switch ( const auto e = unsigned(-ct) )
       {
       case FI_EAVAIL:
         ct_total += process_cq_comp_err(cb_);
         break;
       case FI_EAGAIN:
         drained = true;
+        break;
+      case FI_EINTR:
+        /* seen when profiling with gperftools */
         break;
       default:
         throw fabric_runtime_error(e, __FILE__, __LINE__);
@@ -443,17 +449,20 @@ std::size_t Fabric_op_control::poll_completions_tentative(Component::IFabric_op_
   bool drained = false;
   while ( ! drained )
   {
-    auto timeout = 0; /* immediate timeout */
-    auto ct = cq_sread(&cq_entry, ct_max, nullptr, timeout);
+    constexpr auto timeout = 0; /* immediate timeout */
+    const auto ct = cq_sread(&cq_entry, ct_max, nullptr, timeout);
     if ( ct < 0 )
     {
-      switch ( auto e = unsigned(-ct) )
+      switch ( const auto e = unsigned(-ct) )
       {
       case FI_EAVAIL:
         ct_total += process_or_queue_cq_comp_err(cb_);
         break;
       case FI_EAGAIN:
         drained = true;
+        break;
+      case FI_EINTR:
+        /* seen when profiling with gperftools */
         break;
       default:
         throw fabric_runtime_error(e, __FILE__, __LINE__);
