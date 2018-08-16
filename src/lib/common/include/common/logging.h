@@ -101,7 +101,7 @@
 #define PNOTICE(f, ...) \
   fprintf(stderr, "%sNOTICE %s:" f "%s\n", BRIGHT_RED, __FUNCTION__, ##__VA_ARGS__, ESC_END);
 #define PMAJOR(f, ...) \
-  fprintf(stderr, "%s[+] %s:" f "%s\n", NORMAL_BLUE, __FUNCTION__, ##__VA_ARGS__, ESC_END);
+  fprintf(stdout, "%s[+] " f "%s\n", NORMAL_BLUE, ##__VA_ARGS__, ESC_END);
 #define POK(f, ...) \
   fprintf(stderr, "%sOK %s:" f "%s\n", NORMAL_MAGENTA, __FUNCTION__, ##__VA_ARGS__, ESC_END);
 
