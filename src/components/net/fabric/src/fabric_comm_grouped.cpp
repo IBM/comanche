@@ -93,12 +93,24 @@ void Fabric_comm_grouped::post_send(
  * @return Work (context) identifier
  */
 void Fabric_comm_grouped::post_recv(
+  const ::iovec *first_
+  , const ::iovec *last_
+  , void **desc_
+  , void *context_
+)
+{
+  std::unique_ptr<async_req_record> gc{new async_req_record(this, context_)};
+  _conn.post_send(first_, last_, desc_, &*gc);
+  gc.release();
+}
+
+void Fabric_comm_grouped::post_recv(
   const std::vector<::iovec>& buffers_
   , void *context_
 )
 {
   std::unique_ptr<async_req_record> gc{new async_req_record(this, context_)};
-  _conn.post_recv(buffers_, &*gc);
+  _conn.post_recv(&*buffers_.begin(), &*buffers_.end(), &*gc);
   gc.release();
 }
 
@@ -113,6 +125,21 @@ void Fabric_comm_grouped::post_recv(
    *
    */
 void Fabric_comm_grouped::post_read(
+  const ::iovec *first_
+  , const ::iovec *last_
+  , void **desc_
+  , uint64_t remote_addr_
+  , uint64_t key_
+  , void *context_
+)
+{
+  /* provide a read buffer */
+  std::unique_ptr<async_req_record> gc{new async_req_record(this, context_)};
+  _conn.post_read(first_, last_, desc_, remote_addr_, key_, &*gc);
+  gc.release();
+}
+
+void Fabric_comm_grouped::post_read(
   const std::vector<::iovec>& buffers_,
   uint64_t remote_addr_,
   uint64_t key_,
@@ -121,7 +148,7 @@ void Fabric_comm_grouped::post_read(
 {
   /* provide a read buffer */
   std::unique_ptr<async_req_record> gc{new async_req_record(this, context_)};
-  _conn.post_read(buffers_, remote_addr_, key_, &*gc);
+  _conn.post_read(&*buffers_.begin(), &*buffers_.end(), remote_addr_, key_, &*gc);
   gc.release();
 }
 
@@ -136,6 +163,20 @@ void Fabric_comm_grouped::post_read(
    *
    */
 void Fabric_comm_grouped::post_write(
+  const ::iovec *first_
+  , const ::iovec *last_
+  , void **desc_
+  , uint64_t remote_addr_
+  , uint64_t key_
+  , void *context_
+)
+{
+  std::unique_ptr<async_req_record> gc{new async_req_record(this, context_)};
+  _conn.post_write(first_, last_, desc_, remote_addr_, key_, &*gc);
+  gc.release();
+}
+
+void Fabric_comm_grouped::post_write(
   const std::vector<::iovec>& buffers_,
   uint64_t remote_addr_,
   uint64_t key_,
@@ -143,7 +184,7 @@ void Fabric_comm_grouped::post_write(
 )
 {
   std::unique_ptr<async_req_record> gc{new async_req_record(this, context_)};
-  _conn.post_write(buffers_, remote_addr_, key_, &*gc);
+  _conn.post_write(&*buffers_.begin(), &*buffers_.end(), remote_addr_, key_, &*gc);
   gc.release();
 }
 
@@ -153,9 +194,13 @@ void Fabric_comm_grouped::post_write(
    * @param connection Connection to inject on
    * @param buffers Buffer vector (containing regions should be registered)
    */
+void Fabric_comm_grouped::inject_send(const ::iovec *first_, const ::iovec *last_)
+{
+  _conn.inject_send(first_, last_);
+}
 void Fabric_comm_grouped::inject_send(const std::vector<::iovec>& buffers_)
 {
-  _conn.inject_send(buffers_);
+  _conn.inject_send(&*buffers_.begin(), &*buffers_.end());
 }
 
 void Fabric_comm_grouped::queue_completion(::status_t status_, const ::fi_cq_tagged_entry &cq_entry_)

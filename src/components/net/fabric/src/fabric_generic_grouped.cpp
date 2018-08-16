@@ -125,11 +125,22 @@ void Fabric_generic_grouped::unblock_completions()
 }
 
 void Fabric_generic_grouped::post_recv(
-  const std::vector<::iovec>& buffers_
+  const ::iovec *first_
+  , const ::iovec *last_
+  , void **desc_
   , void *context_
 )
 {
-  return cnxn().post_recv(buffers_, context_);
+  return cnxn().post_recv(first_, last_, desc_, context_);
+}
+
+void Fabric_generic_grouped::post_recv(
+  const ::iovec *first_
+  , const ::iovec *last_
+  , void *context_
+)
+{
+  return cnxn().post_recv(first_, last_, context_);
 }
 
   /**
@@ -143,13 +154,26 @@ void Fabric_generic_grouped::post_recv(
    *
    */
 void Fabric_generic_grouped::post_read(
-  const std::vector<::iovec>& buffers_
+  const ::iovec *first_
+  , const ::iovec *last_
+  , void **desc_
   , uint64_t remote_addr_
   , uint64_t key_
   , void *context_
 )
 {
-  return cnxn().post_read(buffers_, remote_addr_, key_, context_);
+  return cnxn().post_read(first_, last_, desc_, remote_addr_, key_, context_);
+}
+
+void Fabric_generic_grouped::post_read(
+  const ::iovec *first_
+  , const ::iovec *last_
+  , uint64_t remote_addr_
+  , uint64_t key_
+  , void *context_
+)
+{
+  return cnxn().post_read(first_, last_, remote_addr_, key_, context_);
 }
 
   /**
@@ -163,13 +187,26 @@ void Fabric_generic_grouped::post_read(
    *
    */
 void Fabric_generic_grouped::post_write(
-  const std::vector<::iovec>& buffers_
+  const ::iovec *first_
+  , const ::iovec *last_
+  , void **desc_
   , uint64_t remote_addr_
   , uint64_t key_
   , void *context_
 )
 {
-  return cnxn().post_write(buffers_, remote_addr_, key_, context_);
+  return cnxn().post_write(first_, last_, desc_, remote_addr_, key_, context_);
+}
+
+void Fabric_generic_grouped::post_write(
+  const ::iovec *first_
+  , const ::iovec *last_
+  , uint64_t remote_addr_
+  , uint64_t key_
+  , void *context_
+)
+{
+  return cnxn().post_write(first_, last_, remote_addr_, key_, context_);
 }
 
   /**
@@ -178,9 +215,9 @@ void Fabric_generic_grouped::post_write(
    * @param connection Connection to inject on
    * @param buffers Buffer vector (containing regions should be registered)
    */
-void Fabric_generic_grouped::inject_send(const std::vector<::iovec>& buffers_)
+void Fabric_generic_grouped::inject_send(const ::iovec *first_, const ::iovec *last_)
 {
-  return cnxn().inject_send(buffers_);
+  return cnxn().inject_send(first_, last_);
 }
 
 ::fi_cq_err_entry Fabric_generic_grouped::get_cq_comp_err() const

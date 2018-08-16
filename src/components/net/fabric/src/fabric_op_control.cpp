@@ -156,21 +156,31 @@ void Fabric_op_control::post_send(
  * @return Work (context) identifier
  */
 void Fabric_op_control::post_recv(
-  const std::vector<iovec>& buffers_
+  const ::iovec *first_
+  , const ::iovec *last_
+  , void **desc_
   , void *context_
 )
 {
-  auto desc = populated_desc(buffers_);
   CHECK_FI_ERR(
     ::fi_recvv(
       &ep()
-      , &*buffers_.begin()
-      , &*desc.begin()
-      , buffers_.size()
+      , first_
+      , desc_
+      , last_ - first_
       , ::fi_addr_t{}
       , context_
     )
   );
+}
+void Fabric_op_control::post_recv(
+  const ::iovec *first_
+  , const ::iovec *last_
+  , void *context_
+)
+{
+  auto desc = populated_desc(first_, last_);
+  post_recv(first_, last_, &*desc.begin(), context_);
 }
 
   /**
@@ -184,25 +194,38 @@ void Fabric_op_control::post_recv(
    *
    */
 void Fabric_op_control::post_read(
-  const std::vector<iovec>& buffers_
+  const ::iovec *first_
+  , const ::iovec *last_
+  , void **desc_
   , uint64_t remote_addr_
   , uint64_t key_
   , void *context_
 )
 {
-  auto desc = populated_desc(buffers_);
   CHECK_FI_ERR(
     ::fi_readv(
       &ep()
-      , &*buffers_.begin()
-      , &*desc.begin()
-      , buffers_.size()
+      , first_
+      , desc_
+      , last_ - first_
       , ::fi_addr_t{}
       , remote_addr_
       , key_
       , context_
     )
   );
+}
+
+void Fabric_op_control::post_read(
+  const ::iovec *first_
+  , const ::iovec *last_
+  , uint64_t remote_addr_
+  , uint64_t key_
+  , void *context_
+)
+{
+  auto desc = populated_desc(first_, last_);
+  post_read(first_, last_, &*desc.begin(), remote_addr_, key_, context_);
 }
 
   /**
@@ -216,19 +239,20 @@ void Fabric_op_control::post_read(
    *
    */
 void Fabric_op_control::post_write(
-  const std::vector<iovec>& buffers_
+  const ::iovec *first_
+  , const ::iovec *last_
+  , void **desc_
   , uint64_t remote_addr_
   , uint64_t key_
   , void *context_
 )
 {
-  auto desc = populated_desc(buffers_);
   CHECK_FI_ERR(
     ::fi_writev(
       &ep()
-      , &*buffers_.begin()
-      , &*desc.begin()
-      , buffers_.size()
+      , first_
+      , desc_
+      , last_ - first_
       , ::fi_addr_t{}
       , remote_addr_
       , key_
@@ -237,15 +261,27 @@ void Fabric_op_control::post_write(
     );
 }
 
+void Fabric_op_control::post_write(
+  const ::iovec *first_
+  , const ::iovec *last_
+  , uint64_t remote_addr_
+  , uint64_t key_
+  , void *context_
+)
+{
+  auto desc = populated_desc(first_, last_);
+  post_write(first_, last_, &*desc.begin(), remote_addr_, key_, context_);
+}
+
   /**
    * Send message without completion
    *
    * @param connection Connection to inject on
    * @param buffers Buffer vector (containing regions should be registered)
    */
-void Fabric_op_control::inject_send(const std::vector<iovec>& buffers)
+void Fabric_op_control::inject_send(const ::iovec *first_, const ::iovec *last_)
 {
-  CHECK_FI_ERR(::fi_inject(&ep(), &*buffers.begin(), buffers.size(), ::fi_addr_t{}));
+  CHECK_FI_ERR(::fi_inject(&ep(), first_, last_ - first_, ::fi_addr_t{}));
 }
 
 ::fi_cq_err_entry Fabric_op_control::get_cq_comp_err() const

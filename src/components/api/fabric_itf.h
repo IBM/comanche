@@ -204,6 +204,7 @@ public:
    *
    * @throw IFabric_runtime_error - ::fi_recvv fail
    */
+  virtual void post_recv(const ::iovec *first, const ::iovec *last, void **descriptors, void *context) = 0;
   virtual void post_recv(const std::vector<::iovec>& buffers, void *context) = 0;
 
   /**
@@ -217,6 +218,12 @@ public:
    * @throw IFabric_runtime_error - ::fi_readv fail
    *
    */
+  virtual void post_read(const ::iovec *first,
+                         const ::iovec *last,
+                         void **descriptors,
+                         std::uint64_t remote_addr,
+                         std::uint64_t key,
+                         void *context) = 0;
   virtual void post_read(const std::vector<::iovec>& buffers,
                          std::uint64_t remote_addr,
                          std::uint64_t key,
@@ -233,6 +240,12 @@ public:
    * @throw IFabric_runtime_error - ::fi_writev fail
    *
    */
+  virtual void post_write(const ::iovec *first,
+                          const ::iovec *last,
+                          void **descriptors,
+                          std::uint64_t remote_addr,
+                          std::uint64_t key,
+                          void *context) = 0;
   virtual void post_write(const std::vector<::iovec>& buffers,
                           std::uint64_t remote_addr,
                           std::uint64_t key,
@@ -246,6 +259,7 @@ public:
    *
    * @throw IFabric_runtime_error - ::fi_inject fail
    */
+  virtual void inject_send(const ::iovec *first, const ::iovec *last) = 0;
   virtual void inject_send(const std::vector<::iovec>& buffers) = 0;
 
   /* Additional TODO:
