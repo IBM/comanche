@@ -40,7 +40,6 @@
 #include <mutex>
 #include <queue>
 #include <set>
-#include <vector>
 
 struct fi_info;
 struct fi_cq_err_entry;
@@ -178,7 +177,6 @@ public:
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_sendv fail
    */
-
   void post_send(
     const ::iovec *first
     , const ::iovec *last
@@ -191,35 +189,67 @@ public:
     , const ::iovec *last
     , void *context
   );
+
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_recvv fail
    */
   void post_recv(
-    const std::vector<::iovec>& buffers
+    const ::iovec *first
+    , const ::iovec *last
+    , void **desc
     , void *context
   );
+
+  void post_recv(
+    const ::iovec *first
+    , const ::iovec *last
+    , void *context
+  );
+
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_readv fail
    */
   void post_read(
-    const std::vector<::iovec>& buffers
+    const ::iovec *first
+    , const ::iovec *last
+    , void **desc
     , std::uint64_t remote_addr
     , std::uint64_t key
     , void *context
   );
+
+  void post_read(
+    const ::iovec *first
+    , const ::iovec *last
+    , std::uint64_t remote_addr
+    , std::uint64_t key
+    , void *context
+  );
+
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_writev fail
    */
   void post_write(
-    const std::vector<::iovec>& buffers
+    const ::iovec *first
+    , const ::iovec *last
+    , void **desc
     , std::uint64_t remote_addr
     , std::uint64_t key
     , void *context
   );
+
+  void post_write(
+    const ::iovec *first
+    , const ::iovec *last
+    , std::uint64_t remote_addr
+    , std::uint64_t key
+    , void *context
+  );
+
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_inject fail
    */
-  void inject_send(const std::vector<::iovec>& buffers);
+  void inject_send(const ::iovec *first, const ::iovec *last);
 
 public:
   /*
