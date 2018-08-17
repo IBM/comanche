@@ -42,10 +42,22 @@ class Fabric_op_control;
 class Fabric_generic_grouped
   : public Component::IFabric_active_endpoint_grouped
 {
+  /* All communicators in a group share this "generic group."
+   * Communicators need to serialize the two items ownec by the group:
+   * the connection and the set of communicators.
+   */
+  std::mutex _m_cnxn;
   Fabric_op_control &_cnxn;
+#if 0
+  Fabric_op_control &cnxn() const noexcept { return _cnxn; }
+#endif
+
   std::mutex _m_comms;
   std::set<Fabric_comm_grouped *> _comms;
 
+  ssize_t cq_sread_locked(void *buf, std::size_t count, const void *cond, int timeout) noexcept;
+
+public:
   /* Begin Component::IFabric_active_endpoint_grouped (IFabric_connection) */
   /**
    * @throw std::range_error - address already registered
@@ -73,16 +85,12 @@ class Fabric_generic_grouped
 
   std::string get_peer_addr() override;
   std::string get_local_addr() override;
-public:
+
   std::size_t max_message_size() const noexcept override;
   /* END Component::IFabric_active_endpoint_grouped (IFabric_connection) */
 
-public:
   Component::IFabric_communicator *allocate_group() override;
-private:
-  Fabric_op_control &cnxn() const noexcept { return _cnxn; }
 
-public:
   explicit Fabric_generic_grouped(
     Fabric_op_control &cnxn
   );
@@ -177,9 +185,9 @@ public:
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_cq_readerr fail
    */
-  ::fi_cq_err_entry get_cq_comp_err() const;
+  ::fi_cq_err_entry get_cq_comp_err();
   ssize_t cq_sread(void *buf, std::size_t count, const void *cond, int timeout) noexcept;
-  ssize_t cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) const noexcept;
+  ssize_t cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) noexcept;
   void queue_completion(Fabric_comm_grouped *comm, ::status_t status, const ::fi_cq_tagged_entry &cq_entry);
 };
 
