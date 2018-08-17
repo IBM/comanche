@@ -33,6 +33,8 @@
 #pragma GCC diagnostic pop
 
 #include <sys/uio.h> /* struct iovec */
+#include <cstdlib> /* getenv */
+#include <iostream> /* cerr */
 
 /**
  * Fabric/RDMA-based network component
@@ -44,12 +46,20 @@ Fabric_comm_grouped::Fabric_comm_grouped(Fabric_generic_grouped &conn_)
   : _conn( conn_ )
   , _m_completions{}
   , _completions{}
+  , _stats{}
 {
+}
+
+Fabric_comm_grouped::stats::~stats()
+{
+  if ( std::getenv("FABRIC_STATS") )
+  {
+    std::cerr << "Fabric_comm_grouped(" << this << ") ct " << ct_total << " defer " << defer_total << " redirect " << redirect_total << "\n";
+  }
 }
 
 Fabric_comm_grouped::~Fabric_comm_grouped()
 {
-
 /* wait until all completions are reaped */
   _conn.forget_group(this);
 }
@@ -221,6 +231,7 @@ std::size_t Fabric_comm_grouped::process_or_queue_completion(const ::fi_cq_tagge
   else
   {
     _conn.queue_completion(g_context->comm(), status_, cq_entry_);
+    ++_stats.redirect_total;
     g_context.release();
   }
 
@@ -239,6 +250,7 @@ std::size_t Fabric_comm_grouped::process_or_queue_completion(const ::fi_cq_tagge
   else
   {
     _conn.queue_completion(g_context->comm(), status_, cq_entry_);
+    ++_stats.redirect_total;
     g_context.release();
   }
 
@@ -256,6 +268,7 @@ std::size_t Fabric_comm_grouped::process_or_queue_completion(const ::fi_cq_tagge
   else
   {
     _conn.queue_completion(g_context->comm(), status_, cq_entry_);
+    ++(g_context->comm() == this ? _stats.defer_total : _stats.redirect_total);
     g_context.release();
   }
 
@@ -349,6 +362,7 @@ std::size_t Fabric_comm_grouped::drain_old_completions(Component::IFabric_op_com
     else
     {
       deferred_completions.push(c);
+      ++_stats.defer_total;
       g_context.release();
     }
     k.lock();
@@ -392,6 +406,7 @@ std::size_t Fabric_comm_grouped::poll_completions(Component::IFabric_op_complete
     }
   }
 
+  _stats.ct_total += ct_total;
   return ct_total;
 }
 
@@ -430,6 +445,7 @@ std::size_t Fabric_comm_grouped::poll_completions(Component::IFabric_op_complete
     }
   }
 
+  _stats.ct_total += ct_total;
   return ct_total;
 }
 
@@ -469,6 +485,7 @@ std::size_t Fabric_comm_grouped::poll_completions_tentative(Component::IFabric_o
 
   ct_total += drain_old_completions(cb_);
 
+  _stats.ct_total += ct_total;
   return ct_total;
 }
 

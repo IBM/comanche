@@ -38,6 +38,22 @@ class Fabric_comm_grouped
   /* completions for this comm processed but not yet forwarded, or processed and forwarded but deferred with DEFER status */
   std::mutex _m_completions;
   std::queue<completion_t> _completions;
+  struct stats
+  {
+    /* # of completions (acceptances of tentative completions only) retired by this communicator */
+    std::size_t ct_total;
+    /* # of deferrals (requeues) seen by this communicator */
+    std::size_t defer_total;
+    /* # of redirections of tentative completions processed by this communicator */
+    std::size_t redirect_total;
+    stats()
+      : ct_total{0}
+      , defer_total{0}
+      , redirect_total{0}
+    {
+    }
+    ~stats();
+  } _stats;
 
   std::size_t process_cq_comp_err(Component::IFabric_op_completer::complete_old completion_callback);
   std::size_t process_cq_comp_err(Component::IFabric_op_completer::complete_definite completion_callback);
