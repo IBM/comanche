@@ -105,14 +105,15 @@ TEST_F(Rdma_test, ExchangeData)
 
 TEST_F(Rdma_test, PingPong)
 {
+  static constexpr size_t BUFFER_SIZE = 128;
   Core::Physical_memory mem;
-  Component::io_buffer_t iob = mem.allocate_io_buffer(KB(4),
+  Component::io_buffer_t iob = mem.allocate_io_buffer(BUFFER_SIZE,
                                                       KB(4),
                                                       Component::NUMA_NODE_ANY);
   unsigned ITERATIONS = 1000000;
 
   char  * msg = (char *) mem.virt_addr(iob);
-  auto rdma_buffer = _rdma->register_memory(mem.virt_addr(iob),KB(4));
+  auto rdma_buffer = _rdma->register_memory(mem.virt_addr(iob),BUFFER_SIZE);
 
   auto start = std::chrono::high_resolution_clock::now();
 
@@ -139,7 +140,7 @@ TEST_F(Rdma_test, PingPong)
   }
   auto end = std::chrono::high_resolution_clock::now();
   auto secs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() / 1000.0;
-  PINF("PingPong Ops/Sec: %lu", static_cast<unsigned long>( ITERATIONS / secs ));
+  PINF("64 byte PingPong Ops/Sec: %lu", static_cast<unsigned long>( ITERATIONS / secs ));
 
   mem.free_io_buffer(iob);
 }
