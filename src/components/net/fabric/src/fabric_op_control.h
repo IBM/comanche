@@ -87,6 +87,20 @@ class Fabric_op_control
   /* true after an FI_SHUTDOWN event has been observed */
   std::atomic<bool> _shut_down;
 
+  struct stats
+  {
+    /* # of completions (acceptances of tentative completions only) retired by this communicator */
+    std::size_t ct_total;
+    /* # of deferrals (requeues) seen by this communicator */
+    std::size_t defer_total;
+    stats()
+      : ct_total{0}
+      , defer_total{0}
+    {
+    }
+    ~stats();
+  } _stats;
+
   /* BEGIN Component::IFabric_op_completer */
 
   /* END IFabric_op_completer */

@@ -72,9 +72,9 @@ void remote_memory_client_grouped::send_disconnect(Component::IFabric_communicat
   send_msg(cnxn_, rm_, &quit_flag_, sizeof quit_flag_);
 }
 
-Component::IFabric_communicator *remote_memory_client_grouped::allocate_group() const
+std::unique_ptr<Component::IFabric_communicator> remote_memory_client_grouped::allocate_group() const
 {
-  return _cnxn->allocate_group();
+  return std::unique_ptr<Component::IFabric_communicator>(_cnxn->allocate_group());
 }
 
 std::size_t remote_memory_client_grouped::max_message_size() const

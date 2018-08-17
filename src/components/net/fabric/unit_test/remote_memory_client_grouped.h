@@ -6,7 +6,7 @@
 #include <common/types.h> /* status_t */
 #include <cstdint> /* uint16_t, uint64_t */
 #include <cstring> /* string */
-#include <memory> /* shared_ptr */
+#include <memory> /* shared_ptr, unique_ptr */
 
 class registered_memory;
 
@@ -46,7 +46,7 @@ public:
   std::uint64_t key() const { return _key; }
   Component::IFabric_client_grouped &cnxn() { return *_cnxn; }
 
-  Component::IFabric_communicator *allocate_group() const;
+  std::unique_ptr<Component::IFabric_communicator> allocate_group() const;
   std::size_t max_message_size() const;
 };
 

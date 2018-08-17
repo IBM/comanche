@@ -33,6 +33,8 @@
 #pragma GCC diagnostic pop
 
 #include <sys/uio.h> /* struct iovec */
+#include <cstdlib> /* getenv */
+#include <iostream> /* cerr */
 
 /**
  * Fabric/RDMA-based network component
@@ -44,12 +46,20 @@ Fabric_comm_grouped::Fabric_comm_grouped(Fabric_generic_grouped &conn_)
   : _conn( conn_ )
   , _m_completions{}
   , _completions{}
+  , _stats{}
 {
+}
+
+Fabric_comm_grouped::stats::~stats()
+{
+  if ( std::getenv("FABRIC_STATS") )
+  {
+    std::cerr << "Fabric_comm_grouped(" << this << ") ct " << ct_total << " defer " << defer_total << " redirect " << redirect_total << "\n";
+  }
 }
 
 Fabric_comm_grouped::~Fabric_comm_grouped()
 {
-
 /* wait until all completions are reaped */
   _conn.forget_group(this);
 }
@@ -221,6 +231,7 @@ std::size_t Fabric_comm_grouped::process_or_queue_completion(const ::fi_cq_tagge
   else
   {
     _conn.queue_completion(g_context->comm(), status_, cq_entry_);
+    ++_stats.redirect_total;
     g_context.release();
   }
 
@@ -239,6 +250,7 @@ std::size_t Fabric_comm_grouped::process_or_queue_completion(const ::fi_cq_tagge
   else
   {
     _conn.queue_completion(g_context->comm(), status_, cq_entry_);
+    ++_stats.redirect_total;
     g_context.release();
   }
 
@@ -256,6 +268,7 @@ std::size_t Fabric_comm_grouped::process_or_queue_completion(const ::fi_cq_tagge
   else
   {
     _conn.queue_completion(g_context->comm(), status_, cq_entry_);
+    ++(g_context->comm() == this ? _stats.defer_total : _stats.redirect_total);
     g_context.release();
   }
 
@@ -349,6 +362,7 @@ std::size_t Fabric_comm_grouped::drain_old_completions(Component::IFabric_op_com
     else
     {
       deferred_completions.push(c);
+      ++_stats.defer_total;
       g_context.release();
     }
     k.lock();
@@ -367,25 +381,32 @@ std::size_t Fabric_comm_grouped::poll_completions(Component::IFabric_op_complete
     std::size_t constexpr ct_max = 1;
     fi_cq_tagged_entry entry; /* We do not expect a tagged entry, but specify it to provide the largest buffer. */
 
-    switch ( const auto ct = _conn.cq_sread(&entry, ct_max, nullptr, 0) )
+    constexpr auto timeout = 0; /* immediate timeout */
+    const auto ct = _conn.cq_sread(&entry, ct_max, nullptr, timeout);
+    if ( ct < 0 )
     {
-    case -FI_EAVAIL:
-      ct_total += process_cq_comp_err(cb_);
-      break;
-    case -FI_EAGAIN:
-      drained = true;
-      break;
-    default:
-      if ( ct < 0 )
+      switch ( const auto e = unsigned(-ct) )
       {
-        throw fabric_runtime_error(unsigned(-ct), __FILE__, __LINE__);
+      case FI_EAVAIL:
+        ct_total += process_cq_comp_err(cb_);
+        break;
+      case FI_EAGAIN:
+        drained = true;
+        break;
+      case FI_EINTR:
+        /* seen when profiling with gperftools */
+        break;
+      default:
+        throw fabric_runtime_error(e, __FILE__, __LINE__);
       }
-
+    }
+    else
+    {
       ct_total += process_or_queue_completion(entry, cb_, S_OK);
-      break;
     }
   }
 
+  _stats.ct_total += ct_total;
   return ct_total;
 }
 
@@ -399,25 +420,32 @@ std::size_t Fabric_comm_grouped::poll_completions(Component::IFabric_op_complete
     std::size_t constexpr ct_max = 1;
     fi_cq_tagged_entry entry; /* We do not expect a tagged entry, but specify it to provide the largest buffer. */
 
-    switch ( const auto ct = _conn.cq_sread(&entry, ct_max, nullptr, 0) )
+    constexpr auto timeout = 0; /* immediate timeout */
+    const auto ct = _conn.cq_sread(&entry, ct_max, nullptr, timeout);
+    if ( ct < 0 )
     {
-    case -FI_EAVAIL:
-      ct_total += process_cq_comp_err(cb_);
-      break;
-    case -FI_EAGAIN:
-      drained = true;
-      break;
-    default:
-      if ( ct < 0 )
+      switch ( const auto e = unsigned(-ct) )
       {
-        throw fabric_runtime_error(unsigned(-ct), __FILE__, __LINE__);
+      case FI_EAVAIL:
+        ct_total += process_cq_comp_err(cb_);
+        break;
+      case FI_EAGAIN:
+        drained = true;
+        break;
+      case FI_EINTR:
+        /* seen when profiling with gperftools */
+        break;
+      default:
+        throw fabric_runtime_error(e, __FILE__, __LINE__);
       }
-
+    }
+    else
+    {
       ct_total += process_or_queue_completion(entry, cb_, S_OK);
-      break;
     }
   }
 
+  _stats.ct_total += ct_total;
   return ct_total;
 }
 
@@ -430,27 +458,34 @@ std::size_t Fabric_comm_grouped::poll_completions_tentative(Component::IFabric_o
     std::size_t constexpr ct_max = 1;
     fi_cq_tagged_entry entry; /* We do not expect a tagged entry, but specify it to provide the largest buffer. */
 
-    switch ( auto ct = _conn.cq_sread(&entry, ct_max, nullptr, 0) )
+    constexpr auto timeout = 0; /* immediate timeout */
+    const auto ct = _conn.cq_sread(&entry, ct_max, nullptr, timeout);
+    if ( ct < 0 )
     {
-    case -FI_EAVAIL:
-      ct_total += process_cq_comp_err(cb_);
-      break;
-    case -FI_EAGAIN:
-      drained = true;
-      break;
-    default:
-      if ( ct < 0 )
+      switch ( const auto e = unsigned(-ct) )
       {
-        throw fabric_runtime_error(unsigned(-ct), __FILE__, __LINE__);
+      case FI_EAVAIL:
+        ct_total += process_cq_comp_err(cb_);
+        break;
+      case FI_EAGAIN:
+        drained = true;
+        break;
+      case FI_EINTR:
+        /* seen when profiling with gperftools */
+        break;
+      default:
+        throw fabric_runtime_error(e, __FILE__, __LINE__);
       }
-
+    }
+    else
+    {
       ct_total += process_or_queue_completion(entry, cb_, S_OK);
-      break;
     }
   }
 
   ct_total += drain_old_completions(cb_);
 
+  _stats.ct_total += ct_total;
   return ct_total;
 }
 
