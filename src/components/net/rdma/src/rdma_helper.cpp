@@ -35,6 +35,7 @@
  * 
  */
 #include <common/logging.h>
+#include <common/utils.h>
 #include <common/exceptions.h>
 #include "rdma_helper.h"
 
@@ -355,6 +356,9 @@ struct channel_context *channel_init_ctx(struct ibv_device *ib_dev,
       PERR("  Max inline-receive(%d) < Requested inline-receive(%d).\n",
 	   dattr.inline_recv_sz, inlr_recv);
     }
+
+    PLOG("Max QP: %d", dattr.max_qp);
+    PLOG("Max QP WR: %d", dattr.max_qp_wr);
   }
   ctx->inlr_recv = inlr_recv;
 
