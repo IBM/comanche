@@ -1,4 +1,5 @@
 /* note: we do not include component source, only the API definition */
+#include <chrono>
 #include <gtest/gtest.h>
 #include <api/components.h>
 #include <api/rdma_itf.h>
@@ -99,6 +100,47 @@ TEST_F(Rdma_test, ExchangeData)
     }
   }
   
+  mem.free_io_buffer(iob);
+}
+
+TEST_F(Rdma_test, PingPong)
+{
+  Core::Physical_memory mem;
+  Component::io_buffer_t iob = mem.allocate_io_buffer(KB(4),
+                                                      KB(4),
+                                                      Component::NUMA_NODE_ANY);
+  unsigned ITERATIONS = 1000000;
+
+  char  * msg = (char *) mem.virt_addr(iob);
+  auto rdma_buffer = _rdma->register_memory(mem.virt_addr(iob),KB(4));
+
+  auto start = std::chrono::high_resolution_clock::now();
+
+  for(unsigned i=0;i<ITERATIONS;i++) {
+    if(client) {
+      _rdma->post_send(i, rdma_buffer);
+      int n_complete = 0;
+      while((n_complete = _rdma->poll_completions()) == 0); // spin wait
+      ASSERT_TRUE(n_complete == 1);
+      _rdma->post_recv(i, rdma_buffer);
+      n_complete = 0;
+      while((n_complete = _rdma->poll_completions()) == 0); // spin wait
+    }
+    else {
+      _rdma->post_recv(i, rdma_buffer);
+      int n_complete = 0;
+      while((n_complete = _rdma->poll_completions()) == 0);
+      ASSERT_TRUE(n_complete == 1);
+
+      _rdma->post_send(i, rdma_buffer);
+      n_complete = 0;
+      while((n_complete = _rdma->poll_completions()) == 0); // spin wait
+    }
+  }
+  auto end = std::chrono::high_resolution_clock::now();
+  auto secs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() / 1000.0;
+  PINF("PingPong Ops/Sec: %lu", static_cast<unsigned long>( ITERATIONS / secs ));
+
   mem.free_io_buffer(iob);
 }
 
