@@ -43,6 +43,7 @@
 
 #include <algorithm> /* min */
 #include <chrono> /* milliseconds */
+#include <cstdlib> /* getenv */
 #include <iostream> /* cerr */
 #include <limits> /* <int>::max */
 
@@ -98,12 +99,21 @@ Fabric_op_control::Fabric_op_control(
    */
   , _event_registration( ep_info().ep_attr->type == FI_EP_MSG ? new event_registration(ev_, *this, ep()) : nullptr )
   , _shut_down(false)
+  , _stats{}
 {
 /* ERROR (probably in libfabric verbs): closing an active endpoint prior to fi_ep_bind causes a SEGV,
  * as fi_ibv_msg_ep_close will call fi_ibv_cleanup_cq whether there is CQ state to clean up.
  */
   CHECK_FI_ERR(fi_ep_bind(&*_ep, &_cq->fid, FI_TRANSMIT | FI_RECV));
   CHECK_FI_ERR(fi_enable(&*_ep));
+}
+
+Fabric_op_control::stats::~stats()
+{
+  if ( std::getenv("FABRIC_STATS") )
+  {
+    std::cerr << "Fabric_op_control(" << this << ") ct " << ct_total << " defer " << defer_total << "\n";
+  }
 }
 
 Fabric_op_control::~Fabric_op_control()
@@ -320,6 +330,7 @@ std::size_t Fabric_op_control::process_or_queue_completion(const ::fi_cq_tagged_
   else
   {
     queue_completion(cq_entry_, status_);
+    ++_stats.defer_total;
   }
 
   return ct_total;
@@ -363,17 +374,20 @@ std::size_t Fabric_op_control::poll_completions(Component::IFabric_op_completer:
   bool drained = false;
   while ( ! drained )
   {
-    auto timeout = 0; /* immediate timeout */
-    auto ct = cq_sread(&cq_entry, ct_max, nullptr, timeout);
+    constexpr auto timeout = 0; /* immediate timeout */
+    const auto ct = cq_sread(&cq_entry, ct_max, nullptr, timeout);
     if ( ct < 0 )
     {
-      switch ( auto e = unsigned(-ct) )
+      switch ( const auto e = unsigned(-ct) )
       {
       case FI_EAVAIL:
         ct_total += process_cq_comp_err(cb_);
         break;
       case FI_EAGAIN:
         drained = true;
+        break;
+      case FI_EINTR:
+        /* seen when profiling with gperftools */
         break;
       default:
         throw fabric_runtime_error(e, __FILE__, __LINE__);
@@ -392,6 +406,7 @@ std::size_t Fabric_op_control::poll_completions(Component::IFabric_op_completer:
   {
     throw std::logic_error(__func__ + std::string(": Connection closed"));
   }
+  _stats.ct_total += ct_total;
   return ct_total;
 }
 
@@ -403,17 +418,20 @@ std::size_t Fabric_op_control::poll_completions(Component::IFabric_op_completer:
   bool drained = false;
   while ( ! drained )
   {
-    auto timeout = 0; /* immediate timeout */
-    auto ct = cq_sread(&cq_entry, ct_max, nullptr, timeout);
+    constexpr auto timeout = 0; /* immediate timeout */
+    const auto ct = cq_sread(&cq_entry, ct_max, nullptr, timeout);
     if ( ct < 0 )
     {
-      switch ( auto e = unsigned(-ct) )
+      switch ( const auto e = unsigned(-ct) )
       {
       case FI_EAVAIL:
         ct_total += process_cq_comp_err(cb_);
         break;
       case FI_EAGAIN:
         drained = true;
+        break;
+      case FI_EINTR:
+        /* seen when profiling with gperftools */
         break;
       default:
         throw fabric_runtime_error(e, __FILE__, __LINE__);
@@ -432,6 +450,7 @@ std::size_t Fabric_op_control::poll_completions(Component::IFabric_op_completer:
   {
     throw std::logic_error(__func__ + std::string(": Connection closed"));
   }
+  _stats.ct_total += ct_total;
   return ct_total;
 }
 
@@ -443,17 +462,20 @@ std::size_t Fabric_op_control::poll_completions_tentative(Component::IFabric_op_
   bool drained = false;
   while ( ! drained )
   {
-    auto timeout = 0; /* immediate timeout */
-    auto ct = cq_sread(&cq_entry, ct_max, nullptr, timeout);
+    constexpr auto timeout = 0; /* immediate timeout */
+    const auto ct = cq_sread(&cq_entry, ct_max, nullptr, timeout);
     if ( ct < 0 )
     {
-      switch ( auto e = unsigned(-ct) )
+      switch ( const auto e = unsigned(-ct) )
       {
       case FI_EAVAIL:
         ct_total += process_or_queue_cq_comp_err(cb_);
         break;
       case FI_EAGAIN:
         drained = true;
+        break;
+      case FI_EINTR:
+        /* seen when profiling with gperftools */
         break;
       default:
         throw fabric_runtime_error(e, __FILE__, __LINE__);
@@ -471,6 +493,7 @@ std::size_t Fabric_op_control::poll_completions_tentative(Component::IFabric_op_
   {
     throw std::logic_error(__func__ + std::string(": Connection closed"));
   }
+  _stats.ct_total += ct_total;
   return ct_total;
 }
 
@@ -785,6 +808,7 @@ std::size_t Fabric_op_control::drain_old_completions(Component::IFabric_op_compl
 std::size_t Fabric_op_control::drain_old_completions(Component::IFabric_op_completer::complete_tentative completion_callback)
 {
   std::size_t ct_total = 0U;
+  std::size_t defer_total = 0U;
   std::unique_lock<std::mutex> k{_m_completions};
   std::queue<completion_t> deferred_completions;
   while ( ! _completions.empty() )
@@ -800,10 +824,12 @@ std::size_t Fabric_op_control::drain_old_completions(Component::IFabric_op_compl
     else
     {
       deferred_completions.push(c);
+      ++defer_total;
     }
     k.lock();
   }
   std::swap(deferred_completions, _completions);
+  _stats.defer_total += defer_total;
   return ct_total;
 }
 
