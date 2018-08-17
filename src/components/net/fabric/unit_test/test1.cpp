@@ -56,9 +56,18 @@ class Fabric_test : public ::testing::Test {
   }
 
   // Objects declared here can be used by all tests in the test case
-  static std::string fabric_spec(const std::string &prov_name) {
+
+  static std::string json_kv_pair(const std::string &key_, const std::string &value_)
+  {
+    return json_quote(key_) + " : " + value_ + "";
+  }
+  static std::string json_quote(const std::string &s_)
+  {
+    return "\"" + s_ + "\"";
+  }
+  static std::string fabric_spec(const std::string &prov_name_) {
     const std::string verbs_mr_mode =
-      "[ \"FI_MR_LOCAL\", \"FI_MR_VIRT_ADDR\", \"FI_MR_ALLOCATED\", \"FI_MR_PROV_KEY\" ]";
+      "[ " + json_quote("FI_MR_LOCAL") + "," + json_quote("FI_MR_VIRT_ADDR") + "," + json_quote("FI_MR_ALLOCATED") + "," + json_quote("FI_MR_PROV_KEY") + " ]";
 
     /* Although man fi_mr says "FI_MR_BASIC is maintained for backwards
      * compatibility (libfabric version 1.4 or earlier)", sockets as of 1.6
@@ -69,20 +78,46 @@ class Fabric_test : public ::testing::Test {
      * FI_MR_LOCAL.
      */
     const std::string sockets_mr_mode =
-      "[ \"FI_MR_BASIC\" ]";
+      "[ " + json_quote("FI_MR_BASIC") + " ]";
 
-    const std::string &mr_mode = prov_name == std::string("sockets") ? sockets_mr_mode : verbs_mr_mode;
+	const std::string domain_name_verbs_spec =
+      domain_name_verbs
+      ? ", " + json_kv_pair("name", json_quote(domain_name_verbs))
+      : std::string()
+      ;
+
+	const std::string domain_name_sockets_spec =
+      domain_name_sockets
+      ? ", " + json_kv_pair("name", json_quote(domain_name_sockets))
+      : std::string()
+      ;
+
+	const std::string domain_name_spec =
+      prov_name_ == std::string("sockets") ? domain_name_sockets_spec : domain_name_verbs_spec;
+
+    const std::string &mr_mode = prov_name_ == std::string("sockets") ? sockets_mr_mode : verbs_mr_mode;
 
     return
-      "{ \"fabric_attr\" : { \"prov_name\" : \"" + prov_name + "\" },"
-      " \"domain_attr\" : "
-        "{ \"mr_mode\" : " + mr_mode + " }"
-      ","
-      " \"ep_attr\" : { \"type\" : \"FI_EP_MSG\" }"
-      "}"
+      "{ "
+       + json_kv_pair("fabric_attr", " { " + json_kv_pair("prov_name", json_quote(prov_name_)) + " }" )
+       + ","
+       + json_kv_pair("domain_attr"
+          , " { "
+          + json_kv_pair("mr_mode", mr_mode)
+          + domain_name_spec +
+          "}" )
+       + ","
+       + json_kv_pair("ep_attr", " { " + json_kv_pair("type", json_quote("FI_EP_MSG")) + " }" )
+       + " }"
       ;
   }
+public:
+  static char *domain_name_verbs;
+  static char *domain_name_sockets;
 };
+
+char *Fabric_test::domain_name_verbs;
+char *Fabric_test::domain_name_sockets;
 
 std::ostream &describe_ep(std::ostream &o_, const Component::IFabric_server_factory &e_)
 {
@@ -99,22 +134,22 @@ namespace
 namespace
 {
 
-void instantiate_server(std::string fabric_spec)
+void instantiate_server(std::string fabric_spec_)
 {
   /* create object instance through factory */
   Component::IBase * comp = Component::load_component("libcomanche-fabric.so",
                                                       Component::net_fabric_factory);
 
   auto factory = std::shared_ptr<Component::IFabric_factory>(static_cast<Component::IFabric_factory *>(comp->query_interface(Component::IFabric_factory::iid())));
-  auto fabric = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec));
+  auto fabric = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec_));
 
   {
     auto srv1 = std::shared_ptr<Component::IFabric_server_factory>(fabric->open_server_factory("{}", control_port_0));
-    describe_ep(std::cerr << "InstantiateServer " << fabric_spec << "Endpoint 1 ", *srv1) << std::endl;
+    describe_ep(std::cerr << "InstantiateServer " << fabric_spec_ << "Endpoint 1 ", *srv1) << std::endl;
   }
   {
     auto srv2 = std::shared_ptr<Component::IFabric_server_factory>(fabric->open_server_factory("{}", control_port_0));
-    describe_ep(std::cerr << "InstantiateServer " << fabric_spec << " Endpoint 2 ", *srv2) << std::endl;
+    describe_ep(std::cerr << "InstantiateServer " << fabric_spec_ << " Endpoint 2 ", *srv2) << std::endl;
   }
   factory->release_ref();
 }
@@ -212,7 +247,7 @@ TEST_F(Fabric_test, InstantiateServer_Socket)
   instantiate_server(fabric_spec("sockets"));
 }
 
-void instantiate_server_dual(const std::string &fabric_spec)
+void instantiate_server_dual(const std::string &fabric_spec_)
 {
   /* create object instance through factory */
   Component::IBase * comp = Component::load_component("libcomanche-fabric.so",
@@ -220,7 +255,7 @@ void instantiate_server_dual(const std::string &fabric_spec)
 
   ASSERT_TRUE(comp);
   auto factory = std::shared_ptr<Component::IFabric_factory>(static_cast<Component::IFabric_factory *>(comp->query_interface(Component::IFabric_factory::iid())));
-  auto fabric = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec));
+  auto fabric = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec_));
 
   try {
     /* fails, because both servers use the same port */
@@ -348,7 +383,7 @@ TEST_F(Fabric_test, JsonKeyFail)
   factory->release_ref();
 }
 
-void instantiate_server_and_client(const std::string &fabric_spec)
+void instantiate_server_and_client(const std::string &fabric_spec_)
 {
   /* create object instance through factory */
   Component::IBase * comp = Component::load_component("libcomanche-fabric.so",
@@ -356,14 +391,14 @@ void instantiate_server_and_client(const std::string &fabric_spec)
 
   ASSERT_TRUE(comp);
   auto factory = std::shared_ptr<Component::IFabric_factory>(static_cast<Component::IFabric_factory *>(comp->query_interface(Component::IFabric_factory::iid())));
-  auto fabric0 = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec));
-  auto fabric1 = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec));
+  auto fabric0 = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec_));
+  auto fabric1 = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec_));
 
   {
     /* Feed the server_factory a good JSON spec */
-    auto server = std::shared_ptr<Component::IFabric_server_factory>(fabric0->open_server_factory(fabric_spec, control_port_1));
+    auto server = std::shared_ptr<Component::IFabric_server_factory>(fabric0->open_server_factory(fabric_spec_, control_port_1));
     EXPECT_LT(0U, server->max_message_size());
-    auto client = std::shared_ptr<Component::IFabric_client>(open_connection_patiently(*fabric1, fabric_spec, "127.0.0.1", control_port_1));
+    auto client = std::shared_ptr<Component::IFabric_client>(open_connection_patiently(*fabric1, fabric_spec_, "127.0.0.1", control_port_1));
     EXPECT_LT(0U, client->max_message_size());
     EXPECT_EQ(server->max_message_size(), client->max_message_size());
   }
@@ -622,6 +657,10 @@ int main(int argc, char **argv)
 {
   is_client = bool(argv[1]);
   is_server = ! is_client;
+  Fabric_test::domain_name_verbs = getenv("DOMAIN_VERBS");
+  Fabric_test::domain_name_sockets = getenv("DOMAIN_SOCKETS");
+  std::cerr << "Domain/verbs is " << (Fabric_test::domain_name_verbs ? Fabric_test::domain_name_verbs : "unspecified") << "\n";
+  std::cerr << "Domain/sockets is " << (Fabric_test::domain_name_sockets ? Fabric_test::domain_name_sockets : "unspecified") << "\n";
 
   if ( is_client && argc != 2 )
   {
