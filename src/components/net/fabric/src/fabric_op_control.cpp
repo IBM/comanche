@@ -65,7 +65,6 @@ Fabric_op_control::Fabric_op_control(
   : Fabric_memory_control(
       fabric_, info_
   )
-  , _m_completions{}
   , _completions{}
 #if CAN_USE_WAIT_SETS
   /* verbs provider does not support wait sets */
@@ -767,23 +766,19 @@ catch ( const fabric_runtime_error &e )
 
 void Fabric_op_control::queue_completion(const ::fi_cq_tagged_entry &cq_entry_, ::status_t status_)
 {
-  std::lock_guard<std::mutex> k2{_m_completions};
   _completions.push(completion_t(status_, cq_entry_));
 }
 
 std::size_t Fabric_op_control::drain_old_completions(Component::IFabric_op_completer::complete_old completion_callback)
 {
   std::size_t ct_total = 0U;
-  std::unique_lock<std::mutex> k{_m_completions};
   while ( ! _completions.empty() )
   {
     auto c = _completions.front();
     _completions.pop();
-    k.unlock();
     const auto &cq_entry = std::get<1>(c);
     completion_callback(cq_entry.op_context, std::get<0>(c));
     ++ct_total;
-    k.lock();
   }
   return ct_total;
 }
@@ -791,16 +786,13 @@ std::size_t Fabric_op_control::drain_old_completions(Component::IFabric_op_compl
 std::size_t Fabric_op_control::drain_old_completions(Component::IFabric_op_completer::complete_definite completion_callback)
 {
   std::size_t ct_total = 0U;
-  std::unique_lock<std::mutex> k{_m_completions};
   while ( ! _completions.empty() )
   {
     auto c = _completions.front();
     _completions.pop();
-    k.unlock();
     const auto &cq_entry = std::get<1>(c);
     completion_callback(cq_entry.op_context, std::get<0>(c), cq_entry.flags, cq_entry.len, nullptr);
     ++ct_total;
-    k.lock();
   }
   return ct_total;
 }
@@ -808,28 +800,28 @@ std::size_t Fabric_op_control::drain_old_completions(Component::IFabric_op_compl
 std::size_t Fabric_op_control::drain_old_completions(Component::IFabric_op_completer::complete_tentative completion_callback)
 {
   std::size_t ct_total = 0U;
-  std::size_t defer_total = 0U;
-  std::unique_lock<std::mutex> k{_m_completions};
-  std::queue<completion_t> deferred_completions;
-  while ( ! _completions.empty() )
+  if ( ! _completions.empty() )
   {
-    auto c = _completions.front();
-    _completions.pop();
-    k.unlock();
-    const auto &cq_entry = std::get<1>(c);
-    if ( completion_callback(cq_entry.op_context, std::get<0>(c), cq_entry.flags, cq_entry.len, nullptr) == cb_acceptance::ACCEPT )
+    std::size_t defer_total = 0U;
+    std::queue<completion_t> deferred_completions;
+    while ( ! _completions.empty() )
     {
-      ++ct_total;
+      auto c = _completions.front();
+      _completions.pop();
+      const auto &cq_entry = std::get<1>(c);
+      if ( completion_callback(cq_entry.op_context, std::get<0>(c), cq_entry.flags, cq_entry.len, nullptr) == cb_acceptance::ACCEPT )
+      {
+        ++ct_total;
+      }
+      else
+      {
+        deferred_completions.push(c);
+        ++defer_total;
+      }
     }
-    else
-    {
-      deferred_completions.push(c);
-      ++defer_total;
-    }
-    k.lock();
+    std::swap(deferred_completions, _completions);
+    _stats.defer_total += defer_total;
   }
-  std::swap(deferred_completions, _completions);
-  _stats.defer_total += defer_total;
   return ct_total;
 }
 

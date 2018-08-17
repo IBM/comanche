@@ -224,9 +224,9 @@ public:
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_cq_readerr fail
    */
-  ::fi_cq_err_entry get_cq_comp_err() const { return _g.get_cq_comp_err(); }
+  ::fi_cq_err_entry get_cq_comp_err() { return _g.get_cq_comp_err(); }
   ssize_t cq_sread(void *buf, std::size_t count, const void *cond, int timeout) noexcept { return _g.cq_sread(buf, count, cond, timeout); }
-  ssize_t cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) const noexcept { return _g.cq_readerr(buf, flags); }
+  ssize_t cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) noexcept { return _g.cq_readerr(buf, flags); }
   void queue_completion(Fabric_comm_grouped *comm, ::status_t status, const ::fi_cq_tagged_entry &cq_entry) { return _g.queue_completion(comm, status, cq_entry); }
   /*
    * @throw std::logic_error : unexpected event

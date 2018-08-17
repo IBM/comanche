@@ -41,7 +41,8 @@ class event_producer;
 Fabric_generic_grouped::Fabric_generic_grouped(
   Fabric_op_control &cnxn_
 )
-  : _cnxn(cnxn_)
+  : _m_cnxn{}
+  , _cnxn(cnxn_)
   , _m_comms{}
   , _comms{}
 {
@@ -58,32 +59,42 @@ auto Fabric_generic_grouped::register_memory(
   , std::uint64_t flags
 ) -> memory_region_t
 {
-  return cnxn().register_memory(contig_addr, size, key, flags);
+  std::lock_guard<std::mutex> k{_m_cnxn};
+  return _cnxn.register_memory(contig_addr, size, key, flags);
 }
 
 void Fabric_generic_grouped::deregister_memory(
   const memory_region_t memory_region
 )
 {
-  return cnxn().deregister_memory(memory_region);
+  std::lock_guard<std::mutex> k{_m_cnxn};
+  return _cnxn.deregister_memory(memory_region);
 }
 
 std::uint64_t Fabric_generic_grouped::get_memory_remote_key(
   const memory_region_t memory_region
 ) const noexcept
 {
-  return cnxn().get_memory_remote_key(memory_region);
+  return _cnxn.get_memory_remote_key(memory_region);
 }
 
 void *Fabric_generic_grouped::get_memory_descriptor(
   const memory_region_t memory_region
 ) const noexcept
 {
-  return cnxn().get_memory_descriptor(memory_region);
+  return _cnxn.get_memory_descriptor(memory_region);
 }
 
-std::string Fabric_generic_grouped::get_peer_addr() { return cnxn().get_peer_addr(); }
-std::string Fabric_generic_grouped::get_local_addr() { return cnxn().get_local_addr(); }
+std::string Fabric_generic_grouped::get_peer_addr()
+{
+  std::lock_guard<std::mutex> k{_m_cnxn};
+  return _cnxn.get_peer_addr();
+}
+std::string Fabric_generic_grouped::get_local_addr()
+{
+  std::lock_guard<std::mutex> k{_m_cnxn};
+  return _cnxn.get_local_addr();
+}
 
 void Fabric_generic_grouped::post_send(
   const ::iovec *first_
@@ -92,7 +103,8 @@ void Fabric_generic_grouped::post_send(
   , void *context_
 )
 {
-  return cnxn().post_send(first_, last_, desc_, context_);
+  std::lock_guard<std::mutex> k{_m_cnxn};
+  return _cnxn.post_send(first_, last_, desc_, context_);
 }
 
 void Fabric_generic_grouped::post_send(
@@ -101,27 +113,32 @@ void Fabric_generic_grouped::post_send(
   , void *context_
 )
 {
-  return cnxn().post_send(first_, last_, context_);
+  std::lock_guard<std::mutex> k{_m_cnxn};
+  return _cnxn.post_send(first_, last_, context_);
 }
 
 std::size_t Fabric_generic_grouped::stalled_completion_count()
 {
-  return cnxn().stalled_completion_count();
+  std::lock_guard<std::mutex> k{_m_cnxn};
+  return _cnxn.stalled_completion_count();
 }
 
 void Fabric_generic_grouped::wait_for_next_completion(unsigned polls_limit)
 {
-  return cnxn().wait_for_next_completion(polls_limit);
+  std::lock_guard<std::mutex> k{_m_cnxn};
+  return _cnxn.wait_for_next_completion(polls_limit);
 }
 
 void Fabric_generic_grouped::wait_for_next_completion(std::chrono::milliseconds timeout)
 {
-  return cnxn().wait_for_next_completion(timeout);
+  std::lock_guard<std::mutex> k{_m_cnxn};
+  return _cnxn.wait_for_next_completion(timeout);
 }
 
 void Fabric_generic_grouped::unblock_completions()
 {
-  return cnxn().unblock_completions();
+  std::lock_guard<std::mutex> k{_m_cnxn};
+  return _cnxn.unblock_completions();
 }
 
 void Fabric_generic_grouped::post_recv(
@@ -131,7 +148,8 @@ void Fabric_generic_grouped::post_recv(
   , void *context_
 )
 {
-  return cnxn().post_recv(first_, last_, desc_, context_);
+  std::lock_guard<std::mutex> k{_m_cnxn};
+  return _cnxn.post_recv(first_, last_, desc_, context_);
 }
 
 void Fabric_generic_grouped::post_recv(
@@ -140,7 +158,8 @@ void Fabric_generic_grouped::post_recv(
   , void *context_
 )
 {
-  return cnxn().post_recv(first_, last_, context_);
+  std::lock_guard<std::mutex> k{_m_cnxn};
+  return _cnxn.post_recv(first_, last_, context_);
 }
 
   /**
@@ -162,7 +181,8 @@ void Fabric_generic_grouped::post_read(
   , void *context_
 )
 {
-  return cnxn().post_read(first_, last_, desc_, remote_addr_, key_, context_);
+  std::lock_guard<std::mutex> k{_m_cnxn};
+  return _cnxn.post_read(first_, last_, desc_, remote_addr_, key_, context_);
 }
 
 void Fabric_generic_grouped::post_read(
@@ -173,7 +193,8 @@ void Fabric_generic_grouped::post_read(
   , void *context_
 )
 {
-  return cnxn().post_read(first_, last_, remote_addr_, key_, context_);
+  std::lock_guard<std::mutex> k{_m_cnxn};
+  return _cnxn.post_read(first_, last_, remote_addr_, key_, context_);
 }
 
   /**
@@ -195,7 +216,8 @@ void Fabric_generic_grouped::post_write(
   , void *context_
 )
 {
-  return cnxn().post_write(first_, last_, desc_, remote_addr_, key_, context_);
+  std::lock_guard<std::mutex> k{_m_cnxn};
+  return _cnxn.post_write(first_, last_, desc_, remote_addr_, key_, context_);
 }
 
 void Fabric_generic_grouped::post_write(
@@ -206,7 +228,8 @@ void Fabric_generic_grouped::post_write(
   , void *context_
 )
 {
-  return cnxn().post_write(first_, last_, remote_addr_, key_, context_);
+  std::lock_guard<std::mutex> k{_m_cnxn};
+  return _cnxn.post_write(first_, last_, remote_addr_, key_, context_);
 }
 
   /**
@@ -217,12 +240,14 @@ void Fabric_generic_grouped::post_write(
    */
 void Fabric_generic_grouped::inject_send(const ::iovec *first_, const ::iovec *last_)
 {
-  return cnxn().inject_send(first_, last_);
+  std::lock_guard<std::mutex> k{_m_cnxn};
+  return _cnxn.inject_send(first_, last_);
 }
 
-::fi_cq_err_entry Fabric_generic_grouped::get_cq_comp_err() const
+::fi_cq_err_entry Fabric_generic_grouped::get_cq_comp_err()
 {
-  return cnxn().get_cq_comp_err();
+  std::lock_guard<std::mutex> k{_m_cnxn};
+  return _cnxn.get_cq_comp_err();
 }
 
 /**
@@ -239,17 +264,17 @@ std::size_t Fabric_generic_grouped::poll_completions(Component::IFabric_op_compl
   std::size_t ct_total = 0;
   fi_cq_tagged_entry entry; /* We do not expect a tagged entry. Specifying this to provide the largest buffer. */
 
-  bool drained = false;
-  while ( ! drained )
+  for ( bool drained = false; ! drained ; )
   {
     constexpr auto timeout = 0; /* immediate timeout */
-    const auto ct = cq_sread(&entry, ct_max, nullptr, timeout);
+    std::lock_guard<std::mutex> k{_m_cnxn};
+    const auto ct = cq_sread_locked(&entry, ct_max, nullptr, timeout);
     if ( ct < 0 )
     {
       switch ( const auto e = unsigned(-ct) )
       {
       case FI_EAVAIL:
-        ct_total += cnxn().process_cq_comp_err(cb_);
+        ct_total += _cnxn.process_cq_comp_err(cb_);
         break;
       case FI_EAGAIN:
         drained = true;
@@ -271,22 +296,28 @@ std::size_t Fabric_generic_grouped::poll_completions(Component::IFabric_op_compl
   }
 
   /*
-   * Note: There are two reasons why a completion might end in our local "queue":
-   *  (1) It was seen by another group running poll_completions, or
+   * Note: There are two reasons why a completion might end in a communicator's queue
+   *  of deferred completions:
+   *  (1) It was seen by another communicator in the same group but was not owned by
+   *  that communicator, or
    *  (2) it was rejected by a client who hoped to see some other completion first.
    * In case (1) it would be reasonable to process the queued completions before
    * newer completions. But in case (2), the client will want to see later completions
-   * before returning to the rejected completion.
+   * before returning to the rejected completion. Because case 2 exists, we consider
+   * the old completions *after* those in the libfabric completion queue. (It would
+   * not be wrong to run through the old completions first, but noght make case 2 less
+   * efficient.)
    */
   {
-    std::unique_lock<std::mutex> k0{_m_comms};
+    std::lock_guard<std::mutex> k0{_m_comms};
     for ( auto &g : _comms )
     {
       g->drain_old_completions(cb_);
     }
   }
 
-  if ( cnxn().is_shut_down() && ct_total == 0 )
+  std::lock_guard<std::mutex> k{_m_cnxn};
+  if ( _cnxn.is_shut_down() && ct_total == 0 )
   {
     throw std::logic_error(std::string("Fabric_generic_grouped") + __func__ + ": Connection closed");
   }
@@ -303,13 +334,14 @@ std::size_t Fabric_generic_grouped::poll_completions(Component::IFabric_op_compl
   while ( ! drained )
   {
     constexpr auto timeout = 0; /* immediate timeout */
-    const auto ct = cq_sread(&entry, ct_max, nullptr, timeout);
+    std::lock_guard<std::mutex> k{_m_cnxn};
+    const auto ct = cq_sread_locked(&entry, ct_max, nullptr, timeout);
     if ( ct < 0 )
     {
       switch ( const auto e = unsigned(-ct) )
       {
       case FI_EAVAIL:
-        ct_total += cnxn().process_cq_comp_err(cb_);
+        ct_total += _cnxn.process_cq_comp_err(cb_);
         break;
       case FI_EAGAIN:
         drained = true;
@@ -339,14 +371,15 @@ std::size_t Fabric_generic_grouped::poll_completions(Component::IFabric_op_compl
    * before returning to the rejected completion.
    */
   {
-    std::unique_lock<std::mutex> k0{_m_comms};
+    std::lock_guard<std::mutex> k0{_m_comms};
     for ( auto &g : _comms )
     {
       g->drain_old_completions(cb_);
     }
   }
 
-  if ( cnxn().is_shut_down() && ct_total == 0 )
+  std::lock_guard<std::mutex> k{_m_cnxn};
+  if ( _cnxn.is_shut_down() && ct_total == 0 )
   {
     throw std::logic_error(std::string("Fabric_generic_grouped") + __func__ + ": Connection closed");
   }
@@ -359,25 +392,18 @@ std::size_t Fabric_generic_grouped::poll_completions_tentative(Component::IFabri
   std::size_t ct_total = 0;
   fi_cq_tagged_entry entry; /* We do not expect a tagged entry. Specifying this to provide the largest buffer. */
 
-  {
-    std::unique_lock<std::mutex> k0{_m_comms};
-    for ( auto &g : _comms )
-    {
-      g->drain_old_completions(cb_);
-    }
-  }
-
   bool drained = false;
   while ( ! drained )
   {
     constexpr auto timeout = 0; /* immediate timeout */
-    const auto ct = cq_sread(&entry, ct_max, nullptr, timeout);
+    std::lock_guard<std::mutex> k{_m_cnxn};
+    const auto ct = cq_sread_locked(&entry, ct_max, nullptr, timeout);
     if ( ct < 0 )
     {
       switch ( const auto e = unsigned(-ct) )
       {
       case FI_EAVAIL:
-        ct_total += cnxn().process_or_queue_cq_comp_err(cb_);
+        ct_total += _cnxn.process_or_queue_cq_comp_err(cb_);
         break;
       case FI_EAGAIN:
         drained = true;
@@ -398,7 +424,16 @@ std::size_t Fabric_generic_grouped::poll_completions_tentative(Component::IFabri
     }
   }
 
-  if ( cnxn().is_shut_down() && ct_total == 0 )
+  {
+    std::lock_guard<std::mutex> k0{_m_comms};
+    for ( auto &g : _comms )
+    {
+      g->drain_old_completions(cb_);
+    }
+  }
+
+  std::lock_guard<std::mutex> k{_m_cnxn};
+  if ( _cnxn.is_shut_down() && ct_total == 0 )
   {
     throw std::logic_error(std::string("Fabric_generic_grouped") + __func__ + ": Connection closed");
   }
@@ -439,15 +474,22 @@ void Fabric_generic_grouped::queue_completion(Fabric_comm_grouped *comm_, ::stat
 
 ssize_t Fabric_generic_grouped::cq_sread(void *buf_, size_t count_, const void *cond_, int timeout_) noexcept
 {
-  return cnxn().cq_sread(buf_, count_, cond_, timeout_);
+  std::lock_guard<std::mutex> k{_m_comms};
+  return cq_sread_locked(buf_, count_, cond_, timeout_);
 }
 
-ssize_t Fabric_generic_grouped::cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) const noexcept
+ssize_t Fabric_generic_grouped::cq_sread_locked(void *buf_, size_t count_, const void *cond_, int timeout_) noexcept
 {
-  return cnxn().cq_readerr(buf, flags);
+  return _cnxn.cq_sread(buf_, count_, cond_, timeout_);
+}
+
+ssize_t Fabric_generic_grouped::cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) noexcept
+{
+  std::lock_guard<std::mutex> k{_m_cnxn};
+  return _cnxn.cq_readerr(buf, flags);
 }
 
 std::size_t Fabric_generic_grouped::max_message_size() const noexcept
 {
-  return cnxn().max_message_size();
+  return _cnxn.max_message_size();
 }

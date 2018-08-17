@@ -194,7 +194,7 @@ public:
 
   void forget_group(Fabric_comm_grouped *);
   ssize_t cq_sread(void *buf, std::size_t count, const void *cond, int timeout) noexcept;
-  ssize_t cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) const noexcept { return _g.cq_readerr(buf, flags); }
+  ssize_t cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) noexcept { return _g.cq_readerr(buf, flags); }
   void queue_completion(Fabric_comm_grouped *comm, void *context, ::status_t status);
 };
 

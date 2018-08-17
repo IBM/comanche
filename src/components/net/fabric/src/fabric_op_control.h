@@ -59,7 +59,6 @@ class Fabric_op_control
 {
   using completion_t = std::tuple<::status_t, ::fi_cq_tagged_entry>;
   /* completions forwarded to client but deferred with DEFER status, to be retried later */
-  std::mutex _m_completions;
   std::queue<completion_t> _completions;
 
 #if CAN_USE_WAIT_SETS
@@ -134,6 +133,11 @@ class Fabric_op_control
    */
   fid_unique_ptr<::fid_cq> make_fid_cq(::fi_cq_attr &attr, void *context) const;
 
+  void queue_completion(const ::fi_cq_tagged_entry &entry, ::status_t status);
+  std::size_t drain_old_completions(Component::IFabric_op_completer::complete_old completion_callback);
+  std::size_t drain_old_completions(Component::IFabric_op_completer::complete_definite completion_callback);
+  std::size_t drain_old_completions(Component::IFabric_op_completer::complete_tentative completion_callback);
+
 public:
 
   const ::fi_info &ep_info() const { return *_ep_info; }
@@ -171,7 +175,6 @@ public:
    * @throw std::logic_error - called on closed connection
    */
   std::size_t poll_completions_tentative(Component::IFabric_op_completer::complete_tentative completion_callback) override;
-  std::size_t process_or_queue_completion(const ::fi_cq_tagged_entry &cq_entry, Component::IFabric_op_completer::complete_tentative cb, ::status_t status);
   std::size_t stalled_completion_count() override { return 0U; }
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_control fail
@@ -307,6 +310,7 @@ public:
    * @throw fabric_runtime_error : std::runtime_error : ::fi_cq_readerr fail
    */
   std::size_t process_or_queue_cq_comp_err(Component::IFabric_op_completer::complete_tentative completion_callback);
+  std::size_t process_or_queue_completion(const ::fi_cq_tagged_entry &cq_entry, Component::IFabric_op_completer::complete_tentative cb, ::status_t status);
 
   ssize_t cq_sread(void *buf, std::size_t count, const void *cond, int timeout) noexcept;
   ssize_t cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) const noexcept;
@@ -318,10 +322,7 @@ public:
   void expect_event(std::uint32_t) const;
   bool is_shut_down() const { return _shut_down; }
 
-  void queue_completion(const ::fi_cq_tagged_entry &entry, ::status_t status);
-  std::size_t drain_old_completions(Component::IFabric_op_completer::complete_old completion_callback);
-  std::size_t drain_old_completions(Component::IFabric_op_completer::complete_definite completion_callback);
-  std::size_t drain_old_completions(Component::IFabric_op_completer::complete_tentative completion_callback);
+public:
   std::size_t max_message_size() const noexcept override;
 };
 
