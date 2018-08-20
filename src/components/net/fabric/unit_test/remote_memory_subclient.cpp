@@ -13,16 +13,16 @@
 #include <algorithm> /* copy */
 #include <vector>
 
-void remote_memory_subclient::check_complete_static(void *t_, void *ctxt_, ::status_t stat_)
+void remote_memory_subclient::check_complete_static(void *t_, void *ctxt_, ::status_t stat_, std::size_t len_)
 {
   /* The callback context must be the object which was polling. */
   ASSERT_EQ(t_, ctxt_);
   auto rmc = static_cast<remote_memory_subclient *>(ctxt_);
   ASSERT_TRUE(rmc);
-  rmc->check_complete(stat_);
+  rmc->check_complete(stat_, len_);
 }
 
-void remote_memory_subclient::check_complete(::status_t stat_)
+void remote_memory_subclient::check_complete(::status_t stat_, std::size_t)
 {
   EXPECT_EQ(stat_, S_OK);
 }
@@ -47,9 +47,9 @@ try
   }
   ::wait_poll(
     *_cnxn
-    , [this] (void *rmc_, ::status_t stat_)
+    , [this] (void *rmc_, ::status_t stat_, std::uint64_t, std::size_t len_, void *)
       {
-        check_complete_static(this, rmc_, stat_);
+        check_complete_static(this, rmc_, stat_, len_);
       }
   );
 }
@@ -70,9 +70,9 @@ try
   }
   ::wait_poll(
     *_cnxn
-    , [this] (void *rmc_, ::status_t stat_)
+    , [this] (void *rmc_, ::status_t stat_, std::uint64_t, std::size_t len_, void *)
       {
-        check_complete_static(this, rmc_, stat_);
+        check_complete_static(this, rmc_, stat_, len_);
       }
   );
   std::string remote_msg(&rm_in()[0], &rm_in()[0] + msg_.size());

@@ -20,21 +20,21 @@
 #include <memory> /* make_shared */
 #include <vector>
 
-void remote_memory_client::check_complete_static(void *t_, void *ctxt_, ::status_t stat_)
+void remote_memory_client::check_complete_static(void *t_, void *ctxt_, ::status_t stat_, std::size_t len_)
 try
 {
   /* The callback context must be the object which was polling. */
   ASSERT_EQ(t_, ctxt_);
   auto rmc = static_cast<remote_memory_client *>(ctxt_);
   ASSERT_TRUE(rmc);
-  rmc->check_complete(stat_);
+  rmc->check_complete(stat_, len_);
 }
 catch ( std::exception &e )
 {
   std::cerr << "remote_memory_client::" << __func__ << e.what() << "\n";
 }
 
-void remote_memory_client::check_complete(::status_t stat_)
+void remote_memory_client::check_complete(::status_t stat_, std::size_t)
 {
   _last_stat = stat_;
 }
@@ -60,13 +60,13 @@ try
   iv.iov_len = (sizeof _vaddr) + (sizeof _key);
   v.emplace_back(iv);
   _cnxn->post_recv(v, this);
-  wait_poll(
+  ::wait_poll(
       *_cnxn
-    , [&v, this] (void *ctxt_, ::status_t stat_) -> void
+    , [&v, this] (void *ctxt_, ::status_t stat_, std::uint64_t, std::size_t len_, void *) -> void
       {
         ASSERT_EQ(ctxt_, this);
         ASSERT_EQ(stat_, ::S_OK);
-        ASSERT_EQ(v[0].iov_len, (sizeof _vaddr) + sizeof( _key));
+        ASSERT_EQ(len_, (sizeof _vaddr) + sizeof( _key));
         std::memcpy(&_vaddr, &rm_out()[0], sizeof _vaddr);
         std::memcpy(&_key, &rm_out()[sizeof _vaddr], sizeof _key);
       }
@@ -112,11 +112,11 @@ void remote_memory_client::write(const std::string &msg_, bool force_error_)
     buffers[0].iov_len = msg_.size();
     _cnxn->post_write(buffers, _vaddr + remote_memory_offset - adjust, _key, this);
   }
-  wait_poll(
+  ::wait_poll(
     *_cnxn
-    , [this] (void *ctxt_, ::status_t stat_)
+    , [this] (void *ctxt_, ::status_t stat_, std::uint64_t, std::size_t len_, void *)
       {
-        check_complete_static(this, ctxt_, stat_);
+        check_complete_static(this, ctxt_, stat_, len_);
       }
   );
   if ( force_error_ )
@@ -143,9 +143,9 @@ void remote_memory_client::read_verify(const std::string &msg_)
   }
   ::wait_poll(
     *_cnxn
-    , [this] (void *ctxt_, ::status_t stat_)
+    , [this] (void *ctxt_, ::status_t stat_, std::uint64_t, std::size_t len_, void *)
       {
-        check_complete_static(this, ctxt_, stat_);
+        check_complete_static(this, ctxt_, stat_, len_);
       }
   );
   EXPECT_EQ(_last_stat, ::S_OK);
