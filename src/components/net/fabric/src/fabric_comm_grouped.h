@@ -121,17 +121,17 @@ public:
   void inject_send(const std::vector<::iovec>& buffers) override;
 
   /*
-   * @throw fabric_runtime_error : std::runtime_error - cq_sread unhandled error
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
    * @throw std::logic_error - called on closed connection
    */
   std::size_t poll_completions(Component::IFabric_op_completer::complete_old completion_callback) override;
   /*
-   * @throw fabric_runtime_error : std::runtime_error - cq_sread unhandled error
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
    * @throw std::logic_error - called on closed connection
    */
   std::size_t poll_completions(Component::IFabric_op_completer::complete_definite completion_callback) override;
   /*
-   * @throw fabric_runtime_error : std::runtime_error - cq_sread unhandled error
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
    * @throw std::logic_error - called on closed connection
    */
   std::size_t poll_completions_tentative(Component::IFabric_op_completer::complete_tentative completion_callback) override;

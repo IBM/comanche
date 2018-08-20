@@ -107,7 +107,7 @@ public:
 
   /* BEGIN IFabric_server_grouped (IFabric_op_completer) */
   /*
-   * @throw fabric_runtime_error : std::runtime_error - cq_sread unhandled error
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
    * @throw std::logic_error - called on closed connection
    */
   std::size_t poll_completions(Component::IFabric_op_completer::complete_old completion_callback) override
@@ -115,7 +115,7 @@ public:
     return Fabric_connection_server::poll_completions(completion_callback);
   }
   /*
-   * @throw fabric_runtime_error : std::runtime_error - cq_sread unhandled error
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
    * @throw std::logic_error - called on closed connection
    */
   std::size_t poll_completions(Component::IFabric_op_completer::complete_definite completion_callback) override
@@ -123,7 +123,7 @@ public:
     return Fabric_connection_server::poll_completions(completion_callback);
   }
   /*
-   * @throw fabric_runtime_error : std::runtime_error - cq_sread unhandled error
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
    * @throw std::logic_error - called on closed connection
    */
   std::size_t poll_completions_tentative(Component::IFabric_op_completer::complete_tentative completion_callback) override
@@ -193,7 +193,7 @@ public:
   fabric_types::addr_ep_t get_name() const;
 
   void forget_group(Fabric_comm_grouped *);
-  ssize_t cq_sread(void *buf, std::size_t count, const void *cond, int timeout) noexcept;
+  ssize_t cq_read(void *buf, std::size_t count) noexcept;
   ssize_t cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) noexcept { return _g.cq_readerr(buf, flags); }
   void queue_completion(Fabric_comm_grouped *comm, void *context, ::status_t status);
 };

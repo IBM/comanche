@@ -376,8 +376,7 @@ std::size_t Fabric_op_control::poll_completions(Component::IFabric_op_completer:
   bool drained = false;
   while ( ! drained )
   {
-    constexpr auto timeout = 0; /* immediate timeout */
-    const auto ct = cq_sread(&cq_entry[0], ct_max, nullptr, timeout);
+    const auto ct = cq_read(&cq_entry[0], ct_max);
     if ( ct < 0 )
     {
       switch ( const auto e = unsigned(-ct) )
@@ -422,8 +421,7 @@ std::size_t Fabric_op_control::poll_completions(Component::IFabric_op_completer:
   bool drained = false;
   while ( ! drained )
   {
-    constexpr auto timeout = 0; /* immediate timeout */
-    const auto ct = cq_sread(&cq_entry[0], ct_max, nullptr, timeout);
+    const auto ct = cq_read(&cq_entry[0], ct_max);
     if ( ct < 0 )
     {
       switch ( const auto e = unsigned(-ct) )
@@ -468,8 +466,7 @@ std::size_t Fabric_op_control::poll_completions_tentative(Component::IFabric_op_
   bool drained = false;
   while ( ! drained )
   {
-    constexpr auto timeout = 0; /* immediate timeout */
-    const auto ct = cq_sread(&cq_entry[0], ct_max, nullptr, timeout);
+    const auto ct = cq_read(&cq_entry[0], ct_max);
     if ( ct < 0 )
     {
       switch ( const auto e = unsigned(-ct) )
@@ -632,9 +629,9 @@ std::string Fabric_op_control::get_local_addr()
   return std::string(v.begin(), v.end());
 }
 
-ssize_t Fabric_op_control::cq_sread(void *buf, size_t count, const void *cond, int timeout) noexcept
+ssize_t Fabric_op_control::cq_read(void *buf, size_t count) noexcept
 {
-  return ::fi_cq_sread(&*_cq, buf, count, cond, timeout);
+  return ::fi_cq_read(&*_cq, buf, count);
 }
 
 ssize_t Fabric_op_control::cq_readerr(::fi_cq_err_entry *buf, uint64_t flags) const noexcept
