@@ -21,6 +21,7 @@
 #include "fabric_connection_client.h"
 
 #include "fabric_generic_grouped.h"
+#include "fabric_op_control.h" /* fi_cq_entry_t */
 #include "fabric_types.h" /* addr_ep_t */
 
 #pragma GCC diagnostic push
@@ -227,7 +228,7 @@ public:
   ::fi_cq_err_entry get_cq_comp_err() { return _g.get_cq_comp_err(); }
   ssize_t cq_sread(void *buf, std::size_t count, const void *cond, int timeout) noexcept { return _g.cq_sread(buf, count, cond, timeout); }
   ssize_t cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) noexcept { return _g.cq_readerr(buf, flags); }
-  void queue_completion(Fabric_comm_grouped *comm, ::status_t status, const ::fi_cq_tagged_entry &cq_entry) { return _g.queue_completion(comm, status, cq_entry); }
+  void queue_completion(Fabric_comm_grouped *comm, ::status_t status, const Fabric_op_control::fi_cq_entry_t &cq_entry) { return _g.queue_completion(comm, status, cq_entry); }
   /*
    * @throw std::logic_error : unexpected event
    * @throw std::system_error : read error on event pipe

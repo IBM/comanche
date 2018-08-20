@@ -77,9 +77,9 @@ Fabric_op_control::Fabric_op_control(
   , _m_fd_unblock_set{}
   , _fd_unblock_set{}
 #if CAN_USE_WAIT_SETS
-  , _cq_attr{100, 0U, FI_CQ_FORMAT_CONTEXT, FI_WAIT_SET, 0U, FI_CQ_COND_NONE, &*_wait_set}
+  , _cq_attr{100, 0U, fi_cq_format, FI_WAIT_SET, 0U, FI_CQ_COND_NONE, &*_wait_set}
 #else
-  , _cq_attr{100, 0U, FI_CQ_FORMAT_CONTEXT, FI_WAIT_FD, 0U, FI_CQ_COND_NONE, nullptr}
+  , _cq_attr{100, 0U, fi_cq_format, FI_WAIT_FD, 0U, FI_CQ_COND_NONE, nullptr}
 #endif
   , _cq(make_fid_cq(_cq_attr, this))
   , _ep_info(make_fi_infodup(domain_info(), "endpoint construction"))
@@ -319,7 +319,7 @@ void Fabric_op_control::inject_send(const ::iovec *first_, const ::iovec *last_)
   return err;
 }
 
-std::size_t Fabric_op_control::process_or_queue_completion(const ::fi_cq_tagged_entry &cq_entry_, Component::IFabric_op_completer::complete_tentative cb_, ::status_t status_)
+std::size_t Fabric_op_control::process_or_queue_completion(const Fabric_op_control::fi_cq_entry_t &cq_entry_, Component::IFabric_op_completer::complete_tentative cb_, ::status_t status_)
 {
   std::size_t ct_total = 0U;
   if ( cb_(cq_entry_.op_context, status_, cq_entry_.flags, cq_entry_.len, nullptr) == cb_acceptance::ACCEPT )
@@ -353,10 +353,14 @@ std::size_t Fabric_op_control::process_cq_comp_err(Component::IFabric_op_complet
 std::size_t Fabric_op_control::process_or_queue_cq_comp_err(Component::IFabric_op_completer::complete_tentative cb_)
 {
   const auto e = get_cq_comp_err();
-  const ::fi_cq_tagged_entry err_entry{e.op_context, e.flags, e.len, e.buf, e.data, e.tag};
+  const Fabric_op_control::fi_cq_entry_t err_entry{e.op_context, e.flags, e.len, e.buf, e.data};
   return process_or_queue_completion(err_entry, cb_, E_FAIL);
 }
 
+namespace
+{
+  std::size_t constexpr ct_max = 16;
+}
 /**
  * Poll completions (e.g., completions)
  *
@@ -367,14 +371,13 @@ std::size_t Fabric_op_control::process_or_queue_cq_comp_err(Component::IFabric_o
 
 std::size_t Fabric_op_control::poll_completions(Component::IFabric_op_completer::complete_old cb_)
 {
-  std::size_t constexpr ct_max = 1;
   std::size_t ct_total = 0;
-  ::fi_cq_tagged_entry cq_entry; /* We do not expect a tagged entry. Specifying this to provide the largest buffer. */
+  std::array<Fabric_op_control::fi_cq_entry_t, ct_max> cq_entry;
   bool drained = false;
   while ( ! drained )
   {
     constexpr auto timeout = 0; /* immediate timeout */
-    const auto ct = cq_sread(&cq_entry, ct_max, nullptr, timeout);
+    const auto ct = cq_sread(&cq_entry[0], ct_max, nullptr, timeout);
     if ( ct < 0 )
     {
       switch ( const auto e = unsigned(-ct) )
@@ -394,8 +397,11 @@ std::size_t Fabric_op_control::poll_completions(Component::IFabric_op_completer:
     }
     else
     {
-      cb_(cq_entry.op_context, S_OK);
-      ++ct_total;
+      ct_total += ct;
+      for ( unsigned ix = 0U; ix != ct; ++ix )
+      {
+        cb_(cq_entry[ix].op_context, S_OK);
+      }
     }
   }
 
@@ -411,14 +417,13 @@ std::size_t Fabric_op_control::poll_completions(Component::IFabric_op_completer:
 
 std::size_t Fabric_op_control::poll_completions(Component::IFabric_op_completer::complete_definite cb_)
 {
-  std::size_t constexpr ct_max = 1;
   std::size_t ct_total = 0;
-  ::fi_cq_tagged_entry cq_entry; /* We do not expect a tagged entry. Specifying this to provide the largest buffer. */
+  std::array<Fabric_op_control::fi_cq_entry_t, ct_max> cq_entry;
   bool drained = false;
   while ( ! drained )
   {
     constexpr auto timeout = 0; /* immediate timeout */
-    const auto ct = cq_sread(&cq_entry, ct_max, nullptr, timeout);
+    const auto ct = cq_sread(&cq_entry[0], ct_max, nullptr, timeout);
     if ( ct < 0 )
     {
       switch ( const auto e = unsigned(-ct) )
@@ -438,8 +443,11 @@ std::size_t Fabric_op_control::poll_completions(Component::IFabric_op_completer:
     }
     else
     {
-      cb_(cq_entry.op_context, S_OK, cq_entry.flags, cq_entry.len, nullptr);
-      ++ct_total;
+      ct_total += ct;
+      for ( unsigned ix = 0U; ix != ct; ++ix )
+      {
+        cb_(cq_entry[ix].op_context, S_OK, cq_entry[ix].flags, cq_entry[ix].len, nullptr);
+      }
     }
   }
 
@@ -455,14 +463,13 @@ std::size_t Fabric_op_control::poll_completions(Component::IFabric_op_completer:
 
 std::size_t Fabric_op_control::poll_completions_tentative(Component::IFabric_op_completer::complete_tentative cb_)
 {
-  std::size_t constexpr ct_max = 1;
   std::size_t ct_total = 0;
-  ::fi_cq_tagged_entry cq_entry; /* We do not expect a tagged entry. Specifying this to provide the largest buffer. */
+  std::array<Fabric_op_control::fi_cq_entry_t, ct_max> cq_entry;
   bool drained = false;
   while ( ! drained )
   {
     constexpr auto timeout = 0; /* immediate timeout */
-    const auto ct = cq_sread(&cq_entry, ct_max, nullptr, timeout);
+    const auto ct = cq_sread(&cq_entry[0], ct_max, nullptr, timeout);
     if ( ct < 0 )
     {
       switch ( const auto e = unsigned(-ct) )
@@ -482,7 +489,10 @@ std::size_t Fabric_op_control::poll_completions_tentative(Component::IFabric_op_
     }
     else
     {
-      ct_total += process_or_queue_completion(cq_entry, cb_, S_OK);
+      for ( unsigned ix = 0U; ix != ct; ++ix )
+      {
+        ct_total += process_or_queue_completion(cq_entry[ix], cb_, S_OK);
+      }
     }
   }
 
@@ -764,7 +774,7 @@ catch ( const fabric_runtime_error &e )
   throw e.add(tostr(info));
 }
 
-void Fabric_op_control::queue_completion(const ::fi_cq_tagged_entry &cq_entry_, ::status_t status_)
+void Fabric_op_control::queue_completion(const Fabric_op_control::fi_cq_entry_t &cq_entry_, ::status_t status_)
 {
   _completions.push(completion_t(status_, cq_entry_));
 }

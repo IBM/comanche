@@ -262,7 +262,7 @@ std::size_t Fabric_generic_grouped::poll_completions(Component::IFabric_op_compl
 {
   std::size_t constexpr ct_max = 1;
   std::size_t ct_total = 0;
-  fi_cq_tagged_entry entry; /* We do not expect a tagged entry. Specifying this to provide the largest buffer. */
+  Fabric_op_control::fi_cq_entry_t entry;
 
   for ( bool drained = false; ! drained ; )
   {
@@ -328,7 +328,7 @@ std::size_t Fabric_generic_grouped::poll_completions(Component::IFabric_op_compl
 {
   std::size_t constexpr ct_max = 1;
   std::size_t ct_total = 0;
-  fi_cq_tagged_entry entry; /* We do not expect a tagged entry. Specifying this to provide the largest buffer. */
+  Fabric_op_control::fi_cq_entry_t entry;
 
   bool drained = false;
   while ( ! drained )
@@ -390,7 +390,7 @@ std::size_t Fabric_generic_grouped::poll_completions_tentative(Component::IFabri
 {
   std::size_t constexpr ct_max = 1;
   std::size_t ct_total = 0;
-  fi_cq_tagged_entry entry; /* We do not expect a tagged entry. Specifying this to provide the largest buffer. */
+  Fabric_op_control::fi_cq_entry_t entry;
 
   bool drained = false;
   while ( ! drained )
@@ -454,7 +454,7 @@ void Fabric_generic_grouped::forget_group(Fabric_comm_grouped *comm_)
   _comms.erase(comm_);
 }
 
-void Fabric_generic_grouped::queue_completion(Fabric_comm_grouped *comm_, ::status_t status_, const fi_cq_tagged_entry &cq_entry_)
+void Fabric_generic_grouped::queue_completion(Fabric_comm_grouped *comm_, ::status_t status_, const Fabric_op_control::fi_cq_entry_t &cq_entry_)
 {
   std::lock_guard<std::mutex> k{_m_comms};
   auto it = _comms.find(comm_);
