@@ -47,14 +47,11 @@ class Fabric_generic_grouped
    */
   std::mutex _m_cnxn;
   Fabric_op_control &_cnxn;
-#if 0
-  Fabric_op_control &cnxn() const noexcept { return _cnxn; }
-#endif
 
   std::mutex _m_comms;
   std::set<Fabric_comm_grouped *> _comms;
 
-  ssize_t cq_sread_locked(void *buf, std::size_t count, const void *cond, int timeout) noexcept;
+  ssize_t cq_read_locked(void *buf, std::size_t count) noexcept;
 
 public:
   /* Begin Component::IFabric_active_endpoint_grouped (IFabric_connection) */
@@ -98,17 +95,17 @@ public:
 
   /* BEGIN IFabric_active_endpoint_grouped (IFabric_op_completer) */
   /*
-   * @throw fabric_runtime_error : std::runtime_error - cq_sread unhandled error
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
    * @throw std::logic_error - called on closed connection
    */
   std::size_t poll_completions(Component::IFabric_op_completer::complete_old callback) override;
   /*
-   * @throw fabric_runtime_error : std::runtime_error - cq_sread unhandled error
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
    * @throw std::logic_error - called on closed connection
    */
   std::size_t poll_completions(Component::IFabric_op_completer::complete_definite callback) override;
   /*
-   * @throw fabric_runtime_error : std::runtime_error - cq_sread unhandled error
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
    * @throw std::logic_error - called on closed connection
    */
   std::size_t poll_completions_tentative(Component::IFabric_op_completer::complete_tentative completion_callback) override;
@@ -185,7 +182,7 @@ public:
    * @throw fabric_runtime_error : std::runtime_error : ::fi_cq_readerr fail
    */
   ::fi_cq_err_entry get_cq_comp_err();
-  ssize_t cq_sread(void *buf, std::size_t count, const void *cond, int timeout) noexcept;
+  ssize_t cq_read(void *buf, std::size_t count) noexcept;
   ssize_t cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) noexcept;
   void queue_completion(Fabric_comm_grouped *comm, ::status_t status, const Fabric_op_control::fi_cq_entry_t &cq_entry);
 };

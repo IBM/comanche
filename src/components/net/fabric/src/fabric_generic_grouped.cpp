@@ -266,9 +266,8 @@ std::size_t Fabric_generic_grouped::poll_completions(Component::IFabric_op_compl
 
   for ( bool drained = false; ! drained ; )
   {
-    constexpr auto timeout = 0; /* immediate timeout */
     std::lock_guard<std::mutex> k{_m_cnxn};
-    const auto ct = cq_sread_locked(&entry, ct_max, nullptr, timeout);
+    const auto ct = cq_read_locked(&entry, ct_max);
     if ( ct < 0 )
     {
       switch ( const auto e = unsigned(-ct) )
@@ -333,9 +332,8 @@ std::size_t Fabric_generic_grouped::poll_completions(Component::IFabric_op_compl
   bool drained = false;
   while ( ! drained )
   {
-    constexpr auto timeout = 0; /* immediate timeout */
     std::lock_guard<std::mutex> k{_m_cnxn};
-    const auto ct = cq_sread_locked(&entry, ct_max, nullptr, timeout);
+    const auto ct = cq_read_locked(&entry, ct_max);
     if ( ct < 0 )
     {
       switch ( const auto e = unsigned(-ct) )
@@ -395,9 +393,8 @@ std::size_t Fabric_generic_grouped::poll_completions_tentative(Component::IFabri
   bool drained = false;
   while ( ! drained )
   {
-    constexpr auto timeout = 0; /* immediate timeout */
     std::lock_guard<std::mutex> k{_m_cnxn};
-    const auto ct = cq_sread_locked(&entry, ct_max, nullptr, timeout);
+    const auto ct = cq_read_locked(&entry, ct_max);
     if ( ct < 0 )
     {
       switch ( const auto e = unsigned(-ct) )
@@ -472,15 +469,15 @@ void Fabric_generic_grouped::queue_completion(Fabric_comm_grouped *comm_, ::stat
   (*it)->queue_completion(status_, cq_entry_);
 }
 
-ssize_t Fabric_generic_grouped::cq_sread(void *buf_, size_t count_, const void *cond_, int timeout_) noexcept
+ssize_t Fabric_generic_grouped::cq_read(void *buf_, size_t count_) noexcept
 {
   std::lock_guard<std::mutex> k{_m_comms};
-  return cq_sread_locked(buf_, count_, cond_, timeout_);
+  return cq_read_locked(buf_, count_);
 }
 
-ssize_t Fabric_generic_grouped::cq_sread_locked(void *buf_, size_t count_, const void *cond_, int timeout_) noexcept
+ssize_t Fabric_generic_grouped::cq_read_locked(void *buf_, size_t count_) noexcept
 {
-  return _cnxn.cq_sread(buf_, count_, cond_, timeout_);
+  return _cnxn.cq_read(buf_, count_);
 }
 
 ssize_t Fabric_generic_grouped::cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) noexcept

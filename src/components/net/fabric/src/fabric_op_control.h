@@ -166,17 +166,17 @@ public:
   virtual void wait_event() const = 0;
 
   /*
-   * @throw fabric_runtime_error : std::runtime_error - cq_sread unhandled error
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
    * @throw std::logic_error - called on closed connection
    */
   std::size_t poll_completions(Component::IFabric_op_completer::complete_old completion_callback) override;
   /*
-   * @throw fabric_runtime_error : std::runtime_error - cq_sread unhandled error
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
    * @throw std::logic_error - called on closed connection
    */
   std::size_t poll_completions(Component::IFabric_op_completer::complete_definite completion_callback) override;
   /*
-   * @throw fabric_runtime_error : std::runtime_error - cq_sread unhandled error
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
    * @throw std::logic_error - called on closed connection
    */
   std::size_t poll_completions_tentative(Component::IFabric_op_completer::complete_tentative completion_callback) override;
@@ -317,7 +317,7 @@ public:
   std::size_t process_or_queue_cq_comp_err(Component::IFabric_op_completer::complete_tentative completion_callback);
   std::size_t process_or_queue_completion(const fi_cq_entry_t &cq_entry, Component::IFabric_op_completer::complete_tentative cb, ::status_t status);
 
-  ssize_t cq_sread(void *buf, std::size_t count, const void *cond, int timeout) noexcept;
+  ssize_t cq_read(void *buf, std::size_t count) noexcept;
   ssize_t cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) const noexcept;
   void queue_completion(Fabric_comm_grouped *comm, void *context, ::status_t status);
   /*

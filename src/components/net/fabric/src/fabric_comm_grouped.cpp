@@ -375,8 +375,7 @@ std::size_t Fabric_comm_grouped::poll_completions(Component::IFabric_op_complete
     std::size_t constexpr ct_max = 1;
     Fabric_op_control::fi_cq_entry_t entry;
 
-    constexpr auto timeout = 0; /* immediate timeout */
-    const auto ct = _conn.cq_sread(&entry, ct_max, nullptr, timeout);
+    const auto ct = _conn.cq_read(&entry, ct_max);
     if ( ct < 0 )
     {
       switch ( const auto e = unsigned(-ct) )
@@ -414,8 +413,7 @@ std::size_t Fabric_comm_grouped::poll_completions(Component::IFabric_op_complete
     std::size_t constexpr ct_max = 1;
     Fabric_op_control::fi_cq_entry_t entry;
 
-    constexpr auto timeout = 0; /* immediate timeout */
-    const auto ct = _conn.cq_sread(&entry, ct_max, nullptr, timeout);
+    const auto ct = _conn.cq_read(&entry, ct_max);
     if ( ct < 0 )
     {
       switch ( const auto e = unsigned(-ct) )
@@ -452,8 +450,7 @@ std::size_t Fabric_comm_grouped::poll_completions_tentative(Component::IFabric_o
     std::size_t constexpr ct_max = 1;
     Fabric_op_control::fi_cq_entry_t entry;
 
-    constexpr auto timeout = 0; /* immediate timeout */
-    const auto ct = _conn.cq_sread(&entry, ct_max, nullptr, timeout);
+    const auto ct = _conn.cq_read(&entry, ct_max);
     if ( ct < 0 )
     {
       switch ( const auto e = unsigned(-ct) )
