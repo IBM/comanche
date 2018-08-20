@@ -37,11 +37,11 @@ try
   cnxn.post_recv(v, this);
   ::wait_poll(
     cnxn
-    , [&v, this] (void *ctxt_, ::status_t stat_) -> void
+    , [this] (void *ctxt_, ::status_t stat_, std::uint64_t, std::size_t len_, void *) -> void
       {
         ASSERT_EQ(ctxt_, this);
         ASSERT_EQ(stat_, S_OK);
-        ASSERT_EQ(v[0].iov_len, (sizeof _vaddr) + sizeof( _key));
+        ASSERT_EQ(len_, (sizeof _vaddr) + sizeof( _key));
         std::memcpy(&_vaddr, &rm_out()[0], sizeof _vaddr);
         std::memcpy(&_key, &rm_out()[sizeof _vaddr], sizeof _key);
       }

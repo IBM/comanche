@@ -19,6 +19,8 @@
 
 #include "eyecatcher.h"
 #include "patience.h" /* open_connection_patiently */
+#include "pingpong_client.h"
+#include "pingpong_server.h"
 #include "registration.h"
 #include "remote_memory_server.h"
 #include "remote_memory_server_grouped.h"
@@ -650,6 +652,55 @@ TEST_F(Fabric_test, GroupedServer)
     factory->release_ref();
   }
 }
+
+TEST_F(Fabric_test, PingPong)
+{
+  static constexpr size_t BUFFER_SIZE = 128;
+  unsigned ITERATIONS = 10000;
+  /* create object instance through factory */
+  Component::IBase * comp = Component::load_component("libcomanche-fabric.so",
+                                                    Component::net_fabric_factory);
+  ASSERT_TRUE(comp);
+
+  auto factory = std::shared_ptr<Component::IFabric_factory>(static_cast<Component::IFabric_factory *>(comp->query_interface(Component::IFabric_factory::iid())));
+
+  auto fabric = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec("verbs")));
+
+  auto control_port = std::uint16_t(control_port_2);
+
+  auto start = std::chrono::high_resolution_clock::now();
+  auto start_delay = std::chrono::seconds(3);
+
+  if ( is_server )
+  {
+    std::cerr << "SERVER begin port " << control_port << std::endl;
+    {
+      auto remote_key_base = 0U;
+      pingpong_server server(*fabric, "{}", control_port, remote_key_base, ITERATIONS, BUFFER_SIZE);
+      EXPECT_LT(0U, server.max_message_size());
+    }
+    std::cerr << "SERVER end" << std::endl;
+  }
+  else
+  {
+    /* allow time for the server to listen before the client restarts */
+    std::this_thread::sleep_for(start_delay);
+    start = std::chrono::high_resolution_clock::now();
+    /* In case the provider actually uses the remote keys which we provide, make them unique. */
+    auto remote_key_base = 0U;
+
+    std::cerr << "CLIENT begin port " << control_port << std::endl;
+    pingpong_client  client(*fabric, "{}", remote_host, control_port, remote_key_base, ITERATIONS, BUFFER_SIZE);
+    std::cerr << "CLIENT end" << std::endl;
+  }
+
+  auto end = std::chrono::high_resolution_clock::now();
+  auto secs = double(std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()) / 1000.0;
+  PINF("%zu byte PingPong iterations %u secs %f Ops/Sec: %lu", BUFFER_SIZE, ITERATIONS, secs, static_cast<unsigned long>( ITERATIONS / secs ));
+
+  factory->release_ref();
+}
+
 
 } // namespace
 

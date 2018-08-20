@@ -25,11 +25,11 @@ try
   cnxn().post_recv(v, this);
   wait_poll(
     cnxn()
-    , [&v, this] (void *ctxt_, ::status_t stat_) -> void
+    , [this] (void *ctxt_, ::status_t stat_, std::uint64_t, std::size_t len_, void *) -> void
       {
         ASSERT_EQ(ctxt_, this);
         ASSERT_EQ(stat_, S_OK);
-        ASSERT_EQ(v[0].iov_len, 1);
+        ASSERT_EQ(len_, 1);
       }
   );
 }
