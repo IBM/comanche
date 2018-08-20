@@ -19,6 +19,7 @@
 
 #include <api/fabric_itf.h> /* Component::IFabric_communicator */
 
+#include "fabric_op_control.h" /* fi_cq_entry_t */
 #include "fabric_types.h" /* addr_ep_t */
 
 #include <cstddef> /* size_t */
@@ -28,13 +29,12 @@
 
 class Fabric_generic_grouped;
 class async_req_record;
-struct fi_cq_tagged_entry;
 
 class Fabric_comm_grouped
   : public Component::IFabric_communicator
 {
   Fabric_generic_grouped &_conn;
-  using completion_t = std::tuple<::fi_cq_tagged_entry, ::status_t>;
+  using completion_t = std::tuple<Fabric_op_control::fi_cq_entry_t, ::status_t>;
   /* completions for this comm processed but not yet forwarded, or processed and forwarded but deferred with DEFER status */
   std::mutex _m_completions;
   std::queue<completion_t> _completions;
@@ -58,9 +58,9 @@ class Fabric_comm_grouped
   std::size_t process_cq_comp_err(Component::IFabric_op_completer::complete_old completion_callback);
   std::size_t process_cq_comp_err(Component::IFabric_op_completer::complete_definite completion_callback);
   std::size_t process_cq_comp_err(Component::IFabric_op_completer::complete_tentative completion_callback);
-  std::size_t process_or_queue_completion(const ::fi_cq_tagged_entry &cq_entry, Component::IFabric_op_completer::complete_old cb, ::status_t status);
-  std::size_t process_or_queue_completion(const ::fi_cq_tagged_entry &cq_entry, Component::IFabric_op_completer::complete_definite cb, ::status_t status);
-  std::size_t process_or_queue_completion(const ::fi_cq_tagged_entry &cq_entry, Component::IFabric_op_completer::complete_tentative cb, ::status_t status);
+  std::size_t process_or_queue_completion(const Fabric_op_control::fi_cq_entry_t &cq_entry, Component::IFabric_op_completer::complete_old cb, ::status_t status);
+  std::size_t process_or_queue_completion(const Fabric_op_control::fi_cq_entry_t &cq_entry, Component::IFabric_op_completer::complete_definite cb, ::status_t status);
+  std::size_t process_or_queue_completion(const Fabric_op_control::fi_cq_entry_t &cq_entry, Component::IFabric_op_completer::complete_tentative cb, ::status_t status);
 public:
   explicit Fabric_comm_grouped(Fabric_generic_grouped &);
   ~Fabric_comm_grouped(); /* Note: need to notify the polling thread that this connection is going away, */
@@ -154,7 +154,7 @@ public:
 
   fabric_types::addr_ep_t get_name() const;
 
-  void queue_completion(::status_t status, const ::fi_cq_tagged_entry &cq_entry);
+  void queue_completion(::status_t status, const Fabric_op_control::fi_cq_entry_t &cq_entry);
   std::size_t drain_old_completions(Component::IFabric_op_completer::complete_old completion_callback);
   std::size_t drain_old_completions(Component::IFabric_op_completer::complete_definite completion_callback);
   std::size_t drain_old_completions(Component::IFabric_op_completer::complete_tentative completion_callback);

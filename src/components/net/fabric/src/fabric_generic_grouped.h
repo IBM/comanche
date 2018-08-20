@@ -20,6 +20,7 @@
 #include <api/fabric_itf.h> /* Component::IFabric_active_endpoint_grouped */
 
 #include "fabric_types.h" /* addr_ep_t */
+#include "fabric_op_control.h" /* fi_cq_entry_t */
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
@@ -34,8 +35,6 @@
 #include <mutex>
 #include <set>
 
-struct fi_cq_err_entry;
-struct fi_cq_tagged_entry;
 class Fabric_comm_grouped;
 class Fabric_op_control;
 
@@ -188,7 +187,7 @@ public:
   ::fi_cq_err_entry get_cq_comp_err();
   ssize_t cq_sread(void *buf, std::size_t count, const void *cond, int timeout) noexcept;
   ssize_t cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) noexcept;
-  void queue_completion(Fabric_comm_grouped *comm, ::status_t status, const ::fi_cq_tagged_entry &cq_entry);
+  void queue_completion(Fabric_comm_grouped *comm, ::status_t status, const Fabric_op_control::fi_cq_entry_t &cq_entry);
 };
 
 #endif

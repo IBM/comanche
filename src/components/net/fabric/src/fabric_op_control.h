@@ -29,7 +29,7 @@
 #pragma GCC diagnostic ignored "-Wpedantic"
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 #pragma GCC diagnostic ignored "-Wshadow"
-#include <rdma/fi_domain.h> /* fi_cq_attr, fi_cq_err_entry */
+#include <rdma/fi_domain.h> /* fi_cq_attr, fi_cq_err_entry, fi_cq_data_entry */
 #pragma GCC diagnostic pop
 
 #include <unistd.h> /* ssize_t */
@@ -57,7 +57,12 @@ class Fabric_op_control
   , public Fabric_memory_control
   , public event_consumer
 {
-  using completion_t = std::tuple<::status_t, ::fi_cq_tagged_entry>;
+  /* Largest possible format which verbs will accept. */
+  static constexpr auto fi_cq_format = FI_CQ_FORMAT_DATA;
+public:
+  using fi_cq_entry_t = fi_cq_data_entry;
+private:
+  using completion_t = std::tuple<::status_t, fi_cq_entry_t>;
   /* completions forwarded to client but deferred with DEFER status, to be retried later */
   std::queue<completion_t> _completions;
 
@@ -133,13 +138,13 @@ class Fabric_op_control
    */
   fid_unique_ptr<::fid_cq> make_fid_cq(::fi_cq_attr &attr, void *context) const;
 
-  void queue_completion(const ::fi_cq_tagged_entry &entry, ::status_t status);
+  void queue_completion(const fi_cq_entry_t &entry, ::status_t status);
   std::size_t drain_old_completions(Component::IFabric_op_completer::complete_old completion_callback);
   std::size_t drain_old_completions(Component::IFabric_op_completer::complete_definite completion_callback);
   std::size_t drain_old_completions(Component::IFabric_op_completer::complete_tentative completion_callback);
 
-public:
 
+public:
   const ::fi_info &ep_info() const { return *_ep_info; }
   ::fid_ep &ep() { return *_ep; }
   /*
@@ -310,7 +315,7 @@ public:
    * @throw fabric_runtime_error : std::runtime_error : ::fi_cq_readerr fail
    */
   std::size_t process_or_queue_cq_comp_err(Component::IFabric_op_completer::complete_tentative completion_callback);
-  std::size_t process_or_queue_completion(const ::fi_cq_tagged_entry &cq_entry, Component::IFabric_op_completer::complete_tentative cb, ::status_t status);
+  std::size_t process_or_queue_completion(const fi_cq_entry_t &cq_entry, Component::IFabric_op_completer::complete_tentative cb, ::status_t status);
 
   ssize_t cq_sread(void *buf, std::size_t count, const void *cond, int timeout) noexcept;
   ssize_t cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) const noexcept;
@@ -322,7 +327,6 @@ public:
   void expect_event(std::uint32_t) const;
   bool is_shut_down() const { return _shut_down; }
 
-public:
   std::size_t max_message_size() const noexcept override;
 };
 
