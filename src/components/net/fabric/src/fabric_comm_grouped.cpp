@@ -213,7 +213,7 @@ void Fabric_comm_grouped::queue_completion(::status_t status_, const Fabric_op_c
   _completions.push(completion_t(cq_entry_, status_));
 }
 
-std::size_t Fabric_comm_grouped::process_or_queue_completion(const Fabric_op_control::fi_cq_entry_t &cq_entry_, Component::IFabric_op_completer::complete_old cb_, ::status_t status_)
+std::size_t Fabric_comm_grouped::process_or_queue_completion(const Fabric_op_control::fi_cq_entry_t &cq_entry_, const Component::IFabric_op_completer::complete_old &cb_, ::status_t status_)
 {
   std::size_t ct_total = 0U;
   std::unique_ptr<async_req_record> g_context(static_cast<async_req_record *>(cq_entry_.op_context));
@@ -232,7 +232,7 @@ std::size_t Fabric_comm_grouped::process_or_queue_completion(const Fabric_op_con
   return ct_total;
 }
 
-std::size_t Fabric_comm_grouped::process_or_queue_completion(const Fabric_op_control::fi_cq_entry_t &cq_entry_, Component::IFabric_op_completer::complete_definite cb_, ::status_t status_)
+std::size_t Fabric_comm_grouped::process_or_queue_completion(const Fabric_op_control::fi_cq_entry_t &cq_entry_, const Component::IFabric_op_completer::complete_definite &cb_, ::status_t status_)
 {
   std::size_t ct_total = 0U;
   std::unique_ptr<async_req_record> g_context(static_cast<async_req_record *>(cq_entry_.op_context));
@@ -251,7 +251,7 @@ std::size_t Fabric_comm_grouped::process_or_queue_completion(const Fabric_op_con
   return ct_total;
 }
 
-std::size_t Fabric_comm_grouped::process_or_queue_completion(const Fabric_op_control::fi_cq_entry_t &cq_entry_, Component::IFabric_op_completer::complete_tentative cb_, ::status_t status_)
+std::size_t Fabric_comm_grouped::process_or_queue_completion(const Fabric_op_control::fi_cq_entry_t &cq_entry_, const Component::IFabric_op_completer::complete_tentative &cb_, ::status_t status_)
 {
   std::size_t ct_total = 0U;
   std::unique_ptr<async_req_record> g_context(static_cast<async_req_record *>(cq_entry_.op_context));
@@ -269,7 +269,7 @@ std::size_t Fabric_comm_grouped::process_or_queue_completion(const Fabric_op_con
   return ct_total;
 }
 
-std::size_t Fabric_comm_grouped::process_cq_comp_err(Component::IFabric_op_completer::complete_old cb_)
+std::size_t Fabric_comm_grouped::process_cq_comp_err(const Component::IFabric_op_completer::complete_old &cb_)
 {
   /* ERROR: the error context is not necessarily the expected context, and therefore may not be an async_req_record */
   const ::fi_cq_err_entry e{_conn.get_cq_comp_err()};
@@ -277,7 +277,7 @@ std::size_t Fabric_comm_grouped::process_cq_comp_err(Component::IFabric_op_compl
   return process_or_queue_completion(err_entry, cb_, E_FAIL);
 }
 
-std::size_t Fabric_comm_grouped::process_cq_comp_err(Component::IFabric_op_completer::complete_definite cb_)
+std::size_t Fabric_comm_grouped::process_cq_comp_err(const Component::IFabric_op_completer::complete_definite &cb_)
 {
   /* ERROR: the error context is not necessarily the expected context, and therefore may not be an async_req_record */
   const ::fi_cq_err_entry e{_conn.get_cq_comp_err()};
@@ -285,7 +285,7 @@ std::size_t Fabric_comm_grouped::process_cq_comp_err(Component::IFabric_op_compl
   return process_or_queue_completion(err_entry, cb_, E_FAIL);
 }
 
-std::size_t Fabric_comm_grouped::process_cq_comp_err(Component::IFabric_op_completer::complete_tentative cb_)
+std::size_t Fabric_comm_grouped::process_cq_comp_err(const Component::IFabric_op_completer::complete_tentative &cb_)
 {
   /* ERROR: the error context is not necessarily the expected context, and therefore may not be an async_req_record */
   const ::fi_cq_err_entry e{_conn.get_cq_comp_err()};
@@ -301,7 +301,7 @@ std::size_t Fabric_comm_grouped::process_cq_comp_err(Component::IFabric_op_compl
    * @return Number of completions processed
    */
 
-std::size_t Fabric_comm_grouped::drain_old_completions(Component::IFabric_op_completer::complete_old cb_)
+std::size_t Fabric_comm_grouped::drain_old_completions(const Component::IFabric_op_completer::complete_old &cb_)
 {
   std::size_t ct_total = 0U;
   std::unique_lock<std::mutex> k{_m_completions};
@@ -319,7 +319,7 @@ std::size_t Fabric_comm_grouped::drain_old_completions(Component::IFabric_op_com
   return ct_total;
 }
 
-std::size_t Fabric_comm_grouped::drain_old_completions(Component::IFabric_op_completer::complete_definite cb_)
+std::size_t Fabric_comm_grouped::drain_old_completions(const Component::IFabric_op_completer::complete_definite &cb_)
 {
   std::size_t ct_total = 0U;
   std::unique_lock<std::mutex> k{_m_completions};
@@ -337,7 +337,7 @@ std::size_t Fabric_comm_grouped::drain_old_completions(Component::IFabric_op_com
   return ct_total;
 }
 
-std::size_t Fabric_comm_grouped::drain_old_completions(Component::IFabric_op_completer::complete_tentative cb_)
+std::size_t Fabric_comm_grouped::drain_old_completions(const Component::IFabric_op_completer::complete_tentative &cb_)
 {
   std::size_t ct_total = 0U;
   std::unique_lock<std::mutex> k{_m_completions};
@@ -365,7 +365,7 @@ std::size_t Fabric_comm_grouped::drain_old_completions(Component::IFabric_op_com
   return ct_total;
 }
 
-std::size_t Fabric_comm_grouped::poll_completions(Component::IFabric_op_completer::complete_old cb_)
+std::size_t Fabric_comm_grouped::poll_completions(const Component::IFabric_op_completer::complete_old &cb_)
 {
   auto ct_total = drain_old_completions(cb_);
 
@@ -403,7 +403,7 @@ std::size_t Fabric_comm_grouped::poll_completions(Component::IFabric_op_complete
   return ct_total;
 }
 
-std::size_t Fabric_comm_grouped::poll_completions(Component::IFabric_op_completer::complete_definite cb_)
+std::size_t Fabric_comm_grouped::poll_completions(const Component::IFabric_op_completer::complete_definite &cb_)
 {
   auto ct_total = drain_old_completions(cb_);
 
@@ -441,7 +441,7 @@ std::size_t Fabric_comm_grouped::poll_completions(Component::IFabric_op_complete
   return ct_total;
 }
 
-std::size_t Fabric_comm_grouped::poll_completions_tentative(Component::IFabric_op_completer::complete_tentative cb_)
+std::size_t Fabric_comm_grouped::poll_completions_tentative(const Component::IFabric_op_completer::complete_tentative &cb_)
 {
   std::size_t ct_total = 0U;
   bool drained = false;
