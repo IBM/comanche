@@ -656,7 +656,7 @@ TEST_F(Fabric_test, GroupedServer)
 TEST_F(Fabric_test, PingPong)
 {
   static constexpr size_t BUFFER_SIZE = 128;
-  unsigned ITERATIONS = 10000;
+  unsigned ITERATIONS = 1000000;
   /* create object instance through factory */
   Component::IBase * comp = Component::load_component("libcomanche-fabric.so",
                                                     Component::net_fabric_factory);

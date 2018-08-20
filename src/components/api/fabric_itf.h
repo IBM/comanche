@@ -116,20 +116,20 @@ public:
   using complete_tentative = std::function<cb_acceptance(void *context, ::status_t, std::uint64_t completion_flags, std::size_t len, void *error_data) noexcept>;
 
   /**
-   * @throw IFabric_runtime_error - cq_sread unhandled error
+   * @throw IFabric_runtime_error - cq_read unhandled error
    * @throw std::logic_error - called on closed connection
    */
-  virtual std::size_t poll_completions(complete_old completion_callback) = 0;
+  virtual std::size_t poll_completions(const complete_old &completion_callback) = 0;
   /**
-   * @throw IFabric_runtime_error - cq_sread unhandled error
+   * @throw IFabric_runtime_error - cq_read unhandled error
    * @throw std::logic_error - called on closed connection
    */
-  virtual std::size_t poll_completions(complete_definite completion_callback) = 0;
+  virtual std::size_t poll_completions(const complete_definite &completion_callback) = 0;
   /**
-   * @throw IFabric_runtime_error - cq_sread unhandled error
+   * @throw IFabric_runtime_error - cq_read unhandled error
    * @throw std::logic_error - called on closed connection
    */
-  virtual std::size_t poll_completions_tentative(complete_tentative completion_callback) = 0;
+  virtual std::size_t poll_completions_tentative(const complete_tentative &completion_callback) = 0;
 
   /**
    * Get count of stalled completions.

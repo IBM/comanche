@@ -258,7 +258,7 @@ void Fabric_generic_grouped::inject_send(const ::iovec *first_, const ::iovec *l
  * @return Number of completions processed
  */
 
-std::size_t Fabric_generic_grouped::poll_completions(Component::IFabric_op_completer::complete_old cb_)
+std::size_t Fabric_generic_grouped::poll_completions(const Component::IFabric_op_completer::complete_old &cb_)
 {
   std::size_t constexpr ct_max = 1;
   std::size_t ct_total = 0;
@@ -323,7 +323,7 @@ std::size_t Fabric_generic_grouped::poll_completions(Component::IFabric_op_compl
   return ct_total;
 }
 
-std::size_t Fabric_generic_grouped::poll_completions(Component::IFabric_op_completer::complete_definite cb_)
+std::size_t Fabric_generic_grouped::poll_completions(const Component::IFabric_op_completer::complete_definite &cb_)
 {
   std::size_t constexpr ct_max = 1;
   std::size_t ct_total = 0;
@@ -384,7 +384,7 @@ std::size_t Fabric_generic_grouped::poll_completions(Component::IFabric_op_compl
   return ct_total;
 }
 
-std::size_t Fabric_generic_grouped::poll_completions_tentative(Component::IFabric_op_completer::complete_tentative cb_)
+std::size_t Fabric_generic_grouped::poll_completions_tentative(const Component::IFabric_op_completer::complete_tentative &cb_)
 {
   std::size_t constexpr ct_max = 1;
   std::size_t ct_total = 0;
