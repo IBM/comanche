@@ -522,25 +522,25 @@ status_t NVME_store::get_direct(const pool_t pool,
   return S_OK;
 }
 
+static_assert(sizeof(IKVStore::memory_handle_t) == sizeof(io_buffer_t), "cast may not work");
 /*
  * Only used for the case when memory is pinned/aligned but not from spdk, e.g. cudadma
  * should be 2MB aligned in both phsycial and virtual*/
-status_t NVME_store::register_direct_memory(void * vaddr, size_t len){
+IKVStore::memory_handle_t NVME_store::register_direct_memory(void * vaddr, size_t len){
   addr_t phys_addr; // physical address
   io_buffer_t handle = 0;;
 
   phys_addr = xms_get_phys(vaddr);
   handle = _blk_dev->register_memory_for_io(vaddr, phys_addr, len);
 
+  auto result = reinterpret_cast<IKVStore::memory_handle_t>(handle);
   /* save this this registration */
-  if(handle){
+  if(handle)
     PINF("Register vaddr %p with paddr %lu, handle %lu", vaddr, phys_addr, handle );
-    return S_OK;
-  }
-  else{
+  else
     PERR("%s: register user allocated memory failed", __func__);
-    return E_FAIL;
-  }
+
+  return result;
 }
 
 status_t NVME_store::allocate(const pool_t pool,

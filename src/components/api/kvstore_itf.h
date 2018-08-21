@@ -36,7 +36,8 @@ public:
   DECLARE_INTERFACE_UUID(0x62f4829f,0x0405,0x4c19,0x9898,0xa3,0xae,0x21,0x5a,0x3e,0xe8);
 
 public:
-  using pool_t     = uint64_t;
+  using pool_t          = uint64_t;
+  using memory_handle_t = void *;
 
   enum {
     THREAD_MODEL_UNSAFE,
@@ -239,9 +240,9 @@ public:
    * @param vaddr Appropriately aligned memory buffer
    * @param len Length of memory buffer in bytes
    * 
-   * @return S_OK on success
+   * @return Memory handle or NULL on not supported.
    */
-  virtual status_t register_direct_memory(void * vaddr, size_t len) { return E_NOT_SUPPORTED; }
+  virtual memory_handle_t register_direct_memory(void * vaddr, size_t len) { return nullptr; }
 
   
   /** 
@@ -251,7 +252,7 @@ public:
    * 
    * @return S_OK on success
    */
-  virtual status_t unregister_direct_memory(void * vaddr) { return E_NOT_SUPPORTED; }
+  virtual status_t unregister_direct_memory(memory_handle_t handle) { return E_NOT_SUPPORTED; }
 
   
   /** 
