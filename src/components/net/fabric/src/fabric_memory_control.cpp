@@ -210,5 +210,7 @@ try
 }
 catch ( const fabric_runtime_error &e )
 {
-  throw e.add(std::string(std::string(" in ") + __func__ + " " + std::to_string(len) + " " + std::to_string(key)));
+  std::ostringstream s;
+  s << " in " << __func__ << "(buf " << buf << ", len " << len << ", key " << key << ")";
+  throw e.add(s.str());
 }

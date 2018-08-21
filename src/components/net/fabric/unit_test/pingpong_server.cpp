@@ -20,42 +20,40 @@
 
 void pingpong_server::listener(
   Component::IFabric_server_factory &ep_
+  , std::size_t buffer_size_
   , std::uint64_t remote_key_
   , unsigned iteration_count_
-  , std::size_t buffer_size_
+  , std::size_t msg_size_
 )
 try
 {
   server_connection sc(ep_);
   EXPECT_EQ(sc.cnxn().max_message_size(), this->max_message_size());
   /* register an RDMA memory region */
-  registered_memory rm{sc.cnxn(), remote_key_};
+  registered_memory rm{sc.cnxn(), buffer_size_, remote_key_};
   /* wait for client indicate exit (by sending one byte to us) */
-  std::vector<::iovec> v{{&rm[0], buffer_size_}};
+  std::vector<::iovec> v{{&rm[0], msg_size_}};
   std::vector<void *> d{{rm.desc()}};
   for ( auto i = 0U ; i != iteration_count_ ; ++i )
   {
     sc.cnxn().post_recv(&*v.begin(), &*v.end(), &*d.begin(), this);
     ::wait_poll(
       sc.cnxn()
-      , [&v, buffer_size_, this] (void *ctxt_, ::status_t stat_, std::uint64_t, std::size_t len_, void *) -> void
+      , [&v, msg_size_, this] (void *ctxt_, ::status_t stat_, std::uint64_t, std::size_t len_, void *) -> void
         {
           ASSERT_EQ(ctxt_, this);
           ASSERT_EQ(stat_, S_OK);
-          EXPECT_EQ(len_, buffer_size_);
+          EXPECT_EQ(len_, msg_size_);
         }
       , test_type::performance
     );
     sc.cnxn().post_send(&*v.begin(), &*v.end(), &*d.begin(), this);
     ::wait_poll(
       sc.cnxn()
-      , [&v, buffer_size_, this] (void *ctxt_, ::status_t stat_, std::uint64_t, std::size_t, void *) -> void
+      , [&v, this] (void *ctxt_, ::status_t stat_, std::uint64_t, std::size_t, void *) -> void
         {
           ASSERT_EQ(ctxt_, this);
           ASSERT_EQ(stat_, S_OK);
-#if 0
-          EXPECT_EQ(len_, buffer_size_);
-#endif
         }
       , test_type::performance
     );
@@ -71,12 +69,13 @@ pingpong_server::pingpong_server(
   Component::IFabric &fabric_
   , const std::string &fabric_spec_
   , std::uint16_t control_port_
+  , std::uint64_t buffer_size_
   , std::uint64_t remote_key_base_
   , unsigned iteration_count_
-  , std::uint64_t buffer_size_
+  , std::uint64_t msg_size_
 )
   : _ep(fabric_.open_server_factory(fabric_spec_, control_port_))
-  , _th(&pingpong_server::listener, this, std::ref(*_ep), remote_key_base_, iteration_count_, buffer_size_)
+  , _th(&pingpong_server::listener, this, std::ref(*_ep), buffer_size_, remote_key_base_, iteration_count_, msg_size_)
 {
 }
 

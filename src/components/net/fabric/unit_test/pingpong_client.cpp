@@ -36,39 +36,37 @@ pingpong_client::pingpong_client(
   , const std::string &fabric_spec_
   , const std::string ip_address_
   , std::uint16_t port_
+  , std::uint64_t buffer_size_
   , std::uint64_t remote_key_base_
   , unsigned iteration_count_
-  , std::uint64_t buffer_size_
+  , std::uint64_t msg_size_
 )
 try
   : _cnxn(open_connection_patiently(fabric_, fabric_spec_, ip_address_, port_))
 {
-  registered_memory rm{*_cnxn, remote_key_base_};
-  std::vector<::iovec> v{{&rm[0], buffer_size_}};
+  registered_memory rm{*_cnxn, buffer_size_, remote_key_base_};
+  std::vector<::iovec> v{{&rm[0], msg_size_}};
   std::vector<void *> d{{rm.desc()}};
   for ( auto i = 0U ; i != iteration_count_ ; ++i )
   {
     _cnxn->post_send(&*v.begin(), &*v.end(), &*d.begin(), this);
     wait_poll(
         *_cnxn
-      , [&v, buffer_size_, this] (void *ctxt_, ::status_t stat_, std::uint64_t, std::size_t, void *) -> void
+      , [&v, this] (void *ctxt_, ::status_t stat_, std::uint64_t, std::size_t, void *) -> void
         {
           EXPECT_EQ(ctxt_, this);
           EXPECT_EQ(stat_, ::S_OK);
-#if 0
-          EXPECT_EQ(len_, buffer_size_);
-#endif
         }
       , test_type::performance
     );
     _cnxn->post_recv(&*v.begin(), &*v.end(), &*d.begin(), this);
     wait_poll(
         *_cnxn
-      , [&v, buffer_size_, this] (void *ctxt_, ::status_t stat_, std::uint64_t, std::size_t len_, void *) -> void
+      , [&v, msg_size_, this] (void *ctxt_, ::status_t stat_, std::uint64_t, std::size_t len_, void *) -> void
         {
           EXPECT_EQ(ctxt_, this);
           EXPECT_EQ(stat_, ::S_OK);
-          EXPECT_EQ(len_, buffer_size_);
+          EXPECT_EQ(len_, msg_size_);
         }
       , test_type::performance
     );

@@ -24,15 +24,22 @@ class pingpong_server
   std::shared_ptr<Component::IFabric_server_factory> _ep;
   std::thread _th;
 
-  void listener(Component::IFabric_server_factory &ep, std::uint64_t remote_key_, unsigned iteration_count, std::size_t buffer_size);
+  void listener(
+    Component::IFabric_server_factory &ep
+    , std::size_t buffer_size
+    , std::uint64_t remote_key
+    , unsigned iteration_count
+    , std::size_t msg_size
+  );
 public:
   pingpong_server(
     Component::IFabric &fabric
     , const std::string &fabric_spec
     , std::uint16_t control_port
+    , std::size_t buffer_size
     , std::uint64_t remote_key_base
     , unsigned iteration_count
-    , std::size_t buffer_size
+    , std::size_t msg_size
   );
   ~pingpong_server();
   std::size_t max_message_size() const;

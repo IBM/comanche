@@ -27,11 +27,15 @@ void remote_memory_subclient::check_complete(::status_t stat_, std::size_t)
   EXPECT_EQ(stat_, S_OK);
 }
 
-remote_memory_subclient::remote_memory_subclient(remote_memory_client_grouped &parent_, std::uint64_t remote_key_index_)
+remote_memory_subclient::remote_memory_subclient(
+  remote_memory_client_grouped &parent_
+  , std::size_t memory_size_
+  , std::uint64_t remote_key_index_
+  )
   : _parent(parent_)
   , _cnxn(_parent.allocate_group())
-  , _rm_out{_parent.cnxn(), remote_key_index_ * 2U}
-  , _rm_in{_parent.cnxn(), remote_key_index_ * 2U + 1U}
+  , _rm_out{_parent.cnxn(), memory_size_, remote_key_index_ * 2U}
+  , _rm_in{_parent.cnxn(), memory_size_, remote_key_index_ * 2U + 1U}
 {
 }
 
