@@ -35,9 +35,14 @@ class IKVStore : public Component::IBase
 public:
   DECLARE_INTERFACE_UUID(0x62f4829f,0x0405,0x4c19,0x9898,0xa3,0xae,0x21,0x5a,0x3e,0xe8);
 
+private:
+  struct Opaque_memory_region;
+  
 public:
   using pool_t          = uint64_t;
-  using memory_handle_t = void *;
+  using memory_handle_t = Opaque_memory_region *;
+
+  static constexpr memory_handle_t HANDLE_NONE = nullptr;
 
   enum {
     THREAD_MODEL_UNSAFE,
@@ -171,7 +176,8 @@ public:
                               const void * key,
                               const size_t key_len,
                               const void * value,
-                              const size_t value_len) { return E_NOT_SUPPORTED; }
+                              const size_t value_len,
+                              memory_handle_t handle = HANDLE_NONE) { return E_NOT_SUPPORTED; }
 
   /** 
    * Read an object value
@@ -453,16 +459,24 @@ public:
   DECLARE_INTERFACE_UUID(0xface829f,0x0405,0x4c19,0x9898,0xa3,0xae,0x21,0x5a,0x3e,0xe8);
 
   virtual IKVStore * create(const std::string owner,
-                            const std::string name){
+                            const std::string param){
     throw(API_exception("Not Implemented"));
   };
 
   virtual IKVStore * create(const std::string owner,
-                            const std::string name,
-                            std::string pci){
+                            const std::string param,
+                            const std::string param2){
     throw(API_exception("Not Implemented"));
   }
 
+  virtual IKVStore * create(unsigned debug_level,
+                            const std::string owner,
+                            const std::string param,
+                            const std::string param2){
+    throw(API_exception("Not Implemented"));
+  }
+
+  
 };
 
 
