@@ -648,7 +648,7 @@ int channel_post_send(struct channel_context *ctx,
     seg.addr = (uintptr_t) mr0->addr;
     seg.length = mr0->length;
     seg.lkey = mr0->lkey;
-    
+
     struct ibv_send_wr wr = {0};
     wr.wr_id = issue_id;
     wr.sg_list = &seg;
