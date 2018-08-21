@@ -44,11 +44,18 @@ void remote_memory_client::do_quit()
   _quit_flag = 'q';
 }
 
-remote_memory_client::remote_memory_client(Component::IFabric &fabric_, const std::string &fabric_spec_, const std::string ip_address_, std::uint16_t port_, std::uint64_t remote_key_base_)
+remote_memory_client::remote_memory_client(
+  Component::IFabric &fabric_
+  , const std::string &fabric_spec_
+  , const std::string ip_address_
+  , std::uint16_t port_
+  , std::size_t memory_size_
+  , std::uint64_t remote_key_base_
+)
 try
   : _cnxn(open_connection_patiently(fabric_, fabric_spec_, ip_address_, port_))
-  , _rm_out{std::make_shared<registered_memory>(*_cnxn, remote_key_base_ * 2U)}
-  , _rm_in{std::make_shared<registered_memory>(*_cnxn, remote_key_base_ * 2U + 1)}
+  , _rm_out{std::make_shared<registered_memory>(*_cnxn, memory_size_, remote_key_base_ * 2U)}
+  , _rm_in{std::make_shared<registered_memory>(*_cnxn, memory_size_, remote_key_base_ * 2U + 1)}
   , _vaddr{}
   , _key{}
   , _quit_flag('n')
@@ -107,7 +114,7 @@ void remote_memory_client::write(const std::string &msg_, bool force_error_)
     std::ptrdiff_t adjust = 0;
     if ( force_error_ )
     {
-      adjust = -8192;
+      adjust = 1U << 31U;
     }
     buffers[0].iov_len = msg_.size();
     _cnxn->post_write(buffers, _vaddr + remote_memory_offset - adjust, _key, this);

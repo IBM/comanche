@@ -20,9 +20,6 @@ class pingpong_client
   void check_complete(::status_t stat);
 
   std::shared_ptr<Component::IFabric_client> _cnxn;
-#if 0
-  std::shared_ptr<registered_memory> _rm;
-#endif
 
 protected:
   void do_quit();
@@ -32,9 +29,10 @@ public:
     , const std::string &fabric_spec
     , const std::string ip_address
     , std::uint16_t port
+    , std::uint64_t buffer_size
     , std::uint64_t remote_key_base
     , unsigned iteration_count
-    , std::size_t buffer_size
+    , std::size_t msg_size
   );
   pingpong_client(pingpong_client &&) = default;
   pingpong_client &operator=(pingpong_client &&) = default;

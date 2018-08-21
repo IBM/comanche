@@ -15,11 +15,13 @@ remote_memory_client_grouped::remote_memory_client_grouped(
   , const std::string &fabric_spec_
   , const std::string ip_address_
   , std::uint16_t port_
+  , std::size_t memory_size_
   , std::uint64_t remote_key_base_
 )
 try
   : _cnxn(open_connection_grouped_patiently(fabric_, fabric_spec_, ip_address_, port_))
-  , _rm_out{std::make_shared<registered_memory>(*_cnxn, remote_key_base_ * 2U)}
+  , _memory_size(memory_size_)
+  , _rm_out{std::make_shared<registered_memory>(*_cnxn, memory_size_, remote_key_base_ * 2U)}
   , _vaddr{}
   , _key{}
   , _quit_flag('n')
@@ -31,7 +33,7 @@ try
   iv.iov_len = (sizeof _vaddr) + (sizeof _key);
   v.emplace_back(iv);
 
-  remote_memory_subclient rms(*this, _remote_key_index_for_startup_and_shutdown);
+  remote_memory_subclient rms(*this, memory_size_, _remote_key_index_for_startup_and_shutdown);
   auto &cnxn = rms.cnxn();
 
   cnxn.post_recv(v, this);
@@ -58,7 +60,7 @@ catch ( std::exception &e )
 remote_memory_client_grouped::~remote_memory_client_grouped()
 try
 {
-  remote_memory_subclient rms(*this, _remote_key_index_for_startup_and_shutdown);
+  remote_memory_subclient rms(*this, _memory_size, _remote_key_index_for_startup_and_shutdown);
   auto &cnxn = rms.cnxn();
   send_disconnect(cnxn, rm_out(), _quit_flag);
 }

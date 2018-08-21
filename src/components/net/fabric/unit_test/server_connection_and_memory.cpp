@@ -6,9 +6,13 @@
 #include <sys/uio.h> /* iovec */
 #include <vector>
 
-server_connection_and_memory::server_connection_and_memory(Component::IFabric_server_factory &ep_, std::uint64_t remote_key_)
+server_connection_and_memory::server_connection_and_memory(
+  Component::IFabric_server_factory &ep_
+  , std::size_t memory_size_
+  , std::uint64_t remote_key_
+)
   : server_connection(ep_)
-  , registered_memory(cnxn(), remote_key_)
+  , registered_memory(cnxn(), memory_size_, remote_key_)
 {
   /* send the address, and the key to memory */
   send_memory_info(cnxn(), *this);

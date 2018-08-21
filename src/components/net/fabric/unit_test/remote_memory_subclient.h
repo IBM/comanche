@@ -27,7 +27,11 @@ class remote_memory_subclient
   void check_complete(::status_t stat, std::size_t len);
 
 public:
-  remote_memory_subclient(remote_memory_client_grouped &parent, std::uint64_t remote_key_index_);
+  remote_memory_subclient(
+    remote_memory_client_grouped &parent
+    , std::size_t memory_size
+    , std::uint64_t remote_key_index
+  );
 
   Component::IFabric_communicator &cnxn() { return *_cnxn; }
 
