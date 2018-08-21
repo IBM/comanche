@@ -41,6 +41,7 @@ public:
     , const std::string &fabric_spec
     , const std::string ip_address
     , std::uint16_t port
+    , std::size_t memory_size
     , std::uint64_t remote_key_base
   );
   remote_memory_client(remote_memory_client &&) = default;

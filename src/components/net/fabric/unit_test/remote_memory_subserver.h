@@ -18,7 +18,11 @@ class remote_memory_subserver
   registered_memory &rm_out() { return _rm_out; }
   registered_memory &rm_in () { return _rm_in; }
 public:
-  remote_memory_subserver(server_grouped_connection &parent_, std::uint64_t remote_key_index_);
+  remote_memory_subserver(
+    server_grouped_connection &parent
+    , std::size_t memory_size
+    , std::uint64_t remote_key_index
+  );
 
   Component::IFabric_communicator &cnxn() { return *_cnxn; }
 };
