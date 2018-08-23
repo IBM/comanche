@@ -109,6 +109,16 @@ public:
    * @throw std::logic_error - called on closed connection
    */
   std::size_t poll_completions_tentative(const Component::IFabric_op_completer::complete_tentative &completion_callback) override;
+  /*
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
+   * @throw std::logic_error - called on closed connection
+   */
+  std::size_t poll_completions(const Component::IFabric_op_completer::complete_param_definite &callback, void *callback_param) override;
+  /*
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
+   * @throw std::logic_error - called on closed connection
+   */
+  std::size_t poll_completions_tentative(const Component::IFabric_op_completer::complete_param_tentative &completion_callback, void *callback_param) override;
   std::size_t stalled_completion_count() override;
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_control fail

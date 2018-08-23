@@ -335,6 +335,22 @@ std::size_t Fabric_op_control::process_or_queue_completion(const Fabric_op_contr
   return ct_total;
 }
 
+std::size_t Fabric_op_control::process_or_queue_completion(const Fabric_op_control::fi_cq_entry_t &cq_entry_, const Component::IFabric_op_completer::complete_param_tentative &cb_, ::status_t status_, void *cb_param_)
+{
+  std::size_t ct_total = 0U;
+  if ( cb_(cq_entry_.op_context, status_, cq_entry_.flags, cq_entry_.len, nullptr, cb_param_) == cb_acceptance::ACCEPT )
+  {
+    ++ct_total;
+  }
+  else
+  {
+    queue_completion(cq_entry_, status_);
+    ++_stats.defer_total;
+  }
+
+  return ct_total;
+}
+
 std::size_t Fabric_op_control::process_cq_comp_err(const Component::IFabric_op_completer::complete_old &cb_)
 {
   const auto cq_entry = get_cq_comp_err();
@@ -349,12 +365,25 @@ std::size_t Fabric_op_control::process_cq_comp_err(const Component::IFabric_op_c
   return 1U;
 }
 
-#include <iostream>
 std::size_t Fabric_op_control::process_or_queue_cq_comp_err(const Component::IFabric_op_completer::complete_tentative &cb_)
 {
   const auto e = get_cq_comp_err();
   const Fabric_op_control::fi_cq_entry_t err_entry{e.op_context, e.flags, e.len, e.buf, e.data};
   return process_or_queue_completion(err_entry, cb_, E_FAIL);
+}
+
+std::size_t Fabric_op_control::process_cq_comp_err(const Component::IFabric_op_completer::complete_param_definite &cb_, void *cb_param_)
+{
+  const auto cq_entry = get_cq_comp_err();
+  cb_(cq_entry.op_context, E_FAIL, cq_entry.flags, cq_entry.len, nullptr, cb_param_);
+  return 1U;
+}
+
+std::size_t Fabric_op_control::process_or_queue_cq_comp_err(const Component::IFabric_op_completer::complete_param_tentative &cb_, void *cb_param_)
+{
+  const auto e = get_cq_comp_err();
+  const Fabric_op_control::fi_cq_entry_t err_entry{e.op_context, e.flags, e.len, e.buf, e.data};
+  return process_or_queue_completion(err_entry, cb_, E_FAIL, cb_param_);
 }
 
 namespace
@@ -494,6 +523,95 @@ std::size_t Fabric_op_control::poll_completions_tentative(const Component::IFabr
   }
 
   ct_total += drain_old_completions(cb_);
+
+  if ( _shut_down && ct_total == 0 )
+  {
+    throw std::logic_error(__func__ + std::string(": Connection closed"));
+  }
+  _stats.ct_total += ct_total;
+  return ct_total;
+}
+
+std::size_t Fabric_op_control::poll_completions(const Component::IFabric_op_completer::complete_param_definite &cb_, void *cb_param_)
+{
+  std::size_t ct_total = 0;
+  std::array<Fabric_op_control::fi_cq_entry_t, ct_max> cq_entry;
+  bool drained = false;
+  while ( ! drained )
+  {
+    const auto ct = cq_read(&cq_entry[0], ct_max);
+    if ( ct < 0 )
+    {
+      switch ( const auto e = unsigned(-ct) )
+      {
+      case FI_EAVAIL:
+        ct_total += process_cq_comp_err(cb_, cb_param_);
+        break;
+      case FI_EAGAIN:
+        drained = true;
+        break;
+      case FI_EINTR:
+        /* seen when profiling with gperftools */
+        break;
+      default:
+        throw fabric_runtime_error(e, __FILE__, __LINE__);
+      }
+    }
+    else
+    {
+      ct_total += ct;
+      for ( unsigned ix = 0U; ix != ct; ++ix )
+      {
+        cb_(cq_entry[ix].op_context, S_OK, cq_entry[ix].flags, cq_entry[ix].len, nullptr, cb_param_);
+      }
+    }
+  }
+
+  ct_total += drain_old_completions(cb_, cb_param_);
+
+  if ( _shut_down && ct_total == 0 )
+  {
+    throw std::logic_error(__func__ + std::string(": Connection closed"));
+  }
+  _stats.ct_total += ct_total;
+  return ct_total;
+}
+
+std::size_t Fabric_op_control::poll_completions_tentative(const Component::IFabric_op_completer::complete_param_tentative &cb_, void *cb_param_)
+{
+  std::size_t ct_total = 0;
+  std::array<Fabric_op_control::fi_cq_entry_t, ct_max> cq_entry;
+  bool drained = false;
+  while ( ! drained )
+  {
+    const auto ct = cq_read(&cq_entry[0], ct_max);
+    if ( ct < 0 )
+    {
+      switch ( const auto e = unsigned(-ct) )
+      {
+      case FI_EAVAIL:
+        ct_total += process_or_queue_cq_comp_err(cb_, cb_param_);
+        break;
+      case FI_EAGAIN:
+        drained = true;
+        break;
+      case FI_EINTR:
+        /* seen when profiling with gperftools */
+        break;
+      default:
+        throw fabric_runtime_error(e, __FILE__, __LINE__);
+      }
+    }
+    else
+    {
+      for ( unsigned ix = 0U; ix != ct; ++ix )
+      {
+        ct_total += process_or_queue_completion(cq_entry[ix], cb_, S_OK, cb_param_);
+      }
+    }
+  }
+
+  ct_total += drain_old_completions(cb_, cb_param_);
 
   if ( _shut_down && ct_total == 0 )
   {
@@ -817,6 +935,48 @@ std::size_t Fabric_op_control::drain_old_completions(const Component::IFabric_op
       _completions.pop();
       const auto &cq_entry = std::get<1>(c);
       if ( cb_(cq_entry.op_context, std::get<0>(c), cq_entry.flags, cq_entry.len, nullptr) == cb_acceptance::ACCEPT )
+      {
+        ++ct_total;
+      }
+      else
+      {
+        deferred_completions.push(c);
+        ++defer_total;
+      }
+    }
+    std::swap(deferred_completions, _completions);
+    _stats.defer_total += defer_total;
+  }
+  return ct_total;
+}
+
+std::size_t Fabric_op_control::drain_old_completions(const Component::IFabric_op_completer::complete_param_definite &cb_, void *cb_param_)
+{
+  std::size_t ct_total = 0U;
+  while ( ! _completions.empty() )
+  {
+    auto c = _completions.front();
+    _completions.pop();
+    const auto &cq_entry = std::get<1>(c);
+    cb_(cq_entry.op_context, std::get<0>(c), cq_entry.flags, cq_entry.len, nullptr, cb_param_);
+    ++ct_total;
+  }
+  return ct_total;
+}
+
+std::size_t Fabric_op_control::drain_old_completions(const Component::IFabric_op_completer::complete_param_tentative &cb_, void *cb_param_)
+{
+  std::size_t ct_total = 0U;
+  if ( ! _completions.empty() )
+  {
+    std::size_t defer_total = 0U;
+    std::queue<completion_t> deferred_completions;
+    while ( ! _completions.empty() )
+    {
+      auto c = _completions.front();
+      _completions.pop();
+      const auto &cq_entry = std::get<1>(c);
+      if ( cb_(cq_entry.op_context, std::get<0>(c), cq_entry.flags, cq_entry.len, nullptr, cb_param_) == cb_acceptance::ACCEPT )
       {
         ++ct_total;
       }
