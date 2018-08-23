@@ -18,10 +18,20 @@ server_connection::server_connection(Component::IFabric_server_factory &ep_)
 {
 }
 
+server_connection::server_connection(server_connection &&sc_) noexcept
+  : _ep(sc_._ep)
+  , _cnxn(std::move(sc_._cnxn))
+{
+  sc_._cnxn = nullptr;
+}
+
 server_connection::~server_connection()
 try
 {
-  _ep.close_connection(_cnxn);
+  if ( _cnxn )
+  {
+    _ep.close_connection(_cnxn);
+  }
 }
 catch ( std::exception &e )
 {
