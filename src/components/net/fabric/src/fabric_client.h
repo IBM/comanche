@@ -86,6 +86,22 @@ public:
   {
     return Fabric_connection_client::poll_completions_tentative(completion_callback);
   }
+  /*
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
+   * @throw std::logic_error - called on closed connection
+   */
+  std::size_t poll_completions(const Component::IFabric_op_completer::complete_param_definite &completion_callback, void *callback_param) override
+  {
+    return Fabric_connection_client::poll_completions(completion_callback, callback_param);
+  }
+  /*
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
+   * @throw std::logic_error - called on closed connection
+   */
+  std::size_t poll_completions_tentative(const Component::IFabric_op_completer::complete_param_tentative &completion_callback, void *callback_param) override
+  {
+    return Fabric_connection_client::poll_completions_tentative(completion_callback, callback_param);
+  }
   std::size_t stalled_completion_count() override { return Fabric_op_control::stalled_completion_count(); }
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_control fail
