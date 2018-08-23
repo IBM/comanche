@@ -437,6 +437,120 @@ std::size_t Fabric_generic_grouped::poll_completions_tentative(const Component::
   return ct_total;
 }
 
+std::size_t Fabric_generic_grouped::poll_completions(const Component::IFabric_op_completer::complete_param_definite &cb_, void *cb_param_)
+{
+  std::size_t constexpr ct_max = 1;
+  std::size_t ct_total = 0;
+  Fabric_op_control::fi_cq_entry_t entry;
+
+  bool drained = false;
+  while ( ! drained )
+  {
+    std::lock_guard<std::mutex> k{_m_cnxn};
+    const auto ct = cq_read_locked(&entry, ct_max);
+    if ( ct < 0 )
+    {
+      switch ( const auto e = unsigned(-ct) )
+      {
+      case FI_EAVAIL:
+        ct_total += _cnxn.process_cq_comp_err(cb_, cb_param_);
+        break;
+      case FI_EAGAIN:
+        drained = true;
+        break;
+      case FI_EINTR:
+        /* seen when profiling with gperftools */
+        break;
+      default:
+        throw fabric_runtime_error(e, __FILE__, __LINE__);
+      }
+    }
+    else
+    {
+      std::unique_ptr<async_req_record> g_context(static_cast<async_req_record *>(entry.op_context));
+      cb_(g_context->context(), S_OK, entry.flags, entry.len, nullptr, cb_param_);
+      ++ct_total;
+      g_context.release();
+    }
+  }
+
+  /*
+   * Note: There are two reasons why a completion might end in our local "queue":
+   *  (1) It was seen by another group running poll_completions, or
+   *  (2) it was rejected by a client who hoped to see some other completion first.
+   * In case (1) it would be reasonable to process the queued completions before
+   * newer completions. But in case (2), the client will want to see later completions
+   * before returning to the rejected completion.
+   */
+  {
+    std::lock_guard<std::mutex> k0{_m_comms};
+    for ( auto &g : _comms )
+    {
+      g->drain_old_completions(cb_, cb_param_);
+    }
+  }
+
+  std::lock_guard<std::mutex> k{_m_cnxn};
+  if ( _cnxn.is_shut_down() && ct_total == 0 )
+  {
+    throw std::logic_error(std::string("Fabric_generic_grouped") + __func__ + ": Connection closed");
+  }
+  return ct_total;
+}
+
+std::size_t Fabric_generic_grouped::poll_completions_tentative(const Component::IFabric_op_completer::complete_param_tentative &cb_, void *cb_param_)
+{
+  std::size_t constexpr ct_max = 1;
+  std::size_t ct_total = 0;
+  Fabric_op_control::fi_cq_entry_t entry;
+
+  bool drained = false;
+  while ( ! drained )
+  {
+    std::lock_guard<std::mutex> k{_m_cnxn};
+    const auto ct = cq_read_locked(&entry, ct_max);
+    if ( ct < 0 )
+    {
+      switch ( const auto e = unsigned(-ct) )
+      {
+      case FI_EAVAIL:
+        ct_total += _cnxn.process_or_queue_cq_comp_err(cb_, cb_param_);
+        break;
+      case FI_EAGAIN:
+        drained = true;
+        break;
+      case FI_EINTR:
+        /* seen when profiling with gperftools */
+        break;
+      default:
+        throw fabric_runtime_error(e, __FILE__, __LINE__);
+      }
+    }
+    else
+    {
+      std::unique_ptr<async_req_record> g_context(static_cast<async_req_record *>(entry.op_context));
+      entry.op_context = g_context->context();
+      ct_total += _cnxn.process_or_queue_completion(entry, cb_, S_OK, cb_param_);
+      g_context.release();
+    }
+  }
+
+  {
+    std::lock_guard<std::mutex> k0{_m_comms};
+    for ( auto &g : _comms )
+    {
+      g->drain_old_completions(cb_, cb_param_);
+    }
+  }
+
+  std::lock_guard<std::mutex> k{_m_cnxn};
+  if ( _cnxn.is_shut_down() && ct_total == 0 )
+  {
+    throw std::logic_error(std::string("Fabric_generic_grouped") + __func__ + ": Connection closed");
+  }
+  return ct_total;
+}
+
 auto Fabric_generic_grouped::allocate_group() -> Component::IFabric_communicator *
 {
   std::lock_guard<std::mutex> g{_m_comms};
