@@ -57,4 +57,3 @@ void wait_poll(
   }
   EXPECT_EQ(ct,1);
 }
-

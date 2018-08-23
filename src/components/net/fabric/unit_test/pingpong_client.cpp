@@ -43,10 +43,13 @@ pingpong_client::pingpong_client(
 )
 try
   : _cnxn(open_connection_patiently(fabric_, fabric_spec_, ip_address_, port_))
+  , _start{}
+  , _stop{}
 {
   registered_memory rm{*_cnxn, buffer_size_, remote_key_base_};
   std::vector<::iovec> v{{&rm[0], msg_size_}};
   std::vector<void *> d{{rm.desc()}};
+  _start = std::chrono::high_resolution_clock::now();
   for ( auto i = 0U ; i != iteration_count_ ; ++i )
   {
     _cnxn->post_send(&*v.begin(), &*v.end(), &*d.begin(), this);
@@ -71,6 +74,7 @@ try
       , test_type::performance
     );
   }
+  _stop = std::chrono::high_resolution_clock::now();
 }
 catch ( std::exception &e )
 {
@@ -78,11 +82,11 @@ catch ( std::exception &e )
   throw;
 }
 
-pingpong_client::~pingpong_client()
+std::pair<std::chrono::high_resolution_clock::time_point, std::chrono::high_resolution_clock::time_point> pingpong_client::time()
 {
+  return { _start, _stop };
 }
 
-std::size_t pingpong_client::max_message_size() const
+pingpong_client::~pingpong_client()
 {
-  return _cnxn->max_message_size();
 }

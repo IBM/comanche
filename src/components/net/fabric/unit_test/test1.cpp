@@ -21,6 +21,7 @@
 #include "patience.h" /* open_connection_patiently */
 #include "pingpong_client.h"
 #include "pingpong_server.h"
+#include "pingpong_server_n.h"
 #include "registration.h"
 #include "remote_memory_server.h"
 #include "remote_memory_server_grouped.h"
@@ -31,12 +32,17 @@
 #include "remote_memory_client.h"
 #include "remote_memory_client_for_shutdown.h"
 
+#include <sys/time.h>
+#include <sys/resource.h>
+
+#include <algorithm> /* max, min */
 #include <chrono> /* seconds */
 #include <cstring> /* strpbrk */
 #include <exception>
 #include <stdexcept> /* domain_error */
 #include <memory> /* shared_ptr */
 #include <iostream> /* cerr */
+#include <future> /* async, future */
 #include <thread> /* sleep_for */
 
 // The fixture for testing class Foo.
@@ -136,7 +142,7 @@ namespace
 namespace
 {
 
-void instantiate_server(std::string fabric_spec_)
+void instantiate_server(const std::string &fabric_spec_)
 {
   /* create object instance through factory */
   Component::IBase * comp = Component::load_component("libcomanche-fabric.so",
@@ -238,6 +244,259 @@ void write_read_sequential(const std::string &fabric_spec_, bool force_error_)
 
     factory->release_ref();
   }
+}
+
+double double_seconds(std::chrono::high_resolution_clock::duration d_)
+{
+  return double(std::chrono::duration_cast<std::chrono::milliseconds>(d_).count()) / 1000.0;
+}
+
+std::pair<timeval, timeval> cpu_time()
+{
+  struct rusage ru;
+  {
+    auto rc = ::getrusage(RUSAGE_SELF, &ru);
+    EXPECT_EQ(rc, 0);
+  }
+  return { ru.ru_utime, ru.ru_stime };
+}
+
+std::chrono::microseconds usec(const timeval &start, const timeval &stop)
+{
+  return
+    ( std::chrono::seconds(stop.tv_sec) + std::chrono::microseconds(stop.tv_usec) )
+    -
+    ( std::chrono::seconds(start.tv_sec) + std::chrono::microseconds(start.tv_usec) )
+    ;
+}
+
+void ping_pong(const std::string &fabric_spec_, unsigned thread_count_)
+{
+  /* create object instance through factory */
+  Component::IBase * comp = Component::load_component("libcomanche-fabric.so",
+                                                    Component::net_fabric_factory);
+  ASSERT_TRUE(comp);
+
+  auto factory = std::shared_ptr<Component::IFabric_factory>(static_cast<Component::IFabric_factory *>(comp->query_interface(Component::IFabric_factory::iid())));
+  auto fabric = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec_));
+  auto control_port = std::uint16_t(control_port_2);
+
+  constexpr size_t buffer_size = 1U << 22U;
+  constexpr size_t msg_size = 1U << 6U;
+  constexpr unsigned ITERATIONS = 1000000;
+
+#if 0
+  auto start = std::chrono::high_resolution_clock::now();
+#endif
+  std::chrono::nanoseconds cpu_user;
+  std::chrono::nanoseconds cpu_system;
+  std::chrono::high_resolution_clock::duration t{};
+  std::chrono::high_resolution_clock::duration start_stagger{};
+  std::chrono::high_resolution_clock::duration stop_stagger{};
+  if ( is_server )
+  {
+    std::cerr << "SERVER begin port " << control_port << std::endl;
+
+    auto ep = std::unique_ptr<Component::IFabric_server_factory>(fabric->open_server_factory("{}", control_port));
+    EXPECT_LT(0U, ep->max_message_size());
+    std::vector<std::future<std::pair<std::chrono::high_resolution_clock::time_point, std::chrono::high_resolution_clock::time_point>>> servers;
+    /* In case the provider actually uses the remote keys which we provide, make them unique. */
+    auto cpu_start = cpu_time();
+    for ( auto remote_key_base = 0U; remote_key_base != thread_count_; ++remote_key_base )
+    {
+      servers.emplace_back(
+        std::async(
+          std::launch::async
+          , [&ep, buffer_size, remote_key_base, ITERATIONS, msg_size]
+            {
+              pingpong_server server(*ep, buffer_size, remote_key_base, ITERATIONS, msg_size);
+              return server.time();
+            }
+        )
+      );
+    }
+
+    auto start_max = std::chrono::high_resolution_clock::time_point::min();
+    auto stop_max = std::chrono::high_resolution_clock::time_point::min();
+    auto start_min = std::chrono::high_resolution_clock::time_point::max();
+    auto stop_min = std::chrono::high_resolution_clock::time_point::max();
+    for ( auto &f : servers )
+    {
+      auto r = f.get();
+      start_min = std::min(start_min, r.first);
+      start_max = std::max(start_max, r.first);
+      stop_min = std::min(stop_min, r.second);
+      stop_max = std::max(stop_max, r.second);
+    }
+    auto cpu_stop = cpu_time();
+    cpu_user = usec(cpu_start.first, cpu_stop.first);
+    cpu_system = usec(cpu_start.second, cpu_stop.second);
+    std::cerr << "SERVER end\n";
+
+    t = stop_max - start_min;
+    start_stagger = start_max - start_min;
+    stop_stagger = stop_max - stop_min;
+  }
+  else
+  {
+    auto start_delay = std::chrono::seconds(3);
+    /* allow time for the server to listen before the client restarts */
+    std::this_thread::sleep_for(start_delay);
+
+    std::cerr << "CLIENT begin port " << control_port << std::endl;
+    std::vector<std::future<std::pair<std::chrono::high_resolution_clock::time_point, std::chrono::high_resolution_clock::time_point>>> clients;
+    /* In case the provider actually uses the remote keys which we provide, make them unique. */
+    auto cpu_start = cpu_time();
+    for ( auto remote_key_base = 0U; remote_key_base != thread_count_; ++remote_key_base )
+    {
+      clients.emplace_back(
+        std::async(
+          std::launch::async
+          , [&fabric, control_port, buffer_size, remote_key_base, ITERATIONS, msg_size]
+            {
+              pingpong_client client(*fabric, "{}", remote_host, control_port, buffer_size, remote_key_base, ITERATIONS, msg_size);
+              return client.time();
+            }
+        )
+      );
+    }
+    auto start_max = std::chrono::high_resolution_clock::time_point::min();
+    auto stop_max = std::chrono::high_resolution_clock::time_point::min();
+    auto start_min = std::chrono::high_resolution_clock::time_point::max();
+    auto stop_min = std::chrono::high_resolution_clock::time_point::max();
+
+    for ( auto &f : clients )
+    {
+      auto r = f.get();
+      start_min = std::min(start_min, r.first);
+      start_max = std::max(start_max, r.first);
+      stop_min = std::min(stop_min, r.second);
+      stop_max = std::max(stop_max, r.second);
+    }
+    auto cpu_stop = cpu_time();
+    cpu_user = usec(cpu_start.first, cpu_stop.first);
+    cpu_system = usec(cpu_start.second, cpu_stop.second);
+    std::cerr << "CLIENT end\n";
+    t = stop_max - start_min;
+    start_stagger = start_max - start_min;
+    stop_stagger = stop_max - stop_min;
+  }
+
+  auto iter = thread_count_*ITERATIONS;
+  auto secs_inner = double_seconds(t);
+  PINF("Inner %zu byte PingPong, %zu byte buffer, iterations %u secs %f start stagger %f stop stagger %f cpu_user %g cpu_sys %g Ops/Sec: %lu"
+    , msg_size, buffer_size, iter, secs_inner
+    , double_seconds(start_stagger)
+    , double_seconds(stop_stagger)
+    , double_seconds(cpu_user)
+    , double_seconds(cpu_system)
+    , static_cast<unsigned long>( iter / secs_inner )
+  );
+  factory->release_ref();
+}
+
+void pingpong_single_server(const std::string &fabric_spec_, unsigned thread_count_)
+{
+  /* create object instance through factory */
+  Component::IBase * comp = Component::load_component("libcomanche-fabric.so",
+                                                    Component::net_fabric_factory);
+  ASSERT_TRUE(comp);
+
+  auto factory = std::shared_ptr<Component::IFabric_factory>(static_cast<Component::IFabric_factory *>(comp->query_interface(Component::IFabric_factory::iid())));
+  auto fabric = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec_));
+  auto control_port = std::uint16_t(control_port_2);
+
+  constexpr size_t buffer_size = 1U << 22U;
+  constexpr size_t msg_size = 1U << 6U;
+  constexpr unsigned ITERATIONS = 1000000;
+
+#if 0
+  auto start = std::chrono::high_resolution_clock::now();
+#endif
+  std::chrono::nanoseconds cpu_user;
+  std::chrono::nanoseconds cpu_system;
+  std::chrono::high_resolution_clock::duration t{};
+  std::chrono::high_resolution_clock::duration start_stagger{};
+  std::chrono::high_resolution_clock::duration stop_stagger{};
+  if ( is_server )
+  {
+    std::cerr << "SERVER begin port " << control_port << std::endl;
+
+    auto ep = std::unique_ptr<Component::IFabric_server_factory>(fabric->open_server_factory("{}", control_port));
+    EXPECT_LT(0U, ep->max_message_size());
+
+    /* In case the provider actually uses the remote keys which we provide, make them unique. */
+    auto remote_key_base = 0U;
+    auto cpu_start = cpu_time();
+    pingpong_server_n server(thread_count_, *ep,  buffer_size, remote_key_base, ITERATIONS, msg_size);
+    auto f2 = server.time();
+    auto cpu_stop = cpu_time();
+    cpu_user = usec(cpu_start.first, cpu_stop.first);
+    cpu_system = usec(cpu_start.second, cpu_stop.second);
+    t = f2.second - f2.first;
+
+    std::cerr << "SERVER end" << std::endl;
+  }
+  else
+  {
+    auto start_delay = std::chrono::seconds(3);
+    /* allow time for the server to listen before the client restarts */
+    std::this_thread::sleep_for(start_delay);
+
+    std::cerr << "CLIENT begin port " << control_port << std::endl;
+    std::vector<std::future<std::pair<std::chrono::high_resolution_clock::time_point, std::chrono::high_resolution_clock::time_point>>> clients;
+    /* In case the provider actually uses the remote keys which we provide, make them unique. */
+    auto cpu_start = cpu_time();
+    for ( auto remote_key_base = 0U; remote_key_base != thread_count_; ++remote_key_base )
+    {
+      clients.emplace_back(
+        std::async(
+          std::launch::async
+          , [&fabric, control_port, buffer_size, remote_key_base, ITERATIONS, msg_size]
+            {
+              pingpong_client client(*fabric, "{}", remote_host, control_port, buffer_size, remote_key_base, ITERATIONS, msg_size);
+              return client.time();
+            }
+        )
+      );
+    }
+    auto start_max = std::chrono::high_resolution_clock::time_point::min();
+    auto stop_max = std::chrono::high_resolution_clock::time_point::min();
+    auto start_min = std::chrono::high_resolution_clock::time_point::max();
+    auto stop_min = std::chrono::high_resolution_clock::time_point::max();
+
+    for ( auto &f : clients )
+    {
+      auto r = f.get();
+      start_min = std::min(start_min, r.first);
+      start_max = std::max(start_max, r.first);
+      stop_min = std::min(stop_min, r.second);
+      stop_max = std::max(stop_max, r.second);
+    }
+    auto cpu_stop = cpu_time();
+    cpu_user = usec(cpu_start.first, cpu_stop.first);
+    cpu_system = usec(cpu_start.second, cpu_stop.second);
+    std::cerr << "CLIENT end" << std::endl;
+    t = stop_max - start_min;
+    start_stagger = start_max - start_min;
+    stop_stagger = stop_max - stop_min;
+  }
+
+  auto iter = thread_count_*ITERATIONS;
+  auto secs_inner = double_seconds(t);
+
+  PINF("Inner %zu byte PingPong, %zu byte buffer, iterations %u secs %f start stagger %f stop stagger %f cpu_user %g cpu_sys %g Ops/Sec: %lu"
+    , msg_size
+    , buffer_size
+    , iter
+    , secs_inner
+    , double_seconds(start_stagger)
+    , double_seconds(stop_stagger)
+    , double_seconds(cpu_user)
+    , double_seconds(cpu_system)
+    , static_cast<unsigned long>( iter / secs_inner )
+);
+  factory->release_ref();
 }
 
 TEST_F(Fabric_test, InstantiateServer)
@@ -613,7 +872,7 @@ TEST_F(Fabric_test, GroupedServer)
         auto remote_key_base = 0U;
         remote_memory_server_grouped server(*fabric, "{}", control_port, memory_size, remote_key_base);
         /* The server needs one permanent communicator, to handle the client
-         * "disconnect" message.  * It does not need any other communicators,
+         * "disconnect" message. It does not need any other communicators,
          * but if it did, then the server (created by remote_memory_server_grouped
          * when it sees a client) would be the entity to create them.
          */
@@ -631,7 +890,7 @@ TEST_F(Fabric_test, GroupedServer)
         auto remote_key_index = iter1;
 
         std::cerr << "CLIENT begin " << iter0 << "." << iter1 << " port " << control_port << std::endl;
-        remote_memory_client  client(*fabric, "{}", remote_host, control_port, memory_size, remote_key_index);
+        remote_memory_client client(*fabric, "{}", remote_host, control_port, memory_size, remote_key_index);
 
         std::string msg = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.";
         /* ought to split send from completions so that we can test the separation of comms */
@@ -654,55 +913,65 @@ TEST_F(Fabric_test, GroupedServer)
   }
 }
 
-TEST_F(Fabric_test, PingPong)
+TEST_F(Fabric_test, PingPong_1Threads)
 {
-  static constexpr size_t buffer_size = 1U << 22U;
-  static constexpr size_t msg_size = 1U << 6U;
-  unsigned ITERATIONS = 1000000;
-  /* create object instance through factory */
-  Component::IBase * comp = Component::load_component("libcomanche-fabric.so",
-                                                    Component::net_fabric_factory);
-  ASSERT_TRUE(comp);
-
-  auto factory = std::shared_ptr<Component::IFabric_factory>(static_cast<Component::IFabric_factory *>(comp->query_interface(Component::IFabric_factory::iid())));
-
-  auto fabric = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec("verbs")));
-
-  auto control_port = std::uint16_t(control_port_2);
-
-  auto start = std::chrono::high_resolution_clock::now();
-  auto start_delay = std::chrono::seconds(3);
-
-  if ( is_server )
-  {
-    std::cerr << "SERVER begin port " << control_port << std::endl;
-    {
-      auto remote_key_base = 0U;
-      pingpong_server server(*fabric, "{}", control_port, buffer_size, remote_key_base, ITERATIONS, msg_size);
-      EXPECT_LT(0U, server.max_message_size());
-    }
-    std::cerr << "SERVER end" << std::endl;
-  }
-  else
-  {
-    /* allow time for the server to listen before the client restarts */
-    std::this_thread::sleep_for(start_delay);
-    start = std::chrono::high_resolution_clock::now();
-    /* In case the provider actually uses the remote keys which we provide, make them unique. */
-    auto remote_key_base = 0U;
-
-    std::cerr << "CLIENT begin port " << control_port << std::endl;
-    pingpong_client  client(*fabric, "{}", remote_host, control_port, buffer_size, remote_key_base, ITERATIONS, msg_size);
-    std::cerr << "CLIENT end" << std::endl;
-  }
-
-  auto end = std::chrono::high_resolution_clock::now();
-  auto secs = double(std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()) / 1000.0;
-  PINF("%zu byte PingPong, %zu byte buffer, iterations %u secs %f Ops/Sec: %lu", msg_size, buffer_size, ITERATIONS, secs, static_cast<unsigned long>( ITERATIONS / secs ));
-
-  factory->release_ref();
+  ping_pong(fabric_spec("verbs"), 1U);
+  ping_pong(fabric_spec("verbs"), 1U);
 }
 
+TEST_F(Fabric_test, PingPong_2Threads)
+{
+  ping_pong(fabric_spec("verbs"), 2U);
+  ping_pong(fabric_spec("verbs"), 2U);
+}
+
+TEST_F(Fabric_test, PingPong_4Threads)
+{
+  ping_pong(fabric_spec("verbs"), 4U);
+  ping_pong(fabric_spec("verbs"), 4U);
+}
+
+TEST_F(Fabric_test, PingPong_8Threads)
+{
+  ping_pong(fabric_spec("verbs"), 8U);
+  ping_pong(fabric_spec("verbs"), 8U);
+}
+
+TEST_F(Fabric_test, PingPong_16Threads)
+{
+  ping_pong(fabric_spec("verbs"), 16U);
+  ping_pong(fabric_spec("verbs"), 16U);
+}
+
+TEST_F(Fabric_test, PingPong1Server_1Client)
+{
+  pingpong_single_server(fabric_spec("verbs"), 1U);
+  pingpong_single_server(fabric_spec("verbs"), 1U);
+}
+
+TEST_F(Fabric_test, PingPong1Server_2Clients)
+{
+  pingpong_single_server(fabric_spec("verbs"), 2U);
+  pingpong_single_server(fabric_spec("verbs"), 2U);
+}
+
+TEST_F(Fabric_test, PingPong1Server_4Clients)
+{
+  pingpong_single_server(fabric_spec("verbs"), 4U);
+  pingpong_single_server(fabric_spec("verbs"), 4U);
+}
+
+TEST_F(Fabric_test, PingPong1Server_8Clients)
+{
+  pingpong_single_server(fabric_spec("verbs"), 8U);
+  pingpong_single_server(fabric_spec("verbs"), 8U);
+}
+
+TEST_F(Fabric_test, PingPong1Server_16Clients)
+{
+  pingpong_single_server(fabric_spec("verbs"), 16U);
+  pingpong_single_server(fabric_spec("verbs"), 16U);
+}
 
 } // namespace
 
