@@ -3,10 +3,10 @@
 
 #include <boost/core/noncopyable.hpp>
 
+#include "pingpong_stat.h"
 #include "registered_memory.h"
 #include "server_connection.h"
 #include <sys/uio.h> /* iovec */
-#include <chrono> /* high_resolution_clock */
 #include <cstdint> /* uint16_ti, uint64_t */
 #include <thread>
 #include <utility> /* pair */
@@ -50,8 +50,7 @@ class pingpong_server_n
   : private boost::noncopyable
 {
   std::vector<client_state> _cs;
-  std::chrono::high_resolution_clock::time_point _start;
-  std::chrono::high_resolution_clock::time_point _stop;
+  pingpong_stat _stat;
   std::thread _th;
 
   void listener(
@@ -67,7 +66,7 @@ public:
     , std::size_t msg_size
   );
   ~pingpong_server_n();
-  std::pair<std::chrono::high_resolution_clock::time_point, std::chrono::high_resolution_clock::time_point> time();
+  pingpong_stat time();
 };
 
 #endif

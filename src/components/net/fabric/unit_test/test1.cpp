@@ -22,6 +22,7 @@
 #include "pingpong_client.h"
 #include "pingpong_server.h"
 #include "pingpong_server_n.h"
+#include "pingpong_stat.h"
 #include "registration.h"
 #include "remote_memory_server.h"
 #include "remote_memory_server_grouped.h"
@@ -37,6 +38,7 @@
 
 #include <algorithm> /* max, min */
 #include <chrono> /* seconds */
+#include <cinttypes> /* PRIu64 */
 #include <cstring> /* strpbrk */
 #include <exception>
 #include <stdexcept> /* domain_error */
@@ -285,21 +287,19 @@ void ping_pong(const std::string &fabric_spec_, unsigned thread_count_)
   constexpr size_t msg_size = 1U << 6U;
   constexpr unsigned ITERATIONS = 1000000;
 
-#if 0
-  auto start = std::chrono::high_resolution_clock::now();
-#endif
   std::chrono::nanoseconds cpu_user;
   std::chrono::nanoseconds cpu_system;
   std::chrono::high_resolution_clock::duration t{};
   std::chrono::high_resolution_clock::duration start_stagger{};
   std::chrono::high_resolution_clock::duration stop_stagger{};
+  std::uint64_t poll_count = 0U;
   if ( is_server )
   {
     std::cerr << "SERVER begin port " << control_port << std::endl;
 
     auto ep = std::unique_ptr<Component::IFabric_server_factory>(fabric->open_server_factory("{}", control_port));
     EXPECT_LT(0U, ep->max_message_size());
-    std::vector<std::future<std::pair<std::chrono::high_resolution_clock::time_point, std::chrono::high_resolution_clock::time_point>>> servers;
+    std::vector<std::future<pingpong_stat>> servers;
     /* In case the provider actually uses the remote keys which we provide, make them unique. */
     auto cpu_start = cpu_time();
     for ( auto remote_key_base = 0U; remote_key_base != thread_count_; ++remote_key_base )
@@ -323,10 +323,11 @@ void ping_pong(const std::string &fabric_spec_, unsigned thread_count_)
     for ( auto &f : servers )
     {
       auto r = f.get();
-      start_min = std::min(start_min, r.first);
-      start_max = std::max(start_max, r.first);
-      stop_min = std::min(stop_min, r.second);
-      stop_max = std::max(stop_max, r.second);
+      start_min = std::min(start_min, r.start());
+      start_max = std::max(start_max, r.start());
+      stop_min = std::min(stop_min, r.stop());
+      stop_max = std::max(stop_max, r.stop());
+      poll_count += r.poll_count();
     }
     auto cpu_stop = cpu_time();
     cpu_user = usec(cpu_start.first, cpu_stop.first);
@@ -344,7 +345,7 @@ void ping_pong(const std::string &fabric_spec_, unsigned thread_count_)
     std::this_thread::sleep_for(start_delay);
 
     std::cerr << "CLIENT begin port " << control_port << std::endl;
-    std::vector<std::future<std::pair<std::chrono::high_resolution_clock::time_point, std::chrono::high_resolution_clock::time_point>>> clients;
+    std::vector<std::future<pingpong_stat>> clients;
     /* In case the provider actually uses the remote keys which we provide, make them unique. */
     auto cpu_start = cpu_time();
     for ( auto remote_key_base = 0U; remote_key_base != thread_count_; ++remote_key_base )
@@ -368,10 +369,11 @@ void ping_pong(const std::string &fabric_spec_, unsigned thread_count_)
     for ( auto &f : clients )
     {
       auto r = f.get();
-      start_min = std::min(start_min, r.first);
-      start_max = std::max(start_max, r.first);
-      stop_min = std::min(stop_min, r.second);
-      stop_max = std::max(stop_max, r.second);
+      start_min = std::min(start_min, r.start());
+      start_max = std::max(start_max, r.start());
+      stop_min = std::min(stop_min, r.stop());
+      stop_max = std::max(stop_max, r.stop());
+      poll_count += r.poll_count();
     }
     auto cpu_stop = cpu_time();
     cpu_user = usec(cpu_start.first, cpu_stop.first);
@@ -384,13 +386,17 @@ void ping_pong(const std::string &fabric_spec_, unsigned thread_count_)
 
   auto iter = thread_count_*ITERATIONS;
   auto secs_inner = double_seconds(t);
-  PINF("Inner %zu byte PingPong, %zu byte buffer, iterations %u secs %f start stagger %f stop stagger %f cpu_user %g cpu_sys %g Ops/Sec: %lu"
-    , msg_size, buffer_size, iter, secs_inner
+  PINF("%zu byte PingPong, iterations: %u threads: %u secs: %f start stagger: %f stop stagger: %f cpu_user: %f cpu_sys: %f Ops/Sec: %lu Polls/Op: %f"
+    , msg_size
+    , iter
+    , thread_count_
+    , secs_inner
     , double_seconds(start_stagger)
     , double_seconds(stop_stagger)
     , double_seconds(cpu_user)
     , double_seconds(cpu_system)
     , static_cast<unsigned long>( iter / secs_inner )
+    , static_cast<double>(poll_count)/iter
   );
   factory->release_ref();
 }
@@ -409,17 +415,17 @@ void pingpong_single_server(const std::string &fabric_spec_, unsigned thread_cou
   constexpr size_t buffer_size = 1U << 22U;
   constexpr size_t msg_size = 1U << 6U;
   constexpr unsigned ITERATIONS = 1000000;
+  std::uint64_t poll_count = 0U;
 
-#if 0
-  auto start = std::chrono::high_resolution_clock::now();
-#endif
   std::chrono::nanoseconds cpu_user;
   std::chrono::nanoseconds cpu_system;
   std::chrono::high_resolution_clock::duration t{};
   std::chrono::high_resolution_clock::duration start_stagger{};
   std::chrono::high_resolution_clock::duration stop_stagger{};
+  auto thread_count = thread_count_;
   if ( is_server )
   {
+    thread_count = 1;
     std::cerr << "SERVER begin port " << control_port << std::endl;
 
     auto ep = std::unique_ptr<Component::IFabric_server_factory>(fabric->open_server_factory("{}", control_port));
@@ -433,7 +439,8 @@ void pingpong_single_server(const std::string &fabric_spec_, unsigned thread_cou
     auto cpu_stop = cpu_time();
     cpu_user = usec(cpu_start.first, cpu_stop.first);
     cpu_system = usec(cpu_start.second, cpu_stop.second);
-    t = f2.second - f2.first;
+    t = f2.stop() - f2.start();
+    poll_count += f2.poll_count();
 
     std::cerr << "SERVER end" << std::endl;
   }
@@ -444,7 +451,7 @@ void pingpong_single_server(const std::string &fabric_spec_, unsigned thread_cou
     std::this_thread::sleep_for(start_delay);
 
     std::cerr << "CLIENT begin port " << control_port << std::endl;
-    std::vector<std::future<std::pair<std::chrono::high_resolution_clock::time_point, std::chrono::high_resolution_clock::time_point>>> clients;
+    std::vector<std::future<pingpong_stat>> clients;
     /* In case the provider actually uses the remote keys which we provide, make them unique. */
     auto cpu_start = cpu_time();
     for ( auto remote_key_base = 0U; remote_key_base != thread_count_; ++remote_key_base )
@@ -468,10 +475,11 @@ void pingpong_single_server(const std::string &fabric_spec_, unsigned thread_cou
     for ( auto &f : clients )
     {
       auto r = f.get();
-      start_min = std::min(start_min, r.first);
-      start_max = std::max(start_max, r.first);
-      stop_min = std::min(stop_min, r.second);
-      stop_max = std::max(stop_max, r.second);
+      start_min = std::min(start_min, r.start());
+      start_max = std::max(start_max, r.start());
+      stop_min = std::min(stop_min, r.stop());
+      stop_max = std::max(stop_max, r.stop());
+      poll_count += r.poll_count();
     }
     auto cpu_stop = cpu_time();
     cpu_user = usec(cpu_start.first, cpu_stop.first);
@@ -485,16 +493,17 @@ void pingpong_single_server(const std::string &fabric_spec_, unsigned thread_cou
   auto iter = thread_count_*ITERATIONS;
   auto secs_inner = double_seconds(t);
 
-  PINF("Inner %zu byte PingPong, %zu byte buffer, iterations %u secs %f start stagger %f stop stagger %f cpu_user %g cpu_sys %g Ops/Sec: %lu"
+  PINF("%zu byte PingPong, iterations: %u threads: %u secs: %f start stagger: %f stop stagger: %f cpu_user: %f cpu_sys: %f Ops/Sec: %lu Polls/Op: %f"
     , msg_size
-    , buffer_size
     , iter
+    , thread_count
     , secs_inner
     , double_seconds(start_stagger)
     , double_seconds(stop_stagger)
     , double_seconds(cpu_user)
     , double_seconds(cpu_system)
     , static_cast<unsigned long>( iter / secs_inner )
+    , static_cast<double>(poll_count)/iter
 );
   factory->release_ref();
 }

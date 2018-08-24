@@ -83,6 +83,7 @@ try
     c.sc.cnxn().post_recv(&*c.v.begin(), &*c.v.end(), &*c.d.begin(), &c.recv_ctxt);
   }
 
+  std::uint64_t poll_count = 0U;
   auto polled_any = true;
   while ( polled_any )
   {
@@ -91,17 +92,18 @@ try
     {
       if ( c.iterations_left != 0 )
       {
-        if ( _start == std::chrono::high_resolution_clock::time_point{} )
+        if ( _stat.start() == std::chrono::high_resolution_clock::time_point::min() )
         {
-          _start = std::chrono::high_resolution_clock::now();
+          _stat.do_start();
         }
         c.sc.cnxn().poll_completions(cb);
+        ++poll_count;
         polled_any = true;
       }
     }
   }
 
-  _stop = std::chrono::high_resolution_clock::now();
+  _stat.do_stop(poll_count);
 }
 catch ( std::exception &e )
 {
@@ -131,8 +133,7 @@ pingpong_server_n::pingpong_server_n(
   , std::uint64_t msg_size_
 )
   : _cs(clients(client_count_, factory_, buffer_size_, remote_key_base_, iteration_count_, msg_size_))
-  , _start()
-  , _stop()
+  , _stat()
   , _th(
     &pingpong_server_n::listener
     , this
@@ -141,13 +142,13 @@ pingpong_server_n::pingpong_server_n(
 {
 }
 
-std::pair<std::chrono::high_resolution_clock::time_point, std::chrono::high_resolution_clock::time_point> pingpong_server_n::time()
+pingpong_stat pingpong_server_n::time()
 {
   if ( _th.joinable() )
   {
     _th.join();
   }
-  return { _start, _stop };
+  return _stat;
 }
 
 pingpong_server_n::~pingpong_server_n()
