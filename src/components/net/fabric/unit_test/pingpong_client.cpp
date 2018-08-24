@@ -10,6 +10,7 @@
 #include <common/types.h> /* status_t */
 #include <gtest/gtest.h>
 #include <sys/uio.h> /* iovec */
+#include <chrono>
 #include <cstring> /* memcpy */
 #include <exception>
 #include <iostream> /* cerr */
@@ -43,17 +44,17 @@ pingpong_client::pingpong_client(
 )
 try
   : _cnxn(open_connection_patiently(fabric_, fabric_spec_, ip_address_, port_))
-  , _start{}
-  , _stop{}
+  , _stat{}
 {
   registered_memory rm{*_cnxn, buffer_size_, remote_key_base_};
   std::vector<::iovec> v{{&rm[0], msg_size_}};
   std::vector<void *> d{{rm.desc()}};
-  _start = std::chrono::high_resolution_clock::now();
+  _stat.do_start();
+  unsigned long poll_count = 0U;
   for ( auto i = 0U ; i != iteration_count_ ; ++i )
   {
     _cnxn->post_send(&*v.begin(), &*v.end(), &*d.begin(), this);
-    wait_poll(
+    poll_count += ::wait_poll(
         *_cnxn
       , [&v, this] (void *ctxt_, ::status_t stat_, std::uint64_t, std::size_t, void *) -> void
         {
@@ -63,7 +64,7 @@ try
       , test_type::performance
     );
     _cnxn->post_recv(&*v.begin(), &*v.end(), &*d.begin(), this);
-    wait_poll(
+    poll_count += ::wait_poll(
         *_cnxn
       , [&v, msg_size_, this] (void *ctxt_, ::status_t stat_, std::uint64_t, std::size_t len_, void *) -> void
         {
@@ -74,7 +75,7 @@ try
       , test_type::performance
     );
   }
-  _stop = std::chrono::high_resolution_clock::now();
+  _stat.do_stop(poll_count);
 }
 catch ( std::exception &e )
 {
@@ -82,9 +83,9 @@ catch ( std::exception &e )
   throw;
 }
 
-std::pair<std::chrono::high_resolution_clock::time_point, std::chrono::high_resolution_clock::time_point> pingpong_client::time()
+pingpong_stat pingpong_client::time() const
 {
-  return { _start, _stop };
+  return _stat;
 }
 
 pingpong_client::~pingpong_client()

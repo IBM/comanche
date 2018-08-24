@@ -9,11 +9,14 @@
 
 enum class test_type
 {
-  performance /* omit extra paths */
+  performance /* omit extra paths, busy-poll for completion */
   , function /* add extra paths (block for event, deferred handling) */
 };
 
-void wait_poll(
+/*
+ * returns: number of polls (including the successful poll)
+ */
+unsigned wait_poll(
   Component::IFabric_communicator &comm
   , std::function<void(
     void *context

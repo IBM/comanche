@@ -30,11 +30,12 @@ try
   /* wait for client indicate exit (by sending one byte to us) */
   std::vector<::iovec> v{{&rm[0], msg_size_}};
   std::vector<void *> d{{rm.desc()}};
-  _start = std::chrono::high_resolution_clock::now();
+  _stat.do_start();
+  unsigned long poll_count = 0U;
   for ( auto i = 0U ; i != iteration_count_ ; ++i )
   {
     _sc.cnxn().post_recv(&*v.begin(), &*v.end(), &*d.begin(), this);
-    ::wait_poll(
+    poll_count += ::wait_poll(
       _sc.cnxn()
       , [&v, msg_size_, this] (void *ctxt_, ::status_t stat_, std::uint64_t, std::size_t len_, void *) -> void
         {
@@ -45,7 +46,7 @@ try
       , test_type::performance
     );
     _sc.cnxn().post_send(&*v.begin(), &*v.end(), &*d.begin(), this);
-    ::wait_poll(
+    poll_count += ::wait_poll(
       _sc.cnxn()
       , [&v, this] (void *ctxt_, ::status_t stat_, std::uint64_t, std::size_t, void *) -> void
         {
@@ -55,7 +56,7 @@ try
       , test_type::performance
     );
   }
-  _stop = std::chrono::high_resolution_clock::now();
+  _stat.do_stop(poll_count);
 }
 catch ( std::exception &e )
 {
@@ -71,8 +72,7 @@ pingpong_server::pingpong_server(
   , std::uint64_t msg_size_
 )
   : _sc(factory_)
-  , _start()
-  , _stop()
+  , _stat{}
   , _th(
     &pingpong_server::listener
     , this
@@ -81,13 +81,13 @@ pingpong_server::pingpong_server(
 {
 }
 
-std::pair<std::chrono::high_resolution_clock::time_point, std::chrono::high_resolution_clock::time_point> pingpong_server::time()
+pingpong_stat pingpong_server::time()
 {
   if ( _th.joinable() )
   {
     _th.join();
   }
-  return { _start, _stop };
+  return _stat;
 }
 
 pingpong_server::~pingpong_server()
