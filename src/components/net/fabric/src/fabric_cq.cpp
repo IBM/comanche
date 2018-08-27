@@ -29,8 +29,10 @@
 #include <tuple> /* get */
 #include <utility> /* move, swap */
 
-Fabric_cq::Fabric_cq(fid_unique_ptr<::fid_cq> &&cq_)
+Fabric_cq::Fabric_cq(fid_unique_ptr<::fid_cq> &&cq_, const char *type_)
   : _cq(std::move(cq_))
+  , _type{type_}
+  , _inflight{0U}
   , _completions{}
   , _stats{}
 {
@@ -44,7 +46,7 @@ Fabric_cq::stats::~stats()
   }
 }
 
-::fi_cq_err_entry Fabric_cq::get_cq_comp_err() const
+::fi_cq_err_entry Fabric_cq::get_cq_comp_err()
 {
   ::fi_cq_err_entry err{0,0,0,0,0,0,0,0,0,0,0};
   CHECK_FI_ERR(cq_readerr(&err, 0));
@@ -187,6 +189,7 @@ std::size_t Fabric_cq::poll_completions(const Component::IFabric_op_completer::c
   ct_total += drain_old_completions(cb_);
 
   _stats.ct_total += ct_total;
+
   return ct_total;
 }
 
@@ -354,12 +357,30 @@ std::size_t Fabric_cq::poll_completions_tentative(const Component::IFabric_op_co
 
 ssize_t Fabric_cq::cq_read(void *buf, size_t count) noexcept
 {
-  return ::fi_cq_read(&*_cq, buf, count);
+  auto r =
+    0U == _inflight
+    ? -FI_EAGAIN
+    : ::fi_cq_read(&*_cq, buf, count)
+    ;
+
+  if ( 0 < r )
+  {
+    _inflight -= r;
+  }
+
+  return r;
 }
 
-ssize_t Fabric_cq::cq_readerr(::fi_cq_err_entry *buf, uint64_t flags) const noexcept
+ssize_t Fabric_cq::cq_readerr(::fi_cq_err_entry *buf, uint64_t flags) noexcept
 {
-  return ::fi_cq_readerr(&*_cq, buf, flags);
+  auto r = ::fi_cq_readerr(&*_cq, buf, flags);
+
+  if ( 0 < r )
+  {
+    _inflight -= r;
+  }
+
+  return r;
 }
 
 void Fabric_cq::queue_completion(const Fabric_cq::fi_cq_entry_t &cq_entry_, ::status_t status_)

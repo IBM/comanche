@@ -53,8 +53,6 @@ class Fabric_generic_grouped
   std::mutex _m_comms;
   std::set<Fabric_comm_grouped *> _comms;
 
-  ssize_t cq_read_locked(void *buf, std::size_t count) noexcept;
-
 public:
   /* Begin Component::IFabric_active_endpoint_grouped (IFabric_connection) */
   /**

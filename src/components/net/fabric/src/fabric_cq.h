@@ -18,6 +18,7 @@
 #define _FABRIC_CQ_H_
 
 #include <api/fabric_itf.h> /* ::status_t */
+#include "delete_copy.h" /* delete_copy */
 #include "fabric_ptr.h" /* fid_unique_ptr */
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
@@ -38,8 +39,11 @@ public:
   /* Largest possible format which verbs will accept. */
   static constexpr auto fi_cq_format = FI_CQ_FORMAT_DATA;
   using fi_cq_entry_t = fi_cq_data_entry;
+  DELETE_COPY(Fabric_cq);
 private:
   fid_unique_ptr<::fid_cq> _cq;
+  const char *_type;
+  std::size_t _inflight;
 
   using completion_t = std::tuple<::status_t, fi_cq_entry_t>;
   /* completions forwarded to client but deferred (client returned DEFER), to be retried later */
@@ -66,7 +70,8 @@ private:
   std::size_t drain_old_completions(const Component::IFabric_op_completer::complete_param_definite &completion_callback, void *callback_param);
   std::size_t drain_old_completions(const Component::IFabric_op_completer::complete_param_tentative &completion_callback, void *callback_param);
 public:
-  explicit Fabric_cq(fid_unique_ptr<::fid_cq> &&cq);
+  const char *type() { return _type; }
+  explicit Fabric_cq(fid_unique_ptr<::fid_cq> &&cq, const char *type);
 
   /* exposed for fi_ep_bind */
   ::fid_t fid() { return &_cq->fid; }
@@ -100,7 +105,7 @@ public:
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_cq_readerr fail
    */
-  ::fi_cq_err_entry get_cq_comp_err() const;
+  ::fi_cq_err_entry get_cq_comp_err();
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_cq_readerr fail
    */
@@ -124,9 +129,10 @@ public:
 
   ssize_t cq_read(void *buf, std::size_t count) noexcept;
 
-  ssize_t cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) const noexcept;
+  ssize_t cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) noexcept;
 
   std::size_t stalled_completion_count() { return 0U; }
+  void incr_inflight(const char *) { ++_inflight; }
 };
 
 #endif
