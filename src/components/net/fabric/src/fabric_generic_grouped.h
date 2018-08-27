@@ -19,15 +19,8 @@
 
 #include <api/fabric_itf.h> /* Component::IFabric_active_endpoint_grouped */
 
+#include "fabric_cq_generic_grouped.h"
 #include "fabric_types.h" /* addr_ep_t */
-#include "fabric_op_control.h" /* fi_cq_entry_t */
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
-#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-#pragma GCC diagnostic ignored "-Wshadow"
-#include <rdma/fi_domain.h> /* f1_cq_err_entry */
-#pragma GCC diagnostic pop
 
 #include <unistd.h> /* ssize_t */
 
@@ -37,16 +30,25 @@
 
 class Fabric_comm_grouped;
 class Fabric_op_control;
+class Fabric_cq;
 
 class Fabric_generic_grouped
   : public Component::IFabric_active_endpoint_grouped
 {
   /* All communicators in a group share this "generic group."
-   * Communicators need to serialize the two items ownec by the group:
-   * the connection and the set of communicators.
+   * Communicators need to serialize the items owned by the group:
+   *  - the connection (except its completion queues),
+   *  - the rx and tx completions queues (within the connection), and
+   *  - the set of communicators
    */
   std::mutex _m_cnxn;
   Fabric_op_control &_cnxn;
+
+  std::mutex _m_rxcq;
+  Fabric_cq_generic_grouped _rxcq;
+
+  std::mutex _m_txcq;
+  Fabric_cq_generic_grouped _txcq;
 
   std::mutex _m_comms;
   std::set<Fabric_comm_grouped *> _comms;
@@ -89,6 +91,8 @@ public:
 
   explicit Fabric_generic_grouped(
     Fabric_op_control &cnxn
+    , Fabric_cq &rxcq
+    , Fabric_cq &txcq
   );
 
   ~Fabric_generic_grouped();
@@ -187,14 +191,6 @@ public:
   fabric_types::addr_ep_t get_name() const;
 
   void forget_group(Fabric_comm_grouped *);
-
-  /*
-   * @throw fabric_runtime_error : std::runtime_error : ::fi_cq_readerr fail
-   */
-  ::fi_cq_err_entry get_cq_comp_err();
-  ssize_t cq_read(void *buf, std::size_t count) noexcept;
-  ssize_t cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) noexcept;
-  void queue_completion(Fabric_comm_grouped *comm, ::status_t status, const Fabric_op_control::fi_cq_entry_t &cq_entry);
 };
 
 #endif

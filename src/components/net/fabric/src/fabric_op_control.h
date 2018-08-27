@@ -14,13 +14,14 @@
    limitations under the License.
 */
 
-#ifndef _FABRIC_OP_COMPLETER_H_
-#define _FABRIC_OP_COMPLETER_H_
+#ifndef _FABRIC_OP_CONTROL_H_
+#define _FABRIC_OP_CONTROL_H_
 
-#include <api/fabric_itf.h> /* Component::IFabric_op_completer */
+#include <api/fabric_itf.h> /* Component::IFabric_op_completer, ::status_t */
 #include "fabric_memory_control.h"
 #include "event_consumer.h"
 
+#include "fabric_cq.h"
 #include "fabric_ptr.h" /* fid_unique_ptr */
 #include "fabric_types.h" /* addr_ep_t */
 #include "fd_pair.h"
@@ -57,15 +58,6 @@ class Fabric_op_control
   , public Fabric_memory_control
   , public event_consumer
 {
-  /* Largest possible format which verbs will accept. */
-  static constexpr auto fi_cq_format = FI_CQ_FORMAT_DATA;
-public:
-  using fi_cq_entry_t = fi_cq_data_entry;
-private:
-  using completion_t = std::tuple<::status_t, fi_cq_entry_t>;
-  /* completions forwarded to client but deferred with DEFER status, to be retried later */
-  std::queue<completion_t> _completions;
-
 #if CAN_USE_WAIT_SETS
   ::fi_wait_attr _wait_attr;
   fid_unique_ptr<::fid_wait> _wait_set; /* make_fid_wait(fid_fabric &fabric, fi_wait_attr &attr) */
@@ -76,7 +68,9 @@ private:
    * Not sure why; perhaps it was for accounting.
    */
   ::fi_cq_attr _cq_attr;
-  fid_unique_ptr<::fid_cq> _cq;
+  Fabric_cq _rxcq;
+  Fabric_cq _txcq;
+
   std::shared_ptr<::fi_info> _ep_info;
   fabric_types::addr_ep_t _peer_addr;
   std::shared_ptr<::fid_ep> _ep;
@@ -90,20 +84,6 @@ private:
 
   /* true after an FI_SHUTDOWN event has been observed */
   std::atomic<bool> _shut_down;
-
-  struct stats
-  {
-    /* # of completions (acceptances of tentative completions only) retired by this communicator */
-    std::size_t ct_total;
-    /* # of deferrals (requeues) seen by this communicator */
-    std::size_t defer_total;
-    stats()
-      : ct_total{0}
-      , defer_total{0}
-    {
-    }
-    ~stats();
-  } _stats;
 
   /* BEGIN Component::IFabric_op_completer */
 
@@ -138,16 +118,10 @@ private:
    */
   fid_unique_ptr<::fid_cq> make_fid_cq(::fi_cq_attr &attr, void *context) const;
 
-  void queue_completion(const fi_cq_entry_t &entry, ::status_t status);
-  std::size_t drain_old_completions(const Component::IFabric_op_completer::complete_old &completion_callback);
-  std::size_t drain_old_completions(const Component::IFabric_op_completer::complete_definite &completion_callback);
-  std::size_t drain_old_completions(const Component::IFabric_op_completer::complete_tentative &completion_callback);
-  std::size_t drain_old_completions(const Component::IFabric_op_completer::complete_param_definite &completion_callback, void *callback_param);
-  std::size_t drain_old_completions(const Component::IFabric_op_completer::complete_param_tentative &completion_callback, void *callback_param);
-
-
 public:
   const ::fi_info &ep_info() const { return *_ep_info; }
+  Fabric_cq &rxcq() { return _rxcq; }
+  Fabric_cq &txcq() { return _txcq; }
   ::fid_ep &ep() { return *_ep; }
   /*
    * @throw std::system_error : pselect fail
@@ -192,7 +166,10 @@ public:
    * @throw std::logic_error - called on closed connection
    */
   std::size_t poll_completions_tentative(const Component::IFabric_op_completer::complete_param_tentative &completion_callback, void *callback_param) override;
-  std::size_t stalled_completion_count() override { return 0U; }
+  std::size_t stalled_completion_count() override
+  {
+    return _rxcq.stalled_completion_count() + _txcq.stalled_completion_count();
+  }
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_control fail
    * @throw std::system_error : pselect fail
@@ -311,34 +288,6 @@ public:
 
   fabric_types::addr_ep_t get_name() const;
 
-  /*
-   * @throw fabric_runtime_error : std::runtime_error : ::fi_cq_readerr fail
-   */
-  ::fi_cq_err_entry get_cq_comp_err() const;
-  /*
-   * @throw fabric_runtime_error : std::runtime_error : ::fi_cq_readerr fail
-   */
-  std::size_t process_cq_comp_err(const Component::IFabric_op_completer::complete_old &completion_callback);
-  /*
-   * @throw fabric_runtime_error : std::runtime_error : ::fi_cq_readerr fail
-   */
-  std::size_t process_cq_comp_err(const Component::IFabric_op_completer::complete_definite &completion_callback);
-  /*
-   * @throw fabric_runtime_error : std::runtime_error : ::fi_cq_readerr fail
-   */
-  std::size_t process_cq_comp_err(const Component::IFabric_op_completer::complete_param_definite &completion_callback, void *callback_param);
-  /*
-   * @throw fabric_runtime_error : std::runtime_error : ::fi_cq_readerr fail
-   */
-  std::size_t process_or_queue_cq_comp_err(const Component::IFabric_op_completer::complete_tentative &completion_callback);
-  std::size_t process_or_queue_cq_comp_err(const Component::IFabric_op_completer::complete_param_tentative &completion_callback, void *callback_param);
-
-  std::size_t process_or_queue_completion(const fi_cq_entry_t &cq_entry, const Component::IFabric_op_completer::complete_tentative &cb, ::status_t status);
-  std::size_t process_or_queue_completion(const fi_cq_entry_t &cq_entry, const Component::IFabric_op_completer::complete_param_tentative &cb, ::status_t status, void *callback_param);
-
-  ssize_t cq_read(void *buf, std::size_t count) noexcept;
-  ssize_t cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) const noexcept;
-  void queue_completion(Fabric_comm_grouped *comm, void *context, ::status_t status);
   /*
    * @throw std::logic_error : unexpected event
    * @throw std::system_error : read error on event pipe

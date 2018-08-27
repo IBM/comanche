@@ -508,16 +508,6 @@ void pingpong_single_server(const std::string &fabric_spec_, unsigned thread_cou
   factory->release_ref();
 }
 
-TEST_F(Fabric_test, InstantiateServer)
-{
-  instantiate_server(fabric_spec("verbs"));
-}
-
-TEST_F(Fabric_test, InstantiateServer_Socket)
-{
-  instantiate_server(fabric_spec("sockets"));
-}
-
 void instantiate_server_dual(const std::string &fabric_spec_)
 {
   /* create object instance through factory */
@@ -539,6 +529,16 @@ void instantiate_server_dual(const std::string &fabric_spec_)
   {
   }
   factory->release_ref();
+}
+
+TEST_F(Fabric_test, InstantiateServer)
+{
+  instantiate_server(fabric_spec("verbs"));
+}
+
+TEST_F(Fabric_test, InstantiateServer_Socket)
+{
+  instantiate_server(fabric_spec("sockets"));
 }
 
 TEST_F(Fabric_test, InstantiateServerDual)

@@ -19,7 +19,7 @@
 
 #include <api/fabric_itf.h> /* Component::IFabric_communicator */
 
-#include "fabric_op_control.h" /* fi_cq_entry_t */
+#include "fabric_cq_grouped.h"
 #include "fabric_types.h" /* addr_ep_t */
 
 #include <cstddef> /* size_t */
@@ -34,40 +34,16 @@ class Fabric_comm_grouped
   : public Component::IFabric_communicator
 {
   Fabric_generic_grouped &_conn;
-  using completion_t = std::tuple<Fabric_op_control::fi_cq_entry_t, ::status_t>;
-  /* completions for this comm processed but not yet forwarded, or processed and forwarded but deferred with DEFER status */
-  std::mutex _m_completions;
-  std::queue<completion_t> _completions;
-  struct stats
-  {
-    /* # of completions (acceptances of tentative completions only) retired by this communicator */
-    std::size_t ct_total;
-    /* # of deferrals (requeues) seen by this communicator */
-    std::size_t defer_total;
-    /* # of redirections of tentative completions processed by this communicator */
-    std::size_t redirect_total;
-    stats()
-      : ct_total{0}
-      , defer_total{0}
-      , redirect_total{0}
-    {
-    }
-    ~stats();
-  } _stats;
+  Fabric_cq_grouped _rx;
+  Fabric_cq_grouped _tx;
 
-  std::size_t process_cq_comp_err(const Component::IFabric_op_completer::complete_old &completion_callback);
-  std::size_t process_cq_comp_err(const Component::IFabric_op_completer::complete_definite &completion_callback);
-  std::size_t process_cq_comp_err(const Component::IFabric_op_completer::complete_tentative &completion_callback);
-  std::size_t process_cq_comp_err(const Component::IFabric_op_completer::complete_param_definite &completion_callback, void *callback_param);
-  std::size_t process_cq_comp_err(const Component::IFabric_op_completer::complete_param_tentative &completion_callback, void *callback_param);
-  std::size_t process_or_queue_completion(const Fabric_op_control::fi_cq_entry_t &cq_entry, const Component::IFabric_op_completer::complete_old &cb, ::status_t status);
-  std::size_t process_or_queue_completion(const Fabric_op_control::fi_cq_entry_t &cq_entry, const Component::IFabric_op_completer::complete_definite &cb, ::status_t status);
-  std::size_t process_or_queue_completion(const Fabric_op_control::fi_cq_entry_t &cq_entry, const Component::IFabric_op_completer::complete_tentative &cb, ::status_t status);
-  std::size_t process_or_queue_completion(const Fabric_op_control::fi_cq_entry_t &cq_entry, const Component::IFabric_op_completer::complete_param_definite &cb, ::status_t status, void *callback_param);
-  std::size_t process_or_queue_completion(const Fabric_op_control::fi_cq_entry_t &cq_entry, const Component::IFabric_op_completer::complete_param_tentative &cb, ::status_t status, void *callback_param);
 public:
-  explicit Fabric_comm_grouped(Fabric_generic_grouped &);
+  explicit Fabric_comm_grouped(Fabric_generic_grouped &conn, Fabric_cq_generic_grouped &rx, Fabric_cq_generic_grouped &tx);
   ~Fabric_comm_grouped(); /* Note: need to notify the polling thread that this connection is going away, */
+
+  /* exposed so that the upper layer group cq coordinator can index them while the group exists */
+  Fabric_cq_grouped &rx() { return _rx; }
+  Fabric_cq_grouped &tx() { return _tx; }
 
   /* BEGIN Component::IFabric_communicator */
   /*
@@ -167,13 +143,6 @@ public:
   /* END Component::IFabric_communicator */
 
   fabric_types::addr_ep_t get_name() const;
-
-  void queue_completion(::status_t status, const Fabric_op_control::fi_cq_entry_t &cq_entry);
-  std::size_t drain_old_completions(const Component::IFabric_op_completer::complete_old &completion_callback);
-  std::size_t drain_old_completions(const Component::IFabric_op_completer::complete_definite &completion_callback);
-  std::size_t drain_old_completions(const Component::IFabric_op_completer::complete_tentative &completion_callback);
-  std::size_t drain_old_completions(const Component::IFabric_op_completer::complete_param_definite &completion_callback, void *callback_param);
-  std::size_t drain_old_completions(const Component::IFabric_op_completer::complete_param_tentative &completion_callback, void *callback_param);
 };
 
 #endif

@@ -209,9 +209,6 @@ public:
   fabric_types::addr_ep_t get_name() const;
 
   void forget_group(Fabric_comm_grouped *);
-  ssize_t cq_read(void *buf, std::size_t count) noexcept;
-  ssize_t cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) noexcept { return _g.cq_readerr(buf, flags); }
-  void queue_completion(Fabric_comm_grouped *comm, void *context, ::status_t status);
 };
 
 #endif
