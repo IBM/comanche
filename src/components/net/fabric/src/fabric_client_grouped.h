@@ -239,13 +239,6 @@ public:
   fabric_types::addr_ep_t get_name() const { return _g.get_name(); }
 
   /*
-   * @throw fabric_runtime_error : std::runtime_error : ::fi_cq_readerr fail
-   */
-  ::fi_cq_err_entry get_cq_comp_err() { return _g.get_cq_comp_err(); }
-  ssize_t cq_read(void *buf, std::size_t count) noexcept { return _g.cq_read(buf, count); }
-  ssize_t cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) noexcept { return _g.cq_readerr(buf, flags); }
-  void queue_completion(Fabric_comm_grouped *comm, ::status_t status, const Fabric_op_control::fi_cq_entry_t &cq_entry) { return _g.queue_completion(comm, status, cq_entry); }
-  /*
    * @throw std::logic_error : unexpected event
    * @throw std::system_error : read error on event pipe
   */
