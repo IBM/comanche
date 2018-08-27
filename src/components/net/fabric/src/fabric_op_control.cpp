@@ -80,8 +80,8 @@ Fabric_op_control::Fabric_op_control(
 #else
   , _cq_attr{100, 0U, Fabric_cq::fi_cq_format, FI_WAIT_FD, 0U, FI_CQ_COND_NONE, nullptr}
 #endif
-  , _rxcq(make_fid_cq(_cq_attr, this))
-  , _txcq(make_fid_cq(_cq_attr, this))
+  , _rxcq(make_fid_cq(_cq_attr, this), "rx")
+  , _txcq(make_fid_cq(_cq_attr, this), "tx")
   , _ep_info(make_fi_infodup(domain_info(), "endpoint construction"))
   , _peer_addr(set_peer_early_(std::move(control_), *_ep_info))
   , _ep(make_fid_aep(*_ep_info, this))
@@ -136,6 +136,7 @@ void Fabric_op_control::post_send(
       , context_
     )
   );
+  _txcq.incr_inflight(__func__);
 }
 
 void Fabric_op_control::post_send(
@@ -173,6 +174,7 @@ void Fabric_op_control::post_recv(
       , context_
     )
   );
+  _rxcq.incr_inflight(__func__);
 }
 void Fabric_op_control::post_recv(
   const ::iovec *first_
@@ -215,6 +217,7 @@ void Fabric_op_control::post_read(
       , context_
     )
   );
+  _txcq.incr_inflight(__func__);
 }
 
 void Fabric_op_control::post_read(
@@ -260,6 +263,7 @@ void Fabric_op_control::post_write(
       , context_
       )
     );
+  _txcq.incr_inflight(__func__);
 }
 
 void Fabric_op_control::post_write(
@@ -431,7 +435,7 @@ void Fabric_op_control::wait_for_next_completion(std::chrono::milliseconds timeo
         }
       }
       /* Note: there is no reason to act on the fd's because either
-       *  - fi_cq_read will take care of them, or
+       *  - the eventual completion will take care of them, or
        *  - the fd_unblock_set_monitor will take care of them.
        */
 #endif
