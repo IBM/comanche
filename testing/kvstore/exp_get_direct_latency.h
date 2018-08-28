@@ -95,6 +95,8 @@ public:
         assert(rc == S_OK);
 
         _i++;  // increment after running so all elements get used
+
+        _enforce_maximum_pool_size(core);
     }
 
     void cleanup_custom(unsigned core)  

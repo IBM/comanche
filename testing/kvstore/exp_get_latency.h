@@ -35,12 +35,7 @@ public:
         _start_time.resize(_pool_num_components);
 
         // seed the pool with elements from _data
-        int rc;
-        for (int i = 0; i < _pool_num_components; i++)
-        {
-            rc = _store->put(_pool, _data->key(i), _data->value(i), _data->value_len());
-            assert(rc == S_OK);
-        }
+        _populate_pool_to_capacity(core);
         PLOG("pool seeded with values\n");
     }
 
@@ -87,6 +82,12 @@ public:
         assert(rc == S_OK);
 
         _i++;  // increment after running so all elements get used
+
+       if (_i == _pool_element_end)
+       {
+            _erase_pool_entries_in_range(_pool_element_start, _pool_element_end);
+           _populate_pool_to_capacity(core); 
+       }
     }
 
     void cleanup_custom(unsigned core)  
