@@ -4,13 +4,8 @@
 #include <boost/core/noncopyable.hpp>
 
 #include "pingpong_stat.h"
-#include "server_connection.h"
-#include <chrono> /* high_resolution_clock */
-#include <cstdint> /* uint16_ti, uint64_t */
-#include <string>
-#include <memory> /* shared_ptr */
+#include <cstdint> /* uint64_t */
 #include <thread>
-#include <utility> /* pair */
 
 namespace Component
 {

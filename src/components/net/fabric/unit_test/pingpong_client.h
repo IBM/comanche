@@ -17,7 +17,6 @@ class registered_memory;
 
 class pingpong_client
 {
-  static void check_complete_static(void *t, void *ctxt, ::status_t stat);
   void check_complete(::status_t stat);
 
   std::shared_ptr<Component::IFabric_client> _cnxn;

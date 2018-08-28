@@ -2,11 +2,8 @@
 
 #include "eyecatcher.h"
 #include <api/fabric_itf.h> /* IFabric_server_factory */
-#include <common/errors.h> /* S_OK */
-#include <gtest/gtest.h>
 
 #include <exception>
-#include <functional> /* ref */
 #include <iostream> /* cerr */
 
 void pingpong_server_n::listener(
@@ -16,8 +13,9 @@ try
 {
   for ( auto &c : _cs )
   {
-    c.sc.cnxn().post_recv(&*c.br[0].v.begin(), &*c.br[0].v.end(), &*c.br[0].d.begin(), &c.recv0_ctxt);
-    c.sc.cnxn().post_recv(&*c.br[1].v.begin(), &*c.br[1].v.end(), &*c.br[1].d.begin(), &c.recv1_ctxt);
+    auto &st = c.st;
+    st._comm.post_recv(&*st.br[0].v.begin(), &*st.br[0].v.end(), &*st.br[0].d.begin(), &st.recv0_ctxt);
+    st._comm.post_recv(&*st.br[1].v.begin(), &*st.br[1].v.end(), &*st.br[1].d.begin(), &st.recv1_ctxt);
   }
 
   std::uint64_t poll_count = 0U;
@@ -27,13 +25,13 @@ try
     polled_any = false;
     for ( auto &c : _cs )
     {
-      if ( c.iterations_left != 0 )
+      if ( c.st.iterations_left != 0 )
       {
         if ( _stat.start() == std::chrono::high_resolution_clock::time_point::min() )
         {
           _stat.do_start();
         }
-        c.sc.cnxn().poll_completions(cb_ctxt::cb);
+        c.st._comm.poll_completions(cb_ctxt::cb);
         ++poll_count;
         polled_any = true;
       }
