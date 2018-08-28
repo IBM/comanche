@@ -283,9 +283,9 @@ void ping_pong(const std::string &fabric_spec_, unsigned thread_count_)
   auto fabric = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec_));
   auto control_port = std::uint16_t(control_port_2);
 
-  constexpr size_t buffer_size = 1U << 22U;
-  constexpr size_t msg_size = 1U << 6U;
-  constexpr unsigned ITERATIONS = 1000000;
+  constexpr std::size_t msg_size = 1U << 6U;
+  const std::size_t buffer_size = std::max(msg_size << 1U, memory_size);
+  constexpr unsigned iterations = 1000000;
 
   std::chrono::nanoseconds cpu_user;
   std::chrono::nanoseconds cpu_system;
@@ -307,9 +307,9 @@ void ping_pong(const std::string &fabric_spec_, unsigned thread_count_)
       servers.emplace_back(
         std::async(
           std::launch::async
-          , [&ep, buffer_size, remote_key_base, ITERATIONS, msg_size]
+          , [&ep, buffer_size, remote_key_base, iterations, msg_size]
             {
-              pingpong_server server(*ep, buffer_size, remote_key_base, ITERATIONS, msg_size);
+              pingpong_server server(*ep, buffer_size, remote_key_base, iterations, msg_size);
               return server.time();
             }
         )
@@ -353,9 +353,9 @@ void ping_pong(const std::string &fabric_spec_, unsigned thread_count_)
       clients.emplace_back(
         std::async(
           std::launch::async
-          , [&fabric, control_port, buffer_size, remote_key_base, ITERATIONS, msg_size]
+          , [&fabric, control_port, buffer_size, remote_key_base, iterations, msg_size]
             {
-              pingpong_client client(*fabric, "{}", remote_host, control_port, buffer_size, remote_key_base, ITERATIONS, msg_size);
+              pingpong_client client(*fabric, "{}", remote_host, control_port, buffer_size, remote_key_base, iterations, msg_size);
               return client.time();
             }
         )
@@ -384,7 +384,7 @@ void ping_pong(const std::string &fabric_spec_, unsigned thread_count_)
     stop_stagger = stop_max - stop_min;
   }
 
-  auto iter = thread_count_*ITERATIONS;
+  auto iter = thread_count_ * iterations;
   auto secs_inner = double_seconds(t);
   PINF("%zu byte PingPong, iterations: %u threads: %u secs: %f start stagger: %f stop stagger: %f cpu_user: %f cpu_sys: %f Ops/Sec: %lu Polls/Op: %f"
     , msg_size
@@ -412,9 +412,9 @@ void pingpong_single_server(const std::string &fabric_spec_, unsigned thread_cou
   auto fabric = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec_));
   auto control_port = std::uint16_t(control_port_2);
 
-  constexpr size_t buffer_size = 1U << 22U;
-  constexpr size_t msg_size = 1U << 6U;
-  constexpr unsigned ITERATIONS = 1000000;
+  constexpr std::size_t msg_size = 1U << 6U;
+  const std::size_t buffer_size = std::max(msg_size << 1U, memory_size);
+  constexpr unsigned iterations = 1000000;
   std::uint64_t poll_count = 0U;
 
   std::chrono::nanoseconds cpu_user;
@@ -434,7 +434,7 @@ void pingpong_single_server(const std::string &fabric_spec_, unsigned thread_cou
     /* In case the provider actually uses the remote keys which we provide, make them unique. */
     auto remote_key_base = 0U;
     auto cpu_start = cpu_time();
-    pingpong_server_n server(thread_count_, *ep,  buffer_size, remote_key_base, ITERATIONS, msg_size);
+    pingpong_server_n server(thread_count_, *ep,  buffer_size, remote_key_base, iterations, msg_size);
     auto f2 = server.time();
     auto cpu_stop = cpu_time();
     cpu_user = usec(cpu_start.first, cpu_stop.first);
@@ -459,9 +459,9 @@ void pingpong_single_server(const std::string &fabric_spec_, unsigned thread_cou
       clients.emplace_back(
         std::async(
           std::launch::async
-          , [&fabric, control_port, buffer_size, remote_key_base, ITERATIONS, msg_size]
+          , [&fabric, control_port, buffer_size, remote_key_base, iterations, msg_size]
             {
-              pingpong_client client(*fabric, "{}", remote_host, control_port, buffer_size, remote_key_base, ITERATIONS, msg_size);
+              pingpong_client client(*fabric, "{}", remote_host, control_port, buffer_size, remote_key_base, iterations, msg_size);
               return client.time();
             }
         )
@@ -491,7 +491,7 @@ void pingpong_single_server(const std::string &fabric_spec_, unsigned thread_cou
     stop_stagger = stop_max - stop_min;
   }
 
-  auto iter = thread_count_*ITERATIONS;
+  auto iter = thread_count_ * iterations;
   auto secs_inner = double_seconds(t);
 
   PINF("%zu byte PingPong, iterations: %u threads: %u secs: %f start stagger: %f stop stagger: %f cpu_user: %f cpu_sys: %f Ops/Sec: %lu Polls/Op: %f"
