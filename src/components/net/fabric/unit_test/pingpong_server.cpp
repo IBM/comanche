@@ -2,7 +2,6 @@
 
 #include "eyecatcher.h"
 #include "pingpong_server_client_state.h"
-
 #include <exception>
 #include <cstdint> /* uint64_t */
 #include <chrono>
@@ -24,8 +23,9 @@ try
 {
   client_state c{factory_, buffer_size_, remote_key_, iteration_count_, msg_size_};
 
-  c.sc.cnxn().post_recv(&*c.br[0].v.begin(), &*c.br[0].v.end(), &*c.br[0].d.begin(), &c.recv0_ctxt);
-  c.sc.cnxn().post_recv(&*c.br[1].v.begin(), &*c.br[1].v.end(), &*c.br[1].d.begin(), &c.recv1_ctxt);
+  auto &st = c.st;
+  st._comm.post_recv(&*st.br[0].v.begin(), &*st.br[0].v.end(), &*st.br[0].d.begin(), &st.recv0_ctxt);
+  st._comm.post_recv(&*st.br[1].v.begin(), &*st.br[1].v.end(), &*st.br[1].d.begin(), &st.recv1_ctxt);
 
   std::uint64_t poll_count = 0U;
   auto polled_any = true;
@@ -33,13 +33,13 @@ try
   {
     polled_any = false;
 
-    if ( c.iterations_left != 0 )
+    if ( st.iterations_left != 0 )
     {
       if ( _stat.start() == std::chrono::high_resolution_clock::time_point::min() )
       {
         _stat.do_start();
       }
-      c.sc.cnxn().poll_completions(cb_ctxt::cb);
+      st._comm.poll_completions(cb_ctxt::cb);
       ++poll_count;
       polled_any = true;
     }
