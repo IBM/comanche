@@ -480,6 +480,7 @@ void pingpong_single_server(const std::string &fabric_spec_, unsigned thread_cou
       stop_min = std::min(stop_min, r.stop());
       stop_max = std::max(stop_max, r.stop());
       poll_count += r.poll_count();
+      std::cerr << "CLIENT end " << double_seconds(r.stop() - r.start()) << " sec" << std::endl;
     }
     auto cpu_stop = cpu_time();
     cpu_user = usec(cpu_start.first, cpu_stop.first);

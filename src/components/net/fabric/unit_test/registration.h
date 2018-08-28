@@ -17,6 +17,7 @@ class registration
 public:
   explicit registration(Component::IFabric_connection &cnxn_, const void *contig_addr_, std::size_t size_, std::uint64_t key_, std::uint64_t flags_);
   registration(registration &&);
+  registration &operator=(registration &&);
   ~registration();
 
   std::uint64_t key() const { return _key; }
