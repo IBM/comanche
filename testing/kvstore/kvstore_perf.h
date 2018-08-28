@@ -23,6 +23,9 @@ struct ProgramOptions {
     std::string report_file_name;
     unsigned int key_length;
     unsigned int value_length;
+    unsigned int bin_count;
+    unsigned int bin_threshold_min;
+    unsigned int bin_threshold_max;
 }; 
 
 #endif

@@ -2,9 +2,10 @@
 #define __EXPERIMENT_H__
 
 #include <boost/filesystem.hpp>
+#include <cmath>
 #include <cstdio>
-#include <fstream>
 #include <ctime>
+#include <fstream>
 
 #include "data.h"
 #include "kvstore_perf.h"
@@ -17,6 +18,7 @@ class Experiment : public Core::Tasklet
 { 
 public:
     std::string _pool_path = "./data";
+    std::string _pool_name = "Exp.pool.";
     unsigned int _pool_size = MB(100);
     int _pool_flags = Component::IKVStore::FLAGS_SET_SIZE;
     unsigned int _pool_num_components = 100;
@@ -47,7 +49,7 @@ public:
 
         // initialize experiment
         char poolname[256];
-        sprintf(poolname, "Exp.pool.%u", core);
+        sprintf(poolname, "%s%u", _pool_name.c_str(), core);
         PLOG("Creating pool for worker %u ...", core);
         _pool = _store->create_pool(_pool_path, poolname, _pool_size, _pool_flags, _pool_num_components);
       
@@ -107,7 +109,10 @@ public:
           ("elements", po::value<unsigned int>(), "Number of data elements")
           ("key_length", po::value<unsigned int>(), "Key length of data")
           ("value_length", po::value<unsigned int>(), "Value length of data")
-              ;
+          ("bins", po::value<unsigned int>(), "Number of bins for statistics")
+          ("latency_range_min", po::value<unsigned int>(), "Lowest latency bin threshold")
+          ("latency_range_max", po::value<unsigned int>(), "Highest latency bin threshold")
+                  ;
       
         try 
         {
@@ -143,6 +148,21 @@ public:
             {
                 _cores = vm["cores"].as<int>();
             }
+
+            if (vm.count("bins") > 0)
+            {
+                _bin_count = vm["cores"].as<unsigned int>();
+            }
+
+            if (vm.count("bin_threshold_min") > 0)
+            {
+                _bin_threshold_min = vm["bin_threshold_min"].as<unsigned int>();
+            }
+
+            if (vm.count("bin_threshold_max") > 0)
+            {
+                _bin_threshold_max = vm["bin_threshold_max"].as<unsigned int>();
+            }
         } 
         catch (const po::error &ex)
         {
@@ -155,7 +175,11 @@ public:
        assert(!_report_filename.empty());  // make sure report_filename is set
 
        FILE *pFile = fopen(_report_filename.c_str(), "r+");
-       assert(pFile);
+       if (!pFile)
+       {
+           perror("_get_report_document failed fopen call");
+           throw std::exception();
+       }
 
        char readBuffer[GetFileSize(_report_filename)];
 
@@ -175,8 +199,22 @@ public:
         return rc == 0 ? stat_buf.st_size : -1;
     }
 
+    long GetBlockSize(std::string path)
+    {
+        struct stat stat_buf;
+
+        int rc = stat(path.c_str(), &stat_buf);
+
+        return rc == 0 ? stat_buf.st_blksize : -1;
+    }
+
     void _report_document_save(rapidjson::Document& document, unsigned core, rapidjson::Value& new_info)
     {
+       if (core == 0)
+       {
+           std::cout << "_report_document_save started" << std::endl;
+       }
+
        assert(!_test_name.empty());  // make sure _test_name is set
 
        rapidjson::Value temp_value;
@@ -202,7 +240,12 @@ public:
        document.Accept(writer);
 
        std::ofstream outf(_report_filename.c_str());
-       outf << strbuf.GetString() << std::endl; 
+       outf << strbuf.GetString() << std::endl;
+
+       if (core == 0)
+       {
+           std::cout << "_report_document_save finished" << std::endl;
+       }
     }
 
     static std::string get_time_string()
@@ -300,12 +343,178 @@ public:
         return output_file_name;
     }
 
+    unsigned long GetElementSize(unsigned core, int index)
+    {
+        if (_element_size == -1)  // -1 is reserved value and impossible (must be positive size)
+        {
+            std::string path = _pool_path + "/" +  _pool_name + std::to_string(core) + "/" + _data->key(index);
+            long block_size = GetBlockSize(_pool_path);
+            long file_size = GetFileSize(path);
+
+            // take the larger of the two
+            if (file_size > block_size)
+            {
+                _element_size = file_size;
+            }
+            else
+            {
+                _element_size = block_size;
+            }
+        }
+
+        return _element_size;
+    }
+
+    void _populate_pool_to_capacity(unsigned core)
+    {
+        // how much space do we have?
+        unsigned long elements_remaining = _pool_num_components - _elements_stored;
+        bool can_add_more_elements;
+        int rc;
+        unsigned long current = _pool_element_end;  // first run: should be 0 (start index)
+        unsigned long maximum_elements = -1;
+        _pool_element_start = current;
+      
+        if (core == 0)
+        { 
+            std::cout << "current = " << current << ", end = " << _pool_element_end << std::endl;
+        }
+
+        do
+        {
+            rc = _store->put(_pool, _data->key(current), _data->value(current), _data->value_len());
+
+            if (rc != S_OK)
+            {
+               perror("rc didn't return S_OK");
+               throw std::exception(); 
+            }
+
+            // calculate maximum number of elements we can put in pool at one time
+            if (_element_size == -1)
+            {
+                _element_size = GetElementSize(core, current);
+                if (core == 0)
+                {
+                    std::cout << "element size is " << _element_size << std::endl;
+                }
+            }
+
+            if (maximum_elements == -1)
+            {
+                maximum_elements = (unsigned long)(_pool_size / _element_size);
+
+                if (core == 0)
+                {
+                    std::cout << "maximum element count: " << maximum_elements << std::endl;
+                }
+            }
+
+            current++;
+
+            bool can_add_more_in_batch = (current - _pool_element_start) <= maximum_elements;
+            bool can_add_more_overall = current <= (_pool_num_components - 1);
+
+           can_add_more_elements = can_add_more_in_batch && can_add_more_overall;
+
+            if (!can_add_more_elements)
+            {
+                if (!can_add_more_in_batch && core == 0)
+                {
+                    std::cout << "reached capacity" << std::endl;
+                }
+
+                if (!can_add_more_overall && core == 0)
+                {
+                    std::cout << "reached last element" << std::endl;
+                }
+            }
+        }
+        while(can_add_more_elements);
+
+        if (core == 0)
+        {
+            std::cout << "current = " << current << ", end = " << _pool_element_end << std::endl;
+        }
+
+        if (core == 0)
+        {
+            std::cout << "elements added to pool: " << current - _pool_element_end << ". Last = " << current << std::endl;
+        }
+        _pool_element_end = current;
+    }
+
+    // assumptions: _i is tracking current element in use
+    void _enforce_maximum_pool_size(unsigned core)
+    {
+        unsigned long block_size = GetElementSize(core, _i);
+
+        _elements_in_use++;
+
+        // erase elements that exceed pool capacity and start again
+        if ((_elements_in_use * _element_size) >= _pool_size)
+        {
+            if(core == 0)
+            {
+                std::cout << "exceeded acceptable pool size. Erasing " << _elements_in_use << " elements...";
+            }
+
+            for (int i = _i - 1; i > (_i - _elements_in_use); i--)
+            {
+                int rc =_store->erase(_pool, _data->key(i));
+                if (rc != S_OK && core == 0)
+                {
+                    // throw exception
+                    std::string error_string = "erase returned !S_OK: ";
+                    error_string.append(std::to_string(rc));
+                    error_string.append(", i = " + std::to_string(i) + ", _i = " + std::to_string(_i));
+                    perror(error_string.c_str());
+                }                 
+            }
+
+            _elements_in_use = 0;   
+
+            if (core == 0)
+            {
+                std::cout << " done." << std::endl;
+            }
+        }
+    }
+
+    void _erase_pool_entries_in_range(int start, int finish)
+    {
+        int rc;
+
+        for (int i = start; i < finish; i++)
+        {
+            rc = _store->erase(_pool, _data->key(i));
+
+            if (rc != S_OK)
+            {
+                throw std::exception();
+            }
+        }
+    }
+
     size_t                                _i = 0;
     Component::IKVStore *                 _store;
     Component::IKVStore::pool_t           _pool;
     bool                                  _first_iter = true;
     bool                                  _ready = false;
     std::chrono::system_clock::time_point _start, _end;
+
+    // member variables for tracking pool sizes
+    unsigned long _element_size = -1;
+    unsigned long _elements_in_use = 0;
+    unsigned long _pool_element_start = 0;
+    unsigned long _pool_element_end = 0;
+    unsigned long _elements_stored = 0;
+
+    // bin statistics
+    unsigned int _bin_count = 100;
+    double _bin_threshold_min = (1. * std::pow(10, -9));
+    double _bin_threshold_max = (1. * std::pow(10, -3));
+    double _bin_increment;
 };
 
 

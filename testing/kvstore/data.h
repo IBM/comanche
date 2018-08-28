@@ -70,7 +70,7 @@ public:
             _data[i].value = val;
         }
 
-        PLOG("..OK.");
+        PLOG("%d elements initialized, size %d.", (int)_num_elements, (int)sizeof(KV_pair));
     }
   
     const char * key(size_t i) const 

@@ -9,7 +9,9 @@ extern pthread_mutex_t g_write_lock;
 class ExperimentPut : public Experiment
 { 
 public:
-  
+    unsigned long _element_size;
+    unsigned long _elements_in_use = 0;
+
     ExperimentPut(struct ProgramOptions options) : Experiment(options) 
     {
         _test_name = "put";
@@ -30,6 +32,8 @@ public:
         int rc = _store->put(_pool, _data->key(_i), _data->value(_i), _data->value_len());
 
         assert(rc == S_OK);
+
+        _enforce_maximum_pool_size(core);
     }
 
     void cleanup_custom(unsigned core)  

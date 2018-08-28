@@ -60,6 +60,9 @@ int main(int argc, char * argv[])
     ("elements", po::value<unsigned int>(), "Number of data elements")
     ("key_length", po::value<unsigned int>(), "Key length of data")
     ("value_length", po::value<unsigned int>(), "Value length of data")
+    ("bins", po::value<unsigned int>(), "Number of bins for statistics")
+    ("latency_range_min", po::value<unsigned int>(), "Lowest latency bin threshold")
+    ("latency_range_max", po::value<unsigned int>(), "Highest latency bin threshold")
     ;
 
   try {
@@ -81,7 +84,7 @@ int main(int argc, char * argv[])
     
     Options.cores  = vm.count("cores") > 0 ? vm["cores"].as<int>() : 1;
     Options.time_secs  = vm.count("time") > 0 ? vm["time"].as<int>() : 4;
-    Options.size = vm.count("size") > 0 ? vm["size"].as<int>() : MB(100);
+    Options.size = vm.count("size") > 0 ? vm["size"].as<unsigned int>() : MB(100);
     Options.flags = vm.count("flags") > 0 ? vm["flags"].as<int>() : Component::IKVStore::FLAGS_SET_SIZE;
 
 /*

@@ -20,15 +20,7 @@ public:
     { 
         PLOG("(%u) Populating key/value pairs for Get test...", core);
 
-        for(size_t i=0;i<_data->num_elements();i++) 
-        {
-            int rc = _store->put(_pool, _data->key(i), _data->value(i), _data->value_len());
-
-            if(rc != S_OK) 
-            {
-                PERR("store->put return code: %d", rc);
-            }
-        }
+        _populate_pool_to_capacity(core);
 
         PLOG("(%u) KVPs populated.", core);
     }
@@ -56,6 +48,12 @@ public:
 
         free(pval);
         _i++;
+
+       if (_i == _pool_element_end)
+       {
+            _erase_pool_entries_in_range(_pool_element_start, _pool_element_end);
+           _populate_pool_to_capacity(core); 
+       }
     }
     
     void cleanup_custom(unsigned core) 
@@ -63,7 +61,7 @@ public:
         _end = std::chrono::high_resolution_clock::now();
         double secs = std::chrono::duration_cast<std::chrono::milliseconds>(_end - _start).count() / 1000.0;
         double iops = ((double) _i) / secs;
-        PINF("*Put* (%u) IOPS: %2g", core, iops); 
+        PINF("*Get* (%u) IOPS: %2g", core, iops); 
 
        pthread_mutex_lock(&g_write_lock);
 
