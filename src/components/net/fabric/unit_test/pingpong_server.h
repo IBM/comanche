@@ -14,7 +14,6 @@
 
 namespace Component
 {
-  class IFabric;
   class IFabric_server_factory;
 }
 
@@ -24,12 +23,12 @@ namespace Component
 class pingpong_server
   : private boost::noncopyable
 {
-  server_connection _sc;
   pingpong_stat _stat;
   std::thread _th;
 
   void listener(
-    std::size_t buffer_size
+    Component::IFabric_server_factory &factory
+    , std::size_t buffer_size
     , std::uint64_t remote_key
     , unsigned iteration_count
     , std::size_t msg_size

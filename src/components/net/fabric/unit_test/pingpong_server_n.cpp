@@ -9,70 +9,6 @@
 #include <functional> /* ref */
 #include <iostream> /* cerr */
 
-namespace
-{
-  auto cb(void *ctxt_, ::status_t stat_, std::uint64_t flags_, std::size_t len_, void *err_) -> void
-  {
-    auto ctxt = static_cast<const cb_ctxt *>(ctxt_);
-    /* calls one of recv_cb or send_cb */
-    return (ctxt->cb_call)(ctxt->state, stat_, flags_, len_, err_);
-  }
-  auto recv_cb(client_state *cs_, ::status_t stat_, std::uint64_t, std::size_t len_, void *) -> void
-  {
-    EXPECT_EQ(stat_, S_OK);
-    EXPECT_EQ(len_, cs_->msg_size);
-    EXPECT_EQ(cs_->v.size(), 1U);
-    cs_->sc.cnxn().post_send(&*cs_->v.begin(), &*cs_->v.end(), &*cs_->d.begin(), &cs_->send_ctxt);
-  }
-  auto send_cb(client_state *cs_, ::status_t stat_, std::uint64_t, std::size_t, void *) -> void
-  {
-    EXPECT_EQ(stat_, S_OK);
-    EXPECT_EQ(cs_->v.size(), 1U);
-    /* We got a callback on the final send. Expect no more from this client */
-    --cs_->iterations_left;
-    if ( cs_->iterations_left )
-    {
-      cs_->sc.cnxn().post_recv(&*cs_->v.begin(), &*cs_->v.end(), &*cs_->d.begin(), &cs_->recv_ctxt);
-    }
-  }
-}
-
-cb_ctxt::cb_ctxt(client_state *state_, cb_t cb_call_)
-  : state(state_)
-  , cb_call(cb_call_)
-{
-}
-
-client_state::client_state(
-  Component::IFabric_server_factory &factory_
-  , std::size_t buffer_size_
-  , std::uint64_t remote_key_
-  , unsigned iteration_count_
-  , std::size_t msg_size_
-)
-  : send_ctxt(this, &send_cb)
-  , recv_ctxt(this, &recv_cb)
-  , sc(factory_)
-  , rm{sc.cnxn(), buffer_size_, remote_key_}
-  , v{{&rm[0], msg_size_}}
-  , d{{rm.desc()}}
-  , msg_size{msg_size_}
-  , iterations_left(iteration_count_)
-{
-}
-
-client_state::client_state(client_state &&cs_)
-  : send_ctxt(this, cs_.send_ctxt.cb_call)
-  , recv_ctxt(this, cs_.recv_ctxt.cb_call)
-  , sc(std::move(cs_.sc))
-  , rm(std::move(cs_.rm))
-  , v(std::move(cs_.v))
-  , d(std::move(cs_.d))
-  , msg_size(std::move(cs_.msg_size))
-  , iterations_left(std::move(cs_.iterations_left))
-{
-}
-
 void pingpong_server_n::listener(
   std::size_t /* msg_size_ */
 )
@@ -80,7 +16,8 @@ try
 {
   for ( auto &c : _cs )
   {
-    c.sc.cnxn().post_recv(&*c.v.begin(), &*c.v.end(), &*c.d.begin(), &c.recv_ctxt);
+    c.sc.cnxn().post_recv(&*c.br[0].v.begin(), &*c.br[0].v.end(), &*c.br[0].d.begin(), &c.recv0_ctxt);
+    c.sc.cnxn().post_recv(&*c.br[1].v.begin(), &*c.br[1].v.end(), &*c.br[1].d.begin(), &c.recv1_ctxt);
   }
 
   std::uint64_t poll_count = 0U;
@@ -96,7 +33,7 @@ try
         {
           _stat.do_start();
         }
-        c.sc.cnxn().poll_completions(cb);
+        c.sc.cnxn().poll_completions(cb_ctxt::cb);
         ++poll_count;
         polled_any = true;
       }
