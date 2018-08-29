@@ -92,53 +92,10 @@ public:
        // get existing results, read to document variable
        rapidjson::Document document = _get_report_document();
 
-       // add per-core results here
-       rapidjson::Value latency_bin_info(rapidjson::kObjectType);
-       rapidjson::Value temp_array(rapidjson::kArrayType);
-       rapidjson::Value temp_value;
+       // collect latency stats
+       rapidjson::Value latency_object = _add_statistics_to_report("latency", _latency_stats, document);
 
-       // latency bin info
-       temp_value.SetInt(_bin_count);
-       latency_bin_info.AddMember("bin_count", temp_value, document.GetAllocator());
-
-       temp_value.SetDouble(_bin_threshold_min);
-       latency_bin_info.AddMember("threshold_min", temp_value, document.GetAllocator());
-
-       temp_value.SetDouble(_bin_threshold_max);
-       latency_bin_info.AddMember("threshold_max", temp_value, document.GetAllocator());
-
-       temp_value.SetDouble(_latency_stats.getIncrement());
-       latency_bin_info.AddMember("increment", temp_value, document.GetAllocator());
-
-       for (int i = 0; i < _bin_count; i++)  
-       {
-            // PushBack requires unique object
-            rapidjson::Value temp_object(rapidjson::kObjectType); 
-
-            temp_value.SetDouble(_latency_stats.getBin(i).getCount());
-            temp_object.AddMember("count", temp_value, document.GetAllocator());
-
-            temp_value.SetDouble(_latency_stats.getBin(i).getMin());
-            temp_object.AddMember("min", temp_value, document.GetAllocator());
-
-            temp_value.SetDouble(_latency_stats.getBin(i).getMax());
-            temp_object.AddMember("max", temp_value, document.GetAllocator());
-
-            temp_value.SetDouble(_latency_stats.getBin(i).getMean());
-            temp_object.AddMember("mean", temp_value, document.GetAllocator());
-
-            temp_value.SetDouble(_latency_stats.getBin(i).getStd());
-            temp_object.AddMember("std", temp_value, document.GetAllocator());
-
-            temp_array.PushBack(temp_object, document.GetAllocator());
-       }
-
-       // add new info to report
-       rapidjson::Value latency_object(rapidjson::kObjectType);
-       
-       latency_object.AddMember("latency_info", latency_bin_info, document.GetAllocator());
-       latency_object.AddMember("latency_bins", temp_array, document.GetAllocator());
-       
+       // save everything
        _report_document_save(document, core, latency_object);
 
        pthread_mutex_unlock(&g_write_lock);
