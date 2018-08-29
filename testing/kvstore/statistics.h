@@ -15,7 +15,6 @@ public:
 
     void add_value(double value)
     {
-        std::cout << "RunningStatistics.add_value called" << std::endl;
         update_count();
         update_min(value);
         update_max(value);
@@ -23,12 +22,12 @@ public:
         update_variance(value);
     }
 
-    double getCount() { return count; }
+    int getCount() { return count; }
     double getMin() { return min; }
     double getMax() { return max; }
     double getMean() { return mean; }
     double getVariance() { return variance; }
-    double getStd() { return sqrt(variance); }
+    double getStd() { return (count > 1 ? sqrt( variance / ( count - 1 ) ) : 0.0); }
 
 private:
     void update_count()
@@ -70,12 +69,13 @@ private:
     {
         if (count == 1)
         {
-            mean = mean = value;
-            mean_last = 0.0;
+            mean = value;
+            mean_last = value;
         }
         else
         {
-            mean = mean_last + (value - mean_last)/count; 
+            mean_last = mean;
+            mean = mean_last + ((value - mean_last)/count); 
         }
     }
 
@@ -88,9 +88,8 @@ private:
         }
         else
         {
-            variance = variance_last + (value - mean_last)*(value - mean);
-
             variance_last = variance;
+            variance = (variance_last + (value - mean_last)*(value - mean));
         }
     }
 
@@ -131,13 +130,10 @@ public:
 
         _increment = (threshold_max - threshold_min) / bins;
         _bins.resize(bins);
-
-        std::cout << "BinStatistics.init: min = " << _min << ", max = " << _max << ". Bins = " << _bin_count << std::endl;
     }
 
     void update(double value)
     {
-        std::cout << "BinnedStatistics.update called" << std::endl;
         int bin = get_latency_bin(value);
 
         std::cout << "\tvalue " << value << " got bin " << bin << std::endl;
