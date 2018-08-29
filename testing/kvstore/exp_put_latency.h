@@ -107,7 +107,7 @@ public:
        temp_value.SetDouble(_bin_threshold_max);
        latency_bin_info.AddMember("threshold_max", temp_value, document.GetAllocator());
 
-       temp_value.SetDouble(_latency_stats._increment);
+       temp_value.SetDouble(_latency_stats.getIncrement());
        latency_bin_info.AddMember("increment", temp_value, document.GetAllocator());
 
        for (int i = 0; i < _bin_count; i++)  
@@ -115,19 +115,19 @@ public:
             // PushBack requires unique object
             rapidjson::Value temp_object(rapidjson::kObjectType); 
 
-            temp_value.SetDouble(_latency_stats._bins[i].getCount());
+            temp_value.SetDouble(_latency_stats.getBin(i).getCount());
             temp_object.AddMember("count", temp_value, document.GetAllocator());
 
-            temp_value.SetDouble(_latency_stats._bins[i].getMin());
+            temp_value.SetDouble(_latency_stats.getBin(i).getMin());
             temp_object.AddMember("min", temp_value, document.GetAllocator());
 
-            temp_value.SetDouble(_latency_stats._bins[i].getMax());
+            temp_value.SetDouble(_latency_stats.getBin(i).getMax());
             temp_object.AddMember("max", temp_value, document.GetAllocator());
 
-            temp_value.SetDouble(_latency_stats._bins[i].getMean());
+            temp_value.SetDouble(_latency_stats.getBin(i).getMean());
             temp_object.AddMember("mean", temp_value, document.GetAllocator());
 
-            temp_value.SetDouble(_latency_stats._bins[i].getStd());
+            temp_value.SetDouble(_latency_stats.getBin(i).getStd());
             temp_object.AddMember("std", temp_value, document.GetAllocator());
 
             temp_array.PushBack(temp_object, document.GetAllocator());

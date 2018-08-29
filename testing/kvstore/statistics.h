@@ -3,6 +3,7 @@
 
 #include <cmath>
 #include <iostream>
+#include <limits>
 #include <vector>
 
 class RunningStatistics
@@ -106,18 +107,13 @@ private:
 class BinStatistics
 {
 public:
-    int _bin_count;
-    double _increment;
-    double _min;
-    double _max;
-    std::vector<RunningStatistics> _bins;
-
     BinStatistics()
     {
-       // default
+       // default: everything goes into one bin with range at top and bottom of double range
+       init(1, std::numeric_limits<double>::min(), std::numeric_limits<double>::max());
     }
 
-    BinStatistics(int bins, double threshold_min, double threshold_max)
+    BinStatistics(unsigned int bins, double threshold_min, double threshold_max)
     {
         init(bins, threshold_min, threshold_max);
     } 
@@ -132,14 +128,36 @@ public:
         _bins.resize(bins);
     }
 
+
     void update(double value)
     {
         int bin = get_latency_bin(value);
 
-        std::cout << "\tvalue " << value << " got bin " << bin << std::endl;
-
         _bins[bin].add_value(value);
     }
+
+    double getIncrement() { return _increment; }
+
+    RunningStatistics getBin(int bin)
+    {
+        if (bin < 0)
+        {
+            throw std::exception();
+        }
+        else if (bin > _bin_count)
+        {
+            throw std::exception();
+        }
+
+        return _bins[bin];
+    }
+
+private:
+    int _bin_count;
+    double _increment;
+    double _min;
+    double _max;
+    std::vector<RunningStatistics> _bins;
 
     int get_latency_bin(double value)
     {
