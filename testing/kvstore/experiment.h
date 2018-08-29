@@ -294,13 +294,8 @@ public:
        // add new info to report
        rapidjson::Value bin_object(rapidjson::kObjectType);
       
-       std::string info_string = name;
-       info_string.append("_info");
-
-       std::string bin_string = name;
-       bin_string.append("_bins"); 
-       bin_object.AddMember(rapidjson::StringRef(info_string.c_str()), bin_info, document.GetAllocator());
-       bin_object.AddMember(rapidjson::StringRef(bin_string.c_str()), temp_array, document.GetAllocator());
+       bin_object.AddMember("info", bin_info, document.GetAllocator());
+       bin_object.AddMember("bins", temp_array, document.GetAllocator());
 
        return bin_object;
     }
@@ -318,6 +313,18 @@ public:
         std::string timestring(buffer);
 
         return timestring;
+    }
+
+    BinStatistics _compute_bin_statistics_from_vector(std::vector<double> data, int bin_count, double bin_min, double bin_max)
+    {
+        BinStatistics stats(bin_count, bin_min, bin_max);
+
+        for (int i = 0; i < data.size(); i++)
+        {
+            stats.update(data[i]);
+        }
+
+        return stats;
     }
 
     /* create_report: output a report in JSON format with experiment data
