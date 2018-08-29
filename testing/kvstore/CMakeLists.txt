@@ -1,5 +1,7 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
+add_subdirectory(unit_test)
+
 project (kvstore-perf)
 
 add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)

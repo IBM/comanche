@@ -1,6 +1,10 @@
 #ifndef __STATISTICS_H__
 #define __STATISTICS_H__
 
+#include <cmath>
+#include <iostream>
+#include <vector>
+
 class RunningStatistics
 {
 public:
