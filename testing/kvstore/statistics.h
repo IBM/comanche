@@ -137,6 +137,9 @@ public:
     }
 
     double getIncrement() { return _increment; }
+    double getMinThreshold() { return _min; }
+    double getMaxThreshold() { return _max; }
+    double getBinCount() { return _bin_count; }
 
     RunningStatistics getBin(int bin)
     {

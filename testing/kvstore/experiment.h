@@ -9,6 +9,7 @@
 
 #include "data.h"
 #include "kvstore_perf.h"
+#include "statistics.h"
 
 extern Data * _data;
 extern int g_argc;
@@ -246,6 +247,62 @@ public:
        {
            std::cout << "_report_document_save finished" << std::endl;
        }
+    }
+
+    rapidjson::Value _add_statistics_to_report(std::string name, BinStatistics& stats, rapidjson::Document& document)
+    {
+       rapidjson::Value bin_info(rapidjson::kObjectType);
+       rapidjson::Value temp_array(rapidjson::kArrayType);
+       rapidjson::Value temp_value;
+
+       // latency bin info
+       temp_value.SetInt(stats.getBinCount());
+       bin_info.AddMember("bin_count", temp_value, document.GetAllocator());
+
+       temp_value.SetDouble(stats.getMinThreshold());
+       bin_info.AddMember("threshold_min", temp_value, document.GetAllocator());
+
+       temp_value.SetDouble(stats.getMaxThreshold());
+       bin_info.AddMember("threshold_max", temp_value, document.GetAllocator());
+
+       temp_value.SetDouble(stats.getIncrement());
+       bin_info.AddMember("increment", temp_value, document.GetAllocator());
+
+       for (int i = 0; i < stats.getBinCount(); i++)  
+       {
+            // PushBack requires unique object
+            rapidjson::Value temp_object(rapidjson::kObjectType); 
+
+            temp_value.SetDouble(stats.getBin(i).getCount());
+            temp_object.AddMember("count", temp_value, document.GetAllocator());
+
+            temp_value.SetDouble(stats.getBin(i).getMin());
+            temp_object.AddMember("min", temp_value, document.GetAllocator());
+
+            temp_value.SetDouble(stats.getBin(i).getMax());
+            temp_object.AddMember("max", temp_value, document.GetAllocator());
+
+            temp_value.SetDouble(stats.getBin(i).getMean());
+            temp_object.AddMember("mean", temp_value, document.GetAllocator());
+
+            temp_value.SetDouble(stats.getBin(i).getStd());
+            temp_object.AddMember("std", temp_value, document.GetAllocator());
+
+            temp_array.PushBack(temp_object, document.GetAllocator());
+       }
+
+       // add new info to report
+       rapidjson::Value bin_object(rapidjson::kObjectType);
+      
+       std::string info_string = name;
+       info_string.append("_info");
+
+       std::string bin_string = name;
+       bin_string.append("_bins"); 
+       bin_object.AddMember(rapidjson::StringRef(info_string.c_str()), bin_info, document.GetAllocator());
+       bin_object.AddMember(rapidjson::StringRef(bin_string.c_str()), temp_array, document.GetAllocator());
+
+       return bin_object;
     }
 
     static std::string get_time_string()
