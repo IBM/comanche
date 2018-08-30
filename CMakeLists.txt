@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.5)
 
+set(GCC_COVERAGE_COMPILE_FLAGS "-g -shared-libgcc -DTBB_USE_THREADING_TOOLS")
+
 # force out-of-tree build
 option(FORCE_OTT_BUILD "force out of tree build" ON)
 
