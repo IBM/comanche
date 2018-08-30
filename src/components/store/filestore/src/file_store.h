@@ -86,7 +86,8 @@ public:
                               const std::string key,
                               void* out_value,
                               size_t& out_value_len,
-                              size_t offset) override;
+                              size_t offset,
+                              Component::IKVStore::memory_handle_t handle) override;
   
   virtual status_t erase(const pool_t pool,
                          const std::string key) override;

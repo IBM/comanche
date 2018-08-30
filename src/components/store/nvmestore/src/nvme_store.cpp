@@ -461,10 +461,12 @@ status_t NVME_store::get(const pool_t pool,
 }
 
 status_t NVME_store::get_direct(const pool_t pool,
-                              const std::string key,
-                              void* out_value,
-                              size_t& out_value_len,
-                              size_t offset){
+                                const std::string key,
+                                void* out_value,
+                                size_t& out_value_len,
+                                size_t offset,
+                                Component::IKVStore::memory_handle_t handle)
+{
   struct open_session_t * session = reinterpret_cast<struct open_session_t*>(pool);
 
   if(g_sessions.find(session) == g_sessions.end())
