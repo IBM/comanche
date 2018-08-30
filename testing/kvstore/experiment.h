@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <ctime>
 #include <fstream>
+#include <sstream>
 
 #include "data.h"
 #include "kvstore_perf.h"
@@ -170,7 +171,18 @@ public:
           std::cerr << ex.what() << '\n';
         }
     }
-    
+   
+    void _debug_print(unsigned core, std::string text, bool limit_to_core0=false)
+    {
+        if (_verbose)
+        {
+            if (limit_to_core0 && core==0 || !limit_to_core0)
+            {
+                std::cout << "[" << core << "]: " << text << std::endl;
+            }
+        }
+    }
+
     rapidjson::Document _get_report_document()
     {
        assert(!_report_filename.empty());  // make sure report_filename is set
@@ -211,10 +223,7 @@ public:
 
     void _report_document_save(rapidjson::Document& document, unsigned core, rapidjson::Value& new_info)
     {
-       if (core == 0)
-       {
-           std::cout << "_report_document_save started" << std::endl;
-       }
+       _debug_print(core, "_report_document_save started");
 
        assert(!_test_name.empty());  // make sure _test_name is set
 
@@ -243,10 +252,7 @@ public:
        std::ofstream outf(_report_filename.c_str());
        outf << strbuf.GetString() << std::endl;
 
-       if (core == 0)
-       {
-           std::cout << "_report_document_save finished" << std::endl;
-       }
+       _debug_print(core, "_report_document_save finished");
     }
 
     rapidjson::Value _add_statistics_to_report(std::string name, BinStatistics& stats, rapidjson::Document& document)
@@ -439,9 +445,11 @@ public:
         unsigned long maximum_elements = -1;
         _pool_element_start = current;
       
-        if (core == 0)
+        if (_verbose)
         { 
-            std::cout << "current = " << current << ", end = " << _pool_element_end << std::endl;
+            std::stringstream debug_start;
+            debug_start << "current = " << current << ", end = " << _pool_element_end;
+            _debug_print(core, debug_start.str());
         }
 
         do
@@ -458,9 +466,12 @@ public:
             if (_element_size == -1)
             {
                 _element_size = GetElementSize(core, current);
-                if (core == 0)
+
+                if (_verbose)
                 {
-                    std::cout << "element size is " << _element_size << std::endl;
+                    std::stringstream debug_element_size;
+                    debug_element_size << "element size is " << _element_size;
+                    _debug_print(core, debug_element_size.str());
                 }
             }
 
@@ -468,9 +479,11 @@ public:
             {
                 maximum_elements = (unsigned long)(_pool_size / _element_size);
 
-                if (core == 0)
+                if (_verbose)
                 {
-                    std::cout << "maximum element count: " << maximum_elements << std::endl;
+                    std::stringstream debug_element_max;
+                    debug_element_max << "maximum element count: " << maximum_elements;
+                    _debug_print(core, debug_element_max.str());
                 }
             }
 
@@ -483,27 +496,28 @@ public:
 
             if (!can_add_more_elements)
             {
-                if (!can_add_more_in_batch && core == 0)
+                if (!can_add_more_in_batch)
                 {
-                    std::cout << "reached capacity" << std::endl;
+                    _debug_print(core, "reached capacity", true);
                 }
 
-                if (!can_add_more_overall && core == 0)
+                if (!can_add_more_overall)
                 {
-                    std::cout << "reached last element" << std::endl;
+                    _debug_print(core, "reached last element", true);
                 }
             }
         }
         while(can_add_more_elements);
 
-        if (core == 0)
+        if (_verbose)
         {
-            std::cout << "current = " << current << ", end = " << _pool_element_end << std::endl;
-        }
+            std::stringstream range_info;
+            range_info << "current = " << current << ", end = " << _pool_element_end;
+            _debug_print(core, range_info.str(), true);
 
-        if (core == 0)
-        {
-            std::cout << "elements added to pool: " << current - _pool_element_end << ". Last = " << current << std::endl;
+            range_info = std::stringstream();
+            range_info << "elements added to pool: " << current - _pool_element_end << ". Last = " << current;
+            _debug_print(core, range_info.str(), true);
         }
         _pool_element_end = current;
     }
@@ -518,9 +532,12 @@ public:
         // erase elements that exceed pool capacity and start again
         if ((_elements_in_use * _element_size) >= _pool_size)
         {
-            if(core == 0)
+            if(_verbose)
             {
-                std::cout << "exceeded acceptable pool size. Erasing " << _elements_in_use << " elements...";
+                std::stringstream debug_message;
+                debug_message << "exceeded acceptable pool size. Erasing " << _elements_in_use << " elements...";
+
+                _debug_print(core, debug_message.str(), true);
             }
 
             for (int i = _i - 1; i > (_i - _elements_in_use); i--)
@@ -538,9 +555,12 @@ public:
 
             _elements_in_use = 0;   
 
-            if (core == 0)
+            if (_verbose)
             {
-                std::cout << " done." << std::endl;
+                std::stringstream debug_end;
+                debug_end << "done. _i = " << _i;
+
+                _debug_print(core, debug_end.str(), true);
             }
         }
     }
@@ -566,6 +586,7 @@ public:
     bool                                  _first_iter = true;
     bool                                  _ready = false;
     std::chrono::system_clock::time_point _start, _end;
+    bool _verbose = true;
 
     // member variables for tracking pool sizes
     unsigned long _element_size = -1;

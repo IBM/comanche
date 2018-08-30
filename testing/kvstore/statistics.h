@@ -120,6 +120,20 @@ public:
 
     void init(int bins, double threshold_min, double threshold_max)
     {
+        if (bins < 0)
+        {
+            perror("BinStatistics.init: bins can't be negative");
+        }
+        else if (bins == 0)
+        {
+            perror("BinStatistics.init: bin count should be at least 1");
+        }
+
+        if (threshold_min > threshold_max)
+        {
+            perror("BinStatistics.init: threshold_min should be larger than threshold_max");
+        }
+
         _bin_count = bins;
         _min = threshold_min;
         _max = threshold_max;
@@ -170,6 +184,10 @@ private:
         if (bin >= (_bin_count - 1))
         {
             bin = _bin_count - 1;
+        }
+        else if(bin < 0)
+        {
+            bin = 0;
         }
 
         return bin;

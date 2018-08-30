@@ -19,14 +19,17 @@ class ExperimentGetLatency : public Experiment
 public:
     float _cycles_per_second;  // initialized in do_work first run
     std::vector<double> _start_time;
-    unsigned int _start_rdtsc;
+    double _start_rdtsc;
     BinStatistics _latency_stats;
 
     ExperimentGetLatency(struct ProgramOptions options): Experiment(options)
     {
         _test_name = "get_latency";
 
-        assert(options.store); 
+        if (!options.store)
+        {
+            perror("ExperimentGetLatency passed invalid store");
+        }
     }
 
     void initialize_custom(unsigned core)
@@ -36,6 +39,7 @@ public:
 
         // seed the pool with elements from _data
         _populate_pool_to_capacity(core);
+        
         PLOG("pool seeded with values\n");
 
         _latency_stats.init(_bin_count, _bin_threshold_min, _bin_threshold_max);
@@ -46,7 +50,7 @@ public:
         // handle first time setup
         if(_first_iter) 
         {
-            PLOG("Starting Put Latency experiment...");
+            PLOG("Starting Get Latency experiment...");
 
             _first_iter = false;
             _start_rdtsc = rdtsc();
@@ -75,9 +79,13 @@ public:
         unsigned int cycles_since_start = end - _start_rdtsc;
         double time_since_start = (cycles_since_start / _cycles_per_second);
 
-        free(pval);
+        if (pval != nullptr)
+        {
+            free(pval);
+        }
 
         // store the information for later use
+        _latency_stats.update(time);
         _start_time.at(_i) = time_since_start;
 
         assert(rc == S_OK);
@@ -87,7 +95,14 @@ public:
        if (_i == _pool_element_end)
        {
             _erase_pool_entries_in_range(_pool_element_start, _pool_element_end);
-           _populate_pool_to_capacity(core); 
+           _populate_pool_to_capacity(core);
+
+           if (_verbose)
+           {
+              std::stringstream debug_message;
+              debug_message << "pool repopulated: " << _i;
+              _debug_print(core, debug_message.str());
+           }
        }
     }
 
@@ -114,7 +129,6 @@ public:
        _report_document_save(document, core, experiment_object);
 
        pthread_mutex_unlock(&g_write_lock);
-
     }
 };
 
