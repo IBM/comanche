@@ -44,26 +44,42 @@ public:
   ~Fabric_connection_server();
   /* BEGIN IFabric_op_control */
   /*
-   * @throw fabric_runtime_error : std::runtime_error - cq_sread unhandled error
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
    * @throw std::logic_error - called on closed connection
    */
-  std::size_t poll_completions(Component::IFabric_op_completer::complete_old completion_callback) override
+  std::size_t poll_completions(const Component::IFabric_op_completer::complete_old &completion_callback) override
   {
     return Fabric_op_control::poll_completions(completion_callback);
   }
   /*
-   * @throw fabric_runtime_error : std::runtime_error - cq_sread unhandled error
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
    * @throw std::logic_error - called on closed connection
    */
-  std::size_t poll_completions(Component::IFabric_op_completer::complete_definite completion_callback) override
+  std::size_t poll_completions(const Component::IFabric_op_completer::complete_param_definite &completion_callback, void *callback_param) override
+  {
+    return Fabric_op_control::poll_completions(completion_callback, callback_param);
+  }
+  /*
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
+   * @throw std::logic_error - called on closed connection
+   */
+  std::size_t poll_completions_tentative(const Component::IFabric_op_completer::complete_param_tentative &completion_callback, void *callback_param) override
+  {
+    return Fabric_op_control::poll_completions_tentative(completion_callback, callback_param);
+  }
+  /*
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
+   * @throw std::logic_error - called on closed connection
+   */
+  std::size_t poll_completions(const Component::IFabric_op_completer::complete_definite &completion_callback) override
   {
     return Fabric_op_control::poll_completions(completion_callback);
   }
   /*
-   * @throw fabric_runtime_error : std::runtime_error - cq_sread unhandled error
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
    * @throw std::logic_error - called on closed connection
    */
-  std::size_t poll_completions_tentative(Component::IFabric_op_completer::complete_tentative completion_callback) override
+  std::size_t poll_completions_tentative(const Component::IFabric_op_completer::complete_tentative &completion_callback) override
   {
     return Fabric_op_control::poll_completions_tentative(completion_callback);
   }
@@ -100,6 +116,9 @@ public:
   std::uint64_t get_memory_remote_key(
     const memory_region_t memory_region
   ) const noexcept override { return Fabric_memory_control::get_memory_remote_key(memory_region); }
+  void *get_memory_descriptor(
+    const memory_region_t memory_region
+  ) const noexcept override { return Fabric_memory_control::get_memory_descriptor(memory_region); }
   std::string get_peer_addr() override { return Fabric_op_control::get_peer_addr(); }
   std::string get_local_addr() override { return Fabric_op_control::get_local_addr(); }
 };

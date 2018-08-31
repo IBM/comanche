@@ -35,7 +35,7 @@ Fabric_client_grouped::Fabric_client_grouped(
     , std::uint16_t control_port_
 )
   : Fabric_connection_client(fabric_, ep_, info_, remote_, control_port_)
-  , _g(*this)
+  , _g(*this, this->rxcq(), this->txcq())
 {
 }
 

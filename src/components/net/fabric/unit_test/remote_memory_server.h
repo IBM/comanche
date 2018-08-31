@@ -26,15 +26,25 @@ class remote_memory_server
   std::shared_ptr<Component::IFabric_server_factory> _ep;
   std::thread _th;
 
-  void listener(Component::IFabric_server_factory &ep, std::uint64_t remote_key_index);
+  void listener(
+    Component::IFabric_server_factory &ep
+    , std::size_t memory_size
+    , std::uint64_t remote_key_index
+  );
 
-  void listener_counted(Component::IFabric_server_factory &ep, std::uint64_t remote_key_index, unsigned cnxn_count);
+  void listener_counted(
+    Component::IFabric_server_factory &ep
+    , std::uint64_t remote_key_index
+    , std::size_t memory_size
+    , unsigned cnxn_count
+  );
 public:
   remote_memory_server(
     Component::IFabric &fabric
     , const std::string &fabric_spec
     , std::uint16_t control_port
     , const char *
+    , std::size_t memory_size
     , std::uint64_t remote_key_base
   );
   remote_memory_server(
@@ -42,6 +52,7 @@ public:
     , const std::string &fabric_spec
     , std::uint16_t control_port
     , const char *
+    , std::size_t memory_size
     , std::uint64_t remote_key_base
     , unsigned cnxn_limit
   );

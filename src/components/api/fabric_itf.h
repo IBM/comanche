@@ -114,22 +114,34 @@ public:
   using complete_old = std::function<void(void *context, ::status_t) noexcept>;
   using complete_definite = std::function<void(void *context, ::status_t, std::uint64_t completion_flags, std::size_t len, void *error_data) noexcept>;
   using complete_tentative = std::function<cb_acceptance(void *context, ::status_t, std::uint64_t completion_flags, std::size_t len, void *error_data) noexcept>;
+  using complete_param_definite = std::function<void(void *context, ::status_t, std::uint64_t completion_flags, std::size_t len, void *error_data, void *param) noexcept>;
+  using complete_param_tentative = std::function<cb_acceptance(void *context, ::status_t, std::uint64_t completion_flags, std::size_t len, void *error_data, void *param) noexcept>;
 
   /**
-   * @throw IFabric_runtime_error - cq_sread unhandled error
+   * @throw IFabric_runtime_error - cq_read unhandled error
    * @throw std::logic_error - called on closed connection
    */
-  virtual std::size_t poll_completions(complete_old completion_callback) = 0;
+  virtual std::size_t poll_completions(const complete_old &completion_callback) = 0;
   /**
-   * @throw IFabric_runtime_error - cq_sread unhandled error
+   * @throw IFabric_runtime_error - cq_read unhandled error
    * @throw std::logic_error - called on closed connection
    */
-  virtual std::size_t poll_completions(complete_definite completion_callback) = 0;
+  virtual std::size_t poll_completions(const complete_definite &completion_callback) = 0;
   /**
-   * @throw IFabric_runtime_error - cq_sread unhandled error
+   * @throw IFabric_runtime_error - cq_read unhandled error
    * @throw std::logic_error - called on closed connection
    */
-  virtual std::size_t poll_completions_tentative(complete_tentative completion_callback) = 0;
+  virtual std::size_t poll_completions_tentative(const complete_tentative &completion_callback) = 0;
+  /**
+   * @throw IFabric_runtime_error - cq_read unhandled error
+   * @throw std::logic_error - called on closed connection
+   */
+  virtual std::size_t poll_completions(const complete_param_definite &completion_callback, void *callback_param) = 0;
+  /**
+   * @throw IFabric_runtime_error - cq_read unhandled error
+   * @throw std::logic_error - called on closed connection
+   */
+  virtual std::size_t poll_completions_tentative(const complete_param_tentative &completion_callback, void *callback_param) = 0;
 
   /**
    * Get count of stalled completions.
@@ -192,8 +204,8 @@ public:
    *
    * @throw IFabric_runtime_error std::runtime_error - ::fi_sendv fail
    */
-
-  virtual void post_send(const std::vector<iovec>& buffers, void *context) = 0;
+  virtual void post_send(const ::iovec *first, const ::iovec *last, void **descriptors, void *context) = 0;
+  virtual void post_send(const std::vector<::iovec>& buffers, void *context) = 0;
 
   /**
    * Asynchronously post a buffer to receive data
@@ -204,7 +216,8 @@ public:
    *
    * @throw IFabric_runtime_error - ::fi_recvv fail
    */
-  virtual void post_recv(const std::vector<iovec>& buffers, void *context) = 0;
+  virtual void post_recv(const ::iovec *first, const ::iovec *last, void **descriptors, void *context) = 0;
+  virtual void post_recv(const std::vector<::iovec>& buffers, void *context) = 0;
 
   /**
    * Post RDMA read operation
@@ -217,7 +230,13 @@ public:
    * @throw IFabric_runtime_error - ::fi_readv fail
    *
    */
-  virtual void post_read(const std::vector<iovec>& buffers,
+  virtual void post_read(const ::iovec *first,
+                         const ::iovec *last,
+                         void **descriptors,
+                         std::uint64_t remote_addr,
+                         std::uint64_t key,
+                         void *context) = 0;
+  virtual void post_read(const std::vector<::iovec>& buffers,
                          std::uint64_t remote_addr,
                          std::uint64_t key,
                          void *context) = 0;
@@ -233,7 +252,13 @@ public:
    * @throw IFabric_runtime_error - ::fi_writev fail
    *
    */
-  virtual void post_write(const std::vector<iovec>& buffers,
+  virtual void post_write(const ::iovec *first,
+                          const ::iovec *last,
+                          void **descriptors,
+                          std::uint64_t remote_addr,
+                          std::uint64_t key,
+                          void *context) = 0;
+  virtual void post_write(const std::vector<::iovec>& buffers,
                           std::uint64_t remote_addr,
                           std::uint64_t key,
                           void *context) = 0;
@@ -246,7 +271,8 @@ public:
    *
    * @throw IFabric_runtime_error - ::fi_inject fail
    */
-  virtual void inject_send(const std::vector<iovec>& buffers) = 0;
+  virtual void inject_send(const ::iovec *first, const ::iovec *last) = 0;
+  virtual void inject_send(const std::vector<::iovec>& buffers) = 0;
 
   /* Additional TODO:
      - support for atomic RMA operations
@@ -295,6 +321,7 @@ public:
   virtual void deregister_memory(memory_region_t memory_region) = 0;
 
   virtual std::uint64_t get_memory_remote_key(memory_region_t) const noexcept = 0;
+  virtual void *get_memory_descriptor(memory_region_t) const noexcept = 0;
 
   /**
    * Get address of connected peer (taken from fi_getpeer during

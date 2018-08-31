@@ -82,9 +82,11 @@ public:
    */
   void deregister_memory(const memory_region_t memory_region) override;
   std::uint64_t get_memory_remote_key(const memory_region_t memory_region) const noexcept override;
+  void *get_memory_descriptor(const memory_region_t memory_region) const noexcept override;
   /* END Component::IFabric_connection */
 
-  std::vector<void *> populated_desc(const std::vector<iovec> & buffers);
+  std::vector<void *> populated_desc(const std::vector<::iovec> & buffers);
+  std::vector<void *> populated_desc(const ::iovec *first, const ::iovec *last);
 };
 
 #endif

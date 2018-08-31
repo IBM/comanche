@@ -35,6 +35,7 @@
  * 
  */
 #include <common/logging.h>
+#include <common/utils.h>
 #include <common/exceptions.h>
 #include "rdma_helper.h"
 
@@ -199,6 +200,7 @@ struct channel_dest *channel_client_exch_dest(const char *servername,
   wire_gid_to_gid(gid, &rem_dest->gid);
 
  out:
+  PLOG("closing TCP exchange socket.");
   close(sockfd);
   return rem_dest;
 }
@@ -355,6 +357,9 @@ struct channel_context *channel_init_ctx(struct ibv_device *ib_dev,
       PERR("  Max inline-receive(%d) < Requested inline-receive(%d).\n",
 	   dattr.inline_recv_sz, inlr_recv);
     }
+
+    PLOG("Max QP: %d", dattr.max_qp);
+    PLOG("Max QP WR: %d", dattr.max_qp_wr);
   }
   ctx->inlr_recv = inlr_recv;
 
@@ -644,7 +649,7 @@ int channel_post_send(struct channel_context *ctx,
     seg.addr = (uintptr_t) mr0->addr;
     seg.length = mr0->length;
     seg.lkey = mr0->lkey;
-    
+
     struct ibv_send_wr wr = {0};
     wr.wr_id = issue_id;
     wr.sg_list = &seg;

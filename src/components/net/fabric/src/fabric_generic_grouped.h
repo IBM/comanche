@@ -19,34 +19,41 @@
 
 #include <api/fabric_itf.h> /* Component::IFabric_active_endpoint_grouped */
 
+#include "fabric_cq_generic_grouped.h"
 #include "fabric_types.h" /* addr_ep_t */
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
-#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-#pragma GCC diagnostic ignored "-Wshadow"
-#include <rdma/fi_domain.h> /* f1_cq_err_entry */
-#pragma GCC diagnostic pop
 
 #include <unistd.h> /* ssize_t */
 
 #include <cstdint> /* uint{32,64}_t */
 #include <mutex>
 #include <set>
-#include <vector>
 
-struct fi_cq_err_entry;
-struct fi_cq_tagged_entry;
 class Fabric_comm_grouped;
 class Fabric_op_control;
+class Fabric_cq;
 
 class Fabric_generic_grouped
   : public Component::IFabric_active_endpoint_grouped
 {
+  /* All communicators in a group share this "generic group."
+   * Communicators need to serialize the items owned by the group:
+   *  - the connection (except its completion queues),
+   *  - the rx and tx completions queues (within the connection), and
+   *  - the set of communicators
+   */
+  std::mutex _m_cnxn;
   Fabric_op_control &_cnxn;
+
+  std::mutex _m_rxcq;
+  Fabric_cq_generic_grouped _rxcq;
+
+  std::mutex _m_txcq;
+  Fabric_cq_generic_grouped _txcq;
+
   std::mutex _m_comms;
   std::set<Fabric_comm_grouped *> _comms;
 
+public:
   /* Begin Component::IFabric_active_endpoint_grouped (IFabric_connection) */
   /**
    * @throw std::range_error - address already registered
@@ -68,41 +75,52 @@ class Fabric_generic_grouped
   std::uint64_t get_memory_remote_key(
     const memory_region_t memory_region
   ) const noexcept override;
+  void *get_memory_descriptor(
+    const memory_region_t memory_region
+  ) const noexcept override;
 
   std::string get_peer_addr() override;
   std::string get_local_addr() override;
-public:
+
   std::size_t max_message_size() const noexcept override;
   /* END Component::IFabric_active_endpoint_grouped (IFabric_connection) */
 
-public:
   Component::IFabric_communicator *allocate_group() override;
-private:
-  Fabric_op_control &cnxn() const noexcept { return _cnxn; }
 
-public:
   explicit Fabric_generic_grouped(
     Fabric_op_control &cnxn
+    , Fabric_cq &rxcq
+    , Fabric_cq &txcq
   );
 
   ~Fabric_generic_grouped();
 
   /* BEGIN IFabric_active_endpoint_grouped (IFabric_op_completer) */
   /*
-   * @throw fabric_runtime_error : std::runtime_error - cq_sread unhandled error
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
    * @throw std::logic_error - called on closed connection
    */
-  std::size_t poll_completions(Component::IFabric_op_completer::complete_old callback) override;
+  std::size_t poll_completions(const Component::IFabric_op_completer::complete_old &callback) override;
   /*
-   * @throw fabric_runtime_error : std::runtime_error - cq_sread unhandled error
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
    * @throw std::logic_error - called on closed connection
    */
-  std::size_t poll_completions(Component::IFabric_op_completer::complete_definite callback) override;
+  std::size_t poll_completions(const Component::IFabric_op_completer::complete_definite &callback) override;
   /*
-   * @throw fabric_runtime_error : std::runtime_error - cq_sread unhandled error
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
    * @throw std::logic_error - called on closed connection
    */
-  std::size_t poll_completions_tentative(Component::IFabric_op_completer::complete_tentative completion_callback) override;
+  std::size_t poll_completions_tentative(const Component::IFabric_op_completer::complete_tentative &completion_callback) override;
+  /*
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
+   * @throw std::logic_error - called on closed connection
+   */
+  std::size_t poll_completions(const Component::IFabric_op_completer::complete_param_definite &callback, void *callback_param) override;
+  /*
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
+   * @throw std::logic_error - called on closed connection
+   */
+  std::size_t poll_completions_tentative(const Component::IFabric_op_completer::complete_param_tentative &completion_callback, void *callback_param) override;
   std::size_t stalled_completion_count() override;
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_control fail
@@ -120,43 +138,57 @@ public:
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_sendv fail
    */
-  void  post_send(const std::vector<iovec>& buffers, void *context);
+  void post_send(const ::iovec *first, const ::iovec *last, void **desc, void *context);
+  void post_send(const ::iovec *first, const ::iovec *last, void *context);
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_recvv fail
    */
-  void  post_recv(const std::vector<iovec>& buffers, void *context);
+  void post_recv(const ::iovec *first, const ::iovec *last, void **desc, void *context);
+  void post_recv(const ::iovec *first, const ::iovec *last, void *context);
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_readv fail
    */
   void post_read(
-    const std::vector<iovec>& buffers,
-    std::uint64_t remote_addr,
-    std::uint64_t key,
-    void *context);
+    const ::iovec *first
+    , const ::iovec *last
+    , void **desc
+    , std::uint64_t remote_addr
+    , std::uint64_t key
+    , void *context
+  );
+  void post_read(
+    const ::iovec *first
+    , const ::iovec *last
+    , std::uint64_t remote_addr
+    , std::uint64_t key
+    , void *context
+  );
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_writev fail
    */
   void post_write(
-    const std::vector<iovec>& buffers,
-    std::uint64_t remote_addr,
-    std::uint64_t key,
-    void *context);
+    const ::iovec *first
+    , const ::iovec *last
+    , void **desc
+    , std::uint64_t remote_addr
+    , std::uint64_t key
+    , void *context
+  );
+  void post_write(
+    const ::iovec *first
+    , const ::iovec *last
+    , std::uint64_t remote_addr
+    , std::uint64_t key
+    , void *context
+  );
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_inject fail
    */
-  void inject_send(const std::vector<iovec>& buffers);
+  void inject_send(const ::iovec *first, const ::iovec *last);
 
   fabric_types::addr_ep_t get_name() const;
 
   void forget_group(Fabric_comm_grouped *);
-
-  /*
-   * @throw fabric_runtime_error : std::runtime_error : ::fi_cq_readerr fail
-   */
-  ::fi_cq_err_entry get_cq_comp_err() const;
-  ssize_t cq_sread(void *buf, std::size_t count, const void *cond, int timeout) noexcept;
-  ssize_t cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) const noexcept;
-  void queue_completion(Fabric_comm_grouped *comm, void *context, ::status_t status, const ::fi_cq_tagged_entry &cq_entry);
 };
 
 #endif

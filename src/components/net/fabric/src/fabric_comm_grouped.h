@@ -19,6 +19,7 @@
 
 #include <api/fabric_itf.h> /* Component::IFabric_communicator */
 
+#include "fabric_cq_grouped.h"
 #include "fabric_types.h" /* addr_ep_t */
 
 #include <cstddef> /* size_t */
@@ -28,43 +29,48 @@
 
 class Fabric_generic_grouped;
 class async_req_record;
-struct fi_cq_tagged_entry;
 
 class Fabric_comm_grouped
   : public Component::IFabric_communicator
 {
   Fabric_generic_grouped &_conn;
-  using completion_t = std::tuple<::fi_cq_tagged_entry, ::status_t>;
-  /* completions for this comm processed but not yet forwarded, or processed and forwarded but deferred with DEFER status */
-  std::mutex _m_completions;
-  std::queue<completion_t> _completions;
+  Fabric_cq_grouped _rx;
+  Fabric_cq_grouped _tx;
 
-  std::size_t process_cq_comp_err(Component::IFabric_op_completer::complete_old completion_callback);
-  std::size_t process_cq_comp_err(Component::IFabric_op_completer::complete_definite completion_callback);
-  std::size_t process_cq_comp_err(Component::IFabric_op_completer::complete_tentative completion_callback);
-  std::size_t process_or_queue_completion(const ::fi_cq_tagged_entry &cq_entry, Component::IFabric_op_completer::complete_old cb, ::status_t status);
-  std::size_t process_or_queue_completion(const ::fi_cq_tagged_entry &cq_entry, Component::IFabric_op_completer::complete_definite cb, ::status_t status);
-  std::size_t process_or_queue_completion(const ::fi_cq_tagged_entry &cq_entry, Component::IFabric_op_completer::complete_tentative cb, ::status_t status);
 public:
-  explicit Fabric_comm_grouped(Fabric_generic_grouped &);
+  explicit Fabric_comm_grouped(Fabric_generic_grouped &conn, Fabric_cq_generic_grouped &rx, Fabric_cq_generic_grouped &tx);
   ~Fabric_comm_grouped(); /* Note: need to notify the polling thread that this connection is going away, */
+
+  /* exposed so that the upper layer group cq coordinator can index them while the group exists */
+  Fabric_cq_grouped &rx() { return _rx; }
+  Fabric_cq_grouped &tx() { return _tx; }
 
   /* BEGIN Component::IFabric_communicator */
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_sendv fail
    */
-  void post_send(const std::vector<iovec>& buffers, void *context) override;
+  void post_send(const ::iovec *first, const ::iovec *last, void **desc, void *context) override;
+  void post_send(const std::vector<::iovec>& buffers, void *context) override;
 
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_recvv fail
    */
-  void post_recv(const std::vector<iovec>& buffers, void *context) override;
+  void post_recv(const ::iovec *first, const ::iovec *last, void **desc, void *context) override;
+  void post_recv(const std::vector<::iovec>& buffers, void *context) override;
 
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_readv fail
    */
   void post_read(
-    const std::vector<iovec>& buffers
+    const ::iovec *first
+    , const ::iovec *last
+    , void **desc
+    , std::uint64_t remote_addr
+    , std::uint64_t key
+    , void *context
+  ) override;
+  void post_read(
+    const std::vector<::iovec>& buffers
     , std::uint64_t remote_addr
     , std::uint64_t key
     , void *context
@@ -74,7 +80,15 @@ public:
    * @throw fabric_runtime_error : std::runtime_error : ::fi_writev fail
    */
   void post_write(
-    const std::vector<iovec>& buffers
+    const ::iovec *first
+    , const ::iovec *last
+    , void **desc
+    , std::uint64_t remote_addr
+    , std::uint64_t key
+    , void *context
+  ) override;
+  void post_write(
+    const std::vector<::iovec>& buffers
     , std::uint64_t remote_addr
     , std::uint64_t key
     , void *context
@@ -83,23 +97,34 @@ public:
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_inject fail
    */
-  void inject_send(const std::vector<iovec>& buffers) override;
+  void inject_send(const ::iovec *first, const ::iovec *last) override;
+  void inject_send(const std::vector<::iovec>& buffers) override;
 
   /*
-   * @throw fabric_runtime_error : std::runtime_error - cq_sread unhandled error
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
    * @throw std::logic_error - called on closed connection
    */
-  std::size_t poll_completions(Component::IFabric_op_completer::complete_old completion_callback) override;
+  std::size_t poll_completions(const Component::IFabric_op_completer::complete_old &completion_callback) override;
   /*
-   * @throw fabric_runtime_error : std::runtime_error - cq_sread unhandled error
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
    * @throw std::logic_error - called on closed connection
    */
-  std::size_t poll_completions(Component::IFabric_op_completer::complete_definite completion_callback) override;
+  std::size_t poll_completions(const Component::IFabric_op_completer::complete_definite &completion_callback) override;
   /*
-   * @throw fabric_runtime_error : std::runtime_error - cq_sread unhandled error
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
    * @throw std::logic_error - called on closed connection
    */
-  std::size_t poll_completions_tentative(Component::IFabric_op_completer::complete_tentative completion_callback) override;
+  std::size_t poll_completions_tentative(const Component::IFabric_op_completer::complete_tentative &completion_callback) override;
+  /*
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
+   * @throw std::logic_error - called on closed connection
+   */
+  std::size_t poll_completions(const Component::IFabric_op_completer::complete_param_definite &completion_callback, void *callback_param) override;
+  /*
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
+   * @throw std::logic_error - called on closed connection
+   */
+  std::size_t poll_completions_tentative(const Component::IFabric_op_completer::complete_param_tentative &completion_callback, void *callback_param) override;
 
   std::size_t stalled_completion_count() override;
 
@@ -118,11 +143,6 @@ public:
   /* END Component::IFabric_communicator */
 
   fabric_types::addr_ep_t get_name() const;
-
-  void queue_completion(void *context, ::status_t status, const ::fi_cq_tagged_entry &cq_entry);
-  std::size_t drain_old_completions(Component::IFabric_op_completer::complete_old completion_callback);
-  std::size_t drain_old_completions(Component::IFabric_op_completer::complete_definite completion_callback);
-  std::size_t drain_old_completions(Component::IFabric_op_completer::complete_tentative completion_callback);
 };
 
 #endif
