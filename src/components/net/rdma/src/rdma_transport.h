@@ -125,7 +125,6 @@ public:
       return E_FAIL;
     }
 
-
     /* configure local endpoint */
     _local_endpoint.lid = _ctx->portinfo.lid;
     if (_ctx->portinfo.link_layer != IBV_LINK_LAYER_ETHERNET &&
@@ -166,7 +165,7 @@ public:
       if(_remote_endpoint == NULL) {
         sleep(1);
         retries--;
-        PLOG("retrying channel info exchange");
+        PLOG("retrying channel info exchange over TCP/IP");
       }          
     }
 
@@ -306,10 +305,10 @@ public:
     while((ne = ibv_exp_poll_cq(_ctx->cq, 1, wc, sizeof(wc[0]))) == 0) {
       if(timeout_polls > 0) {
         attempts --;
-        if(attempts == 0) throw General_exception("wait_for_next_completion time out");
+        if(attempts == 0) return 0;
       }
     }
-    
+
     if(wc[0].status != IBV_WC_SUCCESS) {
       throw General_exception("Failed status %s (%d) for wr_id %d",
                               ibv_wc_status_str(wc[0].status),

@@ -96,7 +96,7 @@ public:
   /** 
    * Block and wait for next completion.
    * 
-   * @param polls_limit Maximum number of pollsx
+   * @param polls_limit Maximum number of polls
    * 
    * @return Next completion id
    */
