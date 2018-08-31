@@ -1,3 +1,4 @@
+#include <cerrno>
 #include <fcntl.h>
 #include <iostream>
 #include <set>
@@ -25,6 +26,7 @@ struct Pool_handle
 {
   fs::path     path;
   unsigned int flags;
+  int use_cache = 1;
 
   int put(const std::string& key,
           const void * value,
@@ -64,15 +66,21 @@ int Pool_handle::put(const std::string& key,
   
   int fd = open(full_path.c_str(), O_WRONLY | O_APPEND | O_CREAT, 0644);
   if(fd == -1) {
-    assert(0);
+    //assert(0);
+      std::perror("open in put call returned -1");
     return E_FAIL;
   }
+  
   ssize_t ws = write(fd, value, value_len);
   if(ws != value_len)
     throw General_exception("file write failed, value=%p, len =%lu", value, value_len);
 
   /*Turn on to avoid the effect of file cache*/
-  //fsync(fd);
+  if (!use_cache)
+  {
+    fsync(fd);
+  }
+
   close(fd);
   return S_OK;
 }

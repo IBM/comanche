@@ -70,7 +70,7 @@ protected:
         ASSERT_TRUE(_pool > 0) << "failed create_pool";  // just fail here if pool creation didn't work
     }
 
-    void destroy_pool()
+    virtual void destroy_pool()
     {
         _fact->release_ref();
 
@@ -90,6 +90,16 @@ public:
     PoolTestLarge()
     {
         _pool_size = GB(4);
+    }
+};
+
+// derived PoolTest class with very small size so we can test values that are too large easily
+class PoolTestSmall: public PoolTest
+{
+public:
+    PoolTestSmall()
+    {
+        _pool_size = 1;
     }
 };
 
@@ -392,6 +402,30 @@ TEST_F(PoolTest, PutDirect_DuplicateKey)
     rc = _g_store->put_direct(_pool, key.c_str(), key_length, value.c_str(), value_length);
 
     ASSERT_EQ(rc, IKVStore::E_KEY_EXISTS);
+}
+
+TEST_F(PoolTestSmall, Put_TooLarge)
+{
+    // randomly generate key and value
+    const int key_length = 8;
+    const int value_length = 64;
+    const std::string key = Common::random_string(key_length);
+
+    std::string value = Common::random_string(value_length);
+    status_t rc = _g_store->put(_pool, key, value.c_str(), value_length);
+
+    ASSERT_EQ(rc, S_OK); 
+
+    void * pval;
+    size_t pval_len;
+    
+    rc  = _g_store->get(_pool, key, pval, pval_len);
+    
+    ASSERT_EQ(rc, S_OK);
+    ASSERT_STREQ((const char*)pval, value.c_str());
+    ASSERT_EQ(value_length, pval_len);
+
+    free(pval);
 }
 
 struct {
