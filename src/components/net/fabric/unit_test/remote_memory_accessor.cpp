@@ -31,18 +31,15 @@ void remote_memory_accessor::send_memory_info(Component::IFabric_communicator &c
 
 void remote_memory_accessor::send_msg(Component::IFabric_communicator &cnxn_, registered_memory &rm_, const void *msg_, std::size_t len_)
 {
-  std::vector<::iovec> v;
   std::memcpy(&rm_[0], msg_, len_);
-  ::iovec iv;
-  iv.iov_base = &rm_[0];
-  iv.iov_len = len_;
-  v.emplace_back(iv);
+  std::vector<::iovec> v{{&rm_[0],len_}};
+  std::vector<void *> d{rm_.desc()};
   try
   {
-    cnxn_.post_send(v, this);
+    cnxn_.post_send(&*v.begin(), &*v.end(), &*d.begin(), this);
     ::wait_poll(
       cnxn_
-      , [&v, this] (void *ctxt_, ::status_t stat_) -> void
+      , [&v, this] (void *ctxt_, ::status_t stat_, std::uint64_t, std::size_t, void *) -> void
         {
           EXPECT_EQ(ctxt_, this);
           EXPECT_EQ(stat_, S_OK);

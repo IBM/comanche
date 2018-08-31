@@ -19,7 +19,11 @@ class server_connection_and_memory
   , private boost::noncopyable
 {
 public:
-  server_connection_and_memory(Component::IFabric_server_factory &ep, std::uint64_t remote_key);
+  server_connection_and_memory(
+    Component::IFabric_server_factory &ep
+    , std::size_t memory_size
+    , std::uint64_t remote_key
+  );
   ~server_connection_and_memory();
 };
 

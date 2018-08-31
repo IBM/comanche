@@ -43,6 +43,7 @@
 
 #include <algorithm> /* min */
 #include <chrono> /* milliseconds */
+#include <cstdlib> /* getenv */
 #include <iostream> /* cerr */
 #include <limits> /* <int>::max */
 
@@ -64,8 +65,6 @@ Fabric_op_control::Fabric_op_control(
   : Fabric_memory_control(
       fabric_, info_
   )
-  , _m_completions{}
-  , _completions{}
 #if CAN_USE_WAIT_SETS
   /* verbs provider does not support wait sets */
   , _wait_attr{
@@ -77,11 +76,12 @@ Fabric_op_control::Fabric_op_control(
   , _m_fd_unblock_set{}
   , _fd_unblock_set{}
 #if CAN_USE_WAIT_SETS
-  , _cq_attr{100, 0U, FI_CQ_FORMAT_CONTEXT, FI_WAIT_SET, 0U, FI_CQ_COND_NONE, &*_wait_set}
+  , _cq_attr{100, 0U, Fabric_cq::fi_cq_format, FI_WAIT_SET, 0U, FI_CQ_COND_NONE, &*_wait_set}
 #else
-  , _cq_attr{100, 0U, FI_CQ_FORMAT_CONTEXT, FI_WAIT_FD, 0U, FI_CQ_COND_NONE, nullptr}
+  , _cq_attr{100, 0U, Fabric_cq::fi_cq_format, FI_WAIT_FD, 0U, FI_CQ_COND_NONE, nullptr}
 #endif
-  , _cq(make_fid_cq(_cq_attr, this))
+  , _rxcq(make_fid_cq(_cq_attr, this), "rx")
+  , _txcq(make_fid_cq(_cq_attr, this), "tx")
   , _ep_info(make_fi_infodup(domain_info(), "endpoint construction"))
   , _peer_addr(set_peer_early_(std::move(control_), *_ep_info))
   , _ep(make_fid_aep(*_ep_info, this))
@@ -102,8 +102,9 @@ Fabric_op_control::Fabric_op_control(
 /* ERROR (probably in libfabric verbs): closing an active endpoint prior to fi_ep_bind causes a SEGV,
  * as fi_ibv_msg_ep_close will call fi_ibv_cleanup_cq whether there is CQ state to clean up.
  */
-  CHECK_FI_ERR(fi_ep_bind(&*_ep, &_cq->fid, FI_TRANSMIT | FI_RECV));
-  CHECK_FI_ERR(fi_enable(&*_ep));
+  CHECK_FI_ERR(::fi_ep_bind(&*_ep, _txcq.fid(), FI_TRANSMIT));
+  CHECK_FI_ERR(::fi_ep_bind(&*_ep, _rxcq.fid(), FI_RECV));
+  CHECK_FI_ERR(::fi_enable(&*_ep));
 }
 
 Fabric_op_control::~Fabric_op_control()
@@ -119,21 +120,33 @@ Fabric_op_control::~Fabric_op_control()
  * @return Work (context) identifier
  */
 void Fabric_op_control::post_send(
-  const std::vector<iovec>& buffers_
+  const ::iovec *first_
+  , const ::iovec *last_
+  , void **desc_
   , void *context_
 )
 {
-  auto desc = populated_desc(buffers_);
   CHECK_FI_ERR(
     ::fi_sendv(
       &ep()
-      , &*buffers_.begin()
-      , &*desc.begin()
-      , buffers_.size()
+      , first_
+      , desc_
+      , last_ - first_
       , ::fi_addr_t{}
       , context_
     )
   );
+  _txcq.incr_inflight(__func__);
+}
+
+void Fabric_op_control::post_send(
+  const ::iovec *first_
+  , const ::iovec *last_
+  , void *context_
+)
+{
+  auto desc = populated_desc(first_, last_);
+  post_send(first_, last_, &*desc.begin(), context_);
 }
 
 /**
@@ -145,21 +158,32 @@ void Fabric_op_control::post_send(
  * @return Work (context) identifier
  */
 void Fabric_op_control::post_recv(
-  const std::vector<iovec>& buffers_
+  const ::iovec *first_
+  , const ::iovec *last_
+  , void **desc_
   , void *context_
 )
 {
-  auto desc = populated_desc(buffers_);
   CHECK_FI_ERR(
     ::fi_recvv(
       &ep()
-      , &*buffers_.begin()
-      , &*desc.begin()
-      , buffers_.size()
+      , first_
+      , desc_
+      , last_ - first_
       , ::fi_addr_t{}
       , context_
     )
   );
+  _rxcq.incr_inflight(__func__);
+}
+void Fabric_op_control::post_recv(
+  const ::iovec *first_
+  , const ::iovec *last_
+  , void *context_
+)
+{
+  auto desc = populated_desc(first_, last_);
+  post_recv(first_, last_, &*desc.begin(), context_);
 }
 
   /**
@@ -173,25 +197,39 @@ void Fabric_op_control::post_recv(
    *
    */
 void Fabric_op_control::post_read(
-  const std::vector<iovec>& buffers_
+  const ::iovec *first_
+  , const ::iovec *last_
+  , void **desc_
   , uint64_t remote_addr_
   , uint64_t key_
   , void *context_
 )
 {
-  auto desc = populated_desc(buffers_);
   CHECK_FI_ERR(
     ::fi_readv(
       &ep()
-      , &*buffers_.begin()
-      , &*desc.begin()
-      , buffers_.size()
+      , first_
+      , desc_
+      , last_ - first_
       , ::fi_addr_t{}
       , remote_addr_
       , key_
       , context_
     )
   );
+  _txcq.incr_inflight(__func__);
+}
+
+void Fabric_op_control::post_read(
+  const ::iovec *first_
+  , const ::iovec *last_
+  , uint64_t remote_addr_
+  , uint64_t key_
+  , void *context_
+)
+{
+  auto desc = populated_desc(first_, last_);
+  post_read(first_, last_, &*desc.begin(), remote_addr_, key_, context_);
 }
 
   /**
@@ -205,25 +243,39 @@ void Fabric_op_control::post_read(
    *
    */
 void Fabric_op_control::post_write(
-  const std::vector<iovec>& buffers_
+  const ::iovec *first_
+  , const ::iovec *last_
+  , void **desc_
   , uint64_t remote_addr_
   , uint64_t key_
   , void *context_
 )
 {
-  auto desc = populated_desc(buffers_);
   CHECK_FI_ERR(
     ::fi_writev(
       &ep()
-      , &*buffers_.begin()
-      , &*desc.begin()
-      , buffers_.size()
+      , first_
+      , desc_
+      , last_ - first_
       , ::fi_addr_t{}
       , remote_addr_
       , key_
       , context_
       )
     );
+  _txcq.incr_inflight(__func__);
+}
+
+void Fabric_op_control::post_write(
+  const ::iovec *first_
+  , const ::iovec *last_
+  , uint64_t remote_addr_
+  , uint64_t key_
+  , void *context_
+)
+{
+  auto desc = populated_desc(first_, last_);
+  post_write(first_, last_, &*desc.begin(), remote_addr_, key_, context_);
 }
 
   /**
@@ -232,74 +284,15 @@ void Fabric_op_control::post_write(
    * @param connection Connection to inject on
    * @param buffers Buffer vector (containing regions should be registered)
    */
-void Fabric_op_control::inject_send(const std::vector<iovec>& buffers)
+void Fabric_op_control::inject_send(const ::iovec *first_, const ::iovec *last_)
 {
-  CHECK_FI_ERR(::fi_inject(&ep(), &*buffers.begin(), buffers.size(), ::fi_addr_t{}));
+  CHECK_FI_ERR(::fi_inject(&ep(), first_, last_ - first_, ::fi_addr_t{}));
 }
 
-::fi_cq_err_entry Fabric_op_control::get_cq_comp_err() const
+namespace
 {
-  ::fi_cq_err_entry err{0,0,0,0,0,0,0,0,0,0,0};
-  CHECK_FI_ERR(cq_readerr(&err, 0));
-
-  boost::io::ios_base_all_saver sv(std::cerr);
-  std::cerr << __func__ << " : "
-                  << " op_context " << err.op_context
-                  << std::hex
-                  << " flags " << err.flags
-                  << std::dec
-                  << " len " << err.len
-                  << " buf " << err.buf
-                  << " data " << err.data
-                  << " tag " << err.tag
-                  << " olen " << err.olen
-                  << " err " << err.err
-                  << " (text) " << ::fi_strerror(err.err)
-                  << " prov_errno " << err.prov_errno
-                  << " err_data " << err.err_data
-                  << " err_data_size " << err.err_data_size
-                  << " (text) " << ::fi_cq_strerror(&*_cq, err.prov_errno, err.err_data, nullptr, 0U)
-        << std::endl;
-  return err;
+  std::size_t constexpr ct_max = 16;
 }
-
-std::size_t Fabric_op_control::process_or_queue_completion(const ::fi_cq_tagged_entry &cq_entry_, Component::IFabric_op_completer::complete_tentative cb_, ::status_t status_)
-{
-  std::size_t ct_total = 0U;
-  if ( cb_(cq_entry_.op_context, status_, cq_entry_.flags, cq_entry_.len, nullptr) == cb_acceptance::ACCEPT )
-  {
-    ++ct_total;
-  }
-  else
-  {
-    queue_completion(cq_entry_, status_);
-  }
-
-  return ct_total;
-}
-
-std::size_t Fabric_op_control::process_cq_comp_err(Component::IFabric_op_completer::complete_old cb_)
-{
-  const auto cq_entry = get_cq_comp_err();
-  cb_(cq_entry.op_context, E_FAIL);
-  return 1U;
-}
-
-std::size_t Fabric_op_control::process_cq_comp_err(Component::IFabric_op_completer::complete_definite cb_)
-{
-  const auto cq_entry = get_cq_comp_err();
-  cb_(cq_entry.op_context, E_FAIL, cq_entry.flags, cq_entry.len, nullptr);
-  return 1U;
-}
-
-#include <iostream>
-std::size_t Fabric_op_control::process_or_queue_cq_comp_err(Component::IFabric_op_completer::complete_tentative cb_)
-{
-  const auto e = get_cq_comp_err();
-  const ::fi_cq_tagged_entry err_entry{e.op_context, e.flags, e.len, e.buf, e.data, e.tag};
-  return process_or_queue_completion(err_entry, cb_, E_FAIL);
-}
-
 /**
  * Poll completions (e.g., completions)
  *
@@ -308,38 +301,12 @@ std::size_t Fabric_op_control::process_or_queue_cq_comp_err(Component::IFabric_o
  * @return Number of completions processed
  */
 
-std::size_t Fabric_op_control::poll_completions(Component::IFabric_op_completer::complete_old cb_)
+std::size_t Fabric_op_control::poll_completions(const Component::IFabric_op_completer::complete_old &cb_)
 {
-  std::size_t constexpr ct_max = 1;
   std::size_t ct_total = 0;
-  ::fi_cq_tagged_entry entry; /* We dont actually expect a tagged entry. Spefifying this to provide the largest buffer. */
-  bool drained = false;
-  while ( ! drained )
-  {
-    auto timeout = 0; /* immediate timeout */
-    auto ct = cq_sread(&entry, ct_max, nullptr, timeout);
-    if ( ct < 0 )
-    {
-      switch ( auto e = unsigned(-ct) )
-      {
-      case FI_EAVAIL:
-        ct_total += process_cq_comp_err(cb_);
-        break;
-      case FI_EAGAIN:
-        drained = true;
-        break;
-      default:
-        throw fabric_runtime_error(e, __FILE__, __LINE__);
-      }
-    }
-    else
-    {
-      cb_(entry.op_context, S_OK);
-      ++ct_total;
-    }
-  }
 
-  ct_total += drain_old_completions(cb_);
+  ct_total += _rxcq.poll_completions(cb_);
+  ct_total += _txcq.poll_completions(cb_);
 
   if ( _shut_down && ct_total == 0 )
   {
@@ -348,38 +315,12 @@ std::size_t Fabric_op_control::poll_completions(Component::IFabric_op_completer:
   return ct_total;
 }
 
-std::size_t Fabric_op_control::poll_completions(Component::IFabric_op_completer::complete_definite cb_)
+std::size_t Fabric_op_control::poll_completions(const Component::IFabric_op_completer::complete_definite &cb_)
 {
-  std::size_t constexpr ct_max = 1;
   std::size_t ct_total = 0;
-  ::fi_cq_tagged_entry entry; /* We dont actually expect a tagged entry. Spefifying this to provide the largest buffer. */
-  bool drained = false;
-  while ( ! drained )
-  {
-    auto timeout = 0; /* immediate timeout */
-    auto ct = cq_sread(&entry, ct_max, nullptr, timeout);
-    if ( ct < 0 )
-    {
-      switch ( auto e = unsigned(-ct) )
-      {
-      case FI_EAVAIL:
-        ct_total += process_cq_comp_err(cb_);
-        break;
-      case FI_EAGAIN:
-        drained = true;
-        break;
-      default:
-        throw fabric_runtime_error(e, __FILE__, __LINE__);
-      }
-    }
-    else
-    {
-      cb_(entry.op_context, S_OK, entry.flags, entry.len, nullptr);
-      ++ct_total;
-    }
-  }
 
-  ct_total += drain_old_completions(cb_);
+  ct_total += _rxcq.poll_completions(cb_);
+  ct_total += _txcq.poll_completions(cb_);
 
   if ( _shut_down && ct_total == 0 )
   {
@@ -388,37 +329,40 @@ std::size_t Fabric_op_control::poll_completions(Component::IFabric_op_completer:
   return ct_total;
 }
 
-std::size_t Fabric_op_control::poll_completions_tentative(Component::IFabric_op_completer::complete_tentative cb_)
+std::size_t Fabric_op_control::poll_completions_tentative(const Component::IFabric_op_completer::complete_tentative &cb_)
 {
-  std::size_t constexpr ct_max = 1;
   std::size_t ct_total = 0;
-  ::fi_cq_tagged_entry entry; /* We dont actually expect a tagged entry. Specifying this to provide the largest buffer. */
-  bool drained = false;
-  while ( ! drained )
-  {
-    auto timeout = 0; /* immediate timeout */
-    auto ct = cq_sread(&entry, ct_max, nullptr, timeout);
-    if ( ct < 0 )
-    {
-      switch ( auto e = unsigned(-ct) )
-      {
-      case FI_EAVAIL:
-        ct_total += process_or_queue_cq_comp_err(cb_);
-        break;
-      case FI_EAGAIN:
-        drained = true;
-        break;
-      default:
-        throw fabric_runtime_error(e, __FILE__, __LINE__);
-      }
-    }
-    else
-    {
-      ct_total += process_or_queue_completion(entry, cb_, S_OK);
-    }
-  }
 
-  ct_total += drain_old_completions(cb_);
+  ct_total += _rxcq.poll_completions_tentative(cb_);
+  ct_total += _txcq.poll_completions_tentative(cb_);
+
+  if ( _shut_down && ct_total == 0 )
+  {
+    throw std::logic_error(__func__ + std::string(": Connection closed"));
+  }
+  return ct_total;
+}
+
+std::size_t Fabric_op_control::poll_completions(const Component::IFabric_op_completer::complete_param_definite &cb_, void *cb_param_)
+{
+  std::size_t ct_total = 0;
+
+  ct_total += _rxcq.poll_completions(cb_, cb_param_);
+  ct_total += _txcq.poll_completions(cb_, cb_param_);
+
+  if ( _shut_down && ct_total == 0 )
+  {
+    throw std::logic_error(__func__ + std::string(": Connection closed"));
+  }
+  return ct_total;
+}
+
+std::size_t Fabric_op_control::poll_completions_tentative(const Component::IFabric_op_completer::complete_param_tentative &cb_, void *cb_param_)
+{
+  std::size_t ct_total = 0;
+
+  ct_total += _rxcq.poll_completions_tentative(cb_, cb_param_);
+  ct_total += _txcq.poll_completions_tentative(cb_, cb_param_);
 
   if ( _shut_down && ct_total == 0 )
   {
@@ -446,27 +390,40 @@ void Fabric_op_control::wait_for_next_completion(std::chrono::milliseconds timeo
 #if USE_WAIT_SETS
     ::fi_wait(&*_wait_set, std::min(std::numeric_limits<int>::max(), int(timeout.count())));
 #else
-    ::fid_t f[1] = { &_cq->fid };
-    if ( fabric().trywait(f, 1) == FI_SUCCESS )
+    static constexpr unsigned cq_count = 2;
+    ::fid_t f[cq_count] = { _rxcq.fid(), _txcq.fid() };
+    /* if fabric is in a state in which it can wait on the cqs ... */
+    if ( fabric().trywait(f, cq_count) == FI_SUCCESS )
     {
-      int fd;
-      CHECK_FI_ERR(::fi_control(&_cq->fid, FI_GETWAIT, &fd));
+      /* Wait sets: libfabric may notify any of read, write, except */
       fd_set fds_read;
       fd_set fds_write;
       fd_set fds_except;
       FD_ZERO(&fds_read);
-      FD_SET(fd, &fds_read);
-      FD_SET(fd_unblock.fd_read(), &fds_read);
       FD_ZERO(&fds_write);
-      FD_SET(fd, &fds_write);
       FD_ZERO(&fds_except);
-      FD_SET(fd, &fds_except);
+
+      /* the fd through which an unblock call can end the wait */
+      FD_SET(fd_unblock.fd_read(), &fds_read);
+
+      auto fd_max = fd_unblock.fd_read(); /* max fd value */
+      /* add the cq file descriptors to the wait set */
+      for ( unsigned i = 0; i != cq_count; ++i )
+      {
+        int fd;
+        CHECK_FI_ERR(::fi_control(f[i], FI_GETWAIT, &fd));
+        FD_SET(fd, &fds_read);
+        FD_SET(fd, &fds_write);
+        FD_SET(fd, &fds_except);
+        fd_max = std::max(fd_max, fd);
+      }
       struct timespec ts {
         timeout.count() / 1000 /* seconds */
         , (timeout.count() % 1000) * 1000000 /* nanoseconds */
       };
 
-      auto ready = ::pselect(std::max(fd,fd_unblock.fd_read())+1, &fds_read, &fds_write, &fds_except, &ts, nullptr);
+      /* Wait until libfabric indicates a completion */
+      auto ready = ::pselect(fd_max+1, &fds_read, &fds_write, &fds_except, &ts, nullptr);
       if ( -1 == ready )
       {
         switch ( auto e = errno )
@@ -478,7 +435,7 @@ void Fabric_op_control::wait_for_next_completion(std::chrono::milliseconds timeo
         }
       }
       /* Note: there is no reason to act on the fd's because either
-       *  - fi_cq_read will take care of them, or
+       *  - the eventual completion will take care of them, or
        *  - the fd_unblock_set_monitor will take care of them.
        */
 #endif
@@ -551,16 +508,6 @@ std::string Fabric_op_control::get_local_addr()
 {
   auto v = get_name();
   return std::string(v.begin(), v.end());
-}
-
-ssize_t Fabric_op_control::cq_sread(void *buf, size_t count, const void *cond, int timeout) noexcept
-{
-  return ::fi_cq_sread(&*_cq, buf, count, cond, timeout);
-}
-
-ssize_t Fabric_op_control::cq_readerr(::fi_cq_err_entry *buf, uint64_t flags) const noexcept
-{
-  return ::fi_cq_readerr(&*_cq, buf, flags);
 }
 
 /* EVENTS */
@@ -693,71 +640,6 @@ try
 catch ( const fabric_runtime_error &e )
 {
   throw e.add(tostr(info));
-}
-
-void Fabric_op_control::queue_completion(const ::fi_cq_tagged_entry &entry_, ::status_t status_)
-{
-  std::lock_guard<std::mutex> k2{_m_completions};
-  _completions.push(completion_t(status_, entry_));
-}
-
-std::size_t Fabric_op_control::drain_old_completions(Component::IFabric_op_completer::complete_old completion_callback)
-{
-  std::size_t ct_total = 0U;
-  std::unique_lock<std::mutex> k{_m_completions};
-  while ( ! _completions.empty() )
-  {
-    auto c = _completions.front();
-    _completions.pop();
-    k.unlock();
-    const auto &cq_entry = std::get<1>(c);
-    completion_callback(cq_entry.op_context, std::get<0>(c));
-    ++ct_total;
-    k.lock();
-  }
-  return ct_total;
-}
-
-std::size_t Fabric_op_control::drain_old_completions(Component::IFabric_op_completer::complete_definite completion_callback)
-{
-  std::size_t ct_total = 0U;
-  std::unique_lock<std::mutex> k{_m_completions};
-  while ( ! _completions.empty() )
-  {
-    auto c = _completions.front();
-    _completions.pop();
-    k.unlock();
-    const auto &cq_entry = std::get<1>(c);
-    completion_callback(cq_entry.op_context, std::get<0>(c), cq_entry.flags, cq_entry.len, nullptr);
-    ++ct_total;
-    k.lock();
-  }
-  return ct_total;
-}
-
-std::size_t Fabric_op_control::drain_old_completions(Component::IFabric_op_completer::complete_tentative completion_callback)
-{
-  std::size_t ct_total = 0U;
-  std::unique_lock<std::mutex> k{_m_completions};
-  std::queue<completion_t> deferred_completions;
-  while ( ! _completions.empty() )
-  {
-    auto c = _completions.front();
-    _completions.pop();
-    k.unlock();
-    const auto &cq_entry = std::get<1>(c);
-    if ( completion_callback(cq_entry.op_context, std::get<0>(c), cq_entry.flags, cq_entry.len, nullptr) == cb_acceptance::ACCEPT )
-    {
-      ++ct_total;
-    }
-    else
-    {
-      deferred_completions.push(c);
-    }
-    k.lock();
-  }
-  std::swap(deferred_completions, _completions);
-  return ct_total;
 }
 
 std::size_t Fabric_op_control::max_message_size() const noexcept

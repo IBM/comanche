@@ -32,6 +32,8 @@ namespace Component
 class IRdma : public Component::IBase
 {
 public:
+  using memory_region_t = struct ibv_mr*;
+  
   DECLARE_INTERFACE_UUID(0xfbf7b335,0x9309,0x4f6b,0x8b44,0x92,0x46,0x8b,0xb5,0x6f,0x31);
 
   /** 
@@ -94,7 +96,7 @@ public:
   /** 
    * Block and wait for next completion.
    * 
-   * @param polls_limit Maximum number of pollsx
+   * @param polls_limit Maximum number of polls
    * 
    * @return Next completion id
    */

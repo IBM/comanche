@@ -33,7 +33,7 @@ Fabric_server_grouped::Fabric_server_grouped(
     , ::fi_info & info_
 )
   : Fabric_connection_server(fabric_, ep_, info_)
-  , _g(*this)
+  , _g(*this, this->rxcq(), this->txcq())
 {
 }
 

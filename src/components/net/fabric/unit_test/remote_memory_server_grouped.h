@@ -21,13 +21,18 @@ class remote_memory_server_grouped
   std::shared_ptr<Component::IFabric_server_grouped_factory> _ep;
   std::thread _th;
 
-  void listener(Component::IFabric_server_grouped_factory &ep, std::uint64_t remote_key_base);
+  void listener(
+    Component::IFabric_server_grouped_factory &ep
+    , std::size_t memory_size
+    , std::uint64_t remote_key_base
+  );
 
 public:
   remote_memory_server_grouped(
     Component::IFabric &fabric
     , const std::string &fabric_spec
     , std::uint16_t control_port
+    , std::size_t memory_size
     , std::uint64_t remote_key_base
   );
 

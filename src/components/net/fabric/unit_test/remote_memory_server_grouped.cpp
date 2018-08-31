@@ -18,6 +18,7 @@
 
 void remote_memory_server_grouped::listener(
   Component::IFabric_server_grouped_factory &ep_
+  , std::size_t memory_size_
   , std::uint64_t remote_key_index_
 )
 {
@@ -27,7 +28,7 @@ void remote_memory_server_grouped::listener(
     /* Get a client to work with */
     server_grouped_connection sc(ep_);
     /* register an RDMA memory region */
-    registered_memory rm{sc.cnxn(), remote_key_index_};
+    registered_memory rm{sc.cnxn(), memory_size_, remote_key_index_};
     /* send the client address and key to memory */
     auto &cnxn = sc.comm();
     EXPECT_EQ(sc.cnxn().max_message_size(), this->max_message_size());
@@ -43,11 +44,11 @@ void remote_memory_server_grouped::listener(
       cnxn.post_recv(v, this);
       ::wait_poll(
         cnxn
-        , [&v, &quit, &rm, this] (void *ctxt_, ::status_t stat_) -> void
+        , [&quit, &rm, this] (void *ctxt_, ::status_t stat_, std::uint64_t, std::size_t len_, void *) -> void
           {
             ASSERT_EQ(ctxt_, this);
             ASSERT_EQ(stat_, S_OK);
-            ASSERT_EQ(v[0].iov_len, 1);
+            ASSERT_EQ(len_, 1);
             /* did client leave with the "quit byte" set to 'q'? */
             quit |= rm[0] == 'q';
           }
@@ -65,10 +66,11 @@ remote_memory_server_grouped::remote_memory_server_grouped(
   Component::IFabric &fabric_
   , const std::string &fabric_spec_
   , std::uint16_t control_port_
+  , std::size_t memory_size_
   , std::uint64_t remote_key_base_
 )
   : _ep(fabric_.open_server_grouped_factory(fabric_spec_, control_port_))
-  , _th(&remote_memory_server_grouped::listener, this, std::ref(*_ep), remote_key_base_)
+  , _th(&remote_memory_server_grouped::listener, this, std::ref(*_ep), memory_size_, remote_key_base_)
 {}
 
 remote_memory_server_grouped::~remote_memory_server_grouped()

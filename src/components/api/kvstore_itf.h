@@ -35,8 +35,14 @@ class IKVStore : public Component::IBase
 public:
   DECLARE_INTERFACE_UUID(0x62f4829f,0x0405,0x4c19,0x9898,0xa3,0xae,0x21,0x5a,0x3e,0xe8);
 
+private:
+  struct Opaque_memory_region;
+  
 public:
-  using pool_t     = uint64_t;
+  using pool_t          = uint64_t;
+  using memory_handle_t = Opaque_memory_region *;
+
+  static constexpr memory_handle_t HANDLE_NONE = nullptr;
 
   enum {
     THREAD_MODEL_UNSAFE,
@@ -163,14 +169,16 @@ public:
    * @param key_len Key length in bytes
    * @param value Value
    * @param value_len Value length in bytes
-   * 
+   * @param handle Memory registration handle 
+   *
    * @return S_OK or error code
    */
   virtual status_t put_direct(const pool_t pool,
                               const void * key,
                               const size_t key_len,
                               const void * value,
-                              const size_t value_len) { return E_NOT_SUPPORTED; }
+                              const size_t value_len,
+                              memory_handle_t handle = HANDLE_NONE) { return E_NOT_SUPPORTED; }
 
   /** 
    * Read an object value
@@ -200,7 +208,8 @@ public:
    * @param key Object key
    * @param out_value Client provided buffer for value
    * @param out_value_len [in] size of value memory in bytes [out] size of value
-   * @param offset Offset from beginning of value in bytes.
+   * @param offset Offset in the value
+   * @param handle Memory registration handle 
    * 
    * @return S_OK, S_MORE if only a portion of value is read, E_BAD_ALIGNMENT on invalid alignment, or other error code
    */
@@ -208,7 +217,10 @@ public:
                               const std::string key,
                               void* out_value,
                               size_t& out_value_len,
-                              size_t offset = 0) { return E_NOT_SUPPORTED; }
+                              size_t offset = 0,
+                              memory_handle_t handle = HANDLE_NONE) {
+    return E_NOT_SUPPORTED;
+  }
 
   /**
    * Read an object value directly into client-provided memory.  To perform partial gets you can 
@@ -230,7 +242,10 @@ public:
                               uint64_t key_hash,
                               void* out_value,
                               size_t& out_value_len,
-                              size_t offset = 0) { return E_NOT_SUPPORTED; }
+                              size_t offset = 0,
+                              memory_handle_t handle = HANDLE_NONE) {
+    return E_NOT_SUPPORTED;
+  }
 
 
   /** 
@@ -239,11 +254,21 @@ public:
    * @param vaddr Appropriately aligned memory buffer
    * @param len Length of memory buffer in bytes
    * 
+   * @return Memory handle or NULL on not supported.
+   */
+  virtual memory_handle_t register_direct_memory(void * vaddr, size_t len) { return nullptr; }
+
+  
+  /** 
+   * Durict memory regions should be unregistered before the memory is released on the client side.
+   * 
+   * @param vaddr Address of region to unregister.
+   * 
    * @return S_OK on success
    */
-  virtual status_t register_direct_memory(void * vaddr, size_t len) { return E_NOT_SUPPORTED; }
-  
+  virtual status_t unregister_direct_memory(memory_handle_t handle) { return E_NOT_SUPPORTED; }
 
+  
   /** 
    * Allocate an object but do not populate data
    * 
@@ -442,16 +467,24 @@ public:
   DECLARE_INTERFACE_UUID(0xface829f,0x0405,0x4c19,0x9898,0xa3,0xae,0x21,0x5a,0x3e,0xe8);
 
   virtual IKVStore * create(const std::string owner,
-                            const std::string name){
+                            const std::string param){
     throw(API_exception("Not Implemented"));
   };
 
   virtual IKVStore * create(const std::string owner,
-                            const std::string name,
-                            std::string pci){
+                            const std::string param,
+                            const std::string param2){
     throw(API_exception("Not Implemented"));
   }
 
+  virtual IKVStore * create(unsigned debug_level,
+                            const std::string owner,
+                            const std::string param,
+                            const std::string param2){
+    throw(API_exception("Not Implemented"));
+  }
+
+  
 };
 
 

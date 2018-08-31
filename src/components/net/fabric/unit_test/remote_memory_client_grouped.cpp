@@ -15,11 +15,13 @@ remote_memory_client_grouped::remote_memory_client_grouped(
   , const std::string &fabric_spec_
   , const std::string ip_address_
   , std::uint16_t port_
+  , std::size_t memory_size_
   , std::uint64_t remote_key_base_
 )
 try
   : _cnxn(open_connection_grouped_patiently(fabric_, fabric_spec_, ip_address_, port_))
-  , _rm_out{std::make_shared<registered_memory>(*_cnxn, remote_key_base_ * 2U)}
+  , _memory_size(memory_size_)
+  , _rm_out{std::make_shared<registered_memory>(*_cnxn, memory_size_, remote_key_base_ * 2U)}
   , _vaddr{}
   , _key{}
   , _quit_flag('n')
@@ -31,17 +33,17 @@ try
   iv.iov_len = (sizeof _vaddr) + (sizeof _key);
   v.emplace_back(iv);
 
-  remote_memory_subclient rms(*this, _remote_key_index_for_startup_and_shutdown);
+  remote_memory_subclient rms(*this, memory_size_, _remote_key_index_for_startup_and_shutdown);
   auto &cnxn = rms.cnxn();
 
   cnxn.post_recv(v, this);
   ::wait_poll(
     cnxn
-    , [&v, this] (void *ctxt_, ::status_t stat_) -> void
+    , [this] (void *ctxt_, ::status_t stat_, std::uint64_t, std::size_t len_, void *) -> void
       {
         ASSERT_EQ(ctxt_, this);
         ASSERT_EQ(stat_, S_OK);
-        ASSERT_EQ(v[0].iov_len, (sizeof _vaddr) + sizeof( _key));
+        ASSERT_EQ(len_, (sizeof _vaddr) + sizeof( _key));
         std::memcpy(&_vaddr, &rm_out()[0], sizeof _vaddr);
         std::memcpy(&_key, &rm_out()[sizeof _vaddr], sizeof _key);
       }
@@ -58,7 +60,7 @@ catch ( std::exception &e )
 remote_memory_client_grouped::~remote_memory_client_grouped()
 try
 {
-  remote_memory_subclient rms(*this, _remote_key_index_for_startup_and_shutdown);
+  remote_memory_subclient rms(*this, _memory_size, _remote_key_index_for_startup_and_shutdown);
   auto &cnxn = rms.cnxn();
   send_disconnect(cnxn, rm_out(), _quit_flag);
 }
@@ -72,9 +74,9 @@ void remote_memory_client_grouped::send_disconnect(Component::IFabric_communicat
   send_msg(cnxn_, rm_, &quit_flag_, sizeof quit_flag_);
 }
 
-Component::IFabric_communicator *remote_memory_client_grouped::allocate_group() const
+std::unique_ptr<Component::IFabric_communicator> remote_memory_client_grouped::allocate_group() const
 {
-  return _cnxn->allocate_group();
+  return std::unique_ptr<Component::IFabric_communicator>(_cnxn->allocate_group());
 }
 
 std::size_t remote_memory_client_grouped::max_message_size() const

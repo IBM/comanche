@@ -18,7 +18,11 @@
 #include <thread>
 #include <vector>
 
-void remote_memory_server::listener(Component::IFabric_server_factory &ep_, std::uint64_t remote_key_index_)
+void remote_memory_server::listener(
+  Component::IFabric_server_factory &ep_
+  , std::size_t memory_size_
+  , std::uint64_t remote_key_index_
+)
 {
   auto quit = false;
   for ( ; ! quit; ++remote_key_index_ )
@@ -26,7 +30,7 @@ void remote_memory_server::listener(Component::IFabric_server_factory &ep_, std:
     server_connection sc(ep_);
     EXPECT_EQ(sc.cnxn().max_message_size(), this->max_message_size());
     /* register an RDMA memory region */
-    registered_memory rm{sc.cnxn(), remote_key_index_};
+    registered_memory rm{sc.cnxn(), memory_size_, remote_key_index_};
     /* send the client address and key to memory */
     send_memory_info(sc.cnxn(), rm);
     /* wait for client indicate exit (by sending one byte to us) */
@@ -40,11 +44,11 @@ void remote_memory_server::listener(Component::IFabric_server_factory &ep_, std:
       sc.cnxn().post_recv(v, this);
       ::wait_poll(
         sc.cnxn()
-        , [&v, &quit, &rm, this] (void *ctxt_, ::status_t stat_) -> void
+        , [&quit, &rm, this] (void *ctxt_, ::status_t stat_, std::uint64_t, std::size_t len_, void *) -> void
           {
             ASSERT_EQ(ctxt_, this);
             ASSERT_EQ(stat_, S_OK);
-            ASSERT_EQ(v[0].iov_len, 1);
+            ASSERT_EQ(len_, 1);
             /* did client leave with the "quit byte" set to 'q'? */
             quit |= rm[0] == 'q';
           }
@@ -58,12 +62,17 @@ void remote_memory_server::listener(Component::IFabric_server_factory &ep_, std:
   }
 }
 
-void remote_memory_server::listener_counted(Component::IFabric_server_factory &ep_, std::uint64_t remote_key_index_, unsigned cnxn_count_)
+void remote_memory_server::listener_counted(
+  Component::IFabric_server_factory &ep_
+  , std::size_t memory_size_
+  , std::uint64_t remote_key_index_
+  , unsigned cnxn_count_
+)
 {
   std::vector<std::shared_ptr<server_connection_and_memory>> scrm;
   for ( auto i = 0U; i != cnxn_count_; ++i )
   {
-    scrm.emplace_back(std::make_shared<server_connection_and_memory>(ep_, remote_key_index_ + i));
+    scrm.emplace_back(std::make_shared<server_connection_and_memory>(ep_, memory_size_, remote_key_index_ + i));
   }
 }
 
@@ -72,10 +81,11 @@ remote_memory_server::remote_memory_server(
   , const std::string &fabric_spec_
   , std::uint16_t control_port_
   , const char *
+  , std::size_t memory_size_
   , std::uint64_t remote_key_base_
 )
   : _ep(fabric_.open_server_factory(fabric_spec_, control_port_))
-  , _th(&remote_memory_server::listener, this, std::ref(*_ep), remote_key_base_)
+  , _th(&remote_memory_server::listener, this, std::ref(*_ep), memory_size_, remote_key_base_)
 {
 }
 
@@ -84,11 +94,12 @@ Component::IFabric &fabric_
   , const std::string &fabric_spec_
   , std::uint16_t control_port_
   , const char *
+  , std::size_t memory_size_
   , std::uint64_t remote_key_base_
   , unsigned cnxn_limit_
 )
   : _ep(fabric_.open_server_factory(fabric_spec_, control_port_))
-  , _th(&remote_memory_server::listener_counted, this, std::ref(*_ep), remote_key_base_, cnxn_limit_)
+  , _th(&remote_memory_server::listener_counted, this, std::ref(*_ep), memory_size_, remote_key_base_, cnxn_limit_)
 {
 }
 
