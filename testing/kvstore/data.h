@@ -1,19 +1,33 @@
 #ifndef __DATA_H__
 #define __DATA_H__
+#include <vector>
+
+class KV_pair 
+{
+public:
+    std::string key;
+    std::string value;
+
+    KV_pair()
+    {
+
+    }
+
+    ~KV_pair()
+    {
+
+    }
+
+};
 
 class Data
 {
 public:
 
-    size_t NUM_ELEMENTS = 1000000; // 1M
-    static constexpr size_t KEY_LEN = 8;  // TODO: allow variable key lengths?
-    static constexpr size_t VAL_LEN = 64;  // TODO: allow variable value lengths?
-  
-    struct KV_pair {
-        char key[KEY_LEN + 1];
-        char value[VAL_LEN + 1];
-    };
-  
+    size_t _num_elements = 1000000;
+    size_t _key_len = 8;  
+    size_t _val_len = 64; 
+
     KV_pair * _data;
   
     Data() 
@@ -23,7 +37,16 @@ public:
  
     Data(size_t num_elements)
     {
-        NUM_ELEMENTS = num_elements;
+        _num_elements = num_elements;
+
+        initialize_data();
+    }
+
+    Data(size_t num_elements, size_t key_len, size_t val_len)
+    {
+        _num_elements = num_elements;
+        _key_len = key_len;
+        _val_len = val_len;
 
         initialize_data();
     }
@@ -35,37 +58,36 @@ public:
 
     void initialize_data()
     {
-        PLOG("Initializing data with %d elements....", (int)NUM_ELEMENTS);
-        _data = new KV_pair[NUM_ELEMENTS];
+        PLOG("Initializing data: %d key length, %d value length, %d elements....", (int)_key_len, (int)_val_len, (int)_num_elements);
+        _data = new KV_pair[_num_elements];
     
-        for(size_t i=0;i<NUM_ELEMENTS;i++) 
+        for(size_t i=0;i<_num_elements;i++) 
         {
-            auto key = Common::random_string(KEY_LEN);
-            auto val = Common::random_string(VAL_LEN);
-            strncpy(_data[i].key, key.c_str(), key.length());
-            _data[i].key[KEY_LEN] = '\0';
-            strncpy(_data[i].value, val.c_str(), val.length());
-           _data[i].value[VAL_LEN] = '\0';
+            auto key = Common::random_string(_key_len);
+            auto val = Common::random_string(_val_len);
+
+            _data[i].key = key;
+            _data[i].value = val;
         }
 
-        PLOG("..OK.");
+        PLOG("%d elements initialized, size %d.", (int)_num_elements, (int)sizeof(KV_pair));
     }
   
     const char * key(size_t i) const 
     {
-      if(i >= NUM_ELEMENTS) throw General_exception("out of bounds");
-      return _data[i].key;
+      if(i >= _num_elements) throw General_exception("out of bounds");
+      return _data[i].key.c_str();
     }
   
     const char * value(size_t i) const 
     {
-      if(i >= NUM_ELEMENTS) throw General_exception("out of bounds");
-      return _data[i].value;
+      if(i >= _num_elements) throw General_exception("out of bounds");
+      return _data[i].value.c_str();
     }
   
-    size_t value_len() const { return VAL_LEN; }
+    size_t value_len() const { return _val_len; }
   
-    size_t num_elements() const { return NUM_ELEMENTS; }
+    size_t num_elements() const { return _num_elements; }
 };
 
 #endif
