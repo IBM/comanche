@@ -19,6 +19,7 @@ class ExperimentPutLatency : public Experiment
 public:
     float _cycles_per_second;  // initialized in do_work first run
     std::vector<double> _start_time;
+    std::vector<double> _latencies;
     unsigned int _start_rdtsc;
     BinStatistics _latency_stats;
 
@@ -37,6 +38,7 @@ public:
     {
         _cycles_per_second = Core::get_rdtsc_frequency_mhz() * 1000000;
         _start_time.resize(_pool_num_components);
+        _latencies.resize(_pool_num_components);
 
         _latency_stats.init(_bin_count, _bin_threshold_min, _bin_threshold_max);
     }
@@ -55,7 +57,7 @@ public:
         // end experiment if we've reached the total number of components
         if (_i == _pool_num_components)
         {
-            perror("reached last element");
+            std::cerr << "reached last element. Last _start_time = " << _start_time.at(_i) << std::endl;
             throw std::exception();
         }
 
@@ -76,12 +78,13 @@ public:
 
         // store the information for later use
         _start_time.at(_i) = time_since_start;
+        _latencies.at(_i) = time;
+
+        _latency_stats.update(time);
        
         _i++;  // increment after running so all elements get used
 
         _enforce_maximum_pool_size(core);
-
-        _latency_stats.update(time);
 
         if (rc != S_OK)
         {
@@ -97,12 +100,12 @@ public:
         if (_verbose)
         {
             std::stringstream stats_info;
-            stats_info << "creating time_stats with " << _bin_count << " bins: [" << _start_time[0] << " - " << _start_time[_i-1] << "]" << std::endl;
+            stats_info << "creating time_stats with " << _bin_count << " bins: [" << _start_time.front() << " - " << _start_time.at(_i-1) << "]. _i = " << _i << std::endl;
             _debug_print(core, stats_info.str());
         }
 
        // compute _start_time_stats pre-lock
-       BinStatistics start_time_stats = _compute_bin_statistics_from_vector(_start_time, _bin_count, _start_time[0], _start_time[_i-1]);
+       BinStatistics start_time_stats = _compute_bin_statistics_from_vectors(_latencies, _start_time, _bin_count, _start_time.front(), _start_time.at(_i-1), _i);
        _debug_print(core, "time_stats created"); 
 
        pthread_mutex_lock(&g_write_lock);
