@@ -5,30 +5,22 @@
 #include "experiment.h"
 
 extern Data * _data;
-
+extern pthread_mutex_t g_write_lock;
 
 class ExperimentGet : public Experiment
 { 
 public:
 
-    ExperimentGet(Component::IKVStore * arg) : Experiment(arg) 
+    ExperimentGet(struct ProgramOptions options) : Experiment(options) 
     {
-        assert(arg);
+        _test_name = "get";
     }
     
     void initialize_custom(unsigned core)
     { 
         PLOG("(%u) Populating key/value pairs for Get test...", core);
 
-        for(size_t i=0;i<_data->num_elements();i++) 
-        {
-            int rc = _store->put(_pool, _data->key(i), _data->value(i), _data->value_len());
-
-            if(rc != S_OK) 
-            {
-                PERR("store->put return code: %d", rc);
-            }
-        }
+        _populate_pool_to_capacity(core);
 
         PLOG("(%u) KVPs populated.", core);
     }
@@ -56,15 +48,35 @@ public:
 
         free(pval);
         _i++;
+
+       if (_i == _pool_element_end)
+       {
+            _erase_pool_entries_in_range(_pool_element_start, _pool_element_end);
+           _populate_pool_to_capacity(core); 
+       }
     }
     
     void cleanup_custom(unsigned core) 
     { 
         _end = std::chrono::high_resolution_clock::now();
         double secs = std::chrono::duration_cast<std::chrono::milliseconds>(_end - _start).count() / 1000.0;
-        PINF("*Get* (%u) IOPS: %lu", core, (uint64_t) (((double) _i) / secs));
+        double iops = ((double) _i) / secs;
+        PINF("*Get* (%u) IOPS: %2g", core, iops); 
+
+       pthread_mutex_lock(&g_write_lock);
+
+       // get existing results, read to document variable
+       rapidjson::Document document = _get_report_document();
+
+       // add per-core results here
+       rapidjson::Value temp_value;
+       temp_value.SetDouble(iops);
+
+       // add new info to report
+       _report_document_save(document, core, temp_value);
+
+       pthread_mutex_unlock(&g_write_lock);
     }
 };
-
 
 #endif // __EXP_GET_H__

@@ -10,6 +10,7 @@
 #include "common/cycles.h"
 #include "experiment.h"
 #include "kvstore_perf.h"
+#include "statistics.h"
 
 extern Data * _data;
 
@@ -17,27 +18,33 @@ class ExperimentGetDirectLatency : public Experiment
 { 
 public:
     float _cycles_per_second;  // initialized in do_work first run
-    std::vector<double> _latency;
-    std::string _outputDirectory = "get_direct_latency";
+    std::vector<double> _start_time;
+    std::vector<double> _latencies;
+    double _start_rdtsc;
+    BinStatistics _latency_stats;
 
-    ExperimentGetDirectLatency(Component::IKVStore * arg) : Experiment(arg) 
-    {
-        assert(arg);
+    ExperimentGetDirectLatency(struct ProgramOptions options) : Experiment(options) 
+    {    
+        _test_name = "get_direct_latency";
+        
+        if (!options.store)
+        {
+            perror("ExperimentGetDirectLatency passed an invalid store");
+        }
     }
 
     void initialize_custom(unsigned core)
     {
         _cycles_per_second = Core::get_rdtsc_frequency_mhz() * 1000000;
-        _latency.resize(_pool_num_components);
+        _start_time.resize(_pool_num_components);
+        _latencies.resize(_pool_num_components);
 
         // seed the pool with elements from _data
-        int rc;
-        for (int i = 0; i < _pool_num_components; i++)
-        {
-            rc = _store->put(_pool, _data->key(i), _data->value(i), _data->value_len());
-            assert(rc == S_OK);
-        }
+        _populate_pool_to_capacity(core);
+
         PLOG("pool seeded with values\n");
+
+        _latency_stats.init(_bin_count, _bin_threshold_min, _bin_threshold_max);
     }
 
     void do_work(unsigned core) override 
@@ -45,9 +52,10 @@ public:
         // handle first time setup
         if(_first_iter) 
         {
-            PLOG("Starting Put Latency experiment...");
+            PLOG("Starting Get Direct Latency experiment...");
 
             _first_iter = false;
+            _start_rdtsc = rdtsc();
         }     
 
         // end experiment if we've reached the total number of components
@@ -68,7 +76,12 @@ public:
         {
             // TODO: make the input parameters 1 and 2 variable based on experiment inputs
             handle = mem_alloc.allocate_io_buffer(MB(8), 4096, Component::NUMA_NODE_ANY);  
-            assert(handle);  
+            
+            if (!handle)
+            {
+                perror("ExpGetDirectLatency.do_work: allocate_io_buffer failed");
+            }
+
             pval = mem_alloc.virt_addr(handle);
         }
  
@@ -79,6 +92,9 @@ public:
         cycles = end - start;
         double time = (cycles / _cycles_per_second);
         //printf("start: %u  end: %u  cycles: %u seconds: %f\n", start, end, cycles, time);
+
+        unsigned int cycles_since_start = end - _start_rdtsc;
+        double time_since_start = (cycles_since_start / _cycles_per_second);
        
         if (_component.compare("nvmestore") == 0)
         { 
@@ -86,43 +102,65 @@ public:
         }
         else
         {
-            free(pval);
+            if (pval != nullptr)
+            {
+                free(pval);
+            }
         }
 
         // store the information for later use
-        _latency.at(_i) = time;
+        _latencies.at(_i) = time;
+        _start_time.at(_i) = time_since_start; 
+        _latency_stats.update(time);
         assert(rc == S_OK);
 
         _i++;  // increment after running so all elements get used
+
+       if (_i == _pool_element_end)
+       {
+            _erase_pool_entries_in_range(_pool_element_start, _pool_element_end);
+           _populate_pool_to_capacity(core);
+
+           if (_verbose)
+           {
+              std::stringstream debug_message;
+              debug_message << "pool repopulated: " << _i;
+              _debug_print(core, debug_message.str());
+           }
+       }
     }
 
     void cleanup_custom(unsigned core)  
     {
-        boost::filesystem::path dir(_outputDirectory);
-        if (boost::filesystem::create_directory(dir))
+        if (_verbose)
         {
-            std::cout << "Created directory for testing: " << _outputDirectory << std::endl;
+            std::stringstream stats_info;
+            stats_info << "creating time_stats with " << _bin_count << " bins: [" << _start_time.front() << " - " << _start_time.at(_i-1) << "]" << std::endl;
+            _debug_print(core, stats_info.str());
         }
 
-        // write one core per file for now. TODO: use synchronization construct for experiments
-        std::ostringstream filename;
-        filename << _outputDirectory << "/" << core << ".log";
+       // compute _start_time_stats pre-lock
+       BinStatistics start_time_stats = _compute_bin_statistics_from_vectors(_latencies, _start_time, _bin_count, _start_time.front(), _start_time.at(_i-1), _i);
 
-        std::cout << "filename = " << filename.str() << std::endl;
+       pthread_mutex_lock(&g_write_lock);
 
-       // output latency info to file 
-       std::ofstream outf(filename.str());
+       // get existing results, read to document variable
+       rapidjson::Document document = _get_report_document();
 
-       if (!outf)
-       {
-           std::cerr << "Failed to open file " << _outputDirectory << " for writing" << std::endl;
-            exit(1);
-       }
+       // collect latency stats
+       rapidjson::Value latency_object = _add_statistics_to_report("latency", _latency_stats, document);
+       rapidjson::Value timing_object = _add_statistics_to_report("start_time", start_time_stats, document);
 
-       for (int i = 0; i < _pool_num_components; i++)
-       {
-            outf << _latency[i] << std::endl;
-       }
+       // save everything
+       rapidjson::Value experiment_object(rapidjson::kObjectType);
+
+       experiment_object.AddMember("latency", latency_object, document.GetAllocator());
+       experiment_object.AddMember("start_time", timing_object, document.GetAllocator()); 
+       
+       _report_document_save(document, core, experiment_object);
+
+       pthread_mutex_unlock(&g_write_lock);
+
     }
 };
 

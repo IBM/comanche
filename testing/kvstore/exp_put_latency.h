@@ -9,25 +9,38 @@
 #include "common/cycles.h"
 #include "experiment.h"
 #include "kvstore_perf.h"
+#include "statistics.h"
 
 extern Data * _data;
+extern pthread_mutex_t g_write_lock;
 
 class ExperimentPutLatency : public Experiment
 { 
 public:
     float _cycles_per_second;  // initialized in do_work first run
-    std::vector<double> _latency;
-    std::string _outputDirectory = "put_latency";
+    std::vector<double> _start_time;
+    std::vector<double> _latencies;
+    unsigned int _start_rdtsc;
+    BinStatistics _latency_stats;
 
-    ExperimentPutLatency(Component::IKVStore * arg) : Experiment(arg) 
+    ExperimentPutLatency(struct ProgramOptions options): Experiment(options) 
     {
-        assert(arg);
+        _test_name = "put_latency";
+
+        if (!options.store)
+        {
+            perror("ExperimentPutLatency passed an invalid store");
+            throw std::exception();
+        }
     }
 
     void initialize_custom(unsigned core)
     {
         _cycles_per_second = Core::get_rdtsc_frequency_mhz() * 1000000;
-        _latency.resize(_pool_num_components);
+        _start_time.resize(_pool_num_components);
+        _latencies.resize(_pool_num_components);
+
+        _latency_stats.init(_bin_count, _bin_threshold_min, _bin_threshold_max);
     }
 
     void do_work(unsigned core) override 
@@ -38,59 +51,83 @@ public:
             PLOG("Starting Put Latency experiment...");
 
             _first_iter = false;
+            _start_rdtsc = rdtsc();
         }     
 
         // end experiment if we've reached the total number of components
         if (_i == _pool_num_components)
         {
+            std::cerr << "reached last element. Last _start_time = " << _start_time.at(_i) << std::endl;
             throw std::exception();
         }
 
         // check time it takes to complete a single put operation
         unsigned int cycles, start, end;
+        int rc;
 
         start = rdtsc();
-        int rc = _store->put(_pool, _data->key(_i), _data->value(_i), _data->value_len());
+        rc = _store->put(_pool, _data->key(_i), _data->value(_i), _data->value_len());
         end = rdtsc();
+
         cycles = end - start;
         double time = (cycles / _cycles_per_second);
         //printf("start: %u  end: %u  cycles: %u seconds: %f\n", start, end, cycles, time);
 
+        double cycles_since_start = end - _start_rdtsc;
+        double time_since_start = (cycles_since_start / _cycles_per_second);
+
         // store the information for later use
-        _latency.at(_i) = time;
+        _start_time.at(_i) = time_since_start;
+        _latencies.at(_i) = time;
 
-        assert(rc == S_OK);
-
+        _latency_stats.update(time);
+       
         _i++;  // increment after running so all elements get used
+
+        _enforce_maximum_pool_size(core);
+
+        if (rc != S_OK)
+        {
+            perror("put returned !S_OK value");
+            throw std::exception();
+        }
     }
 
     void cleanup_custom(unsigned core)  
     {
-        boost::filesystem::path dir(_outputDirectory);
-        if (boost::filesystem::create_directory(dir))
+        _debug_print(core, "cleanup_custom started");
+
+        if (_verbose)
         {
-            std::cout << "Created directory for testing: " << _outputDirectory << std::endl;
+            std::stringstream stats_info;
+            stats_info << "creating time_stats with " << _bin_count << " bins: [" << _start_time.front() << " - " << _start_time.at(_i-1) << "]. _i = " << _i << std::endl;
+            _debug_print(core, stats_info.str());
         }
 
-        // write one core per file for now. TODO: use synchronization construct for experiments
-        std::ostringstream filename;
-        filename << _outputDirectory << "/" << core << ".log";
+       // compute _start_time_stats pre-lock
+       BinStatistics start_time_stats = _compute_bin_statistics_from_vectors(_latencies, _start_time, _bin_count, _start_time.front(), _start_time.at(_i-1), _i);
+       _debug_print(core, "time_stats created"); 
 
-        std::cout << "filename = " << filename.str() << std::endl;
+       pthread_mutex_lock(&g_write_lock);
+       _debug_print(core, "cleanup_custom mutex locked");
 
-       // output latency info to file 
-       std::ofstream outf(filename.str());
+       // get existing results, read to document variable
+       rapidjson::Document document = _get_report_document();
 
-       if (!outf)
-       {
-           std::cerr << "Failed to open file " << _outputDirectory << " for writing" << std::endl;
-            exit(1);
-       }
+       // collect latency stats
+       rapidjson::Value latency_object = _add_statistics_to_report("latency", _latency_stats, document);
+       rapidjson::Value timing_object = _add_statistics_to_report("start_time", start_time_stats, document);
 
-       for (int i = 0; i < _pool_num_components; i++)
-       {
-            outf << _latency[i] << std::endl;
-       }
+       // save everything
+       rapidjson::Value experiment_object(rapidjson::kObjectType);
+
+       experiment_object.AddMember("latency", latency_object, document.GetAllocator());
+       experiment_object.AddMember("start_time", timing_object, document.GetAllocator()); 
+       
+       _report_document_save(document, core, experiment_object);
+
+       _debug_print(core, "cleanup_custom mutex unlocking");
+       pthread_mutex_unlock(&g_write_lock);
     }
 };
 

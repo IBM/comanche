@@ -37,6 +37,7 @@ static void cleanup();
 
 int g_argc;
 char ** g_argv;
+pthread_mutex_t g_write_lock = PTHREAD_MUTEX_INITIALIZER;
 
 int main(int argc, char * argv[])
 {
@@ -57,6 +58,11 @@ int main(int argc, char * argv[])
     ("size", po::value<unsigned int>(), "Size of pool")
     ("flags", po::value<int>(), "Flags for pool creation")
     ("elements", po::value<unsigned int>(), "Number of data elements")
+    ("key_length", po::value<unsigned int>(), "Key length of data")
+    ("value_length", po::value<unsigned int>(), "Value length of data")
+    ("bins", po::value<unsigned int>(), "Number of bins for statistics")
+    ("latency_range_min", po::value<unsigned int>(), "Lowest latency bin threshold")
+    ("latency_range_max", po::value<unsigned int>(), "Highest latency bin threshold")
     ;
 
   try {
@@ -78,6 +84,9 @@ int main(int argc, char * argv[])
     
     Options.cores  = vm.count("cores") > 0 ? vm["cores"].as<int>() : 1;
     Options.time_secs  = vm.count("time") > 0 ? vm["time"].as<int>() : 4;
+    Options.size = vm.count("size") > 0 ? vm["size"].as<unsigned int>() : MB(100);
+    Options.flags = vm.count("flags") > 0 ? vm["flags"].as<int>() : Component::IKVStore::FLAGS_SET_SIZE;
+
 /*
     if(vm.count("path"))
     {
@@ -89,15 +98,19 @@ int main(int argc, char * argv[])
     }
 */
     Options.elements = vm.count("elements") > 0 ? vm["elements"].as<unsigned int>() : 100000;
-    
+    Options.key_length = vm.count("key_length") > 0 ? vm["key_length"].as<unsigned int>() : 8;
+    Options.value_length = vm.count("value_length") > 0 ? vm["value_length"].as<unsigned int>() : 64; 
   }
   catch (const po::error &ex)
   {
     std::cerr << ex.what() << '\n';
   }
 
-  _data = new Data(Options.elements);
+  _data = new Data(Options.elements, Options.key_length, Options.value_length);
   initialize();
+
+  Options.store = g_store;
+  Options.report_file_name = Experiment::create_report(Options);
 
   cpu_mask_t cpus;
   unsigned core = 1;
@@ -107,31 +120,32 @@ int main(int argc, char * argv[])
   ProfilerStart("cpu.profile");
 
   if(Options.test == "all" || Options.test == "Put") {
-    Core::Per_core_tasking<ExperimentPut, Component::IKVStore*> exp(cpus, g_store);
+    Core::Per_core_tasking<ExperimentPut, ProgramOptions> exp(cpus, Options);
     sleep(Options.time_secs);
   }
 
   if(Options.test == "all" || Options.test == "Get") {
-    Core::Per_core_tasking<ExperimentGet, Component::IKVStore*> exp(cpus, g_store);
+    Core::Per_core_tasking<ExperimentGet, ProgramOptions> exp(cpus, Options);
     //    sleep(Options.time_secs + 8);
     exp.wait_for_all();
   }
 
   if (Options.test == "all" || Options.test == "put_latency")
   {
-      Core::Per_core_tasking<ExperimentPutLatency, Component::IKVStore*> exp(cpus, g_store);
+      Core::Per_core_tasking<ExperimentPutLatency, ProgramOptions> exp(cpus, Options);
       exp.wait_for_all();
   }
 
   if (Options.test == "all" || Options.test == "get_latency")
   {
-      Core::Per_core_tasking<ExperimentGetLatency, Component::IKVStore*> exp(cpus, g_store);
+      Core::Per_core_tasking<ExperimentGetLatency, ProgramOptions> exp(cpus, Options);
+
       exp.wait_for_all();
   }
 
   if (Options.test == "all" || Options.test == "get_direct_latency")
   {
-      Core::Per_core_tasking<ExperimentGetDirectLatency, Component::IKVStore*> exp(cpus, g_store);
+      Core::Per_core_tasking<ExperimentGetDirectLatency, ProgramOptions> exp(cpus, Options);
       exp.wait_for_all();
   }
   
