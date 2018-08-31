@@ -200,6 +200,7 @@ struct channel_dest *channel_client_exch_dest(const char *servername,
   wire_gid_to_gid(gid, &rem_dest->gid);
 
  out:
+  PLOG("closing TCP exchange socket.");
   close(sockfd);
   return rem_dest;
 }

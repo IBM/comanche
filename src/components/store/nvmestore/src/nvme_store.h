@@ -135,7 +135,8 @@ public:
                               const std::string key,
                               void* out_value,
                               size_t& out_value_len,
-                              size_t offset) override;
+                              size_t offset,
+                              Component::IKVStore::memory_handle_t handle) override;
 
   virtual IKVStore::memory_handle_t register_direct_memory(void * vaddr, size_t len) override;
 

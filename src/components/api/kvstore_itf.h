@@ -169,7 +169,8 @@ public:
    * @param key_len Key length in bytes
    * @param value Value
    * @param value_len Value length in bytes
-   * 
+   * @param handle Memory registration handle 
+   *
    * @return S_OK or error code
    */
   virtual status_t put_direct(const pool_t pool,
@@ -207,7 +208,8 @@ public:
    * @param key Object key
    * @param out_value Client provided buffer for value
    * @param out_value_len [in] size of value memory in bytes [out] size of value
-   * @param offset Offset from beginning of value in bytes.
+   * @param offset Offset in the value
+   * @param handle Memory registration handle 
    * 
    * @return S_OK, S_MORE if only a portion of value is read, E_BAD_ALIGNMENT on invalid alignment, or other error code
    */
@@ -215,7 +217,10 @@ public:
                               const std::string key,
                               void* out_value,
                               size_t& out_value_len,
-                              size_t offset = 0) { return E_NOT_SUPPORTED; }
+                              size_t offset = 0,
+                              memory_handle_t handle = HANDLE_NONE) {
+    return E_NOT_SUPPORTED;
+  }
 
   /**
    * Read an object value directly into client-provided memory.  To perform partial gets you can 
@@ -237,7 +242,10 @@ public:
                               uint64_t key_hash,
                               void* out_value,
                               size_t& out_value_len,
-                              size_t offset = 0) { return E_NOT_SUPPORTED; }
+                              size_t offset = 0,
+                              memory_handle_t handle = HANDLE_NONE) {
+    return E_NOT_SUPPORTED;
+  }
 
 
   /** 
