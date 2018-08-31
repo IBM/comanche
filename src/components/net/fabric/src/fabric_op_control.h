@@ -260,7 +260,7 @@ public:
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_inject fail
    */
-  void inject_send(const ::iovec *first, const ::iovec *last);
+  void inject_send(const void *buf, std::size_t len);
 
 public:
   /*
@@ -296,6 +296,7 @@ public:
   bool is_shut_down() const { return _shut_down; }
 
   std::size_t max_message_size() const noexcept override;
+  std::size_t max_inject_size() const noexcept override;
 };
 
 #endif

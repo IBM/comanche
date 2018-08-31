@@ -52,3 +52,12 @@ std::size_t check_ge_zero(ssize_t r, const char *file, int line)
   }
   return std::size_t(r);
 }
+
+std::size_t check_eq(ssize_t r, ssize_t exp, const char *file, int line)
+{
+  if ( r != exp )
+  {
+    throw fabric_runtime_error(unsigned(-r), file, line);
+  }
+  return std::size_t(r);
+}

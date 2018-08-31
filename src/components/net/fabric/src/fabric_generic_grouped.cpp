@@ -245,10 +245,10 @@ void Fabric_generic_grouped::post_write(
    * @param connection Connection to inject on
    * @param buffers Buffer vector (containing regions should be registered)
    */
-void Fabric_generic_grouped::inject_send(const ::iovec *first_, const ::iovec *last_)
+void Fabric_generic_grouped::inject_send(const void *buf_, std::size_t len_)
 {
   std::lock_guard<std::mutex> k{_m_cnxn};
-  return _cnxn.inject_send(first_, last_);
+  return _cnxn.inject_send(buf_, len_);
 }
 
 /**
@@ -397,4 +397,9 @@ void Fabric_generic_grouped::forget_group(Fabric_comm_grouped *comm_)
 std::size_t Fabric_generic_grouped::max_message_size() const noexcept
 {
   return _cnxn.max_message_size();
+}
+
+std::size_t Fabric_generic_grouped::max_inject_size() const noexcept
+{
+  return _cnxn.max_inject_size();
 }

@@ -267,12 +267,12 @@ public:
    * Send message without completion
    *
    * @param connection Connection to inject on
-   * @param buffers Buffer vector (containing regions should be registered)
+   * @param buf Data to send
+   * @param buf Length of data to send (must not exceed IFabric_connection::max_inject_size())
    *
    * @throw IFabric_runtime_error - ::fi_inject fail
    */
-  virtual void inject_send(const ::iovec *first, const ::iovec *last) = 0;
-  virtual void inject_send(const std::vector<::iovec>& buffers) = 0;
+  virtual void inject_send(const void *buf, std::size_t len) = 0;
 
   /* Additional TODO:
      - support for atomic RMA operations
@@ -349,6 +349,13 @@ public:
    * @return Max message size in bytes
    */
   virtual std::size_t max_message_size() const noexcept = 0;
+
+  /**
+   * Get the maximum inject message size for the provider
+   * 
+   * @return Max inject message size in bytes
+   */
+  virtual std::size_t max_inject_size() const noexcept = 0;
 
   /* Additional TODO:
      - support for atomic RMA operations

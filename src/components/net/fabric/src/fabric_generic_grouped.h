@@ -83,6 +83,7 @@ public:
   std::string get_local_addr() override;
 
   std::size_t max_message_size() const noexcept override;
+  std::size_t max_inject_size() const noexcept override;
   /* END Component::IFabric_active_endpoint_grouped (IFabric_connection) */
 
   Component::IFabric_communicator *allocate_group() override;
@@ -184,7 +185,7 @@ public:
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_inject fail
    */
-  void inject_send(const ::iovec *first, const ::iovec *last);
+  void inject_send(const void *buf, std::size_t len);
 
   fabric_types::addr_ep_t get_name() const;
 

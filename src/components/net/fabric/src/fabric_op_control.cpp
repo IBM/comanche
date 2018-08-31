@@ -126,7 +126,7 @@ void Fabric_op_control::post_send(
   , void *context_
 )
 {
-  CHECK_FI_ERR(
+  CHECK_FI_EQ(
     ::fi_sendv(
       &ep()
       , first_
@@ -135,6 +135,7 @@ void Fabric_op_control::post_send(
       , ::fi_addr_t{}
       , context_
     )
+    , 0
   );
   _txcq.incr_inflight(__func__);
 }
@@ -164,7 +165,7 @@ void Fabric_op_control::post_recv(
   , void *context_
 )
 {
-  CHECK_FI_ERR(
+  CHECK_FI_EQ(
     ::fi_recvv(
       &ep()
       , first_
@@ -173,6 +174,7 @@ void Fabric_op_control::post_recv(
       , ::fi_addr_t{}
       , context_
     )
+    , 0
   );
   _rxcq.incr_inflight(__func__);
 }
@@ -205,7 +207,7 @@ void Fabric_op_control::post_read(
   , void *context_
 )
 {
-  CHECK_FI_ERR(
+  CHECK_FI_EQ(
     ::fi_readv(
       &ep()
       , first_
@@ -216,6 +218,7 @@ void Fabric_op_control::post_read(
       , key_
       , context_
     )
+    , 0
   );
   _txcq.incr_inflight(__func__);
 }
@@ -251,7 +254,7 @@ void Fabric_op_control::post_write(
   , void *context_
 )
 {
-  CHECK_FI_ERR(
+  CHECK_FI_EQ(
     ::fi_writev(
       &ep()
       , first_
@@ -262,6 +265,7 @@ void Fabric_op_control::post_write(
       , key_
       , context_
       )
+    , 0
     );
   _txcq.incr_inflight(__func__);
 }
@@ -282,11 +286,12 @@ void Fabric_op_control::post_write(
    * Send message without completion
    *
    * @param connection Connection to inject on
-   * @param buffers Buffer vector (containing regions should be registered)
+   * @param buf_ start of data to send
+   * @param len_ length of data to send (must not exceed max_inject_size())
    */
-void Fabric_op_control::inject_send(const ::iovec *first_, const ::iovec *last_)
+void Fabric_op_control::inject_send(const void *buf_, std::size_t len_)
 {
-  CHECK_FI_ERR(::fi_inject(&ep(), first_, last_ - first_, ::fi_addr_t{}));
+  CHECK_FI_EQ(::fi_inject(&ep(), buf_, len_, ::fi_addr_t{}), 0);
 }
 
 namespace
@@ -643,6 +648,11 @@ catch ( const fabric_runtime_error &e )
 }
 
 std::size_t Fabric_op_control::max_message_size() const noexcept
+{
+  return _ep_info->ep_attr->max_msg_size;
+}
+
+std::size_t Fabric_op_control::max_inject_size() const noexcept
 {
   return _ep_info->ep_attr->max_msg_size;
 }
