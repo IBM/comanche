@@ -19,7 +19,8 @@ class ExperimentGetLatency : public Experiment
 public:
     float _cycles_per_second;  // initialized in do_work first run
     std::vector<double> _start_time;
-    double _start_rdtsc;
+    std::vector<double> _latencies;
+    unsigned int _start_rdtsc;
     BinStatistics _latency_stats;
 
     ExperimentGetLatency(struct ProgramOptions options): Experiment(options)
@@ -36,6 +37,7 @@ public:
     {
         _cycles_per_second = Core::get_rdtsc_frequency_mhz() * 1000000;
         _start_time.resize(_pool_num_components);
+        _latencies.resize(_pool_num_components);
 
         // seed the pool with elements from _data
         _populate_pool_to_capacity(core);
@@ -87,6 +89,7 @@ public:
         // store the information for later use
         _latency_stats.update(time);
         _start_time.at(_i) = time_since_start;
+        _latencies.at(_i) = time;
 
         assert(rc == S_OK);
 
@@ -109,7 +112,7 @@ public:
     void cleanup_custom(unsigned core)  
     {
        // compute _start_time_stats pre-lock
-       BinStatistics start_time_stats = _compute_bin_statistics_from_vector(_start_time, _bin_count, _start_time[0], _start_time[_pool_num_components-1]); 
+       BinStatistics start_time_stats = _compute_bin_statistics_from_vectors(_latencies, _start_time, _bin_count, _start_time.front(), _start_time.at(_i-1), _i); 
 
        pthread_mutex_lock(&g_write_lock);
 

@@ -131,7 +131,8 @@ public:
 
         if (threshold_min > threshold_max)
         {
-            perror("BinStatistics.init: threshold_min should be larger than threshold_max");
+            std::cerr << "BinStatistics.init: threshold_max should be larger than threshold_min. ";
+            std::cerr << "min: " << threshold_min << ", max = " << threshold_max << std::endl;
         }
 
         _bin_count = bins;
@@ -145,7 +146,14 @@ public:
 
     void update(double value)
     {
-        int bin = get_latency_bin(value);
+        int bin = find_bin_from_value(value);
+
+        _bins[bin].add_value(value);
+    }
+
+    void update_value_for_bin(double value, double bin_calc_value)
+    {
+        int bin = find_bin_from_value(bin_calc_value);
 
         _bins[bin].add_value(value);
     }
@@ -176,7 +184,7 @@ private:
     double _max;
     std::vector<RunningStatistics> _bins;
 
-    int get_latency_bin(double value)
+    int find_bin_from_value(double value)
     {
         int bin = (value - _min) / _increment;
 

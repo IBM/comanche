@@ -321,6 +321,23 @@ public:
         return timestring;
     }
 
+    BinStatistics _compute_bin_statistics_from_vectors(std::vector<double> data, std::vector<double> data_bins, int bin_count, double bin_min, double bin_max, int elements)
+    {
+        if (data.size() != data_bins.size())
+        {
+            perror("data and data_bins sizes aren't the same!");
+        }
+
+        BinStatistics stats(bin_count, bin_min, bin_max);
+
+        for (int i = 0; i < elements; i++)
+        {
+            stats.update_value_for_bin(data[i], data_bins[i]);
+        }
+
+        return stats;
+    }
+
     BinStatistics _compute_bin_statistics_from_vector(std::vector<double> data, int bin_count, double bin_min, double bin_max)
     {
         BinStatistics stats(bin_count, bin_min, bin_max);
