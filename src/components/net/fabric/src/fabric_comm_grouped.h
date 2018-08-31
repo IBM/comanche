@@ -97,8 +97,7 @@ public:
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_inject fail
    */
-  void inject_send(const ::iovec *first, const ::iovec *last) override;
-  void inject_send(const std::vector<::iovec>& buffers) override;
+  void inject_send(const void *first, std::size_t len) override;
 
   /*
    * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error

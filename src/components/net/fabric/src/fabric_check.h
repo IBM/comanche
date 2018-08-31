@@ -34,7 +34,9 @@
 /* fi_fabric, fi_close (when called on a fabric) and most fi_poll functions FI_SUCCESS; others return 0 */
 unsigned (check_ge_zero)(int r, const char *file, int line);
 std::size_t (check_ge_zero)(ssize_t r, const char *file, int line);
+std::size_t (check_eq)(ssize_t r, ssize_t exp, const char *file, int line);
 
 #define CHECK_FI_ERR(V) (check_ge_zero)((V), __FILE__, __LINE__)
+#define CHECK_FI_EQ(V,EXP) (check_eq)((V), (EXP), __FILE__, __LINE__)
 
 #endif
