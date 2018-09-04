@@ -13,8 +13,8 @@ Component::IFabric_server *server_connection::get_connection(Component::IFabric_
 }
 
 server_connection::server_connection(Component::IFabric_server_factory &ep_)
-  : _ep(ep_)
-  , _cnxn(get_connection(_ep))
+  : _ep(&ep_)
+  , _cnxn(get_connection(*_ep))
 {
 }
 
@@ -25,12 +25,20 @@ server_connection::server_connection(server_connection &&sc_) noexcept
   sc_._cnxn = nullptr;
 }
 
+server_connection &server_connection::operator=(server_connection &&sc_) noexcept
+{
+  _ep = sc_._ep;
+  _cnxn = std::move(sc_._cnxn);
+  sc_._cnxn = nullptr;
+  return *this;
+}
+
 server_connection::~server_connection()
 try
 {
   if ( _cnxn )
   {
-    _ep.close_connection(_cnxn);
+    _ep->close_connection(_cnxn);
   }
 }
 catch ( std::exception &e )

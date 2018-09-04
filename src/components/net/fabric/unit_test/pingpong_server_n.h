@@ -20,12 +20,16 @@ namespace Component
 class pingpong_server_n
   : private boost::noncopyable
 {
-  std::vector<client_state> _cs;
   pingpong_stat _stat;
   std::thread _th;
 
   void listener(
-    std::size_t msg_size
+    unsigned client_count
+    , Component::IFabric_server_factory &factory
+    , std::size_t buffer_size
+    , std::uint64_t remote_key_base
+    , unsigned iteration_count
+    , std::size_t msg_size
   );
 public:
   pingpong_server_n(
