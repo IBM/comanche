@@ -38,6 +38,15 @@ Fabric_cq::Fabric_cq(fid_unique_ptr<::fid_cq> &&cq_, const char *type_)
 {
 }
 
+Fabric_cq::~Fabric_cq()
+{
+  /* Note: completions left on transmission CQs should usually be 0. */
+  if ( std::getenv("FABRIC_STATS") )
+  {
+    std::cerr << __func__ << " " << _type << " completions left " << _inflight << "\n";
+  }
+}
+
 Fabric_cq::stats::~stats()
 {
   if ( std::getenv("FABRIC_STATS") )
@@ -357,11 +366,20 @@ std::size_t Fabric_cq::poll_completions_tentative(const Component::IFabric_op_co
 
 ssize_t Fabric_cq::cq_read(void *buf, size_t count) noexcept
 {
+#if 0
+  /* Note: It would seem resonable to skip the CQ read if there are
+   * no outstanding (inflight) operations. Doing so, however, when
+   * using fi_inject with the verbs provider, causes a hang after
+   * about 128 operations.
+   */
   auto r =
     0U == _inflight
     ? -FI_EAGAIN
     : ::fi_cq_read(&*_cq, buf, count)
     ;
+#else
+  auto r = ::fi_cq_read(&*_cq, buf, count);
+#endif
 
   if ( 0 < r )
   {

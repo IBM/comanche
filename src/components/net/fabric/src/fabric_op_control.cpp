@@ -292,7 +292,6 @@ void Fabric_op_control::post_write(
 void Fabric_op_control::inject_send(const void *buf_, std::size_t len_)
 {
   CHECK_FI_EQ(::fi_inject(&ep(), buf_, len_, ::fi_addr_t{}), 0);
-  _txcq.incr_inflight(__func__);
 }
 
 namespace
