@@ -72,6 +72,7 @@ private:
 public:
   const char *type() { return _type; }
   explicit Fabric_cq(fid_unique_ptr<::fid_cq> &&cq, const char *type);
+  ~Fabric_cq();
 
   /* exposed for fi_ep_bind */
   ::fid_t fid() { return &_cq->fid; }
