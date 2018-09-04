@@ -3,7 +3,7 @@
 
 #include "pingpong_stat.h"
 #include <common/types.h> /* status_t */
-#include <cstdint> /* uint16_t, uint64_t */
+#include <cstdint> /* int8_t, uint16_t, uint64_t */
 #include <string>
 #include <memory> /* shared_ptr */
 
@@ -21,6 +21,7 @@ class pingpong_client
 
   std::shared_ptr<Component::IFabric_client> _cnxn;
   pingpong_stat _stat;
+  std::uint8_t _id;
 
 protected:
   void do_quit();
@@ -34,6 +35,7 @@ public:
     , std::uint64_t remote_key_base
     , unsigned iteration_count
     , std::size_t msg_size
+    , std::uint8_t id
   );
   pingpong_client(pingpong_client &&) = default;
   pingpong_client &operator=(pingpong_client &&) = default;

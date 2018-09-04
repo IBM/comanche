@@ -11,7 +11,7 @@ namespace Component
 
 class server_connection
 {
-  Component::IFabric_server_factory &_ep;
+  Component::IFabric_server_factory *_ep;
   Component::IFabric_server *_cnxn;
   DELETE_COPY(server_connection);
   static Component::IFabric_server *get_connection(Component::IFabric_server_factory &ep);
@@ -19,6 +19,7 @@ public:
   Component::IFabric_server &cnxn() const { return *_cnxn; }
   explicit server_connection(Component::IFabric_server_factory &ep);
   server_connection(server_connection &&) noexcept;
+  server_connection& operator=(server_connection &&) noexcept;
   /* The presence of a destructor and a pointer member causes -Weffc++ to warn
    *
    * warning: ‘class d’ has pointer data members [-Weffc++]

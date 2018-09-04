@@ -14,9 +14,12 @@ add_executable(fabric-test1 test1.cpp
   eyecatcher.cpp
   mr_lock.cpp
   patience.cpp
+  pingpong_cb_ctxt.cpp
+  pingpong_cb_pack.cpp
   pingpong_client.cpp
   pingpong_cnxn_state.cpp
   pingpong_server.cpp
+  pingpong_server_cb.cpp
   pingpong_server_client_state.cpp
   pingpong_server_n.cpp
   registered_memory.cpp
