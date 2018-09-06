@@ -18,6 +18,7 @@ std::string component_path = FILESTORE_PATH;
 Component::uuid_t component_uuid = Component::filestore_factory;
 std::string pci_address = "";  // optional parameter
 std::string pool_path = "./data";
+std::string g_component = DEFAULT_COMPONENT;
 
 class PoolTest: public::testing::Test
 {
@@ -348,27 +349,38 @@ TEST_F(PoolTest, DISABLED_Count_Changes)
 TEST_F(PoolTest, PutDirectGetDirect_RandomKVP)
 {
     // randomly generate key and value
-    const int key_length = 8;
-    const int value_length = 64;
+    const size_t key_length = 8;
+    const size_t value_length = 64;
     const std::string key = Common::random_string(key_length);
+    Component::IKVStore::memory_handle_t memory_handle;
 
     std::string value = Common::random_string(value_length);
-    status_t rc = _g_store->put_direct(_pool, key.c_str(), key_length, value.c_str(), value_length);
+
+    if (g_component.compare("filestore") == 0)
+    {
+        memory_handle = Component::IKVStore::HANDLE_NONE;
+    }
+    else 
+    {
+        memory_handle = Component::IKVStore::HANDLE_NONE;  // TODO: implement
+    }
+
+    status_t rc = _g_store->put_direct(_pool, key.c_str(), key_length, value.c_str(), value_length, memory_handle);
 
     ASSERT_EQ(rc, S_OK) << "put_direct return code failed";
 
     void * pval = malloc(sizeof(char) * value_length);  // get_direct requires memory allocation
-    size_t pval_len;
+    size_t pval_len = value_length;
  
-    rc  = _g_store->get_direct(_pool, key, pval, pval_len, 0);  // offset = 0
+    rc  = _g_store->get_direct(_pool, key, pval, pval_len, 0, memory_handle);  // offset = 0
+
+    ASSERT_EQ(rc, S_OK) << "get_direct return code failed";
+    ASSERT_STREQ((const char*)pval, value.c_str()) << "strings didn't match";
 
     if (pval != nullptr)
     {
         free(pval);
     }
-
-    ASSERT_EQ(rc, S_OK) << "get_direct return code failed";
-    ASSERT_STREQ((const char*)pval, value.c_str()) << "strings didn't match";
 }
 
 TEST_F(PoolTest, GetDirect_NoValidKey)
@@ -427,14 +439,14 @@ TEST_F(PoolTestSmall, Put_TooLarge)
     
     rc  = _g_store->get(_pool, key, pval, pval_len);
 
+    ASSERT_EQ(rc, S_OK) << "put return code failed";
+    ASSERT_STREQ((const char*)pval, value.c_str());
+    ASSERT_EQ(value_length, pval_len);
+
     if (pval != nullptr)
     {
         free(pval);
     }
-
-    ASSERT_EQ(rc, S_OK) << "put return code failed";
-    ASSERT_STREQ((const char*)pval, value.c_str());
-    ASSERT_EQ(value_length, pval_len);
 }
 
 struct {
@@ -473,6 +485,7 @@ int main(int argc, char **argv)
         if(vm.count("component")) 
         {
             Options.component = vm["component"].as<std::string>();
+            g_component = Options.component;
            
             printf("checking component arg\n");
             if(Options.component.compare("filestore") == 0) 
