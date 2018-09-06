@@ -93,7 +93,8 @@ public:
                               const void * key,
                               const size_t key_len,
                               const void * value,
-                              const size_t value_len);
+                              const size_t value_len,
+                              IKVStore::memory_handle_t handle);
 
   virtual status_t erase(const pool_t pool,
                          const std::string key) override;
