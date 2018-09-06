@@ -263,17 +263,19 @@ TEST_F(PoolTest, Put_Erase)
 
     status_t rc = _g_store->put(_pool, key, value.c_str(), value_length);
 
-    ASSERT_EQ(rc, S_OK); 
+    ASSERT_EQ(rc, S_OK) << "put return code failed"; 
 
     // now delete key and try to get it again post-deletion
     void * pval = NULL;  // initialize so we can check if value has changed
     size_t pval_len;
 
     rc = _g_store->erase(_pool, key);
- 
+
+    ASSERT_EQ(rc, S_OK) << "erase return code failed";
+
     rc  = _g_store->get(_pool, key, pval, pval_len);
 
-    ASSERT_EQ(rc, IKVStore::E_KEY_NOT_FOUND);
+    ASSERT_EQ(rc, IKVStore::E_KEY_NOT_FOUND) << "get return code failed";
 
     if (pval != NULL)
     {
@@ -292,7 +294,7 @@ TEST_F(PoolTest, Put_EraseInvalid)
 
     // make sure key isn't somehow in pool already
     int rc  = _g_store->get(_pool, key, pval, pval_len);
-    ASSERT_EQ(rc, IKVStore::E_KEY_NOT_FOUND);
+    ASSERT_EQ(rc, IKVStore::E_KEY_NOT_FOUND) << "get return code failed";
 
     rc = _g_store->erase(_pool, key);
 
@@ -301,7 +303,7 @@ TEST_F(PoolTest, Put_EraseInvalid)
         free(pval);
     }
 
-    ASSERT_EQ(rc, IKVStore::E_KEY_NOT_FOUND);
+    ASSERT_EQ(rc, IKVStore::E_KEY_NOT_FOUND) << "erase return code failed";
 }
 
 
@@ -360,10 +362,13 @@ TEST_F(PoolTest, PutDirectGetDirect_RandomKVP)
  
     rc  = _g_store->get_direct(_pool, key, pval, pval_len, 0);  // offset = 0
 
+    if (pval != nullptr)
+    {
+        free(pval);
+    }
+
     ASSERT_EQ(rc, S_OK) << "get_direct return code failed";
     ASSERT_STREQ((const char*)pval, value.c_str()) << "strings didn't match";
-
-    free(pval);
 }
 
 TEST_F(PoolTest, GetDirect_NoValidKey)
@@ -376,12 +381,13 @@ TEST_F(PoolTest, GetDirect_NoValidKey)
     size_t pval_len;
  
     status_t rc  = _g_store->get_direct(_pool, key, pval, pval_len, 0);  // offset = 0
-    ASSERT_EQ((int)rc, (int)IKVStore::E_KEY_NOT_FOUND);  // expect failure code here
-
+    
     if(pval != NULL)
     {
         free(pval);
     } 
+
+    ASSERT_EQ((int)rc, (int)IKVStore::E_KEY_NOT_FOUND) << "get_direct return code failed";
 }
 
 
@@ -396,12 +402,12 @@ TEST_F(PoolTest, PutDirect_DuplicateKey)
 
     status_t rc = _g_store->put_direct(_pool, key.c_str(), key_length, value.c_str(), value_length);
 
-    ASSERT_EQ(rc, S_OK);
+    ASSERT_EQ(rc, S_OK) << "put_direct return code failed";
 
     // now try to add another value to that key
     rc = _g_store->put_direct(_pool, key.c_str(), key_length, value.c_str(), value_length);
 
-    ASSERT_EQ(rc, IKVStore::E_KEY_EXISTS);
+    ASSERT_EQ(rc, IKVStore::E_KEY_EXISTS) << "second put_direct return code failed";
 }
 
 TEST_F(PoolTestSmall, Put_TooLarge)
@@ -420,12 +426,15 @@ TEST_F(PoolTestSmall, Put_TooLarge)
     size_t pval_len;
     
     rc  = _g_store->get(_pool, key, pval, pval_len);
-    
-    ASSERT_EQ(rc, S_OK);
+
+    if (pval != nullptr)
+    {
+        free(pval);
+    }
+
+    ASSERT_EQ(rc, S_OK) << "put return code failed";
     ASSERT_STREQ((const char*)pval, value.c_str());
     ASSERT_EQ(value_length, pval_len);
-
-    free(pval);
 }
 
 struct {
