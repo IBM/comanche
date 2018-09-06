@@ -167,7 +167,7 @@ void Fabric::readerr_eq()
 {
   ::fi_eq_err_entry entry{};
   auto flags = 0U;
-  ::fi_eq_readerr(&*_eq, &entry, flags);
+  CHECK_FI_EQ(::fi_eq_readerr(&*_eq, &entry, flags), sizeof entry);
 
   {
     std::lock_guard<std::mutex> g{_m_eq_dispatch_pep};

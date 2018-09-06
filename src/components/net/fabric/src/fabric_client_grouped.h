@@ -233,8 +233,7 @@ public:
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_inject fail
    */
-  void inject_send(const ::iovec *first, const ::iovec *last) override { return _g.inject_send(first, last); }
-  void inject_send(const std::vector<::iovec>& buffers) override { return _g.inject_send(&*buffers.begin(), &*buffers.end()); }
+  void inject_send(const void *buf, std::size_t len) override { return _g.inject_send(buf, len); }
 
   fabric_types::addr_ep_t get_name() const { return _g.get_name(); }
 
@@ -243,6 +242,7 @@ public:
    * @throw std::system_error : read error on event pipe
   */
   std::size_t max_message_size() const noexcept override { return Fabric_connection_client::max_message_size(); }
+  std::size_t max_inject_size() const noexcept override { return Fabric_connection_client::max_inject_size(); }
 };
 
 #endif

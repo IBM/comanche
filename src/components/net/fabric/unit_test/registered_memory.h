@@ -13,7 +13,6 @@ namespace Component
 
 class registered_memory
 {
-  Component::IFabric_connection &_cnxn;
   /* There may be an alignment restriction on registered memory, May be 8, or 16. */
   std::vector<char> _memory;
   registration _registration;

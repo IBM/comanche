@@ -83,6 +83,7 @@ class Fabric_server_grouped
   std::string get_local_addr() override { return Fabric_op_control::get_local_addr(); }
 public:
   std::size_t max_message_size() const noexcept override { return Fabric_op_control::max_message_size(); }
+  std::size_t max_inject_size() const noexcept override { return Fabric_op_control::max_inject_size(); }
   /* END Component::IFabric_server_grouped (IFabric_connection) */
 private:
   Component::IFabric_communicator *allocate_group() override { return _g.allocate_group(); }
@@ -204,8 +205,7 @@ public:
     std::uint64_t key,
     void *context
   ) override { return _g.post_write(&*buffers.begin(), &*buffers.end(), remote_addr, key, context); }
-  void inject_send(const std::vector<::iovec>& buffers) override { return _g.inject_send(&*buffers.begin(), &*buffers.end()); }
-  void inject_send(const ::iovec *first, const ::iovec *last) override { return _g.inject_send(first, last); }
+  void inject_send(const void *buf, std::size_t len) override { return _g.inject_send(buf, len); }
   fabric_types::addr_ep_t get_name() const;
 
   void forget_group(Fabric_comm_grouped *);
