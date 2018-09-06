@@ -184,16 +184,13 @@ public:
    * @throw fabric_runtime_error : std::runtime_error : ::fi_inject fail
    */
   void inject_send(
-    const std::vector<::iovec>& buffers
-  ) override { return Fabric_op_control::inject_send(&*buffers.begin(), &*buffers.end()); }
-  void inject_send(
-    const ::iovec *first
-    , const ::iovec *last
-  ) override { return Fabric_op_control::inject_send(first, last); }
+    const void *buf, std::size_t len
+  ) override { return Fabric_op_control::inject_send(buf, len); }
 
   std::string get_peer_addr() override { return Fabric_op_control::get_peer_addr(); }
   std::string get_local_addr() override { return Fabric_op_control::get_local_addr(); }
   std::size_t max_message_size() const noexcept override { return Fabric_op_control::max_message_size(); }
+  std::size_t max_inject_size() const noexcept override { return Fabric_op_control::max_inject_size(); }
 };
 
 #endif

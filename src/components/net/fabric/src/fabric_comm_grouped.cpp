@@ -187,13 +187,9 @@ void Fabric_comm_grouped::post_write(
    * @param connection Connection to inject on
    * @param buffers Buffer vector (containing regions should be registered)
    */
-void Fabric_comm_grouped::inject_send(const ::iovec *first_, const ::iovec *last_)
+void Fabric_comm_grouped::inject_send(const void *buf_, const std::size_t len_)
 {
-  _conn.inject_send(first_, last_);
-}
-void Fabric_comm_grouped::inject_send(const std::vector<::iovec>& buffers_)
-{
-  _conn.inject_send(&*buffers_.begin(), &*buffers_.end());
+  _conn.inject_send(buf_, len_);
 }
 
 std::size_t Fabric_comm_grouped::poll_completions(const Component::IFabric_op_completer::complete_old &cb_)
