@@ -16,6 +16,7 @@
 #define FILESTORE_PATH "libcomanche-storefile.so"
 #define NVMESTORE_PATH "libcomanche-nvmestore.so"
 #define ROCKSTORE_PATH "libcomanche-rocksdb.so"
+#define DAWN_PATH "libcomanche-dawn-client.so"
 #define DEFAULT_COMPONENT "filestore"
 
 using namespace Component;
@@ -63,6 +64,10 @@ int main(int argc, char * argv[])
     ("bins", po::value<unsigned int>(), "Number of bins for statistics")
     ("latency_range_min", po::value<unsigned int>(), "Lowest latency bin threshold")
     ("latency_range_max", po::value<unsigned int>(), "Highest latency bin threshold")
+    ("debug_level", po::value<int>(), "Debug level")
+    ("owner", po::value<std::string>(), "Owner name for component registration")
+    ("server_address", po::value<std::string>(), "server address, with port")
+    ("device_name", po::value<std::string>(), "device name")
     ;
 
   try {
@@ -86,6 +91,10 @@ int main(int argc, char * argv[])
     Options.time_secs  = vm.count("time") > 0 ? vm["time"].as<int>() : 4;
     Options.size = vm.count("size") > 0 ? vm["size"].as<unsigned int>() : MB(100);
     Options.flags = vm.count("flags") > 0 ? vm["flags"].as<int>() : Component::IKVStore::FLAGS_SET_SIZE;
+    Options.debug_level = vm.count("debug_level") > 0 ? vm["debug_level"].as<int>() : 0;
+    Options.owner = vm.count("owner") > 0 ? vm["owner"].as<std::string>() : "name";
+    Options.server_address = vm.count("server_address") ? vm["server_address"].as<std::string>() : "127.0.0.1";
+    Options.device_name = vm.count("device_name") ? vm["device_name"].as<std::string>() : "unused";
 
 /*
     if(vm.count("path"))
@@ -173,6 +182,12 @@ static void initialize()
   else if(Options.component == "rockstore") {
     comp = Component::load_component(ROCKSTORE_PATH, Component::rocksdb_factory);
   }
+  else if(Options.component == "dawn_client")
+  {
+    
+      DECLARE_STATIC_COMPONENT_UUID(dawn_client_factory, 0xfac66078,0xcb8a,0x4724,0xa454,0xd1,0xd8,0x8d,0xe2,0xdb,0x87);  // TODO: find a better way to register arbitrary components to promote modular use
+    comp = Component::load_component(DAWN_PATH, dawn_client_factory);
+  }
   else throw General_exception("unknown --component option (%s)", Options.component.c_str());
 
   assert(comp);
@@ -181,8 +196,12 @@ static void initialize()
   if(Options.component == "nvmestore"){
     g_store = fact->create("owner","name", "09:00.0");
   }
+  else if (Options.component == "dawn_client")
+  {
+      g_store = fact->create(Options.debug_level, Options.owner, Options.server_address, Options.device_name);
+  }
   else{
-    g_store = fact->create("owner","name");
+    g_store = fact->create("owner",Options.owner);
   }
   fact->release_ref();
 }

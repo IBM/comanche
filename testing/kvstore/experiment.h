@@ -114,6 +114,10 @@ public:
           ("bins", po::value<unsigned int>(), "Number of bins for statistics")
           ("latency_range_min", po::value<unsigned int>(), "Lowest latency bin threshold")
           ("latency_range_max", po::value<unsigned int>(), "Highest latency bin threshold")
+          ("debug_level", po::value<int>(), "Debug level")
+          ("owner", po::value<std::string>(), "Owner name for component registration")
+          ("server_address", po::value<std::string>(), "server address, with port")
+          ("device_name", po::value<std::string>(), "device name")
                   ;
       
         try 
