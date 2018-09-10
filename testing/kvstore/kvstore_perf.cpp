@@ -27,6 +27,7 @@ using namespace Component;
 #include "exp_put_latency.h"
 #include "exp_get_latency.h"
 #include "exp_get_direct_latency.h"
+#include "exp_put_direct_latency.h"
 #include "kvstore_perf.h"
 
 ProgramOptions Options;
@@ -157,7 +158,12 @@ int main(int argc, char * argv[])
       Core::Per_core_tasking<ExperimentGetDirectLatency, ProgramOptions> exp(cpus, Options);
       exp.wait_for_all();
   }
-  
+
+  if (Options.test == "all" || Options.test == "put_direct_latency")
+  {
+      Core::Per_core_tasking<ExperimentPutDirectLatency, ProgramOptions> exp(cpus, Options);
+      exp.wait_for_all();
+  } 
   ProfilerStop();
   
   cleanup();
