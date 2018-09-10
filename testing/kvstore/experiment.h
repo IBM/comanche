@@ -456,7 +456,7 @@ public:
         return _element_size;
     }
 
-    void _populate_pool_to_capacity(unsigned core)
+    void _populate_pool_to_capacity(unsigned core, Component::IKVStore::memory_handle_t memory_handle = Component::IKVStore::HANDLE_NONE)
     {
         // how much space do we have?
         unsigned long elements_remaining = _pool_num_components - _elements_stored;
@@ -475,7 +475,14 @@ public:
 
         do
         {
-            rc = _store->put(_pool, _data->key(current), _data->value(current), _data->value_len());
+            if (memory_handle != Component::IKVStore::HANDLE_NONE)
+            {
+                rc = _store->put_direct(_pool, _data->key(current), _data->_key_len, _data->value(current), _data->_val_len, memory_handle);
+            }
+            else
+            {
+                rc = _store->put(_pool, _data->key(current), _data->value(current), _data->value_len());
+            }
 
             if (rc != S_OK)
             {

@@ -6,6 +6,7 @@
 #include <fstream>
 #include <iostream>
 #include <vector>
+#include <sys/mman.h>
 
 #include "common/cycles.h"
 #include "experiment.h"
@@ -22,6 +23,7 @@ public:
     std::vector<double> _latencies;
     double _start_rdtsc;
     BinStatistics _latency_stats;
+    Component::IKVStore::memory_handle_t _direct_memory_handle = Component::IKVStore::HANDLE_NONE;
 
     ExperimentGetDirectLatency(struct ProgramOptions options) : Experiment(options) 
     {    
@@ -39,8 +41,16 @@ public:
         _start_time.resize(_pool_num_components);
         _latencies.resize(_pool_num_components);
 
+        if (_component.compare("dawn_client") == 0)
+        {
+           size_t data_size = sizeof(KV_pair) * _data->_num_elements;
+           Data * data = (Data*)aligned_alloc(_pool_size, data_size);
+           madvise(data, data_size, MADV_HUGEPAGE);
+           _direct_memory_handle = _store->register_direct_memory(data, data_size);
+        }
+
         // seed the pool with elements from _data
-        _populate_pool_to_capacity(core);
+        _populate_pool_to_capacity(core, _direct_memory_handle);
 
         PLOG("pool seeded with values\n");
 
@@ -69,8 +79,10 @@ public:
 
         io_buffer_t handle;
         Core::Physical_memory mem_alloc;
-        void * pval = nullptr;
         size_t pval_len = 64;
+        void * pval = malloc(pval_len);
+        int offset = 0;
+        Component::IKVStore::memory_handle_t memory_handle = Component::IKVStore::HANDLE_NONE; 
 
         if (_component.compare("nvmestore") == 0)
         {
@@ -84,9 +96,13 @@ public:
 
             pval = mem_alloc.virt_addr(handle);
         }
+        else if (_component.compare("dawn_client") == 0)
+        {
+            memory_handle = _direct_memory_handle;
+        }
  
         start = rdtsc();
-        int rc = _store->get_direct(_pool, _data->key(_i), pval, pval_len);
+        int rc = _store->get_direct(_pool, _data->key(_i), pval, pval_len, offset, memory_handle);
         end = rdtsc();
 
         cycles = end - start;
@@ -100,12 +116,10 @@ public:
         { 
              mem_alloc.free_io_buffer(handle);
         }
-        else
+
+        if (pval != nullptr)
         {
-            if (pval != nullptr)
-            {
-                free(pval);
-            }
+            free(pval);
         }
 
         // store the information for later use
@@ -119,7 +133,7 @@ public:
        if (_i == _pool_element_end)
        {
             _erase_pool_entries_in_range(_pool_element_start, _pool_element_end);
-           _populate_pool_to_capacity(core);
+           _populate_pool_to_capacity(core, _direct_memory_handle);
 
            if (_verbose)
            {
@@ -132,6 +146,11 @@ public:
 
     void cleanup_custom(unsigned core)  
     {
+        if (_component.compare("dawn_client") == 0)
+        {
+            _store->unregister_direct_memory(_direct_memory_handle);
+        }
+
         if (_verbose)
         {
             std::stringstream stats_info;
