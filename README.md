@@ -38,7 +38,7 @@ git submodule update --init --recursive
 ```bash
 mkdir build
 cd build
-cmake ..
+cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX:PATH=../ ..
 make bootstrap  # build the core and dependencies
 make # build comanche components & tests, etc
 ```

@@ -1,6 +1,7 @@
 #ifndef __EXP_PUT_DIRECT_LATENCY_H__
 #define __EXP_PUT_DIRECT_LATENCY_H__
 
+#include <chrono>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
@@ -20,7 +21,7 @@ public:
     float _cycles_per_second;  // initialized in do_work first run
     std::vector<double> _start_time;
     std::vector<double> _latencies;
-    unsigned int _start_rdtsc;
+    std::chrono::high_resolution_clock::time_point _exp_start_time;
     BinStatistics _latency_stats;
     Component::IKVStore::memory_handle_t _memory_handle = Component::IKVStore::HANDLE_NONE;
 
@@ -62,7 +63,7 @@ public:
             PLOG("Starting Put Direct Latency experiment...");
 
             _first_iter = false;
-            _start_rdtsc = rdtsc();
+            _exp_start_time = std::chrono::high_resolution_clock::now();
         }     
 
         // end experiment if we've reached the total number of components
@@ -84,8 +85,8 @@ public:
         double time = (cycles / _cycles_per_second);
         //printf("start: %u  end: %u  cycles: %u seconds: %f\n", start, end, cycles, time);
 
-        double cycles_since_start = end - _start_rdtsc;
-        double time_since_start = (cycles_since_start / _cycles_per_second);
+        std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
+        double time_since_start = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - _exp_start_time).count() / 1000.0;
 
         // store the information for later use
         _start_time.at(_i) = time_since_start;
