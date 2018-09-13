@@ -32,7 +32,7 @@ struct Pool_handle
           const void * value,
           const size_t value_len);
   
-  int get(const std::string key,
+  int get(const std::string& key,
           void*& out_value,
           size_t& out_value_len);
   
@@ -82,7 +82,7 @@ int Pool_handle::put(const std::string& key,
 }
 
 
-int Pool_handle::get(const std::string key,
+int Pool_handle::get(const std::string& key,
                      void*& out_value,
                      size_t& out_value_len)
 {
