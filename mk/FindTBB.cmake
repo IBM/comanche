@@ -21,6 +21,10 @@ find_library(LIB_TBB
   PATHS ${CMAKE_INSTALL_PREFIX}/lib/
   NAMES tbb)
 
+find_library(LIB_TBB_MALLOC
+  PATHS ${CMAKE_INSTALL_PREFIX}/lib/
+  NAMES tbbmalloc)
+
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(TBB
   FOUND_VAR TBB_FOUND

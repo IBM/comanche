@@ -18,6 +18,7 @@
 #ifndef __API_KVSTORE_ITF__
 #define __API_KVSTORE_ITF__
 
+#include <stdlib.h>
 #include <functional>
 
 #include <api/components.h>
@@ -47,12 +48,14 @@ public:
   enum {
     THREAD_MODEL_UNSAFE,
     THREAD_MODEL_SINGLE_PER_POOL,
+    THREAD_MODEL_RWLOCK_PER_POOL,
     THREAD_MODEL_MULTI_PER_POOL,
   };
 
   enum {
     FLAGS_READ_ONLY = 1,
     FLAGS_SET_SIZE = 2,
+    FLAGS_CREATE_ONLY = 3,
   };
 
   enum {
@@ -285,17 +288,17 @@ public:
                             uint64_t& out_key_hash) { return E_NOT_SUPPORTED; }
 
   /** 
-   * Allocate an object but do not populate data
+   * Allocate an object but do not populate data. Deprecate this.
    * 
    * @param pool Pool handle
-   * @param key_hash Hash of key
+   * @param key_hash Hash of key / server assumes this is unique
    * @param nbytes Size to allocate in bytes
    * 
    * @return S_OK or error code
    */
   virtual status_t allocate(const pool_t pool,
                             uint64_t key_hash,
-                            const size_t nbytes) { return E_NOT_SUPPORTED; }
+                            const size_t nbytes) { return E_NOT_SUPPORTED; } __attribute__((deprecated));
   
   /** 
    * Take a lock on an object. If the object does not exist, create it with
@@ -449,6 +452,13 @@ public:
                        std::function<int(uint64_t key,
                                          const void * value,
                                          const size_t value_len)> function) { return E_NOT_SUPPORTED; }
+
+  /**
+   * Free server-side allocated memory
+   *
+   * @param p Pointer to memory allocated through a get call
+   */
+  virtual void free_memory(void * p) { return ::free(p); }
   
   /** 
    * Debug routine
