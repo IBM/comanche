@@ -1,5 +1,6 @@
 #ifndef __DATA_H__
 #define __DATA_H__
+#include <sys/mman.h>
 #include <vector>
 
 class KV_pair 
@@ -28,7 +29,7 @@ public:
     size_t _key_len = 8;  
     size_t _val_len = 64; 
 
-    KV_pair * _data;
+    KV_pair * _data = nullptr;
   
     Data() 
     {
@@ -42,13 +43,16 @@ public:
         initialize_data();
     }
 
-    Data(size_t num_elements, size_t key_len, size_t val_len)
+    Data(size_t num_elements, size_t key_len, size_t val_len, bool delay_initialization=false)
     {
         _num_elements = num_elements;
         _key_len = key_len;
         _val_len = val_len;
 
-        initialize_data();
+        if (!delay_initialization)
+        {
+            initialize_data();
+        }
     }
 
     ~Data() 
@@ -56,10 +60,14 @@ public:
       delete [] _data;
     }
 
-    void initialize_data()
+    void initialize_data(bool allocate_memory=true)
     {
         PLOG("Initializing data: %d key length, %d value length, %d elements....", (int)_key_len, (int)_val_len, (int)_num_elements);
-        _data = new KV_pair[_num_elements];
+        if (allocate_memory)
+        {
+            _data = new KV_pair[_num_elements];
+        }
+       
     
         for(size_t i=0;i<_num_elements;i++) 
         {

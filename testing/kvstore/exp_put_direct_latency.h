@@ -44,12 +44,15 @@ public:
 
         _latency_stats.init(_bin_count, _bin_threshold_min, _bin_threshold_max);
 
-        if (_component.compare("dawn_client"))
+        if (_component.compare("dawn_client") == 0)
         {
            size_t data_size = sizeof(KV_pair) * _data->_num_elements;
-           Data * data = (Data*)aligned_alloc(_pool_size, data_size);
-           madvise(data, data_size, MADV_HUGEPAGE);
-           _memory_handle = _store->register_direct_memory(data, data_size);
+           data_size += data_size % 64;  // align
+           _data->_data = (KV_pair*)aligned_alloc(MiB(2), data_size);
+           madvise(_data->_data, data_size, MADV_HUGEPAGE);
+    
+           _memory_handle = _store->register_direct_memory(_data->_data, data_size);
+           _data->initialize_data(false);
         }
 
         _debug_print(core, "initialize_custom done");

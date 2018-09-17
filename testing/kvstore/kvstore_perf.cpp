@@ -116,7 +116,8 @@ int main(int argc, char * argv[])
     std::cerr << ex.what() << '\n';
   }
 
-  _data = new Data(Options.elements, Options.key_length, Options.value_length);
+  bool use_direct_memory = Options.component.compare("dawn_client") == 0;
+  _data = new Data(Options.elements, Options.key_length, Options.value_length, use_direct_memory);
   initialize();
 
   Options.store = g_store;
