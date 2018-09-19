@@ -83,6 +83,19 @@ TEST_F(KVStore_test, BasicGet)
   size_t value_len = 0;
   _kvstore->get(pool, key, value, value_len);
   PINF("Value=(%.50s) %lu", ((char*)value), value_len);
+
+  ASSERT_TRUE(value);
+  ASSERT_TRUE(value_len == MB(8));
+
+  value = nullptr;
+  value_len = 0;
+  _kvstore->get(pool, key, value, value_len);
+  PINF("Repeat Value=(%.50s) %lu", ((char*)value), value_len);
+  auto count = _kvstore->count(pool);
+  PINF("Count = %ld", count);
+  ASSERT_TRUE(count == 2);
+  ASSERT_TRUE(value);
+  ASSERT_TRUE(value_len == MB(8));
 }
 
 
@@ -101,10 +114,12 @@ TEST_F(KVStore_test, ReopenPool)
 {
   pool = _kvstore->open_pool("./", "test1.pool");
   ASSERT_TRUE(pool != 0);
+  PLOG("re-opened pool: %p", (void*) pool);
 }
 
 TEST_F(KVStore_test, DeletePool)
 {
+  PLOG("deleting pool: %p", (void*) pool);
   _kvstore->delete_pool(pool);
 }
 
