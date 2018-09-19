@@ -21,7 +21,7 @@ class Experiment : public Core::Tasklet
 public:
     std::string _pool_path = "./data";
     std::string _pool_name = "Exp.pool.";
-    unsigned int _pool_size = MB(100);
+    unsigned long long int _pool_size = MB(100);
     int _pool_flags = Component::IKVStore::FLAGS_SET_SIZE;
     unsigned int _pool_num_components = 100;
     unsigned int _cores = 1;
@@ -106,7 +106,7 @@ public:
           ("cores", po::value<int>(), "Number of threads/cores")
           ("time", po::value<int>(), "Duration to run in seconds")
           ("path", po::value<std::string>(), "Path of directory for pool")
-          ("size", po::value<unsigned int>(), "Size of pool")
+          ("size", po::value<unsigned long long int>(), "Size of pool")
           ("flags", po::value<int>(), "Flags for pool creation")
           ("elements", po::value<unsigned int>(), "Number of data elements")
           ("key_length", po::value<unsigned int>(), "Key length of data")
@@ -137,7 +137,7 @@ public:
 
             if(vm.count("size") > 0)
             {
-                _pool_size = vm["size"].as<unsigned int>();
+                _pool_size = vm["size"].as<unsigned long long int>();
             }
 
             if (vm.count("elements") > 0)
@@ -388,7 +388,7 @@ public:
         temp_value.SetInt(options.elements);
         temp_object.AddMember("elements", temp_value, allocator);
 
-        temp_value.SetInt(options.size);
+        temp_value.SetDouble(options.size);
         temp_object.AddMember("pool_size", temp_value, allocator);
 
         temp_value.SetInt(options.flags);
