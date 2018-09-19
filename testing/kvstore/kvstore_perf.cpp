@@ -57,7 +57,7 @@ int main(int argc, char * argv[])
     ("cores", po::value<int>(), "Number of threads/cores")
     ("time", po::value<int>(), "Duration to run in seconds")
     ("path", po::value<std::string>(), "Path of directory for pool")
-    ("size", po::value<unsigned int>(), "Size of pool")
+    ("size", po::value<unsigned long long int>(), "Size of pool")
     ("flags", po::value<int>(), "Flags for pool creation")
     ("elements", po::value<unsigned int>(), "Number of data elements")
     ("key_length", po::value<unsigned int>(), "Key length of data")
@@ -90,7 +90,7 @@ int main(int argc, char * argv[])
     
     Options.cores  = vm.count("cores") > 0 ? vm["cores"].as<int>() : 1;
     Options.time_secs  = vm.count("time") > 0 ? vm["time"].as<int>() : 4;
-    Options.size = vm.count("size") > 0 ? vm["size"].as<unsigned int>() : MB(100);
+    Options.size = vm.count("size") > 0 ? vm["size"].as<unsigned long long int>() : MB(100);
     Options.flags = vm.count("flags") > 0 ? vm["flags"].as<int>() : Component::IKVStore::FLAGS_SET_SIZE;
     Options.debug_level = vm.count("debug_level") > 0 ? vm["debug_level"].as<int>() : 0;
     Options.owner = vm.count("owner") > 0 ? vm["owner"].as<std::string>() : "name";
@@ -116,7 +116,8 @@ int main(int argc, char * argv[])
     std::cerr << ex.what() << '\n';
   }
 
-  _data = new Data(Options.elements, Options.key_length, Options.value_length);
+  bool use_direct_memory = Options.component.compare("dawn_client") == 0;
+  _data = new Data(Options.elements, Options.key_length, Options.value_length, use_direct_memory);
   initialize();
 
   Options.store = g_store;

@@ -16,7 +16,7 @@ struct ProgramOptions {
     unsigned cores;
     unsigned time_secs;
     std::string path;
-    unsigned int size;
+    unsigned long long int size;
     int flags;
     unsigned int elements;
     Component::IKVStore * store;
