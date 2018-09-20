@@ -16,6 +16,7 @@
 #include "map_store.h"
 
 using namespace Component;
+using namespace Common;
 
 struct Value_pair
 {
@@ -53,14 +54,28 @@ public:
 
 struct Pool_session
 {
+  Pool_session(Pool_handle * ph) : pool(ph) {}
+  bool check() const { return canary == 0x45450101; }
   Pool_handle * pool;
+  const unsigned canary = 0x45450101;
 };
 
 std::mutex                            _pool_sessions_lock;
 std::set<Pool_session *>              _pool_sessions;
 std::map<std::string, Pool_handle *>  _pools; /*< existing pools */
 
-using lock_guard = std::lock_guard<std::mutex>;
+using Std_lock_guard = std::lock_guard<std::mutex>;
+
+static Pool_session* get_session(const IKVStore::pool_t pid)
+{
+  auto session = reinterpret_cast<Pool_session*>(pid);
+
+  if(_pool_sessions.count(session) != 1)
+    throw API_exception("invalid pool identifier");
+
+  assert(session);
+  return session;
+}
 
 
 int Pool_handle::put(const std::string& key,
@@ -69,19 +84,16 @@ int Pool_handle::put(const std::string& key,
 {
   if(!value || !value_len)
     throw API_exception("invalid parameters");
+
+  RWLock_guard guard(map_lock, RWLock_guard::WRITE);
   
-  map_lock.write_lock();
-  
-  if(map.find(key) != map.end()) {
-    map_lock.unlock();
+  if(map.find(key) != map.end())
     return IKVStore::E_KEY_EXISTS;
-  }
 
   auto buffer = scalable_malloc(value_len);
   memcpy(buffer, value, value_len);
   map.emplace(key, Value_pair{buffer, value_len});
   
-  map_lock.unlock();
   return S_OK;
 }
 
@@ -90,11 +102,11 @@ int Pool_handle::get(const std::string& key,
                      void*& out_value,
                      size_t& out_value_len)
 {
-  map_lock.read_lock();
+  RWLock_guard guard(map_lock);
+
   auto i = map.find(key);
 
   if(i == map.end()) {
-    map_lock.unlock();
     return IKVStore::E_KEY_NOT_FOUND;
   }
 
@@ -102,7 +114,6 @@ int Pool_handle::get(const std::string& key,
   out_value = scalable_malloc(out_value_len);
   memcpy(out_value, i->second.ptr, i->second.length);
   
-  map_lock.unlock();
   return S_OK;
 }
 
@@ -116,47 +127,39 @@ int Pool_handle::get_direct(const std::string& key,
   if(out_value == nullptr || out_value_len == 0)
     throw API_exception("invalid parameter");
 
-  map_lock.read_lock();
+  RWLock_guard guard(map_lock);
   auto i = map.find(key);
 
-  if(i == map.end()) {
-    map_lock.unlock();
+  if(i == map.end())
     return IKVStore::E_KEY_NOT_FOUND;
-  }
   
-  if(out_value_len < i->second.length) {
-    map_lock.unlock();
+  if(out_value_len < i->second.length)
     return IKVStore::E_INSUFFICIENT_BUFFER;
-  }
 
   out_value_len = i->second.length; /* update length */
   memcpy(out_value, i->second.ptr, i->second.length);
   
-  map_lock.unlock();
   return S_OK;
 }
 
 
 int Pool_handle::erase(const std::string key)
 {
-  map_lock.write_lock();
+  RWLock_guard guard(map_lock, RWLock_guard::WRITE);
+
   auto i = map.find(key);
 
-  if(i == map.end()) {
-    map_lock.unlock();
+  if(i == map.end())
     return IKVStore::E_KEY_NOT_FOUND;
-  }
+
   map.erase(i);
   
-  map_lock.unlock();
   return S_OK;
 }
 
 size_t Pool_handle::count() {
-  map_lock.read_lock();
-  auto s = map.size();
-  map_lock.unlock();
-  return s;
+  RWLock_guard guard(map_lock);
+  return map.size();
 }
 
 /** Main class */
@@ -167,7 +170,7 @@ Map_store::Map_store(const std::string owner, const std::string name)
 
 Map_store::~Map_store()
 {
-  lock_guard g(_pool_sessions_lock);
+  Std_lock_guard g(_pool_sessions_lock);
   for(auto& s : _pool_sessions)
     delete s;
     
@@ -190,7 +193,7 @@ IKVStore::pool_t Map_store::create_pool(const std::string path,
   handle->key = path + name;
   handle->flags = flags;
   {
-     lock_guard g(_pool_sessions_lock);
+     Std_lock_guard g(_pool_sessions_lock);
 
      if(flags & FLAGS_CREATE_ONLY) {
        if(_pools.find(handle->key) != _pools.end()) {
@@ -228,31 +231,33 @@ IKVStore::pool_t Map_store::open_pool(const std::string path,
   if(ph == nullptr)
     throw API_exception("open_pool failed; pool (%s) does not exist", key.c_str());
 
-  return reinterpret_cast<IKVStore::pool_t>(new Pool_session{ph});
+  auto new_session = new Pool_session(ph);
+  if(option_DEBUG)
+    PLOG("opened pool(%p)", new_session);
+  _pool_sessions.insert(new_session);
+  
+  return reinterpret_cast<IKVStore::pool_t>(new_session);
 }
 
 void Map_store::close_pool(const pool_t pid)
 {
-  auto session = reinterpret_cast<Pool_session*>(pid);
+  if(option_DEBUG)
+    PLOG("close_pool(%p)", (void*) pid);
+  
+  auto session = get_session(pid);
 
-  if(_pool_sessions.count(session) != 1)
-    throw API_exception("invalid pool identifier in close_pool");
-
-  lock_guard g(_pool_sessions_lock);
+  Std_lock_guard g(_pool_sessions_lock);
   _pool_sessions.erase(session);
 }
 
 void Map_store::delete_pool(const pool_t pid)
 {
-  auto session = reinterpret_cast<Pool_session*>(pid);
+  auto session = get_session(pid);
 
-  if(_pool_sessions.count(session) != 1)
-    throw API_exception("invalid pool identifier in close_pool");
-
-  lock_guard g(_pool_sessions_lock);
+  Std_lock_guard g(_pool_sessions_lock);
   _pool_sessions.erase(session);
+
   /* delete pool too */
-  
   for(auto& p : _pools) {
     if(p.second == session->pool) {
       _pools.erase(p.first);
@@ -267,10 +272,7 @@ status_t Map_store::put(IKVStore::pool_t pid,
                         const void * value,
                         size_t value_len)
 {
-  auto session = reinterpret_cast<Pool_session*>(pid);
-  if(_pool_sessions.count(session) != 1)
-    throw API_exception("bad session handle");
-
+  auto session = get_session(pid);
   assert(session->pool);
   return session->pool->put(key, value, value_len);  
 }
@@ -280,10 +282,7 @@ status_t Map_store::get(const pool_t pid,
                         void*& out_value,
                         size_t& out_value_len)
 {
-  auto session = reinterpret_cast<Pool_session*>(pid);
-  if(_pool_sessions.count(session) != 1)
-    throw API_exception("bad pool handle");
-
+  auto session = get_session(pid);
   assert(session->pool);
   return session->pool->get(key, out_value, out_value_len);
 }
@@ -298,10 +297,7 @@ status_t Map_store::get_direct(const pool_t pid,
   if(offset != 0)
     throw API_exception("Map_store does not support offset reads");
   
-  auto session = reinterpret_cast<Pool_session*>(pid);
-  if(_pool_sessions.count(session) != 1)
-    throw API_exception("bad session handle");
-
+  auto session = get_session(pid);
   assert(session->pool);
   return session->pool->get_direct(key, out_value, out_value_len);
 }
@@ -313,12 +309,8 @@ status_t Map_store::put_direct(const pool_t pid,
                                const size_t value_len,
                                memory_handle_t memory_handle = HANDLE_NONE)
 {
-  auto session = reinterpret_cast<Pool_session*>(pid);
-  if(_pool_sessions.count(session) != 1)
-    throw API_exception("bad session handle");
-
-  const std::string key_string(static_cast<const char*>(key), key_len);
-  
+  auto session = get_session(pid);
+  const std::string key_string(static_cast<const char*>(key), key_len);  
   return Map_store::put(pid, key_string, value, value_len);
 }
 
@@ -326,17 +318,14 @@ status_t Map_store::put_direct(const pool_t pid,
 status_t Map_store::erase(const pool_t pid,
                           const std::string key)
 {
-  auto handle = reinterpret_cast<Pool_handle*>(pid);
-  return handle->erase(key);
+  auto session = get_session(pid);
+  assert(session->pool);
+  return session->pool->erase(key);
 }
 
 size_t Map_store::count(const pool_t pid)
 {
-  auto session = reinterpret_cast<Pool_session*>(pid);
-
-  if(_pool_sessions.count(session) != 1)
-    throw API_exception("invalid pool identifier in close_pool");
-
+  auto session = get_session(pid);
   assert(session->pool);
   return session->pool->count();
 }
