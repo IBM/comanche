@@ -112,8 +112,8 @@ public:
           ("key_length", po::value<unsigned int>(), "Key length of data")
           ("value_length", po::value<unsigned int>(), "Value length of data")
           ("bins", po::value<unsigned int>(), "Number of bins for statistics")
-          ("latency_range_min", po::value<unsigned int>(), "Lowest latency bin threshold")
-          ("latency_range_max", po::value<unsigned int>(), "Highest latency bin threshold")
+          ("latency_range_min", po::value<double>(), "Lowest latency bin threshold")
+          ("latency_range_max", po::value<double>(), "Highest latency bin threshold")
           ("debug_level", po::value<int>(), "Debug level")
           ("owner", po::value<std::string>(), "Owner name for component registration")
           ("server_address", po::value<std::string>(), "server address, with port")
@@ -157,17 +157,17 @@ public:
 
             if (vm.count("bins") > 0)
             {
-                _bin_count = vm["cores"].as<unsigned int>();
+                _bin_count = vm["bins"].as<unsigned int>();
             }
 
-            if (vm.count("bin_threshold_min") > 0)
+            if (vm.count("latency_range_min") > 0)
             {
-                _bin_threshold_min = vm["bin_threshold_min"].as<unsigned int>();
+                _bin_threshold_min = vm["latency_range_min"].as<double>();
             }
 
-            if (vm.count("bin_threshold_max") > 0)
+            if (vm.count("latency_range_max") > 0)
             {
-                _bin_threshold_max = vm["bin_threshold_max"].as<unsigned int>();
+                _bin_threshold_max = vm["latency_range_max"].as<double>();
             }
         } 
         catch (const po::error &ex)

@@ -24,8 +24,8 @@ struct ProgramOptions {
     unsigned int key_length;
     unsigned int value_length;
     unsigned int bin_count;
-    unsigned int bin_threshold_min;
-    unsigned int bin_threshold_max;
+    double bin_threshold_min;
+    double bin_threshold_max;
     int debug_level;
     std::string owner;
     std::string server_address;
