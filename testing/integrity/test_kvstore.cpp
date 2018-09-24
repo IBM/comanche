@@ -2,23 +2,15 @@
 #include <api/components.h>
 #include <api/kvstore_itf.h>
 #include <boost/filesystem.hpp>
-#include <boost/program_options.hpp>
 #include <common/utils.h>
 #include <common/str_utils.h>
-#include <core/task.h>
 #include <iostream>
 #include <gtest/gtest.h>
-
-#define DEFAULT_COMPONENT "filestore"
-#define FILESTORE_PATH "libcomanche-storefile.so"
+#include "component_info.h"
 
 using namespace Component;
 
-std::string component_path = FILESTORE_PATH;
-Component::uuid_t component_uuid = Component::filestore_factory;
-std::string pci_address = "";  // optional parameter
-std::string pool_path = "./data";
-std::string g_component = DEFAULT_COMPONENT;
+ComponentInfo component_info;
 
 class PoolTest: public::testing::Test
 {
@@ -30,6 +22,7 @@ protected:
     IKVStore_factory * _fact;
     Component::IKVStore::pool_t _pool;
     std::string _pool_name = "test.pool.0";
+    std::string pool_path = component_info.pool_path;
         
     void SetUp() override 
     {
@@ -50,21 +43,9 @@ protected:
             std::cout << "Created directory for testing: " << pool_path << std::endl;
         }
 
-        Component::IBase * comp;
-        comp = Component::load_component(component_path, component_uuid);
-
-        ASSERT_TRUE(comp > 0) << "failed load_component";
-
-        _fact = (IKVStore_factory *)comp->query_interface(IKVStore_factory::iid());
-
-        if (pci_address.compare("") == 0)
-        {            
-            _g_store = _fact->create("owner", "name"); 
-        }
-        else
-        {
-            _g_store = _fact->create("owner", "name", pci_address);
-        }
+        component_info.load_component();
+        _g_store = component_info.store;
+        _fact = component_info.factory;
 
         _pool = _g_store->create_pool(pool_path, _pool_name, _pool_size);
 
@@ -170,15 +151,19 @@ TEST_F(PoolTest, PutGet_RandomKVP)
 
     ASSERT_EQ(rc, S_OK); 
 
-    void * pval;
+    void * pval = nullptr;
     size_t pval_len;
     
     rc  = _g_store->get(_pool, key, pval, pval_len);
     
     ASSERT_EQ(rc, S_OK);
     ASSERT_STREQ((const char*)pval, value.c_str());
-
-    free(pval);
+    ASSERT_EQ(pval_len, value_length);
+   
+    if (pval != nullptr)
+    {
+        free( pval);
+    }
 }
 
 TEST_F(PoolTestLarge, PutGet_VaryingSizedKVPs)
@@ -356,13 +341,13 @@ TEST_F(PoolTest, PutDirectGetDirect_RandomKVP)
 
     std::string value = Common::random_string(value_length);
 
-    if (g_component.compare("filestore") == 0)
+    if (component_info.uses_direct_memory)
     {
-        memory_handle = Component::IKVStore::HANDLE_NONE;
+        memory_handle = Component::IKVStore::HANDLE_NONE;  // TODO: implement
     }
     else 
     {
-        memory_handle = Component::IKVStore::HANDLE_NONE;  // TODO: implement
+        memory_handle = Component::IKVStore::HANDLE_NONE;  
     }
 
     status_t rc = _g_store->put_direct(_pool, key.c_str(), key_length, value.c_str(), value_length, memory_handle);
@@ -458,75 +443,7 @@ struct {
 
 int main(int argc, char **argv) 
 {
-    namespace po = boost::program_options; 
-
-    po::options_description desc("Options"); 
-    desc.add_options()
-    ("help", "Show help")
-    ("test", po::value<std::string>(), "Test name <all|Put|Get>")
-    ("component", po::value<std::string>(), "Implementation selection <pmstore|nvmestore|filestore>")
-    ("cores", po::value<int>(), "Number of threads/cores")
-    ("time", po::value<int>(), "Duration to run in seconds")
-    ;
-
-    try 
-    {
-        po::variables_map vm; 
-        po::store(po::parse_command_line(argc, argv, desc),  vm);
-
-        if(vm.count("help")) {
-          std::cout << desc;
-
-          return 0;
-        }
-
-        Options.test = vm.count("test") > 0 ? vm["test"].as<std::string>() : "all";
-
-        if(vm.count("component")) 
-        {
-            Options.component = vm["component"].as<std::string>();
-            g_component = Options.component;
-           
-            printf("checking component arg\n");
-            if(Options.component.compare("filestore") == 0) 
-            {
-                printf("USE FILESTORE\n");                   
-                
-                component_path = FILESTORE_PATH;
-                component_uuid = Component::filestore_factory;
-            }
-            else if (Options.component.compare("pmstore") == 0) {
-                printf("USE PMSTORE\n");
-
-                component_path = "libcomanche-pmstore.so";
-                component_uuid = Component::pmstore_factory;
-                
-                pool_path = "/mnt/pmem0";
-            }
-            else if (Options.component.compare("nvmestore") == 0) {
-                printf("USE NVMESTORE\n");
-
-                component_path = "libcomanche-nvmestore.so";
-                component_uuid = Component::nvmestore_factory;
-                
-                pool_path = "/mnt/pmem0";
-                pci_address = "09:00.0";  // IMPORTANT: this is what will show up as the first part of command "$ lspci | grep Non"
-            }
-            else
-            {
-                printf("UNHANDLED COMPONENT\n");
-                return 1;
-            }
-        }
-        else
-        {
-            Options.component = DEFAULT_COMPONENT;
-        }
-    }
-    catch (const po::error &ex)
-    {
-        std::cerr << ex.what() << '\n';
-    }
+    component_info.initialize_component(argc, argv);
 
     testing::InitGoogleTest(&argc, argv);
 
