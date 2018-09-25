@@ -4,6 +4,7 @@
 #include <api/components.h>
 #include <api/kvstore_itf.h>
 #include <boost/program_options.hpp>
+#include <sys/mman.h>
 
 class ComponentInfo
 {
@@ -26,14 +27,12 @@ public:
     // handles for use
     Component::IKVStore * store;
     Component::IKVStore_factory* factory;
-    Component::IBase* comp;
     bool uses_direct_memory = false;
 
     ComponentInfo()
     {
 
     }
-
     ~ComponentInfo()
     {
 
@@ -53,6 +52,7 @@ public:
         ("server_address", po::value<std::string>(), "Server address with port")
         ("device_name", po::value<std::string>(), "Device name to use with component")
         ("debug_level", po::value<int>(), "Debug level")
+        ("gtest_filter", po::value<std::string>(), "Run specific Google Tests")
         ;
 
         try 
@@ -125,7 +125,7 @@ public:
     
     void load_component()
     {        
-        comp = Component::load_component(component_object, component_uuid);
+        Component::IBase* comp = Component::load_component(component_object, component_uuid);
 
         factory = (Component::IKVStore_factory*)comp->query_interface(Component::IKVStore_factory::iid());
 
@@ -142,6 +142,22 @@ public:
             store = factory->create(owner, owner_param);
         }
     } 
+
+    int* setup_direct_memory_for_size(size_t data_size)
+    {
+        int* aligned_memory = nullptr;
+
+        if (uses_direct_memory)
+        {
+           data_size += data_size % 64;  // align
+           aligned_memory = (int*)aligned_alloc(MiB(2), data_size);
+           madvise(aligned_memory, data_size, MADV_HUGEPAGE);
+
+           memory_handle = store->register_direct_memory(aligned_memory, data_size);
+        }
+
+        return aligned_memory;  // pointer to aligned memory region
+    }
 
     void print_component_info()
     {

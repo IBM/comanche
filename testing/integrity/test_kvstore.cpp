@@ -23,14 +23,30 @@ protected:
     Component::IKVStore::pool_t _pool;
     std::string _pool_name = "test.pool.0";
     std::string pool_path = component_info.pool_path;
+    int* _direct_memory_location = nullptr;
         
     void SetUp() override 
     {
         create_pool();
+
+        if (component_info.uses_direct_memory)
+        {
+            _direct_memory_location = component_info.setup_direct_memory_for_size(_pool_size);
+        }
     }
 
     void TearDown() override
     {
+        if (component_info.uses_direct_memory && component_info.memory_handle != nullptr)
+        {
+            _g_store->unregister_direct_memory(component_info.memory_handle);
+        }
+
+        if (_direct_memory_location != nullptr)
+        {
+            free(_direct_memory_location);
+        }
+
         destroy_pool();
     }
 
@@ -152,12 +168,14 @@ TEST_F(PoolTest, PutGet_RandomKVP)
     ASSERT_EQ(rc, S_OK); 
 
     void * pval = nullptr;
-    size_t pval_len;
+    size_t pval_len = value_length;
     
     rc  = _g_store->get(_pool, key, pval, pval_len);
     
+    std::string get_result((const char*)pval, pval_len);  // force limit on return length
+
     ASSERT_EQ(rc, S_OK);
-    ASSERT_STREQ((const char*)pval, value.c_str());
+    ASSERT_STREQ(get_result.c_str(), value.c_str());
     ASSERT_EQ(pval_len, value_length);
    
     if (pval != nullptr)
@@ -343,7 +361,10 @@ TEST_F(PoolTest, PutDirectGetDirect_RandomKVP)
 
     if (component_info.uses_direct_memory)
     {
-        memory_handle = Component::IKVStore::HANDLE_NONE;  // TODO: implement
+        // copy existing into memory
+        memory_handle = component_info.memory_handle;
+        memcpy(_direct_memory_location, key.c_str(), key_length);
+        memcpy(_direct_memory_location + 1, value.c_str(), value_length);
     }
     else 
     {
@@ -396,13 +417,26 @@ TEST_F(PoolTest, PutDirect_DuplicateKey)
 
     const std::string key = Common::random_string(key_length);
     std::string value = Common::random_string(value_length);
+    Component::IKVStore::memory_handle_t memory_handle;
 
-    status_t rc = _g_store->put_direct(_pool, key.c_str(), key_length, value.c_str(), value_length);
+    if (component_info.uses_direct_memory)
+    {
+        // copy existing into memory
+        memory_handle = component_info.memory_handle;
+        memcpy(_direct_memory_location, key.c_str(), key_length);
+        memcpy(_direct_memory_location + 1, value.c_str(), value_length);
+    }
+    else 
+    {
+        memory_handle = Component::IKVStore::HANDLE_NONE;  
+    }
+
+    status_t rc = _g_store->put_direct(_pool, key.c_str(), key_length, value.c_str(), value_length, memory_handle);
 
     ASSERT_EQ(rc, S_OK) << "put_direct return code failed";
 
     // now try to add another value to that key
-    rc = _g_store->put_direct(_pool, key.c_str(), key_length, value.c_str(), value_length);
+    rc = _g_store->put_direct(_pool, key.c_str(), key_length, value.c_str(), value_length, memory_handle);
 
     ASSERT_EQ(rc, IKVStore::E_KEY_EXISTS) << "second put_direct return code failed";
 }
