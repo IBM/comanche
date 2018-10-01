@@ -10,15 +10,15 @@
  *
  */
 
-#ifndef __FILESTORE_COMPONENT_H__
-#define __FILESTORE_COMPONENT_H__
+#ifndef __MAP_STORE_COMPONENT_H__
+#define __MAP_STORE_COMPONENT_H__
 
 #include <api/kvstore_itf.h>
 
 class Map_store : public Component::IKVStore /* generic Key-Value store interface */
 {  
 private:
-  static constexpr bool option_DEBUG = true;
+  static constexpr bool option_DEBUG = false;
 
 public:
   /** 
@@ -77,6 +77,12 @@ public:
                        const void * value,
                        const size_t value_len) override;
 
+  virtual status_t put(const pool_t pool,
+                       const void * key,
+                       const size_t key_len,
+                       const void * value,
+                       const size_t value_len) override;
+
   virtual status_t get(const pool_t pool,
                        const std::string key,
                        void*& out_value,
@@ -94,7 +100,16 @@ public:
                               const size_t key_len,
                               const void * value,
                               const size_t value_len,
-                              IKVStore::memory_handle_t handle);
+                              IKVStore::memory_handle_t handle) override;
+  
+  virtual status_t lock(const pool_t pool,
+                        uint64_t key_hash,
+                        lock_type_t type,
+                        void*& out_value,
+                        size_t& out_value_len) override;
+
+  virtual status_t unlock(const pool_t pool,
+                          uint64_t key_hash) override;
 
   virtual status_t erase(const pool_t pool,
                          const std::string key) override;
@@ -135,7 +150,8 @@ public:
   virtual Component::IKVStore * create(const std::string owner,
                                        const std::string name) override
   {    
-    Component::IKVStore * obj = static_cast<Component::IKVStore*>(new Map_store(owner, name));    
+    Component::IKVStore * obj = static_cast<Component::IKVStore*>(new Map_store(owner, name));
+    assert(obj);
     obj->add_ref();
     return obj;
   }

@@ -18,6 +18,11 @@
 using namespace Component;
 using namespace Common;
 
+static uint64_t get_key_hash(const std::string& key)
+{
+  return CityHash64(key.c_str(), key.length());
+}
+
 struct Value_pair
 {
   void * ptr;
@@ -31,23 +36,35 @@ private:
 
 public:
   std::string                       key;
-  std::map<std::string, Value_pair> map; /*< rb-tree based map */
+  std::map<uint64_t, Value_pair>    map; /*< rb-tree based map */
   Common::RWLock                    map_lock; /*< read write lock */
   unsigned int                      flags;
 
-  int put(const std::string& key,
-          const void * value,
-          const size_t value_len);
+  status_t put(const std::string& key,
+               const void * value,
+               const size_t value_len);
   
-  int get(const std::string& key,
-          void*& out_value,
-          size_t& out_value_len);
+  status_t put(const void * key,
+               const size_t key_len,
+               const void * value,
+               const size_t value_len);
   
-  int get_direct(const std::string& key,
-                 void* out_value,
-                 size_t& out_value_len);
+  status_t get(const std::string& key,
+               void*& out_value,
+               size_t& out_value_len);
+  
+  status_t get_direct(const std::string& key,
+                      void* out_value,
+                      size_t& out_value_len);
 
-  int erase(const std::string key);
+  status_t lock(uint64_t key_hash,
+                IKVStore::lock_type_t type,
+                void*& out_value,
+                size_t& out_value_len);
+
+  status_t unlock(uint64_t key_hash);
+
+  status_t erase(const std::string key);
 
   size_t count();
 };
@@ -77,34 +94,51 @@ static Pool_session* get_session(const IKVStore::pool_t pid)
   return session;
 }
 
+status_t Pool_handle::put(const void * key,
+                          const size_t key_len,
+                          const void * value,
+                          const size_t value_len)
+{
+  std::string key_s;
+  key_s.assign((const char *)key, key_len);
+  
+  return put(key_s, value, value_len);
+}
 
-int Pool_handle::put(const std::string& key,
-                     const void * value,
-                     const size_t value_len)
+
+status_t Pool_handle::put(const std::string& key,
+                          const void * value,
+                          const size_t value_len)
 {
   if(!value || !value_len)
     throw API_exception("invalid parameters");
 
+  uint64_t hashkey = get_key_hash(key);
+
   RWLock_guard guard(map_lock, RWLock_guard::WRITE);
   
-  if(map.find(key) != map.end())
+  if(map.find(hashkey) != map.end()) {
+    if(option_DEBUG)
+      PLOG("Map_store:: key already exists (%s)", key.c_str());
+    
     return IKVStore::E_KEY_EXISTS;
+  }
 
   auto buffer = scalable_malloc(value_len);
   memcpy(buffer, value, value_len);
-  map.emplace(key, Value_pair{buffer, value_len});
+  map.emplace(hashkey, Value_pair{buffer, value_len});
   
   return S_OK;
 }
 
 
-int Pool_handle::get(const std::string& key,
-                     void*& out_value,
-                     size_t& out_value_len)
+status_t Pool_handle::get(const std::string& key,
+                          void*& out_value,
+                          size_t& out_value_len)
 {
   RWLock_guard guard(map_lock);
 
-  auto i = map.find(key);
+  auto i = map.find(get_key_hash(key));
 
   if(i == map.end()) {
     return IKVStore::E_KEY_NOT_FOUND;
@@ -117,24 +151,31 @@ int Pool_handle::get(const std::string& key,
   return S_OK;
 }
 
-int Pool_handle::get_direct(const std::string& key,
-                            void* out_value,
-                            size_t& out_value_len)
+status_t Pool_handle::get_direct(const std::string& key,
+                                 void* out_value,
+                                 size_t& out_value_len)
 {
   if(option_DEBUG)
-    PLOG("get: key=(%s) ", key.c_str());
+    PLOG("Map_store GET: key=(%s) ", key.c_str());
   
   if(out_value == nullptr || out_value_len == 0)
     throw API_exception("invalid parameter");
 
   RWLock_guard guard(map_lock);
-  auto i = map.find(key);
+  auto i = map.find(get_key_hash(key));
 
-  if(i == map.end())
+  if(i == map.end()) {
+    if(option_DEBUG)
+      PERR("Map_store: error key not found");
     return IKVStore::E_KEY_NOT_FOUND;
+  }
   
-  if(out_value_len < i->second.length)
+  if(out_value_len < i->second.length) {
+    if(option_DEBUG)
+      PERR("Map_store: error insufficient buffer");
+
     return IKVStore::E_INSUFFICIENT_BUFFER;
+  }
 
   out_value_len = i->second.length; /* update length */
   memcpy(out_value, i->second.ptr, i->second.length);
@@ -142,12 +183,62 @@ int Pool_handle::get_direct(const std::string& key,
   return S_OK;
 }
 
+status_t Pool_handle::lock(uint64_t key_hash,
+                           IKVStore::lock_type_t type,
+                           void*& out_value,
+                           size_t& out_value_len)
+{
+  void * buffer = nullptr;
+  
+  /* on-demand create */
+  {
+    RWLock_guard guard(map_lock, RWLock_guard::WRITE);
 
-int Pool_handle::erase(const std::string key)
+    auto i = map.find(key_hash);
+    
+    if(i == map.end()) {
+      buffer = scalable_malloc(out_value_len);
+      assert(buffer);
+      map.emplace(key_hash, Value_pair{buffer, out_value_len});
+    }   
+  }
+  
+  if(type == IKVStore::STORE_LOCK_READ)
+    map_lock.read_lock();
+  else if(type == IKVStore::STORE_LOCK_WRITE)
+    map_lock.write_lock();
+  else throw API_exception("invalid lock type");
+
+  if(!buffer) {
+    auto entry = map.find(key_hash);
+    assert(entry != map.end());
+    buffer = entry->second.ptr;
+    out_value_len = entry->second.length;
+  }
+
+  out_value = buffer;
+      
+  return S_OK;
+}
+
+status_t Pool_handle::unlock(uint64_t key_hash)
+{
+  /* this component only supports pool level locking
+     so key_hash is not needed really */
+  auto i = map.find(key_hash);
+  
+  if(i == map.end())
+    return IKVStore::E_KEY_NOT_FOUND;
+
+  map_lock.unlock();
+  return S_OK;
+}
+
+status_t Pool_handle::erase(const std::string key)
 {
   RWLock_guard guard(map_lock, RWLock_guard::WRITE);
 
-  auto i = map.find(key);
+  auto i = map.find(get_key_hash(key));
 
   if(i == map.end())
     return IKVStore::E_KEY_NOT_FOUND;
@@ -190,24 +281,24 @@ IKVStore::pool_t Map_store::create_pool(const std::string path,
 
   const auto handle = new Pool_handle;
   Pool_session * session = nullptr;
-  handle->key = path + name;
+  handle->key = path + "/" + name;
   handle->flags = flags;
   {
-     Std_lock_guard g(_pool_sessions_lock);
+    Std_lock_guard g(_pool_sessions_lock);
 
-     if(flags & FLAGS_CREATE_ONLY) {
-       if(_pools.find(handle->key) != _pools.end()) {
-         delete handle;
-         throw General_exception("pool already exists");
-       }
-     }
-     session = new Pool_session{handle};
-     _pools[handle->key] = handle;
-     _pool_sessions.insert(session); /* create a session too */
+    if(flags & FLAGS_CREATE_ONLY) {
+      if(_pools.find(handle->key) != _pools.end()) {
+        delete handle;
+        throw General_exception("pool already exists");
+      }
+    }
+    session = new Pool_session{handle};
+    _pools[handle->key] = handle;
+    _pool_sessions.insert(session); /* create a session too */
   }
   
   if(option_DEBUG)
-    PLOG("created pool OK: %s", handle->key.c_str());
+    PLOG("Map_store: created pool OK: %s", handle->key.c_str());
 
   assert(session);
   return reinterpret_cast<IKVStore::pool_t>(session);
@@ -267,6 +358,7 @@ void Map_store::delete_pool(const pool_t pid)
   throw Logic_exception("unable to find pool to delete");
 }
 
+
 status_t Map_store::put(IKVStore::pool_t pid,
                         std::string key,
                         const void * value,
@@ -276,6 +368,18 @@ status_t Map_store::put(IKVStore::pool_t pid,
   assert(session->pool);
   return session->pool->put(key, value, value_len);  
 }
+
+status_t Map_store::put(const pool_t pid,
+                        const void * key,
+                        const size_t key_len,
+                        const void * value,
+                        const size_t value_len)
+{
+  auto session = get_session(pid);
+  assert(session->pool);
+  return session->pool->put(key, key_len, value, value_len);    
+}
+
 
 status_t Map_store::get(const pool_t pid,
                         const std::string key,
@@ -314,6 +418,26 @@ status_t Map_store::put_direct(const pool_t pid,
   return Map_store::put(pid, key_string, value, value_len);
 }
 
+status_t Map_store::lock(const pool_t pid,
+                         uint64_t key_hash,
+                         lock_type_t type,
+                         void*& out_value,
+                         size_t& out_value_len)
+{
+  auto session = get_session(pid);
+  assert(session->pool);
+
+  return session->pool->lock(key_hash, type, out_value, out_value_len);
+}
+
+status_t Map_store::unlock(const pool_t pid,
+                           uint64_t key_hash)
+{
+  auto session = get_session(pid);
+  assert(session->pool);
+
+  return session->pool->unlock(key_hash);
+}
 
 status_t Map_store::erase(const pool_t pid,
                           const std::string key)

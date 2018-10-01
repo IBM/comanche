@@ -58,10 +58,10 @@ public:
     FLAGS_CREATE_ONLY = 3,
   };
 
-  enum {
+  typedef enum {
     STORE_LOCK_READ=1,
     STORE_LOCK_WRITE=2,
-  };
+  } lock_type_t;
 
   enum {
     S_OK = 0,
@@ -314,7 +314,7 @@ public:
    */
   virtual status_t lock(const pool_t pool,
                         uint64_t key_hash,
-                        int type,
+                        lock_type_t type,
                         void*& out_value,
                         size_t& out_value_len) { return E_NOT_SUPPORTED; }
 
