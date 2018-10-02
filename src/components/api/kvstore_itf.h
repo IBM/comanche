@@ -459,6 +459,17 @@ public:
    * @param p Pointer to memory allocated through a get call
    */
   virtual void free_memory(void * p) { return ::free(p); }
+
+
+  /** 
+   * Perform control invocation on component
+   * 
+   * @param command String representation of command (component-interpreted)
+   * 
+   * @return S_OK on success or error otherwise
+   */
+  virtual status_t ioctl(const std::string command) { return E_NOT_SUPPORTED; }
+
   
   /** 
    * Debug routine
