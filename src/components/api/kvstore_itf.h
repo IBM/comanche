@@ -144,24 +144,6 @@ public:
   virtual status_t put(const pool_t pool,
                        const std::string key,
                        const void * value,
-                       const size_t value_len) {
-    return put(pool, key.c_str(), key.length(), value, value_len);
-  }
-
-  /** 
-   * Write an object value. Key as pointer-len pair.
-   * 
-   * @param pool Pool handle
-   * @param key Object key
-   * @param value Value data
-   * @param value_len Size of value in bytes
-   * 
-   * @return S_OK or error code
-   */
-  virtual status_t put(const pool_t pool,
-                       const void * key,
-                       const size_t key_len,
-                       const void * value,
                        const size_t value_len) { return E_NOT_SUPPORTED; }
 
   /** 
@@ -177,8 +159,7 @@ public:
    * @return S_OK or error code
    */
   virtual status_t put_direct(const pool_t pool,
-                              const void * key,
-                              const size_t key_len,
+                              const std::string key,
                               const void * value,
                               const size_t value_len,
                               memory_handle_t handle = HANDLE_NONE) { return E_NOT_SUPPORTED; }
@@ -287,18 +268,18 @@ public:
                             const size_t nbytes,
                             uint64_t& out_key_hash) { return E_NOT_SUPPORTED; }
 
-  /** 
-   * Allocate an object but do not populate data. Deprecate this.
-   * 
-   * @param pool Pool handle
-   * @param key_hash Hash of key / server assumes this is unique
-   * @param nbytes Size to allocate in bytes
-   * 
-   * @return S_OK or error code
-   */
-  virtual status_t allocate(const pool_t pool,
-                            uint64_t key_hash,
-                            const size_t nbytes) { return E_NOT_SUPPORTED; } __attribute__((deprecated));
+  // /** 
+  //  * Allocate an object but do not populate data. Deprecate this.
+  //  * 
+  //  * @param pool Pool handle
+  //  * @param key_hash Hash of key / server assumes this is unique
+  //  * @param nbytes Size to allocate in bytes
+  //  * 
+  //  * @return S_OK or error code
+  //  */
+  // virtual status_t allocate(const pool_t pool,
+  //                           uint64_t key_hash,
+  //                           const size_t nbytes) { return E_NOT_SUPPORTED; } __attribute__((deprecated));
   
   /** 
    * Take a lock on an object. If the object does not exist, create it with
@@ -337,7 +318,7 @@ public:
    * 
    * @return Key hash code
    */
-  virtual uint64_t key_hash(const void * key, const size_t key_len) { return ((uint64_t)-1); }
+  virtual uint64_t key_hash(const std::string key) { return ((uint64_t)-1); }
   
   /** 
    * Apply a functor to an object as a transaction

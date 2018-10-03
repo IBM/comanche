@@ -77,12 +77,6 @@ public:
                        const void * value,
                        const size_t value_len) override;
 
-  virtual status_t put(const pool_t pool,
-                       const void * key,
-                       const size_t key_len,
-                       const void * value,
-                       const size_t value_len) override;
-
   virtual status_t get(const pool_t pool,
                        const std::string key,
                        void*& out_value,
@@ -96,8 +90,7 @@ public:
                               Component::IKVStore::memory_handle_t handle) override;
  
   virtual status_t put_direct(const pool_t pool,
-                              const void * key,
-                              const size_t key_len,
+                              const std::string key,
                               const void * value,
                               const size_t value_len,
                               IKVStore::memory_handle_t handle) override;

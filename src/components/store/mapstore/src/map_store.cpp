@@ -43,12 +43,7 @@ public:
   status_t put(const std::string& key,
                const void * value,
                const size_t value_len);
-  
-  status_t put(const void * key,
-               const size_t key_len,
-               const void * value,
-               const size_t value_len);
-  
+    
   status_t get(const std::string& key,
                void*& out_value,
                size_t& out_value_len);
@@ -93,18 +88,6 @@ static Pool_session* get_session(const IKVStore::pool_t pid)
   assert(session);
   return session;
 }
-
-status_t Pool_handle::put(const void * key,
-                          const size_t key_len,
-                          const void * value,
-                          const size_t value_len)
-{
-  std::string key_s;
-  key_s.assign((const char *)key, key_len);
-  
-  return put(key_s, value, value_len);
-}
-
 
 status_t Pool_handle::put(const std::string& key,
                           const void * value,
@@ -369,18 +352,6 @@ status_t Map_store::put(IKVStore::pool_t pid,
   return session->pool->put(key, value, value_len);  
 }
 
-status_t Map_store::put(const pool_t pid,
-                        const void * key,
-                        const size_t key_len,
-                        const void * value,
-                        const size_t value_len)
-{
-  auto session = get_session(pid);
-  assert(session->pool);
-  return session->pool->put(key, key_len, value, value_len);    
-}
-
-
 status_t Map_store::get(const pool_t pid,
                         const std::string key,
                         void*& out_value,
@@ -407,15 +378,13 @@ status_t Map_store::get_direct(const pool_t pid,
 }
 
 status_t Map_store::put_direct(const pool_t pid,
-                               const void * key,
-                               const size_t key_len,
+                               const std::string key,
                                const void * value,
                                const size_t value_len,
                                memory_handle_t memory_handle = HANDLE_NONE)
 {
   auto session = get_session(pid);
-  const std::string key_string(static_cast<const char*>(key), key_len);  
-  return Map_store::put(pid, key_string, value, value_len);
+  return Map_store::put(pid, key, value, value_len);
 }
 
 status_t Map_store::lock(const pool_t pid,
