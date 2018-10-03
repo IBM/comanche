@@ -36,11 +36,11 @@ struct Pool_handle
           void*& out_value,
           size_t& out_value_len);
   
-  int get_direct(const std::string key,
+  int get_direct(const std::string& key,
                  void* out_value,
                  size_t& out_value_len);
 
-  int erase(const std::string key);
+  int erase(const std::string& key);
 
 };
 
@@ -112,7 +112,7 @@ int Pool_handle::get(const std::string& key,
   return S_OK;
 }
 
-int Pool_handle::get_direct(const std::string key,
+int Pool_handle::get_direct(const std::string& key,
                             void* out_value,
                             size_t& out_value_len)
 {
@@ -152,7 +152,7 @@ int Pool_handle::get_direct(const std::string key,
 }
 
 
-int Pool_handle::erase(const std::string key)
+int Pool_handle::erase(const std::string& key)
 {
   std::string full_path = path.string() + "/" + key;
   if(!fs::exists(full_path))
@@ -167,7 +167,7 @@ int Pool_handle::erase(const std::string key)
 }
 
 
-FileStore::FileStore(const std::string owner, const std::string name)
+FileStore::FileStore(const std::string& owner, const std::string& name)
 {
 }
 
@@ -176,8 +176,8 @@ FileStore::~FileStore()
 }
   
 
-IKVStore::pool_t FileStore::create_pool(const std::string path,
-                                        const std::string name,
+IKVStore::pool_t FileStore::create_pool(const std::string& path,
+                                        const std::string& name,
                                         const size_t size,
                                         unsigned int flags,
                                         uint64_t args)
@@ -202,8 +202,8 @@ IKVStore::pool_t FileStore::create_pool(const std::string path,
   return reinterpret_cast<IKVStore::pool_t>(handle);
 }
 
-IKVStore::pool_t FileStore::open_pool(const std::string path,
-                                      const std::string name,
+IKVStore::pool_t FileStore::open_pool(const std::string& path,
+                                      const std::string& name,
                                       unsigned int flags)
 {
   fs::path p = path + "/" + name;
@@ -246,7 +246,7 @@ void FileStore::delete_pool(const pool_t pid)
 }
 
 status_t FileStore::put(IKVStore::pool_t pid,
-                        std::string key,
+                        const std::string& key,
                         const void * value,
                         size_t value_len)
 {
@@ -258,7 +258,7 @@ status_t FileStore::put(IKVStore::pool_t pid,
 }
 
 status_t FileStore::get(const pool_t pid,
-                        const std::string key,
+                        const std::string& key,
                         void*& out_value,
                    size_t& out_value_len)
 {
@@ -270,7 +270,7 @@ status_t FileStore::get(const pool_t pid,
 }
 
 status_t FileStore::get_direct(const pool_t pid,
-                               const std::string key,
+                               const std::string& key,
                                void* out_value,
                                size_t& out_value_len,
                                size_t offset,
@@ -299,7 +299,7 @@ status_t FileStore::put_direct(const pool_t pool,
 
 
 status_t FileStore::erase(const pool_t pid,
-                          const std::string key)
+                          const std::string& key)
 {
   auto handle = reinterpret_cast<Pool_handle*>(pid);
   return handle->erase(key);

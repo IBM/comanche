@@ -98,8 +98,8 @@ public:
    * 
    * @return Pool handle
    */
-  virtual pool_t create_pool(const std::string path,
-                             const std::string name,
+  virtual pool_t create_pool(const std::string& path,
+                             const std::string& name,
                              const size_t size,
                              unsigned int flags = 0,
                              uint64_t expected_obj_count = 0) = 0;
@@ -113,8 +113,8 @@ public:
    * 
    * @return Pool handle
    */
-  virtual pool_t open_pool(const std::string path,
-                           const std::string name,
+  virtual pool_t open_pool(const std::string& path,
+                           const std::string& name,
                            unsigned int flags = 0) = 0;
 
   /** 
@@ -142,7 +142,7 @@ public:
    * @return S_OK or error code
    */
   virtual status_t put(const pool_t pool,
-                       const std::string key,
+                       const std::string& key,
                        const void * value,
                        const size_t value_len) { return E_NOT_SUPPORTED; }
 
@@ -159,7 +159,7 @@ public:
    * @return S_OK or error code
    */
   virtual status_t put_direct(const pool_t pool,
-                              const std::string key,
+                              const std::string& key,
                               const void * value,
                               const size_t value_len,
                               memory_handle_t handle = HANDLE_NONE) { return E_NOT_SUPPORTED; }
@@ -175,7 +175,7 @@ public:
    * @return S_OK or error code
    */
   virtual status_t get(const pool_t pool,
-                       const std::string key,
+                       const std::string& key,
                        void*& out_value, /* release with free() */
                        size_t& out_value_len) = 0;
 
@@ -198,7 +198,7 @@ public:
    * @return S_OK, S_MORE if only a portion of value is read, E_BAD_ALIGNMENT on invalid alignment, or other error code
    */
   virtual status_t get_direct(const pool_t pool,
-                              const std::string key,
+                              const std::string& key,
                               void* out_value,
                               size_t& out_value_len,
                               size_t offset = 0,
@@ -264,7 +264,7 @@ public:
    * @return S_OK or error code
    */
   virtual status_t allocate(const pool_t pool,
-                            const std::string key,
+                            const std::string& key,
                             const size_t nbytes,
                             uint64_t& out_key_hash) { return E_NOT_SUPPORTED; }
 
@@ -318,7 +318,7 @@ public:
    * 
    * @return Key hash code
    */
-  virtual uint64_t key_hash(const std::string key) { return ((uint64_t)-1); }
+  virtual uint64_t key_hash(const std::string& key) { return ((uint64_t)-1); }
   
   /** 
    * Apply a functor to an object as a transaction
@@ -349,7 +349,7 @@ public:
    * @return S_OK or error code
    */
   virtual status_t apply(const pool_t pool,
-                         const std::string key,
+                         const std::string& key,
                          std::function<void(void*,const size_t)> functor,
                          size_t offset = 0,
                          size_t size = 0) { return E_NOT_SUPPORTED; }
@@ -366,7 +366,7 @@ public:
    * @return S_OK or error code
    */
   virtual status_t locked_apply(const pool_t pool,
-                                const std::string key,
+                                const std::string& key,
                                 std::function<void(void*,const size_t)> functor,
                                 size_t offset = 0,
                                 size_t size = 0) { return E_NOT_SUPPORTED; }
@@ -397,7 +397,7 @@ public:
    * @return S_OK or error code
    */
   virtual status_t erase(const pool_t pool,
-                         const std::string key)= 0;
+                         const std::string& key)= 0;
   
   /** 
    * Erase an object
@@ -449,7 +449,7 @@ public:
    * 
    * @return S_OK on success or error otherwise
    */
-  virtual status_t ioctl(const std::string command) { return E_NOT_SUPPORTED; }
+  virtual status_t ioctl(const std::string& command) { return E_NOT_SUPPORTED; }
 
   
   /** 
@@ -468,21 +468,21 @@ class IKVStore_factory : public Component::IBase
 public:
   DECLARE_INTERFACE_UUID(0xface829f,0x0405,0x4c19,0x9898,0xa3,0xae,0x21,0x5a,0x3e,0xe8);
 
-  virtual IKVStore * create(const std::string owner,
-                            const std::string param){
+  virtual IKVStore * create(const std::string& owner,
+                            const std::string& param){
     throw(API_exception("Not Implemented"));
   };
 
-  virtual IKVStore * create(const std::string owner,
-                            const std::string param,
-                            const std::string param2){
+  virtual IKVStore * create(const std::string& owner,
+                            const std::string& param,
+                            const std::string& param2){
     throw(API_exception("Not Implemented"));
   }
 
   virtual IKVStore * create(unsigned debug_level,
-                            const std::string owner,
-                            const std::string param,
-                            const std::string param2){
+                            const std::string& owner,
+                            const std::string& param,
+                            const std::string& param2){
     throw(API_exception("Not Implemented"));
   }
 

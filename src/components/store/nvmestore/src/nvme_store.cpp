@@ -126,10 +126,10 @@ static int check_pool(const char * path)
 }
 
 
-NVME_store::NVME_store(const std::string owner,
-                       const std::string name,
+NVME_store::NVME_store(const std::string& owner,
+                       const std::string& name,
                        std::string pci)
-                       {
+{
   status_t ret;
   PLOG("NVMESTORE: chunk size in blocks: %lu", CHUNK_SIZE_IN_BLOCKS);
   PLOG("PMEMOBJ_MAX_ALLOC_SIZE: %lu MB", REDUCE_MB(PMEMOBJ_MAX_ALLOC_SIZE));
@@ -158,11 +158,11 @@ NVME_store::~NVME_store()
   _blk_dev->release_ref();
 }
 
-IKVStore::pool_t NVME_store::create_pool(const std::string path,
-                                      const std::string name,
-                                      const size_t size,
-                                      unsigned int flags,
-                                      uint64_t args)
+IKVStore::pool_t NVME_store::create_pool(const std::string& path,
+                                         const std::string& name,
+                                         const size_t size,
+                                         unsigned int flags,
+                                         uint64_t args)
 {
   PMEMobjpool *pop; //pool to allocate all mapping
   int ret =0;
@@ -181,7 +181,7 @@ IKVStore::pool_t NVME_store::create_pool(const std::string path,
     fullpath = path + name;
 
   if (access(fullpath.c_str(), F_OK) == 0) {
-      throw General_exception("nvmestore: creating exsiting pool");
+    throw General_exception("nvmestore: creating exsiting pool");
   }
   else{
     PLOG("Creating new Pool: %s", name.c_str());
@@ -212,7 +212,7 @@ IKVStore::pool_t NVME_store::create_pool(const std::string path,
     ret = -1;
   } TX_END
  
-  assert(ret == 0);
+      assert(ret == 0);
 
   if(hm_tx_check(pop, D_RO(root)->map))
     throw General_exception("hm_tx_check failed unexpectedly");
@@ -229,9 +229,9 @@ IKVStore::pool_t NVME_store::create_pool(const std::string path,
   return reinterpret_cast<uint64_t>(session);
 }
 
-IKVStore::pool_t NVME_store::open_pool(const std::string path,
-                                      const std::string name,
-                                      unsigned int flags)
+IKVStore::pool_t NVME_store::open_pool(const std::string& path,
+                                       const std::string& name,
+                                       unsigned int flags)
 {
   PMEMobjpool *pop; //pool to allocate all mapping
   size_t max_sz_hxmap = MB(500); // this can fit 1M objects (block_range_t)
@@ -254,7 +254,7 @@ IKVStore::pool_t NVME_store::open_pool(const std::string path,
   }
 
   if (access(fullpath.c_str(), F_OK) != 0) {
-      throw General_exception("nvmestore: pool not existing at path %s", fullpath.c_str());
+    throw General_exception("nvmestore: pool not existing at path %s", fullpath.c_str());
   }
   else {
     PLOG("Opening existing Pool: %s", name.c_str());
@@ -332,9 +332,9 @@ void NVME_store::delete_pool(const pool_t pid)
  * when using NVMe, only insert the block range descriptor into the mapping 
  */
 status_t NVME_store::put(IKVStore::pool_t pool,
-                  std::string key,
-                  const void * value,
-                  size_t value_len)
+                         const std::string& key,
+                         const void * value,
+                         size_t value_len)
 {
   struct open_session_t * session = reinterpret_cast<struct open_session_t*>(pool);
 
@@ -406,15 +406,15 @@ status_t NVME_store::put(IKVStore::pool_t pool,
   }
   TX_END
 
-  _cnt_elem_map[pool] ++;
+    _cnt_elem_map[pool] ++;
 
   return S_OK;
 }
 
 status_t NVME_store::get(const pool_t pool,
-                 const std::string key,
-                 void*& out_value,
-                 size_t& out_value_len)
+                         const std::string& key,
+                         void*& out_value,
+                         size_t& out_value_len)
 {
   struct open_session_t * session = reinterpret_cast<struct open_session_t*>(pool);
 
@@ -461,7 +461,7 @@ status_t NVME_store::get(const pool_t pool,
 }
 
 status_t NVME_store::get_direct(const pool_t pool,
-                                const std::string key,
+                                const std::string& key,
                                 void* out_value,
                                 size_t& out_value_len,
                                 size_t offset,
@@ -546,9 +546,9 @@ IKVStore::memory_handle_t NVME_store::register_direct_memory(void * vaddr, size_
 }
 
 status_t NVME_store::allocate(const pool_t pool,
-                      const std::string key,
-                      const size_t nbytes,
-                      uint64_t& out_key_hash)
+                              const std::string& key,
+                              const size_t nbytes,
+                              uint64_t& out_key_hash)
 {
   open_session_t * session = get_session(pool);
   
@@ -564,7 +564,7 @@ status_t NVME_store::allocate(const pool_t pool,
 
   /* check to see if key already exists */
   /*if(hm_tx_lookup(pop, d_ro(root)->map, key_hash))*/
-    /*return e_key_exists;*/
+  /*return e_key_exists;*/
 
   size_t nr_io_blocks = (nbytes+ BLOCK_SIZE -1)/BLOCK_SIZE;
 
@@ -611,10 +611,10 @@ status_t NVME_store::allocate(const pool_t pool,
  * nvmestore will fetch data from nvme if it obtain the lock
  */
 status_t NVME_store::lock(const pool_t pool,
-                  uint64_t key_hash,
-                  int type,
-                  void*& out_value,
-                  size_t& out_value_len)
+                          uint64_t key_hash,
+                          int type,
+                          void*& out_value,
+                          size_t& out_value_len)
 {
   open_session_t * session = get_session(pool);
   
@@ -684,7 +684,7 @@ status_t NVME_store::lock(const pool_t pool,
  * this will send async io to nvme and return, the completion will be checked for either get() or the next lock()/apply
  */
 status_t NVME_store::unlock(const pool_t pool,
-                    uint64_t key_hash)
+                            uint64_t key_hash)
 {
   open_session_t * session = get_session(pool);
   
@@ -728,10 +728,10 @@ status_t NVME_store::unlock(const pool_t pool,
 }
 
 status_t NVME_store::apply(const pool_t pool,
-                   const std::string key,
-                   std::function<void(void*,const size_t)> functor,
-                   size_t offset,
-                   size_t size)
+                           const std::string& key,
+                           std::function<void(void*,const size_t)> functor,
+                           size_t offset,
+                           size_t size)
 {
 
   void * data;
@@ -742,10 +742,10 @@ status_t NVME_store::apply(const pool_t pool,
 }
 
 status_t NVME_store::apply(const pool_t pool,
-                   uint64_t key_hash,
-                   std::function<void(void*,const size_t)> functor,
-                   size_t offset,
-                   size_t size)
+                           uint64_t key_hash,
+                           std::function<void(void*,const size_t)> functor,
+                           size_t offset,
+                           size_t size)
 {
   void * data;
   size_t value_len = 0;
@@ -755,30 +755,30 @@ status_t NVME_store::apply(const pool_t pool,
 }
 
 status_t NVME_store::locked_apply(const pool_t pool,
-                          const std::string key,
-                          std::function<void(void*,const size_t)> functor,
-                          size_t offset,
-                          size_t size)
+                                  const std::string& key,
+                                  std::function<void(void*,const size_t)> functor,
+                                  size_t offset,
+                                  size_t size)
 {
   return __apply(pool, CityHash64(key.c_str(), key.length()), functor, offset, size);
 }
 
 status_t NVME_store::locked_apply(const pool_t pool,
-                          uint64_t key_hash,
-                          std::function<void(void*,const size_t)> functor,
-                          size_t offset,
-                          size_t size)
+                                  uint64_t key_hash,
+                                  std::function<void(void*,const size_t)> functor,
+                                  size_t offset,
+                                  size_t size)
 {
   return __apply(pool, key_hash, functor, offset, size);
 }
 
 /* currently requires lock from outside
-  this will release the lock before returning*/
+   this will release the lock before returning*/
 int NVME_store::__apply(const pool_t pool,
-                    uint64_t key_hash,
-                    std::function<void(void*,const size_t)> functor,
-                    size_t offset,
-                    size_t size)
+                        uint64_t key_hash,
+                        std::function<void(void*,const size_t)> functor,
+                        size_t offset,
+                        size_t size)
 {
   open_session_t * session = get_session(pool);
   
@@ -818,7 +818,7 @@ int NVME_store::__apply(const pool_t pool,
     TX_END
 #endif
 
-    unlock(pool, key_hash);
+      unlock(pool, key_hash);
   }
   catch(...) {
     throw General_exception("hm_tx_get failed unexpectedly");
@@ -828,13 +828,13 @@ int NVME_store::__apply(const pool_t pool,
 }
 
 status_t NVME_store::erase(const pool_t pool,
-                   const std::string key)
+                           const std::string& key)
 {
   return erase(pool,CityHash64(key.c_str(), key.length())); 
 }
 
 status_t NVME_store::erase(const pool_t pool,
-                   uint64_t key_hash)
+                           uint64_t key_hash)
 {
   open_session_t * session = get_session(pool);
   
