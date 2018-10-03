@@ -27,7 +27,7 @@ public:
    * @param block_device Block device interface
    * 
    */
-  FileStore(const std::string owner, const std::string name);
+  FileStore(const std::string& owner, const std::string& name);
 
   /** 
    * Destructor
@@ -58,14 +58,14 @@ public:
   /* IKVStore */
   virtual int thread_safety() const { return THREAD_MODEL_MULTI_PER_POOL; }
   
-  virtual pool_t create_pool(const std::string path,
-                             const std::string name,
+  virtual pool_t create_pool(const std::string& path,
+                             const std::string& name,
                              const size_t size,
                              unsigned int flags = 0,
                              uint64_t expected_obj_count = 0) override;
   
-  virtual pool_t open_pool(const std::string path,
-                           const std::string name,
+  virtual pool_t open_pool(const std::string& path,
+                           const std::string& name,
                            unsigned int flags = 0) override;
   
   virtual void close_pool(const pool_t pid) override;
@@ -73,17 +73,17 @@ public:
   virtual void delete_pool(const pool_t pid) override;
 
   virtual status_t put(const pool_t pool,
-                       const std::string key,
+                       const std::string& key,
                        const void * value,
                        const size_t value_len) override;
 
   virtual status_t get(const pool_t pool,
-                       const std::string key,
+                       const std::string& key,
                        void*& out_value,
                        size_t& out_value_len) override;
   
   virtual status_t get_direct(const pool_t pool,
-                              const std::string key,
+                              const std::string& key,
                               void* out_value,
                               size_t& out_value_len,
                               size_t offset,
@@ -97,7 +97,7 @@ public:
                               IKVStore::memory_handle_t handle);
 
   virtual status_t erase(const pool_t pool,
-                         const std::string key) override;
+                         const std::string& key) override;
   
   virtual size_t count(const pool_t pool) override;
 
@@ -130,8 +130,8 @@ public:
     delete this;
   }
 
-  virtual Component::IKVStore * create(const std::string owner,
-                                       const std::string name) override
+  virtual Component::IKVStore * create(const std::string& owner,
+                                       const std::string& name) override
   {    
     Component::IKVStore * obj = static_cast<Component::IKVStore*>(new FileStore(owner, name));    
     obj->add_ref();

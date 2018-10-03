@@ -59,7 +59,7 @@ public:
 
   status_t unlock(uint64_t key_hash);
 
-  status_t erase(const std::string key);
+  status_t erase(const std::string& key);
 
   size_t count();
 };
@@ -217,7 +217,7 @@ status_t Pool_handle::unlock(uint64_t key_hash)
   return S_OK;
 }
 
-status_t Pool_handle::erase(const std::string key)
+status_t Pool_handle::erase(const std::string& key)
 {
   RWLock_guard guard(map_lock, RWLock_guard::WRITE);
 
@@ -238,7 +238,7 @@ size_t Pool_handle::count() {
 
 /** Main class */
 
-Map_store::Map_store(const std::string owner, const std::string name)
+Map_store::Map_store(const std::string& owner, const std::string& name)
 {
 }
 
@@ -253,8 +253,8 @@ Map_store::~Map_store()
 }
   
 
-IKVStore::pool_t Map_store::create_pool(const std::string path,
-                                        const std::string name,
+IKVStore::pool_t Map_store::create_pool(const std::string& path,
+                                        const std::string& name,
                                         const size_t size,
                                         unsigned int flags,
                                         uint64_t args)
@@ -287,8 +287,8 @@ IKVStore::pool_t Map_store::create_pool(const std::string path,
   return reinterpret_cast<IKVStore::pool_t>(session);
 }
 
-IKVStore::pool_t Map_store::open_pool(const std::string path,
-                                      const std::string name,
+IKVStore::pool_t Map_store::open_pool(const std::string& path,
+                                      const std::string& name,
                                       unsigned int flags)
 {
   std::string key = path + name;
@@ -343,7 +343,7 @@ void Map_store::delete_pool(const pool_t pid)
 
 
 status_t Map_store::put(IKVStore::pool_t pid,
-                        std::string key,
+                        const std::string& key,
                         const void * value,
                         size_t value_len)
 {
@@ -353,7 +353,7 @@ status_t Map_store::put(IKVStore::pool_t pid,
 }
 
 status_t Map_store::get(const pool_t pid,
-                        const std::string key,
+                        const std::string& key,
                         void*& out_value,
                         size_t& out_value_len)
 {
@@ -363,7 +363,7 @@ status_t Map_store::get(const pool_t pid,
 }
 
 status_t Map_store::get_direct(const pool_t pid,
-                               const std::string key,
+                               const std::string& key,
                                void* out_value,
                                size_t& out_value_len,
                                size_t offset,
@@ -378,7 +378,7 @@ status_t Map_store::get_direct(const pool_t pid,
 }
 
 status_t Map_store::put_direct(const pool_t pid,
-                               const std::string key,
+                               const std::string& key,
                                const void * value,
                                const size_t value_len,
                                memory_handle_t memory_handle = HANDLE_NONE)
@@ -409,7 +409,7 @@ status_t Map_store::unlock(const pool_t pid,
 }
 
 status_t Map_store::erase(const pool_t pid,
-                          const std::string key)
+                          const std::string& key)
 {
   auto session = get_session(pid);
   assert(session->pool);

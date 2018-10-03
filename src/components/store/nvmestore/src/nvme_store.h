@@ -72,8 +72,8 @@ public:
    * @param blk_dev_device Block device interface
    * @param blk_alloc Block allocator
    */
-  NVME_store(const std::string owner,
-             const std::string name,
+  NVME_store(const std::string& owner,
+             const std::string& name,
              std::string pci);
 
   /** 
@@ -105,15 +105,15 @@ public:
   virtual int thread_safety() const override { return THREAD_MODEL_SINGLE_PER_POOL; }
   
 
-  virtual pool_t create_pool(const std::string path,
-                             const std::string name,
+  virtual pool_t create_pool(const std::string& path,
+                             const std::string& name,
                              const size_t size,
                              unsigned int flags,
                              uint64_t expected_obj_count = 0
                              ) override;
   
-  virtual pool_t open_pool(const std::string path,
-                           const std::string name,
+  virtual pool_t open_pool(const std::string& path,
+                           const std::string& name,
                            unsigned int flags) override;
 
 
@@ -122,17 +122,17 @@ public:
   virtual void close_pool(const pool_t pid) override;
 
   virtual status_t put(const pool_t pool,
-                  const std::string key,
-                  const void * value,
-                  const size_t value_len) override;
+                       const std::string& key,
+                       const void * value,
+                       const size_t value_len) override;
 
   virtual status_t get(const pool_t pool,
-                  const std::string key,
+                  const std::string& key,
                   void*& out_value,
                   size_t& out_value_len) override;
 
   virtual status_t get_direct(const pool_t pool,
-                              const std::string key,
+                              const std::string& key,
                               void* out_value,
                               size_t& out_value_len,
                               size_t offset,
@@ -141,7 +141,7 @@ public:
   virtual IKVStore::memory_handle_t register_direct_memory(void * vaddr, size_t len) override;
 
   virtual status_t allocate(const pool_t pool,
-                       const std::string key,
+                       const std::string& key,
                        const size_t nbytes,
                        uint64_t& out_key_hash);
 
@@ -161,13 +161,13 @@ public:
                     size_t size = 0);
 
   virtual status_t apply(const pool_t pool,
-                    const std::string key,
+                    const std::string& key,
                     std::function<void(void*,const size_t)> functor,
                     size_t offset = 0,
                     size_t size = 0);
 
   virtual status_t locked_apply(const pool_t pool,
-                           const std::string key,
+                           const std::string& key,
                            std::function<void(void*,const size_t)> functor,
                            size_t offset = 0,
                            size_t size = 0);
@@ -179,7 +179,7 @@ public:
                            size_t size = 0);
 
   virtual status_t erase(const pool_t pool,
-                    const std::string key);
+                    const std::string& key);
   
   virtual status_t erase(const pool_t pool,
                     uint64_t key_hash);
@@ -264,9 +264,9 @@ public:
   }
 
 
-  virtual Component::IKVStore * create(const std::string owner,
-                                       const std::string name,
-                                       std::string pci)
+  virtual Component::IKVStore * create(const std::string& owner,
+                                       const std::string& name,
+                                       const std::string& pci)
                                        override
   {    
     Component::IKVStore * obj = static_cast<Component::IKVStore*>(new NVME_store(owner, name,pci));   
