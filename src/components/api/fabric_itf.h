@@ -298,7 +298,7 @@ public:
    * @param key Requested key for the remote memory. Note: if the fabric provider
    *            uses the key (i.e., the fabric provider memory region attributes
    *            do not include the FI_MR_PROV_KEY bit), then the key must be
-   *            unique among registered memory regsions. As this API does not
+   *            unique among registered memory regions. As this API does not
    *            expose these attributes, the only safe strategy is to assume that
    *            the key must be unique among registered memory regsions.
    * @param flags Flags e.g., FI_REMOTE_READ|FI_REMOTE_WRITE. Flag definitions are in <rdma/fabric.h>
