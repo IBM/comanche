@@ -18,6 +18,8 @@
 using namespace Component;
 using namespace Common;
 
+static constexpr size_t OBJECT_ALIGNMENT = 4096;
+
 static uint64_t get_key_hash(const std::string& key)
 {
   return CityHash64(key.c_str(), key.length());
@@ -107,7 +109,7 @@ status_t Pool_handle::put(const std::string& key,
     return IKVStore::E_KEY_EXISTS;
   }
 
-  auto buffer = scalable_malloc(value_len);
+  auto buffer = scalable_aligned_malloc(value_len, OBJECT_ALIGNMENT);
   memcpy(buffer, value, value_len);
   map.emplace(hashkey, Value_pair{buffer, value_len});
   
@@ -128,7 +130,7 @@ status_t Pool_handle::get(const std::string& key,
   }
 
   out_value_len = i->second.length;
-  out_value = scalable_malloc(out_value_len);
+  out_value = scalable_aligned_malloc(out_value_len, OBJECT_ALIGNMENT);
   memcpy(out_value, i->second.ptr, i->second.length);
   
   return S_OK;
@@ -180,7 +182,7 @@ status_t Pool_handle::lock(uint64_t key_hash,
     auto i = map.find(key_hash);
     
     if(i == map.end()) {
-      buffer = scalable_malloc(out_value_len);
+      buffer = scalable_aligned_malloc(out_value_len, OBJECT_ALIGNMENT);
       assert(buffer);
       map.emplace(key_hash, Value_pair{buffer, out_value_len});
     }   
