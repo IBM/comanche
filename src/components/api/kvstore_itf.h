@@ -162,6 +162,7 @@ public:
                               const std::string& key,
                               const void * value,
                               const size_t value_len,
+                              size_t offset = 0,
                               memory_handle_t handle = HANDLE_NONE) { return E_NOT_SUPPORTED; }
 
   /** 

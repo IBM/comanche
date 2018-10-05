@@ -93,7 +93,8 @@ public:
                               const std::string& key,
                               const void * value,
                               const size_t value_len,
-                              IKVStore::memory_handle_t handle) override;
+                              size_t offset = 0,
+                              IKVStore::memory_handle_t handle = HANDLE_NONE) override;
   
   virtual status_t lock(const pool_t pool,
                         uint64_t key_hash,

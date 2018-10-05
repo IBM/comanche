@@ -383,7 +383,8 @@ status_t Map_store::put_direct(const pool_t pid,
                                const std::string& key,
                                const void * value,
                                const size_t value_len,
-                               memory_handle_t memory_handle = HANDLE_NONE)
+                               size_t offset,
+                               memory_handle_t memory_handle)
 {
   auto session = get_session(pid);
   return Map_store::put(pid, key, value, value_len);
