@@ -259,6 +259,35 @@ public:
        _debug_print(core, "_report_document_save finished");
     }
 
+    void _print_highest_count_bin(BinStatistics& stats)
+    {
+        int count_highest = -1;  // arbitrary placeholder value
+        int count_highest_index = -1;  // arbitrary placeholder value
+
+        // find bin with highest count
+        for (int i = 0; i < stats.getBinCount(); i++)
+        {
+            if (stats.getBin(i).getCount() > count_highest)
+            {
+                count_highest = stats.getBin(i).getCount();
+                count_highest_index = i;
+            }
+        }
+
+        if (count_highest > -1)
+        {
+            RunningStatistics bin = stats.getBin(count_highest_index);
+
+            // print information about that bin
+            std::cout << "SUMMARY: " << std::endl;
+            std::cout << "\tmean: " << bin.getMean() << std::endl;
+            std::cout << "\tmin: " << bin.getMin() << std::endl;
+            std::cout << "\tmax: " << bin.getMax() << std::endl;
+            std::cout << "\tstd: " << bin.getMax() << std::endl;
+            std::cout << "\tcount: " << bin.getCount() << std::endl;
+        }
+    }
+
     rapidjson::Value _add_statistics_to_report(std::string name, BinStatistics& stats, rapidjson::Document& document)
     {
        rapidjson::Value bin_info(rapidjson::kObjectType);
