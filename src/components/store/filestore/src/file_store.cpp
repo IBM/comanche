@@ -287,14 +287,13 @@ status_t FileStore::get_direct(const pool_t pid,
 }
 
 status_t FileStore::put_direct(const pool_t pool,
-                               const void * key,
-                               const size_t key_len,
+                               const std::string& key,
                                const void * value,
                                const size_t value_len,
+                               size_t offset = 0,
                                memory_handle_t memory_handle = HANDLE_NONE)
 {
-  std::string key_string(static_cast<const char*>(key), key_len);
-  return FileStore::put(pool, key_string, value, value_len);
+  return FileStore::put(pool, key, value, value_len);
 }
 
 
