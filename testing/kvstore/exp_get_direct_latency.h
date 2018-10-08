@@ -176,7 +176,8 @@ public:
 
        experiment_object.AddMember("latency", latency_object, document.GetAllocator());
        experiment_object.AddMember("start_time", timing_object, document.GetAllocator()); 
-       
+        _print_highest_count_bin(_latency_stats);
+
        _report_document_save(document, core, experiment_object);
 
        pthread_mutex_unlock(&g_write_lock);

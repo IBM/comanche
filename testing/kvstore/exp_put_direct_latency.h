@@ -147,6 +147,8 @@ public:
        
        _report_document_save(document, core, experiment_object);
 
+        _print_highest_count_bin(_latency_stats);
+
        _debug_print(core, "cleanup_custom mutex unlocking");
        pthread_mutex_unlock(&g_write_lock);
     }
