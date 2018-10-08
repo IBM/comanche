@@ -355,6 +355,7 @@ TEST_F(PoolTest, PutDirectGetDirect_RandomKVP)
     const size_t key_length = 8;
     const size_t value_length = 64;
     const std::string key = Common::random_string(key_length);
+    size_t offset = 0;  // TODO: use this in a non-placeholder way
     Component::IKVStore::memory_handle_t memory_handle;
 
     std::string value = Common::random_string(value_length);
@@ -371,7 +372,7 @@ TEST_F(PoolTest, PutDirectGetDirect_RandomKVP)
         memory_handle = Component::IKVStore::HANDLE_NONE;  
     }
 
-    status_t rc = _g_store->put_direct(_pool, key.c_str(), key_length, value.c_str(), value_length, memory_handle);
+    status_t rc = _g_store->put_direct(_pool, key.c_str(), value.c_str(), value_length, offset, memory_handle);
 
     ASSERT_EQ(rc, S_OK) << "put_direct return code failed";
 
@@ -417,6 +418,7 @@ TEST_F(PoolTest, PutDirect_DuplicateKey)
 
     const std::string key = Common::random_string(key_length);
     std::string value = Common::random_string(value_length);
+    size_t offset = 0;  // TODO: actually implement test using offset
     Component::IKVStore::memory_handle_t memory_handle;
 
     if (component_info.uses_direct_memory)
@@ -431,12 +433,12 @@ TEST_F(PoolTest, PutDirect_DuplicateKey)
         memory_handle = Component::IKVStore::HANDLE_NONE;  
     }
 
-    status_t rc = _g_store->put_direct(_pool, key.c_str(), key_length, value.c_str(), value_length, memory_handle);
+    status_t rc = _g_store->put_direct(_pool, key.c_str(), value.c_str(), value_length, offset, memory_handle);
 
     ASSERT_EQ(rc, S_OK) << "put_direct return code failed";
 
     // now try to add another value to that key
-    rc = _g_store->put_direct(_pool, key.c_str(), key_length, value.c_str(), value_length, memory_handle);
+    rc = _g_store->put_direct(_pool, key.c_str(), value.c_str(), value_length, offset, memory_handle);
 
     ASSERT_EQ(rc, IKVStore::E_KEY_EXISTS) << "second put_direct return code failed";
 }
