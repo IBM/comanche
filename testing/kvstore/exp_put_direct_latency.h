@@ -99,11 +99,6 @@ public:
 
     void cleanup_custom(unsigned core)  
     {
-        if (_component.compare("dawn_client") == 0)
-        {
-            _store->unregister_direct_memory(_memory_handle);
-        }
-
         _debug_print(core, "cleanup_custom started");
 
         if (_verbose)
