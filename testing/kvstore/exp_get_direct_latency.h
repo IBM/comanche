@@ -127,7 +127,12 @@ public:
         _latencies.at(_i) = time;
         _start_time.at(_i) = time_since_start; 
         _latency_stats.update(time);
-        assert(rc == S_OK);
+        
+        if (rc != S_OK)
+        {
+            std::cout << "rc != S_OK: rc = " << rc << std::endl;
+            throw std::exception();
+        }
 
         _i++;  // increment after running so all elements get used
 
