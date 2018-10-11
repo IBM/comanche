@@ -23,7 +23,6 @@ public:
     std::vector<double> _latencies;
     std::chrono::high_resolution_clock::time_point _exp_start_time;
     BinStatistics _latency_stats;
-    Component::IKVStore::memory_handle_t _memory_handle = Component::IKVStore::HANDLE_NONE;
 
     ExperimentPutDirectLatency(struct ProgramOptions options): Experiment(options) 
     {
@@ -43,17 +42,6 @@ public:
         _latencies.resize(_pool_num_components);
 
         _latency_stats.init(_bin_count, _bin_threshold_min, _bin_threshold_max);
-
-        if (_component.compare("dawn_client") == 0)
-        {
-           size_t data_size = sizeof(KV_pair) * _data->_num_elements;
-           data_size += data_size % 64;  // align
-           _data->_data = (KV_pair*)aligned_alloc(MiB(2), data_size);
-           madvise(_data->_data, data_size, MADV_HUGEPAGE);
-    
-           _memory_handle = _store->register_direct_memory(_data->_data, data_size);
-           _data->initialize_data(false);
-        }
 
         _debug_print(core, "initialize_custom done");
     }
@@ -111,11 +99,6 @@ public:
 
     void cleanup_custom(unsigned core)  
     {
-        if (_component.compare("dawn_client") == 0)
-        {
-            _store->unregister_direct_memory(_memory_handle);
-        }
-
         _debug_print(core, "cleanup_custom started");
 
         if (_verbose)
