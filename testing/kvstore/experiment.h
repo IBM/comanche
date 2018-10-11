@@ -30,6 +30,7 @@ public:
     std::string _results_path = "./results";
     std::string _report_filename;
     std::string _test_name;
+    Component::IKVStore::memory_handle_t _memory_handle = Component::IKVStore::HANDLE_NONE;
 
     Experiment(struct ProgramOptions options): _store(options.store)
     {
@@ -58,6 +59,17 @@ public:
         PLOG("Created pool for worker %u...OK!", core);
         
         initialize_custom(core);
+
+        if (_component.compare("dawn_client") == 0)
+        {
+           size_t data_size = sizeof(KV_pair) * _data->_num_elements;
+           data_size += data_size % 64;  // align
+           _data->_data = (KV_pair*)aligned_alloc(MiB(2), data_size);
+           madvise(_data->_data, data_size, MADV_HUGEPAGE);
+
+           _memory_handle = _store->register_direct_memory(_data->_data, data_size);
+           _data->initialize_data(false);
+        }
 
         ProfilerRegisterThread();
         _ready = true;
