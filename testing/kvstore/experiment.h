@@ -57,8 +57,6 @@ public:
         _pool = _store->create_pool(_pool_path, poolname, _pool_size, _pool_flags, _pool_num_components);
       
         PLOG("Created pool for worker %u...OK!", core);
-        
-        initialize_custom(core);
 
         if (component_uses_direct_memory())
         {
@@ -70,6 +68,8 @@ public:
            _memory_handle = _store->register_direct_memory(_data->_data, data_size);
            _data->initialize_data(false);
         }
+
+        initialize_custom(core);
 
         ProfilerRegisterThread();
         _ready = true;
