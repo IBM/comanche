@@ -60,7 +60,7 @@ public:
         
         initialize_custom(core);
 
-        if (_component.compare("dawn_client") == 0)
+        if (component_uses_direct_memory())
         {
            size_t data_size = sizeof(KV_pair) * _data->_num_elements;
            data_size += data_size % 64;  // align
@@ -102,7 +102,17 @@ public:
     {
         cleanup_custom(core);
 
+        if (component_uses_direct_memory())
+        {
+            _store->unregister_direct_memory(_memory_handle);
+        }
+
         _store->delete_pool(_pool);
+    }
+
+    bool component_uses_direct_memory()
+    {
+        return _component.compare("dawn_client") == 0;
     }
 
     void handle_program_options()
