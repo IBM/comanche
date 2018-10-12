@@ -95,6 +95,12 @@ public:
                     pool_path = "/mnt/pmem0";
                     uses_direct_memory = true;
                 }
+                else if (component_name.compare("hstore") == 0)
+                {
+                    component_uuid = Component::hstore_factory;
+                    component_object = "libcomanche-hstore.so";
+                    pool_path = "/mnt/pmem0/pool";
+                }
                 else
                 {
                     printf("UNHANDLED COMPONENT\n");
