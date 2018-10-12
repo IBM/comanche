@@ -195,6 +195,10 @@ static void initialize()
       DECLARE_STATIC_COMPONENT_UUID(dawn_client_factory, 0xfac66078,0xcb8a,0x4724,0xa454,0xd1,0xd8,0x8d,0xe2,0xdb,0x87);  // TODO: find a better way to register arbitrary components to promote modular use
     comp = Component::load_component(DAWN_PATH, dawn_client_factory);
   }
+  else if (Options.component == "hstore")
+  {
+    comp = Component::load_component("libcomanche-hstore.so", Component::hstore_factory);
+  }
   else throw General_exception("unknown --component option (%s)", Options.component.c_str());
 
   assert(comp);
