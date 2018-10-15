@@ -11,6 +11,7 @@
 #include "data.h"
 #include "kvstore_perf.h"
 #include "statistics.h"
+#include "stopwatch.h"
 
 extern Data * _data;
 extern int g_argc;
@@ -612,6 +613,13 @@ public:
         // erase elements that exceed pool capacity and start again
         if ((_elements_in_use * _element_size) >= _pool_size)
         {
+            bool timer_running_at_start = timer.is_running();  // if timer was running, pause it
+
+            if (timer_running_at_start)
+            {
+                timer.stop();
+            }
+
             if(_verbose)
             {
                 std::stringstream debug_message;
@@ -642,6 +650,11 @@ public:
 
                 _debug_print(core, debug_end.str(), true);
             }
+
+            if (timer_running_at_start)
+            {
+                timer.start();
+            }
         }
     }
 
@@ -666,6 +679,7 @@ public:
     bool                                  _first_iter = true;
     bool                                  _ready = false;
     std::chrono::system_clock::time_point _start, _end;
+    Stopwatch timer;
     bool _verbose = true;
 
     // member variables for tracking pool sizes

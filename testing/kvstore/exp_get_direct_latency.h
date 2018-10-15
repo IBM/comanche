@@ -72,6 +72,7 @@ public:
         // end experiment if we've reached the total number of components
         if (_i == _pool_num_components)
         {
+            timer.stop();
             throw std::exception();
         }
 
@@ -102,9 +103,11 @@ public:
             memory_handle = _direct_memory_handle;
         }
  
+        timer.start();
         start = rdtsc();
         int rc = _store->get_direct(_pool, _data->key(_i), pval, pval_len, offset, memory_handle);
         end = rdtsc();
+        timer.stop();
 
         cycles = end - start;
         double time = (cycles / _cycles_per_second);
@@ -157,6 +160,10 @@ public:
             _store->unregister_direct_memory(_direct_memory_handle);
         }
 
+        double run_time = timer.get_time_in_seconds();
+        double iops = _i / run_time;
+        PINF("[get_direct] IOPS: %2g in %2g seconds", iops, run_time);
+
         if (_verbose)
         {
             std::stringstream stats_info;
@@ -175,10 +182,13 @@ public:
        // collect latency stats
        rapidjson::Value latency_object = _add_statistics_to_report("latency", _latency_stats, document);
        rapidjson::Value timing_object = _add_statistics_to_report("start_time", start_time_stats, document);
+       rapidjson::Value iops_object; 
+       iops_object.SetDouble(iops);
 
        // save everything
        rapidjson::Value experiment_object(rapidjson::kObjectType);
 
+       experiment_object.AddMember("IOPS", iops_object, document.GetAllocator());
        experiment_object.AddMember("latency", latency_object, document.GetAllocator());
        experiment_object.AddMember("start_time", timing_object, document.GetAllocator()); 
         _print_highest_count_bin(_latency_stats);

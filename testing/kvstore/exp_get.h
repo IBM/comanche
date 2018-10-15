@@ -30,12 +30,16 @@ public:
         if(_first_iter) 
         {
             PLOG("Starting Get experiment...");
+
             _start = std::chrono::high_resolution_clock::now();
+            timer.start();
+
             _first_iter = false;
         }
   
         if(_i == _data->num_elements()) 
         { 
+            timer.stop();
             throw std::exception();
         }
   
@@ -51,17 +55,20 @@ public:
 
        if (_i == _pool_element_end)
        {
+           timer.stop();
             _erase_pool_entries_in_range(_pool_element_start, _pool_element_end);
            _populate_pool_to_capacity(core); 
+           timer.start();
        }
     }
     
     void cleanup_custom(unsigned core) 
     { 
-        _end = std::chrono::high_resolution_clock::now();
-        double secs = std::chrono::duration_cast<std::chrono::milliseconds>(_end - _start).count() / 1000.0;
-        double iops = ((double) _i) / secs;
-        PINF("*Get* (%u) IOPS: %2g", core, iops); 
+        timer.stop();  // just in case; normal code should have already stopped by now
+
+        double run_time = timer.get_time_in_seconds();
+        double iops = ((double) _i / run_time);
+        PINF("Timer: IOPS: %2g in %2g", iops, run_time);
 
        pthread_mutex_lock(&g_write_lock);
 

@@ -11,7 +11,7 @@ class ExperimentPut : public Experiment
 public:
     unsigned long _element_size;
     unsigned long _elements_in_use = 0;
-
+    
     ExperimentPut(struct ProgramOptions options) : Experiment(options) 
     {
         _test_name = "put";
@@ -23,8 +23,8 @@ public:
         {
             PLOG("Starting Put experiment...");
 
-            _start = std::chrono::high_resolution_clock::now();
             _first_iter = false;
+            timer.start();
         }
       
         _i++;
@@ -38,10 +38,10 @@ public:
 
     void cleanup_custom(unsigned core)  
     {
-        _end = std::chrono::high_resolution_clock::now();
-        double secs = std::chrono::duration_cast<std::chrono::milliseconds>(_end - _start).count() / 1000.0;
-        double iops = ((double) _i) / secs;
-        PINF("*Put* (%u) IOPS: %2g", core, iops); 
+        timer.stop();
+        double run_time = timer.get_time_in_seconds();
+        double iops = ((double) _i) / run_time;
+        PINF("*Put* (%u) IOPS: %2g in = %f seconds", core, iops, run_time);
 
        pthread_mutex_lock(&g_write_lock);
 
