@@ -60,6 +60,7 @@ public:
         // end experiment if we've reached the total number of components
         if (_i == _pool_num_components)
         {
+            timer.stop();
             std::cerr << "reached last element. Last _start_time = " << _start_time.at(_i) << std::endl;
             throw std::exception();
         }
@@ -69,9 +70,11 @@ public:
         int rc;
         size_t offset = 0;
 
+        timer.start();
         start = rdtsc();
         rc = _store->put_direct(_pool, _data->key(_i), _data->value(_i), _data->value_len(), offset, _memory_handle);
         end = rdtsc();
+        timer.stop();
 
         cycles = end - start;
         double time = (cycles / _cycles_per_second);
@@ -93,6 +96,7 @@ public:
         if (rc != S_OK)
         {
             perror("put returned !S_OK value");
+            std::cout << "rc = " << rc << std::endl;
             throw std::exception();
         }
     }
@@ -100,6 +104,11 @@ public:
     void cleanup_custom(unsigned core)  
     {
         _debug_print(core, "cleanup_custom started");
+
+        timer.stop();  // should already be stopped here; just in case
+        double run_time = timer.get_time_in_seconds();
+        double iops = _i / run_time;
+        PINF("[put_direct] IOPS: %2g in %2g seconds", iops, run_time); 
 
         if (_verbose)
         {
@@ -122,9 +131,13 @@ public:
        rapidjson::Value latency_object = _add_statistics_to_report("latency", _latency_stats, document);
        rapidjson::Value timing_object = _add_statistics_to_report("start_time", start_time_stats, document);
 
+       rapidjson::Value iops_object; 
+       iops_object.SetDouble(iops);
+
        // save everything
        rapidjson::Value experiment_object(rapidjson::kObjectType);
 
+       experiment_object.AddMember("IOPS", iops_object, document.GetAllocator());
        experiment_object.AddMember("latency", latency_object, document.GetAllocator());
        experiment_object.AddMember("start_time", timing_object, document.GetAllocator()); 
        
