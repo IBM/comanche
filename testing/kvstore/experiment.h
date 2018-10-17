@@ -24,7 +24,7 @@ public:
     std::string _pool_name = "Exp.pool.";
     unsigned long long int _pool_size = MB(100);
     int _pool_flags = Component::IKVStore::FLAGS_SET_SIZE;
-    unsigned int _pool_num_components = 100;
+    unsigned int _pool_num_components = 100000;
     unsigned int _cores = 1;
     unsigned int _execution_time;
     std::string _component = "filestore";

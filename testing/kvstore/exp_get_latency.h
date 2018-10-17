@@ -62,6 +62,7 @@ public:
         // end experiment if we've reached the total number of components
         if (_i == _pool_num_components)
         {
+            PINF("reached total number of components. Exiting.");
             throw std::exception();
         }
 
@@ -92,7 +93,11 @@ public:
         _start_time.at(_i) = time_since_start;
         _latencies.at(_i) = time;
 
-        assert(rc == S_OK);
+        if (rc != S_OK)
+        {
+            std::cout << "rc != S_OK: " << rc << ". Exiting." << std::endl;
+            throw std::exception();
+        }
 
         _i++;  // increment after running so all elements get used
 
