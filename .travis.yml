@@ -17,6 +17,11 @@ services:
 compiler:
   - g++
 
+notifications:
+  email:
+    on_success: never
+    on_failure: always
+
 # TODO: we can auto-build and publish this docker image
 # see https://docs.docker.com/docker-cloud/builds/automated-build
 env:
