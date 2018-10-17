@@ -68,7 +68,7 @@ public:
 
         double run_time = timer.get_time_in_seconds();
         double iops = ((double) _i / run_time);
-        PINF("Timer: IOPS: %2g in %2g", iops, run_time);
+        PINF("[get] Timer: IOPS: %2g in %2g", iops, run_time);
 
        pthread_mutex_lock(&g_write_lock);
 
