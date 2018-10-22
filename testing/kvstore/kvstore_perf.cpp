@@ -199,6 +199,10 @@ static void initialize()
   {
     comp = Component::load_component("libcomanche-hstore.so", Component::hstore_factory);
   }
+  else if (Options.component == "mapstore")
+  {
+    comp = Component::load_component("libcomanche-storemap.so", Component::mapstore_factory);
+  }
   else throw General_exception("unknown --component option (%s)", Options.component.c_str());
 
   assert(comp);

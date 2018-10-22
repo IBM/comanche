@@ -128,6 +128,16 @@ int create_key_value_pair(int key_length, int value_length, std::string& key, st
     return 0; 
 }
 
+void free_memory_if_appropriate(void * pval)
+{
+    bool should_free_if_used = component_info.component_name.compare("mapstore") != 0; 
+
+    if (pval != nullptr && should_free_if_used)
+    {
+        free(pval);
+    }
+}
+
 int PutGetRandomKVPWithSizes(Component::IKVStore * store, IKVStore::pool_t pool, const int key_length, const int value_length)
 {
     if (pool <= 0)
@@ -154,10 +164,7 @@ int PutGetRandomKVPWithSizes(Component::IKVStore * store, IKVStore::pool_t pool,
 
     if (rc != S_OK) 
     {
-        if (pval != NULL)
-        {
-            free(pval);
-        }
+        free_memory_if_appropriate(pval);
 
         return 1;
     }
@@ -167,11 +174,8 @@ int PutGetRandomKVPWithSizes(Component::IKVStore * store, IKVStore::pool_t pool,
         rc = 1;
     }
 
-    if (pval != NULL)
-    {
-        free(pval);
-    }
-
+    free_memory_if_appropriate(pval);
+   
     return rc;
 }
 
@@ -187,7 +191,7 @@ TEST_F(PoolTest, PutGet_RandomKVP)
 
     status_t rc = _g_store->put(_pool, key, value.c_str(), value_length);
 
-    ASSERT_EQ(rc, S_OK); 
+    ASSERT_EQ(rc, S_OK) << "put return code failed"; 
 
     void * pval = nullptr;
     size_t pval_len = value_length;
@@ -196,14 +200,11 @@ TEST_F(PoolTest, PutGet_RandomKVP)
     
     std::string get_result((const char*)pval, pval_len);  // force limit on return length
 
-    ASSERT_EQ(rc, S_OK);
+    ASSERT_EQ(rc, S_OK) << "get return code failed";
     ASSERT_STREQ(get_result.c_str(), value.c_str());
     ASSERT_EQ(pval_len, value_length);
-   
-    if (pval != nullptr)
-    {
-        free( pval);
-    }
+
+    free_memory_if_appropriate(pval);
 }
 
 TEST_F(PoolTestLarge, PutGet_VaryingSizedKVPs)
@@ -247,16 +248,13 @@ TEST_F(PoolTest, Get_NoValidKey)
     const int key_length = 8;
     const std::string key = Common::random_string(key_length);
 
-    void * pval = NULL;  // initialize so we can check if value has been changed
+    void * pval = nullptr;  // initialize so we can check if value has been changed
     size_t pval_len;
     
     status_t rc  = _g_store->get(_pool, key, pval, pval_len);
     ASSERT_EQ((int)rc, (int)IKVStore::E_KEY_NOT_FOUND);  // expect failure code here
 
-    if(pval != NULL)
-    {
-        free(pval);
-    }
+    free_memory_if_appropriate(pval);
 }
 
 TEST_F(PoolTest, Put_DuplicateKey)
@@ -295,7 +293,7 @@ TEST_F(PoolTest, Put_Erase)
     ASSERT_EQ(rc, S_OK) << "put return code failed"; 
 
     // now delete key and try to get it again post-deletion
-    void * pval = NULL;  // initialize so we can check if value has changed
+    void * pval = nullptr;  // initialize so we can check if value has changed
     size_t pval_len;
 
     rc = _g_store->erase(_pool, key);
@@ -304,10 +302,7 @@ TEST_F(PoolTest, Put_Erase)
 
     rc  = _g_store->get(_pool, key, pval, pval_len);
 
-    if (pval != NULL)
-    {
-        free(pval);
-    }
+    free_memory_if_appropriate(pval);
 
     ASSERT_EQ(rc, IKVStore::E_KEY_NOT_FOUND) << "get return code failed";
 }
@@ -318,7 +313,7 @@ TEST_F(PoolTest, Put_EraseInvalid)
     const int key_length = 8;
 
     const std::string key = Common::random_string(key_length);
-    void * pval = NULL;
+    void * pval = nullptr;
     size_t pval_len;
 
     // make sure key isn't somehow in pool already
@@ -327,10 +322,7 @@ TEST_F(PoolTest, Put_EraseInvalid)
 
     rc = _g_store->erase(_pool, key);
 
-    if (pval != NULL)
-    {
-        free(pval);
-    }
+    free_memory_if_appropriate(pval);
 
     ASSERT_EQ(rc, IKVStore::E_KEY_NOT_FOUND) << "erase return code failed";
 }
@@ -399,13 +391,12 @@ TEST_F(PoolTest, PutDirectGetDirect_RandomKVP)
  
     rc  = _g_store->get_direct(_pool, key, pval, pval_len, 0, memory_handle);  // offset = 0
 
-    ASSERT_EQ(rc, S_OK) << "get_direct return code failed";
-    ASSERT_STREQ((const char*)pval, value.c_str()) << "strings didn't match";
+    std::string get_result((const char*)pval, pval_len);  // force limit on return length
 
-    if (pval != nullptr)
-    {
-        free(pval);
-    }
+    ASSERT_EQ(rc, S_OK) << "get_direct return code failed";
+    ASSERT_STREQ(get_result.c_str(), value.c_str()) << "strings didn't match";
+
+    free_memory_if_appropriate(pval);
 }
 
 TEST_F(PoolTest, GetDirect_NoValidKey)
@@ -414,15 +405,12 @@ TEST_F(PoolTest, GetDirect_NoValidKey)
     const int key_length = 8;
     const std::string key = Common::random_string(key_length);
 
-    void * pval = NULL;  // initialize so we can check if value has been changed
+    void * pval = nullptr;  // initialize so we can check if value has been changed
     size_t pval_len;
  
     status_t rc  = _g_store->get_direct(_pool, key, pval, pval_len, 0);  // offset = 0
-    
-    if(pval != NULL)
-    {
-        free(pval);
-    } 
+   
+    free_memory_if_appropriate(pval);
 
     ASSERT_EQ((int)rc, (int)IKVStore::E_KEY_NOT_FOUND) << "get_direct return code failed";
 }
@@ -463,21 +451,20 @@ TEST_F(PoolTestSmall, Put_TooLarge)
 
     status_t rc = _g_store->put(_pool, key, value.c_str(), value_length);
 
-    ASSERT_EQ(rc, S_OK); 
+    ASSERT_EQ(rc, S_OK) << "put return code failed"; 
 
     void * pval;
     size_t pval_len;
     
     rc  = _g_store->get(_pool, key, pval, pval_len);
 
-    ASSERT_EQ(rc, S_OK) << "put return code failed";
-    ASSERT_STREQ((const char*)pval, value.c_str());
+    std::string get_result((const char*)pval, pval_len);  // force limit on return length
+
+    ASSERT_EQ(rc, S_OK) << "get return code failed";
+    ASSERT_STREQ(get_result.c_str(), value.c_str());
     ASSERT_EQ(value_length, pval_len);
 
-    if (pval != nullptr)
-    {
-        free(pval);
-    }
+    free_memory_if_appropriate(pval);
 }
 
 struct {

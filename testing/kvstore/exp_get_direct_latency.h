@@ -121,7 +121,7 @@ public:
              mem_alloc.free_io_buffer(handle);
         }
 
-        if (pval != nullptr)
+        if (pval != nullptr && should_free_memory_after_get())
         {
             free(pval);
         }

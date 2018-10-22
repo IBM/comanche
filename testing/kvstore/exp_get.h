@@ -50,7 +50,10 @@ public:
 
         assert(rc == S_OK);
 
-        free(pval);
+        if (pval != nullptr && should_free_memory_after_get())
+        {
+            free(pval);
+        }
         _i++;
 
        if (_i == _pool_element_end)

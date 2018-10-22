@@ -116,6 +116,11 @@ public:
         return _component.compare("dawn_client") == 0;
     }
 
+    bool should_free_memory_after_get()
+    {
+        return _component.compare("mapstore") != 0;  // should be true when not mapstore
+    }
+
     void handle_program_options()
     {
         namespace po = boost::program_options;
