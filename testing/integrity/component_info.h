@@ -101,6 +101,12 @@ public:
                     component_object = "libcomanche-hstore.so";
                     pool_path = "/mnt/pmem0/pool";
                 }
+                else if (component_name.compare("mapstore") == 0)
+                {
+                    component_uuid = Component::mapstore_factory;
+                    component_object = "libcomanche-storemap.so";
+                    pool_path = "/mnt/pmem0";
+                }
                 else
                 {
                     printf("UNHANDLED COMPONENT\n");
