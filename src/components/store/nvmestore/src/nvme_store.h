@@ -187,12 +187,12 @@ public:
   virtual size_t count(const pool_t pool) override{return _cnt_elem_map[pool];};
 
   virtual int map(const pool_t pool,
-                  std::function<int(uint64_t key,
+                  std::function<int(const std::string& key,
                                     const void * value,
-                                    const size_t value_len)> function) override{
+                                    const size_t value_len)> function) override {
     throw API_exception("Not implemented");}
   
-  virtual void debug(const pool_t pool, unsigned cmd, uint64_t arg) override{
+  virtual void debug(const pool_t pool, unsigned cmd, uint64_t arg) override {
     throw API_exception("Not implemented");
   }
 
