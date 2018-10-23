@@ -130,11 +130,16 @@ int create_key_value_pair(int key_length, int value_length, std::string& key, st
 
 void free_memory_if_appropriate(void * pval)
 {
-    bool should_free_if_used = component_info.component_name.compare("mapstore") != 0; 
-
-    if (pval != nullptr && should_free_if_used)
+    if (pval != nullptr)
     {
-        free(pval);
+        if (component_info.store != nullptr)
+        {
+            component_info.store->free_memory(pval);
+        }
+        else
+        {
+            free(pval);
+        }
     }
 }
 
@@ -383,14 +388,14 @@ TEST_F(PoolTest, PutDirectGetDirect_RandomKVP)
     create_key_value_pair(key_length, value_length, key, value, component_info.uses_direct_memory, _direct_memory_location);
 
     status_t rc = _g_store->put_direct(_pool, key.c_str(), value.c_str(), value_length, offset, memory_handle);
-
+    
     ASSERT_EQ(rc, S_OK) << "put_direct return code failed";
 
     void * pval = malloc(sizeof(char) * value_length);  // get_direct requires memory allocation
     size_t pval_len = value_length;
  
     rc  = _g_store->get_direct(_pool, key, pval, pval_len, 0, memory_handle);  // offset = 0
-
+    
     std::string get_result((const char*)pval, pval_len);  // force limit on return length
 
     ASSERT_EQ(rc, S_OK) << "get_direct return code failed";

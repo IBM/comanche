@@ -83,9 +83,9 @@ public:
         std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
         double time_since_start = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - _exp_start_time).count() / 1000.0;
 
-        if (pval != nullptr && should_free_memory_after_get())
+        if (pval != nullptr)
         {
-            free(pval);
+            _store->free_memory(pval);
         }
 
         // store the information for later use
