@@ -31,7 +31,6 @@ public:
         {
             PLOG("Starting Get experiment...");
 
-            _start = std::chrono::high_resolution_clock::now();
             timer.start();
 
             _first_iter = false;
@@ -43,16 +42,16 @@ public:
             throw std::exception();
         }
   
-        void * pval;
+        void * pval = nullptr;
         size_t pval_len;
         
         int rc = _store->get(_pool, _data->key(_i), pval, pval_len);
 
         assert(rc == S_OK);
 
-        if (pval != nullptr && should_free_memory_after_get())
+        if (pval != nullptr)
         {
-            free(pval);
+            _store->free_memory(pval);
         }
         _i++;
 

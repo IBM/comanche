@@ -112,7 +112,8 @@ status_t Pool_handle::put(const std::string& key,
   auto buffer = scalable_aligned_malloc(value_len, OBJECT_ALIGNMENT);
   memcpy(buffer, value, value_len);
   map.emplace(hashkey, Value_pair{buffer, value_len});
-  
+  scalable_free(buffer);
+
   return S_OK;
 }
 
@@ -229,7 +230,7 @@ status_t Pool_handle::erase(const std::string& key)
     return IKVStore::E_KEY_NOT_FOUND;
 
   map.erase(i);
-  
+
   return S_OK;
 }
 

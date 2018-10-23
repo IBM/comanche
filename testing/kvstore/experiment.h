@@ -116,11 +116,6 @@ public:
         return _component.compare("dawn_client") == 0;
     }
 
-    bool should_free_memory_after_get()
-    {
-        return _component.compare("mapstore") != 0;  // should be true when not mapstore
-    }
-
     void handle_program_options()
     {
         namespace po = boost::program_options;
@@ -231,6 +226,8 @@ public:
        rapidjson::FileReadStream is(pFile, readBuffer, sizeof(readBuffer));
        rapidjson::Document document;
        document.ParseStream<0>(is);
+
+       fclose(pFile);
 
        return document;
     }
@@ -683,7 +680,6 @@ public:
     Component::IKVStore::pool_t           _pool;
     bool                                  _first_iter = true;
     bool                                  _ready = false;
-    std::chrono::system_clock::time_point _start, _end;
     Stopwatch timer;
     bool _verbose = true;
 
