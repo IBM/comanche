@@ -268,32 +268,18 @@ public:
    * @param key Object key
    * @param functor Functor to apply to object
    * @param offset Offset within object in bytes
-   * @param size Size of window to apply functor on (this changes transaction size)
+   * @param window_size Size of window to apply functor on (this changes transaction size)
+   * @param object_size Size of object if creation is needed
    * 
    * @return S_OK or error code
    */
   virtual status_t apply(const pool_t pool,
                          const std::string& key,
                          std::function<void(void*,const size_t)> functor,
-                         size_t offset = 0,
-                         size_t size = 0) { return E_NOT_SUPPORTED; }
-  
-  /** 
-   * Apply a functor to an already locked object
-   * 
-   * @param pool Pool handle
-   * @param key Object key
-   * @param functor Functor to apply to object
-   * @param offset Offset within object in bytes
-   * @param size Size of window to apply functor on (this changes transaction size)
-   * 
-   * @return S_OK or error code
-   */
-  virtual status_t locked_apply(const pool_t pool,
-                                const std::string& key,
-                                std::function<void(void*,const size_t)> functor,
-                                size_t offset = 0,
-                                size_t size = 0) { return E_NOT_SUPPORTED; }
+			 size_t offset,
+                         size_t window_size,
+			 size_t object_size,
+			 bool use_lock = true) { return E_NOT_SUPPORTED; }
 
   /** 
    * Erase an object
