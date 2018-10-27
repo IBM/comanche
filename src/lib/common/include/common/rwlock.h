@@ -67,7 +67,7 @@ public:
     else throw API_exception("unexpected RWLock_guard mode (mode=%d)", mode);
   }
   
-  ~RWLock_guard() {
+  ~RWLock_guard() noexcept(false) {
     if(_lock.unlock() != 0)
       throw General_exception("failed to release lock in guard");
   }
