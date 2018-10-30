@@ -230,6 +230,7 @@ status_t Pool_handle::erase(const std::string& key)
     return IKVStore::E_KEY_NOT_FOUND;
 
   map.erase(i);
+  scalable_free(i->second.ptr);
 
   return S_OK;
 }
