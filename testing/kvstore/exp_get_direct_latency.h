@@ -108,7 +108,7 @@ public:
         int rc = _store->get_direct(_pool, _data->key(_i), pval, pval_len, offset, memory_handle);
         end = rdtsc();
         timer.stop();
-
+        
         cycles = end - start;
         double time = (cycles / _cycles_per_second);
         //printf("start: %u  end: %u  cycles: %u seconds: %f\n", start, end, cycles, time);
@@ -123,7 +123,7 @@ public:
 
         if (pval != nullptr)
         {
-            _store->free_memory(pval);
+            free(pval);
         }
 
         // store the information for later use
