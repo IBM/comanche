@@ -96,14 +96,14 @@ public:
                               size_t offset = 0,
                               IKVStore::memory_handle_t handle = HANDLE_NONE) override;
   
-  virtual status_t lock(const pool_t pool,
-                        uint64_t key_hash,
-                        lock_type_t type,
-                        void*& out_value,
-                        size_t& out_value_len) override;
+  virtual key_t lock(const pool_t pool,
+                     const std::string& key,
+                     lock_type_t type,
+                     void*& out_value,
+                     size_t& out_value_len) override;
 
   virtual status_t unlock(const pool_t pool,
-                          uint64_t key_hash) override;
+                          key_t key) override;
 
   virtual status_t erase(const pool_t pool,
                          const std::string& key) override;

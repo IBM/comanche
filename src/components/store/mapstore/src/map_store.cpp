@@ -103,8 +103,8 @@ status_t Pool_handle::put(const std::string& key,
   RWLock_guard guard(map_lock, RWLock_guard::WRITE);
   
   if(map.find(hashkey) != map.end()) {
-    if(option_DEBUG)
-      PLOG("Map_store:: key already exists (%s)", key.c_str());
+    // if(option_DEBUG)
+    //   PLOG("Map_store:: key already exists (%s)", key.c_str());
     
     return IKVStore::E_KEY_EXISTS;
   }
@@ -392,25 +392,28 @@ status_t Map_store::put_direct(const pool_t pid,
   return Map_store::put(pid, key, value, value_len);
 }
 
-status_t Map_store::lock(const pool_t pid,
-                         uint64_t key_hash,
-                         lock_type_t type,
-                         void*& out_value,
-                         size_t& out_value_len)
+Component::IKVStore::key_t
+Map_store::lock(const pool_t pid,
+                const std::string& key,
+                lock_type_t type,
+                void*& out_value,
+                size_t& out_value_len)
 {
   auto session = get_session(pid);
   assert(session->pool);
 
-  return session->pool->lock(key_hash, type, out_value, out_value_len);
+  auto hash = get_key_hash(key);
+  session->pool->lock(hash, type, out_value, out_value_len);
+  return reinterpret_cast<key_t>(hash);
 }
 
 status_t Map_store::unlock(const pool_t pid,
-                           uint64_t key_hash)
+                           key_t key_handle)
 {
   auto session = get_session(pid);
   assert(session->pool);
 
-  return session->pool->unlock(key_hash);
+  return session->pool->unlock(reinterpret_cast<uint64_t>(key_handle));
 }
 
 status_t Map_store::erase(const pool_t pid,
