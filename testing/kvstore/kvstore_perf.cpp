@@ -24,10 +24,8 @@ using namespace Component;
 #include "data.h"
 #include "exp_put.h"
 #include "exp_get.h"
-#include "exp_put_latency.h"
-#include "exp_get_latency.h"
-#include "exp_get_direct_latency.h"
-#include "exp_put_direct_latency.h"
+#include "exp_get_direct.h"
+#include "exp_put_direct.h"
 #include "kvstore_perf.h"
 
 ProgramOptions Options;
@@ -134,26 +132,26 @@ int main(int argc, char * argv[])
 
   if (Options.test == "all" || Options.test == "put")
   {
-      Core::Per_core_tasking<ExperimentPutLatency, ProgramOptions> exp(cpus, Options);
+      Core::Per_core_tasking<ExperimentPut, ProgramOptions> exp(cpus, Options);
       exp.wait_for_all();
   }
 
   if (Options.test == "all" || Options.test == "get")
   {
-      Core::Per_core_tasking<ExperimentGetLatency, ProgramOptions> exp(cpus, Options);
+      Core::Per_core_tasking<ExperimentGet, ProgramOptions> exp(cpus, Options);
 
       exp.wait_for_all();
   }
 
   if (Options.test == "all" || Options.test == "get_direct")
   {
-      Core::Per_core_tasking<ExperimentGetDirectLatency, ProgramOptions> exp(cpus, Options);
+      Core::Per_core_tasking<ExperimentGetDirect, ProgramOptions> exp(cpus, Options);
       exp.wait_for_all();
   }
 
   if (Options.test == "all" || Options.test == "put_direct")
   {
-      Core::Per_core_tasking<ExperimentPutDirectLatency, ProgramOptions> exp(cpus, Options);
+      Core::Per_core_tasking<ExperimentPutDirect, ProgramOptions> exp(cpus, Options);
       exp.wait_for_all();
   } 
   ProfilerStop();
