@@ -108,7 +108,7 @@ public:
         timer.stop();  // should already be stopped here; just in case
         double run_time = timer.get_time_in_seconds();
         double iops = _i / run_time;
-        PINF("[put_direct] IOPS: %2g in %2g seconds", iops, run_time); 
+        PINF("[%u] put_direct: IOPS: %2g in %2g seconds", core, iops, run_time);
 
         if (_verbose)
         {

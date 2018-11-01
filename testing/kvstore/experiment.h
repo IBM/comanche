@@ -141,6 +141,8 @@ public:
           ("owner", po::value<std::string>(), "Owner name for component registration")
           ("server_address", po::value<std::string>(), "server address, with port")
           ("device_name", po::value<std::string>(), "device name")
+          ("verbose", po::value<bool>(), "verbose output (boolean)")
+          ("summary", po::value<bool>(), "prints summary statement: most frequent latency bin info per core")
                   ;
       
         try 
@@ -191,6 +193,16 @@ public:
             if (vm.count("latency_range_max") > 0)
             {
                 _bin_threshold_max = vm["latency_range_max"].as<double>();
+            }
+
+            if (vm.count("verbose") > 0)
+            {
+                _verbose = vm["verbose"].as<bool>();
+            }
+
+            if (vm.count("summary") > 0)
+            {
+                _summary = vm["summary"].as<bool>();
             }
         } 
         catch (const po::error &ex)
@@ -299,17 +311,17 @@ public:
             }
         }
 
-        if (count_highest > -1)
+        if (count_highest > -1 && _summary)
         {
             RunningStatistics bin = stats.getBin(count_highest_index);
 
             // print information about that bin
             std::cout << "SUMMARY: " << std::endl;
-            std::cout << "\tmean: " << bin.getMean() << std::endl;
-            std::cout << "\tmin: " << bin.getMin() << std::endl;
-            std::cout << "\tmax: " << bin.getMax() << std::endl;
-            std::cout << "\tstd: " << bin.getMax() << std::endl;
-            std::cout << "\tcount: " << bin.getCount() << std::endl;
+            std::cout << "\tmean:\t" << bin.getMean() << std::endl;
+            std::cout << "\tmin:\t" << bin.getMin() << std::endl;
+            std::cout << "\tmax:\t" << bin.getMax() << std::endl;
+            std::cout << "\tstd:\t" << bin.getMax() << std::endl;
+            std::cout << "\tcount:\t" << bin.getCount() << std::endl;
         }
     }
 
@@ -681,7 +693,8 @@ public:
     bool                                  _first_iter = true;
     bool                                  _ready = false;
     Stopwatch timer;
-    bool _verbose = true;
+    bool _verbose = false;
+    bool _summary = true;
 
     // member variables for tracking pool sizes
     unsigned long _element_size = -1;
