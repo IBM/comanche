@@ -83,13 +83,13 @@ public:
   
     const char * key(size_t i) const 
     {
-      if(i >= _num_elements) throw General_exception("out of bounds");
+      if(i >= _num_elements) throw Exception();
       return _data[i].key.c_str();
     }
   
     const char * value(size_t i) const 
     {
-      if(i >= _num_elements) throw General_exception("out of bounds");
+      if(i >= _num_elements) throw Exception();
       return _data[i].value.c_str();
     }
   

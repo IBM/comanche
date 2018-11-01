@@ -34,7 +34,7 @@ struct Value_pair
 class Pool_handle
 {
 private:
-  static constexpr bool option_DEBUG = true;
+  static constexpr bool option_DEBUG = false;
 
 public:
   std::string                       key;
