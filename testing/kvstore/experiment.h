@@ -681,7 +681,7 @@ public:
     bool                                  _first_iter = true;
     bool                                  _ready = false;
     Stopwatch timer;
-    bool _verbose = true;
+    bool _verbose = false;
 
     // member variables for tracking pool sizes
     unsigned long _element_size = -1;
