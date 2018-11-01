@@ -16,7 +16,7 @@
 
 extern Data * _data;
 
-class ExperimentGetDirectLatency : public Experiment
+class ExperimentGetDirect: public Experiment
 { 
 public:
     float _cycles_per_second;  // initialized in do_work first run
@@ -26,13 +26,13 @@ public:
     BinStatistics _latency_stats;
     Component::IKVStore::memory_handle_t _direct_memory_handle = Component::IKVStore::HANDLE_NONE;
 
-    ExperimentGetDirectLatency(struct ProgramOptions options) : Experiment(options) 
+    ExperimentGetDirect(struct ProgramOptions options) : Experiment(options) 
     {    
-        _test_name = "get_direct_latency";
+        _test_name = "get_direct";
         
         if (!options.store)
         {
-            perror("ExperimentGetDirectLatency passed an invalid store");
+            perror("ExperimentGetDirect passed an invalid store");
         }
     }
 
@@ -63,7 +63,7 @@ public:
         // handle first time setup
         if(_first_iter) 
         {
-            PLOG("Starting Get Direct Latency experiment...");
+            PLOG("Starting Get Direct experiment...");
 
             _first_iter = false;
             _exp_start_time = std::chrono::high_resolution_clock::now();
@@ -93,7 +93,7 @@ public:
             
             if (!handle)
             {
-                perror("ExpGetDirectLatency.do_work: allocate_io_buffer failed");
+                perror("ExpGetDirect.do_work: allocate_io_buffer failed");
             }
 
             pval = mem_alloc.virt_addr(handle);
