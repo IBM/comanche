@@ -72,9 +72,11 @@ public:
         size_t pval_len;
         int rc;
 
+        timer.start();
         start = rdtsc();
         rc = _store->get(_pool, _data->key(_i), pval, pval_len);
         end = rdtsc();
+        timer.stop();
 
         cycles = end - start;
         double time = (cycles / _cycles_per_second);
@@ -117,6 +119,12 @@ public:
 
     void cleanup_custom(unsigned core)  
     {
+        timer.stop();  // just in case; normal code should have already stopped by now
+
+        double run_time = timer.get_time_in_seconds();
+        double iops = ((double) _i / run_time);
+        PINF("[%u] get: IOPS: %2g in %2g seconds", core, iops, run_time);
+
        // compute _start_time_stats pre-lock
        BinStatistics start_time_stats = _compute_bin_statistics_from_vectors(_latencies, _start_time, _bin_count, _start_time.front(), _start_time.at(_i-1), _i); 
 
@@ -128,14 +136,18 @@ public:
        // collect latency stats
        rapidjson::Value latency_object = _add_statistics_to_report("latency", _latency_stats, document);
        rapidjson::Value timing_object = _add_statistics_to_report("start_time", start_time_stats, document);
+       rapidjson::Value iops_object; 
+       iops_object.SetDouble(iops);
 
        // save everything
        rapidjson::Value experiment_object(rapidjson::kObjectType);
 
+       experiment_object.AddMember("IOPS", iops_object, document.GetAllocator());
        experiment_object.AddMember("latency", latency_object, document.GetAllocator());
        experiment_object.AddMember("start_time", timing_object, document.GetAllocator()); 
        
        _report_document_save(document, core, experiment_object);
+        _print_highest_count_bin(_latency_stats);
 
        pthread_mutex_unlock(&g_write_lock);
     }

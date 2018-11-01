@@ -52,8 +52,8 @@ int main(int argc, char * argv[])
   po::options_description desc("Options"); 
   desc.add_options()
     ("help", "Show help")
-    ("test", po::value<std::string>(), "Test name <all|Put|Get>")
-    ("component", po::value<std::string>(), "Implementation selection <pmstore|nvmestore|filestore>")
+    ("test", po::value<std::string>(), "Test name <all|put|get|put_direct|get_direct>")
+    ("component", po::value<std::string>(), "Implementation selection <pmstore|nvmestore|filestore|mapstore|hstore>")
     ("cores", po::value<int>(), "Number of threads/cores")
     ("time", po::value<int>(), "Duration to run in seconds")
     ("path", po::value<std::string>(), "Path of directory for pool")
@@ -69,6 +69,8 @@ int main(int argc, char * argv[])
     ("owner", po::value<std::string>(), "Owner name for component registration")
     ("server_address", po::value<std::string>(), "server address, with port")
     ("device_name", po::value<std::string>(), "device name")
+    ("verbose", po::value<bool>(), "verbose output (boolean)")
+    ("summary", po::value<bool>(), "prints summary statement: most frequent latency bin info per core")
     ;
 
   try {
@@ -130,37 +132,26 @@ int main(int argc, char * argv[])
 
   ProfilerStart("cpu.profile");
 
-  if(Options.test == "all" || Options.test == "Put") {
-    Core::Per_core_tasking<ExperimentPut, ProgramOptions> exp(cpus, Options);
-    sleep(Options.time_secs);
-  }
-
-  if(Options.test == "all" || Options.test == "Get") {
-    Core::Per_core_tasking<ExperimentGet, ProgramOptions> exp(cpus, Options);
-    //    sleep(Options.time_secs + 8);
-    exp.wait_for_all();
-  }
-
-  if (Options.test == "all" || Options.test == "put_latency")
+  if (Options.test == "all" || Options.test == "put")
   {
       Core::Per_core_tasking<ExperimentPutLatency, ProgramOptions> exp(cpus, Options);
       exp.wait_for_all();
   }
 
-  if (Options.test == "all" || Options.test == "get_latency")
+  if (Options.test == "all" || Options.test == "get")
   {
       Core::Per_core_tasking<ExperimentGetLatency, ProgramOptions> exp(cpus, Options);
 
       exp.wait_for_all();
   }
 
-  if (Options.test == "all" || Options.test == "get_direct_latency")
+  if (Options.test == "all" || Options.test == "get_direct")
   {
       Core::Per_core_tasking<ExperimentGetDirectLatency, ProgramOptions> exp(cpus, Options);
       exp.wait_for_all();
   }
 
-  if (Options.test == "all" || Options.test == "put_direct_latency")
+  if (Options.test == "all" || Options.test == "put_direct")
   {
       Core::Per_core_tasking<ExperimentPutDirectLatency, ProgramOptions> exp(cpus, Options);
       exp.wait_for_all();

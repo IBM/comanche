@@ -162,7 +162,7 @@ public:
 
         double run_time = timer.get_time_in_seconds();
         double iops = _i / run_time;
-        PINF("[get_direct] IOPS: %2g in %2g seconds", iops, run_time);
+        PINF("[%u] get_direct: IOPS: %2g in %2g seconds", core, iops, run_time);
 
         if (_verbose)
         {

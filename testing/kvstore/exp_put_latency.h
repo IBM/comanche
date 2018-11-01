@@ -59,6 +59,7 @@ public:
         // end experiment if we've reached the total number of components
         if (_i == _pool_num_components)
         {
+            timer.stop();
             std::cerr << "reached last element. Last _start_time = " << _start_time.at(_i) << std::endl;
             throw std::exception();
         }
@@ -67,9 +68,11 @@ public:
         unsigned int cycles, start, end;
         int rc;
 
+        timer.start();
         start = rdtsc();
         rc = _store->put(_pool, _data->key(_i), _data->value(_i), _data->value_len());
         end = rdtsc();
+        timer.stop();
 
         cycles = end - start;
         double time = (cycles / _cycles_per_second);
@@ -90,6 +93,7 @@ public:
 
         if (rc != S_OK)
         {
+            timer.stop();
             perror("put returned !S_OK value");
             throw std::exception();
         }
@@ -97,6 +101,7 @@ public:
 
     void cleanup_custom(unsigned core)  
     {
+        timer.stop();
         _debug_print(core, "cleanup_custom started");
 
         if (_verbose)
@@ -110,7 +115,11 @@ public:
        BinStatistics start_time_stats = _compute_bin_statistics_from_vectors(_latencies, _start_time, _bin_count, _start_time.front(), _start_time.at(_i-1), _i);
        _debug_print(core, "time_stats created"); 
 
-       pthread_mutex_lock(&g_write_lock);
+        double run_time = timer.get_time_in_seconds();
+        double iops = _i / run_time;
+        PINF("[%u] put: IOPS: %2g in %2g seconds", core, iops, run_time);
+
+        pthread_mutex_lock(&g_write_lock);
        _debug_print(core, "cleanup_custom mutex locked");
 
        // get existing results, read to document variable
@@ -119,13 +128,17 @@ public:
        // collect latency stats
        rapidjson::Value latency_object = _add_statistics_to_report("latency", _latency_stats, document);
        rapidjson::Value timing_object = _add_statistics_to_report("start_time", start_time_stats, document);
+       rapidjson::Value iops_object; 
+       iops_object.SetDouble(iops);
 
        // save everything
        rapidjson::Value experiment_object(rapidjson::kObjectType);
-
+       
+       experiment_object.AddMember("IOPS", iops_object, document.GetAllocator());
        experiment_object.AddMember("latency", latency_object, document.GetAllocator());
        experiment_object.AddMember("start_time", timing_object, document.GetAllocator()); 
-       
+         _print_highest_count_bin(_latency_stats);
+      
        _report_document_save(document, core, experiment_object);
 
        _debug_print(core, "cleanup_custom mutex unlocking");
