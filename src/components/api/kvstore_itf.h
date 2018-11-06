@@ -39,7 +39,7 @@ public:
 private:
   struct Opaque_memory_region;
   struct Opaque_key;
-  
+
 public:
   using pool_t          = uint64_t;
   using memory_handle_t = Opaque_memory_region *;
@@ -60,6 +60,20 @@ public:
     FLAGS_SET_SIZE = 2,
     FLAGS_CREATE_ONLY = 3,
   };
+
+  enum {
+    OP_WRITE, /* copy bytes into memory region */
+    OP_ZERO, /* zero the memory region */
+    OP_INCREMENT_UINT64,
+    OP_CAS_UINT64,
+  };
+
+  typedef struct {
+    size_t offset;
+    size_t len;
+    int op;
+  } operation_t;
+     
 
   typedef enum {
     STORE_LOCK_READ=1,
@@ -223,7 +237,6 @@ public:
   virtual status_t unregister_direct_memory(memory_handle_t handle) { return E_NOT_SUPPORTED; }
 
   
-  
   /** 
    * Take a lock on an object. If the object does not exist, create it with
    * value space according to out_value_len
@@ -270,6 +283,31 @@ public:
                          size_t object_size,
                          bool take_lock = true) { return E_NOT_SUPPORTED; }
 
+
+
+  /** 
+   * Update an existing value by applying a series of operations.
+   * Together the set of operations make up an atomic transaction.  If
+   * the operation, requires a result, then the result parameter is
+   * provide.  In this case, the implementation of this method will
+   * allocate a result that should be freed with a call to
+   * free_memory.  The intepretation of the result is dependent on the
+   * operation.
+   * 
+   * @param pool Pool handle
+   * @param key Object key
+   * @param op_vector Operation vector
+   * @param take_lock Set to true for implicit looking of object
+   * @param result Optional output buffer, server-side allocated (e.g., from computational operation)
+   * 
+   * @return S_OK or error code
+   */
+  virtual status_t atomic_update(const pool_t pool,
+                                 const std::string& key,
+                                 const std::vector<operation_t>& op_vector,
+                                 bool take_lock = true,
+                                 void ** result = nullptr) { return E_NOT_SUPPORTED; }
+  
   /** 
    * Erase an object
    * 
