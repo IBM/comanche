@@ -165,7 +165,6 @@ public:
                               const std::string& key,
                               const void * value,
                               const size_t value_len,
-                              size_t offset = 0,
                               memory_handle_t handle = HANDLE_NONE) { return E_NOT_SUPPORTED; }
 
   /** 
@@ -185,18 +184,12 @@ public:
 
 
   /**
-   * Read an object value directly into client-provided memory.  To perform partial gets you can 
-   * use the offset parameter and limit the size of the buffer (out_value_len).  Loop on return of
-   * S_MORE, and increment offset, to read fragments.  This is useful for very large objects that 
-   * for instance you want to start sending over the network while the device is pulling the data in.
-   * Note: if the key does not exist, then the key is created and value space allocated according to 
-   * the size of out_value_len.
-   * 
+   * Read an object value directly into client-provided memory.
+   *
    * @param pool Pool handle
    * @param key Object key
    * @param out_value Client provided buffer for value
    * @param out_value_len [in] size of value memory in bytes [out] size of value
-   * @param offset Offset in the value
    * @param handle Memory registration handle 
    * 
    * @return S_OK, S_MORE if only a portion of value is read, E_BAD_ALIGNMENT on invalid alignment, or other error code
@@ -205,7 +198,6 @@ public:
                               const std::string& key,
                               void* out_value,
                               size_t& out_value_len,
-                              size_t offset = 0,
                               memory_handle_t handle = HANDLE_NONE) {
     return E_NOT_SUPPORTED;
   }
@@ -267,19 +259,16 @@ public:
    * @param pool Pool handle
    * @param key Object key
    * @param functor Functor to apply to object
-   * @param offset Offset within object in bytes
-   * @param window_size Size of window to apply functor on (this changes transaction size)
    * @param object_size Size of object if creation is needed
+   * @param take_lock Set to true to implicitly take the lock (otherwise lock/unlock should be called explicitly)
    * 
    * @return S_OK or error code
    */
   virtual status_t apply(const pool_t pool,
                          const std::string& key,
                          std::function<void(void*,const size_t)> functor,
-			 size_t offset,
-                         size_t window_size,
-			 size_t object_size,
-			 bool use_lock = true) { return E_NOT_SUPPORTED; }
+                         size_t object_size,
+                         bool take_lock = true) { return E_NOT_SUPPORTED; }
 
   /** 
    * Erase an object

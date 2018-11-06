@@ -86,14 +86,12 @@ public:
                               const std::string& key,
                               void* out_value,
                               size_t& out_value_len,
-                              size_t offset,
                               Component::IKVStore::memory_handle_t handle) override;
  
   virtual status_t put_direct(const pool_t pool,
                               const std::string& key,
                               const void * value,
                               const size_t value_len,
-                              size_t offset, 
                               IKVStore::memory_handle_t handle);
 
   virtual status_t erase(const pool_t pool,

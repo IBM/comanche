@@ -273,12 +273,8 @@ status_t FileStore::get_direct(const pool_t pid,
                                const std::string& key,
                                void* out_value,
                                size_t& out_value_len,
-                               size_t offset,
                                Component::IKVStore::memory_handle_t handle)
 {
-  if(offset != 0)
-    throw API_exception("FileStore does not support offset reads");
-  
   auto pool_handle = reinterpret_cast<Pool_handle*>(pid);
   if(_pool_sessions.count(pool_handle) != 1)
     throw API_exception("bad pool handle");
@@ -290,7 +286,6 @@ status_t FileStore::put_direct(const pool_t pool,
                                const std::string& key,
                                const void * value,
                                const size_t value_len,
-                               size_t offset = 0,
                                memory_handle_t memory_handle = HANDLE_NONE)
 {
   return FileStore::put(pool, key, value, value_len);

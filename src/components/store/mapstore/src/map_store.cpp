@@ -370,12 +370,8 @@ status_t Map_store::get_direct(const pool_t pid,
                                const std::string& key,
                                void* out_value,
                                size_t& out_value_len,
-                               size_t offset,
                                Component::IKVStore::memory_handle_t handle)
 {
-  if(offset != 0)
-    throw API_exception("Map_store does not support offset reads");
-  
   auto session = get_session(pid);
   assert(session->pool);
   return session->pool->get_direct(key, out_value, out_value_len);
@@ -385,7 +381,6 @@ status_t Map_store::put_direct(const pool_t pid,
                                const std::string& key,
                                const void * value,
                                const size_t value_len,
-                               size_t offset,
                                memory_handle_t memory_handle)
 {
   auto session = get_session(pid);

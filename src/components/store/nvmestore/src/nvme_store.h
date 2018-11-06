@@ -135,7 +135,6 @@ public:
                               const std::string& key,
                               void* out_value,
                               size_t& out_value_len,
-                              size_t offset,
                               Component::IKVStore::memory_handle_t handle) override;
 
   virtual IKVStore::memory_handle_t register_direct_memory(void * vaddr, size_t len) override;
@@ -155,28 +154,22 @@ public:
                      uint64_t key_hash);
 
   virtual status_t apply(const pool_t pool,
-                    uint64_t key_hash,
-                    std::function<void(void*,const size_t)> functor,
-                    size_t offset,
-                    size_t size = 0);
+                         const std::string& key,
+                         std::function<void(void*,const size_t)> functor,
+                         size_t object_size,
+                         bool take_lock = true) override;
 
-  virtual status_t apply(const pool_t pool,
-                    const std::string& key,
-                    std::function<void(void*,const size_t)> functor,
-                    size_t offset = 0,
-                    size_t size = 0);
+  // virtual status_t locked_apply(const pool_t pool,
+  //                          const std::string& key,
+  //                          std::function<void(void*,const size_t)> functor,
+  //                          size_t offset = 0,
+  //                          size_t size = 0);
 
-  virtual status_t locked_apply(const pool_t pool,
-                           const std::string& key,
-                           std::function<void(void*,const size_t)> functor,
-                           size_t offset = 0,
-                           size_t size = 0);
-
-  virtual status_t locked_apply(const pool_t pool,
-                           uint64_t key_hash,
-                           std::function<void(void*,const size_t)> functor,
-                           size_t offset = 0,
-                           size_t size = 0);
+  // virtual status_t locked_apply(const pool_t pool,
+  //                          uint64_t key_hash,
+  //                          std::function<void(void*,const size_t)> functor,
+  //                          size_t offset = 0,
+  //                          size_t size = 0);
 
   virtual status_t erase(const pool_t pool,
                     const std::string& key);
@@ -201,7 +194,6 @@ private:
   virtual int __apply(const pool_t pool,
                       uint64_t key_hash,
                       std::function<void(void*,const size_t)> functor,
-                      size_t offset,
                       size_t size);
                       
 
