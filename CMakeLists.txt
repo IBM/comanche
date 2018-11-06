@@ -38,6 +38,12 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 install (FILES "${CMAKE_CURRENT_BINARY_DIR}/config_comanche.h"
     DESTINATION include)
 
+# CMAKE_PREFIX_PATH doesn't work as expected..
+if(CMAKE_PREFIX_PATH)
+  include_directories(${CMAKE_PREFIX_PATH}/include)
+  link_directories(${CMAKE_PREFIX_PATH}/lib)
+endif(CMAKE_PREFIX_PATH)
+
 # this flag is only for GNU compiler version number smaller than 8 and clang compilers
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" AND NOT CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 8.0)
   set(FLAG_DUMP_CLASS "-fdump-class-hierarchy")
