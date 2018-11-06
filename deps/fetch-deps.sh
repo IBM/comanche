@@ -1,4 +1,6 @@
 #!/bin/bash
+PREFIX_INSTALL=/usr/local
+# PREFIX_INSTALL=${HOME}/software/comanche-deps
 
 function jumpto
 {
@@ -47,7 +49,7 @@ city:
 echo "Cloning CityHash ..."
 git clone https://github.com/google/cityhash.git
 ( cd cityhash
-  ./configure && make
+  ./configure --prefix=${PREFIX_INSTALL} && make
   make install
 )
 
@@ -55,7 +57,7 @@ echo "Cloning Google test framework (v1.8.0) ..."
 git clone https://github.com/google/googletest.git
 ( cd googletest
   git checkout tags/release-1.8.0
-  cmake . && make
+  cmake -DCMAKE_INSTALL_PREFIX=${PREFIX_INSTALL} . && make
   make install
 )
 
@@ -64,7 +66,7 @@ git clone https://github.com/ofiwg/libfabric.git
 ( cd libfabric
   git checkout tags/v1.6.1
   ./autogen.sh
-  ./configure && make
+  ./configure --prefix=${PREFIX_INSTALL} && make
   make install
 )
 
