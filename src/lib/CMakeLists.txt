@@ -50,7 +50,7 @@ ExternalProject_Add(libfabric
   )
 
 find_package(CUDA)
-if(CUDA_FOUND)
+if(CUDA_FOUND AND CUDA_VERSION GREATER 7.5)
   ExternalProject_Add(gdrcopy  
     BUILD_IN_SOURCE 1
     SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/gdrcopy
