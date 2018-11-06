@@ -464,7 +464,6 @@ status_t NVME_store::get_direct(const pool_t pool,
                                 const std::string& key,
                                 void* out_value,
                                 size_t& out_value_len,
-                                size_t offset,
                                 Component::IKVStore::memory_handle_t handle)
 {
   struct open_session_t * session = reinterpret_cast<struct open_session_t*>(pool);
@@ -730,55 +729,52 @@ status_t NVME_store::unlock(const pool_t pool,
 status_t NVME_store::apply(const pool_t pool,
                            const std::string& key,
                            std::function<void(void*,const size_t)> functor,
-                           size_t offset,
-                           size_t size)
+                           size_t object_size,
+                           bool take_lock)
 {
 
   void * data;
   size_t value_len = 0;
 
-  lock(pool,CityHash64(key.c_str(), key.length()),IKVStore::STORE_LOCK_READ, data, value_len );
-  return __apply(pool,CityHash64(key.c_str(), key.length()),functor, offset, size);
+  /* TODO FIX: for take_lock. if take_lock == TRUE then use a lock here */
+  lock(pool, CityHash64(key.c_str(), key.length()),IKVStore::STORE_LOCK_READ, data, value_len);
+  return __apply(pool,CityHash64(key.c_str(), key.length()),functor, object_size);
 }
 
-status_t NVME_store::apply(const pool_t pool,
-                           uint64_t key_hash,
-                           std::function<void(void*,const size_t)> functor,
-                           size_t offset,
-                           size_t size)
-{
-  void * data;
-  size_t value_len = 0;
+// status_t NVME_store::apply(const pool_t pool,
+//                            uint64_t key_hash,
+//                            std::function<void(void*,const size_t)> functor,
+//                            size_t size)
+// {
+//   void * data;
+//   size_t value_len = 0;
 
-  lock(pool, key_hash,IKVStore::STORE_LOCK_READ, data, value_len );
-  return __apply(pool, key_hash, functor, offset, size);
-}
+//   lock(pool, key_hash,IKVStore::STORE_LOCK_READ, data, value_len );
+//   return __apply(pool, key_hash, functor, size);
+// }
 
-status_t NVME_store::locked_apply(const pool_t pool,
-                                  const std::string& key,
-                                  std::function<void(void*,const size_t)> functor,
-                                  size_t offset,
-                                  size_t size)
-{
-  return __apply(pool, CityHash64(key.c_str(), key.length()), functor, offset, size);
-}
+// status_t NVME_store::locked_apply(const pool_t pool,
+//                                   const std::string& key,
+//                                   std::function<void(void*,const size_t)> functor,
+//                                   size_t size)
+// {
+//   return __apply(pool, CityHash64(key.c_str(), key.length()), functor, size);
+// }
 
-status_t NVME_store::locked_apply(const pool_t pool,
-                                  uint64_t key_hash,
-                                  std::function<void(void*,const size_t)> functor,
-                                  size_t offset,
-                                  size_t size)
-{
-  return __apply(pool, key_hash, functor, offset, size);
-}
+// status_t NVME_store::locked_apply(const pool_t pool,
+//                                   uint64_t key_hash,
+//                                   std::function<void(void*,const size_t)> functor,
+//                                   size_t size)
+// {
+//   return __apply(pool, key_hash, functor, size);
+// }
 
 /* currently requires lock from outside
    this will release the lock before returning*/
 int NVME_store::__apply(const pool_t pool,
                         uint64_t key_hash,
                         std::function<void(void*,const size_t)> functor,
-                        size_t offset,
-                        size_t size)
+                        size_t object_size)
 {
   open_session_t * session = get_session(pool);
   
@@ -797,11 +793,8 @@ int NVME_store::__apply(const pool_t pool,
     auto data = blk_dev->virt_addr(session->io_mem);
     auto data_len = D_RO(val)->size;
 
-    if(offset + size > data_len)
-      return E_BAD_PARAM;
-
-    auto offset_data = (void*) (((unsigned long) data) + offset);
-    size_t size_to_tx = size > 0 ? size : data_len;
+    auto offset_data = (void*) (((unsigned long) data));
+    size_t size_to_tx = data_len;
 
     /* for nvmestore, the change will be synced to nvme when unlocked
      * This can be improved to using pmemobj api*/
