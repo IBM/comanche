@@ -42,6 +42,7 @@ PINF "OK."
 
 # set pmem
 PINF "check pmem..."
+mkdir -pv /mnt/pmem0
 if [ $(stat -c "%a" /mnt/pmem0/ ) != "777" ]; then
   PERR "pmem not mounted"
   sudo umount /mnt/pmem0
@@ -65,6 +66,7 @@ PINF "OK."
 
 ## nvme_setup
 PINF "Checking VFIO"
+ls /dev/vfio -alt
 ls /dev/vfio -alt |grep -q $USER
 if [ 0  -ne $? ]; then
   PERR "vfio is not assigned to current user"
