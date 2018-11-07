@@ -68,11 +68,10 @@ public:
         // check time it takes to complete a single put operation
         unsigned int cycles, start, end;
         int rc;
-        size_t offset = 0;
 
         timer.start();
         start = rdtsc();
-        rc = _store->put_direct(_pool, _data->key(_i), _data->value(_i), _data->value_len(), offset, _memory_handle);
+        rc = _store->put_direct(_pool, _data->key(_i), _data->value(_i), _data->value_len(), _memory_handle);
         end = rdtsc();
         timer.stop();
 

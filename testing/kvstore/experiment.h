@@ -530,7 +530,6 @@ public:
         int rc;
         unsigned long current = _pool_element_end;  // first run: should be 0 (start index)
         unsigned long maximum_elements = -1;
-        size_t offset = 0;
         _pool_element_start = current;
       
         if (_verbose)
@@ -544,7 +543,7 @@ public:
         {
             if (memory_handle != Component::IKVStore::HANDLE_NONE)
             {
-                rc = _store->put_direct(_pool, _data->key(current), _data->value(current), _data->_val_len, offset, memory_handle);
+                rc = _store->put_direct(_pool, _data->key(current), _data->value(current), _data->_val_len, memory_handle);
             }
             else
             {

@@ -83,7 +83,6 @@ public:
         Core::Physical_memory mem_alloc;
         size_t pval_len = 64;
         void * pval = malloc(pval_len);
-        int offset = 0;
         Component::IKVStore::memory_handle_t memory_handle = Component::IKVStore::HANDLE_NONE; 
 
         if (_component.compare("nvmestore") == 0)
@@ -105,7 +104,7 @@ public:
  
         timer.start();
         start = rdtsc();
-        int rc = _store->get_direct(_pool, _data->key(_i), pval, pval_len, offset, memory_handle);
+        int rc = _store->get_direct(_pool, _data->key(_i), pval, pval_len, memory_handle);
         end = rdtsc();
         timer.stop();
         
