@@ -387,14 +387,14 @@ TEST_F(PoolTest, PutDirectGetDirect_RandomKVP)
  
     create_key_value_pair(key_length, value_length, key, value, component_info.uses_direct_memory, _direct_memory_location);
 
-    status_t rc = _g_store->put_direct(_pool, key.c_str(), value.c_str(), value_length, offset, memory_handle);
+    status_t rc = _g_store->put_direct(_pool, key.c_str(), value.c_str(), value_length, memory_handle);
     
     ASSERT_EQ(rc, S_OK) << "put_direct return code failed";
 
     void * pval = malloc(sizeof(char) * value_length);  // get_direct requires memory allocation
     size_t pval_len = value_length;
  
-    rc  = _g_store->get_direct(_pool, key, pval, pval_len, 0, memory_handle);  // offset = 0
+    rc  = _g_store->get_direct(_pool, key, pval, pval_len, memory_handle);
     
     std::string get_result((const char*)pval, pval_len);  // force limit on return length
 
@@ -409,11 +409,12 @@ TEST_F(PoolTest, GetDirect_NoValidKey)
     // randomly generate key to look up (we shouldn't find it)
     const int key_length = 8;
     const std::string key = Common::random_string(key_length);
+    Component::IKVStore::memory_handle_t memory_handle = component_info.memory_handle;
 
     void * pval = nullptr;  // initialize so we can check if value has been changed
     size_t pval_len;
  
-    status_t rc  = _g_store->get_direct(_pool, key, pval, pval_len, 0);  // offset = 0
+    status_t rc  = _g_store->get_direct(_pool, key, pval, pval_len, memory_handle);
    
     free_memory_if_appropriate(pval);
 
@@ -429,17 +430,16 @@ TEST_F(PoolTest, PutDirect_DuplicateKey)
 
     std::string key;
     std::string value;
-    size_t offset = 0;  // TODO: actually implement test using offset
     Component::IKVStore::memory_handle_t memory_handle;
 
     create_key_value_pair(key_length, value_length, key, value, component_info.uses_direct_memory, _direct_memory_location);
 
-    status_t rc = _g_store->put_direct(_pool, key.c_str(), value.c_str(), value_length, offset, memory_handle);
+    status_t rc = _g_store->put_direct(_pool, key.c_str(), value.c_str(), value_length, memory_handle);
 
     ASSERT_EQ(rc, S_OK) << "put_direct return code failed";
 
     // now try to add another value to that key
-    rc = _g_store->put_direct(_pool, key.c_str(), value.c_str(), value_length, offset, memory_handle);
+    rc = _g_store->put_direct(_pool, key.c_str(), value.c_str(), value_length, memory_handle);
 
     ASSERT_EQ(rc, IKVStore::E_KEY_EXISTS) << "second put_direct return code failed";
 }
