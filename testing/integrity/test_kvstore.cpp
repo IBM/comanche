@@ -52,6 +52,9 @@ protected:
 
     void create_pool()
     {
+        component_info.load_component();
+        _g_store = component_info.store;
+
         // make sure pool_path directory exists
         boost::filesystem::path dir(pool_path);
         if (boost::filesystem::create_directory(dir))
@@ -59,8 +62,19 @@ protected:
             std::cout << "Created directory for testing: " << pool_path << std::endl;
         }
 
-        component_info.load_component();
-        _g_store = component_info.store;
+        try
+        {
+            if (boost::filesystem::exists(pool_path + "/" + _pool_name))
+            {
+                // pool already exists. Delete it.
+                _g_store->delete_pool(_g_store->open_pool(pool_path, _pool_name));
+            }
+        }
+        catch(...)
+        {
+            std::cout << "open existing pool failed" << std::endl;
+        }
+
         _fact = component_info.factory;
 
         _pool = _g_store->create_pool(pool_path, _pool_name, _pool_size);
