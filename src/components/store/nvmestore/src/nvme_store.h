@@ -154,35 +154,12 @@ public:
                          size_t object_size,
                          bool take_lock = true) override;
 
-  // virtual status_t locked_apply(const pool_t pool,
-  //                          const std::string& key,
-  //                          std::function<void(void*,const size_t)> functor,
-  //                          size_t offset = 0,
-  //                          size_t size = 0);
-
-  // virtual status_t locked_apply(const pool_t pool,
-  //                          uint64_t key_hash,
-  //                          std::function<void(void*,const size_t)> functor,
-  //                          size_t offset = 0,
-  //                          size_t size = 0);
-
   virtual status_t erase(const pool_t pool,
-                    const std::string& key);
+                         const std::string& key) override;
   
-  virtual status_t erase(const pool_t pool,
-                    uint64_t key_hash);
+  virtual size_t count(const pool_t pool) override { return _cnt_elem_map[pool]; }
 
-  virtual size_t count(const pool_t pool) override{return _cnt_elem_map[pool];};
-
-  virtual int map(const pool_t pool,
-                  std::function<int(const std::string& key,
-                                    const void * value,
-                                    const size_t value_len)> function) override {
-    throw API_exception("Not implemented");}
-  
-  virtual void debug(const pool_t pool, unsigned cmd, uint64_t arg) override {
-    throw API_exception("Not implemented");
-  }
+  virtual void debug(const pool_t pool, unsigned cmd, uint64_t arg) { }
 
 private:
 
