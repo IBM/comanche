@@ -180,6 +180,7 @@ IKVStore::pool_t NVME_store::create_pool(const std::string& path,
   else
     fullpath = path + name;
 
+  /* open existing pool */
   pop = pmemobj_open(fullpath.c_str(), POBJ_LAYOUT_NAME(nvme_store));
 
   if(!pop) {
@@ -200,20 +201,20 @@ IKVStore::pool_t NVME_store::create_pool(const std::string& path,
   TOID(struct store_root_t) root = POBJ_ROOT(pop, struct store_root_t);
   assert(!TOID_IS_NULL(root));
 
-  assert(D_RO(root)->map.oid.off == 0);
+  if(D_RO(root)->map.oid.off == 0) {
 
-	TX_BEGIN(pop) {
-    PLOG("Root is empty: new hash required");
-    //    struct hashmap_args *args = (struct hashmap_args *)arg;
-    if(hm_tx_create(pop, &D_RW(root)->map, nullptr))
-      throw General_exception("hm_tx_create failed unexpectedly");
-    D_RW(root)->pool_size = size;
+    /* create hash table if it does not exist */
+    TX_BEGIN(pop) {      
+      if(hm_tx_create(pop, &D_RW(root)->map, nullptr))
+        throw General_exception("hm_tx_create failed unexpectedly");
+      D_RW(root)->pool_size = size;
+    }
+    TX_ONABORT {
+      ret = -1;
+    } TX_END
   }
-  TX_ONABORT {
-    ret = -1;
-  } TX_END
- 
-      assert(ret == 0);
+        
+  assert(ret == 0);
 
   if(hm_tx_check(pop, D_RO(root)->map))
     throw General_exception("hm_tx_check failed unexpectedly");
