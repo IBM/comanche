@@ -56,7 +56,21 @@ public:
     // initialize experiment
     char poolname[256];
     sprintf(poolname, "%s%u", _pool_name.c_str(), core);
-    PLOG("Creating pool (%s/%s) for worker %u ...", _pool_path.c_str(), poolname, core);
+
+    try
+      {
+        if (boost::filesystem::exists(_pool_path + "/" + poolname))
+          {
+            // pool already exists. Delete it.
+            _store->delete_pool(_store->open_pool(_pool_path, poolname));
+          }
+      }
+    catch(...)
+      {
+        std::cout << "open existing pool failed" << std::endl;
+      }
+
+    PLOG("Creating pool for worker %u ...", core);
     _pool = _store->create_pool(_pool_path, poolname, _pool_size, _pool_flags, _pool_num_components);
       
     PLOG("Created pool for worker %u...OK!", core);
