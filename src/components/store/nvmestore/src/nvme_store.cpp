@@ -164,7 +164,7 @@ IKVStore::pool_t NVME_store::create_pool(const std::string& path,
                                          unsigned int flags,
                                          uint64_t args)
 {
-  PMEMobjpool *pop; //pool to allocate all mapping
+  PMEMobjpool *pop = nullptr; //pool to allocate all mapping
   int ret =0;
   
   PINF("NVME_store::create_pool path=%s name=%s", path.c_str(), name.c_str());
@@ -180,23 +180,23 @@ IKVStore::pool_t NVME_store::create_pool(const std::string& path,
   else
     fullpath = path + name;
 
-  if (access(fullpath.c_str(), F_OK) == 0) {
-    throw General_exception("nvmestore: creating exsiting pool");
-  }
-  else{
-    PLOG("Creating new Pool: %s", name.c_str());
+  pop = pmemobj_open(fullpath.c_str(), POBJ_LAYOUT_NAME(nvme_store));
+
+  if(!pop) {
+    PLOG("creating new pool: %s", name.c_str());
 
     boost::filesystem::path p(fullpath);
     boost::filesystem::create_directories(p.parent_path());
 
     pop = pmemobj_create(fullpath.c_str(), POBJ_LAYOUT_NAME(nvme_store), max_sz_hxmap, 0666);
-    if(not pop)
-      throw General_exception("failed to create new pool - %s\n", pmemobj_errormsg());
   }
-
+  
+  if(not pop)
+    throw General_exception("failed to create or open pool (%s)", pmemobj_errormsg());
+    
 
   /* see: https://github.com/pmem/pmdk/blob/stable-1.4/src/examples/libpmemobj/map/kv_server.c */
-
+  assert(pop);
   TOID(struct store_root_t) root = POBJ_ROOT(pop, struct store_root_t);
   assert(!TOID_IS_NULL(root));
 
@@ -208,7 +208,8 @@ IKVStore::pool_t NVME_store::create_pool(const std::string& path,
     if(hm_tx_create(pop, &D_RW(root)->map, nullptr))
       throw General_exception("hm_tx_create failed unexpectedly");
     D_RW(root)->pool_size = size;
-  }TX_ONABORT {
+  }
+  TX_ONABORT {
     ret = -1;
   } TX_END
  
