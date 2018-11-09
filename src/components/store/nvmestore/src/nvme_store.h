@@ -139,19 +139,14 @@ public:
 
   virtual IKVStore::memory_handle_t register_direct_memory(void * vaddr, size_t len) override;
 
-  virtual status_t allocate(const pool_t pool,
-                       const std::string& key,
-                       const size_t nbytes,
-                       uint64_t& out_key_hash);
-
-  virtual status_t lock(const pool_t pool,
-                   uint64_t key_hash,
-                   int type,
-                   void*& out_value,
-                   size_t& out_value_len);
+  virtual IKVStore::key_t lock(const pool_t pool,
+                               const std::string& key,
+                               lock_type_t type,
+                               void*& out_value,
+                               size_t& out_value_len) override;
 
   virtual status_t unlock(const pool_t pool,
-                     uint64_t key_hash);
+                          key_t key_hash) override;
 
   virtual status_t apply(const pool_t pool,
                          const std::string& key,
