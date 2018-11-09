@@ -88,7 +88,8 @@ public:
         if (_component.compare("nvmestore") == 0)
         {
             // TODO: make the input parameters 1 and 2 variable based on experiment inputs
-            handle = mem_alloc.allocate_io_buffer(MB(8), 4096, Component::NUMA_NODE_ANY);  
+            handle = mem_alloc.allocate_io_buffer(MB(8), 4096, Component::NUMA_NODE_ANY);
+            pval = mem_alloc.virt_addr(handle);
             
             if (!handle)
             {
@@ -101,7 +102,7 @@ public:
         {
             memory_handle = _direct_memory_handle;
         }
- 
+
         timer.start();
         start = rdtsc();
         int rc = _store->get_direct(_pool, _data->key(_i), pval, pval_len, memory_handle);
@@ -119,10 +120,9 @@ public:
         { 
              mem_alloc.free_io_buffer(handle);
         }
-
-        if (pval != nullptr)
+        else if (pval != nullptr)
         {
-            free(pval);
+          free(pval);
         }
 
         // store the information for later use
