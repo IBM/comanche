@@ -146,7 +146,6 @@ get_volume_info(VOLUME_INFO& devinfo)
 extern "C" void * factory_createInstance(Component::uuid_t& component_id)
 {
   if(component_id == Block_device_component_factory::component_id()) {
-    printf("Creating 'Block_device_factory' component.\n");
     return static_cast<void*>(new Block_device_component_factory());
   }
   else return NULL;
