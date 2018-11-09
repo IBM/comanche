@@ -57,7 +57,7 @@ class Fabric_server_generic_factory
   /*
    * @throw std::logic_error : socket initialized with a negative value (from ::socket)
    */
-  static Fd_socket make_listener(std::uint16_t port);
+  static Fd_socket make_listener(std::uint32_t ip_addr, std::uint16_t port);
   /*
    * @throw std::system_error - ::setsockopt
    * @throw std::system_error - ::bind
@@ -66,7 +66,7 @@ class Fabric_server_generic_factory
    * @throw fabric_runtime_error : std::runtime_error : ::fi_listen fail
    * @throw std::logic_error : socket initialized with a negative value (from ::socket)
    */
-  void listen(std::uint16_t port, int end_fd, ::fid_pep &pep);
+  void listen(std::uint32_t ip_addr, std::uint16_t port, int end_fd, ::fid_pep &pep);
   void listen_loop(int end_fd, const fabric_types::addr_ep_t &pep_name, const Fd_socket &listen_fd) noexcept;
 
   /**
@@ -89,7 +89,13 @@ public:
    * @throw fabric_runtime_error : std::runtime_error : ::fi_listen fail
    * @throw std::system_error - creating end fd pair
    */
-  explicit Fabric_server_generic_factory(Fabric &fabric, event_producer &ev_pr, ::fi_info &info, std::uint16_t control_port);
+  explicit Fabric_server_generic_factory(
+    Fabric &fabric
+    , event_producer &ev_pr
+    , ::fi_info &info
+    , std::uint32_t ip_addr
+    , std::uint16_t control_port
+  );
   DELETE_COPY(Fabric_server_generic_factory);
   Fabric_server_generic_factory(Fabric_server_generic_factory &&) noexcept;
 

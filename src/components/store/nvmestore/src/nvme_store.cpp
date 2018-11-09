@@ -546,76 +546,73 @@ IKVStore::memory_handle_t NVME_store::register_direct_memory(void * vaddr, size_
   return result;
 }
 
-status_t NVME_store::allocate(const pool_t pool,
-                              const std::string& key,
-                              const size_t nbytes,
-                              uint64_t& out_key_hash)
-{
-  open_session_t * session = get_session(pool);
+// status_t NVME_store::allocate(const pool_t pool,
+//                               const std::string& key,
+//                               const size_t nbytes,
+//                               uint64_t& out_key_hash)
+// {
+//   open_session_t * session = get_session(pool);
   
-  auto& root = session->root;
-  auto& pop = session->pop;
+//   auto& root = session->root;
+//   auto& pop = session->pop;
 
-  auto& blk_alloc = _blk_alloc;
-  auto& blk_dev = _blk_dev;
+//   auto& blk_alloc = _blk_alloc;
+//   auto& blk_dev = _blk_dev;
 
-  uint64_t key_hash = CityHash64(key.c_str(), key.length());
+//   uint64_t key_hash = CityHash64(key.c_str(), key.length());
 
-  void * handle;
+//   void * handle;
 
-  /* check to see if key already exists */
-  /*if(hm_tx_lookup(pop, d_ro(root)->map, key_hash))*/
-  /*return e_key_exists;*/
+//   /* check to see if key already exists */
+//   /*if(hm_tx_lookup(pop, d_ro(root)->map, key_hash))*/
+//   /*return e_key_exists;*/
 
-  size_t nr_io_blocks = (nbytes+ BLOCK_SIZE -1)/BLOCK_SIZE;
+//   size_t nr_io_blocks = (nbytes+ BLOCK_SIZE -1)/BLOCK_SIZE;
 
-  // transaction also happens in here
-  lba_t lba = blk_alloc->alloc(nr_io_blocks, &handle);
+//   // transaction also happens in here
+//   lba_t lba = blk_alloc->alloc(nr_io_blocks, &handle);
 
-  TOID(struct block_range) val;
+//   TOID(struct block_range) val;
 
-  TX_BEGIN(pop) {
+//   TX_BEGIN(pop) {
 
-    /* allocate memory for entry - range added to tx implicitly? */
+//     /* allocate memory for entry - range added to tx implicitly? */
     
-    //get the available range from allocator
-    val = TX_ALLOC(struct block_range, sizeof(struct block_range));
+//     //get the available range from allocator
+//     val = TX_ALLOC(struct block_range, sizeof(struct block_range));
     
-    D_RW(val)->offset = lba;
-    D_RW(val)->size = nbytes;
-    D_RW(val)->handle = handle;
-#ifdef USE_ASYNC
-    D_RW(val)->last_tag = 0;
-#endif
+//     D_RW(val)->offset = lba;
+//     D_RW(val)->size = nbytes;
+//     D_RW(val)->handle = handle;
+// #ifdef USE_ASYNC
+//     D_RW(val)->last_tag = 0;
+// #endif
 
-    /* insert into HT */
-    int rc;
-    if((rc = hm_tx_insert(pop, D_RW(root)->map, key_hash, val.oid))) {
-      if(rc == 1)
-        return E_ALREADY_EXISTS;
-      else throw General_exception("hm_tx_insert failed unexpectedly (rc=%d)", rc);
-    }
-  }
-  TX_ONABORT {
-    //TODO: free blk_range
-    throw General_exception("TX abort (%s)", pmemobj_errormsg());
-  }
-  TX_END
+//     /* insert into HT */
+//     int rc;
+//     if((rc = hm_tx_insert(pop, D_RW(root)->map, key_hash, val.oid))) {
+//       if(rc == 1)
+//         return E_ALREADY_EXISTS;
+//       else throw General_exception("hm_tx_insert failed unexpectedly (rc=%d)", rc);
+//     }
+//   }
+//   TX_ONABORT {
+//     //TODO: free blk_range
+//     throw General_exception("TX abort (%s)", pmemobj_errormsg());
+//   }
+//   TX_END
 
-    out_key_hash = key_hash;
+//     out_key_hash = key_hash;
   
-  return S_OK;
-}
+//   return S_OK;
+// }
 
 
-/*
- * nvmestore will fetch data from nvme if it obtain the lock
- */
-status_t NVME_store::lock(const pool_t pool,
-                          uint64_t key_hash,
-                          int type,
-                          void*& out_value,
-                          size_t& out_value_len)
+IKVStore::key_t NVME_store::lock(const pool_t pool,
+                                 const std::string& key,
+                                 lock_type_t type,
+                                 void*& out_value,
+                                 size_t& out_value_len) 
 {
   open_session_t * session = get_session(pool);
   
@@ -630,11 +627,14 @@ status_t NVME_store::lock(const pool_t pool,
   assert(session->io_mem == 0);
   auto& blk_dev = _blk_dev;
 
+  uint64_t key_hash = CityHash64(key.c_str(), key.length());
+  
   TOID(struct block_range) val;
   try {
     val = hm_tx_get(pop, D_RW(root)->map, key_hash);
+    
     if(OID_IS_NULL(val.oid))
-      return E_KEY_NOT_FOUND;
+      throw General_exception("nvme_store::lock key not found");
 
 #ifdef USE_ASYNC
     /* there might be pending async write for this object */
@@ -676,16 +676,15 @@ status_t NVME_store::lock(const pool_t pool,
   }
 
   PINF("NVME_store: obtained the lock");
-
-  return S_OK;
+  return reinterpret_cast<Component::IKVStore::key_t>(key_hash);
 }
 
-
 /*
- * this will send async io to nvme and return, the completion will be checked for either get() or the next lock()/apply
+ * This will send async io to nvme and return, the completion will be
+ * checked for either get() or the next lock()/apply
  */
 status_t NVME_store::unlock(const pool_t pool,
-                            uint64_t key_hash)
+                            key_t key_hash)
 {
   open_session_t * session = get_session(pool);
   
@@ -698,7 +697,7 @@ status_t NVME_store::unlock(const pool_t pool,
 
   TOID(struct block_range) val;
   try {
-    val = hm_tx_get(pop, D_RW(root)->map, key_hash);
+    val = hm_tx_get(pop, D_RW(root)->map, (uint64_t) key_hash);
     if(OID_IS_NULL(val.oid))
       return E_KEY_NOT_FOUND;
 
@@ -739,8 +738,9 @@ status_t NVME_store::apply(const pool_t pool,
   size_t value_len = 0;
 
   /* TODO FIX: for take_lock. if take_lock == TRUE then use a lock here */
-  lock(pool, CityHash64(key.c_str(), key.length()),IKVStore::STORE_LOCK_READ, data, value_len);
-  return __apply(pool,CityHash64(key.c_str(), key.length()),functor, object_size);
+  //  lock(pool, CityHash64(key.c_str(), key.length()),IKVStore::STORE_LOCK_READ, data, value_len);
+  //  return __apply(pool,CityHash64(key.c_str(), key.length()),functor, object_size);
+  return E_NOT_IMPL;
 }
 
 // status_t NVME_store::apply(const pool_t pool,
@@ -813,7 +813,7 @@ int NVME_store::__apply(const pool_t pool,
     TX_END
 #endif
 
-      unlock(pool, key_hash);
+      unlock(pool, reinterpret_cast<IKVStore::key_t>(key_hash));
   }
   catch(...) {
     throw General_exception("hm_tx_get failed unexpectedly");
