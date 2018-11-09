@@ -88,7 +88,8 @@ Tested Compilers and OS/HW
 --------------------------
 
 * Software 
-  - Ubuntu 16.04.3 LTS (x86_64)
+  - Ubuntu 16.04.3 LTS and 18.04 LTS (x86_64)
+  - Fedora 27 (x86_64)
   - gcc 5.4
   - clang 3.8.0
 
