@@ -825,12 +825,7 @@ int NVME_store::__apply(const pool_t pool,
 status_t NVME_store::erase(const pool_t pool,
                            const std::string& key)
 {
-  return erase(pool,CityHash64(key.c_str(), key.length())); 
-}
-
-status_t NVME_store::erase(const pool_t pool,
-                           uint64_t key_hash)
-{
+  uint64_t key_hash = CityHash64(key.c_str(), key.length());
   open_session_t * session = get_session(pool);
   
   auto& root = session->root;
