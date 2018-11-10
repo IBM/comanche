@@ -47,7 +47,7 @@ public:
    * @throw fabric_runtime_error : std::runtime_error : ::fi_pep_bind fail
    * @throw fabric_runtime_error : std::runtime_error : ::fi_listen fail
    */
-  explicit Fabric_server_grouped_factory(Fabric &fabric, event_producer &ev_pr, ::fi_info &info, std::uint16_t control_port);
+  explicit Fabric_server_grouped_factory(Fabric &fabric, event_producer &ev_pr, ::fi_info &info, std::uint32_t addr, std::uint16_t control_port);
   DELETE_COPY(Fabric_server_grouped_factory);
   Fabric_server_grouped_factory(Fabric_server_grouped_factory &&) noexcept;
   ~Fabric_server_grouped_factory();
