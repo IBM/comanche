@@ -21,35 +21,14 @@
 
 #include "fd_control.h"
 
+#include "addrinfo.h"
 #include "system_fail.h"
 
-#include <netinet/in.h>
+#include <netdb.h> /* addrinfo? */
 #include <sys/socket.h>
-#include <netdb.h>
 
 #include <memory> /* shared_ptr */
 #include <string> /* to_string */
-
-namespace
-{
-  std::shared_ptr<addrinfo> getaddrinfo_ptr(std::string dst_addr, uint16_t port)
-  {
-    addrinfo hints{};
-
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_protocol = IPPROTO_TCP;
-    hints.ai_flags = AI_NUMERICSERV;
-
-    addrinfo *presults;
-    auto r = ::getaddrinfo(dst_addr.c_str(), std::to_string(port).c_str(), &hints, &presults);
-    if ( r )
-    {
-      system_fail(r, __func__);
-    }
-    return std::shared_ptr<addrinfo>(presults, ::freeaddrinfo);
-  }
-}
 
 Fd_control::Fd_control()
  : Fd_socket()
@@ -58,7 +37,7 @@ Fd_control::Fd_control()
 Fd_control::Fd_control(int fd_)
   : Fd_socket(fd_)
 {
-  /* NITE: consider adding setsockopt(SO_RCVTIMEO) here */
+  /* NOTE: consider adding setsockopt(SO_RCVTIMEO) here */
 }
 
 namespace

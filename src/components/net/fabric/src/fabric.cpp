@@ -21,6 +21,7 @@
 
 #include "fabric.h"
 
+#include "addrinfo.h" /* getaddrinfo_ptr */
 #include "fabric_check.h" /* FI_CHECK_ERR */
 #include "fabric_client.h"
 #include "fabric_client_grouped.h"
@@ -44,6 +45,8 @@
 #include <rdma/fi_endpoint.h> /* fi_ep_bind, fi_pep_bind */
 #pragma GCC diagnostic pop
 
+#include <netdb.h> /* addrinfo */
+#include <netinet/in.h> /* sockaddr_in */
 #include <sys/select.h> /* pselect */
 
 #include <chrono> /* seconds */
@@ -151,16 +154,41 @@ Fabric::Fabric(const std::string& json_configuration_)
   CHECK_FI_ERR(::fi_control(&_eq->fid, FI_GETWAIT, &_fd));
 }
 
+namespace
+{
+  std::uint32_t listen_addr(std::uint16_t port_ )
+  {
+    auto server_addr_env = "FABRIC_SERVER_ADDR";
+    if ( auto addr_str = getenv(server_addr_env) )
+    {
+      auto results = getaddrinfo_ptr(addr_str, port_);
+      if ( auto rp = results.get() )
+      {
+        auto addr_num = ntohl(static_cast<sockaddr_in *>(static_cast<void *>(rp->ai_addr))->sin_addr.s_addr);
+        std::cerr << "fabric_server_factory (specified by " << server_addr_env << "=" << addr_str
+          << ") listens on "
+          << (addr_num >> 24 & 0xff) << "."
+          << (addr_num >> 16 & 0xff) << "."
+          << (addr_num >> 8 & 0xff) << "."
+          << (addr_num & 0xff) << ":" << port_ << "\n";
+        return addr_num;
+      }
+    }
+    std::cerr << "fabric_server_factory (not specified by " << server_addr_env << ") listens on *:" << port_ << "\n";
+    return INADDR_ANY;
+  }
+}
+
 Component::IFabric_server_factory * Fabric::open_server_factory(const std::string& json_configuration_, std::uint16_t control_port_)
 {
   _info = parse_info(json_configuration_, _info);
-  return new Fabric_server_factory(*this, *this, *_info, control_port_);
+  return new Fabric_server_factory(*this, *this, *_info, listen_addr(control_port_), control_port_);
 }
 
 Component::IFabric_server_grouped_factory * Fabric::open_server_grouped_factory(const std::string& json_configuration_, std::uint16_t control_port_)
 {
   _info = parse_info(json_configuration_, _info);
-  return new Fabric_server_grouped_factory(*this, *this, *_info, control_port_);
+  return new Fabric_server_grouped_factory(*this, *this, *_info, listen_addr(control_port_), control_port_);
 }
 
 void Fabric::readerr_eq()

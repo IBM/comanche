@@ -46,7 +46,7 @@
 #include <string> /* to_string */
 #include <thread> /* sleep_for */
 
-Fabric_server_generic_factory::Fabric_server_generic_factory(Fabric &fabric_, event_producer &eq_, ::fi_info &info_, std::uint16_t port_)
+Fabric_server_generic_factory::Fabric_server_generic_factory(Fabric &fabric_, event_producer &eq_, ::fi_info &info_, std::uint32_t addr_, std::uint16_t port_)
   : _info(info_)
   , _fabric(fabric_)
   , _pep(fabric_.make_fid_pep(_info, this))
@@ -56,7 +56,7 @@ Fabric_server_generic_factory::Fabric_server_generic_factory(Fabric &fabric_, ev
   , _open{}
   , _end{}
   , _eq{eq_}
-  , _th{&Fabric_server_generic_factory::listen, this, port_, _end.fd_read(), std::ref(*_pep)
+  , _th{&Fabric_server_generic_factory::listen, this, addr_, port_, _end.fd_read(), std::ref(*_pep)
   }
 {
 }
@@ -115,7 +115,7 @@ void Fabric_server_generic_factory::err(::fi_eq_err_entry &) noexcept
  * @throw std::system_error - ::bind
  * @throw std::system_error - ::listem
  */
-Fd_socket Fabric_server_generic_factory::make_listener(std::uint16_t port)
+Fd_socket Fabric_server_generic_factory::make_listener(std::uint32_t ip_addr, std::uint16_t port)
 {
   constexpr int domain = AF_INET;
   Fd_socket fd(::socket(domain, SOCK_STREAM, 0));
@@ -136,7 +136,7 @@ Fd_socket Fabric_server_generic_factory::make_listener(std::uint16_t port)
     sockaddr_in addr{};
     addr.sin_family = domain;
     addr.sin_port = htons(port);
-    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr.sin_addr.s_addr = htonl(ip_addr);
 
     if ( -1 == ::bind(fd.fd(), pointer_cast<sockaddr>(&addr), sizeof addr) )
     {
@@ -163,12 +163,13 @@ Fd_socket Fabric_server_generic_factory::make_listener(std::uint16_t port)
  */
 
 void Fabric_server_generic_factory::listen(
-  std::uint16_t port_
+  std::uint32_t ip_addr_
+  , std::uint16_t port_
   , int end_fd_
   , ::fid_pep &pep_
 )
 {
-  Fd_socket listen_fd(make_listener(port_));
+  Fd_socket listen_fd(make_listener(ip_addr_, port_));
 
   /* The endpoint now has a name, which we can advertise. */
   CHECK_FI_ERR(::fi_listen(&pep_));
