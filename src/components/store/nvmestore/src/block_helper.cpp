@@ -51,7 +51,6 @@ status_t NVME_store:: open_block_device(std::string pci, IBlock_device* &block)
                                                         Component::block_nvme_factory);
 
     assert(comp);
-    PLOG("Block_device factory loaded OK.");
     IBlock_device_factory * fact = (IBlock_device_factory *) comp->query_interface(IBlock_device_factory::iid());
     
     cpu_mask_t cpus;
@@ -105,7 +104,7 @@ status_t NVME_store::open_block_allocator(IBlock_device *block,Component::IBlock
     VOLUME_INFO devinfo;
 
 
-    constexpr size_t TO_MANY_BLOCKS = GB(128)/KB(4);
+    constexpr size_t TOO_MANY_BLOCKS = GB(128)/KB(4);
 
     IBase * comp = load_component("libcomanche-blkalloc-aep.so",
                                   Component::block_allocator_aep_factory);
@@ -118,17 +117,16 @@ status_t NVME_store::open_block_allocator(IBlock_device *block,Component::IBlock
     size_t nr_blocks = devinfo.block_count; // actual blocks from this device
     assert(nr_blocks);
 
-    nr_blocks_tracked = nr_blocks> TO_MANY_BLOCKS? TO_MANY_BLOCKS:nr_blocks;
+    nr_blocks_tracked = nr_blocks> TOO_MANY_BLOCKS? TOO_MANY_BLOCKS:nr_blocks;
 
     PLOG("%s: Opening allocator to support %lu \/ %lu blocks", 
         __func__, nr_blocks_tracked, nr_blocks);
 
     persist_id_t id_alloc = std::string(devinfo.volume_name) + ".alloc.pool";
 
-    alloc = fact->open_allocator(
-                                  nr_blocks_tracked,
-                                  PMEM_PATH_ALLOC,
-                                  id_alloc);  
+    alloc = fact->open_allocator(nr_blocks_tracked,
+                                 PMEM_PATH_ALLOC,
+                                 id_alloc);  
     fact->release_ref();  
 
     _alloc_map.insert(std::pair<IBlock_device *, IBlock_allocator *>(block, alloc));
