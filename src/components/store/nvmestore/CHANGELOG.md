@@ -1,7 +1,19 @@
 # Changelog
 This is the changelog for nvmestore
 
-[2017-07-31]: 
+[2018-11-12]:
+#todo:
+  - change free to free\_memory after nvmestore-get
+  - use 'take\_lock' for the apply method
+  - adjust the hardcopied sizes
+  - memio management (DEFAULT_IO_MEM_SIZE)
+  - test more cores
+  - put\_direct
+
+#question:
+  - why 
+
+[2018-07-31]: 
 #added:
   - more documents 
   - test-nvmestore now can be also used to test file store performance(temprary use)
