@@ -11,15 +11,6 @@ ExternalProject_Add(nanomsg
   INSTALL_COMMAND make install 
   )
 
-# build libfabric
-ExternalProject_Add(libfabric  
-  BUILD_IN_SOURCE 1
-  SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/libfabric
-  CONFIGURE_COMMAND ./autogen.sh COMMAND ./configure --prefix=${CMAKE_INSTALL_PREFIX}
-  BUILD_COMMAND make -j
-  INSTALL_COMMAND make install
-  )
-
 find_package(CUDA)
 if(CUDA_FOUND AND CUDA_VERSION GREATER 7.5)
   ExternalProject_Add(gdrcopy  
