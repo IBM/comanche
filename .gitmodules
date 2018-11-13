@@ -18,10 +18,6 @@
 [submodule "src/lib/tbb"]
   path = src/lib/tbb
   url = https://github.com/dwaddington/tbb.git
-[submodule "src/lib/pmdk"]
-  path = src/lib/pmdk
-  url = https://github.com/pmem/pmdk
-  branch = stable-1.4
 [submodule "src/lib/nanomsg"]
   path = src/lib/nanomsg
   url = https://github.com/nanomsg/nanomsg.git
