@@ -65,6 +65,7 @@ if(BOOTSTRAP_DEPS)
   add_subdirectory(src/lib/spdk)
   add_subdirectory(src/lib/pmdk)
   add_subdirectory(src/lib/tbb)
+  add_subdirectory(src/lib/libfabric)
   add_subdirectory(src/lib/flatbuffers)
   
   message("[IMPORTANT]: first run 'make bootstrap' to build core and dependencies")
