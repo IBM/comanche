@@ -3,9 +3,6 @@ cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 # option to build libraies, on by default
 include(${CMAKE_ROOT}/Modules/ExternalProject.cmake)
 
-add_subdirectory(common)
-add_subdirectory(core)
-
 # tbb will be installed into the build-of-root-proj/install/lib/tbb
 ExternalProject_Add(tbb
   BUILD_IN_SOURCE 1
@@ -59,6 +56,10 @@ if(CUDA_FOUND AND CUDA_VERSION GREATER 7.5)
     INSTALL_COMMAND PREFIX=${CMAKE_INSTALL_PREFIX} make lib_install
     )
 endif()
+
+add_subdirectory(common)
+add_subdirectory(core)
+
 
 
 

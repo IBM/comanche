@@ -60,21 +60,22 @@ add_custom_target(bootstrap
 
 # default make will only build core and dependencies
 if(BOOTSTRAP_DEPS)
-  add_subdirectory(src/lib)
-  add_subdirectory(src/components/api)
+  
+  add_subdirectory(src/lib/dpdk)
+  add_subdirectory(src/lib/spdk)
+  add_subdirectory(src/lib/pmdk)
+  add_subdirectory(src/lib/tbb)
+  add_subdirectory(src/lib/flatbuffers)
 
-  message("\n[IMPORTANT]: first run 'make bootstrap' to build core and dependencies")
-  message("             then run 'make' to build components")
+  message("[IMPORTANT]: first run 'make bootstrap' to build core and dependencies")
+  message("             then run 'make' to build components, apps, etc.")
 
 else(BOOTSTRAP_DEPS)
-  set(PMDK_PREFIX ${CONF_COMANCHE_HOME}/src/lib/pmdk)
-  #find_package(PMDK REQUIRED)
-  find_package(TBB REQUIRED)
-  find_package(Nanomsg)
-  find_package(Flatbuffers)
-  set(PMDK_INCLUDE_DIRS  ${PMDK_PREFIX}/src/include)
 
-  add_subdirectory(src)
+  add_subdirectory(src/lib)
+  add_subdirectory(src/components/api)
+  add_subdirectory(src/kernel/modules)
+  add_subdirectory(src/components)
   add_subdirectory(apps)
   add_subdirectory(testing)
 
