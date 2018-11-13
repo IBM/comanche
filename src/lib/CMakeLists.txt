@@ -5,6 +5,7 @@ include(${CMAKE_ROOT}/Modules/ExternalProject.cmake)
 
 add_subdirectory(common)
 add_subdirectory(core)
+add_subdirectory(googletest)
 
 ExternalProject_Add(cityhash
   BUILD_IN_SOURCE 1
