@@ -118,8 +118,8 @@ void eal_init(size_t memory_limit_MB, unsigned master_core, bool primary)
     std::string lcores = "0-" + std::to_string(num_cores - 1);
 
     static const char* ealargs[] = {"comanche",
-                                    "-c",
-                                    core_mask.str().c_str(),
+                                    // "-c",
+                                    // core_mask.str().c_str(),
                                     "-l",
                                     lcores.c_str(),  // cores to run on
                                     "-n",
