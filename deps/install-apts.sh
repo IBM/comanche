@@ -11,7 +11,7 @@ apt-get install -y wget git gcc libpciaccess-dev make libcunit1-dev pkg-config \
 	      libboost-python-dev libkmod-dev libjson-c-dev libbz2-dev \
         linux-headers-`uname -r` libelf-dev libsnappy-dev liblz4-dev \
         asciidoc xmlto libtool graphviz \
-        google-perftools libgoogle-perftools-dev libgtest0 libgtest-dev
+        google-perftools libgoogle-perftools-dev
 
 
 # optional
