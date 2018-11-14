@@ -10,7 +10,7 @@ project(comanche-blknvme CXX)
 
 include_directories(${CMAKE_INSTALL_PREFIX}/include)
 include_directories(${CMAKE_INSTALL_PREFIX}/include/dpdk)
-find_library(CITYHASH_LIB NAMES libcityhash)
+find_library(CITYHASH_LIB NAMES libcityhash.a)
 
 add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 
