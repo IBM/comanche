@@ -3,18 +3,10 @@ cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
 project(core-tests CXX)
 
-# if (DEFINED ENV{COMANCE_HOME})
-# else()
-#   message("COMANCE_HOME environment variable not defined")
-#   exit()
-# endif()
+include_directories(${CMAKE_INSTALL_PREFIX}/include)
+link_directories(${CMAKE_INSTALL_PREFIX}/lib)
 
-include_directories(../../)
-link_directories(/usr/local/lib)
-link_directories(../../../../lib)
-link_directories(../)
-
-find_library(GTEST_LIB NAMES GTEST PATHS /usr/local/lib,/usr/lib)
+find_library(GTEST_LIB NAMES GTEST)
 
 add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG -mrdrnd)
 
