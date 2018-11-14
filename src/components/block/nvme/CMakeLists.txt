@@ -10,6 +10,7 @@ project(comanche-blknvme CXX)
 
 include_directories(${CMAKE_INSTALL_PREFIX}/include)
 include_directories(${CMAKE_INSTALL_PREFIX}/include/dpdk)
+find_library(CITYHASH_LIB NAMES libcityhash)
 
 add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 
@@ -17,7 +18,7 @@ file(GLOB SOURCES ./src/*.c*)
 
 add_library(${PROJECT_NAME} SHARED ${SOURCES})
 
-target_link_libraries(${PROJECT_NAME} ${ASAN_LIB} common comanche-core dl rt pthread numa rdmacm ibverbs pcap uuid)
+target_link_libraries(${PROJECT_NAME} ${ASAN_LIB} common ${CITYHASH_LIB} comanche-core dl rt pthread numa rdmacm ibverbs pcap uuid)
 
 # set the linkage in the install/lib
 set_target_properties(${PROJECT_NAME} PROPERTIES 

@@ -11,7 +11,7 @@ ExternalProject_Add(cityhash
   BUILD_IN_SOURCE 1
   SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/cityhash
   CONFIGURE_COMMAND ./configure --prefix=${CMAKE_INSTALL_PREFIX}
-  BUILD_COMMAND make all
+  BUILD_COMMAND make CXXFLAGS="-fPIC -g -O3" all check 
   INSTALL_COMMAND make install
   )
 
