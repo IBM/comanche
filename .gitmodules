@@ -23,6 +23,3 @@
 [submodule "src/lib/gdrcopy"]
   path = src/lib/gdrcopy
   url = https://github.com/NVIDIA/gdrcopy.git
-[submodule "src/lib/googletest"]
-	path = src/lib/googletest
-	url = https://github.com/google/googletest.git
