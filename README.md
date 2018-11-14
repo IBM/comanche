@@ -10,13 +10,6 @@ NOTE: Comanche is in its early stages of development and while we welcome collab
 HowTo
 -----
 
-* DPDK/SPDK
-
-Comanche currently uses DPDK/SPDK.  You should install and test this
-first (see [dpdk/usertools/dpdksetup.sh](https://github.com/spdk/dpdk/blob/spdk-17.05/usertools/dpdk-setup.sh)).  Note, it is possible to run
-in a virtual machine (using UIO) but you will need to run your
-programs as root.
-
 * Prepare (one time - although it may change across checkouts)
 
 ```bash
