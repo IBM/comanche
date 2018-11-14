@@ -13,6 +13,7 @@ if(BOOTSTRAP_DEPS)
   add_subdirectory(cityhash)
   add_subdirectory(googletest)
   add_subdirectory(memkind)
+  add_subdirectory(ndctl)
   add_subdirectory(tbb)
 
   # ExternalProject_Add(nanomsg
