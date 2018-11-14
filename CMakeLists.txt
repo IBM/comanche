@@ -66,7 +66,7 @@ if(BOOTSTRAP_DEPS)
   add_subdirectory(src/lib/pmdk)
   add_subdirectory(src/lib/tbb)
   add_subdirectory(src/lib/flatbuffers)
-
+  
   message("[IMPORTANT]: first run 'make bootstrap' to build core and dependencies")
   message("             then run 'make' to build components, apps, etc.")
 

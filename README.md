@@ -22,7 +22,6 @@ programs as root.
 ```bash
 ( cd deps
   sudo ./install-apts.sh # use ./install-yum.sh for fedora
-  sudo ./fetch-deps.sh
 )
 ```
 
