@@ -9,4 +9,4 @@ apt-get install -y build-essential libnuma-dev libelf-dev libpcap-dev uuid-dev \
         rapidjson-dev libfuse-dev libpcap-dev sqlite3 libsqlite3-dev libomp-dev \
         libboost-python-dev libkmod-dev libjson-c-dev libbz2-dev \
         linux-headers-`uname -r` libelf-dev libsnappy-dev liblz4-dev \
-        asciidoc xmlto libtool libgtest0 libgtest-dev
+        asciidoc xmlto libtool
