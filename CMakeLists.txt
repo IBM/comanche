@@ -61,21 +61,14 @@ add_custom_target(bootstrap
 # default make will only build core and dependencies
 if(BOOTSTRAP_DEPS)
   
-  add_subdirectory(src/lib/dpdk)
-  add_subdirectory(src/lib/spdk)
-  add_subdirectory(src/lib/pmdk)
-  add_subdirectory(src/lib/tbb)
-  add_subdirectory(src/lib/libfabric)
-  add_subdirectory(src/lib/flatbuffers)
-  add_subdirectory(src/lib/cityhash)
-  add_subdirectory(src/lib/googletest)
+  add_subdirectory(src/lib) # contains a BOOTSTRAP_DEPS filter
   
   message("[IMPORTANT]: first run 'make bootstrap' to build core and dependencies")
   message("             then run 'make' to build components, apps, etc.")
 
 else(BOOTSTRAP_DEPS)
 
-  add_subdirectory(src/lib)
+  add_subdirectory(src/lib) # contains a BOOTSTRAP_DEPS filter
   add_subdirectory(src/components/api)
   add_subdirectory(src/kernel/modules)
   add_subdirectory(src/components)
