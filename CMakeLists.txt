@@ -72,6 +72,7 @@ else(BOOTSTRAP_DEPS)
   add_subdirectory(src/components/api)
   add_subdirectory(src/kernel/modules)
   add_subdirectory(src/components)
+  add_subdirectory(src/servers)
   add_subdirectory(apps)
   add_subdirectory(testing)
 
