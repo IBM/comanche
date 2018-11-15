@@ -6,7 +6,7 @@
 #include <string>
 #include <stdio.h>
 #include <api/kvstore_itf.h>
-#include <common/city.h>
+#include <city.h>
 #include <common/rwlock.h>
 #include <common/exceptions.h>
 #include <common/utils.h>
