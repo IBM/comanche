@@ -11,7 +11,7 @@ yum -y install kmod-devel libudev-devel json-c-devel libpcap-devel uuid-devel li
     rapidjson-devel gmp-devel mpfr-devel libmpc-devel \
     elfutils-libelf-devel libpcap-devel libuuid-devel libaio-devel boost boost-devel \
     boost-python3 boost-python3-devel doxygen graphviz fuse fuse-devel gperftools gperftools-devel \
-    asciidoc xmlto libtool graphviz gtest
+    asciidoc xmlto libtool graphviz gtest libgtest-dev
     
 # build GCC 5.4
 #curl https://ftp.gnu.org/gnu/gcc/gcc-5.4.0/gcc-5.4.0.tar.bz2 -O
