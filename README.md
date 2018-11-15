@@ -30,16 +30,11 @@ git submodule update --init --recursive
 ```bash
 mkdir build
 cd build
-cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX:PATH=../ ..
+cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX:PATH=`pwd`/dist ..
 make bootstrap  # build the core and dependencies
 make # build comanche components & tests, etc
 ```
 
-To override the install destination:
-
-```bash
-cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX:PATH=`pwd`/dist ..
-```
 
 * Install libs into cmake installation prefix
 
