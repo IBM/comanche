@@ -6,7 +6,6 @@
 #include <stdio.h>
 #include <mutex>
 #include <api/kvstore_itf.h>
-#include <common/city.h>
 #include <common/exceptions.h>
 #include <common/utils.h>
 #include <boost/filesystem.hpp>

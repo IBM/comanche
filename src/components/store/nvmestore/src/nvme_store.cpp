@@ -17,7 +17,7 @@
 
 #include <stdio.h>
 #include <api/kvstore_itf.h>
-#include <common/city.h>
+#include <city.h>
 #include <boost/filesystem.hpp>
 #include <common/cycles.h>
 

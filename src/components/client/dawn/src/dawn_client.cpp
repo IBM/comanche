@@ -2,7 +2,7 @@
 #include "connection.h"
 #include "dawn_client.h"
 
-#include <common/city.h>
+#include <city.h>
 #include <api/fabric_itf.h>
 
 #include <iostream>

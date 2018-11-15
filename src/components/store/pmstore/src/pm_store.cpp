@@ -6,9 +6,9 @@
 #include <libpmemobj/base.h>
 
 #include <stdio.h>
+#include <city.h>
 #include <api/kvstore_itf.h>
 #include <common/exceptions.h>
-#include <common/city.h>
 #include <common/logging.h>
 #include <common/utils.h>
 #include <boost/filesystem.hpp>
