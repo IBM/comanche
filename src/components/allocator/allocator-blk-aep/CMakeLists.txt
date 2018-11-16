@@ -6,10 +6,6 @@ include_directories(./src)
 link_directories(${CMAKE_INSTALL_PREFIX}/lib)
 link_directories(${CMAKE_INSTALL_PREFIX}/lib64)
 
-# find_library(LIB_PMEM NAMES pmem)
-# find_library(LIB_PMEM_POOL NAMES pmempool)
-# find_library(LIB_PMEM_OBJ NAMES pmemobj)
-
 file(GLOB SOURCES ./src/*.c*)
 
 add_library(${PROJECT_NAME} SHARED ${SOURCES})

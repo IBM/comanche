@@ -3,7 +3,7 @@ cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
 project(fabric-tests CXX)
 
-find_library(GTEST_LIB NAMES GTEST PATHS /usr/local/lib,/usr/lib)
+link_directories(/usr/local/lib64)
 
 include_directories(${CMAKE_INSTALL_PREFIX}/include)
 link_directories(${CMAKE_INSTALL_PREFIX}/lib)
@@ -38,4 +38,4 @@ add_executable(fabric-test1 test1.cpp
   wait_poll.cpp
 )
 
-target_link_libraries(fabric-test1 ${ASAN_LIB} common comanche-core fabric gtest pthread dl) # dl
+target_link_libraries(fabric-test1 ${ASAN_LIB} common comanche-core fabric pthread gtest dl)

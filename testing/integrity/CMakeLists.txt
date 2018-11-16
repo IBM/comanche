@@ -2,6 +2,8 @@ cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
 project (test_kvstore)
 
+link_directories(/usr/local/lib64)
+
 add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 
 add_executable(test_kvstore test_kvstore.cpp)
