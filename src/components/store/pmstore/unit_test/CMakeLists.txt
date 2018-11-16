@@ -1,12 +1,11 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
-
 project(sample-tests CXX)
 
 enable_language(CXX C ASM)
 set(GCC_COVERAGE_COMPILE_FLAGS "-std=c++11 -g -O2 -fPIC -msse3")
 
-find_library(GTEST_LIB NAMES GTEST PATHS /usr/local/lib,/usr/lib)
+link_directories(/usr/local/lib64)
 
 include_directories(${CMAKE_INSTALL_PREFIX}/include)
 link_directories(${CMAKE_INSTALL_PREFIX}/lib)

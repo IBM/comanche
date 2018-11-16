@@ -5,7 +5,7 @@ project(dawn-client-test CXX)
 
 enable_language(CXX C ASM)
 
-find_library(GTEST_LIB NAMES GTEST PATHS /usr/local/lib,/usr/lib)
+link_directories(/usr/local/lib64)
 
 add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 

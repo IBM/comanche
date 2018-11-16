@@ -1,4 +1,5 @@
 project(comanche-nvmestore CXX)
+
 set(GCC_COVERAGE_COMPILE_FLAGS "-std=c++11 -g -O2 -fPIC -msse3")
 
 include_directories(${CMAKE_INSTALL_PREFIX}/include)
@@ -23,6 +24,5 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 install(TARGETS ${PROJECT_NAME}
     LIBRARY 
     DESTINATION lib)
-
 
 add_subdirectory(unit_test)
