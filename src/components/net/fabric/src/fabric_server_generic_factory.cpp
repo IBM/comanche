@@ -102,7 +102,6 @@ try
 catch ( const std::exception &e )
 {
   std::cerr << __func__ << " (Fabric_server_factory) " << e.what() << "\n";
-  throw;
 }
 
 void Fabric_server_generic_factory::err(::fi_eq_err_entry &) noexcept
