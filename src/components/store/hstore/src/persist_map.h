@@ -26,8 +26,6 @@ namespace impl
 			using bucket_aligned_t = bucket_aligned<bucket<value_type>>;
 			using bucket_allocator_t =
 				typename Allocator::template rebind<bucket_aligned_t>::other;
-			using void_allocator_t =
-				typename Allocator::template rebind<void>::other;
 			using bucket_ptr = typename bucket_allocator_t::pointer;
 			struct segment_control
 			{

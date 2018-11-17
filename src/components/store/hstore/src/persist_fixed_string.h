@@ -1,6 +1,7 @@
 #ifndef DAWN_HSTORE_PERSIST_FIXED_STRING_H
 #define DAWN_HSTORE_PERSIST_FIXED_STRING_H
 
+#include "palloc.h"
 #include "persistent.h"
 #include "pobj_pointer.h"
 #include <libpmemobj.h> /* pmemobj_direct */

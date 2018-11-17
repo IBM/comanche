@@ -18,7 +18,6 @@ template <typename Allocator>
 		, _segment_count(n/base_segment_size == 0 ? 1U : segment_layout::log2(n/base_segment_size))
 		, _sc{}
 	{
-		using bucket_allocator_t = typename Allocator::template rebind<bucket_aligned_t>::other;
 		using void_allocator_t = typename Allocator::template rebind<void>::other;
 		_sc[0].bp =
 			bucket_allocator_t(av_).address(
