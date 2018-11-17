@@ -12,10 +12,16 @@
 #include <common/logging.h>
 #include <common/utils.h>
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+#if defined __clang__
+#pragma GCC diagnostic ignored "-Wnested-anon-types"
+#endif
 #include <libpmemobj.h>
 #include <libpmempool.h>
 #include <libpmemobj/base.h>
 #include <libpmem.h> /* pmem_persist */
+#pragma GCC diagnostic pop
 
 #include <boost/filesystem.hpp>
 

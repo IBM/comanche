@@ -27,7 +27,7 @@ template <typename A>
 			std::ptrdiff_t len = static_cast<const char *>(last) - static_cast<const char *>(first);
 			if ( 0 < len )
 			{
-				a.persist(first, len, what);
+				a.persist(first, std::size_t(len), what);
 			}
 		}
 	};

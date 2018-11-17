@@ -3,7 +3,13 @@
 #include "trace_flags.h"
 
 #include "pobj_bad_alloc.h"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+#if defined __clang__
+#pragma GCC diagnostic ignored "-Wnested-anon-types"
+#endif
 #include <libpmemobj.h> /* pmemobj_{alloc,direct,free} */
+#pragma GCC diagnostic pop
 #if TRACE_PALLOC
 #include <iostream> /* cerr */
 #endif

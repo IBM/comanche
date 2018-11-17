@@ -31,7 +31,7 @@ template <typename Table>
 					auto src_last = src_first + i->size;
 					auto dst_first = &dst[i->offset_dst];
 					/* NOTE: could be replaced with a pmem persistent memcpy */
-					persist(dst_first, std::copy(src_first, src_last, dst_first), "atomic ctl");
+					persist_range(dst_first, std::copy(src_first, src_last, dst_first), "atomic ctl");
 				}
 			}
 			catch ( std::out_of_range & )
@@ -40,11 +40,11 @@ template <typename Table>
 			}
 		}
 		_persist->mod_size = 0;
-		persist(&_persist->mod_size, &_persist->mod_size + 1, "atomic size");
+		persist_range(&_persist->mod_size, &_persist->mod_size + 1, "atomic size");
 	}
 
 template <typename Table>
-	void impl::atomic_controller<Table>::persist(const void *first_, const void *last_, const char *what_)
+	void impl::atomic_controller<Table>::persist_range(const void *first_, const void *last_, const char *what_)
 	{
 		persist_switch_t::persist(*this, first_, last_, what_);
 	}
@@ -88,7 +88,7 @@ template <typename Table>
 		std::copy(mods.begin(), mods.end(), &*_persist->mod_ctl);
 		/* 8-byte atomic write */
 		_persist->mod_size = mods.size();
-		persist(&*_persist->mod_ctl, &*_persist->mod_ctl + mods.size(), "mod control");
+		persist_range(&*_persist->mod_ctl, &*_persist->mod_ctl + mods.size(), "mod control");
 		redo();
 		return S_OK;
 	}
