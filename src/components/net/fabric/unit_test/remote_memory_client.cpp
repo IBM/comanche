@@ -69,7 +69,7 @@ try
   _cnxn->post_recv(v, this);
   ::wait_poll(
       *_cnxn
-    , [&v, this] (void *ctxt_, ::status_t stat_, std::uint64_t, std::size_t len_, void *) -> void
+    , [this] (void *ctxt_, ::status_t stat_, std::uint64_t, std::size_t len_, void *) -> void
       {
         ASSERT_EQ(ctxt_, this);
         ASSERT_EQ(stat_, ::S_OK);
@@ -111,13 +111,13 @@ void remote_memory_client::write(const std::string &msg_, bool force_error_)
   std::vector<::iovec> buffers(1);
   {
     buffers[0].iov_base = &rm_out()[0];
-    std::ptrdiff_t adjust = 0;
+    std::size_t adjust = 0;
     if ( force_error_ )
     {
       adjust = 1U << 31U;
     }
     buffers[0].iov_len = msg_.size();
-    _cnxn->post_write(buffers, _vaddr + remote_memory_offset - adjust, _key, this);
+    _cnxn->post_write(buffers, _vaddr + remote_memory_offset - static_cast<unsigned long>(adjust), _key, this);
   }
   ::wait_poll(
     *_cnxn

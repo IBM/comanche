@@ -187,7 +187,7 @@ std::size_t Fabric_cq::poll_completions(const Component::IFabric_op_completer::c
     }
     else
     {
-      ct_total += ct;
+      ct_total += static_cast<unsigned long>(ct);
       for ( unsigned ix = 0U; ix != ct; ++ix )
       {
         cb_(cq_entry[ix].op_context, S_OK);
@@ -229,7 +229,7 @@ std::size_t Fabric_cq::poll_completions(const Component::IFabric_op_completer::c
     }
     else
     {
-      ct_total += ct;
+      ct_total += static_cast<unsigned long>(ct);
       for ( unsigned ix = 0U; ix != ct; ++ix )
       {
         cb_(cq_entry[ix].op_context, S_OK, cq_entry[ix].flags, cq_entry[ix].len, nullptr);
@@ -310,7 +310,7 @@ std::size_t Fabric_cq::poll_completions(const Component::IFabric_op_completer::c
     }
     else
     {
-      ct_total += ct;
+      ct_total += static_cast<unsigned long>(ct);
       for ( unsigned ix = 0U; ix != ct; ++ix )
       {
         cb_(cq_entry[ix].op_context, S_OK, cq_entry[ix].flags, cq_entry[ix].len, nullptr, cb_param_);
@@ -383,7 +383,7 @@ ssize_t Fabric_cq::cq_read(void *buf, size_t count) noexcept
 
   if ( 0 < r )
   {
-    _inflight -= r;
+    _inflight -= static_cast<unsigned long>(r);
   }
 
   return r;
@@ -395,7 +395,7 @@ ssize_t Fabric_cq::cq_readerr(::fi_cq_err_entry *buf, uint64_t flags) noexcept
 
   if ( 0 < r )
   {
-    _inflight -= r;
+    _inflight -= static_cast<unsigned long>(r);
   }
 
   return r;

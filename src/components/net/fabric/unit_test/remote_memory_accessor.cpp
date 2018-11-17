@@ -39,7 +39,7 @@ void remote_memory_accessor::send_msg(Component::IFabric_communicator &cnxn_, re
     cnxn_.post_send(&*v.begin(), &*v.end(), &*d.begin(), this);
     ::wait_poll(
       cnxn_
-      , [&v, this] (void *ctxt_, ::status_t stat_, std::uint64_t, std::size_t, void *) -> void
+      , [this] (void *ctxt_, ::status_t stat_, std::uint64_t, std::size_t, void *) -> void
         {
           EXPECT_EQ(ctxt_, this);
           EXPECT_EQ(stat_, S_OK);

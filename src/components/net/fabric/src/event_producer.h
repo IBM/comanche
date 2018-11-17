@@ -24,6 +24,7 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#pragma GCC diagnostic ignored "-Wold-style-cast"
 #pragma GCC diagnostic ignored "-Wshadow"
 #include <rdma/fi_domain.h> /* fi_eq_cm_entry */
 #pragma GCC diagnostic pop

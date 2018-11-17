@@ -810,7 +810,7 @@ TEST_F(Fabric_test, GroupedClients)
       /* allow time for the server to listen before the client restarts */
       std::this_thread::sleep_for(std::chrono::seconds(3));
       std::size_t msg_max(0U);
-      for ( auto iter1 = 0; iter1 != count_inner; ++iter1 )
+      for ( unsigned iter1 = 0U; iter1 != count_inner; ++iter1 )
       {
         std::cerr << "CLIENT begin " << iter0 << "." << iter1 << " port " << control_port << std::endl;
         /* In case the provider actually uses the remote keys which we provide, make them unique. */
