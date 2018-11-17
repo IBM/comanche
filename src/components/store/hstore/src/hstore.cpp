@@ -642,7 +642,7 @@ auto hstore::lock(const pool_t pool,
     out_value = val.data();
     out_value_len = val.size();
   }
-  catch ( std::out_of_range )
+  catch ( std::out_of_range & )
   {
     /* if the key is not found, we create it and
        allocate value space equal in size to out_value_len
