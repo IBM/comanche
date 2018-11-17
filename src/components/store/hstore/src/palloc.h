@@ -1,7 +1,13 @@
 #ifndef _DAWN_HSTORE_PALLOC_H_
 #define _DAWN_HSTORE_PALLOC_H_
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+#if defined __clang__
+#pragma GCC diagnostic ignored "-Wnested-anon-types"
+#endif
 #include <libpmemobj.h> /* PMEMobjpool, PMEMoid, pmemobj_constr */
+#pragma GCC diagnostic pop
 
 #include <cstddef> /* size_t */
 

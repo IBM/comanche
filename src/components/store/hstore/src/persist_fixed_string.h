@@ -4,7 +4,13 @@
 #include "palloc.h"
 #include "persistent.h"
 #include "pobj_pointer.h"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+#if defined __clang__
+#pragma GCC diagnostic ignored "-Wnested-anon-types"
+#endif
 #include <libpmemobj.h> /* pmemobj_direct */
+#pragma GCC diagnostic pop
 
 #include <algorithm>
 #include <cstddef> /* size_t */
@@ -38,7 +44,7 @@ template <typename T>
     using access = fixed_string_access<T>;
     template <typename IT>
       fixed_string(IT first_, IT last_, access a_)
-        : fixed_string((last_-first_), a_)
+        : fixed_string(static_cast<std::size_t>(last_-first_), a_)
       {
         /* for small lengths we copy */
         std::copy(first_, last_, static_cast<T *>(static_cast<void *>(this+1)));
@@ -109,7 +115,7 @@ template <typename T>
         , uint64_t type_num
         , const char *use_
       )
-        : small((last_ - first_) * sizeof(T))
+        : small(static_cast<std::size_t>(last_ - first_) * sizeof(T))
       {
         if ( is_small() )
         {
@@ -117,7 +123,7 @@ template <typename T>
         }
         else
         {
-          auto data_size = (last_ - first_) * sizeof(T);
+          auto data_size = static_cast<std::size_t>(last_ - first_) * sizeof(T);
           new (&ptr)
             ptr_t(
               pobj_pointer<element_type>(
