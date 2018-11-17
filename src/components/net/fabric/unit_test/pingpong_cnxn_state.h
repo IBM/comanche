@@ -12,8 +12,9 @@ namespace Component
 
 struct buffer_state;
 
-struct cnxn_state
+class cnxn_state
 {
+public:
   DELETE_COPY(cnxn_state);
 private:
   Component::IFabric_active_endpoint_comm *_comm;

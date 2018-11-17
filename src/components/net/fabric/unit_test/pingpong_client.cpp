@@ -85,7 +85,7 @@ try
 
   auto &tx_ctxt = pack._tx_ctxt;
   auto &buffer = tx_ctxt.buffer();
-  buffer._rm[0] = _id;
+  buffer._rm[0] = static_cast<char>(_id);
   buffer._rm[1] = 0;
   c.send(buffer, &tx_ctxt);
   while ( ! c.done )

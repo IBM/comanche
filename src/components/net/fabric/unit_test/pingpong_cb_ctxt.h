@@ -8,10 +8,11 @@
 #include <cstdint> /* uint64_t */
 #include <vector>
 
-struct cnxn_state;
+class cnxn_state;
 
-struct cb_ctxt
+class cb_ctxt
 {
+public:
   using cb_t = void (*)(cb_ctxt *ctxt, ::status_t stat, std::size_t len);
 private:
   cnxn_state *_state;

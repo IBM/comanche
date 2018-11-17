@@ -28,7 +28,9 @@
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
+#pragma GCC diagnostic ignored "-Wcast-align"
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#pragma GCC diagnostic ignored "-Wold-style-cast"
 #pragma GCC diagnostic ignored "-Wshadow"
 #include <rdma/fi_cm.h> /* fi_listen */
 #pragma GCC diagnostic pop
@@ -102,7 +104,6 @@ try
 catch ( const std::exception &e )
 {
   std::cerr << __func__ << " (Fabric_server_factory) " << e.what() << "\n";
-  throw;
 }
 
 void Fabric_server_generic_factory::err(::fi_eq_err_entry &) noexcept

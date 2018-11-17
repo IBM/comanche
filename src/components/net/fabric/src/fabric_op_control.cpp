@@ -34,7 +34,11 @@
 #include "system_fail.h"
 
 #include <rdma/fi_errno.h> /* fi_strerror */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-align"
+#pragma GCC diagnostic ignored "-Wold-style-cast"
 #include <rdma/fi_rma.h> /* fi_{read,recv,send,write}v, fi_inject */
+#pragma GCC diagnostic pop
 
 #include <sys/select.h> /* pselect */
 #include <sys/uio.h> /* iovec */
@@ -131,7 +135,7 @@ void Fabric_op_control::post_send(
       &ep()
       , first_
       , desc_
-      , last_ - first_
+      , std::size_t(last_ - first_)
       , ::fi_addr_t{}
       , context_
     )
@@ -170,7 +174,7 @@ void Fabric_op_control::post_recv(
       &ep()
       , first_
       , desc_
-      , last_ - first_
+      , std::size_t(last_ - first_)
       , ::fi_addr_t{}
       , context_
     )
@@ -212,7 +216,7 @@ void Fabric_op_control::post_read(
       &ep()
       , first_
       , desc_
-      , last_ - first_
+      , std::size_t(last_ - first_)
       , ::fi_addr_t{}
       , remote_addr_
       , key_
@@ -259,7 +263,7 @@ void Fabric_op_control::post_write(
       &ep()
       , first_
       , desc_
-      , last_ - first_
+      , std::size_t(last_ - first_)
       , ::fi_addr_t{}
       , remote_addr_
       , key_
@@ -294,10 +298,6 @@ void Fabric_op_control::inject_send(const void *buf_, std::size_t len_)
   CHECK_FI_EQ(::fi_inject(&ep(), buf_, len_, ::fi_addr_t{}), 0);
 }
 
-namespace
-{
-  std::size_t constexpr ct_max = 16;
-}
 /**
  * Poll completions (e.g., completions)
  *
