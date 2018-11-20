@@ -19,7 +19,7 @@
 #endif
 
 /*
- * bucket, consisting of space for "owner" and "content".
+ * The "owner" part of a hash bucket
  */
 
 namespace impl

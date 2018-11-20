@@ -30,6 +30,18 @@
 #include "hop_hash_debug.h"
 #endif
 
+#if TRACE_TABLE
+template <
+	typename Key
+	, typename T
+	, typename Hash
+	, typename Pred
+	, typename Allocator
+	, typename SharedMutex
+>
+	class table;
+#endif
+
 namespace impl
 {
 	class no_near_empty_bucket
@@ -181,22 +193,7 @@ namespace impl
 
 	template <typename Table>
 		class table_iterator_impl;
-}
 
-#if TRACE_TABLE
-template <
-	typename Key
-	, typename T
-	, typename Hash
-	, typename Pred
-	, typename Allocator
-	, typename SharedMutex
->
-	class table;
-#endif
-
-namespace impl
-{
 	template <
 		typename Key
 		, typename T
@@ -230,7 +227,7 @@ namespace impl
 		private:
 			using bix_t = size_type; /* sufficient for all bucket indexes */
 			using hash_result_t = typename hasher::result_type;
-			using bucket_t = bucket<value_type>;
+			using bucket_t = hash_bucket<value_type>;
 			using content_t = content<value_type>;
 			using bucket_mutexes_t = bucket_mutexes<SharedMutex>;
 			using bucket_control_t = bucket_control<bucket_t, SharedMutex>;
@@ -313,6 +310,9 @@ namespace impl
 			{
 				return base_segment_size << (segment_count()-1U);
 			}
+
+			auto bucket(const key_type &) const -> size_type;
+			auto bucket_size(const size_type n) const -> size_type;
 
 			auto max_bucket_count() const -> size_type
 			{
@@ -705,7 +705,6 @@ template <typename Table>
 		return !(a==b);
 	}
 
-#include "bucket.tcc"
 #if TRACK_OWNER
 #include "owner.tcc"
 #endif
