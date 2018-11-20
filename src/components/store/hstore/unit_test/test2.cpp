@@ -96,7 +96,7 @@ TEST_F(KVStore_test, RemoveOldPool)
         _kvstore->delete_pool(pool);
       }
     }
-    catch ( General_exception & )
+    catch ( Exception & )
     {
     }
   }
