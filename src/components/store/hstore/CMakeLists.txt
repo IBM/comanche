@@ -8,7 +8,6 @@ add_subdirectory(./unit_test)
 
 enable_language(CXX)
 set(SOURCES src/hstore.cpp src/hop_hash.cpp src/perishable.cpp src/palloc.cpp src/segment_and_bucket.cpp)
-# file(GLOB ALL_SOURCES src/*.[h|tcc|cpp] unit_test/*.[h|tcc|cpp] )
 
 #add_custom_target(format-hstore
 #  COMMAND /usr/bin/clang-format
@@ -35,12 +34,9 @@ endif()
 add_library(${PROJECT_NAME} SHARED ${SOURCES})
 
 set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--no-undefined")
+
 target_link_libraries(${PROJECT_NAME} common comanche-core pthread numa dl rt boost_system boost_filesystem tbb pmem pmemobj pmempool cityhash)
 
-#set_target_properties(${PROJECT_NAME} PROPERTIES
-#  INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib;${PMDK_PREFIX}/src/nondebug")
-
-#set_target_properties(${PROJECT_NAME} PROPERTIES INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib LINKER_LANGUAGE CXX)
 set_target_properties(${PROJECT_NAME} PROPERTIES INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib)
 
 install(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION lib)
