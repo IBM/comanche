@@ -141,7 +141,7 @@ template <typename Allocator>
 	}
 
 template <typename Allocator>
-	auto impl::persist_controller<Allocator>::resize_prolog() -> bucket_aligned<bucket<value_type>> * /* bucket_aligned_t */
+	auto impl::persist_controller<Allocator>::resize_prolog() -> bucket_aligned<hash_bucket<value_type>> * /* bucket_aligned_t */
 	{
 		_persist->_segment_count._target = _persist->_segment_count._actual + 1U;
 		persist_segment_count();

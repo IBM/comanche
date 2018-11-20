@@ -30,7 +30,7 @@ namespace impl
 			static constexpr unsigned log2_base_segment_size =
 				persist_data_t::log2_base_segment_size;
 			static constexpr bix_t base_segment_size = persist_data_t::base_segment_size;
-			using bucket_aligned_t = bucket_aligned<bucket<value_type>>;
+			using bucket_aligned_t = bucket_aligned<hash_bucket<value_type>>;
 			using content_t = content<value_type>;
 		private:
 			using bucket_allocator_t = typename persist_data_t::bucket_allocator_t;

@@ -1,8 +1,8 @@
 #ifndef _DAWN_PERSIST_MAP_H
 #define _DAWN_PERSIST_MAP_H
 
-#include "bucket.h"
 #include "bucket_aligned.h"
+#include "hash_bucket.h"
 #include "persist_fixed_string.h"
 #include "persistent.h"
 #include "persist_atomic.h"
@@ -23,7 +23,7 @@ namespace impl
 		class persist_map
 		{
 			using value_type = typename Allocator::value_type;
-			using bucket_aligned_t = bucket_aligned<bucket<value_type>>;
+			using bucket_aligned_t = bucket_aligned<hash_bucket<value_type>>;
 			using bucket_allocator_t =
 				typename Allocator::template rebind<bucket_aligned_t>::other;
 			using bucket_ptr = typename bucket_allocator_t::pointer;

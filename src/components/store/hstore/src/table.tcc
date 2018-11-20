@@ -345,9 +345,8 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 #endif
 		RETRY:
 			auto v = value_type(std::forward<Args>(args)...);
-			const auto h = _hasher.hf(v.first);
 			/* The bucket in which to place the new entry */
-			auto sbw = make_segment_and_bucket(bucket_ix(h));
+			auto sbw = make_segment_and_bucket(bucket(v.first));
 			auto owner_lk = make_owner_unique_lock(sbw);
 
 			/* If the key already exists, refuse to emplace */
@@ -433,10 +432,9 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 #if TRACE_MANY
 		std::cerr << __func__ << " BEGIN LIST\n" << make_table_dump(*this) << __func__ << " END LIST\n";
 #endif
-		const auto h = _hasher.hf(v_.first);
-		/* The bucket in which to place the new entry */
 	RETRY:
-		auto sbw = make_segment_and_bucket(bucket_ix(h));
+		/* The bucket in which to place the new entry */
+		auto sbw = make_segment_and_bucket(bucket(v_.first));
 		auto owner_lk = make_owner_unique_lock(sbw);
 
 		/* If the key already exists, refuse to insert */
@@ -563,8 +561,7 @@ template <
 			if ( ! is_free(senior_content_lk.sb()) )
 			{
 				/* examine hash(key) to determine whether to copy content */
-				auto hash = _hasher.hf(senior_content_lk.ref().key());
-				auto ix_owner = bucket_expanded_ix(hash);
+				auto ix_owner = bucket_expanded_ix(_hasher.hf(senior_content_lk.ref().key()));
 				/* [ix_owner, ix_owner + owner::size) is permissible range for content */
 				if ( ix_owner <= ix_senior && ix_senior < ix_owner + owner::size )
 				{
@@ -830,7 +827,7 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 template <typename Key, typename T, typename Hash, typename Pred, typename Allocator, typename SharedMutex>
 	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::make_owner_shared_lock(const key_type &k_) const -> owner_shared_lock_t
 	{
-		auto a = make_segment_and_bucket(bucket_ix(_hasher.hf(k_)));
+		auto a = make_segment_and_bucket(bucket(k_));
 		return owner_shared_lock_t(locate(a), a, locate_bucket_mutexes(a)._m_owner);
 	}
 
@@ -903,9 +900,8 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::erase(const key_type &k_) -> size_type
 	try
 	{
-		auto h = _hasher.hf(k_);
 		/* The bucket which owns the entry */
-		auto sbw = make_segment_and_bucket(bucket_ix(h));
+		auto sbw = make_segment_and_bucket(bucket(k_));
 		auto owner_lk = make_owner_unique_lock(sbw);
 		const auto erase_ix = locate_key(owner_lk, k_);
 		if ( std::get<0>(erase_ix) == nullptr )
@@ -988,6 +984,25 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 		}
 		/* element found at bf */
 		return bf->mapped();
+	}
+
+template <typename Key, typename T, typename Hash, typename Pred, typename Allocator, typename SharedMutex>
+	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::bucket(const key_type &k_) const -> size_type
+	{
+		return bucket_ix(_hasher.hf(k_));
+	}
+
+template <typename Key, typename T, typename Hash, typename Pred, typename Allocator, typename SharedMutex>
+	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::bucket_size(size_type n_) const -> size_type
+	{
+		auto a = make_segment_and_bucket(n_);
+		auto g = owner_shared_lock_t(locate(a), a, locate_bucket_mutexes(a)._m_owner);
+		size_type s = 0;
+		for ( auto v = g.ref().get_value(g); v; v >>= 1U )
+		{
+			s += ( v && 1u );
+		}
+		return s;
 	}
 
 template <typename Key, typename T, typename Hash, typename Pred, typename Allocator, typename SharedMutex>

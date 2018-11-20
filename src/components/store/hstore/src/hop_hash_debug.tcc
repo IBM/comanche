@@ -121,7 +121,7 @@ template <typename Value>
 	}
 
 /*
- * ===== bucket =====
+ * ===== hash_bucket =====
  */
 
 template <typename TableBase, typename LockOwner, typename LockContent>
