@@ -28,22 +28,6 @@ string(REGEX REPLACE "([^;]+)" "-I\\1" istring "${incdirs}")
 
 include_directories(${CMAKE_INSTALL_PREFIX}/include)
 link_directories(${CMAKE_INSTALL_PREFIX}/lib)
-include_directories(${CONF_COMANCHE_HOME}/src/lib/pmdk/src/include/)
-include_directories(${TBB_INCLUDE_DIRS})
-
-# DO NOT MODIFY
-
-find_library(LIB_PMEM
-  NAMES pmem
-  HINTS "${CONF_COMANCHE_HOME}/src/lib/pmdk/src/nondebug")
-
-find_library(LIB_PMEM_POOL
-  NAMES pmempool
-  HINTS "${CONF_COMANCHE_HOME}/src/lib/pmdk/src/nondebug")
-
-find_library(LIB_PMEM_OBJ
-  NAMES pmemobj
-  HINTS "${CONF_COMANCHE_HOME}/src/lib/pmdk/src/nondebug")
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
   add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
@@ -51,7 +35,7 @@ endif()
 add_library(${PROJECT_NAME} SHARED ${SOURCES})
 
 set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--no-undefined")
-target_link_libraries(${PROJECT_NAME} common comanche-core pthread numa dl rt boost_system boost_filesystem cityhash ${TBB_LIBRARIES} ${LIB_PMEM} ${LIB_PMEM_POOL} ${LIB_PMEM_OBJ})
+target_link_libraries(${PROJECT_NAME} common comanche-core pthread numa dl rt boost_system boost_filesystem tbb pmem pmemobj pmempool cityhash)
 
 #set_target_properties(${PROJECT_NAME} PROPERTIES
 #  INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib;${PMDK_PREFIX}/src/nondebug")
@@ -59,7 +43,5 @@ target_link_libraries(${PROJECT_NAME} common comanche-core pthread numa dl rt bo
 #set_target_properties(${PROJECT_NAME} PROPERTIES INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib LINKER_LANGUAGE CXX)
 set_target_properties(${PROJECT_NAME} PROPERTIES INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib)
 
-install(TARGETS ${PROJECT_NAME}
-    LIBRARY
-    DESTINATION lib)
+install(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION lib)
 
