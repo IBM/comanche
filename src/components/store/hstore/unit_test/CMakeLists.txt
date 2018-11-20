@@ -18,6 +18,7 @@ endif()
 
 include_directories(${CMAKE_INSTALL_PREFIX}/include)
 link_directories(${CMAKE_INSTALL_PREFIX}/lib)
+link_directories(${CMAKE_INSTALL_PREFIX}/lib64)
 
 add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 

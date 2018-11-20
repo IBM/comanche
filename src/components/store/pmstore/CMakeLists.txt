@@ -26,6 +26,7 @@ add_custom_target(tidy-pmstore
 
 include_directories(${CMAKE_INSTALL_PREFIX}/include)
 link_directories(${CMAKE_INSTALL_PREFIX}/lib)
+link_directories(${CMAKE_INSTALL_PREFIX}/lib64)
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
   add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -fdump-class-hierarchy -DCONFIG_DEBUG)
