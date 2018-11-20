@@ -61,9 +61,9 @@ script:
     cd /travis ;
     mkdir build;
     cd build;
-    cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX:PATH=`pwd`/dist .. -DTBB_CI_BUILD=ON -DCOMANCHE_LIMIT_MAKE_JOB=2 && \\
-    make bootstrap && \\
-    make && \\
+    cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX:PATH=`pwd`/dist .. -DTBB_CI_BUILD=ON -DCOMANCHE_LIMIT_MAKE_JOB=2 &&
+    make bootstrap &&
+    make &&
     make install"
 
 after_success:
