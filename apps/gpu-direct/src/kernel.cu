@@ -98,7 +98,7 @@ extern "C" void run_cuda(Component::IKVStore * store)
 	PINF("allocated GPU buffer address at %016llx pointer=%p\n", d_A,
 	       (void *) d_A);
 
-  cuMemsetD8(d_A, 0xB1, buffer_size);
+  cuMemsetD8(d_A, 0xBB, buffer_size);
   verify_memory<<<1,1>>>((char*)d_A);
 
   /* register memory with RDMA engine */
@@ -115,7 +115,7 @@ extern "C" void run_cuda(Component::IKVStore * store)
   constexpr unsigned ITERATIONS = 10;
   
   for(unsigned i=0;i<ITERATIONS;i++) {
-    rc = store->put_direct(pool, "key0", (void*)d_A, buffer_size, 0, handle);
+    rc = store->put_direct(pool, "key0", (void*)d_A, buffer_size, handle);
     assert(rc == S_OK);
   }
 
@@ -130,12 +130,15 @@ extern "C" void run_cuda(Component::IKVStore * store)
 
   /* reload memory from store */
   size_t rsize = buffer_size;
-
+  assert(rsize > 0);
+  
   start = std::chrono::high_resolution_clock::now();
 
   for(unsigned i=0;i<ITERATIONS;i++) {
-    rc = store->get_direct(pool, "key0", (void*)d_A, rsize, 0, handle);
-    assert(rc == S_OK);
+    rc = store->get_direct(pool, "key0", (void*)d_A, rsize, handle);
+    if(rc != S_OK) 
+      throw General_exception("get_direct: returned %d", rc);
+
     assert(rsize == buffer_size);
   }
   

@@ -273,7 +273,7 @@ struct Message_IO_request : public Message {
     memcpy(data, key, key_len); /* only copy key and set value length */
     data[key_len] = '\0';
     this->val_len = value_len;
-    this->key_len = key_len + 1;
+    this->key_len = key_len;
   }
 
   inline void set_key_and_value(const size_t buffer_size,
@@ -297,7 +297,7 @@ struct Message_IO_request : public Message {
     data[p_key_len] = '\0';
     memcpy(&data[p_key_len + 1], p_value, p_value_len);
     this->val_len = p_value_len;
-    this->key_len = p_key_len + 1;
+    this->key_len = p_key_len;
   }
 
   
