@@ -8,7 +8,6 @@ add_subdirectory(./unit_test)
 
 enable_language(CXX)
 set(SOURCES src/hstore.cpp src/hop_hash.cpp src/perishable.cpp src/palloc.cpp src/segment_and_bucket.cpp)
-# file(GLOB ALL_SOURCES src/*.[h|tcc|cpp] unit_test/*.[h|tcc|cpp] )
 
 #add_custom_target(format-hstore
 #  COMMAND /usr/bin/clang-format
@@ -28,22 +27,6 @@ string(REGEX REPLACE "([^;]+)" "-I\\1" istring "${incdirs}")
 
 include_directories(${CMAKE_INSTALL_PREFIX}/include)
 link_directories(${CMAKE_INSTALL_PREFIX}/lib)
-include_directories(${CONF_COMANCHE_HOME}/src/lib/pmdk/src/include/)
-include_directories(${TBB_INCLUDE_DIRS})
-
-# DO NOT MODIFY
-
-find_library(LIB_PMEM
-  NAMES pmem
-  HINTS "${CONF_COMANCHE_HOME}/src/lib/pmdk/src/nondebug")
-
-find_library(LIB_PMEM_POOL
-  NAMES pmempool
-  HINTS "${CONF_COMANCHE_HOME}/src/lib/pmdk/src/nondebug")
-
-find_library(LIB_PMEM_OBJ
-  NAMES pmemobj
-  HINTS "${CONF_COMANCHE_HOME}/src/lib/pmdk/src/nondebug")
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
   add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
@@ -51,12 +34,8 @@ endif()
 add_library(${PROJECT_NAME} SHARED ${SOURCES})
 
 set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--no-undefined")
-target_link_libraries(${PROJECT_NAME} common comanche-core pthread numa dl rt boost_system boost_filesystem cityhash ${TBB_LIBRARIES} ${LIB_PMEM} ${LIB_PMEM_POOL} ${LIB_PMEM_OBJ})
+target_link_libraries(${PROJECT_NAME} common comanche-core pthread numa dl rt boost_system boost_filesystem cityhash ${TBB_LIBRARIES} pmem pmemobj pmempool)
 
-#set_target_properties(${PROJECT_NAME} PROPERTIES
-#  INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib;${PMDK_PREFIX}/src/nondebug")
-
-#set_target_properties(${PROJECT_NAME} PROPERTIES INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib LINKER_LANGUAGE CXX)
 set_target_properties(${PROJECT_NAME} PROPERTIES INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib)
 
 install(TARGETS ${PROJECT_NAME}
