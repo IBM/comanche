@@ -318,9 +318,12 @@ status_t Connection_handler::get(const pool_t pool,
   status_t status = msg->status;
 
   /* copy result */
-  value.reserve(response_msg->data_len + 1);
-  value.insert(0, response_msg->data, response_msg->data_len);
-  free_buffer(iob);
+  if(status == S_OK) {
+    value.reserve(response_msg->data_len + 1);
+    value.insert(0, response_msg->data, response_msg->data_len);
+    free_buffer(iob);
+    assert(response_msg->data);
+  }
   
   return status;
 }

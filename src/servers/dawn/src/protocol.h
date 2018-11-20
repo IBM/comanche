@@ -250,7 +250,7 @@ struct Message_IO_request : public Message {
   }
 
   const char * key() const { return &data[0]; }
-  const char * value() const { return &data[key_len]; }
+  const char * value() const { return &data[key_len+1]; }
 
   const size_t get_key_len() const { return key_len; }
   const size_t get_value_len() const { return val_len; }

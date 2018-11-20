@@ -173,12 +173,17 @@ IKVStore::key_t Pool_handle::lock(const std::string& key,
     RWLock_guard guard(map_lock, RWLock_guard::WRITE);
 
     auto i = map.find(key);
+    //    PLOG("looking for key:(%s)%lu", key.c_str(),key.length());
     
     if(i == map.end()) {
 
-      if(out_value_len == 0)
-        throw General_exception("mapstore: tried to lock pool with object existing or providing object size to create");
-      
+      if(out_value_len == 0) {
+        for(auto& i : map) {
+           PLOG("key:(%s)%lu", i.first.c_str(), i.first.length());
+         }
+        throw General_exception("mapstore: tried to lock object that was not found and object size to create not given (key=%s)", key.c_str());
+      }
+
       buffer = scalable_aligned_malloc(out_value_len, OBJECT_ALIGNMENT);
 
       if(buffer == nullptr)
@@ -204,8 +209,8 @@ IKVStore::key_t Pool_handle::lock(const std::string& key,
   }
 
   out_value = buffer;
-      
-  return (IKVStore::key_t) nullptr; /* locking is not per key-value pair */ 
+
+  return (IKVStore::key_t) buffer; 
 }
 
 void Pool_handle::unlock()
@@ -393,8 +398,7 @@ Map_store::lock(const pool_t pid,
   if(option_DEBUG)
     PLOG("map_store: lock(%s,%p,%lu)", key.c_str(), out_value, out_value_len);
 
-  session->pool->lock(key, type, out_value, out_value_len);
-  return nullptr; /*not needed */
+  return session->pool->lock(key, type, out_value, out_value_len);
 }
 
 status_t Map_store::unlock(const pool_t pid,
