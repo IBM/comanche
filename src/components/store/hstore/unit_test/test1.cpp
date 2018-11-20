@@ -17,12 +17,13 @@ namespace {
 // The fixture for testing class Foo.
 class KVStore_test : public ::testing::Test {
 
-  static constexpr unsigned estimated_object_count_large = 5000;
-  static constexpr unsigned many_count_target_large = 20000;
+  static constexpr std::size_t estimated_object_count_large = 64000000;
   /* More testing of table splits, at a performance cost */
-  static constexpr unsigned estimated_object_count_small = 1;
+  static constexpr std::size_t estimated_object_count_small = 1;
+
+  static constexpr std::size_t many_count_target_large = 2000000;
   /* Shorter test: use when PMEM_IS_PMEM_FORCE=0 */
-  static constexpr unsigned many_count_target_small = 400;
+  static constexpr std::size_t many_count_target_small = 400;
 
  protected:
 
@@ -40,11 +41,12 @@ class KVStore_test : public ::testing::Test {
   }
 
   // Objects declared here can be used by all tests in the test case
-  static bool pmem_force;
+  static bool pmem_simulated;
+  static bool pmem_effective;
   static Component::IKVStore * _kvstore;
   static Component::IKVStore::pool_t pool;
 
-  static const unsigned estimated_object_count;
+  static const std::size_t estimated_object_count;
 
   static std::string single_key;
   static std::string single_value;
@@ -55,23 +57,24 @@ class KVStore_test : public ::testing::Test {
   static constexpr unsigned many_value_length = 16;
   using kv_t = std::tuple<std::string, std::string>;
   static std::vector<kv_t> kvv;
-  static const unsigned many_count_target;
-  static unsigned many_count_actual;
+  static const std::size_t many_count_target;
+  static std::size_t many_count_actual;
 
   /* NOTE: ingoring the remote possibility of a random number collision in the first lock_count entries */
-  static const unsigned lock_count;
+  static const std::size_t lock_count;
 };
 
-constexpr unsigned KVStore_test::estimated_object_count_small;
-constexpr unsigned KVStore_test::estimated_object_count_large;
-constexpr unsigned KVStore_test::many_count_target_small;
-constexpr unsigned KVStore_test::many_count_target_large;
+constexpr std::size_t KVStore_test::estimated_object_count_small;
+constexpr std::size_t KVStore_test::estimated_object_count_large;
+constexpr std::size_t KVStore_test::many_count_target_small;
+constexpr std::size_t KVStore_test::many_count_target_large;
 
-bool KVStore_test::pmem_force = getenv("PMEM_IS_PMEM_FORCE") && getenv("PMEM_IS_PMEM_FORCE") == std::string("1");
+bool KVStore_test::pmem_simulated = getenv("PMEM_IS_PMEM_FORCE") && getenv("PMEM_IS_PMEM_FORCE") == std::string("1");
+bool KVStore_test::pmem_effective = ! getenv("PMEM_IS_PMEM_FORCE") || getenv("PMEM_IS_PMEM_FORCE") == std::string("0");
 Component::IKVStore * KVStore_test::_kvstore;
 Component::IKVStore::pool_t KVStore_test::pool;
 
-const unsigned KVStore_test::estimated_object_count = KVStore_test::pmem_force ? estimated_object_count_large : estimated_object_count_small;
+const std::size_t KVStore_test::estimated_object_count = KVStore_test::pmem_simulated ? estimated_object_count_small : estimated_object_count_large;
 
 std::string KVStore_test::single_key = "MySingleKeyLongEnoughToFoceAllocation";
 std::string KVStore_test::single_value         = "Hello world!";
@@ -80,11 +83,11 @@ std::size_t KVStore_test::single_count = 1U;
 
 constexpr unsigned KVStore_test::many_key_length;
 constexpr unsigned KVStore_test::many_value_length;
-const unsigned KVStore_test::many_count_target = KVStore_test::pmem_force ? many_count_target_large : many_count_target_small;
-unsigned KVStore_test::many_count_actual = 0;
+const std::size_t KVStore_test::many_count_target = KVStore_test::pmem_simulated ? many_count_target_small : many_count_target_large;
+std::size_t KVStore_test::many_count_actual = 0;
 std::vector<KVStore_test::kv_t> KVStore_test::kvv;
 
-const unsigned KVStore_test::lock_count = 60;
+const std::size_t KVStore_test::lock_count = 60;
 
 #define PMEM_PATH "/mnt/pmem0/pool/0/"
 //#define PMEM_PATH "/dev/pmem0"
@@ -229,7 +232,7 @@ TEST_F(KVStore_test, Size1)
 
 TEST_F(KVStore_test, ClosePool)
 {
-  if ( ! pmem_force )
+  if ( pmem_effective )
   {
     _kvstore->close_pool(pool);
   }
@@ -238,7 +241,7 @@ TEST_F(KVStore_test, ClosePool)
 TEST_F(KVStore_test, OpenPool)
 {
   ASSERT_TRUE(_kvstore);
-  if ( ! pmem_force )
+  if ( pmem_effective )
   {
     pool = _kvstore->open_pool(PMEM_PATH, "test-hstore.pool", MB(128));
   }

@@ -67,12 +67,13 @@ namespace {
 class KVStore_test
   : public ::testing::Test
 {
-  static constexpr std::size_t large_estimated_object_count = 64000000;
-  static constexpr std::size_t large_many_count_target = 2000000;
+  static constexpr std::size_t estimated_object_count_large = 64000000;
   /* More testing of table splits, at a performance cost */
-  static constexpr std::size_t small_estimated_object_count = 1;
+  static constexpr std::size_t estimated_object_count_small = 1;
+
+  static constexpr std::size_t many_count_target_large = 2000000;
   /* Shorter test: use when PMEM_IS_PMEM_FORCE=0 */
-  static constexpr std::size_t small_many_count_target = 400;
+  static constexpr std::size_t many_count_target_small = 400;
 
  protected:
 
@@ -89,7 +90,7 @@ class KVStore_test
     // before the destructor).
   }
 
-  static bool pmem_force;
+  static bool pmem_simulated;
   static Component::IKVStore * _kvstore;
   static Component::IKVStore::pool_t pool;
 
@@ -119,12 +120,12 @@ class KVStore_test
   static void get_many(const kvv_t &kvv, const std::string &descr);
 };
 
-constexpr std::size_t KVStore_test::large_estimated_object_count;
-constexpr std::size_t KVStore_test::large_many_count_target;
-constexpr std::size_t KVStore_test::small_estimated_object_count;
-constexpr std::size_t KVStore_test::small_many_count_target;
+constexpr std::size_t KVStore_test::estimated_object_count_large;
+constexpr std::size_t KVStore_test::estimated_object_count_small;
+constexpr std::size_t KVStore_test::many_count_target_large;
+constexpr std::size_t KVStore_test::many_count_target_small;
 
-bool KVStore_test::pmem_force = getenv("PMEM_IS_PMEM_FORCE") && getenv("PMEM_IS_PMEM_FORCE") == std::string("1");
+bool KVStore_test::pmem_simulated = getenv("PMEM_IS_PMEM_FORCE") && getenv("PMEM_IS_PMEM_FORCE") == std::string("0");
 Component::IKVStore *KVStore_test::_kvstore;
 Component::IKVStore::pool_t KVStore_test::pool;
 
@@ -137,8 +138,8 @@ KVStore_test::kvv_t KVStore_test::kvv_short_long;
 KVStore_test::kvv_t KVStore_test::kvv_long_long;
 
 std::size_t KVStore_test::multi_count_actual = 0;
-std::size_t KVStore_test::estimated_object_count = KVStore_test::pmem_force ? large_estimated_object_count : small_estimated_object_count;
-std::size_t KVStore_test::many_count_target = KVStore_test::pmem_force ? large_many_count_target : small_many_count_target;
+std::size_t KVStore_test::estimated_object_count = KVStore_test::pmem_simulated ? estimated_object_count_small : estimated_object_count_large;
+std::size_t KVStore_test::many_count_target = KVStore_test::pmem_simulated ? many_count_target_small : many_count_target_large;
 
 #define PMEM_PATH "/mnt/pmem0/pool/0/"
 //#define PMEM_PATH "/dev/pmem0"
