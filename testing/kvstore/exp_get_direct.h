@@ -42,7 +42,7 @@ public:
         _start_time.resize(_pool_num_components);
         _latencies.resize(_pool_num_components);
 
-        if (_component.compare("dawn_client") == 0)
+        if (_component.compare("dawn") == 0)
         {
            size_t data_size = sizeof(KV_pair) * _data->_num_elements;
            Data * data = (Data*)aligned_alloc(_pool_size, data_size);
@@ -98,7 +98,7 @@ public:
 
             pval = mem_alloc.virt_addr(handle);
         }
-        else if (_component.compare("dawn_client") == 0)
+        else if (_component.compare("dawn") == 0)
         {
             memory_handle = _direct_memory_handle;
         }
@@ -154,7 +154,7 @@ public:
 
     void cleanup_custom(unsigned core)  
     {
-        if (_component.compare("dawn_client") == 0)
+        if (_component.compare("dawn") == 0)
         {
             _store->unregister_direct_memory(_direct_memory_handle);
         }

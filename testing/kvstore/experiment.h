@@ -129,7 +129,7 @@ public:
 
   bool component_uses_direct_memory()
   {
-    return _component.compare("dawn_client") == 0;
+    return _component.compare("dawn") == 0;
   }
 
   void handle_program_options()
