@@ -7,8 +7,8 @@
 #include "persist_fixed_string.h"
 #include "pobj_allocator.h"
 
+#include <city.h>
 #include <common/exceptions.h>
-#include <common/city.h>
 #include <common/logging.h>
 #include <common/utils.h>
 
