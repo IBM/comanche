@@ -52,9 +52,7 @@ endif()
 # run 'make bootstrap' to  make comanche deps and core
 # then run 'make' to build components/tests
 add_custom_target(bootstrap
-  ${CMAKE_COMMAND} -DBOOTSTRAP_DEPS=on ${CMAKE_SOURCE_DIR}
-  COMMAND make all install
-  COMMAND ${CMAKE_COMMAND} -DBOOTSTRAP_DEPS=off ${CMAKE_SOURCE_DIR}
+  bash ${CMAKE_SOURCE_DIR}/mk/bootstrap.sh ${CMAKE_SOURCE_DIR}
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   )
 
