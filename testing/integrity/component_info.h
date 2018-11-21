@@ -87,10 +87,10 @@ public:
                     pool_path = "/mnt/pmem0";
                     pci_address = "09:00.0";  // IMPORTANT: this is what will show up as the first part of command "$ lspci | grep Non"
                 }
-                else if (component_name.compare("dawn_client") == 0)
+                else if (component_name.compare("dawn") == 0)
                 {
-                    DECLARE_STATIC_COMPONENT_UUID(dawn_client_factory, 0xfac66078,0xcb8a,0x4724,0xa454,0xd1,0xd8,0x8d,0xe2,0xdb,0x87);  // TODO: find a better way to register arbitrary components to promote modular use
-                    component_uuid = dawn_client_factory;
+                    DECLARE_STATIC_COMPONENT_UUID(dawn_factory, 0xfac66078,0xcb8a,0x4724,0xa454,0xd1,0xd8,0x8d,0xe2,0xdb,0x87);  // TODO: find a better way to register arbitrary components to promote modular use
+                    component_uuid = dawn_factory;
                     component_object = "libcomanche-dawn-client.so";
                     pool_path = "/mnt/pmem0";
                     uses_direct_memory = true;
@@ -145,7 +145,7 @@ public:
         {
             store = factory->create(owner, owner_param, pci_address);
         } 
-        else if (component_name.compare("dawn_client") == 0)
+        else if (component_name.compare("dawn") == 0)
         {
             store = factory->create(debug_level, owner, server_address, device_name);
         }
