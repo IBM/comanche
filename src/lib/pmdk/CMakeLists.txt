@@ -4,7 +4,8 @@ cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 include(${CMAKE_ROOT}/Modules/ExternalProject.cmake)
 
 # build dpdk
-ExternalProject_Add(pmdk  
+ExternalProject_Add(pmdk
+  DEPENDS libfabric
   BUILD_IN_SOURCE 1
   SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}
   DOWNLOAD_DIR ${CMAKE_CURRENT_SOURCE_DIR}
