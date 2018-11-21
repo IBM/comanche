@@ -2,6 +2,7 @@
 #define __STATISTICS_H__
 
 #include <cmath>
+#include <common/logging.h>
 #include <iostream>
 #include <limits>
 #include <vector>
