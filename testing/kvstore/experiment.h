@@ -67,11 +67,19 @@ public:
       }
     catch(...)
       {
-        std::cout << "open existing pool failed" << std::endl;
+        std::cerr << "open existing pool failed" << std::endl;
       }
 
     PLOG("Creating pool for worker %u ...", core);
-    _pool = _store->create_pool(_pool_path, poolname, _pool_size, _pool_flags, _pool_num_components);
+    try
+    {
+      _pool = _store->create_pool(_pool_path, poolname, _pool_size, _pool_flags, _pool_num_components);
+    }
+    catch(...)
+    {
+      PERR("create_pool failed! Aborting experiment.");
+      throw std::exception();
+    }
       
     PLOG("Created pool for worker %u...OK!", core);
 
@@ -86,7 +94,15 @@ public:
         _data->initialize_data(false);
       }
 
-    initialize_custom(core);
+    try
+    {
+      initialize_custom(core);
+    }
+    catch(...)
+    {
+      PERR("initialize_custom failed! Aborting experiment.");
+      throw std::exception();
+    }
 
     ProfilerRegisterThread();
     _ready = true;
@@ -117,14 +133,38 @@ public:
 
   void cleanup(unsigned core) override 
   {
-    cleanup_custom(core);
+    try
+    {
+      cleanup_custom(core);
+    }
+    catch(...)
+    {
+      PERR("cleanup_custom failed!");
+      throw std::exception();
+    }
 
-    if (component_uses_direct_memory())
+    try
+    {
+      if (component_uses_direct_memory())
       {
         _store->unregister_direct_memory(_memory_handle);
       }
+    }
+    catch(...)
+    {
+      PERR("unregister_direct_memory failed!");
+      throw std::exception();
+    }
 
-    _store->delete_pool(_pool);
+    try
+    {
+      _store->delete_pool(_pool);
+    }
+    catch(...)
+    {
+      PERR("delete_pool failed! Ending experiment.");
+      throw std::exception();
+    }
   }
 
   bool component_uses_direct_memory()
@@ -507,95 +547,113 @@ public:
   void _populate_pool_to_capacity(unsigned core, Component::IKVStore::memory_handle_t memory_handle = Component::IKVStore::HANDLE_NONE)
   {
     // how much space do we have?
+    if (_verbose)
+    {
+      std::cout << "_populate_pool_to_capacity start: _pool_num_components = " << _pool_num_components << ", _elements_stored = " << _elements_stored << ", _pool_element_end = " << _pool_element_end << std::endl;
+    }
+
     unsigned long elements_remaining = _pool_num_components - _elements_stored;
     bool can_add_more_elements;
     int rc;
-    unsigned long current = _pool_element_end;  // first run: should be 0 (start index)
-    unsigned long maximum_elements = -1;
+    unsigned long current = _pool_element_end + 1;  // first run: should be 0 (start index)
+    long maximum_elements = -1;
     _pool_element_start = current;
       
     if (_verbose)
-      { 
-        std::stringstream debug_start;
-        debug_start << "current = " << current << ", end = " << _pool_element_end;
-        _debug_print(core, debug_start.str());
-      }
+    { 
+      std::stringstream debug_start;
+      debug_start << "current = " << current << ", end = " << _pool_element_end;
+      _debug_print(core, debug_start.str());
+    }
 
     do
+    {
+      try
       {
         if (memory_handle != Component::IKVStore::HANDLE_NONE)
-          {
-            rc = _store->put_direct(_pool, _data->key(current), _data->value(current), _data->_val_len, memory_handle);
-          }
+        {
+          rc = _store->put_direct(_pool, _data->key(current), _data->value(current), _data->_val_len, memory_handle);
+        }
         else
+        {
+          rc = _store->put(_pool, _data->key(current), _data->value(current), _data->value_len());
+        }
+
+        _elements_stored++;
+      }
+      catch(...)
+      {
+        PERR("_populate_pool_to_capacity failed at put call");
+        throw std::exception();
+      }
+
+      if (rc != S_OK)
+      {
+        std::cerr << "current = " << current << std::endl;
+        perror("rc didn't return S_OK");
+        throw std::exception(); 
+      }
+
+      // calculate maximum number of elements we can put in pool at one time
+      if (_element_size == -1)
+      {
+        _element_size = GetElementSize(core, current);
+
+        if (_verbose)
           {
-            rc = _store->put(_pool, _data->key(current), _data->value(current), _data->value_len());
-          }
-
-        if (rc != S_OK)
-          {
-            perror("rc didn't return S_OK");
-            throw std::exception(); 
-          }
-
-        // calculate maximum number of elements we can put in pool at one time
-        if (_element_size == -1)
-          {
-            _element_size = GetElementSize(core, current);
-
-            if (_verbose)
-              {
-                std::stringstream debug_element_size;
-                debug_element_size << "element size is " << _element_size;
-                _debug_print(core, debug_element_size.str());
-              }
-          }
-
-        if (maximum_elements == -1)
-          {
-            maximum_elements = (unsigned long)(_pool_size / _element_size);
-
-            if (_verbose)
-              {
-                std::stringstream debug_element_max;
-                debug_element_max << "maximum element count: " << maximum_elements;
-                _debug_print(core, debug_element_max.str());
-              }
-          }
-
-        current++;
-
-        bool can_add_more_in_batch = (current - _pool_element_start) <= maximum_elements;
-        bool can_add_more_overall = current <= (_pool_num_components - 1);
-
-        can_add_more_elements = can_add_more_in_batch && can_add_more_overall;
-
-        if (!can_add_more_elements)
-          {
-            if (!can_add_more_in_batch)
-              {
-                _debug_print(core, "reached capacity", true);
-              }
-
-            if (!can_add_more_overall)
-              {
-                _debug_print(core, "reached last element", true);
-              }
+            std::stringstream debug_element_size;
+            debug_element_size << "element size is " << _element_size;
+            _debug_print(core, debug_element_size.str());
           }
       }
+
+      if (maximum_elements == -1)
+      {
+        maximum_elements = (long)(_pool_size / _element_size);
+
+        if (_verbose)
+        {
+          std::stringstream debug_element_max;
+          debug_element_max << "maximum element count: " << maximum_elements;
+          _debug_print(core, debug_element_max.str());
+        }
+      }
+
+      current++;
+
+      bool can_add_more_in_batch = (current - _pool_element_start) != maximum_elements;
+      bool can_add_more_overall = current != _pool_num_components;
+
+      can_add_more_elements = can_add_more_in_batch && can_add_more_overall;
+
+      if (!can_add_more_elements)
+      {
+        if (!can_add_more_in_batch)
+          {
+            _debug_print(core, "reached capacity", true);
+          }
+
+        if (!can_add_more_overall)
+          {
+            _debug_print(core, "reached last element", true);
+          }
+      }
+    }
     while(can_add_more_elements);
 
-    if (_verbose)
-      {
-        std::stringstream range_info;
-        range_info << "current = " << current << ", end = " << _pool_element_end;
-        _debug_print(core, range_info.str(), true);
+    _pool_element_end = current - 1;
 
-        range_info = std::stringstream();
-        range_info << "elements added to pool: " << current - _pool_element_end << ". Last = " << current;
-        _debug_print(core, range_info.str(), true);
-      }
-    _pool_element_end = current;
+    if (_verbose)
+    {
+      std::cout << "_pool_element_end = " << _pool_element_end << std::endl;
+      std::stringstream range_info;
+      range_info << "current = " << current << ", end = " << _pool_element_end;
+      _debug_print(core, range_info.str(), true);
+
+      range_info = std::stringstream();
+      range_info << "elements added to pool: " << current - _pool_element_start << ". Last = " << current;
+      _debug_print(core, range_info.str(), true);
+    }
   }
 
   // assumptions: _i is tracking current element in use
@@ -607,57 +665,72 @@ public:
 
     // erase elements that exceed pool capacity and start again
     if ((_elements_in_use * _element_size) >= _pool_size)
+    {
+      bool timer_running_at_start = timer.is_running();  // if timer was running, pause it
+
+      if (timer_running_at_start)
+        {
+          timer.stop();
+        }
+
+      if(_verbose)
       {
-        bool timer_running_at_start = timer.is_running();  // if timer was running, pause it
+        std::stringstream debug_message;
+        debug_message << "exceeded acceptable pool size. Erasing " << _elements_in_use << " elements...";
 
-        if (timer_running_at_start)
-          {
-            timer.stop();
-          }
-
-        if(_verbose)
-          {
-            std::stringstream debug_message;
-            debug_message << "exceeded acceptable pool size. Erasing " << _elements_in_use << " elements...";
-
-            _debug_print(core, debug_message.str(), true);
-          }
-
-        for (int i = _i - 1; i > (_i - _elements_in_use); i--)
-          {
-            int rc =_store->erase(_pool, _data->key(i));
-            if (rc != S_OK && core == 0)
-              {
-                // throw exception
-                std::string error_string = "erase returned !S_OK: ";
-                error_string.append(std::to_string(rc));
-                error_string.append(", i = " + std::to_string(i) + ", _i = " + std::to_string(_i));
-                perror(error_string.c_str());
-              }                 
-          }
-
-        _elements_in_use = 0;   
-
-        if (_verbose)
-          {
-            std::stringstream debug_end;
-            debug_end << "done. _i = " << _i;
-
-            _debug_print(core, debug_end.str(), true);
-          }
-
-        if (timer_running_at_start)
-          {
-            timer.start();
-          }
+        _debug_print(core, debug_message.str(), true);
       }
+
+      try
+      {
+        for (int i = _i - 1; i > (_i - _elements_in_use); i--)
+        {
+          int rc =_store->erase(_pool, _data->key(i));
+          if (rc != S_OK && core == 0)
+            {
+              // throw exception
+              std::string error_string = "erase returned !S_OK: ";
+              error_string.append(std::to_string(rc));
+              error_string.append(", i = " + std::to_string(i) + ", _i = " + std::to_string(_i));
+              perror(error_string.c_str());
+            }                 
+        }
+      }
+      catch(...)
+      {
+        PERR("failed during erase step");
+        throw std::exception();
+      }
+
+      _elements_in_use = 0;
+
+      if (_verbose)
+      {
+        std::stringstream debug_end;
+        debug_end << "done. _i = " << _i;
+
+        _debug_print(core, debug_end.str(), true);
+      }
+
+      if (timer_running_at_start)
+      {
+        timer.start();
+      }
+    }
   }
 
   void _erase_pool_entries_in_range(int start, int finish)
   {
+    if (_verbose)
+    {
+      std::cout << "erasing pool entries in range " << start << " to " << finish << std::endl;
+    }
+
     int rc;
 
-    for (int i = start; i < finish; i++)
+    try
+    {
+      for (int i = start; i < finish; i++)
       {
         rc = _store->erase(_pool, _data->key(i));
 
@@ -666,6 +739,12 @@ public:
             throw std::exception();
           }
       }
+    }
+    catch(...)
+    {
+      PERR("erase step failed");
+      throw std::exception();
+    }
   }
 
   size_t                                _i = 0;
@@ -681,14 +760,16 @@ public:
   unsigned long _element_size = -1;
   unsigned long _elements_in_use = 0;
   unsigned long _pool_element_start = 0;
-  unsigned long _pool_element_end = 0;
+  unsigned long _pool_element_end = -1;
   unsigned long _elements_stored = 0;
 
   // bin statistics
   unsigned int _bin_count = 100;
-  double _bin_threshold_min = (1. * std::pow(10, -9));
-  double _bin_threshold_max = (1. * std::pow(10, -3));
+  double _bin_threshold_min = 0.000000001;
+  double _bin_threshold_max = 0.001;
   double _bin_increment;
+
+
 };
 
 

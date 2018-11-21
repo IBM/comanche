@@ -37,11 +37,9 @@ public:
 
     void initialize_custom(unsigned core)
     {
-        _cycles_per_second = Core::get_rdtsc_frequency_mhz() * 1000000;
-        _start_time.resize(_pool_num_components);
-        _latencies.resize(_pool_num_components);
-
         _latency_stats.init(_bin_count, _bin_threshold_min, _bin_threshold_max);
+        
+        _cycles_per_second = Core::get_rdtsc_frequency_mhz() * 1000000;
 
         _debug_print(core, "initialize_custom done");
     }
@@ -83,8 +81,8 @@ public:
         double time_since_start = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - _exp_start_time).count() / 1000.0;
 
         // store the information for later use
-        _start_time.at(_i) = time_since_start;
-        _latencies.at(_i) = time;
+        _start_time.push_back(time_since_start);
+        _latencies.push_back(time);
 
         _latency_stats.update(time);
        

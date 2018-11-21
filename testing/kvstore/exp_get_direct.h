@@ -38,9 +38,9 @@ public:
 
     void initialize_custom(unsigned core)
     {
+        _latency_stats.init(_bin_count, _bin_threshold_min, _bin_threshold_max);
+
         _cycles_per_second = Core::get_rdtsc_frequency_mhz() * 1000000;
-        _start_time.resize(_pool_num_components);
-        _latencies.resize(_pool_num_components);
 
         if (_component.compare("dawn") == 0)
         {
@@ -54,8 +54,6 @@ public:
         _populate_pool_to_capacity(core, _direct_memory_handle);
 
         PLOG("pool seeded with values\n");
-
-        _latency_stats.init(_bin_count, _bin_threshold_min, _bin_threshold_max);
     }
 
     void do_work(unsigned core) override 
@@ -126,8 +124,8 @@ public:
         }
 
         // store the information for later use
-        _latencies.at(_i) = time;
-        _start_time.at(_i) = time_since_start; 
+        _latencies.push_back(time);
+        _start_time.push_back(time_since_start);
         _latency_stats.update(time);
         
         if (rc != S_OK)
