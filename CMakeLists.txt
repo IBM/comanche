@@ -66,6 +66,8 @@ if(BOOTSTRAP_DEPS)
 
 else(BOOTSTRAP_DEPS)
 
+  link_directories(${CMAKE_INSTALL_PREFIX}/lib) # all dependencies are installed here
+
   add_subdirectory(src/lib) # contains a BOOTSTRAP_DEPS filter
   add_subdirectory(src/components/api)
   add_subdirectory(src/kernel/modules)

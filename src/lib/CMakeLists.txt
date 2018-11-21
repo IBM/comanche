@@ -15,6 +15,14 @@ if(BOOTSTRAP_DEPS)
   add_subdirectory(ndctl)
   add_subdirectory(tbb)
 
+  find_package(GTest)
+  if( NOT GTEST_FOUND) # libgtest-dev in ubuntu 1604 only installs headers
+    add_subdirectory(/usr/src/gtest ${CMAKE_CURRENT_BINARY_DIR}/gtest)
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/gtest/libgtest.a DESTINATION lib)
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/gtest/libgtest_main.a DESTINATION lib)
+  endif()
+
+
   # ExternalProject_Add(nanomsg
   #   BUILD_IN_SOURCE 1
   #   SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/nanomsg
