@@ -1,6 +1,6 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
-# option to build libraies, on by default
+# option to build libraries, on by default
 include(${CMAKE_ROOT}/Modules/ExternalProject.cmake)
 
 ExternalProject_Add(ndctl
