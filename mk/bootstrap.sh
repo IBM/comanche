@@ -13,5 +13,3 @@ fi
 cmake -DBOOTSTRAP_DEPS=on ${CMAKE_SOURCE_DIR} && \
   make all install &&  \
   cmake -DBOOTSTRAP_DEPS=off ${CMAKE_SOURCE_DIR}
-
-
