@@ -7,7 +7,9 @@ include(${CMAKE_ROOT}/Modules/ExternalProject.cmake)
 ExternalProject_Add(pmdk  
   BUILD_IN_SOURCE 1
   SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}
+  DOWNLOAD_DIR ${CMAKE_CURRENT_SOURCE_DIR}
   CONFIGURE_COMMAND ""
-  BUILD_COMMAND ./bootstrap.sh
+  DOWNLOAD_COMMAND ./bootstrap.sh
+  BUILD_COMMAND make -C pmdk
   INSTALL_COMMAND make -C pmdk install prefix=${CMAKE_INSTALL_PREFIX}
   )
