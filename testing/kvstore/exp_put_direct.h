@@ -37,11 +37,9 @@ public:
 
     void initialize_custom(unsigned core)
     {
-        _cycles_per_second = Core::get_rdtsc_frequency_mhz() * 1000000;
-        _start_time.resize(_pool_num_components);
-        _latencies.resize(_pool_num_components);
-
         _latency_stats.init(_bin_count, _bin_threshold_min, _bin_threshold_max);
+        
+        _cycles_per_second = Core::get_rdtsc_frequency_mhz() * 1000000;
 
         _debug_print(core, "initialize_custom done");
     }
@@ -83,8 +81,8 @@ public:
         double time_since_start = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - _exp_start_time).count() / 1000.0;
 
         // store the information for later use
-        _start_time.at(_i) = time_since_start;
-        _latencies.at(_i) = time;
+        _start_time.push_back(time_since_start);
+        _latencies.push_back(time);
 
         _latency_stats.update(time);
        
@@ -123,24 +121,33 @@ public:
        pthread_mutex_lock(&g_write_lock);
        _debug_print(core, "cleanup_custom mutex locked");
 
-       // get existing results, read to document variable
-       rapidjson::Document document = _get_report_document();
+       try
+       {
+         // get existing results, read to document variable
+         rapidjson::Document document = _get_report_document();
 
-       // collect latency stats
-       rapidjson::Value latency_object = _add_statistics_to_report("latency", _latency_stats, document);
-       rapidjson::Value timing_object = _add_statistics_to_report("start_time", start_time_stats, document);
+         // collect latency stats
+         rapidjson::Value latency_object = _add_statistics_to_report("latency", _latency_stats, document);
+         rapidjson::Value timing_object = _add_statistics_to_report("start_time", start_time_stats, document);
 
-       rapidjson::Value iops_object; 
-       iops_object.SetDouble(iops);
+         rapidjson::Value iops_object; 
+         iops_object.SetDouble(iops);
 
-       // save everything
-       rapidjson::Value experiment_object(rapidjson::kObjectType);
+         // save everything
+         rapidjson::Value experiment_object(rapidjson::kObjectType);
 
-       experiment_object.AddMember("IOPS", iops_object, document.GetAllocator());
-       experiment_object.AddMember("latency", latency_object, document.GetAllocator());
-       experiment_object.AddMember("start_time", timing_object, document.GetAllocator()); 
-       
-       _report_document_save(document, core, experiment_object);
+         experiment_object.AddMember("IOPS", iops_object, document.GetAllocator());
+         experiment_object.AddMember("latency", latency_object, document.GetAllocator());
+         experiment_object.AddMember("start_time", timing_object, document.GetAllocator()); 
+         
+         _report_document_save(document, core, experiment_object);
+       }
+       catch(...)
+       {
+         PERR("failed during save to JSON");
+         pthread_mutex_unlock(&g_write_lock);
+         throw std::exception();
+       }
 
         _print_highest_count_bin(_latency_stats);
 

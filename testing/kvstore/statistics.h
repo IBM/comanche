@@ -122,17 +122,20 @@ public:
     {
         if (bins < 0)
         {
-            perror("BinStatistics.init: bins can't be negative");
+            PERR("BinStatistics.init: bins can't be negative");
+            throw std::exception();
         }
         else if (bins == 0)
         {
-            perror("BinStatistics.init: bin count should be at least 1");
+            PERR("BinStatistics.init: bin count should be at least 1");
+            throw std::exception();
         }
 
         if (threshold_min > threshold_max)
         {
-            std::cerr << "BinStatistics.init: threshold_max should be larger than threshold_min. ";
+            PERR("BinStatistics.init: threshold_max should be larger than threshold_min. ");
             std::cerr << "min: " << threshold_min << ", max = " << threshold_max << std::endl;
+            throw std::exception();
         }
 
         _bin_count = bins;
