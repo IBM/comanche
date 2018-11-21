@@ -34,87 +34,104 @@ public:
         }
     }
 
-    void initialize_custom(unsigned core)
+    void initialize_custom(unsigned core) override
     {
-        _cycles_per_second = Core::get_rdtsc_frequency_mhz() * 1000000;
-        _start_time.resize(_pool_num_components);
-        _latencies.resize(_pool_num_components);
-
-        // seed the pool with elements from _data
-        _populate_pool_to_capacity(core);
-        
-        PLOG("pool seeded with values\n");
-
-        _latency_stats.init(_bin_count, _bin_threshold_min, _bin_threshold_max);
+      _latency_stats.init(_bin_count, _bin_threshold_min, _bin_threshold_max);
+     
+      PLOG("exp_get: pool seeded with values\n");     
+      
+      _cycles_per_second = Core::get_rdtsc_frequency_mhz() * 1000000;
     }
 
-    void do_work(unsigned core) override 
+    void do_work(unsigned core) override
     {
-        // handle first time setup
-        if(_first_iter) 
-        {
-            PLOG("Starting Get experiment...");
+      // handle first time setup
+      if(_first_iter) 
+      {
+        _pool_element_end = -1;
+      // seed the pool with elements from _data
+      _populate_pool_to_capacity(core);
 
-            _first_iter = false;
-            _exp_start_time = std::chrono::high_resolution_clock::now();
-        }     
+        PLOG("Starting Get experiment...");
 
-        // end experiment if we've reached the total number of components
-        if (_i == _pool_num_components)
-        {
-            PINF("reached total number of components. Exiting.");
-            throw std::exception();
-        }
+        _first_iter = false;
+        _exp_start_time = std::chrono::high_resolution_clock::now();
+      }     
 
-        // check time it takes to complete a single put operation
-        unsigned int cycles, start, end;
-        void * pval;
-        size_t pval_len;
-        int rc;
+      // end experiment if we've reached the total number of components
+      if (_i + 1 == _pool_num_components)
+      {
+          PINF("reached total number of components. Exiting.");
+          throw std::exception();
+      }
 
-        timer.start();
-        start = rdtsc();
+      // check time it takes to complete a single put operation
+      unsigned int cycles, start, end;
+      void * pval;
+      size_t pval_len;
+      int rc;
+
+      timer.start();
+      start = rdtsc();
+
+      try
+      {
         rc = _store->get(_pool, _data->key(_i), pval, pval_len);
-        end = rdtsc();
-        timer.stop();
+      }
+      catch(...)
+      {
+        PERR("get call failed! Ending experiment.");
+        throw std::exception();
+      }
+      end = rdtsc();
+      timer.stop();
 
-        cycles = end - start;
-        double time = (cycles / _cycles_per_second);
-        //printf("start: %u  end: %u  cycles: %u seconds: %f\n", start, end, cycles, time);
+      cycles = end - start;
+      double time = (cycles / _cycles_per_second);
+      //printf("start: %u  end: %u  cycles: %u seconds: %f\n", start, end, cycles, time);
 
-        std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
-        double time_since_start = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - _exp_start_time).count() / 1000.0;
+      std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
+      double time_since_start = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - _exp_start_time).count() / 1000.0;
 
-        if (pval != nullptr)
+      if (pval != nullptr)
+      {
+          _store->free_memory(pval);
+      }
+
+      // store the information for later use
+      _latency_stats.update(time);
+      _start_time.push_back(time_since_start);
+      _latencies.push_back(time);
+
+      if (rc != S_OK)
+      {
+        std::cerr << "_pool_element_end = " << _pool_element_end << std::endl;
+        std::cerr << "rc != S_OK: " << rc << " @ _i = " << _i << ". Exiting." << std::endl;
+        throw std::exception();
+      }
+
+      _i++;  // increment after running so all elements get used
+
+      if (_i == _pool_element_end + 1)
+      {
+        try
         {
-            _store->free_memory(pval);
+          _erase_pool_entries_in_range(_pool_element_start, _pool_element_end);
+          _populate_pool_to_capacity(core);
+        }
+        catch(...)
+        {
+          PERR("failed during erasing and repopulation");
+          throw std::exception();
         }
 
-        // store the information for later use
-        _latency_stats.update(time);
-        _start_time.at(_i) = time_since_start;
-        _latencies.at(_i) = time;
-
-        if (rc != S_OK)
+        if (_verbose)
         {
-            std::cout << "rc != S_OK: " << rc << ". Exiting." << std::endl;
-            throw std::exception();
+           std::stringstream debug_message;
+           debug_message << "pool repopulated: " << _i;
+           _debug_print(core, debug_message.str());
         }
-
-        _i++;  // increment after running so all elements get used
-
-       if (_i == _pool_element_end)
-       {
-            _erase_pool_entries_in_range(_pool_element_start, _pool_element_end);
-           _populate_pool_to_capacity(core);
-
-           if (_verbose)
-           {
-              std::stringstream debug_message;
-              debug_message << "pool repopulated: " << _i;
-              _debug_print(core, debug_message.str());
-           }
-       }
+      }
     }
 
     void cleanup_custom(unsigned core)  
