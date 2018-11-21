@@ -7,12 +7,12 @@ if(BOOTSTRAP_DEPS)
 
   add_subdirectory(dpdk)
   add_subdirectory(spdk)
+  add_subdirectory(ndctl)
   add_subdirectory(pmdk)
   add_subdirectory(libfabric)
   add_subdirectory(flatbuffers)
   add_subdirectory(cityhash)
   add_subdirectory(memkind)
-  add_subdirectory(ndctl)
   add_subdirectory(tbb)
 
   find_package(GTest)
