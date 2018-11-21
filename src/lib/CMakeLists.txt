@@ -9,11 +9,11 @@ if(BOOTSTRAP_DEPS)
   add_subdirectory(spdk)
   add_subdirectory(libfabric)
   add_subdirectory(pmdk)
-  * (alternate specification to build pmdk)
+  # (alternate specification to build pmdk)
   # ExternalProject_Add(pmdk
   #   DEPENDS libfabric
   #   PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/pmdk
-  #   GIT_REPOSITORY https://github.com/pmem/pmdk.git
+  #   GIT_REPOSITORY https://github.com/dwaddington/pmdk.git
   #   GIT_TAG stable-1.4
   #   CONFIGURE_COMMAND ""
   #   BUILD_COMMAND $(MAKE)
