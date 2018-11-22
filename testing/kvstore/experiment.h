@@ -83,7 +83,9 @@ public:
       
     PLOG("Created pool for worker %u...OK!", core);
 
-    if (component_uses_direct_memory())
+    try
+    {
+      if (component_uses_direct_memory())
       {
         size_t data_size = sizeof(KV_pair) * _data->_num_elements;
         data_size += data_size % 64;  // align
@@ -93,6 +95,12 @@ public:
         _memory_handle = _store->register_direct_memory(_data->_data, data_size);
         _data->initialize_data(false);
       }
+    }
+    catch(...)
+    {
+      PERR("failed during direct memory setup");
+      throw std::exception();
+    }
 
     try
     {
@@ -245,23 +253,40 @@ public:
 
   rapidjson::Document _get_report_document()
   {
-    assert(!_report_filename.empty());  // make sure report_filename is set
-
-    FILE *pFile = fopen(_report_filename.c_str(), "r+");
-    if (!pFile)
-      {
-        perror("_get_report_document failed fopen call");
-        throw std::exception();
-      }
-
-    char readBuffer[GetFileSize(_report_filename)];
-
-    rapidjson::FileReadStream is(pFile, readBuffer, sizeof(readBuffer));
     rapidjson::Document document;
-    document.ParseStream<0>(is);
 
-    fclose(pFile);
+    if (_report_filename.empty())
+    {
+      PERR("filename for report is empty!");
+      throw std::exception();
+    }
 
+    try
+    {
+      FILE *pFile = fopen(_report_filename.c_str(), "r+");
+      if (!pFile)
+        {
+          perror("_get_report_document failed fopen call");
+          throw std::exception();
+        }
+
+      char readBuffer[GetFileSize(_report_filename)];
+      std::cout << "readBuffer size = " << GetFileSize(_report_filename) << std::endl;
+
+      rapidjson::FileReadStream is(pFile, readBuffer, sizeof(readBuffer));
+      document.ParseStream<0>(is);
+
+      std::cout << "_get_report_document: document.IsObject() = " << document.IsObject() << std::endl;
+
+//      fclose(pFile);
+    }
+    catch(...)
+    {
+      PERR("failed while reading in existing json document");
+      throw std::exception();
+    }
+
+    _debug_print(0, "returning report document");
     return document;
   }
 
@@ -287,34 +312,61 @@ public:
   {
     _debug_print(core, "_report_document_save started");
 
-    assert(!_test_name.empty());  // make sure _test_name is set
+    if (_test_name.empty())
+    {
+      PERR("_test_name is empty!");
+      throw std::exception();
+    }
 
     rapidjson::Value temp_value;
     rapidjson::Value temp_object(rapidjson::kObjectType);
+    rapidjson::StringBuffer strbuf;
 
     std::string core_string = std::to_string(core);
     temp_value.SetString(rapidjson::StringRef(core_string.c_str()));
 
-    if (!document.HasMember(_test_name.c_str()))
+    std::cout << "_report_document_save: test name = " << _test_name << std::endl;
+    try
+    {
+      if (document.IsObject() && !document.HasMember(_test_name.c_str()))
       {
         temp_object.AddMember(temp_value, new_info, document.GetAllocator());
-        document.AddMember(rapidjson::StringRef(_test_name.c_str()), temp_object, document.GetAllocator()); 
+        document.AddMember(rapidjson::StringRef(_test_name.c_str()), temp_object, document.GetAllocator());
       }
-    else 
+      else
       {
+        std::cout << "document.IsObject() = " << document.IsObject() << ", document.IsArray() = " << document.IsArray() << std::endl;
         rapidjson::Value &items = document[_test_name.c_str()];
+
         &items.AddMember(temp_value, new_info, document.GetAllocator());
       }
 
-    // write back to file
-    rapidjson::StringBuffer strbuf;
-    rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(strbuf);
-    document.Accept(writer);
+      // write back to file
+      rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(strbuf);
+      document.Accept(writer);
+      std::cout << "strbuf.GetSize() = " << strbuf.GetSize() << std::endl;
+      std::cout << "after Accept: document.IsObject() = " << document.IsObject() << std::endl;
+    }
+    catch(...)
+    {
+      PERR("failed during write to json document");
+    }
 
-    std::ofstream outf(_report_filename.c_str());
-    outf << strbuf.GetString() << std::endl;
+    _debug_print(core, "_report_document_save: writing to ofstream");
+    try
+    {
+      std::ofstream outf(_report_filename.c_str());
+      outf << strbuf.GetString() << std::endl;
+//      std::cout << "strbuf:" << strbuf.GetString() << std::endl;
+    }
+    catch(...)
+    {
+      PERR("failed while writing to ofstream");
+      throw std::exception();
+    }
 
     _debug_print(core, "_report_document_save finished");
+    std::cout << "_report_document_save results: document.IsObject() = " << document.IsObject() << std::endl;
   }
 
   void _print_highest_count_bin(BinStatistics& stats)
@@ -583,6 +635,7 @@ public:
       }
       catch(...)
       {
+        std::cerr << "current = " << current << std::endl;
         PERR("_populate_pool_to_capacity failed at put call");
         throw std::exception();
       }
@@ -757,11 +810,11 @@ public:
   bool _summary = true;
 
   // member variables for tracking pool sizes
-  unsigned long _element_size = -1;
-  unsigned long _elements_in_use = 0;
-  unsigned long _pool_element_start = 0;
-  unsigned long _pool_element_end = -1;
-  unsigned long _elements_stored = 0;
+  long _element_size = -1;
+  long _elements_in_use = 0;
+  long _pool_element_start = 0;
+  long _pool_element_end = -1;
+  long _elements_stored = 0;
 
   // bin statistics
   unsigned int _bin_count = 100;
