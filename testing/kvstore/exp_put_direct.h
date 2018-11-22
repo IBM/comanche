@@ -121,24 +121,33 @@ public:
        pthread_mutex_lock(&g_write_lock);
        _debug_print(core, "cleanup_custom mutex locked");
 
-       // get existing results, read to document variable
-       rapidjson::Document document = _get_report_document();
+       try
+       {
+         // get existing results, read to document variable
+         rapidjson::Document document = _get_report_document();
 
-       // collect latency stats
-       rapidjson::Value latency_object = _add_statistics_to_report("latency", _latency_stats, document);
-       rapidjson::Value timing_object = _add_statistics_to_report("start_time", start_time_stats, document);
+         // collect latency stats
+         rapidjson::Value latency_object = _add_statistics_to_report("latency", _latency_stats, document);
+         rapidjson::Value timing_object = _add_statistics_to_report("start_time", start_time_stats, document);
 
-       rapidjson::Value iops_object; 
-       iops_object.SetDouble(iops);
+         rapidjson::Value iops_object; 
+         iops_object.SetDouble(iops);
 
-       // save everything
-       rapidjson::Value experiment_object(rapidjson::kObjectType);
+         // save everything
+         rapidjson::Value experiment_object(rapidjson::kObjectType);
 
-       experiment_object.AddMember("IOPS", iops_object, document.GetAllocator());
-       experiment_object.AddMember("latency", latency_object, document.GetAllocator());
-       experiment_object.AddMember("start_time", timing_object, document.GetAllocator()); 
-       
-       _report_document_save(document, core, experiment_object);
+         experiment_object.AddMember("IOPS", iops_object, document.GetAllocator());
+         experiment_object.AddMember("latency", latency_object, document.GetAllocator());
+         experiment_object.AddMember("start_time", timing_object, document.GetAllocator()); 
+         
+         _report_document_save(document, core, experiment_object);
+       }
+       catch(...)
+       {
+         PERR("failed during save to JSON");
+         pthread_mutex_unlock(&g_write_lock);
+         throw std::exception();
+       }
 
         _print_highest_count_bin(_latency_stats);
 
