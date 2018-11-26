@@ -18,8 +18,9 @@
 #ifndef __API_KVSTORE_ITF__
 #define __API_KVSTORE_ITF__
 
-#include <stdlib.h>
+#include <cstdlib>
 #include <functional>
+#include <vector>
 
 #include <api/components.h>
 #include <api/block_itf.h>
@@ -61,19 +62,51 @@ public:
     FLAGS_CREATE_ONLY = 3,
   };
 
-  enum {
-    OP_WRITE, /* copy bytes into memory region */
-    OP_ZERO, /* zero the memory region */
-    OP_INCREMENT_UINT64,
-    OP_CAS_UINT64,
+  enum class op_type {
+    WRITE, /* copy bytes into memory region */
+    ZERO, /* zero the memory region */
+    INCREMENT_UINT64,
+    CAS_UINT64,
   };
 
-  typedef struct {
-    size_t offset;
-    size_t len;
-    int op;
-  } operation_t;
-     
+  class operation
+  {
+    op_type _type;
+    size_t _offset;
+  protected:
+    operation(op_type type, size_t offset)
+      : _type(type)
+      , _offset(offset)
+    {}
+  public:
+    op_type type() const noexcept { return _type; }
+    size_t offset() const  noexcept{ return _offset; }
+  };
+
+  class operation_sized
+    : public operation
+  {
+    size_t _len;
+  protected:
+    operation_sized(op_type type, size_t offset_, size_t len)
+      : operation(type, offset_)
+      , _len(len)
+    {}
+  public:
+    size_t size() const noexcept { return _len; }
+  };
+
+  class operation_write
+    : public operation_sized
+  {
+    const void *_data;
+  public:
+    operation_write(size_t offset, size_t len, const void *data)
+      :  operation_sized(op_type::WRITE, offset, len)
+      , _data(data)
+    {}
+    const void * data() const noexcept { return _data; }
+  };
 
   typedef enum {
     STORE_LOCK_READ=1,
@@ -93,7 +126,7 @@ public:
     E_BAD_PARAM = -8,
     E_BAD_ALIGNMENT = -9,
     E_INSUFFICIENT_BUFFER = -10,
-    E_BAD_OFFSET = -11,    
+    E_BAD_OFFSET = -11,
   };
 
   /** 
@@ -204,7 +237,7 @@ public:
    * @param key Object key
    * @param out_value Client provided buffer for value
    * @param out_value_len [in] size of value memory in bytes [out] size of value
-   * @param handle Memory registration handle 
+   * @param handle Memory registration handle
    * 
    * @return S_OK, S_MORE if only a portion of value is read, E_BAD_ALIGNMENT on invalid alignment, or other error code
    */
@@ -226,7 +259,7 @@ public:
    */
   virtual memory_handle_t register_direct_memory(void * vaddr, size_t len) { return nullptr; }
 
-  
+
   /** 
    * Durict memory regions should be unregistered before the memory is released on the client side.
    * 
@@ -236,7 +269,7 @@ public:
    */
   virtual status_t unregister_direct_memory(memory_handle_t handle) { return E_NOT_SUPPORTED; }
 
-  
+
   /** 
    * Take a lock on an object. If the object does not exist, create it with
    * value space according to out_value_len
@@ -287,27 +320,23 @@ public:
 
   /** 
    * Update an existing value by applying a series of operations.
-   * Together the set of operations make up an atomic transaction.  If
-   * the operation, requires a result, then the result parameter is
-   * provide.  In this case, the implementation of this method will
-   * allocate a result that should be freed with a call to
-   * free_memory.  The intepretation of the result is dependent on the
-   * operation.
+   * Together the set of operations make up an atomic transaction.
+   * If the operation requires a result the operation type may provide
+   * a method to accept the result. No operation currently requires
+   * a result, but compare and swap probably would.
    * 
    * @param pool Pool handle
    * @param key Object key
    * @param op_vector Operation vector
-   * @param take_lock Set to true for implicit looking of object
-   * @param result Optional output buffer, server-side allocated (e.g., from computational operation)
+   * @param take_lock Set to true for automatic locking of object
    * 
    * @return S_OK or error code
    */
   virtual status_t atomic_update(const pool_t pool,
                                  const std::string& key,
-                                 const std::vector<operation_t>& op_vector,
-                                 bool take_lock = true,
-                                 void ** result = nullptr) { return E_NOT_SUPPORTED; }
-  
+                                 const std::vector<operation *> & op_vector,
+                                 bool take_lock = true) { return E_NOT_SUPPORTED; }
+
   /** 
    * Erase an object
    * 
@@ -318,7 +347,7 @@ public:
    */
   virtual status_t erase(const pool_t pool,
                          const std::string& key)= 0;
-  
+
 
   /** 
    * Return number of objects in the pool
@@ -360,7 +389,7 @@ public:
    */
   virtual status_t ioctl(const std::string& command) { return E_NOT_SUPPORTED; }
 
-  
+
   /** 
    * Debug routine
    * 
@@ -395,11 +424,11 @@ public:
     throw(API_exception("Not Implemented"));
   }
 
-  
+
 };
 
 
 }
 
 
-#endif 
+#endif
