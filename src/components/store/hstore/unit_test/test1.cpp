@@ -7,9 +7,9 @@
 #include <api/kvstore_itf.h>
 
 #include <algorithm>
-#include <string>
 #include <random>
 #include <sstream>
+#include <string>
 
 using namespace Component;
 
@@ -75,7 +75,7 @@ bool KVStore_test::pmem_effective = ! getenv("PMEM_IS_PMEM_FORCE") || getenv("PM
 Component::IKVStore * KVStore_test::_kvstore;
 Component::IKVStore::pool_t KVStore_test::pool;
 
-const std::size_t KVStore_test::estimated_object_count = KVStore_test::pmem_simulated ? estimated_object_count_small : estimated_object_count_large;
+const std::size_t KVStore_test::estimated_object_count = pmem_simulated ? estimated_object_count_small : estimated_object_count_large;
 
 std::string KVStore_test::single_key = "MySingleKeyLongEnoughToFoceAllocation";
 std::string KVStore_test::single_value         = "Hello world!";
@@ -84,8 +84,8 @@ std::size_t KVStore_test::single_count = 1U;
 
 constexpr unsigned KVStore_test::many_key_length;
 constexpr unsigned KVStore_test::many_value_length;
-const std::size_t KVStore_test::many_count_target = KVStore_test::pmem_simulated ? many_count_target_small : many_count_target_large;
-std::size_t KVStore_test::many_count_actual = 0;
+const std::size_t KVStore_test::many_count_target = pmem_simulated ? many_count_target_small : many_count_target_large;
+std::size_t KVStore_test::many_count_actual;
 std::vector<KVStore_test::kv_t> KVStore_test::kvv;
 
 const std::size_t KVStore_test::lock_count = 60;
@@ -191,12 +191,6 @@ TEST_F(KVStore_test, PutMany)
   {
     const auto &key = std::get<0>(kv);
     const auto &value = std::get<1>(kv);
-#if 0
-    auto key = s.str();
-    key.resize(many_key_length, '.');
-    auto value = std::to_string(i);
-    value.resize(many_value_length, '.');
-#endif
     auto r = _kvstore->put(pool, key, value.data(), value.length());
     if ( r == S_OK )
     {
