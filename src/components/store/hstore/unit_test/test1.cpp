@@ -6,6 +6,7 @@
 /* note: we do not include component source, only the API definition */
 #include <api/kvstore_itf.h>
 
+#include <algorithm>
 #include <string>
 #include <random>
 #include <sstream>
@@ -78,7 +79,7 @@ const std::size_t KVStore_test::estimated_object_count = KVStore_test::pmem_simu
 
 std::string KVStore_test::single_key = "MySingleKeyLongEnoughToFoceAllocation";
 std::string KVStore_test::single_value         = "Hello world!";
-std::string KVStore_test::single_value_updated = "XeXXX world!";
+std::string KVStore_test::single_value_updated = "WeXYZ world!";
 std::size_t KVStore_test::single_count = 1U;
 
 constexpr unsigned KVStore_test::many_key_length;
@@ -355,8 +356,18 @@ TEST_F(KVStore_test, Size2c)
 TEST_F(KVStore_test, BasicUpdate)
 {
   {
-    auto op_write = IKVStore::OP_WRITE;
-    auto r = _kvstore->atomic_update(pool, single_key, {{0, 1, op_write}, {2,3,op_write}});
+    auto op_write = IKVStore::op_type::WRITE;
+    std::vector<std::unique_ptr<IKVStore::operation>> v;
+    v.emplace_back(std::make_unique<IKVStore::operation_write>(0, 1, "W"));
+    v.emplace_back(std::make_unique<IKVStore::operation_write>(2, 3, "XYZ"));
+    std::vector<IKVStore::operation *> v2;
+    std::transform(v.begin(), v.end(), std::back_inserter(v2), [] (const auto &i) { return i.get(); });
+    auto r =
+      _kvstore->atomic_update(
+      pool
+      , single_key
+      , v2
+    );
     EXPECT_EQ(r, S_OK);
   }
 

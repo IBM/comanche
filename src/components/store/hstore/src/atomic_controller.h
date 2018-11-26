@@ -21,7 +21,7 @@ namespace impl
 			using persist_switch_t =
 				persist_switch<allocator_type, std::is_base_of<persister, allocator_type>::value>;
 			persist_atomic<allocator_type> *_persist; /* Bad name. Should be a noun. */
-			table_t  *_map;
+			table_t *_map;
 		public:
 			atomic_controller(
 				persist_atomic<allocator_type> &persist_
@@ -38,8 +38,8 @@ namespace impl
 				PMEMobjpool *pop
 				, persist_fixed_string<char> &key
 				, uint64_t type_num_data
-				, std::vector<Component::IKVStore::operation_t>::const_iterator first
-				, std::vector<Component::IKVStore::operation_t>::const_iterator last
+				, std::vector<Component::IKVStore::operation *>::const_iterator first
+				, std::vector<Component::IKVStore::operation *>::const_iterator last
 			) -> Component::status_t;
 	};
 }
