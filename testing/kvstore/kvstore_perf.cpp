@@ -55,7 +55,7 @@ int main(int argc, char * argv[])
     ("help", "Show help")
     ("test", po::value<std::string>(), "Test name <all|put|get|put_direct|get_direct>")
     ("component", po::value<std::string>(), "Implementation selection <filestore|pmstore|dawn|nvmestore|mapstore|hstore>")
-    ("cores", po::value<int>(), "Number of threads/cores")
+    ("cores", po::value<std::string>(), "Number of threads/cores (starts from core 0), or range X-Y.")
     ("time", po::value<int>(), "Duration to run in seconds")
     ("path", po::value<std::string>(), "Path of directory for pool")
     ("size", po::value<unsigned long long int>(), "Size of pool")
@@ -91,7 +91,7 @@ int main(int argc, char * argv[])
     else
       Options.component = DEFAULT_COMPONENT;
     
-    Options.cores  = vm.count("cores") > 0 ? vm["cores"].as<int>() : 1;
+    Options.cores  = vm.count("cores") > 0 ? vm["cores"].as<std::string>() : "1";
     Options.time_secs  = vm.count("time") > 0 ? vm["time"].as<int>() : 4;
     Options.size = vm.count("size") > 0 ? vm["size"].as<unsigned long long int>() : MB(100);
     Options.flags = vm.count("flags") > 0 ? vm["flags"].as<int>() : Component::IKVStore::FLAGS_SET_SIZE;
@@ -146,9 +146,16 @@ int main(int argc, char * argv[])
   Options.report_file_name = Experiment::create_report(Options);
 
   cpu_mask_t cpus;
-  unsigned core = 1;
-  for(unsigned core = 0; core < Options.cores; core++)
-    cpus.add_core(core);
+
+  try
+  {
+    cpus = Experiment::get_cpu_mask_from_string(Options.cores);
+  }
+  catch(...)
+  {
+    PERR("couldn't create CPU mask. Exiting.");
+    return 1;
+  }
 
   ProfilerStart("cpu.profile");
 
