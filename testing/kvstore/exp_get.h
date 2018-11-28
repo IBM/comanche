@@ -7,7 +7,6 @@
 #include <iostream>
 #include <vector>
 
-#include "common/cycles.h"
 #include "experiment.h"
 #include "kvstore_perf.h"
 #include "statistics.h"
@@ -18,7 +17,6 @@ extern pthread_mutex_t g_write_lock;
 class ExperimentGet : public Experiment
 { 
 public:
-    float _cycles_per_second;  // initialized in do_work first run
     std::vector<double> _start_time;
     std::vector<double> _latencies;
     std::chrono::high_resolution_clock::time_point _exp_start_time;
@@ -38,9 +36,7 @@ public:
     {
       _latency_stats.init(_bin_count, _bin_threshold_min, _bin_threshold_max);
      
-      PLOG("exp_get: pool seeded with values\n");     
-      
-      _cycles_per_second = Core::get_rdtsc_frequency_mhz() * 1000000;
+      PLOG("exp_get: pool seeded with values\n");
     }
 
     void do_work(unsigned core) override
@@ -66,7 +62,7 @@ public:
       }
 
       // check time it takes to complete a single put operation
-      unsigned int cycles, start, end;
+      uint64_t cycles, start, end;
       void * pval;
       size_t pval_len;
       int rc;

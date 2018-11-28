@@ -9,7 +9,6 @@
 #include <vector>
 #include <sys/mman.h>
 
-#include "common/cycles.h"
 #include "experiment.h"
 #include "kvstore_perf.h"
 #include "statistics.h"
@@ -19,7 +18,6 @@ extern Data * _data;
 class ExperimentGetDirect: public Experiment
 { 
 public:
-    float _cycles_per_second;  // initialized in do_work first run
     std::vector<double> _start_time;
     std::vector<double> _latencies;
     std::chrono::high_resolution_clock::time_point _exp_start_time;
@@ -43,7 +41,6 @@ public:
         PINF("exp_get_direct: initialize custom started");
       }
 
-      std::cout << "initialize_custom: test name = " << _test_name << std::endl;
       _latency_stats.init(_bin_count, _bin_threshold_min, _bin_threshold_max);
 
       try
@@ -62,11 +59,7 @@ public:
         throw std::exception();
       }
 
-      std::cout << "test name = " << _test_name << std::endl;
-      _cycles_per_second = Core::get_rdtsc_frequency_mhz() * 1000000;
-
       PLOG("pool seeded with values\n");
-
     }
 
     void do_work(unsigned core) override 
@@ -75,9 +68,6 @@ public:
         if(_first_iter) 
         {
             PLOG("Starting Get Direct experiment...");
-            _pool_element_end = -1;
-            std::cout << "get_direct: do_work start:_pool_element_end = " << _pool_element_end << std::endl;
-
             _first_iter = false;
             _exp_start_time = std::chrono::high_resolution_clock::now();
 
@@ -95,12 +85,12 @@ public:
         }
 
         // check time it takes to complete a single put operation
-        int cycles, start, end;
+        uint64_t cycles, start, end;
 
         io_buffer_t handle;
         Core::Physical_memory mem_alloc;
         size_t pval_len = 64;
-        void * pval = malloc(pval_len);
+        void* pval = operator new(pval_len);
         Component::IKVStore::memory_handle_t memory_handle = Component::IKVStore::HANDLE_NONE; 
 
         if (_component.compare("nvmestore") == 0)
@@ -140,7 +130,7 @@ public:
         }
         else if (pval != nullptr)
         {
-          free(pval);
+          operator delete(pval);
         }
 
         // store the information for later use
@@ -172,7 +162,6 @@ public:
 
     void cleanup_custom(unsigned core)  
     {
-        _test_name = "get_direct";
         if (_component.compare("dawn") == 0)
         {
             _store->unregister_direct_memory(_direct_memory_handle);

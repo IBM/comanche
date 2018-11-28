@@ -7,7 +7,6 @@
 #include <iostream>
 #include <vector>
 
-#include "common/cycles.h"
 #include "experiment.h"
 #include "kvstore_perf.h"
 #include "statistics.h"
@@ -18,7 +17,6 @@ extern pthread_mutex_t g_write_lock;
 class ExperimentPut : public Experiment
 { 
 public:
-    float _cycles_per_second;  // initialized in do_work first run
     std::vector<double> _start_time;
     std::vector<double> _latencies;
     std::chrono::high_resolution_clock::time_point _exp_start_time;
@@ -37,9 +35,7 @@ public:
 
     void initialize_custom(unsigned core) override
     {
-        _latency_stats.init(_bin_count, _bin_threshold_min, _bin_threshold_max);
-
-        _cycles_per_second = Core::get_rdtsc_frequency_mhz() * 1000000;
+      _latency_stats.init(_bin_count, _bin_threshold_min, _bin_threshold_max);
     }
 
     void do_work(unsigned core) override 
@@ -49,7 +45,7 @@ public:
         {
             PLOG("Starting Put experiment...");
             _first_iter = false;
-            unsigned int _start_rdtsc = rdtsc(); 
+            uint64_t _start_rdtsc = rdtsc();
             _exp_start_time = std::chrono::high_resolution_clock::now();
         }     
 
@@ -145,7 +141,7 @@ public:
          experiment_object.AddMember("latency", latency_object, document.GetAllocator());
          experiment_object.AddMember("start_time", timing_object, document.GetAllocator()); 
            _print_highest_count_bin(_latency_stats);
-        
+
          _report_document_save(document, core, experiment_object);
 
          _debug_print(core, "cleanup_custom mutex unlocking");
@@ -153,8 +149,8 @@ public:
        }
        catch(...)
        {
-        PERR("cleanup_custom failed inside exp_put.h");
-        throw std::exception();
+         PERR("cleanup_custom failed inside exp_put.h");
+         throw std::exception();
        }
     }
 };
