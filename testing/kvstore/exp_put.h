@@ -43,7 +43,7 @@ public:
         // handle first time setup
         if(_first_iter) 
         {
-            PLOG("Starting Put experiment...");
+            PLOG("[%u] Starting Put experiment...", core);
             _first_iter = false;
             uint64_t _start_rdtsc = rdtsc();
             _exp_start_time = std::chrono::high_resolution_clock::now();
@@ -53,7 +53,7 @@ public:
         if (_i == _pool_num_components)
         {
             timer.stop();
-            std::cerr << "reached last element. Last _start_time = " << _start_time.at(_i) << std::endl;
+            PINF("[%u] put: reached total number of components. Exiting.", core);
             throw std::exception();
         }
 
@@ -140,7 +140,7 @@ public:
          experiment_object.AddMember("IOPS", iops_object, document.GetAllocator());
          experiment_object.AddMember("latency", latency_object, document.GetAllocator());
          experiment_object.AddMember("start_time", timing_object, document.GetAllocator()); 
-           _print_highest_count_bin(_latency_stats);
+           _print_highest_count_bin(_latency_stats, core);
 
          _report_document_save(document, core, experiment_object);
 

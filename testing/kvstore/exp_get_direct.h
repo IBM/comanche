@@ -38,7 +38,7 @@ public:
     {
       if (_verbose)
       {
-        PINF("exp_get_direct: initialize custom started");
+        PINF("[%u] exp_get_direct: initialize custom started", core);
       }
 
       _latency_stats.init(_bin_count, _bin_threshold_min, _bin_threshold_max);
@@ -67,7 +67,7 @@ public:
         // handle first time setup
         if(_first_iter) 
         {
-            PLOG("Starting Get Direct experiment...");
+            PLOG("[%u] Starting Get Direct experiment...", core);
             _first_iter = false;
             _exp_start_time = std::chrono::high_resolution_clock::now();
 
@@ -79,7 +79,7 @@ public:
         // end experiment if we've reached the total number of components
         if (_i + 1 == _pool_num_components)
         {
-          PINF("get_direct: reached total number of components. Exiting.");
+          PINF("[%u] get_direct: reached total number of components. Exiting.", core);
           timer.stop();
           throw std::exception();
         }
@@ -198,7 +198,7 @@ public:
        experiment_object.AddMember("IOPS", iops_object, document.GetAllocator());
        experiment_object.AddMember("latency", latency_object, document.GetAllocator());
        experiment_object.AddMember("start_time", timing_object, document.GetAllocator()); 
-        _print_highest_count_bin(_latency_stats);
+        _print_highest_count_bin(_latency_stats, core);
 
        _report_document_save(document, core, experiment_object);
 

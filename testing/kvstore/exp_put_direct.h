@@ -45,7 +45,7 @@ public:
         // handle first time setup
         if(_first_iter) 
         {
-            PLOG("Starting Put Direct experiment...");
+            PLOG("[%u] Starting Put Direct experiment...", core);
 
             _first_iter = false;
             _exp_start_time = std::chrono::high_resolution_clock::now();
@@ -55,7 +55,7 @@ public:
         if (_i == _pool_num_components)
         {
             timer.stop();
-            std::cerr << "reached last element. Last _start_time = " << _start_time.at(_i) << std::endl;
+            PINF("[%u] put_direct: reached total number of components. Exiting.", core);
             throw std::exception();
         }
 
@@ -145,7 +145,7 @@ public:
          throw std::exception();
        }
 
-        _print_highest_count_bin(_latency_stats);
+        _print_highest_count_bin(_latency_stats, core);
 
        _debug_print(core, "cleanup_custom mutex unlocking");
        pthread_mutex_unlock(&g_write_lock);
