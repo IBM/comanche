@@ -54,27 +54,31 @@ template <typename Table>
 		PMEMobjpool *pop
 		, persist_fixed_string<char> &key
 		, uint64_t type_num_data
-		, std::vector<Component::IKVStore::operation_t>::const_iterator first
-		, std::vector<Component::IKVStore::operation_t>::const_iterator last
+		, std::vector<Component::IKVStore::operation *>::const_iterator first
+		, std::vector<Component::IKVStore::operation *>::const_iterator last
 	) -> typename Component::status_t
 	{
-		std::string src;
+		std::vector<char> src;
 		std::vector<mod_control> mods;
 		for ( ; first != last ; ++first )
 		{
-			if ( first->op == Component::IKVStore::OP_WRITE )
+			switch ( (*first)->type() )
 			{
-				auto src_offset = src.size();
-				auto dst_offset = first->offset;
-				auto size = first->len;
-				/* No source for data yet, use Xs */
-				src += std::string(size, 'X');
-				mods.emplace_back(src_offset, dst_offset, size);
-			}
-			else
-			{
+			case Component::IKVStore::op_type::WRITE:
+				{
+					const Component::IKVStore::operation_write &wr = *static_cast<Component::IKVStore::operation_write *>(*first);
+					auto src_offset = src.size();
+					auto dst_offset = wr.offset();
+					auto size = wr.size();
+					auto op_src = static_cast<const char *>(wr.data());
+					/* No source for data yet, use Xs */
+					std::copy(op_src, op_src + size, std::back_inserter(src));
+					mods.emplace_back(src_offset, dst_offset, size);
+				}
+				break;
+			default:
 				return E_NOT_SUPPORTED;
-			}
+			};
 		}
 		_persist->mod_key = key;
 		_persist->mod_mapped = persist_fixed_string<char>(src.begin(), src.end(), pop, type_num_data, "atomic data"); /* PERSISTED? */

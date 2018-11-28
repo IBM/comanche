@@ -7,9 +7,9 @@
 #include <api/kvstore_itf.h>
 
 #include <random>
-#include <string>
 #include <sstream>
 #include <stdexcept>
+#include <string>
 
 using namespace Component;
 
@@ -29,7 +29,7 @@ class KVStore_test : public ::testing::Test {
 
   // If the constructor and destructor are not enough for setting up
   // and cleaning up each test, you can define the following methods:
-  
+
   virtual void SetUp() {
     // Code here will be called immediately after the constructor (right
     // before each test).
@@ -39,7 +39,7 @@ class KVStore_test : public ::testing::Test {
     // Code here will be called immediately after each test (right
     // before the destructor).
   }
-  
+
   // Objects declared here can be used by all tests in the test case
   static bool pmem_simulated;
   static bool pmem_effective;
@@ -50,26 +50,30 @@ class KVStore_test : public ::testing::Test {
 
   static constexpr unsigned many_key_length = 8;
   static constexpr unsigned many_value_length = 16;
-
+  using kv_t = std::tuple<std::string, std::string>;
+  static std::vector<kv_t> kvv;
   static const std::size_t many_count_target;
   static std::size_t many_count_actual;
 };
 
-constexpr std::size_t KVStore_test::many_count_target_large;
+constexpr std::size_t KVStore_test::estimated_object_count_small;
+constexpr std::size_t KVStore_test::estimated_object_count_large;
 constexpr std::size_t KVStore_test::many_count_target_small;
+constexpr std::size_t KVStore_test::many_count_target_large;
 
 bool KVStore_test::pmem_simulated = getenv("PMEM_IS_PMEM_FORCE") && getenv("PMEM_IS_PMEM_FORCE") == std::string("1");
 bool KVStore_test::pmem_effective = ! getenv("PMEM_IS_PMEM_FORCE") || getenv("PMEM_IS_PMEM_FORCE") == std::string("0");
 Component::IKVStore * KVStore_test::_kvstore;
 Component::IKVStore::pool_t KVStore_test::pool;
 
-const std::size_t KVStore_test::estimated_object_count = pmem_simulated ? estimated_object_count_large : estimated_object_count_small;
+const std::size_t KVStore_test::estimated_object_count = pmem_simulated ? estimated_object_count_small : estimated_object_count_large;
 
 constexpr unsigned KVStore_test::many_key_length;
 constexpr unsigned KVStore_test::many_value_length;
 
-const std::size_t KVStore_test::many_count_target = pmem_simulated ? many_count_target_large : many_count_target_small;
+const std::size_t KVStore_test::many_count_target = pmem_simulated ? many_count_target_small : many_count_target_large;
 std::size_t KVStore_test::many_count_actual;
+std::vector<KVStore_test::kv_t> KVStore_test::kvv;
 
 #define PMEM_PATH "/mnt/pmem0/pool/0/"
 //#define PMEM_PATH "/dev/pmem0"
@@ -115,6 +119,22 @@ TEST_F(KVStore_test, CreatePool)
   _kvstore->close_pool(pool);
 }
 
+TEST_F(KVStore_test, PopulateMany)
+{
+  std::mt19937_64 r0{};
+  for ( auto i = 0; i != many_count_target; ++i )
+  {
+    auto ukey = r0();
+    std::ostringstream s;
+    s << std::hex << ukey;
+    auto key = s.str();
+    key.resize(many_key_length, '.');
+    auto value = std::to_string(i);
+    value.resize(many_value_length, '.');
+    kvv.emplace_back(key, value);
+  }
+}
+
 TEST_F(KVStore_test, PutMany)
 {
   /* We will try the inserts many times, as the perishable timer will abort all but the last attempt */
@@ -147,16 +167,10 @@ TEST_F(KVStore_test, PutMany)
 
       std::mt19937_64 r0{};
 
-      for ( auto i = 0; i != many_count_target; ++i )
+      for ( auto &kv : kvv )
       {
-        auto ukey = r0();
-        std::ostringstream s;
-        s << std::hex << ukey % (std::mt19937_64::result_type(1) << many_key_length*4U);
-        auto key = s.str();
-        key.resize(many_key_length, '.');
-
-        auto value = std::to_string(i);
-        value.resize(many_value_length, '.');
+        const auto &key = std::get<0>(kv);
+        const auto &value = std::get<1>(kv);
         auto r = _kvstore->put(pool, key, value.c_str(), value.length());
         if ( r == S_OK )
         {
@@ -213,20 +227,16 @@ TEST_F(KVStore_test, Size2a)
 
 TEST_F(KVStore_test, GetMany)
 {
-  std::mt19937_64 r0{};
-
-  for ( auto i = 0; i != many_count_target; ++i )
+  for ( auto &kv : kvv )
   {
-    auto ukey = r0();
-    std::ostringstream s;
-    s << std::hex << ukey % (std::mt19937_64::result_type(1) << many_key_length*4U);
-    auto key = s.str();
-    key.resize(many_key_length, '.');
+    const auto &key = std::get<0>(kv);
+    const auto &ev = std::get<1>(kv);
     void * value = nullptr;
     size_t value_len = 0;
     auto r = _kvstore->get(pool, key, value, value_len);
     EXPECT_EQ(r, S_OK);
     EXPECT_EQ(value_len, many_value_length);
+    EXPECT_EQ(0, memcmp(ev.data(), value, ev.size()));
     _kvstore->free_memory(value);
   }
 }
@@ -240,16 +250,10 @@ TEST_F(KVStore_test, Size2c)
 
 TEST_F(KVStore_test, EraseMany)
 {
-  std::mt19937_64 r0{};
-
   auto erase_count = 0;
-  for ( auto i = 0; i != many_count_target; ++i )
+  for ( auto &kv : kvv )
   {
-    auto ukey = r0();
-    std::ostringstream s;
-    s << std::hex << ukey % (std::mt19937_64::result_type(1) << many_key_length*4U);
-    auto key = s.str();
-    key.resize(many_key_length, '.');
+    const auto &key = std::get<0>(kv);
     auto r = _kvstore->erase(pool, key);
     if ( r == S_OK )
     {

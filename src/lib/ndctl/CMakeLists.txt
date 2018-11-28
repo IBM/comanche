@@ -1,6 +1,6 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
-# option to build libraies, on by default
+# option to build libraries, on by default
 include(${CMAKE_ROOT}/Modules/ExternalProject.cmake)
 
 ExternalProject_Add(ndctl
@@ -16,4 +16,7 @@ ExternalProject_Add(ndctl
   COMMAND install ${CMAKE_CURRENT_SOURCE_DIR}/ndctl/ndctl/libndctl.h ${CMAKE_INSTALL_PREFIX}/include/ndctl/
   COMMAND mkdir -p ${CMAKE_INSTALL_PREFIX}/include/daxctl/
   COMMAND install ${CMAKE_CURRENT_SOURCE_DIR}/ndctl/daxctl/libdaxctl.h ${CMAKE_INSTALL_PREFIX}/include/daxctl/
+  COMMAND mkdir -p ${CMAKE_INSTALL_PREFIX}/lib/pkgconfig
+  COMMAND install ${CMAKE_CURRENT_SOURCE_DIR}/ndctl/ndctl/lib/libndctl.pc ${CMAKE_INSTALL_PREFIX}/lib/pkgconfig/
+  COMMAND install ${CMAKE_CURRENT_SOURCE_DIR}/ndctl/daxctl/lib/libdaxctl.pc ${CMAKE_INSTALL_PREFIX}/lib/pkgconfig/
   )
