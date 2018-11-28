@@ -1,7 +1,6 @@
 #ifndef __DATA_H__
 #define __DATA_H__
 #include <sys/mman.h>
-#include <vector>
 
 class KV_pair 
 {

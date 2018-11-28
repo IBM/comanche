@@ -64,7 +64,7 @@ public:
         }
 
         // check time it takes to complete a single put operation
-        unsigned int cycles, start, end;
+        int cycles, start, end;
         int rc;
 
         timer.start();
