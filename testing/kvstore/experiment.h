@@ -24,11 +24,11 @@ class Experiment : public Core::Tasklet
 public:
   std::string _pool_path = "./data";
   std::string _pool_name = "Exp.pool.";
-  unsigned long long int _pool_size = MB(100);
+  long long int _pool_size = MB(100);
   int _pool_flags = Component::IKVStore::FLAGS_SET_SIZE;
-  unsigned int _pool_num_components = 100000;
-  unsigned int _cores = 1;
-  unsigned int _execution_time;
+  int _pool_num_components = 100000;
+  int _cores = 1;
+  int _execution_time;
   std::string _component = "filestore";
   std::string _results_path = "./results";
   std::string _report_filename;
@@ -199,11 +199,11 @@ public:
         }
 
         if(vm.count("size") > 0) {
-          _pool_size = vm["size"].as<unsigned long long int>();
+          _pool_size = vm["size"].as<long long int>();
         }
 
         if (vm.count("elements") > 0) {
-          _pool_num_components = vm["elements"].as<unsigned int>();
+          _pool_num_components = vm["elements"].as<int>();
         }
 
         if (vm.count("flags") > 0) {
@@ -215,7 +215,7 @@ public:
         }
 
         if (vm.count("bins") > 0) {
-          _bin_count = vm["bins"].as<unsigned int>();
+          _bin_count = vm["bins"].as<int>();
         }
 
         if (vm.count("latency_range_min") > 0) {
@@ -274,11 +274,11 @@ public:
       std::cout << "readBuffer size = " << GetFileSize(_report_filename) << std::endl;
 
       rapidjson::FileReadStream is(pFile, readBuffer, sizeof(readBuffer));
-      document.ParseStream<0>(is);
+      document.ParseStream(is);
 
       std::cout << "_get_report_document: document.IsObject() = " << document.IsObject() << std::endl;
 
-//      fclose(pFile);
+      fclose(pFile);
     }
     catch(...)
     {
@@ -604,10 +604,10 @@ public:
       std::cout << "_populate_pool_to_capacity start: _pool_num_components = " << _pool_num_components << ", _elements_stored = " << _elements_stored << ", _pool_element_end = " << _pool_element_end << std::endl;
     }
 
-    unsigned long elements_remaining = _pool_num_components - _elements_stored;
+    long elements_remaining = _pool_num_components - _elements_stored;
     bool can_add_more_elements;
     int rc;
-    unsigned long current = _pool_element_end + 1;  // first run: should be 0 (start index)
+    long current = _pool_element_end + 1;  // first run: should be 0 (start index)
     long maximum_elements = -1;
     _pool_element_start = current;
       
@@ -817,7 +817,7 @@ public:
   long _elements_stored = 0;
 
   // bin statistics
-  unsigned int _bin_count = 100;
+  int _bin_count = 100;
   double _bin_threshold_min = 0.000000001;
   double _bin_threshold_max = 0.001;
   double _bin_increment;

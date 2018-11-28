@@ -95,7 +95,7 @@ public:
         }
 
         // check time it takes to complete a single put operation
-        unsigned int cycles, start, end;
+        int cycles, start, end;
 
         io_buffer_t handle;
         Core::Physical_memory mem_alloc;
