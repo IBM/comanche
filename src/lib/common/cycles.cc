@@ -16,7 +16,7 @@ float get_rdtsc_frequency_mhz()
   float clock_speed_in_MHz = 0;
   /* Read the entire contents of /proc/cpuinfo into the buffer. */
   fp = fopen ("/proc/cpuinfo", "r");
-  bytes_read = fread (buffer, 1, sizeof (buffer), fp);
+  bytes_read = fread (buffer, 1, sizeof (buffer) - 1, fp);
   fclose(fp);
 
   assert(bytes_read > 0);
