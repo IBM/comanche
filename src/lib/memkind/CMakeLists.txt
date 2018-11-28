@@ -1,6 +1,6 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
-# option to build libraies, on by default
+# option to build libraries, on by default
 include(${CMAKE_ROOT}/Modules/ExternalProject.cmake)
 
 ExternalProject_Add(memkind
@@ -9,6 +9,6 @@ ExternalProject_Add(memkind
   UPDATE_DISCONNECTED 1
   GIT_REPOSITORY https://github.com/dwaddington/memkind.git
   CONFIGURE_COMMAND ./autogen.sh COMMAND ./configure --prefix=${CMAKE_INSTALL_PREFIX} --sysconfdir=${CMAKE_INSTALL_PREFIX}/etc --libdir=${CMAKE_INSTALL_PREFIX}/lib
-  BUILD_COMMAND ./build.sh
+  BUILD_COMMAND MAKEOPTS=${COMANCHE_CI_TASK_LIMIT} ./build.sh
   INSTALL_COMMAND make install
   )

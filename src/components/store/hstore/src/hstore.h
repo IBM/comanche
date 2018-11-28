@@ -130,9 +130,8 @@ public:
   status_t atomic_update(
     pool_t pool,
     const std::string& key,
-    const std::vector<operation_t>& op_vector,
-    bool take_lock,
-    void ** result) override;
+    const std::vector<operation *> &op_vector,
+    bool take_lock) override;
 };
 
 class hstore_factory : public Component::IKVStore_factory

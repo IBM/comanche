@@ -9,6 +9,7 @@ project(comanche-storemap CXX)
 add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 
 include_directories(${TBB_INCLUDE_DIR})
+include_directories(${CMAKE_INSTALL_PREFIX}/include)
 
 enable_language(CXX C ASM)
 file(GLOB SOURCES src/*.c*)
@@ -19,10 +20,10 @@ set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--no-undefined")
 target_link_libraries(${PROJECT_NAME} common comanche-core ${LIB_TBB_MALLOC} numa dl rt boost_system  pthread)
 
 # set the linkage in the install/lib
-set_target_properties(${PROJECT_NAME} PROPERTIES 
+set_target_properties(${PROJECT_NAME} PROPERTIES
   INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib)
 
 install (TARGETS ${PROJECT_NAME}
-    LIBRARY 
+    LIBRARY
     DESTINATION lib)
 

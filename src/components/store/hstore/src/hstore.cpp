@@ -872,9 +872,8 @@ auto hstore::map(
 auto hstore::atomic_update(
   const pool_t pool
   , const std::string& key
-  , const std::vector<operation_t>& op_vector
-  , const bool take_lock
-  , void **const) -> status_t
+  , const std::vector<operation *> &op_vector
+  , const bool take_lock) -> status_t
 try
 {
   auto &session = locate_session(pool);
