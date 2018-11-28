@@ -28,7 +28,7 @@ public:
   long long int _pool_size = MB(100);
   int _pool_flags = Component::IKVStore::FLAGS_SET_SIZE;
   int _pool_num_components = 100000;
-  int _cores = 1;
+  std::string _cores = "1";
   int _execution_time;
   std::string _component = "filestore";
   std::string _results_path = "./results";
@@ -237,7 +237,7 @@ public:
         }
 
         if (vm.count("cores") > 0)  {
-          _cores = vm["cores"].as<int>();
+          _cores = vm["cores"].as<std::string>();
         }
 
         if (vm.count("bins") > 0) {
@@ -265,7 +265,73 @@ public:
         std::cerr << ex.what() << '\n';
       }
   }
-   
+
+  static cpu_mask_t get_cpu_mask_from_string(std::string core_string)
+  {
+    cpu_mask_t mask;
+    unsigned cores_total, core_first, core_last;
+    std::string::size_type range_marker = core_string.find("-");
+    int hardware_total_cores = std::thread::hardware_concurrency();
+
+    // if range marker ("-" character") is found in core string, parse out first/last info
+    if (range_marker != std::string::npos)
+    {
+      if ((int)range_marker == 0)
+      {
+        PERR("no starting cpu given. Use format --cores=\"X-Y\"");
+        throw std::exception();
+      }
+      else if ((int)range_marker == core_string.length() - 1)
+      {
+        PERR("no ending cpu given. Use format --cores=\"X-Y\"");
+        throw std::exception();
+      }
+
+      std::string string_first, string_last;
+      string_first = core_string.substr(0, (int)range_marker);
+      string_last = core_string.substr((int)range_marker+1, core_string.length());
+
+      core_first = (unsigned)std::stoi(string_first);
+      core_last = (unsigned)std::stoi(string_last);
+      cores_total = core_last - core_first + 1;
+    }
+    else // start at core 0 and use n cores
+    {
+      cores_total = (unsigned)std::stoi(core_string);
+      core_first = 0;
+      core_last = cores_total - 1;
+    }
+
+    // final error check
+    if (core_first > core_last)
+    {
+      PERR("invalid core range specified: start (%u) > end (%u).", core_first, core_last);
+      throw std::exception();
+    }
+    else if (core_first > hardware_total_cores - 1 || core_last > hardware_total_cores - 1) // cores are zero indexed
+    {
+      PERR("specified core range (%u-%u) exceeds physical core count. Valid range is 0-%d.", core_first, core_last, hardware_total_cores - 1);
+      throw std::exception();
+    }
+
+    try
+    {
+      for (unsigned core = core_first; core <= core_last; core++)
+      {
+        mask.add_core(core);
+      }
+    }
+    catch(...)
+    {
+      PERR("failed while adding core to mask.");
+      throw std::exception();
+    }
+
+    PINF("cpu mask: using %u cores (%u-%u)", cores_total, core_first, core_last);
+
+    return mask;
+  }
+
   void _debug_print(unsigned core, std::string text, bool limit_to_core0=false)
   {
     if (_verbose)
@@ -540,7 +606,7 @@ public:
     temp_value.SetString(rapidjson::StringRef(options.component.c_str()));
     temp_object.AddMember("component", temp_value, allocator);
 
-    temp_value.SetInt(options.cores);
+    temp_value.SetString(rapidjson::StringRef(options.cores.c_str()));
     temp_object.AddMember("cores", temp_value, allocator);
 
     temp_value.SetInt(options.key_length);
