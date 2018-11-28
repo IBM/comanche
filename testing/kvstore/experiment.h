@@ -8,6 +8,7 @@
 #include <fstream>
 #include <sstream>
 
+#include "common/cycles.h"
 #include "data.h"
 #include "kvstore_perf.h"
 #include "statistics.h"
@@ -34,6 +35,31 @@ public:
   std::string _report_filename;
   std::string _test_name;
   Component::IKVStore::memory_handle_t _memory_handle = Component::IKVStore::HANDLE_NONE;
+
+  // common experiment parameters
+  size_t                                _i = 0;
+  Component::IKVStore *                 _store;
+  Component::IKVStore::pool_t           _pool;
+  bool                                  _first_iter = true;
+  bool                                  _ready = false;
+  Stopwatch timer;
+  bool _verbose = false;
+  bool _summary = true;
+
+  // member variables for tracking pool sizes
+  long _element_size = -1;
+  long _elements_in_use = 0;
+  long _pool_element_start = 0;
+  long _pool_element_end = -1;
+  long _elements_stored = 0;
+
+  // bin statistics
+  int _bin_count = 100;
+  double _bin_threshold_min = 0.000000001;
+  double _bin_threshold_max = 0.001;
+  double _bin_increment;
+
+  float _cycles_per_second = Core::get_rdtsc_frequency_mhz() * 1000000;
 
   Experiment(struct ProgramOptions options): _store(options.store)
   {
@@ -263,20 +289,24 @@ public:
 
     try
     {
-      FILE *pFile = fopen(_report_filename.c_str(), "r+");
+      FILE *pFile = fopen(_report_filename.c_str(), "r");
       if (!pFile)
         {
+          std::cerr << "attempted to open filename '" << _report_filename << "'" << std::endl;
           perror("_get_report_document failed fopen call");
           throw std::exception();
         }
 
       char readBuffer[GetFileSize(_report_filename)];
-      std::cout << "readBuffer size = " << GetFileSize(_report_filename) << std::endl;
 
       rapidjson::FileReadStream is(pFile, readBuffer, sizeof(readBuffer));
-      document.ParseStream(is);
+      document.ParseStream<0>(is);
 
-      std::cout << "_get_report_document: document.IsObject() = " << document.IsObject() << std::endl;
+      if (document.HasParseError())
+      {
+        PERR("parsing error in document, code = %d", (int)document.GetParseError());
+        throw std::exception();
+      }
 
       fclose(pFile);
     }
@@ -325,7 +355,6 @@ public:
     std::string core_string = std::to_string(core);
     temp_value.SetString(rapidjson::StringRef(core_string.c_str()));
 
-    std::cout << "_report_document_save: test name = " << _test_name << std::endl;
     try
     {
       if (document.IsObject() && !document.HasMember(_test_name.c_str()))
@@ -335,7 +364,6 @@ public:
       }
       else
       {
-        std::cout << "document.IsObject() = " << document.IsObject() << ", document.IsArray() = " << document.IsArray() << std::endl;
         rapidjson::Value &items = document[_test_name.c_str()];
 
         &items.AddMember(temp_value, new_info, document.GetAllocator());
@@ -344,8 +372,6 @@ public:
       // write back to file
       rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(strbuf);
       document.Accept(writer);
-      std::cout << "strbuf.GetSize() = " << strbuf.GetSize() << std::endl;
-      std::cout << "after Accept: document.IsObject() = " << document.IsObject() << std::endl;
     }
     catch(...)
     {
@@ -357,7 +383,6 @@ public:
     {
       std::ofstream outf(_report_filename.c_str());
       outf << strbuf.GetString() << std::endl;
-//      std::cout << "strbuf:" << strbuf.GetString() << std::endl;
     }
     catch(...)
     {
@@ -366,7 +391,6 @@ public:
     }
 
     _debug_print(core, "_report_document_save finished");
-    std::cout << "_report_document_save results: document.IsObject() = " << document.IsObject() << std::endl;
   }
 
   void _print_highest_count_bin(BinStatistics& stats)
@@ -799,30 +823,6 @@ public:
       throw std::exception();
     }
   }
-
-  size_t                                _i = 0;
-  Component::IKVStore *                 _store;
-  Component::IKVStore::pool_t           _pool;
-  bool                                  _first_iter = true;
-  bool                                  _ready = false;
-  Stopwatch timer;
-  bool _verbose = false;
-  bool _summary = true;
-
-  // member variables for tracking pool sizes
-  long _element_size = -1;
-  long _elements_in_use = 0;
-  long _pool_element_start = 0;
-  long _pool_element_end = -1;
-  long _elements_stored = 0;
-
-  // bin statistics
-  int _bin_count = 100;
-  double _bin_threshold_min = 0.000000001;
-  double _bin_threshold_max = 0.001;
-  double _bin_increment;
-
-
 };
 
 
