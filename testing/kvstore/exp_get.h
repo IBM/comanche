@@ -36,7 +36,7 @@ public:
     {
       _latency_stats.init(_bin_count, _bin_threshold_min, _bin_threshold_max);
      
-      PLOG("exp_get: pool seeded with values\n");
+      PLOG("[%u] exp_get: pool seeded with values", core);
     }
 
     void do_work(unsigned core) override
@@ -48,7 +48,7 @@ public:
       // seed the pool with elements from _data
       _populate_pool_to_capacity(core);
 
-        PLOG("Starting Get experiment...");
+        PLOG("[%u] Starting Get experiment...", core);
 
         _first_iter = false;
         _exp_start_time = std::chrono::high_resolution_clock::now();
@@ -57,7 +57,7 @@ public:
       // end experiment if we've reached the total number of components
       if (_i + 1 == _pool_num_components)
       {
-          PINF("reached total number of components. Exiting.");
+          PINF("[%u] reached total number of components. Exiting.", core);
           throw std::exception();
       }
 
@@ -160,7 +160,7 @@ public:
        experiment_object.AddMember("start_time", timing_object, document.GetAllocator()); 
        
        _report_document_save(document, core, experiment_object);
-        _print_highest_count_bin(_latency_stats);
+        _print_highest_count_bin(_latency_stats, core);
 
        pthread_mutex_unlock(&g_write_lock);
     }

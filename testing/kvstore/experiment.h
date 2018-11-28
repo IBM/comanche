@@ -459,7 +459,7 @@ public:
     _debug_print(core, "_report_document_save finished");
   }
 
-  void _print_highest_count_bin(BinStatistics& stats)
+  void _print_highest_count_bin(BinStatistics& stats, unsigned core)
   {
     int count_highest = -1;  // arbitrary placeholder value
     int count_highest_index = -1;  // arbitrary placeholder value
@@ -479,7 +479,7 @@ public:
         RunningStatistics bin = stats.getBin(count_highest_index);
 
         // print information about that bin
-        std::cout << "SUMMARY: " << std::endl;
+        std::cout << "SUMMARY: core " << core << std::endl;
         std::cout << "\tmean:\t" << bin.getMean() << std::endl;
         std::cout << "\tmin:\t" << bin.getMin() << std::endl;
         std::cout << "\tmax:\t" << bin.getMax() << std::endl;
