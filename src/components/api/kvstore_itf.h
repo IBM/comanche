@@ -39,11 +39,13 @@ public:
 
 private:
   struct Opaque_memory_region;
-  struct Opaque_key;
 
 public:
   using pool_t          = uint64_t;
   using memory_handle_t = Opaque_memory_region *;
+  struct Opaque_key { /* base for implementation lock/key container */
+    virtual ~Opaque_key() {} /* destruction invokes derived destructor */
+  };
   using key_t           = Opaque_key *;
 
   static constexpr memory_handle_t HANDLE_NONE = nullptr;
