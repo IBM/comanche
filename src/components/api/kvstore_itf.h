@@ -62,47 +62,47 @@ public:
     FLAGS_CREATE_ONLY = 3,
   };
 
-  enum class op_type {
+  enum class Op_type {
     WRITE, /* copy bytes into memory region */
     ZERO, /* zero the memory region */
     INCREMENT_UINT64,
     CAS_UINT64,
   };
 
-  class operation
+  class Operation
   {
-    op_type _type;
+    Op_type _type;
     size_t _offset;
   protected:
-    operation(op_type type, size_t offset)
+    Operation(Op_type type, size_t offset)
       : _type(type)
       , _offset(offset)
     {}
   public:
-    op_type type() const noexcept { return _type; }
+    Op_type type() const noexcept { return _type; }
     size_t offset() const  noexcept{ return _offset; }
   };
 
-  class operation_sized
-    : public operation
+  class Operation_sized
+    : public Operation
   {
     size_t _len;
   protected:
-    operation_sized(op_type type, size_t offset_, size_t len)
-      : operation(type, offset_)
+    Operation_sized(Op_type type, size_t offset_, size_t len)
+      : Operation(type, offset_)
       , _len(len)
     {}
   public:
     size_t size() const noexcept { return _len; }
   };
 
-  class operation_write
-    : public operation_sized
+  class Operation_write
+    : public Operation_sized
   {
     const void *_data;
   public:
-    operation_write(size_t offset, size_t len, const void *data)
-      :  operation_sized(op_type::WRITE, offset, len)
+    Operation_write(size_t offset, size_t len, const void *data)
+      :  Operation_sized(Op_type::WRITE, offset, len)
       , _data(data)
     {}
     const void * data() const noexcept { return _data; }
@@ -334,7 +334,7 @@ public:
    */
   virtual status_t atomic_update(const pool_t pool,
                                  const std::string& key,
-                                 const std::vector<operation *> & op_vector,
+                                 const std::vector<Operation *> & op_vector,
                                  bool take_lock = true) { return E_NOT_SUPPORTED; }
 
   /** 

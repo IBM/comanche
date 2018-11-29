@@ -27,9 +27,12 @@ template <typename Table>
 				auto mod_ctl = &*(_persist->mod_ctl);
 				for ( auto i = mod_ctl; i != &mod_ctl[_persist->mod_size]; ++i )
 				{
-					auto src_first = &src[i->offset_src];
-					auto src_last = src_first + i->size;
-					auto dst_first = &dst[i->offset_dst];
+					std::size_t o_s = i->offset_src;
+					auto src_first = &src[o_s];
+					std::size_t sz = i->size;
+					auto src_last = src_first + sz;
+					std::size_t o_d = i->offset_dst;
+					auto dst_first = &dst[o_d];
 					/* NOTE: could be replaced with a pmem persistent memcpy */
 					persist_range(dst_first, std::copy(src_first, src_last, dst_first), "atomic ctl");
 				}
@@ -54,8 +57,8 @@ template <typename Table>
 		PMEMobjpool *pop
 		, persist_fixed_string<char> &key
 		, uint64_t type_num_data
-		, std::vector<Component::IKVStore::operation *>::const_iterator first
-		, std::vector<Component::IKVStore::operation *>::const_iterator last
+		, std::vector<Component::IKVStore::Operation *>::const_iterator first
+		, std::vector<Component::IKVStore::Operation *>::const_iterator last
 	) -> typename Component::status_t
 	{
 		std::vector<char> src;
@@ -64,9 +67,9 @@ template <typename Table>
 		{
 			switch ( (*first)->type() )
 			{
-			case Component::IKVStore::op_type::WRITE:
+			case Component::IKVStore::Op_type::WRITE:
 				{
-					const Component::IKVStore::operation_write &wr = *static_cast<Component::IKVStore::operation_write *>(*first);
+					const Component::IKVStore::Operation_write &wr = *static_cast<Component::IKVStore::Operation_write *>(*first);
 					auto src_offset = src.size();
 					auto dst_offset = wr.offset();
 					auto size = wr.size();

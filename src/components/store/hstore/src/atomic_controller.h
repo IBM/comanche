@@ -37,9 +37,9 @@ namespace impl
 			auto enter(
 				PMEMobjpool *pop
 				, persist_fixed_string<char> &key
-				, uint64_t type_num_data
-				, std::vector<Component::IKVStore::operation *>::const_iterator first
-				, std::vector<Component::IKVStore::operation *>::const_iterator last
+				, std::uint64_t type_num_data
+				, std::vector<Component::IKVStore::Operation *>::const_iterator first
+				, std::vector<Component::IKVStore::Operation *>::const_iterator last
 			) -> Component::status_t;
 	};
 }

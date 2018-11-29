@@ -41,10 +41,11 @@ class KVStore_test : public ::testing::Test {
   }
 
   // Objects declared here can be used by all tests in the test case
+  /* persistent memory if enabled at all, is simulated and not real */
   static bool pmem_simulated;
+  /* persistent memory is effective (either real, indicated by no PMEM_IS_PMEM_FORCE or simulated by PMEM_IS_PMEM_FORCE 0 not 1 */
   static bool pmem_effective;
   static Component::IKVStore * _kvstore;
-  static Component::IKVStore::pool_t pool;
 
   static const std::size_t estimated_object_count;
 
@@ -61,10 +62,9 @@ constexpr std::size_t KVStore_test::estimated_object_count_large;
 constexpr std::size_t KVStore_test::many_count_target_small;
 constexpr std::size_t KVStore_test::many_count_target_large;
 
-bool KVStore_test::pmem_simulated = getenv("PMEM_IS_PMEM_FORCE") && getenv("PMEM_IS_PMEM_FORCE") == std::string("1");
+bool KVStore_test::pmem_simulated = getenv("PMEM_IS_PMEM_FORCE");
 bool KVStore_test::pmem_effective = ! getenv("PMEM_IS_PMEM_FORCE") || getenv("PMEM_IS_PMEM_FORCE") == std::string("0");
 Component::IKVStore * KVStore_test::_kvstore;
-Component::IKVStore::pool_t KVStore_test::pool;
 
 const std::size_t KVStore_test::estimated_object_count = pmem_simulated ? estimated_object_count_small : estimated_object_count_large;
 
@@ -80,6 +80,10 @@ std::vector<KVStore_test::kv_t> KVStore_test::kvv;
 
 TEST_F(KVStore_test, Instantiate)
 {
+  std::cerr
+    << "PMEM " << (pmem_simulated ? "simulated" : "not simluated")
+    << ", " << (pmem_effective ? "effective" : "not effective")
+    << "\n";
   /* create object instance through factory */
   auto link_library = "libcomanche-" + store_map::impl->name + ".so";
   Component::IBase * comp = Component::load_component(link_library,
@@ -93,13 +97,52 @@ TEST_F(KVStore_test, Instantiate)
   fact->release_ref();
 }
 
+class pool_open
+{
+  Component::IKVStore *_kvstore;
+  Component::IKVStore::pool_t _pool;
+public:
+  explicit pool_open(
+    Component::IKVStore *kvstore_
+    , const std::string& path_
+    , const std::string& name_
+    , unsigned int flags = 0
+  )
+    : _kvstore(kvstore_)
+    , _pool(_kvstore->open_pool(path_, name_, flags))
+  {
+    if ( int64_t(_pool) < 0 )
+    {
+      throw std::runtime_error("Failed to open pool code " + std::to_string(-_pool));
+    }
+  }
+  explicit pool_open(
+    Component::IKVStore *kvstore_
+    , const std::string& path_
+    , const std::string& name_
+    , const size_t size
+    , unsigned int flags = 0
+    , uint64_t expected_obj_count = 0
+  )
+    : _kvstore(kvstore_)
+    , _pool(_kvstore->create_pool(path_, name_, size, flags, expected_obj_count))
+  {}
+
+  ~pool_open()
+  {
+    _kvstore->close_pool(_pool);
+  }
+
+  Component::IKVStore::pool_t pool() const noexcept { return _pool; }
+};
+
 TEST_F(KVStore_test, RemoveOldPool)
 {
   if ( _kvstore )
   {
     try
     {
-      pool = _kvstore->open_pool(PMEM_PATH, "test-" + store_map::impl->name + ".pool", MB(128UL));
+      auto pool = _kvstore->open_pool(PMEM_PATH, "test-" + store_map::impl->name + ".pool");
       if ( 0 < int64_t(pool) )
       {
         _kvstore->delete_pool(pool);
@@ -114,9 +157,8 @@ TEST_F(KVStore_test, RemoveOldPool)
 TEST_F(KVStore_test, CreatePool)
 {
   ASSERT_TRUE(_kvstore);
-  pool = _kvstore->create_pool(PMEM_PATH, "test-" + store_map::impl->name + ".pool", MB(128UL), 0, estimated_object_count);
-  ASSERT_LT(0, int64_t(pool));
-  _kvstore->close_pool(pool);
+  pool_open p(_kvstore, PMEM_PATH, "test-" + store_map::impl->name + ".pool", MB(128UL), 0, estimated_object_count);
+  ASSERT_LT(0, int64_t(p.pool()));
 }
 
 TEST_F(KVStore_test, PopulateMany)
@@ -163,7 +205,7 @@ TEST_F(KVStore_test, PutMany)
     _kvstore->debug(0, 0 /* enable */, true);
     try
     {
-      pool = _kvstore->open_pool(PMEM_PATH, "test-hstore.pool", MB(128));
+      pool_open p(_kvstore, PMEM_PATH, "test-hstore.pool");
 
       std::mt19937_64 r0{};
 
@@ -171,7 +213,7 @@ TEST_F(KVStore_test, PutMany)
       {
         const auto &key = std::get<0>(kv);
         const auto &value = std::get<1>(kv);
-        auto r = _kvstore->put(pool, key, value.c_str(), value.length());
+        auto r = _kvstore->put(p.pool(), key, value.c_str(), value.length());
         if ( r == S_OK )
         {
           ++succeed_count;
@@ -186,88 +228,73 @@ TEST_F(KVStore_test, PutMany)
       finished = true;
       /* Done with forcing crashes */
       _kvstore->debug(0, 0 /* enable */, false);
+      std::cerr << __func__ << " Final put pass " << perishable_count << " exists " << fail_count << " inserts " << succeed_count << " total " << many_count_actual << "\n";
     }
     catch ( const std::runtime_error &e )
     {
       if ( e.what() != std::string("perishable timer expired") ) { throw; }
       std::cerr << __func__ << " Perishable pass " << perishable_count << " exists " << fail_count << " inserts " << succeed_count << " total " << many_count_actual << "\n";
-      /* We cannot bring the system all the way down without aborting the test case
-         * driver. Come close.
-       * We do not yet free and recreate the component. Perhaps we should.
-       */
-      _kvstore->close_pool(pool);
     }
   }
-}
-
-TEST_F(KVStore_test, ClosePool)
-{
-  if ( pmem_effective )
-  {
-    _kvstore->close_pool(pool);
-  }
-}
-
-TEST_F(KVStore_test, OpenPool)
-{
-  ASSERT_TRUE(_kvstore);
-  if ( pmem_effective )
-  {
-    pool = _kvstore->open_pool(PMEM_PATH, "test-hstore.pool", MB(128));
-  }
-  ASSERT_LT(0, int64_t(pool));
-}
-
-TEST_F(KVStore_test, Size2a)
-{
-  auto count = _kvstore->count(pool);
-  /* count should reflect PutMany */
-  EXPECT_EQ(count, many_count_actual);
 }
 
 TEST_F(KVStore_test, GetMany)
 {
-  for ( auto &kv : kvv )
+  ASSERT_TRUE(_kvstore);
+  if ( pmem_effective )
   {
-    const auto &key = std::get<0>(kv);
-    const auto &ev = std::get<1>(kv);
-    void * value = nullptr;
-    size_t value_len = 0;
-    auto r = _kvstore->get(pool, key, value, value_len);
-    EXPECT_EQ(r, S_OK);
-    EXPECT_EQ(value_len, many_value_length);
-    EXPECT_EQ(0, memcmp(ev.data(), value, ev.size()));
-    _kvstore->free_memory(value);
-  }
-}
-
-TEST_F(KVStore_test, Size2c)
-{
-  auto count = _kvstore->count(pool);
-  /* count should reflect PutMany, and Allocate */
-  EXPECT_EQ(count, many_count_actual);
-}
-
-TEST_F(KVStore_test, EraseMany)
-{
-  auto erase_count = 0;
-  for ( auto &kv : kvv )
-  {
-    const auto &key = std::get<0>(kv);
-    auto r = _kvstore->erase(pool, key);
-    if ( r == S_OK )
+    pool_open p(_kvstore, PMEM_PATH, "test-hstore.pool");
+    ASSERT_LT(0, int64_t(p.pool()));
     {
-      ++erase_count;
+      auto count = _kvstore->count(p.pool());
+      /* count should reflect PutMany */
+      EXPECT_EQ(count, many_count_actual);
+    }
+    {
+      for ( auto &kv : kvv )
+      {
+        const auto &key = std::get<0>(kv);
+        const auto &ev = std::get<1>(kv);
+        void * value = nullptr;
+        size_t value_len = 0;
+        auto r = _kvstore->get(p.pool(), key, value, value_len);
+        EXPECT_EQ(r, S_OK);
+        EXPECT_EQ(value_len, many_value_length);
+        EXPECT_EQ(0, memcmp(ev.data(), value, ev.size()));
+        _kvstore->free_memory(value);
+      }
+    }
+    {
+      auto count = _kvstore->count(p.pool());
+      /* count should reflect PutMany, and Allocate */
+      EXPECT_EQ(count, many_count_actual);
+    }
+    {
+      auto erase_count = 0;
+      for ( auto &kv : kvv )
+      {
+        const auto &key = std::get<0>(kv);
+        auto r = _kvstore->erase(p.pool(), key);
+        if ( r == S_OK )
+        {
+          ++erase_count;
+        }
+      }
+      EXPECT_LE(many_count_actual, erase_count);
+      auto count = _kvstore->count(p.pool());
+      EXPECT_EQ(count, 0U);
     }
   }
-  EXPECT_LE(many_count_actual, erase_count);
-  auto count = _kvstore->count(pool);
-  EXPECT_EQ(count, 0U);
 }
 
 TEST_F(KVStore_test, DeletePool)
 {
-  _kvstore->delete_pool(pool);
+  if ( pmem_effective )
+  {
+    auto pool = _kvstore->open_pool(PMEM_PATH, "test-hstore.pool");
+    ASSERT_LT(0, int64_t(pool));
+    _kvstore->delete_pool(pool);
+  }
 }
 
 } // namespace

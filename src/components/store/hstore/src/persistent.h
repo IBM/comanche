@@ -4,7 +4,6 @@
 #include "perishable.h"
 #include <atomic>
 
-#if USE_PERISHABLE
 template <typename T>
 	class persistent
 	{
@@ -147,6 +146,8 @@ template <typename T>
 			return _v;
 		};
 	};
+
+#if TEST_HSTORE_PERISHABLE
 template <typename T>
 	using persistent_t = persistent<T>;
 template <typename T>
