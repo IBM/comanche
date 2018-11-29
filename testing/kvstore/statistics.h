@@ -2,6 +2,7 @@
 #define __STATISTICS_H__
 
 #include <cmath>
+#include <common/logging.h>
 #include <iostream>
 #include <limits>
 #include <vector>
@@ -94,7 +95,7 @@ private:
         }
     }
 
-    unsigned int count = 0;
+    int count = 0;
     double min = 0;  
     double max = 0;  
     double mean = 0;
@@ -113,7 +114,7 @@ public:
        init(1, std::numeric_limits<double>::min(), std::numeric_limits<double>::max());
     }
 
-    BinStatistics(unsigned int bins, double threshold_min, double threshold_max)
+    BinStatistics(int bins, double threshold_min, double threshold_max)
     {
         init(bins, threshold_min, threshold_max);
     } 
@@ -122,17 +123,20 @@ public:
     {
         if (bins < 0)
         {
-            perror("BinStatistics.init: bins can't be negative");
+            PERR("BinStatistics.init: bins can't be negative");
+            throw std::exception();
         }
         else if (bins == 0)
         {
-            perror("BinStatistics.init: bin count should be at least 1");
+            PERR("BinStatistics.init: bin count should be at least 1");
+            throw std::exception();
         }
 
         if (threshold_min > threshold_max)
         {
-            std::cerr << "BinStatistics.init: threshold_max should be larger than threshold_min. ";
+            PERR("BinStatistics.init: threshold_max should be larger than threshold_min. ");
             std::cerr << "min: " << threshold_min << ", max = " << threshold_max << std::endl;
+            throw std::exception();
         }
 
         _bin_count = bins;

@@ -13,7 +13,7 @@
 struct ProgramOptions {
   std::string test;
   std::string component;
-  unsigned cores;
+  std::string cores;
   unsigned time_secs;
   std::string path;
   unsigned long long int size;

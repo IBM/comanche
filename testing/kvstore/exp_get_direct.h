@@ -9,7 +9,6 @@
 #include <vector>
 #include <sys/mman.h>
 
-#include "common/cycles.h"
 #include "experiment.h"
 #include "kvstore_perf.h"
 #include "statistics.h"
@@ -19,7 +18,6 @@ extern Data * _data;
 class ExperimentGetDirect: public Experiment
 { 
 public:
-    float _cycles_per_second;  // initialized in do_work first run
     std::vector<double> _start_time;
     std::vector<double> _latencies;
     std::chrono::high_resolution_clock::time_point _exp_start_time;
@@ -38,24 +36,30 @@ public:
 
     void initialize_custom(unsigned core)
     {
-        _cycles_per_second = Core::get_rdtsc_frequency_mhz() * 1000000;
-        _start_time.resize(_pool_num_components);
-        _latencies.resize(_pool_num_components);
+      if (_verbose)
+      {
+        PINF("[%u] exp_get_direct: initialize custom started", core);
+      }
 
-        if (_component.compare("dawn_client") == 0)
+      _latency_stats.init(_bin_count, _bin_threshold_min, _bin_threshold_max);
+
+      try
+      {
+        if (_component.compare("dawn") == 0)
         {
            size_t data_size = sizeof(KV_pair) * _data->_num_elements;
            Data * data = (Data*)aligned_alloc(_pool_size, data_size);
            madvise(data, data_size, MADV_HUGEPAGE);
            _direct_memory_handle = _store->register_direct_memory(data, data_size);
         }
+      }
+      catch(...)
+      {
+        PERR("failed during direct_memory_handle setup");
+        throw std::exception();
+      }
 
-        // seed the pool with elements from _data
-        _populate_pool_to_capacity(core, _direct_memory_handle);
-
-        PLOG("pool seeded with values\n");
-
-        _latency_stats.init(_bin_count, _bin_threshold_min, _bin_threshold_max);
+      PLOG("pool seeded with values\n");
     }
 
     void do_work(unsigned core) override 
@@ -63,26 +67,30 @@ public:
         // handle first time setup
         if(_first_iter) 
         {
-            PLOG("Starting Get Direct experiment...");
-
+            PLOG("[%u] Starting Get Direct experiment...", core);
             _first_iter = false;
             _exp_start_time = std::chrono::high_resolution_clock::now();
+
+
+            // seed the pool with elements from _data
+            _populate_pool_to_capacity(core, _direct_memory_handle);
         }     
 
         // end experiment if we've reached the total number of components
-        if (_i == _pool_num_components)
+        if (_i + 1 == _pool_num_components)
         {
-            timer.stop();
-            throw std::exception();
+          PINF("[%u] get_direct: reached total number of components. Exiting.", core);
+          timer.stop();
+          throw std::exception();
         }
 
         // check time it takes to complete a single put operation
-        unsigned int cycles, start, end;
+        uint64_t cycles, start, end;
 
         io_buffer_t handle;
         Core::Physical_memory mem_alloc;
         size_t pval_len = 64;
-        void * pval = malloc(pval_len);
+        void* pval = operator new(pval_len);
         Component::IKVStore::memory_handle_t memory_handle = Component::IKVStore::HANDLE_NONE; 
 
         if (_component.compare("nvmestore") == 0)
@@ -98,7 +106,7 @@ public:
 
             pval = mem_alloc.virt_addr(handle);
         }
-        else if (_component.compare("dawn_client") == 0)
+        else if (_component.compare("dawn") == 0)
         {
             memory_handle = _direct_memory_handle;
         }
@@ -122,12 +130,12 @@ public:
         }
         else if (pval != nullptr)
         {
-          free(pval);
+          operator delete(pval);
         }
 
         // store the information for later use
-        _latencies.at(_i) = time;
-        _start_time.at(_i) = time_since_start; 
+        _latencies.push_back(time);
+        _start_time.push_back(time_since_start);
         _latency_stats.update(time);
         
         if (rc != S_OK)
@@ -138,7 +146,7 @@ public:
 
         _i++;  // increment after running so all elements get used
 
-       if (_i == _pool_element_end)
+       if (_i == _pool_element_end + 1)
        {
             _erase_pool_entries_in_range(_pool_element_start, _pool_element_end);
            _populate_pool_to_capacity(core, _direct_memory_handle);
@@ -154,7 +162,7 @@ public:
 
     void cleanup_custom(unsigned core)  
     {
-        if (_component.compare("dawn_client") == 0)
+        if (_component.compare("dawn") == 0)
         {
             _store->unregister_direct_memory(_direct_memory_handle);
         }
@@ -190,7 +198,7 @@ public:
        experiment_object.AddMember("IOPS", iops_object, document.GetAllocator());
        experiment_object.AddMember("latency", latency_object, document.GetAllocator());
        experiment_object.AddMember("start_time", timing_object, document.GetAllocator()); 
-        _print_highest_count_bin(_latency_stats);
+        _print_highest_count_bin(_latency_stats, core);
 
        _report_document_save(document, core, experiment_object);
 
