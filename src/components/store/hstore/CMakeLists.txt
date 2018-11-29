@@ -16,6 +16,9 @@ set(SOURCES src/hstore.cpp src/hop_hash.cpp src/perishable.cpp src/palloc.cpp sr
 #  ${ALL_SOURCES})
 
 add_compile_options(-g -pedantic -Wall -Werror -Wextra -Wcast-align -Wcast-qual -Wconversion -Weffc++ -Wold-style-cast -Wredundant-decls -Wshadow -Wtype-limits -Wunused-parameter -Wwrite-strings)
+if(TEST_HSTORE_PERISHABLE)
+  add_compile_options(-DTEST_HSTORE_PERISHABLE=1)
+endif()
 
 get_property(incdirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
 set(sysincludes "-I/usr/include/c++/5 -I/usr/include/x86_64-linux-gnu/c++/5/ -I/usr/include/linux")

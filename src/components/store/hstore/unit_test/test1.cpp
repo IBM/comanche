@@ -42,7 +42,9 @@ class KVStore_test : public ::testing::Test {
   }
 
   // Objects declared here can be used by all tests in the test case
+  /* persistent memory if enabled at all, is simulated and not real */
   static bool pmem_simulated;
+  /* persistent memory is effective (either real, indicated by no PMEM_IS_PMEM_FORCE or simulated by PMEM_IS_PMEM_FORCE 0 not 1 */
   static bool pmem_effective;
   static Component::IKVStore * _kvstore;
   static Component::IKVStore::pool_t pool;
@@ -70,7 +72,7 @@ constexpr std::size_t KVStore_test::estimated_object_count_large;
 constexpr std::size_t KVStore_test::many_count_target_small;
 constexpr std::size_t KVStore_test::many_count_target_large;
 
-bool KVStore_test::pmem_simulated = getenv("PMEM_IS_PMEM_FORCE") && getenv("PMEM_IS_PMEM_FORCE") == std::string("1");
+bool KVStore_test::pmem_simulated = getenv("PMEM_IS_PMEM_FORCE");
 bool KVStore_test::pmem_effective = ! getenv("PMEM_IS_PMEM_FORCE") || getenv("PMEM_IS_PMEM_FORCE") == std::string("0");
 Component::IKVStore * KVStore_test::_kvstore;
 Component::IKVStore::pool_t KVStore_test::pool;
@@ -115,7 +117,7 @@ TEST_F(KVStore_test, RemoveOldPool)
   {
     try
     {
-      pool = _kvstore->open_pool(PMEM_PATH, "test-" + store_map::impl->name + ".pool", MB(128UL));
+      pool = _kvstore->open_pool(PMEM_PATH, "test-" + store_map::impl->name + ".pool", 0);
       if ( 0 < int64_t(pool) )
       {
         _kvstore->delete_pool(pool);
@@ -238,7 +240,7 @@ TEST_F(KVStore_test, OpenPool)
   ASSERT_TRUE(_kvstore);
   if ( pmem_effective )
   {
-    pool = _kvstore->open_pool(PMEM_PATH, "test-hstore.pool", MB(128));
+    pool = _kvstore->open_pool(PMEM_PATH, "test-hstore.pool", 0);
   }
   ASSERT_LT(0, int64_t(pool));
 }
@@ -350,11 +352,10 @@ TEST_F(KVStore_test, Size2c)
 TEST_F(KVStore_test, BasicUpdate)
 {
   {
-    auto op_write = IKVStore::op_type::WRITE;
-    std::vector<std::unique_ptr<IKVStore::operation>> v;
-    v.emplace_back(std::make_unique<IKVStore::operation_write>(0, 1, "W"));
-    v.emplace_back(std::make_unique<IKVStore::operation_write>(2, 3, "XYZ"));
-    std::vector<IKVStore::operation *> v2;
+    std::vector<std::unique_ptr<IKVStore::Operation>> v;
+    v.emplace_back(std::make_unique<IKVStore::Operation_write>(0, 1, "W"));
+    v.emplace_back(std::make_unique<IKVStore::Operation_write>(2, 3, "XYZ"));
+    std::vector<IKVStore::Operation *> v2;
     std::transform(v.begin(), v.end(), std::back_inserter(v2), [] (const auto &i) { return i.get(); });
     auto r =
       _kvstore->atomic_update(

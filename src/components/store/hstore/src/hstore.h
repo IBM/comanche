@@ -130,7 +130,7 @@ public:
   status_t atomic_update(
     pool_t pool,
     const std::string& key,
-    const std::vector<operation *> &op_vector,
+    const std::vector<Operation *> &op_vector,
     bool take_lock) override;
 };
 
