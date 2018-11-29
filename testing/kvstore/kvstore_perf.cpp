@@ -32,7 +32,7 @@ ProgramOptions Options;
 Data * _data;
 
 static Component::IKVStore * g_store;
-static void initialize();
+static int initialize();
 static void cleanup();
 
 int g_argc;
@@ -54,8 +54,8 @@ int main(int argc, char * argv[])
     desc.add_options()
     ("help", "Show help")
     ("test", po::value<std::string>(), "Test name <all|put|get|put_direct|get_direct>")
-    ("component", po::value<std::string>(), "Implementation selection <pmstore|nvmestore|filestore|mapstore|hstore>")
-    ("cores", po::value<int>(), "Number of threads/cores")
+    ("component", po::value<std::string>(), "Implementation selection <filestore|pmstore|dawn|nvmestore|mapstore|hstore>")
+    ("cores", po::value<std::string>(), "Number of threads/cores (starts from core 0), or range X-Y.")
     ("time", po::value<int>(), "Duration to run in seconds")
     ("path", po::value<std::string>(), "Path of directory for pool")
     ("size", po::value<unsigned long long int>(), "Size of pool")
@@ -91,7 +91,7 @@ int main(int argc, char * argv[])
     else
       Options.component = DEFAULT_COMPONENT;
     
-    Options.cores  = vm.count("cores") > 0 ? vm["cores"].as<int>() : 1;
+    Options.cores  = vm.count("cores") > 0 ? vm["cores"].as<std::string>() : "1";
     Options.time_secs  = vm.count("time") > 0 ? vm["time"].as<int>() : 4;
     Options.size = vm.count("size") > 0 ? vm["size"].as<unsigned long long int>() : MB(100);
     Options.flags = vm.count("flags") > 0 ? vm["flags"].as<int>() : Component::IKVStore::FLAGS_SET_SIZE;
@@ -134,17 +134,28 @@ int main(int argc, char * argv[])
       std::cerr << ex.what() << '\n';
     }
 
-  bool use_direct_memory = Options.component == "dawn_client";
+  bool use_direct_memory = Options.component == "dawn";
   _data = new Data(Options.elements, Options.key_length, Options.value_length, use_direct_memory);
-  initialize();
+  if (initialize() != 0)
+  {
+    PERR("initialize returned an error. Aborting setup.");
+    return 1;
+  }
 
   Options.store = g_store;
   Options.report_file_name = Experiment::create_report(Options);
 
   cpu_mask_t cpus;
-  unsigned core = 1;
-  for(unsigned core = 0; core < Options.cores; core++)
-    cpus.add_core(core);
+
+  try
+  {
+    cpus = Experiment::get_cpu_mask_from_string(Options.cores);
+  }
+  catch(...)
+  {
+    PERR("couldn't create CPU mask. Exiting.");
+    return 1;
+  }
 
   ProfilerStart("cpu.profile");
 
@@ -176,48 +187,71 @@ int main(int argc, char * argv[])
 }
 
 
-static void initialize()
+static int initialize()
 {
   Component::IBase * comp;
-  
-  if(Options.component == "pmstore") {
-    comp = Component::load_component(PMSTORE_PATH, Component::pmstore_factory);
+ 
+  try
+  { 
+    if(Options.component == "pmstore") {
+      comp = Component::load_component(PMSTORE_PATH, Component::pmstore_factory);
+    }
+    else if(Options.component == "filestore") {
+      comp = Component::load_component(FILESTORE_PATH, Component::filestore_factory);
+    }
+    else if(Options.component == "nvmestore") {
+      comp = Component::load_component(NVMESTORE_PATH, Component::nvmestore_factory);
+    }
+    else if(Options.component == "rockstore") {
+      comp = Component::load_component(ROCKSTORE_PATH, Component::rocksdb_factory);
+    }
+    else if(Options.component == "dawn") {
+      
+      DECLARE_STATIC_COMPONENT_UUID(dawn_factory, 0xfac66078,0xcb8a,0x4724,0xa454,0xd1,0xd8,0x8d,0xe2,0xdb,0x87);  // TODO: find a better way to register arbitrary components to promote modular use
+      comp = Component::load_component(DAWN_PATH, dawn_factory);
+    }
+    else if (Options.component == "hstore") {
+      comp = Component::load_component("libcomanche-hstore.so", Component::hstore_factory);
+    }
+    else if (Options.component == "mapstore") {
+      comp = Component::load_component("libcomanche-storemap.so", Component::mapstore_factory);
+    }
+    else throw General_exception("unknown --component option (%s)", Options.component.c_str());
   }
-  else if(Options.component == "filestore") {
-    comp = Component::load_component(FILESTORE_PATH, Component::filestore_factory);
+  catch(...)
+  {
+      PERR("error during load_component.");
+      return 1;
   }
-  else if(Options.component == "nvmestore") {
-    comp = Component::load_component(NVMESTORE_PATH, Component::nvmestore_factory);
-  }
-  else if(Options.component == "rockstore") {
-    comp = Component::load_component(ROCKSTORE_PATH, Component::rocksdb_factory);
-  }
-  else if(Options.component == "dawn_client") {
-    
-    DECLARE_STATIC_COMPONENT_UUID(dawn_client_factory, 0xfac66078,0xcb8a,0x4724,0xa454,0xd1,0xd8,0x8d,0xe2,0xdb,0x87);  // TODO: find a better way to register arbitrary components to promote modular use
-    comp = Component::load_component(DAWN_PATH, dawn_client_factory);
-  }
-  else if (Options.component == "hstore") {
-    comp = Component::load_component("libcomanche-hstore.so", Component::hstore_factory);
-  }
-  else if (Options.component == "mapstore") {
-    comp = Component::load_component("libcomanche-storemap.so", Component::mapstore_factory);
-  }
-  else throw General_exception("unknown --component option (%s)", Options.component.c_str());
 
-  assert(comp);
-  IKVStore_factory * fact = (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
+  if (!comp)
+  {
+    PERR("comp loaded, but returned invalid value");
+    return 1;
+  }
 
-  if(Options.component == "nvmestore") {
-    g_store = fact->create("owner","name", Options.pci_addr);
+  try
+  {
+    IKVStore_factory * fact = (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
+
+    if(Options.component == "nvmestore") {
+      g_store = fact->create("owner","name", Options.pci_addr);
+    }
+    else if (Options.component == "dawn") {
+      g_store = fact->create(Options.debug_level, Options.owner, Options.server_address, Options.device_name);
+    }
+    else {
+      g_store = fact->create("owner", Options.owner);
+    }
+    fact->release_ref();
   }
-  else if (Options.component == "dawn_client") {
-    g_store = fact->create(Options.debug_level, Options.owner, Options.server_address, Options.device_name);
+  catch(...)
+  {
+    PERR("factory creation step failed");
+    return 1;
   }
-  else {
-    g_store = fact->create("owner", Options.owner);
-  }
-  fact->release_ref();
+
+  return 0;
 }
 
 static void cleanup()

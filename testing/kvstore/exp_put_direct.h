@@ -7,7 +7,6 @@
 #include <iostream>
 #include <vector>
 
-#include "common/cycles.h"
 #include "experiment.h"
 #include "kvstore_perf.h"
 #include "statistics.h"
@@ -18,7 +17,6 @@ extern pthread_mutex_t g_write_lock;
 class ExperimentPutDirect : public Experiment
 { 
 public:
-    float _cycles_per_second;  // initialized in do_work first run
     std::vector<double> _start_time;
     std::vector<double> _latencies;
     std::chrono::high_resolution_clock::time_point _exp_start_time;
@@ -37,12 +35,8 @@ public:
 
     void initialize_custom(unsigned core)
     {
-        _cycles_per_second = Core::get_rdtsc_frequency_mhz() * 1000000;
-        _start_time.resize(_pool_num_components);
-        _latencies.resize(_pool_num_components);
-
         _latency_stats.init(_bin_count, _bin_threshold_min, _bin_threshold_max);
-
+        
         _debug_print(core, "initialize_custom done");
     }
 
@@ -51,7 +45,7 @@ public:
         // handle first time setup
         if(_first_iter) 
         {
-            PLOG("Starting Put Direct experiment...");
+            PLOG("[%u] Starting Put Direct experiment...", core);
 
             _first_iter = false;
             _exp_start_time = std::chrono::high_resolution_clock::now();
@@ -61,12 +55,12 @@ public:
         if (_i == _pool_num_components)
         {
             timer.stop();
-            std::cerr << "reached last element. Last _start_time = " << _start_time.at(_i) << std::endl;
+            PINF("[%u] put_direct: reached total number of components. Exiting.", core);
             throw std::exception();
         }
 
         // check time it takes to complete a single put operation
-        unsigned int cycles, start, end;
+        uint64_t cycles, start, end;
         int rc;
 
         timer.start();
@@ -83,8 +77,8 @@ public:
         double time_since_start = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - _exp_start_time).count() / 1000.0;
 
         // store the information for later use
-        _start_time.at(_i) = time_since_start;
-        _latencies.at(_i) = time;
+        _start_time.push_back(time_since_start);
+        _latencies.push_back(time);
 
         _latency_stats.update(time);
        
@@ -123,26 +117,35 @@ public:
        pthread_mutex_lock(&g_write_lock);
        _debug_print(core, "cleanup_custom mutex locked");
 
-       // get existing results, read to document variable
-       rapidjson::Document document = _get_report_document();
+       try
+       {
+         // get existing results, read to document variable
+         rapidjson::Document document = _get_report_document();
 
-       // collect latency stats
-       rapidjson::Value latency_object = _add_statistics_to_report("latency", _latency_stats, document);
-       rapidjson::Value timing_object = _add_statistics_to_report("start_time", start_time_stats, document);
+         // collect latency stats
+         rapidjson::Value latency_object = _add_statistics_to_report("latency", _latency_stats, document);
+         rapidjson::Value timing_object = _add_statistics_to_report("start_time", start_time_stats, document);
 
-       rapidjson::Value iops_object; 
-       iops_object.SetDouble(iops);
+         rapidjson::Value iops_object; 
+         iops_object.SetDouble(iops);
 
-       // save everything
-       rapidjson::Value experiment_object(rapidjson::kObjectType);
+         // save everything
+         rapidjson::Value experiment_object(rapidjson::kObjectType);
 
-       experiment_object.AddMember("IOPS", iops_object, document.GetAllocator());
-       experiment_object.AddMember("latency", latency_object, document.GetAllocator());
-       experiment_object.AddMember("start_time", timing_object, document.GetAllocator()); 
-       
-       _report_document_save(document, core, experiment_object);
+         experiment_object.AddMember("IOPS", iops_object, document.GetAllocator());
+         experiment_object.AddMember("latency", latency_object, document.GetAllocator());
+         experiment_object.AddMember("start_time", timing_object, document.GetAllocator()); 
+         
+         _report_document_save(document, core, experiment_object);
+       }
+       catch(...)
+       {
+         PERR("failed during save to JSON");
+         pthread_mutex_unlock(&g_write_lock);
+         throw std::exception();
+       }
 
-        _print_highest_count_bin(_latency_stats);
+        _print_highest_count_bin(_latency_stats, core);
 
        _debug_print(core, "cleanup_custom mutex unlocking");
        pthread_mutex_unlock(&g_write_lock);
