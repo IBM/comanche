@@ -1,5 +1,5 @@
 /*
- * Hopscotch hash table debug
+ * Hopscotch hash content debug
  */
 
 #include "cond_print.h"
@@ -47,7 +47,8 @@ template <typename Value>
 	{
 		if ( _owner != owner_ )
 		{
-			std::cerr << __func__ << " non-owner " << owner_ << " attempt to move " << owner_ << "\n";
+			std::cerr << __func__ << " non-owner " << owner_
+				<< " attempt to move " << owner_ << "\n";
 		}
 		assert(_owner == owner_);
 	}
@@ -61,5 +62,23 @@ template <typename Value>
 template <typename Value>
 	auto impl::content<Value>::state_string() const -> std::string
 	{
-		return _state == FREE ? "FREE" : _state == IN_USE ? "IN_USE" : _state == ENTERING ? "ENTERING" : "EXITING";
+		return
+			_state == FREE ? "FREE"
+			: _state == IN_USE ? "IN_USE"
+			: _state == ENTERING ? "ENTERING"
+			: "EXITING"
+			;
+	}
+
+template <typename Value>
+	auto impl::operator<<(
+		std::ostream &o_
+		, const content<Value> &c_
+	) -> std::ostream &
+	{
+		return o_
+			<< c_.state_string()
+			<< " "
+			<< c_.to_string()
+			;
 	}

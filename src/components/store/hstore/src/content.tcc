@@ -47,7 +47,10 @@ template <typename Value>
 	{
 		using k_t = typename value_t::first_type;
 		using m_t = typename value_t::second_type;
-		new (&const_cast<std::remove_const_t<k_t> &>(_v._value.first)) k_t(sr_._v._value.first);
+		new
+			(&const_cast<std::remove_const_t<k_t> &>(_v._value.first))
+			k_t(sr_._v._value.first)
+			;
 		new (&_v._value.second) m_t(sr_._v._value.second);
 #if TRACK_OWNER
 		_owner = bi_;
@@ -63,7 +66,10 @@ template <typename Value>
 		using k_t = typename value_t::first_type;
 		using m_t = typename value_t::second_type;
 		assert(_state == FREE);
-		new (&const_cast<std::remove_const_t<k_t> &>(_v._value.first)) k_t(from_._v._value.first);
+		new
+			(&const_cast<std::remove_const_t<k_t> &>(_v._value.first))
+			k_t(from_._v._value.first)
+			;
 		new (&_v._value.second) m_t(from_._v._value.second);
 #if TRACK_OWNER
 		_owner = from_._owner;
@@ -83,7 +89,10 @@ template <typename Value>
 		using k_t = typename value_t::first_type;
 		using m_t = typename value_t::second_type;
 		assert(_state == FREE);
-		new (&const_cast<std::remove_const_t<k_t> &>(_v._value.first)) k_t(value_.first);
+		new
+			(&const_cast<std::remove_const_t<k_t> &>(_v._value.first))
+			k_t(value_.first)
+			;
 		new (&_v._value.second) m_t(value_.second);
 #if TRACK_OWNER
 		_owner = bi_;

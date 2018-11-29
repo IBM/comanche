@@ -77,12 +77,19 @@ template <typename T>
 
 		pobj_allocator &operator=(const pobj_allocator &a_) = delete;
 
-		pointer address(reference x) const noexcept { return pointer(pmemobj_oid(&x)); }
-		const_pointer address(const_reference x) const noexcept { return pointer(pmemobj_oid(&x)); }
+		pointer address(reference x) const noexcept
+		{
+			return pointer(pmemobj_oid(&x));
+		}
+		const_pointer address(const_reference x) const noexcept
+		{
+			return pointer(pmemobj_oid(&x));
+		}
 
 		auto allocate(
 			size_type s
-			, pobj_allocator<void>::const_pointer /* hint */ = pobj_allocator<void>::const_pointer{}
+			, pobj_allocator<void>::const_pointer /* hint */ =
+					pobj_allocator<void>::const_pointer{}
 			, const char *
 #if TRACE_PALLOC
 				why
@@ -91,7 +98,15 @@ template <typename T>
 		) -> pointer
 		{
 			PMEMoid oid;
-			auto r = pmemobj_alloc(pool(), &oid, s * sizeof(T), type_num(), nullptr, nullptr);
+			auto r =
+				pmemobj_alloc(
+					pool()
+					, &oid
+					, s * sizeof(T)
+					, type_num()
+					, nullptr
+					, nullptr
+				);
 			if ( r != 0 )
 			{
 				throw pobj_bad_alloc(errno);
@@ -198,24 +213,34 @@ template <typename T>
 			{
 				using other = pobj_cache_aligned_allocator<U>;
 			};
-		pobj_cache_aligned_allocator(PMEMobjpool * pool_, std::uint64_t type_num_) noexcept
+		pobj_cache_aligned_allocator(
+			PMEMobjpool * pool_
+			, std::uint64_t type_num_
+		) noexcept
 			: base(pool_, type_num_)
 		{}
 
-		pobj_cache_aligned_allocator(const pobj_cache_aligned_allocator &a_) noexcept
+		pobj_cache_aligned_allocator(
+			const pobj_cache_aligned_allocator &a_
+		) noexcept
 			: pobj_cache_aligned_allocator(a_.pool(), a_.type_num())
 		{}
 
 		template <typename U>
-			pobj_cache_aligned_allocator(const pobj_cache_aligned_allocator<U> &a_) noexcept
-			: pobj_cache_aligned_allocator(a_.pool(), a_.type_num())
+			pobj_cache_aligned_allocator(
+				const pobj_cache_aligned_allocator<U> &a_
+			) noexcept
+				: pobj_cache_aligned_allocator(a_.pool(), a_.type_num())
 			{}
 
-		pobj_cache_aligned_allocator &operator=(const pobj_cache_aligned_allocator &a_) = delete;
+		pobj_cache_aligned_allocator &operator=(
+			const pobj_cache_aligned_allocator &a_
+		) = delete;
 
 		auto allocate(
 			size_type s
-			, pobj_cache_aligned_allocator<void>::const_pointer /* hint */ = pobj_cache_aligned_allocator<void>::const_pointer{}
+			, pobj_cache_aligned_allocator<void>::const_pointer /* hint */ =
+				pobj_cache_aligned_allocator<void>::const_pointer{}
 			, const char *
 #if TRACE_PALLOC
 			why
@@ -224,7 +249,14 @@ template <typename T>
 		) -> pointer
 		{
 			PMEMoid oid;
-			auto r = pmemobj_alloc(this->pool(), &oid, cache_align + s * sizeof(T), this->type_num(), nullptr, nullptr);
+			auto r =
+				pmemobj_alloc(
+					this->pool(), &oid
+					, cache_align + s * sizeof(T)
+					, this->type_num()
+					, nullptr
+					, nullptr
+				);
 			if ( r != 0 )
 			{
 				throw pobj_bad_alloc(errno);

@@ -97,7 +97,11 @@ namespace impl
 			: public bucket_ref<Owner>
 			, public std::unique_lock<SharedMutex>
 		{
-			bucket_unique_lock(Owner &b_, const segment_and_bucket &i_, SharedMutex &m_)
+			bucket_unique_lock(
+				Owner &b_
+				, const segment_and_bucket &i_
+				, SharedMutex &m_
+			)
 				: bucket_ref<Owner>(&b_, i_)
 				, std::unique_lock<SharedMutex>(m_)
 			{
@@ -137,7 +141,11 @@ namespace impl
 			: public bucket_ref<BucketAligned>
 			, public std::shared_lock<SharedMutex>
 		{
-			bucket_shared_lock(BucketAligned &b_, const segment_and_bucket &i_, SharedMutex &m_)
+			bucket_shared_lock(
+				BucketAligned &b_
+				, const segment_and_bucket &i_
+				, SharedMutex &m_
+			)
 				: bucket_ref<BucketAligned>(&b_, i_)
 				, std::shared_lock<SharedMutex>(m_)
 			{
@@ -223,7 +231,9 @@ namespace impl
 			using persist_data_t =
 				persist_map<typename Allocator::template rebind<value_type>::other>;
 			using persist_controller_t =
-				persist_controller<typename Allocator::template rebind<value_type>::other>;
+				persist_controller<
+					typename Allocator::template rebind<value_type>::other
+				>;
 		private:
 			using bix_t = size_type; /* sufficient for all bucket indexes */
 			using hash_result_t = typename hasher::result_type;
@@ -263,7 +273,10 @@ namespace impl
 			persist_controller_t _pc;
 
 			bucket_control_t _bc[_segment_capacity];
-			six_t segment_count() const override { return _pc.segment_count_actual(); }
+			six_t segment_count() const override
+			{
+				return _pc.segment_count_actual();
+			}
 
 			auto bucket_ix(const hash_result_t h) const -> bix_t;
 			auto bucket_expanded_ix(const hash_result_t h) const -> bix_t;
@@ -276,30 +289,50 @@ namespace impl
 			) -> content_unique_lock_t;
 
 			template <typename Lock>
-				auto locate_key(Lock &bi, const key_type &k) const -> std::tuple<bucket_t *, segment_and_bucket>;
+				auto locate_key(
+					Lock &bi
+					, const key_type &k
+				) const -> std::tuple<bucket_t *, segment_and_bucket>;
 
 			void resize();
 			void resize_pass1();
 			void resize_pass2();
-			auto locate_bucket_mutexes(const segment_and_bucket &) const -> bucket_mutexes_t &;
+			auto locate_bucket_mutexes(
+				const segment_and_bucket &
+			) const -> bucket_mutexes_t &;
 
-			auto make_owner_unique_lock(const segment_and_bucket &a) const -> owner_unique_lock_t;
+			auto make_owner_unique_lock(
+				const segment_and_bucket &a
+			) const -> owner_unique_lock_t;
 
 			/* lock an owner which precedes content */
-			auto make_owner_unique_lock(const content_unique_lock_t &, unsigned bkwd) const -> owner_unique_lock_t;
+			auto make_owner_unique_lock(
+				const content_unique_lock_t &
+				, unsigned bkwd
+			) const -> owner_unique_lock_t;
 
 			auto make_owner_shared_lock(const key_type &k) const -> owner_shared_lock_t;
-			auto make_content_unique_lock(const segment_and_bucket &) const -> content_unique_lock_t;
+			auto make_content_unique_lock(
+				const segment_and_bucket &
+			) const -> content_unique_lock_t;
 			/* lock content which follows an owner */
-			auto make_content_unique_lock(const owner_unique_lock_t &, unsigned fwd) const -> content_unique_lock_t;
+			auto make_content_unique_lock(
+				const owner_unique_lock_t &
+				, unsigned fwd
+			) const -> content_unique_lock_t;
 
 			auto mask() const { return bucket_count() - 1U; }
 			auto owner_value_at(owner_unique_lock_t &bi) const -> owner::value_t;
 			auto owner_value_at(owner_shared_lock_t &bi) const -> owner::value_t;
 
 			auto make_segment_and_bucket(bix_t ix) const -> segment_and_bucket;
-			auto make_segment_and_bucket_for_iterator(bix_t ix) const -> segment_and_bucket;
-			auto make_segment_and_bucket_prev(segment_and_bucket a, unsigned bkwd) const -> segment_and_bucket;
+			auto make_segment_and_bucket_for_iterator(
+				bix_t ix
+			) const -> segment_and_bucket;
+			auto make_segment_and_bucket_prev(
+				segment_and_bucket a
+				, unsigned bkwd
+			) const -> segment_and_bucket;
 			auto locate(const segment_and_bucket &) const -> bucket_aligned_t &;
 
 			auto locate_owner(const segment_and_bucket &a) const -> const owner &;
@@ -352,7 +385,10 @@ namespace impl
 			}
 			auto end() -> iterator
 			{
-				return iterator(*this, make_segment_and_bucket_for_iterator(bucket_count()));
+				return iterator(
+					*this
+					, make_segment_and_bucket_for_iterator(bucket_count())
+				);
 			}
 			auto begin() const -> const_iterator
 			{
@@ -368,7 +404,10 @@ namespace impl
 			}
 			auto cend() const -> const_iterator
 			{
-				return const_iterator(*this, make_segment_and_bucket_for_iterator(bucket_count()));
+				return const_iterator(
+					*this
+					, make_segment_and_bucket_for_iterator(bucket_count())
+				);
 			}
 			/* use trylock to attempt a shared lock */
 			auto lock_shared(const key_type &k) -> bool;
@@ -382,7 +421,9 @@ namespace impl
 			friend
 				auto operator<< <>(
 					std::ostream &
-					, const impl::table_print<table<Key, T, Hash, Pred, Allocator, SharedMutex>> &
+					, const impl::table_print<
+						table<Key, T, Hash, Pred, Allocator, SharedMutex>
+					> &
 				) -> std::ostream &;
 
 			friend
@@ -439,7 +480,9 @@ namespace impl
 					<
 						table_base
 						, impl::bypass_lock<const impl::owner>
-						, impl::bypass_lock<const impl::content<typename Table::value_type>>
+						, impl::bypass_lock<
+							const impl::content<typename Table::value_type>
+						>
 					> &
 				) -> std::ostream &;
 #endif
