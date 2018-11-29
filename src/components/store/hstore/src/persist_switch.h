@@ -13,7 +13,12 @@ template <typename A, bool enable>
 template <typename A>
 	struct persist_switch<A, false>
 	{
-		static void persist(const A &, const void *, const void *, const char *) noexcept
+		static void persist(
+			const A &
+			, const void *
+			, const void *
+			, const char *
+		) noexcept
 		{
 		}
 	};
@@ -22,9 +27,15 @@ template <typename A>
 template <typename A>
 	struct persist_switch<A, true>
 	{
-		static void persist(const A &a, const void *first, const void *last, const char *what) noexcept
+		static void persist(
+			const A &a
+			, const void *first
+			, const void *last
+			, const char *what
+		) noexcept
 		{
-			std::ptrdiff_t len = static_cast<const char *>(last) - static_cast<const char *>(first);
+			std::ptrdiff_t len =
+				static_cast<const char *>(last) - static_cast<const char *>(first);
 			if ( 0 < len )
 			{
 				a.persist(first, std::size_t(len), what);

@@ -34,7 +34,11 @@ template <typename Table>
 					std::size_t o_d = i->offset_dst;
 					auto dst_first = &dst[o_d];
 					/* NOTE: could be replaced with a pmem persistent memcpy */
-					persist_range(dst_first, std::copy(src_first, src_last, dst_first), "atomic ctl");
+					persist_range(
+						dst_first
+						, std::copy(src_first, src_last, dst_first)
+						, "atomic ctl"
+					);
 				}
 			}
 			catch ( std::out_of_range & )
@@ -47,7 +51,11 @@ template <typename Table>
 	}
 
 template <typename Table>
-	void impl::atomic_controller<Table>::persist_range(const void *first_, const void *last_, const char *what_)
+	void impl::atomic_controller<Table>::persist_range(
+		const void *first_
+		, const void *last_
+		, const char *what_
+	)
 	{
 		persist_switch_t::persist(*this, first_, last_, what_);
 	}
@@ -69,7 +77,10 @@ template <typename Table>
 			{
 			case Component::IKVStore::Op_type::WRITE:
 				{
-					const Component::IKVStore::Operation_write &wr = *static_cast<Component::IKVStore::Operation_write *>(*first);
+					const Component::IKVStore::Operation_write &wr =
+						*static_cast<Component::IKVStore::Operation_write *>(
+							*first
+						);
 					auto src_offset = src.size();
 					auto dst_offset = wr.offset();
 					auto size = wr.size();
@@ -84,18 +95,37 @@ template <typename Table>
 			};
 		}
 		_persist->mod_key = key;
-		_persist->mod_mapped = persist_fixed_string<char>(src.begin(), src.end(), pop, type_num_data, "atomic data"); /* PERSISTED? */
-		using void_allocator_t = typename allocator_type::template rebind<void>::other;
+		_persist->mod_mapped =
+			persist_fixed_string<char>(
+				src.begin()
+				, src.end()
+				, pop
+				, type_num_data
+				, "atomic data"
+			); /* PERSISTED? */
+		using void_allocator_t =
+			typename allocator_type::template rebind<void>::other;
 		_persist->mod_ctl =
 			allocator_type(*this).address(
-				*new (&*allocator_type(*this).allocate(mods.size(), typename void_allocator_t::const_pointer(), "mod_ctl"))
-				mod_control[mods.size()]
+				*new
+					(
+						&*allocator_type(*this).allocate(
+							mods.size()
+							, typename void_allocator_t::const_pointer()
+							, "mod_ctl"
+						)
+					)
+					mod_control[mods.size()]
 		);
 
 		std::copy(mods.begin(), mods.end(), &*_persist->mod_ctl);
 		/* 8-byte atomic write */
 		_persist->mod_size = mods.size();
-		persist_range(&*_persist->mod_ctl, &*_persist->mod_ctl + mods.size(), "mod control");
+		persist_range(
+			&*_persist->mod_ctl
+			, &*_persist->mod_ctl + mods.size()
+			, "mod control"
+		);
 		redo();
 		return S_OK;
 	}

@@ -86,9 +86,13 @@ namespace impl
 
 			const key_t &key() const { return _v._value.first; }
 			const mapped_t &mapped() const { return _v._value.second; }
-			/* PMEM ESCAPE: Uncontrolled access to _value: only used by at(), which is not itself used internally */
+			/* PMEM ESCAPE: Uncontrolled access to _value: only used by at(), which is not
+			 * itself used internally
+			 */
 			mapped_t &mapped() { return _v._value.second; }
-			/* PMEM ESCAPE: Uncontrolled access to _value: only used by iterator, which is not itself used internally */
+			/* PMEM ESCAPE: Uncontrolled access to _value: only used by iterator, which is
+			 * not itself used internally
+			 */
 			value_t &value() { return _v._value; }
 		public:
 			auto erase() -> void;

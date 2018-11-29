@@ -47,14 +47,20 @@ namespace impl
 				return persist_data_t::base_segment_size << (_segment_capacity - 1U);
 			}
 			void persist_segment_table(); /* Flush the bucket pointers (*_b) */
-			void persist_internal(const void *first, const void *last, const char *what);
+			void persist_internal(
+				const void *first
+				, const void *last
+				, const char *what
+			);
 			void size_stabilize();
 
 		public:
 			explicit persist_controller(const Allocator &av, persist_data_t *persist);
 
 			persist_controller(const persist_controller &) = delete;
-			auto operator=(const persist_controller &) -> persist_controller & = delete;
+			auto operator=(
+				const persist_controller &
+			) -> persist_controller & = delete;
 
 			auto resize_prolog() -> bucket_aligned_t *;
 			void resize_epilog();
@@ -63,8 +69,14 @@ namespace impl
 			void size_incr();
 			void size_decr();
 
-			void persist_owner(const owner &b, const char *what = "bucket_owner");
-			void persist_content(const content_t &b, const char *what = "bucket_content");
+			void persist_owner(
+				const owner &b
+				, const char *what = "bucket_owner"
+			);
+			void persist_content(
+				const content_t &b
+				, const char *what = "bucket_content"
+			);
 			void persist_segment_count(); /* Flush the bucket pointer count (_count) */
 			void persist_size();
 			void persist_existing_segments(const char *what = "old segments");

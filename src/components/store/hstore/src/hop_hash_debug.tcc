@@ -2,97 +2,10 @@
  * Hopscotch hash table debug
  */
 
-#include "cond_print.h"
-
 #include <cassert>
-#include <cstddef> /* size_t */
-#include <sstream> /* ostringstream */
 
-/*
- * ===== owner =====
- */
-
-template <typename TableBase, typename Lock>
-	auto impl::operator<<(
-		std::ostream &o_
-		, const owner_print<TableBase, Lock> &t_
-	) -> std::ostream &
-	{
-		const auto &w = t_.get_table().locate_owner(t_.sb());
-		return o_
-			<< "(owner "
-			<< w.owned(t_.get_table().bucket_count(), t_.lock())
-			<< ")";
-	}
-
-template <typename TableBase>
-	auto impl::operator<<(
-		std::ostream &o_
-		, const owner_print<TableBase, bypass_lock<const owner>> &t_
-	) -> std::ostream &
-	{
-		const auto &w = t_.get_table().locate_owner(t_.sb());
-		bypass_lock<const owner> lk(w, t_.sb());
-		return o_
-			<< "(owner "
-			<< w.owned(t_.get_table().bucket_count(), lk)
-			<< ")";
-	}
-
-/*
- * ===== content =====
- */
-
-template <typename Value>
-	auto impl::content<Value>::is_clear() const noexcept -> bool
-	{
-		return _owner == owner_undefined;
-	}
-
-template <typename Value>
-	auto impl::content<Value>::to_string() const -> std::string
-	{
-		return
-			is_clear()
-			? "empty"
-			: descr()
-			;
-	}
-
-template <typename Value>
-	auto impl::content<Value>::descr() const -> std::string
-	{
-		std::ostringstream s;
-		s << "(owner " << _owner << " "
-			<< cond_print(key(),"(unprintable key)")
-			<< "->"
-			<< cond_print(mapped(), "(unprintable mapped)")
-			<< ")"
-			;
-		return s.str();
-	}
-
-template <typename Value>
-	void impl::content<Value>::owner_verify(content::owner_t owner_) const
-	{
-		if ( _owner != owner_ )
-		{
-			std::cerr << __func__ << " non-owner " << owner_ << " attempt to move " << owner_ << "\n";
-		}
-		assert(_owner == owner_);
-	}
-
-template <typename Value>
-	void impl::content<Value>::owner_update(owner_t owner_delta)
-	{
-		_owner |= owner_delta;
-	}
-
-template <typename Value>
-	auto impl::content<Value>::state_string() const -> std::string
-	{
-		return _state == FREE ? "FREE" : _state == IN_USE ? "IN_USE" : _state == ENTERING ? "ENTERING" : "EXITING";
-	}
+#include "owner_debug.tcc"
+#include "content_debug.tcc"
 
 template <typename TableBase, typename LockOwner, typename LockContent>
 	impl::bucket_print<TableBase, LockOwner, LockContent>::bucket_print(
@@ -105,19 +18,6 @@ template <typename TableBase, typename LockOwner, typename LockContent>
 		, _i{&i_}
 	{
 		assert(c_.index() == i_.index());
-	}
-
-template <typename Value>
-	auto impl::operator<<(
-		std::ostream &o_
-		, const content<Value> &c_
-	) -> std::ostream &
-	{
-		return o_
-			<< c_.state_string()
-			<< " "
-			<< c_.to_string()
-			;
 	}
 
 /*

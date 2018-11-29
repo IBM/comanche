@@ -19,7 +19,10 @@ namespace impl
 			using allocator_type =
 				typename table_t::allocator_type::template rebind<mod_control>::other;
 			using persist_switch_t =
-				persist_switch<allocator_type, std::is_base_of<persister, allocator_type>::value>;
+				persist_switch<
+					allocator_type
+					, std::is_base_of<persister, allocator_type>::value
+				>;
 			persist_atomic<allocator_type> *_persist; /* Bad name. Should be a noun. */
 			table_t *_map;
 		public:
