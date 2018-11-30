@@ -43,14 +43,20 @@ template <typename TableBase>
 					, sb
 				);
 
-			if (  owner_lk.ref().value(owner_lk) != 0 || ! content_lk.ref().is_clear() )
+			if (
+				owner_lk.ref().value(owner_lk) != 0
+				||
+				! content_lk.ref().is_clear()
+			)
 			{
 				o_ << k << ": "
 					<< make_bucket_print(tbl_base, owner_lk, content_lk)
 					<< "\n";
 			}
 		}
-		if ( tbl_base._pc.segment_count_actual() < tbl_base._pc.segment_count_target() )
+		if (
+			tbl_base._pc.segment_count_actual() < tbl_base._pc.segment_count_target()
+		)
 		{
 			auto &loc = tbl_base._bc[tbl_base.segment_count()];
 			if ( loc._b )
@@ -66,7 +72,11 @@ template <typename TableBase>
 							loc._b[ks]
 							, sbj
 						);
-					if (  owner_lk.ref().value(owner_lk) != 0 || ! content_lk.ref().is_clear() )
+					if (
+						owner_lk.ref().value(owner_lk) != 0
+						||
+						! content_lk.ref().is_clear()
+					)
 					{
 						o_ << kj << ": "
 							<< make_bucket_print(tbl_base, owner_lk, content_lk)

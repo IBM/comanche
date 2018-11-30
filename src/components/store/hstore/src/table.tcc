@@ -25,21 +25,24 @@
  * ===== table_base =====
  */
 
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::table_base(
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::table_base(
 		persist_data_t *pc_
-		, const Alloc &av_
+		, const Allocator &av_
 	)
-		: Alloc{av_}
+		: table_allocator<Allocator>{av_}
+		, persist_controller_t(av_, pc_)
 		, _hasher{}
-		, _pc(av_, pc_)
 		, _locate_key_call(0)
 		, _locate_key_owned(0)
 		, _locate_key_unowned(0)
 		, _locate_key_match(0)
 		, _locate_key_mismatch(0)
 	{
-		const auto bp_src = _pc.bp_src();
+		const auto bp_src = persist_controller_t::bp_src();
 		const auto bc_dst =
 			boost::make_transform_iterator(_bc, std::mem_fn(&bucket_control_t::_b));
 		std::transform(
@@ -49,22 +52,23 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 			, [] (const auto &c) { return &*c; }
 		);
 		_bc[0]._bucket_mutexes = new bucket_mutexes_t[base_segment_size];
-		for ( auto ix = 1U; ix != _pc.segment_count_actual(); ++ix )
+		for ( auto ix = 1U; ix != persist_controller_t::segment_count_actual(); ++ix )
 		{
-			_bc[ix]._bucket_mutexes = new bucket_mutexes_t[base_segment_size << (ix-1U)];
+			_bc[ix]._bucket_mutexes =
+				new bucket_mutexes_t[base_segment_size << (ix-1U)];
 		}
 #if TRACE_MANY
-		std::cerr << __func__ << " count " << _pc.segment_count_actual()
-			<< " count_target " << _pc.segment_count_target() << "\n";
+		std::cerr << __func__ << " count " << persist_controller_t::segment_count_actual()
+			<< " count_target " << persist_controller_t::segment_count_target() << "\n";
 #endif
 		/* If in the middle of a resize op, rerun the resize. */
-		if ( _pc.segment_count_actual() != _pc.segment_count_target() )
+		if ( persist_controller_t::segment_count_actual() != persist_controller_t::segment_count_target() )
 		{
-			assert( _pc.segment_count_actual() + 1U == _pc.segment_count_target() );
+			assert( persist_controller_t::segment_count_actual() + 1U == persist_controller_t::segment_count_target() );
 			resize();
 		}
 
-		if ( _pc.is_size_unstable() )
+		if ( persist_controller_t::is_size_unstable() )
 		{
 			size_type s = 0U;
 			/* a slow way to find the table size, but we have no other way. */
@@ -73,18 +77,26 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 				(void)i;
 				++s;
 			}
-			_pc.size_set(s);
+			persist_controller_t::size_set(s);
 		}
 	}
 
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::~table_base()
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::~table_base()
 	{
 		perishable::report();
 	}
 
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	auto impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::is_free_by_owner(
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<
+		Key, T, Hash, Pred, Allocator, SharedMutex
+	>::is_free_by_owner(
 		const segment_and_bucket &a_
 	) const -> bool
 	{
@@ -126,8 +138,11 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 	}
 
 /* NOTE: is_free is inherently non-const, except where checking program logic */
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	auto impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::is_free(
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::is_free(
 		const segment_and_bucket &a_
 	) const -> bool
 	{
@@ -143,8 +158,11 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 		}
 	}
 
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	auto impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::is_free(
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::is_free(
 		const segment_and_bucket &a_
 	) -> bool
 	{
@@ -165,8 +183,11 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 	}
 
 /* From a hash, return the index of the bucket (in seg_entry) to which it maps */
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	auto impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::bucket_ix(
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::bucket_ix(
 		const hash_result_t h_
 	) const -> bix_t
 	{
@@ -180,8 +201,13 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 /* From a hash, return the index of the bucket (in seg_entry) to which it maps,
  * including a single new segment not in count.
  */
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	auto impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::bucket_expanded_ix(
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<
+		Key, T, Hash, Pred, Allocator, SharedMutex
+	>::bucket_expanded_ix(
 		const hash_result_t h_
 	) const -> bix_t
 	{
@@ -195,10 +221,16 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 
 /*
  * Precondition: hold owner unique lock on bi.
- * Exit with content unique lock on the free bucket (while retaining owner unique lock on bi).
+ * Exit with content unique lock on the free bucket (while retaining owner
+ * unique lock on bi).
  */
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	auto impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::nearest_free_bucket(
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<
+		Key, T, Hash, Pred, Allocator, SharedMutex
+	>::nearest_free_bucket(
 		segment_and_bucket bi_
 	) -> content_unique_lock_t
 	{
@@ -223,23 +255,47 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 		return content_lk;
 	}
 
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<
+		Key, T, Hash, Pred, Allocator, SharedMutex
+	>::distance_wrapped(
+		bix_t first, bix_t last
+	) -> unsigned
+	{
+		return
+			unsigned
+			(
+				(
+					last < first
+					? last + bucket_count()
+					: last
+				) - first
+			);
+	}
+
 /* Precondition: holdss owner_unique_lock on bi_.
  *
- * Receives an owner index bi_, and a content unique lock on the free content at b_dst_lock_
+ * Receives an owner index bi_, and a content unique lock
+ * on the free content at b_dst_lock_
  *
- * Returns a free content index within range of bi_, and a lock on that free content index
+ * Returns a free content index within range of bi_, and a lock
+ * on that free content index
  */
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	auto impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::make_space_for_insert(
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<
+		Key, T, Hash, Pred, Allocator, SharedMutex
+	>::make_space_for_insert(
 		bix_t bi_
 		, content_unique_lock_t b_dst_lock_
 	) -> content_unique_lock_t
 	{
-		auto free_distance =
-			(b_dst_lock_.index() < bi_
-			? b_dst_lock_.index() + bucket_count()
-			: b_dst_lock_.index()) - bi_
-			;
+		auto free_distance = distance_wrapped(bi_, b_dst_lock_.index());
 		while ( owner::size <= free_distance )
 		{
 #if TRACE_MANY
@@ -259,7 +315,9 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 
 			/* The bucket containing an item to be relocated */
 			auto owner_lock = make_owner_unique_lock(b_dst_lock_, owner::size - 1U);
-			/* Any item in bucket owner_lock precedes b_dst_lock_, and is eligible for move */
+			/* Any item in bucket owner_lock precedes b_dst_lock_,
+			 * and is eligible for move
+			 */
 			auto eligible_items = ( 1U << owner::size ) - 1U;
 			while (
 				owner_lock.sb() != b_dst_lock_.sb()
@@ -277,9 +335,9 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 			/* postconditions
 			 *   owner_lock.index() == b_dst_lock_ : we ran out of items to examine
 			 *  or
-			 *   (_b[lock.index()]._owner & eligible_items) != 0 : at least one item in owner
-			 *     is eliglbe for the move; the best item is the 1 at the smallest index
-			 *     in _b[lock.index()]._owner & eligible_items.
+			 *   (_b[lock.index()]._owner & eligible_items) != 0 : at least one item
+			 *     in owner is eliglbe for the move; the best item is the 1 at the
+			 *     smallest index in _b[lock.index()]._owner & eligible_items.
 			 */
 			if ( owner_lock.sb() == b_dst_lock_.sb() )
 			{
@@ -314,16 +372,7 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 			 *  a) lose at element at position p and
 			 *  b) gain the element at position b_dst_lock_ (relative to lock.index())
 			 */
-			const auto q =
-				unsigned(
-					(
-						b_dst_lock_.index() < owner_lock.index()
-						? b_dst_lock_.index() + bucket_count()
-						: b_dst_lock_.index()
-					)
-					- owner_lock.index()
-				)
-				;
+			const auto q = distance_wrapped(owner_lock.index(), b_dst_lock_.index());
 			/*
 			 * ownership is moving from bf to owner
 			 * 1. mark src EXITING and dst ENTERING
@@ -336,20 +385,20 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 			assert(!is_free(b_src_lock.sb()));
 			assert(is_free(b_dst_lock_.sb()));
 			b_src_lock.ref().state_set(bucket_t::EXITING);
-			_pc.persist_content(b_src_lock.ref(), "content exiting");
+			persist_controller_t::persist_content(b_src_lock.ref(), "content exiting");
 			b_dst_lock_.ref().state_set(bucket_t::ENTERING);
-			_pc.persist_content(b_dst_lock_.ref(), "context entering");
+			persist_controller_t::persist_content(b_dst_lock_.ref(), "context entering");
 
 			owner_lock.ref().move(q, p, owner_lock);
-			_pc.persist_owner(owner_lock.ref(), "owner update");
+			persist_controller_t::persist_owner(owner_lock.ref(), "owner update");
 
 			b_src_lock.ref().erase();
 			b_src_lock.assert_clear(true, *this);
 			b_dst_lock_.assert_clear(false, *this);
 			b_src_lock.ref().state_set(bucket_t::FREE);
-			_pc.persist_content(b_src_lock.ref(), "content free");
+			persist_controller_t::persist_content(b_src_lock.ref(), "content free");
 			b_dst_lock_.ref().state_set(bucket_t::IN_USE);
-			_pc.persist_content(b_dst_lock_.ref(), "context in_use");
+			persist_controller_t::persist_content(b_dst_lock_.ref(), "context in_use");
 			/* New free location */
 #if TRACE_MANY
 			std::cerr << __func__
@@ -363,14 +412,7 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 #endif
 			b_dst_lock_ = std::move(b_src_lock);
 
-			free_distance =
-				(
-					b_dst_lock_.index() < bi_
-					? b_dst_lock_.index() + bucket_count()
-					: b_dst_lock_.index()
-				)
-				- bi_
-				;
+			free_distance = distance_wrapped(bi_, b_dst_lock_.index());
 		}
 		/* postcondition:
 		 *   free_distance < owner::size
@@ -385,9 +427,12 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 		return b_dst_lock_;
 	}
 
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
 	template <typename ... Args>
-		auto impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::emplace(
+		auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::emplace(
 			Args && ... args
 		) -> std::pair<iterator, bool>
 		try
@@ -436,30 +481,23 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 				 *   flush
 				 */
 				b_dst.ref().state_set(bucket_t::ENTERING);
-				_pc.persist_content(b_dst.ref(), "content entering");
-				_pc.size_destabilize();
+				persist_controller_t::persist_content(b_dst.ref(), "content entering");
+				persist_controller_t::size_destabilize();
 				owner_lk.ref().insert(
 					owner_lk.index()
-					, unsigned(
-						(
-							b_dst.index() < owner_lk.index()
-							? b_dst.index()+bucket_count()
-							: b_dst.index()
-						)
-						- owner_lk.index()
-					)
+					, distance_wrapped(owner_lk.index(), b_dst.index())
 					, owner_lk
 				);
-				_pc.persist_owner(owner_lk.ref(), "owner emplace");
+				persist_controller_t::persist_owner(owner_lk.ref(), "owner emplace");
 				b_dst.ref().state_set(bucket_t::IN_USE);
-				_pc.persist_content(b_dst.ref(), "content in_use");
+				persist_controller_t::persist_content(b_dst.ref(), "content in_use");
 #if TRACE_MANY
 				std::cerr << __func__ << " bucket " << owner_lk.index()
 					<< " store at " << b_dst.index() << " "
 					<< make_owner_print(*this, owner_lk)
 					<< " " << b_dst.ref() << "\n";
 #endif
-				_pc.size_incr();
+				persist_controller_t::size_incr();
 				return {iterator{*this, b_dst.sb()}, true};
 			}
 			catch ( const no_near_empty_bucket &e )
@@ -489,8 +527,11 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 			throw;
 		}
 
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	auto impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::insert(
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::insert(
 		const value_type &v_
 	) -> std::pair<iterator, bool>
 	try
@@ -539,29 +580,23 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 			 *   flush
 			 */
 			b_dst.ref().state_set(bucket_t::ENTERING);
-			_pc.persist_content(b_dst.ref(), "content entering");
-			_pc.size_destabilize();
+			persist_controller_t::persist_content(b_dst.ref(), "content entering");
+			persist_controller_t::size_destabilize();
 			owner_lk.ref().insert(
 				owner_lk.index()
-				, unsigned(
-					(
-						b_dst.index() < owner_lk.index()
-						? b_dst.index()+bucket_count()
-						: b_dst.index()
-					) - owner_lk.index()
-				)
+				, distance_wrapped(owner_lk.index(), b_dst.index())
 				, owner_lk
 			);
-			_pc.persist_owner(owner_lk.ref(), "owner insert");
+			persist_controller_t::persist_owner(owner_lk.ref(), "owner insert");
 			b_dst.ref().state_set(bucket_t::IN_USE);
-			_pc.persist_content(b_dst.ref(), "content in_use");
+			persist_controller_t::persist_content(b_dst.ref(), "content in_use");
 #if TRACE_MANY
 			std::cerr << __func__ << " bucket " << owner_lk.index()
 				<< " store at " << b_dst.index() << " "
 				<< make_owner_print(*this, owner_lk)
 				<< " " << b_dst.ref() << "\n";
 #endif
-			_pc.size_incr();
+			persist_controller_t::size_incr();
 			return {iterator{*this, b_dst.sb()}, true};
 		}
 		catch ( const no_near_empty_bucket &e )
@@ -591,10 +626,13 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 		throw;
 	}
 
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	void impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::resize()
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	void impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::resize()
 	{
-		_bc[segment_count()]._b = _pc.resize_prolog();
+		_bc[segment_count()]._b = persist_controller_t::resize_prolog();
 		_bc[segment_count()]._bucket_mutexes = new bucket_mutexes_t[bucket_count()];
 
 		/* adjust count and everything which depends on it (size, mask) */
@@ -607,23 +645,20 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 		 */
 		resize_pass2();
 
-		_pc.resize_epilog();
+		persist_controller_t::resize_epilog();
 	}
 
 template <
-	typename Key
-	, typename T
-	, typename Hash
-	, typename Pred
-	, typename Alloc
-	, typename Mutex
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
 >
-	void impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::resize_pass1()
+	void impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::resize_pass1()
 	{
 		/* PASS 1: copy content */
 
 		bix_t ix_senior = 0U;
-		const auto sb_senior_end = make_segment_and_bucket_for_iterator(bucket_count());
+		const auto sb_senior_end =
+			make_segment_and_bucket_for_iterator(bucket_count());
 		for (
 			auto sb_senior = make_segment_and_bucket(0U)
 			; sb_senior != sb_senior_end
@@ -639,10 +674,14 @@ template <
 				/* examine hash(key) to determine whether to copy content */
 				auto hash = _hasher.hf(senior_content_lk.ref().key());
 				auto ix_owner = bucket_expanded_ix(hash);
-				/* [ix_owner, ix_owner + owner::size) is permissible range for content */
+				/*
+				 * [ix_owner, ix_owner + owner::size) is permissible range for content
+				 */
 				if ( ix_owner <= ix_senior && ix_senior < ix_owner + owner::size )
 				{
-					/* content can stay where it is because bucket index index MSB is 0 */
+					/*
+					 * content can stay where it is because bucket index index MSB is 0
+					 */
 #if TRACE_MANY
 					std::cerr << __func__
 						<< ".1a no-relocate owner " << bucket_ix(hash)
@@ -682,13 +721,16 @@ template <
 		}
 
 		/* flush state_EXITING for old content */
-		_pc.persist_existing_segments("pass 1 owner+content seniors");
+		persist_controller_t::persist_existing_segments("pass 1 owner+content seniors");
 		/* persist new content */
-		_pc.persist_new_segment("pass 1 copied content");
+		persist_controller_t::persist_new_segment("pass 1 copied content");
 	}
 
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	void impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::resize_pass2()
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	void impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::resize_pass2()
 	{
 		/* PASS 2: remove old content, update owners. Some old content mave have been
 		 * removed if pass 2 was restarted, so use the new (junior) content to drive
@@ -702,7 +744,9 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 			; sb_senior.incr_for_iterator(), ++ix_senior
 		)
 		{
-			/* special locate, used before size has been updated to pre-fill new buckets */
+			/* special locate, used before size has been updated
+			 * to pre-fill new buckets
+			 */
 			content_unique_lock_t
 				junior_content_lk(
 					_bc[segment_count()]._b[ix_senior]
@@ -738,25 +782,15 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 					 * to pre-fill new buckets
 					 */
 					auto &junior_owner = _bc[segment_count()]._b[ix_senior_owner];
-					unsigned owner_pos =
-						static_cast<unsigned>(
-							(
-								ix_senior < ix_senior_owner
-								? ix_senior + bucket_count()
-								: ix_senior
-							)
-							-
-							ix_senior_owner
-						);
-					assert(0 <= owner_pos);
+					auto owner_pos = distance_wrapped(ix_senior_owner, ix_senior);
 					assert(owner_pos < owner::size);
 					junior_owner.insert(ix_junior_owner, owner_pos, junior_owner_lk);
 					senior_owner_lk.ref().erase(owner_pos, senior_owner_lk);
-					_pc.persist_owner(junior_owner_lk.ref(), "pass 2 junior owner");
-					_pc.persist_owner(senior_owner_lk.ref(), "pass 2 senior owner");
+					persist_controller_t::persist_owner(junior_owner_lk.ref(), "pass 2 junior owner");
+					persist_controller_t::persist_owner(senior_owner_lk.ref(), "pass 2 senior owner");
 				}
 				junior_content_lk.ref().state_set(bucket_t::IN_USE);
-				_pc.persist_content(junior_content_lk.ref());
+				persist_controller_t::persist_content(junior_content_lk.ref());
 				senior_content_lk.ref().erase();
 				senior_content_lk.ref().state_set(bucket_t::FREE);
 			}
@@ -792,24 +826,15 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 						junior_owner_lk(
 							_bc[segment_count()]._b[ix_senior_owner]
 							, segment_and_bucket(segment_count(), ix_senior_owner)
-							, _bc[segment_count()]._bucket_mutexes[ix_senior_owner]._m_owner
+							, _bc[segment_count()]
+								._bucket_mutexes[ix_senior_owner]._m_owner
 						);
 
 					/* special locate, used before size has been updated
 					 * to pre-fill new buckets
 					 */
 					auto &junior_owner = _bc[segment_count()]._b[ix_senior_owner];
-					unsigned owner_pos =
-						static_cast<unsigned>(
-							(
-								ix_senior < ix_senior_owner
-								? ix_senior + bucket_count()
-								: ix_senior
-							)
-							-
-							ix_senior_owner
-						);
-					assert(0 <= owner_pos);
+					auto owner_pos = distance_wrapped(ix_senior_owner, ix_senior);
 					assert(owner_pos < owner::size);
 					junior_owner.insert(ix_junior_owner, owner_pos, junior_owner_lk);
 					senior_owner_lk.ref().erase(owner_pos, senior_owner_lk);
@@ -821,8 +846,8 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 					senior_content_lk.ref().owner_update(bucket_count());
 					owner_update_owed = false;
 #endif
-					_pc.persist_owner(junior_owner_lk.ref(), "pass 2 junior owner");
-					_pc.persist_owner(senior_owner_lk.ref(), "pass 2 senior owner");
+					persist_controller_t::persist_owner(junior_owner_lk.ref(), "pass 2 junior owner");
+					persist_controller_t::persist_owner(senior_owner_lk.ref(), "pass 2 senior owner");
 				}
 #if TRACK_OWNER
 				assert(!owner_update_owed);
@@ -847,13 +872,18 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 		}
 
 		/* flush for state_set bucket_t::FREE in loop above. */
-		_pc.persist_existing_segments("pass 2 senior content");
+		persist_controller_t::persist_existing_segments("pass 2 senior content");
 		/* flush for state_set owner::LIVE in loop above. */
-		_pc.persist_new_segment("pass 2 junior owner");
+		persist_controller_t::persist_new_segment("pass 2 junior owner");
 	}
 
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	auto impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::make_segment_and_bucket(
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<
+		Key, T, Hash, Pred, Allocator, SharedMutex
+	>::make_segment_and_bucket(
 		bix_t ix_
 	) const -> segment_and_bucket
 	{
@@ -861,8 +891,13 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 		return make_segment_and_bucket_for_iterator(ix_);
 	}
 
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	auto impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::make_segment_and_bucket_prev(
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<
+		Key, T, Hash, Pred, Allocator, SharedMutex
+	>::make_segment_and_bucket_prev(
 		segment_and_bucket a
 		, unsigned bkwd
 	) const -> segment_and_bucket
@@ -871,8 +906,13 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 		return a;
 	}
 
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	auto impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::make_segment_and_bucket_for_iterator(
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<
+		Key, T, Hash, Pred, Allocator, SharedMutex
+	>::make_segment_and_bucket_for_iterator(
 		bix_t ix
 	) const -> segment_and_bucket
 	{
@@ -880,56 +920,83 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 		return segment_and_bucket(ix);
 	}
 
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	auto impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::locate(
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::locate(
 		const segment_and_bucket &a_
 	) const -> bucket_aligned_t &
 	{
 		return const_cast<bucket_aligned_t &>(_bc[a_.si()]._b[a_.bi()]);
 	}
 
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	auto impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::locate_bucket_mutexes(
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<
+		Key, T, Hash, Pred, Allocator, SharedMutex
+	>::locate_bucket_mutexes(
 		const segment_and_bucket &a_
 	) const -> bucket_mutexes_t &
 	{
 		return _bc[a_.si()]._bucket_mutexes[a_.bi()];
 	}
 
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	auto impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::locate_owner(
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::locate_owner(
 		const segment_and_bucket &a_
 	) const -> const owner &
 	{
 		return static_cast<const owner &>(locate(a_));
 	}
 
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	auto impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::locate_content(
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::locate_content(
 		const segment_and_bucket &a_
 	) const -> const content_t &
 	{
 		return static_cast<const content_t &>(locate(a_));
 	}
 
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	auto impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::locate_content(
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::locate_content(
 		const segment_and_bucket &a_
 	) -> content_t &
 	{
 		return static_cast<content_t &>(locate(a_));
 	}
 
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	auto impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::make_owner_unique_lock(
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<
+		Key, T, Hash, Pred, Allocator, SharedMutex
+	>::make_owner_unique_lock(
 		const segment_and_bucket &a_
 	) const -> owner_unique_lock_t
 	{
 		return owner_unique_lock_t(locate(a_), a_, locate_bucket_mutexes(a_)._m_owner);
 	}
 
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	auto impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::make_owner_unique_lock(
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<
+		Key, T, Hash, Pred, Allocator, SharedMutex
+	>::make_owner_unique_lock(
 		const content_unique_lock_t &cl_
 		, unsigned bkwd
 	) const -> owner_unique_lock_t
@@ -939,8 +1006,13 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 		return owner_unique_lock_t(locate(a), a, locate_bucket_mutexes(a)._m_owner);
 	}
 
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	auto impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::make_owner_shared_lock(
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<
+		Key, T, Hash, Pred, Allocator, SharedMutex
+	>::make_owner_shared_lock(
 		const key_type &k_
 	) const -> owner_shared_lock_t
 	{
@@ -948,28 +1020,46 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 		return owner_shared_lock_t(locate(a), a, locate_bucket_mutexes(a)._m_owner);
 	}
 
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	auto impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::make_content_unique_lock(
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<
+		Key, T, Hash, Pred, Allocator, SharedMutex
+	>::make_content_unique_lock(
 		const segment_and_bucket &a_
 	) const -> content_unique_lock_t
 	{
-		return content_unique_lock_t(locate(a_), a_, locate_bucket_mutexes(a_)._m_content);
+		return
+			content_unique_lock_t(
+				locate(a_)
+				, a_
+				, locate_bucket_mutexes(a_)._m_content
+			);
 	}
 
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	auto impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::make_content_unique_lock(
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<
+		Key, T, Hash, Pred, Allocator, SharedMutex
+	>::make_content_unique_lock(
 		const owner_unique_lock_t &wl_
 		, unsigned fwd
 	) const -> content_unique_lock_t
 	{
 		auto a = wl_.sb();
 		a.add_small(*this, fwd);
-		return content_unique_lock_t(locate(a), a, locate_bucket_mutexes(a)._m_content);
+		return make_content_unique_lock(a);
 	}
 
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
 	template <typename Lock>
-		auto impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::locate_key(
+		auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::locate_key(
 			Lock &bi_
 			, const key_type &k_
 		) const -> std::tuple<bucket_t *, segment_and_bucket>
@@ -988,9 +1078,13 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 #endif
 			auto bfp = bi_.sb();
 			auto &t =
-				*const_cast<table_base<Key, T, Hash, Pred, Alloc, Mutex> *>(this);
+				*const_cast<table_base<Key, T, Hash, Pred, Allocator, SharedMutex> *>(this);
 			++t._locate_key_call;
-			for ( auto content_offset = 0U; content_offset != owner::size; ++content_offset )
+			for (
+				auto content_offset = 0U
+				; content_offset != owner::size
+				; ++content_offset
+			)
 			{
 				if ( ( wv & 1 ) == 1 )
 				{
@@ -1028,8 +1122,11 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 				);
 		}
 
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	auto impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::erase(
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::erase(
 		const key_type &k_
 	) -> size_type
 	try
@@ -1055,16 +1152,16 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 			 *  flush
 			 */
 			erase_src.ref().state_set(bucket_t::EXITING);
-			_pc.persist_content(erase_src.ref(), "content erase exiting");
-			_pc.size_destabilize();
+			persist_controller_t::persist_content(erase_src.ref(), "content erase exiting");
+			persist_controller_t::size_destabilize();
 			owner_lk.ref().erase(
 				static_cast<unsigned>(erase_src.index()-owner_lk.index())
 				, owner_lk
 			);
-			_pc.persist_owner(owner_lk.ref(), "owner erase");
+			persist_controller_t::persist_owner(owner_lk.ref(), "owner erase");
 			erase_src.ref().erase();
-			_pc.persist_content(erase_src.ref(), "content erase free");
-			_pc.size_decr();
+			persist_controller_t::persist_content(erase_src.ref(), "content erase free");
+			persist_controller_t::size_decr();
 			return 1U;
 		}
 	}
@@ -1077,8 +1174,11 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 		throw;
 	}
 
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	auto impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::count(
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::count(
 		const key_type &k_
 	) const -> size_type
 	{
@@ -1096,8 +1196,11 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 		return bf ? 1U : 0U;
 	}
 
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	auto impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::at(
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::at(
 		const key_type &k_
 	) const -> const mapped_type &
 	{
@@ -1113,8 +1216,11 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 		return bf->mapped();
 	}
 
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	auto impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::at(
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::at(
 		const key_type &k_
 	) -> mapped_type &
 	{
@@ -1130,16 +1236,22 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 		return bf->mapped();
 	}
 
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	auto impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::bucket(
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::bucket(
 		const key_type &k_
 	) const -> size_type
 	{
 		return bucket_ix(_hasher.hf(k_));
 	}
 
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	auto impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::bucket_size(
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::bucket_size(
 		size_type n_
 	) const -> size_type
 	{
@@ -1153,8 +1265,11 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 		return s;
 	}
 
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	auto impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::lock_shared(
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::lock_shared(
 		const key_type &k_
 	) -> bool
 	{
@@ -1177,8 +1292,11 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 		return b;
 	}
 
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	auto impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::lock_unique(
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::lock_unique(
 		const key_type &k_
 	) -> bool
 	{
@@ -1201,8 +1319,11 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 		return b;
 	}
 
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	auto impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::unlock(
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::unlock(
 		const key_type &k_
 	) -> void
 	{
@@ -1226,9 +1347,12 @@ template <typename Key, typename T, typename Hash, typename Pred, typename Alloc
 		}
 	}
 
-template <typename Key, typename T, typename Hash, typename Pred, typename Alloc, typename Mutex>
-	auto impl::table_base<Key, T, Hash, Pred, Alloc, Mutex>::size(
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::size(
 	) const -> size_type
 	{
-		return _pc.size();
+		return persist_controller_t::size();
 	}
