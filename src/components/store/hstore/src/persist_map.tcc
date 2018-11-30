@@ -52,10 +52,8 @@ template <typename Allocator>
 		}
 
 		_segment_count._actual = _segment_count._target;
-		persist_switch<Allocator, std::is_base_of<persister, Allocator>::value>::persist(
-			av_, &_segment_count, (&_segment_count)+1U, "count"
-		);
-		persist_switch<Allocator, std::is_base_of<persister, Allocator>::value>::persist(
-			av_, &_size_control, (&_size_control)+1U, "size"
-		);
+		using ps_t =
+			persist_switch<Allocator, std::is_base_of<persister, Allocator>::value>;
+		ps_t::persist(av_, &_segment_count, (&_segment_count)+1U, "count");
+		ps_t::persist(av_, &_size_control, (&_size_control)+1U, "size");
 	}

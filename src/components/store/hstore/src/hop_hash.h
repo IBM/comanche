@@ -199,6 +199,16 @@ namespace impl
 			bucket_aligned_t *_b;
 		};
 
+	template <typename Allocator>
+		class table_allocator
+			: public Allocator
+		{
+		public:
+			explicit table_allocator(const Allocator &av_)
+				: Allocator(av_)
+			{}
+		};
+
 	template <typename Table>
 		class table_iterator_impl;
 
@@ -211,14 +221,24 @@ namespace impl
 		, typename SharedMutex
 	>
 		class table_base
-			: private Allocator
+			: private table_allocator<Allocator>
 			, private segment_layout
+			, private
+				persist_controller<
+					typename Allocator::template rebind<
+						std::pair<const Key, T>
+					>::other
+				>
 		{
 		public:
-			using size_type       = std::size_t;
 			using key_type        = Key;
 			using mapped_type     = T;
 			using value_type      = std::pair<const key_type, mapped_type>;
+			using persist_controller_t =
+				persist_controller<
+					typename Allocator::template rebind<value_type>::other
+				>;
+			using size_type       = typename persist_controller_t::size_type;
 			using hasher          = Hash;
 			using key_equal       = Pred;
 			using allocator_type  = Allocator;
@@ -230,10 +250,6 @@ namespace impl
 			using const_iterator  = table_const_iterator<table_base>;
 			using persist_data_t =
 				persist_map<typename Allocator::template rebind<value_type>::other>;
-			using persist_controller_t =
-				persist_controller<
-					typename Allocator::template rebind<value_type>::other
-				>;
 		private:
 			using bix_t = size_type; /* sufficient for all bucket indexes */
 			using hash_result_t = typename hasher::result_type;
@@ -270,12 +286,12 @@ namespace impl
 			* That memory can be recovered the next time _b is extended.
 			*/
 			hasher _hasher;
-			persist_controller_t _pc;
 
 			bucket_control_t _bc[_segment_capacity];
+
 			six_t segment_count() const override
 			{
-				return _pc.segment_count_actual();
+				return persist_controller_t::segment_count_actual();
 			}
 
 			auto bucket_ix(const hash_result_t h) const -> bix_t;
@@ -321,7 +337,10 @@ namespace impl
 				, unsigned fwd
 			) const -> content_unique_lock_t;
 
-			auto mask() const { return bucket_count() - 1U; }
+			using persist_controller_t::bucket_count;
+			using persist_controller_t::max_bucket_count;
+			using persist_controller_t::mask;
+
 			auto owner_value_at(owner_unique_lock_t &bi) const -> owner::value_t;
 			auto owner_value_at(owner_shared_lock_t &bi) const -> owner::value_t;
 
@@ -339,22 +358,18 @@ namespace impl
 
 			auto locate_content(const segment_and_bucket &a) const -> const content_t &;
 			auto locate_content(const segment_and_bucket &a) -> content_t &;
-			auto bucket_count() const -> size_type
-			{
-				return base_segment_size << (segment_count()-1U);
-			}
 
 			auto bucket(const key_type &) const -> size_type;
 			auto bucket_size(const size_type n) const -> size_type;
 
-			auto max_bucket_count() const -> size_type
-			{
-				return base_segment_size << (persist_controller_t::_segment_capacity - 1U);
-			}
-
 			bool is_free_by_owner(const segment_and_bucket &a) const;
 			bool is_free(const segment_and_bucket &a);
 			bool is_free(const segment_and_bucket &a) const;
+
+			/* computed distance from first to last, accounting for the possibility that
+			 * last is smaller than first due to wrapping.
+			 */
+			auto distance_wrapped(bix_t first, bix_t last) -> unsigned;
 
 			unsigned _locate_key_call;
 			unsigned _locate_key_owned;
@@ -370,7 +385,10 @@ namespace impl
 			~table_base();
 			table_base(const table_base &) = delete;
 			table_base &operator=(const table_base &) = delete;
-			allocator_type get_allocator() const noexcept { return *this; }
+			allocator_type get_allocator() const noexcept
+			{
+				return static_cast<const table_allocator<Allocator> &>(*this);
+			}
 
 			template <typename ... Args>
 				auto emplace(Args && ... args) -> std::pair<iterator, bool>;

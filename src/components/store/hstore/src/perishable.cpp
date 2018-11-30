@@ -34,6 +34,7 @@ void perishable::report()
 {
 	if ( _initial != 0 )
 	{
-		std::cerr << "perishable: " << _time_to_live << " of " << _initial << " ticks left\n";
+		std::cerr << "perishable: " << _time_to_live
+			<< " of " << _initial << " ticks left\n";
 	}
 }

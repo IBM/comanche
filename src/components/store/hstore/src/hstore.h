@@ -19,6 +19,7 @@ class hstore : public Component::IKVStore
 {
   static constexpr bool option_DEBUG = false;
 
+  void delete_pool(const std::string &path, const std::string &name);
 public:
   /** 
    * Constructor

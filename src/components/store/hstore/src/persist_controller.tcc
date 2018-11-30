@@ -24,7 +24,9 @@ template <typename Allocator>
 		, _persist(persist_)
 	{
 		assert(_persist->_segment_count._target <= _segment_capacity);
-		assert(_persist->_segment_count._actual <= _persist->_segment_count._target);
+		assert(
+			_persist->_segment_count._actual <= _persist->_segment_count._target
+		);
 	}
 
 template <typename Allocator>
@@ -66,15 +68,15 @@ template <typename Allocator>
 template <typename Allocator>
 	void impl::persist_controller<Allocator>::persist_existing_segments(const char *)
 	{
-/* NOTE: this persist goes through pmemobj address translation to find the addresses.
- * That should not be necessary, as the virtual addresses are kept (in a separate table).
+/* This persist goes through pmemobj address translation to find the addresses.
+ * That is unecessary, as the virtual addresses are kept (in a separate table).
  */
 		auto sc = &*_persist->_sc;
 		{
 			auto bp = &*sc[0].bp;
 			persist_internal(&bp[0], &bp[base_segment_size], "segment 0");
 		}
-		for ( auto i = 1U; i != segment_count(); ++i )
+		for ( auto i = 1U; i != segment_count_actual(); ++i )
 		{
 			auto bp = &*sc[i].bp;
 			persist_internal(&bp[0], &bp[base_segment_size<<(i-1U)], "segment N");
@@ -84,14 +86,14 @@ template <typename Allocator>
 template <typename Allocator>
 	void impl::persist_controller<Allocator>::persist_new_segment(const char *)
 	{
-/* NOTE: this persist goes through pmemobj address translation to find the addresses.
- * That should not be necessary, as the virtual addresses are kept (in a separate table).
+/* This persist goes through pmemobj address translation to find the addresses.
+ * That is unnecessary, as the virtual addresses are kept (in a separate table).
  */
 		auto sc = &*_persist->_sc;
-		auto bp = &*sc[segment_count()].bp;
+		auto bp = &*sc[segment_count_actual()].bp;
 		persist_internal(
 			&bp[0]
-			, &bp[base_segment_size<<(segment_count()-1U)]
+			, &bp[base_segment_size<<(segment_count_actual()-1U)]
 			, "segment new"
 		);
 	}
@@ -99,8 +101,8 @@ template <typename Allocator>
 template <typename Allocator>
 	void impl::persist_controller<Allocator>::persist_segment_table()
 	{
-/* NOTE: this persist goes through pmemobj address translation to find the addresses.
- * That should not be necessary, as the virtual addresses are kept (in a separate table).
+/* This persist goes through pmemobj address translation to find the addresses.
+ * That su unnecessary, as the virtual addresses are kept (in a separate table).
  */
 		auto sc = &*_persist->_sc;
 		persist_internal(&sc[0], &sc[persist_data_t::_segment_capacity], "segments");
@@ -184,7 +186,7 @@ template <typename Allocator>
 		persist_segment_table();
 
 		auto sc = &*_persist->_sc;
-		return &*(sc[segment_count()].bp);
+		return &*(sc[segment_count_actual()].bp);
 	}
 
 template <typename Allocator>

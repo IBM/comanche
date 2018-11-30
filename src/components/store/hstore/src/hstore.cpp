@@ -110,24 +110,31 @@ namespace
     open_pool_handle          _pop;
     table_t                   _map;
     impl::atomic_controller<table_t> _atomic_state;
-    std::string               _path;
+    std::string               _dir;
+    std::string               _name;
   public:
     explicit open_session(
       TOID(struct store_root_t) &root_
       , open_pool_handle &&pop_
-      , std::string path_
+      , const std::string &dir_
+      , const std::string &name_
       , pc_t *pc
     )
       : _root(root_)
       , _pop(std::move(pop_))
       , _map(pc, table_t::allocator_type(_pop.get(), type_num::table))
       , _atomic_state(*pc, _map)
-      , _path(path_)
+      , _dir(dir_)
+      , _name(name_)
     {}
     open_session(const open_session &) = delete;
     open_session& operator=(const open_session &) = delete;
     PMEMobjpool *pool() const { return _pop.get(); }
+#if 0
     const std::string &path() const noexcept { return _path; }
+#endif
+    const std::string &dir() const noexcept { return _dir; }
+    const std::string &name() const noexcept { return _name; }
     table_t &map() noexcept { return _map; }
     const table_t &map() const noexcept { return _map; }
 
@@ -276,7 +283,11 @@ namespace
     {
       if ( verbose )
       {
-        PLOG(PREFIX "root is empty: new hash required object count %zu", __func__, expected_obj_count);
+        PLOG(
+          PREFIX "root is empty: new hash required object count %zu"
+          , __func__
+          , expected_obj_count
+        );
       }
       auto oid =
         palloc(
@@ -288,7 +299,8 @@ namespace
           , "persist"
        );
       pc_t *p = static_cast<pc_t *>(pmemobj_direct(oid));
-      table_t::allocator_type{pop_, type_num::table}.persist(p, sizeof *p, "persist_data");
+      table_t::allocator_type{pop_, type_num::table}
+        .persist(p, sizeof *p, "persist_data");
       D_RW(root)->pc = oid;
     }
     auto rt = D_RW(root);
@@ -296,6 +308,14 @@ namespace
     auto pc = pmemobj_direct(rt->pc);
     PLOG(PREFIX "persist root addr %p", __func__, static_cast<const void *>(rt));
     return static_cast<pc_t *>(pc);
+  }
+}
+
+namespace
+{
+  std::string make_full_path(const std::string &prefix, const std::string &suffix)
+  {
+    return prefix + ( prefix[prefix.length()-1] != '/' ? "/" : "") + suffix;
   }
 }
 
@@ -314,7 +334,12 @@ auto hstore::create_pool(
 #pragma GCC diagnostic ignored "-Wold-style-cast"
   if (PMEMOBJ_MAX_ALLOC_SIZE < size)
   {
-    PWRN(PREFIX "object too large (max %zu, size %zu)", __func__, PMEMOBJ_MAX_ALLOC_SIZE, size);
+    PWRN(
+      PREFIX "object too large (max %zu, size %zu)"
+      , __func__
+      , PMEMOBJ_MAX_ALLOC_SIZE
+      , size
+    );
 #pragma GCC diagnostic pop
     /* NOTE: E_TOO_LARGE may be negative, but pool_t is uint64_t */
     return uint64_t(E_TOO_LARGE);
@@ -328,15 +353,13 @@ auto hstore::create_pool(
     return uint64_t(E_BAD_PARAM);
   }
 
-  std::string fullpath =
-    path
-      + ( path[path.length()-1] != '/' ? "/" : "")
-      + name
-    ;
+  std::string fullpath = make_full_path(path, name);
 
   open_pool_handle pop(nullptr, pmemobj_close);
 
-  /* NOTE: conditions can change between the acess call and the create/open call. */
+  /* NOTE: conditions can change between the access call and the create/open call.
+   * This code makes no prevision for such a change.
+   */
   if (access(fullpath.c_str(), F_OK) != 0) {
     if ( option_DEBUG )
     {
@@ -354,7 +377,8 @@ auto hstore::create_pool(
     pop.reset(pmemobj_create(fullpath.c_str(), REGION_NAME, size, 0666));
     if (not pop)
     {
-      throw General_exception("failed to create new pool - %s\n", pmemobj_errormsg());
+      throw
+        General_exception("failed to create new pool - %s\n", pmemobj_errormsg());
     }
   }
   else {
@@ -375,8 +399,6 @@ auto hstore::create_pool(
     }
   }
 
-  /* see: https://github.com/pmem/pmdk/blob/stable-1.4/src/examples/libpmemobj/map/kv_server.c */
-
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wold-style-cast"
   TOID(struct store_root_t) root = POBJ_ROOT(pop.get(), struct store_root_t);
@@ -384,7 +406,7 @@ auto hstore::create_pool(
   assert(!TOID_IS_NULL(root));
 
   auto pc = map_create_if_null(pop.get(), root, expected_obj_count, option_DEBUG);
-  auto session = std::make_unique<open_session>(root, std::move(pop), fullpath, pc);
+  auto session = std::make_unique<open_session>(root, std::move(pop), path, name, pc);
   auto p = session.get();
   std::unique_lock<std::mutex> sessions_lk(sessions_mutex);
   g_sessions.emplace(p, std::move(session));
@@ -426,11 +448,7 @@ auto hstore::open_pool(const std::string &path,
     throw API_exception("Pool %s:%s does not exist", path.c_str(), name.c_str());
   }
 
-  std::string fullpath =
-    path
-      + ( path[path.length()-1] != '/' ? "/" : "")
-      + name
-    ;
+  std::string fullpath = make_full_path(path, name);
 
   /* check integrity first */
   if (check_pool(fullpath.c_str()) != 0)
@@ -438,7 +456,10 @@ auto hstore::open_pool(const std::string &path,
     throw General_exception("pool check failed");
   }
 
-  if ( auto pop = open_pool_handle(pmemobj_open(fullpath.c_str(), REGION_NAME), pmemobj_close) )
+  if (
+    auto pop =
+      open_pool_handle(pmemobj_open(fullpath.c_str(), REGION_NAME), pmemobj_close)
+  )
   {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wold-style-cast"
@@ -450,7 +471,7 @@ auto hstore::open_pool(const std::string &path,
     }
 
     auto pc = map_create_if_null(pop.get(), root, 1U, option_DEBUG);
-    auto session = std::make_unique<open_session>(root, std::move(pop), fullpath, pc);
+    auto session = std::make_unique<open_session>(root, std::move(pop), path, name, pc);
     auto p = session.get();
     std::unique_lock<std::mutex> sessions_lk(sessions_mutex);
     g_sessions.emplace(p, std::move(session));
@@ -474,24 +495,39 @@ catch ( const API_exception &e )
   throw API_exception("%s in %s", e.cause(), __func__);
 }
 
-void hstore::delete_pool(const pool_t pid)
-try
+void hstore::delete_pool(const std::string &dir, const std::string &name)
 {
-  std::string path;
-  /* Not sure why a session would have to be open in order to erase a pool, but it does */
-  {
-    auto session = move_session(pid);
-    path = session->path();
-  }
-
-  if (pmempool_rm(path.c_str(), 0)) {
-    throw General_exception("unable to delete pool (%s)", path.c_str());
+  const int flags = 0;
+  if ( auto e = pmempool_rm(make_full_path(dir, name).c_str(), flags) ) {
+    throw
+      General_exception(
+        "unable to delete pool (%s/%s) error %d"
+        , dir.c_str()
+        , name.c_str()
+        , e
+      );
   }
 
   if ( option_DEBUG )
   {
-    PLOG("pool deleted: %s", path.c_str());
+    PLOG("pool deleted: %s/%s", dir.c_str(), name.c_str());
   }
+}
+
+void hstore::delete_pool(const pool_t pid)
+try
+{
+  /* Not sure why a session would have to be open in order to erase a pool,
+   * but the kvstore interface requires it.
+   */
+  std::string dir;
+  std::string name;
+  {
+    auto session = move_session(pid);
+    dir = session->dir();
+    name = session->name();
+  }
+  delete_pool(dir, name);
 }
 catch ( const API_exception &e )
 {
@@ -690,7 +726,7 @@ auto hstore::lock(const pool_t pool,
     auto r =
       session.map().emplace(
         std::piecewise_construct
-		, std::forward_as_tuple(p_key)
+        , std::forward_as_tuple(p_key)
         , std::forward_as_tuple(out_value_len, pop, type_num::mapped)
       );
 
