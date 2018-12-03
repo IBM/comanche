@@ -66,6 +66,11 @@ std::size_t Fabric_cq_generic_grouped::stalled_completion_count()
   return _cq.get_cq_comp_err();
 }
 
+#pragma GCC diagnostic push
+#if defined __GNUC__ && 6 < __GNUC__
+#pragma GCC diagnostic ignored "-Wnoexcept-type"
+#endif
+
 /**
  * Poll completions (e.g., completions)
  *
@@ -341,6 +346,8 @@ std::size_t Fabric_cq_generic_grouped::poll_completions_tentative(const Componen
 
   return ct_total;
 }
+
+#pragma GCC diagnostic pop
 
 void Fabric_cq_generic_grouped::member_insert(Fabric_cq_grouped *cq_)
 {
