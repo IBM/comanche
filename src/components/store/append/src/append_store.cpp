@@ -193,9 +193,7 @@ Append_store::~Append_store()
 
   g_tls_db_vector_lock.lock();
   for(auto& handle: g_tls_db_vector) {
-    //PLOG("closing db handle %p", handle);
-    if(sqlite3_close(handle) != SQLITE_OK)
-      throw General_exception("failed to close sqlite3 db (%s)", _db_filename.c_str());
+    sqlite3_close(handle);
   }
   g_tls_db_vector_lock.unlock();
 
