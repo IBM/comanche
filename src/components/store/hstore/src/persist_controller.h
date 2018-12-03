@@ -25,36 +25,36 @@ namespace impl
 			using persist_data_t = persist_map<Allocator>;
 			using value_type = typename Allocator::value_type;
 		public:
-			static constexpr auto _segment_capacity = persist_data_t::_segment_capacity;
+			using size_type = std::size_t;
 			using bix_t = std::size_t; /* sufficient for all bucket indexes */
+			using bucket_aligned_t = bucket_aligned<hash_bucket<value_type>>;
+			using content_t = content<value_type>;
+			static constexpr auto _segment_capacity = persist_data_t::_segment_capacity;
 			static constexpr unsigned log2_base_segment_size =
 				persist_data_t::log2_base_segment_size;
 			static constexpr bix_t base_segment_size = persist_data_t::base_segment_size;
-			using bucket_aligned_t = bucket_aligned<hash_bucket<value_type>>;
-			using content_t = content<value_type>;
 		private:
 			using bucket_allocator_t = typename persist_data_t::bucket_allocator_t;
 			persist_data_t *_persist;
 			/* enable persist call if Allocator supports persist */
 			using persist_switch_t =
 				persist_switch<Allocator, std::is_base_of<persister, Allocator>::value>;
-			auto bucket_count() const -> std::size_t
-			{
-				return persist_data_t::base_segment_size << (segment_count()-1U);
-			}
-			auto max_bucket_count() const -> std::size_t
-			{
-				return persist_data_t::base_segment_size << (_segment_capacity - 1U);
-			}
+
 			void persist_segment_table(); /* Flush the bucket pointers (*_b) */
-			void persist_internal(const void *first, const void *last, const char *what);
+			void persist_internal(
+				const void *first
+				, const void *last
+				, const char *what
+			);
 			void size_stabilize();
 
 		public:
 			explicit persist_controller(const Allocator &av, persist_data_t *persist);
 
 			persist_controller(const persist_controller &) = delete;
-			auto operator=(const persist_controller &) -> persist_controller & = delete;
+			auto operator=(
+				const persist_controller &
+			) -> persist_controller & = delete;
 
 			auto resize_prolog() -> bucket_aligned_t *;
 			void resize_epilog();
@@ -63,14 +63,19 @@ namespace impl
 			void size_incr();
 			void size_decr();
 
-			void persist_owner(const owner &b, const char *what = "bucket_owner");
-			void persist_content(const content_t &b, const char *what = "bucket_content");
+			void persist_owner(
+				const owner &b
+				, const char *what = "bucket_owner"
+			);
+			void persist_content(
+				const content_t &b
+				, const char *what = "bucket_content"
+			);
 			void persist_segment_count(); /* Flush the bucket pointer count (_count) */
 			void persist_size();
 			void persist_existing_segments(const char *what = "old segments");
 			void persist_new_segment(const char *what = "new segments");
 
-			bix_t segment_count() const { return segment_count_actual(); }
 			std::size_t segment_count_actual() const
 			{
 				return _persist->_segment_count._actual;
@@ -97,6 +102,33 @@ namespace impl
 			}
 			bool is_size_unstable() const;
 			void size_set(std::size_t n);
+
+			auto bucket_count() const -> size_type
+			{
+				return base_segment_size << (segment_count_actual() - 1U);
+			}
+
+			auto max_bucket_count() const -> size_type
+			{
+				return base_segment_size << (_segment_capacity - 1U);
+			}
+
+			auto mask() const { return bucket_count() - 1U; }
+
+			auto distance_wrapped(
+				bix_t first, bix_t last
+			) -> unsigned
+			{
+				return
+					unsigned
+					(
+						(
+							last < first
+							? last + bucket_count()
+							: last
+						) - first
+					);
+			}
 		};
 }
 

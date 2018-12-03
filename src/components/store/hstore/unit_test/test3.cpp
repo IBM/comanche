@@ -90,11 +90,13 @@ class KVStore_test
     // before the destructor).
   }
 
+  // Objects declared here can be used by all tests in the test case
+
+  /* persistent memory if enabled at all, is simulated and not real */
   static bool pmem_simulated;
   static Component::IKVStore * _kvstore;
   static Component::IKVStore::pool_t pool;
 
-  // Objects declared here can be used by all tests in the test case
   static constexpr unsigned many_key_length_short = 16;
   static constexpr unsigned many_key_length_long = 32;
   static constexpr unsigned many_value_length_short = 16;
@@ -125,7 +127,7 @@ constexpr std::size_t KVStore_test::estimated_object_count_small;
 constexpr std::size_t KVStore_test::many_count_target_large;
 constexpr std::size_t KVStore_test::many_count_target_small;
 
-bool KVStore_test::pmem_simulated = getenv("PMEM_IS_PMEM_FORCE") && getenv("PMEM_IS_PMEM_FORCE") == std::string("0");
+bool KVStore_test::pmem_simulated = getenv("PMEM_IS_PMEM_FORCE");
 Component::IKVStore *KVStore_test::_kvstore;
 Component::IKVStore::pool_t KVStore_test::pool;
 
@@ -165,7 +167,7 @@ TEST_F(KVStore_test, RemoveOldPool)
   {
     try
     {
-      pool = _kvstore->open_pool(PMEM_PATH, "test-" + store_map::impl->name + ".pool", MB(128UL));
+      pool = _kvstore->open_pool(PMEM_PATH, "test-" + store_map::impl->name + ".pool", 0);
       if ( 0 < int64_t(pool) )
       {
         _kvstore->delete_pool(pool);

@@ -55,7 +55,10 @@ namespace impl
 		typename TableBase
 		, typename Lock
 	>
-		auto make_owner_print(const TableBase &t_, Lock &lk_) -> owner_print<TableBase, Lock>
+		auto make_owner_print(
+			const TableBase &t_
+			, Lock &lk_
+		) -> owner_print<TableBase, Lock>
 		{
 			return owner_print<TableBase, Lock>(t_, lk_);
 		}

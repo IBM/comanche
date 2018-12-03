@@ -7,6 +7,8 @@ option(FORCE_OTT_BUILD "force out of tree build" ON)
 
 option(BOOTSTRAP_DEPS "bootstrap to build deps" ON)
 
+option(TEST_HSTORE_PERISHABLE "hstore perishable testing enabled" OFF)
+
 if(CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR AND FORCE_OTT_BUILD)
     message(FATAL_ERROR "Cannot use in-source build ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR}. You should delete any CMakeCache.txt and CMakeFiles and then try out-of-tree build")
 endif(CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR AND FORCE_OTT_BUILD)
