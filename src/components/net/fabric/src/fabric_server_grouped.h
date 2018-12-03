@@ -35,6 +35,11 @@ class event_producer;
 class Fabric;
 class Fabric_comm_grouped;
 
+#pragma GCC diagnostic push
+#if defined __GNUC__ && 6 < __GNUC__
+#pragma GCC diagnostic ignored "-Wnoexcept-type"
+#endif
+
 class Fabric_server_grouped
   : public Component::IFabric_server_grouped
   , public Fabric_connection_server
@@ -210,5 +215,7 @@ public:
 
   void forget_group(Fabric_comm_grouped *);
 };
+
+#pragma GCC diagnostic pop
 
 #endif

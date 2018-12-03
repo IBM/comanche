@@ -39,6 +39,11 @@
 class Fabric_cq_grouped;
 class Fabric_cq;
 
+#pragma GCC diagnostic push
+#if defined __GNUC__ && 6 < __GNUC__
+#pragma GCC diagnostic ignored "-Wnoexcept-type"
+#endif
+
 class Fabric_cq_generic_grouped
 {
   /* All communicators in a group share this "generic group."
@@ -100,5 +105,7 @@ public:
   ssize_t cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) noexcept;
   void queue_completion(Fabric_cq_grouped *cq, ::status_t status, const Fabric_cq::fi_cq_entry_t &cq_entry);
 };
+
+#pragma GCC diagnostic pop
 
 #endif
