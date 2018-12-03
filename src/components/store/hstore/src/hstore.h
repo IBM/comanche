@@ -19,6 +19,7 @@ class hstore : public Component::IKVStore
 {
   static constexpr bool option_DEBUG = false;
 
+  void delete_pool(const std::string &path, const std::string &name);
 public:
   /** 
    * Constructor
@@ -37,7 +38,9 @@ public:
    * 
    */
   DECLARE_VERSION(0.1f);
-  DECLARE_COMPONENT_UUID(0x1f1bf8cf,0xc2eb,0x4710,0x9bf1,0x63,0xf5,0xe8,0x1a,0xcf,0xbd);
+  DECLARE_COMPONENT_UUID(
+    0x1f1bf8cf,0xc2eb,0x4710,0x9bf1,0x63,0xf5,0xe8,0x1a,0xcf,0xbd
+  );
 
   void * query_interface(Component::uuid_t& itf_uuid) override {
     return
@@ -130,7 +133,7 @@ public:
   status_t atomic_update(
     pool_t pool,
     const std::string& key,
-    const std::vector<operation *> &op_vector,
+    const std::vector<Operation *> &op_vector,
     bool take_lock) override;
 };
 
@@ -143,7 +146,9 @@ public:
    * 
    */
   DECLARE_VERSION(0.1f);
-  DECLARE_COMPONENT_UUID(0xfacbf8cf,0xc2eb,0x4710,0x9bf1,0x63,0xf5,0xe8,0x1a,0xcf,0xbd);
+  DECLARE_COMPONENT_UUID(
+    0xfacbf8cf,0xc2eb,0x4710,0x9bf1,0x63,0xf5,0xe8,0x1a,0xcf,0xbd
+  );
 
   void * query_interface(Component::uuid_t& itf_uuid) override {
     return itf_uuid == Component::IKVStore_factory::iid()

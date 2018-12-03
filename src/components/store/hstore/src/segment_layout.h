@@ -17,8 +17,10 @@ namespace impl
 	class segment_layout
 	{
 	public:
-		using bix_t = std::size_t; /* sufficient for all bucket indexes */
-		using six_t = std::size_t; /* sufficient for segment index (but uint8_t woud do) */
+		/* all bucket indexes */
+		using bix_t = std::size_t;
+		/* segment indexes (but uint8_t woud do) */
+		using six_t = std::size_t;
 	protected:
 		~segment_layout() {}
 	public:
@@ -27,7 +29,9 @@ namespace impl
 		virtual six_t segment_count() const = 0;
 		static unsigned log2(unsigned long v)
 		{
-			return std::numeric_limits<unsigned long>::digits - unsigned(__builtin_clzl(v));
+			return
+				std::numeric_limits<unsigned long>::digits - unsigned(__builtin_clzl(v))
+				;
 		}
 	};
 }

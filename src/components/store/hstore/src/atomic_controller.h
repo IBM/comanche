@@ -19,7 +19,10 @@ namespace impl
 			using allocator_type =
 				typename table_t::allocator_type::template rebind<mod_control>::other;
 			using persist_switch_t =
-				persist_switch<allocator_type, std::is_base_of<persister, allocator_type>::value>;
+				persist_switch<
+					allocator_type
+					, std::is_base_of<persister, allocator_type>::value
+				>;
 			persist_atomic<allocator_type> *_persist; /* Bad name. Should be a noun. */
 			table_t *_map;
 		public:
@@ -37,9 +40,9 @@ namespace impl
 			auto enter(
 				PMEMobjpool *pop
 				, persist_fixed_string<char> &key
-				, uint64_t type_num_data
-				, std::vector<Component::IKVStore::operation *>::const_iterator first
-				, std::vector<Component::IKVStore::operation *>::const_iterator last
+				, std::uint64_t type_num_data
+				, std::vector<Component::IKVStore::Operation *>::const_iterator first
+				, std::vector<Component::IKVStore::Operation *>::const_iterator last
 			) -> Component::status_t;
 	};
 }

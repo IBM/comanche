@@ -27,8 +27,14 @@ namespace impl
 		explicit segment_and_bucket(bix_t ix);
 		auto incr(const segment_layout &) -> segment_and_bucket &;
 		auto incr_for_iterator() -> segment_and_bucket &;
-		auto add_small(const segment_layout &, unsigned fwd) -> segment_and_bucket &;
-		auto subtract_small(const segment_layout &, unsigned bkwd) -> segment_and_bucket &;
+		auto add_small(
+			const segment_layout &
+			, unsigned fwd
+		) -> segment_and_bucket &;
+		auto subtract_small(
+			const segment_layout &
+			, unsigned bkwd
+		) -> segment_and_bucket &;
 		six_t si() const { return _si; }
 		bix_t bi() const { return _bi; }
 		/* inverse of make_segment_and_bucket */
@@ -36,7 +42,13 @@ namespace impl
 	};
 }
 
-bool operator==(const impl::segment_and_bucket &a, const impl::segment_and_bucket &b);
-bool operator!=(const impl::segment_and_bucket &a, const impl::segment_and_bucket &b);
+auto operator==(
+	const impl::segment_and_bucket &a
+	, const impl::segment_and_bucket &b
+) -> bool;
+auto operator!=(
+	const impl::segment_and_bucket &a
+	, const impl::segment_and_bucket &b
+) -> bool;
 
 #endif

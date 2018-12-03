@@ -19,7 +19,8 @@ template <typename TableBase>
 		auto &tbl = t_.get_table();
 		for ( const auto &k : tbl )
 		{
-			o_ << cond_print(k.first, "(key)") << " -> " << cond_print(k.second, "(mapped)") << "\n";
+			o_ << cond_print(k.first, "(key)") << " -> "
+				<< cond_print(k.second, "(mapped)") << "\n";
 		}
 		return o_;
 	}
@@ -35,32 +36,57 @@ template <typename TableBase>
 		for ( std::size_t k = 0; k != tbl_base.bucket_count(); ++k )
 		{
 			auto sb = segment_and_bucket(k);
-			bypass_lock<const content<typename TableBase::value_type>> content_lk(tbl_base.locate_content(sb), sb);
 			bypass_lock<const owner> owner_lk(tbl_base.locate_owner(sb), sb);
+			bypass_lock<const content<typename TableBase::value_type>>
+				content_lk(
+					tbl_base.locate_content(sb)
+					, sb
+				);
 
-			if (  owner_lk.ref().value(owner_lk) != 0 || ! content_lk.ref().is_clear() )
+			if (
+				owner_lk.ref().value(owner_lk) != 0
+				||
+				! content_lk.ref().is_clear()
+			)
 			{
 				o_ << k << ": "
 					<< make_bucket_print(tbl_base, owner_lk, content_lk)
 					<< "\n";
 			}
 		}
-		if ( tbl_base._pc.segment_count_actual() < tbl_base._pc.segment_count_target() )
+		if (
+			tbl_base._pc.segment_count_actual() < tbl_base._pc.segment_count_target()
+		)
 		{
-			o_ << "Pending buckets\n";
-			for ( std::size_t ks = 0; ks != tbl_base.bucket_count(); ++ks )
+			auto &loc = tbl_base._bc[tbl_base.segment_count()];
+			if ( loc._b )
 			{
-				const auto kj = tbl_base.bucket_count() + ks;
-				const auto sbj = segment_and_bucket(kj);
-				auto &loc = tbl_base._bc[tbl_base.segment_count()];
-				bypass_lock<const content<typename TableBase::value_type>> content_lk(loc._b[ks], sbj);
-				bypass_lock<const owner> owner_lk(loc._b[ks], sbj);
-				if (  owner_lk.ref().value(owner_lk) != 0 || ! content_lk.ref().is_clear() )
+				o_ << "Pending buckets\n";
+				for ( std::size_t ks = 0; ks != tbl_base.bucket_count(); ++ks )
 				{
-					o_ << kj << ": "
-						<< make_bucket_print(tbl_base, owner_lk, content_lk)
-						<< "\n";
+					const auto kj = tbl_base.bucket_count() + ks;
+					const auto sbj = segment_and_bucket(kj);
+					bypass_lock<const owner> owner_lk(loc._b[ks], sbj);
+					bypass_lock<const content<typename TableBase::value_type>>
+						content_lk(
+							loc._b[ks]
+							, sbj
+						);
+					if (
+						owner_lk.ref().value(owner_lk) != 0
+						||
+						! content_lk.ref().is_clear()
+					)
+					{
+						o_ << kj << ": "
+							<< make_bucket_print(tbl_base, owner_lk, content_lk)
+							<< "\n";
+					}
 				}
+			}
+			else
+			{
+				o_ << "Resize in progress but no pending buckets\n";
 			}
 		}
 		return o_;

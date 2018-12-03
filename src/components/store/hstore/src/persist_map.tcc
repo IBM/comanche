@@ -15,7 +15,9 @@
 template <typename Allocator>
 	impl::persist_map<Allocator>::persist_map(std::size_t n, const Allocator &av_)
 		: _size_control()
-		, _segment_count(n/base_segment_size == 0 ? 1U : segment_layout::log2(n/base_segment_size))
+		, _segment_count(
+			n/base_segment_size == 0 ? 1U : segment_layout::log2(n/base_segment_size)
+		)
 		, _sc{}
 	{
 		using void_allocator_t = typename Allocator::template rebind<void>::other;
@@ -50,6 +52,8 @@ template <typename Allocator>
 		}
 
 		_segment_count._actual = _segment_count._target;
-		persist_switch<Allocator, std::is_base_of<persister, Allocator>::value>::persist(av_, &_segment_count, (&_segment_count)+1U, "count");
-		persist_switch<Allocator, std::is_base_of<persister, Allocator>::value>::persist(av_, &_size_control, (&_size_control)+1U, "size");
+		using ps_t =
+			persist_switch<Allocator, std::is_base_of<persister, Allocator>::value>;
+		ps_t::persist(av_, &_segment_count, (&_segment_count)+1U, "count");
+		ps_t::persist(av_, &_size_control, (&_size_control)+1U, "size");
 	}

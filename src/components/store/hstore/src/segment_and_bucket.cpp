@@ -21,8 +21,20 @@ auto impl::segment_and_bucket::ix_high(bix_t ix) -> bix_t
 }
 
 impl::segment_and_bucket::segment_and_bucket(bix_t ix)
-	: _si(   __builtin_expect((ix_high(ix) == 0),false) ? 0 : segment_layout::log2(ix_high(ix)) )
-	, _bi( ( __builtin_expect((ix_high(ix) == 0),false) ? 0 : ( ix_high(ix) % (1U << (_si-1)) ) ) * segment_layout::base_segment_size + ix_low(ix) )
+	: _si(
+		__builtin_expect((ix_high(ix) == 0),false)
+		? 0
+		: segment_layout::log2(ix_high(ix))
+	)
+	, _bi(
+		(
+			__builtin_expect((ix_high(ix) == 0),false)
+			? 0
+			: ix_high(ix) % (1U << (_si-1))
+		)
+		*
+		segment_layout::base_segment_size + ix_low(ix)
+	)
 {
 }
 
@@ -61,7 +73,10 @@ auto impl::segment_and_bucket::incr(const segment_layout &sl_) -> segment_and_bu
 	return *this;
 }
 
-auto impl::segment_and_bucket::add_small(const segment_layout &sl_, unsigned fwd) -> segment_and_bucket &
+auto impl::segment_and_bucket::add_small(
+	const segment_layout &sl_
+	, unsigned fwd
+) -> segment_and_bucket &
 {
 	/* To develop (six_t, bix_t) pair:
 	 *  1. Add to the (low) part.
@@ -78,7 +93,10 @@ auto impl::segment_and_bucket::add_small(const segment_layout &sl_, unsigned fwd
 	return *this;
 }
 
-auto impl::segment_and_bucket::subtract_small(const segment_layout &sl_, unsigned bkwd) -> segment_and_bucket &
+auto impl::segment_and_bucket::subtract_small(
+	const segment_layout &sl_
+	, unsigned bkwd
+) -> segment_and_bucket &
 {
 	/* To develop (six_t, bix_t) pair:
 	 *  1. decrement the part.
@@ -116,13 +134,19 @@ auto impl::segment_and_bucket::incr_for_iterator() -> segment_and_bucket &
 	return *this;
 }
 
-bool operator==(const impl::segment_and_bucket &a_, const impl::segment_and_bucket &b_)
+bool operator==(
+	const impl::segment_and_bucket &a_
+	, const impl::segment_and_bucket &b_
+)
 {
 	/* (test bi first as it is the more likely mismatch) */
 	return a_.bi() == b_.bi() && a_.si() == b_.si();
 }
 
-bool operator!=(const impl::segment_and_bucket &a_, const impl::segment_and_bucket &b_)
+bool operator!=(
+	const impl::segment_and_bucket &a_
+	, const impl::segment_and_bucket &b_
+)
 {
 	return ! ( a_ == b_);
 }

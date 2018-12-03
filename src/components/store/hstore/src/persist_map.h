@@ -36,11 +36,15 @@ namespace impl
 				}
 			};
 
-			using bix_t = segment_layout::bix_t; /* sufficient for all bucket indexes */
+			/* bucket indexes */
+			using bix_t = segment_layout::bix_t;
+			/* segment indexes */
 			using six_t = segment_layout::six_t;
 			static constexpr six_t _segment_capacity = 32U;
-			static constexpr unsigned log2_base_segment_size = segment_layout::log2_base_segment_size;
-			static constexpr bix_t base_segment_size = segment_layout::base_segment_size;
+			static constexpr unsigned log2_base_segment_size =
+				segment_layout::log2_base_segment_size;
+			static constexpr bix_t base_segment_size =
+				segment_layout::base_segment_size;
 
 			struct size_control_t
 			{

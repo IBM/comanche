@@ -151,7 +151,10 @@ std::size_t Fabric_cq::process_or_queue_cq_comp_err(const Component::IFabric_op_
 namespace
 {
   std::size_t constexpr ct_max = 16;
+  const char *force_read_str = std::getenv("FABRIC_FORCE_CQ_READ");
+  const bool force_read = force_read_str && 0 < std::strtol(force_read_str, nullptr, 0);
 }
+
 /**
  * Poll completions (e.g., completions)
  *
@@ -366,20 +369,20 @@ std::size_t Fabric_cq::poll_completions_tentative(const Component::IFabric_op_co
 
 ssize_t Fabric_cq::cq_read(void *buf, size_t count) noexcept
 {
-#if 0
   /* Note: It would seem resonable to skip the CQ read if there are
-   * no outstanding (inflight) operations. Doing so, however, when
-   * using fi_inject with the verbs provider, causes a hang after
-   * about 128 operations.
+   * no outstanding (inflight) operations. But at one time, the
+   * combination of
+   *  - skipping cq_read
+   *  - using fi_inject
+   *  - using the bverbs provider
+   * caused a hang after about 128 operations. If this happens again,
+   * set env var FABRIC_FORCE_CQ_READ=1 to force reads.
    */
   auto r =
-    0U == _inflight
-    ? -FI_EAGAIN
-    : ::fi_cq_read(&*_cq, buf, count)
+    0U != _inflight || force_read
+    ? ::fi_cq_read(&*_cq, buf, count)
+    : -FI_EAGAIN
     ;
-#else
-  auto r = ::fi_cq_read(&*_cq, buf, count);
-#endif
 
   if ( 0 < r )
   {
