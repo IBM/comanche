@@ -18,7 +18,7 @@ struct ProgramOptions {
   std::string path;
   unsigned long long int size;
   int flags;
-  unsigned int elements;
+  int elements;
   Component::IKVStore * store;
   std::string report_file_name;
   unsigned int key_length;
