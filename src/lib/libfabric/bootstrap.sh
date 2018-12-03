@@ -8,5 +8,5 @@ fi
 
 # configure and build libfabric
 #
-cd libfabric ; ./autogen.sh ; ./configure --prefix=$1 ; make
+cd libfabric ; ./autogen.sh ; ./configure --prefix=$1 --enable-mlx=no ; make
 
