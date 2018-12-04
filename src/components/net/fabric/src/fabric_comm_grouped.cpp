@@ -192,6 +192,11 @@ void Fabric_comm_grouped::inject_send(const void *buf_, const std::size_t len_)
   _conn.inject_send(buf_, len_);
 }
 
+#pragma GCC diagnostic push
+#if defined __GNUC__ && 6 < __GNUC__
+#pragma GCC diagnostic ignored "-Wnoexcept-type"
+#endif
+
 std::size_t Fabric_comm_grouped::poll_completions(const Component::IFabric_op_completer::complete_old &cb_)
 {
   return _rx.poll_completions(cb_) + _tx.poll_completions(cb_);
@@ -216,6 +221,8 @@ std::size_t Fabric_comm_grouped::poll_completions_tentative(const Component::IFa
 {
   return _rx.poll_completions_tentative(cb_, cb_param_) + _tx.poll_completions_tentative(cb_, cb_param_);
 }
+
+#pragma GCC diagnostic pop
 
 std::size_t Fabric_comm_grouped::stalled_completion_count()
 {

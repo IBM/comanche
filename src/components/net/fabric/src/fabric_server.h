@@ -24,6 +24,11 @@ struct fi_info;
 class event_producer;
 class Fabric;
 
+#pragma GCC diagnostic push
+#if defined __GNUC__ && 6 < __GNUC__
+#pragma GCC diagnostic ignored "-Wnoexcept-type"
+#endif
+
 class Fabric_server
   : public Component::IFabric_server
   , public Fabric_connection_server
@@ -192,5 +197,7 @@ public:
   std::size_t max_message_size() const noexcept override { return Fabric_op_control::max_message_size(); }
   std::size_t max_inject_size() const noexcept override { return Fabric_op_control::max_inject_size(); }
 };
+
+#pragma GCC diagnostic pop
 
 #endif

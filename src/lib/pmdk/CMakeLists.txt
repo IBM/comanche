@@ -12,5 +12,5 @@ ExternalProject_Add(pmdk
   CONFIGURE_COMMAND ""
   DOWNLOAD_COMMAND ./bootstrap.sh
   BUILD_COMMAND PKG_CONFIG_PATH=${CMAKE_INSTALL_PREFIX}/lib/pkgconfig:${CMAKE_INSTALL_PREFIX}/lib64/pkgconfig:${PKG_CONFIG_PATH} make -C pmdk BUILD_RPMEM=n
-  INSTALL_COMMAND make -C pmdk install prefix=${CMAKE_INSTALL_PREFIX}
+  INSTALL_COMMAND PKG_CONFIG_PATH=${CMAKE_INSTALL_PREFIX}/lib/pkgconfig:${CMAKE_INSTALL_PREFIX}/lib64/pkgconfig:${PKG_CONFIG_PATH} make -C pmdk install prefix=${CMAKE_INSTALL_PREFIX}
   )

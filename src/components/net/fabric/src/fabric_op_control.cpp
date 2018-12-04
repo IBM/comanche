@@ -306,6 +306,11 @@ void Fabric_op_control::inject_send(const void *buf_, std::size_t len_)
  * @return Number of completions processed
  */
 
+#pragma GCC diagnostic push
+#if defined __GNUC__ && 6 < __GNUC__
+#pragma GCC diagnostic ignored "-Wnoexcept-type"
+#endif
+
 std::size_t Fabric_op_control::poll_completions(const Component::IFabric_op_completer::complete_old &cb_)
 {
   std::size_t ct_total = 0;
@@ -375,6 +380,8 @@ std::size_t Fabric_op_control::poll_completions_tentative(const Component::IFabr
   }
   return ct_total;
 }
+
+#pragma GCC diagnostic pop
 
 /**
  * Block and wait for next completion.
