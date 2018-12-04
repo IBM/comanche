@@ -50,6 +50,7 @@
 // The fixture for testing class Foo.
 class Fabric_test : public ::testing::Test {
 
+  static const char *control_port_spec;
  protected:
 
   // If the constructor and destructor are not enough for setting up
@@ -66,6 +67,10 @@ class Fabric_test : public ::testing::Test {
   }
 
   // Objects declared here can be used by all tests in the test case
+
+  static const std::uint16_t control_port_0;
+  static const std::uint16_t control_port_1;
+  static const std::uint16_t control_port_2;
 
   static std::string json_kv_pair(const std::string &key_, const std::string &value_)
   {
@@ -126,6 +131,12 @@ public:
   static char *domain_name_sockets;
 };
 
+const char *Fabric_test::control_port_spec = std::getenv("FABRIC_TEST_CONTROL_PORT");
+const std::uint16_t Fabric_test::control_port_0 = uint16_t(control_port_spec ? std::strtoul(control_port_spec, 0, 0) : 47591);
+const std::uint16_t Fabric_test::control_port_1 = uint16_t(control_port_0 + 1);
+const std::uint16_t Fabric_test::control_port_2 = uint16_t(control_port_0 + 2);
+
+
 char *Fabric_test::domain_name_verbs;
 char *Fabric_test::domain_name_sockets;
 
@@ -144,7 +155,7 @@ namespace
 namespace
 {
 
-void instantiate_server(const std::string &fabric_spec_)
+void instantiate_server(const std::string &fabric_spec_, uint16_t control_port_)
 {
   /* create object instance through factory */
   Component::IBase * comp = Component::load_component("libcomanche-fabric.so",
@@ -154,11 +165,11 @@ void instantiate_server(const std::string &fabric_spec_)
   auto fabric = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec_));
 
   {
-    auto srv1 = std::shared_ptr<Component::IFabric_server_factory>(fabric->open_server_factory("{}", control_port_0));
+    auto srv1 = std::shared_ptr<Component::IFabric_server_factory>(fabric->open_server_factory("{}", control_port_));
     describe_ep(std::cerr << "InstantiateServer " << fabric_spec_ << "Endpoint 1 ", *srv1) << std::endl;
   }
   {
-    auto srv2 = std::shared_ptr<Component::IFabric_server_factory>(fabric->open_server_factory("{}", control_port_0));
+    auto srv2 = std::shared_ptr<Component::IFabric_server_factory>(fabric->open_server_factory("{}", control_port_));
     describe_ep(std::cerr << "InstantiateServer " << fabric_spec_ << " Endpoint 2 ", *srv2) << std::endl;
   }
   factory->release_ref();
@@ -170,7 +181,7 @@ static constexpr std::size_t memory_size = 4096;
 static constexpr unsigned long iterations = 1000000;
 static constexpr std::size_t msg_size = 1U << 6U;
 
-void write_read_sequential(const std::string &fabric_spec_, bool force_error_)
+void write_read_sequential(const std::string &fabric_spec_, uint16_t control_port_, bool force_error_)
 {
   for ( auto iter0 = 0U; iter0 != count_outer; ++iter0 )
   {
@@ -178,7 +189,7 @@ void write_read_sequential(const std::string &fabric_spec_, bool force_error_)
      * But, what happens if a server is shut down (fi_shutdown) while a client is expecting to receive data?
      * Shouldn't the client see some sort of error?
      */
-    auto control_port = std::uint16_t(control_port_2 + iter0);
+    auto control_port = std::uint16_t(control_port_ + iter0);
     /* create object instance through factory */
     Component::IBase * comp = Component::load_component("libcomanche-fabric.so",
                                                         Component::net_fabric_factory);
@@ -274,7 +285,7 @@ std::chrono::microseconds usec(const timeval &start, const timeval &stop)
     ;
 }
 
-void ping_pong(const std::string &fabric_spec_, unsigned thread_count_)
+void ping_pong(const std::string &fabric_spec_, std::uint16_t control_port_2_, unsigned thread_count_)
 {
   /* create object instance through factory */
   Component::IBase * comp = Component::load_component("libcomanche-fabric.so",
@@ -283,7 +294,7 @@ void ping_pong(const std::string &fabric_spec_, unsigned thread_count_)
 
   auto factory = std::shared_ptr<Component::IFabric_factory>(static_cast<Component::IFabric_factory *>(comp->query_interface(Component::IFabric_factory::iid())));
   auto fabric = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec_));
-  auto control_port = std::uint16_t(control_port_2);
+  auto control_port = std::uint16_t(control_port_2_);
 
   const std::size_t buffer_size = std::max(msg_size << 1U, memory_size);
 
@@ -403,7 +414,7 @@ void ping_pong(const std::string &fabric_spec_, unsigned thread_count_)
   factory->release_ref();
 }
 
-void pingpong_single_server(const std::string &fabric_spec_, unsigned client_count_)
+void pingpong_single_server(const std::string &fabric_spec_, std::uint16_t control_port_2, unsigned client_count_)
 {
   /* create object instance through factory */
   Component::IBase * comp = Component::load_component("libcomanche-fabric.so",
@@ -510,7 +521,7 @@ void pingpong_single_server(const std::string &fabric_spec_, unsigned client_cou
   factory->release_ref();
 }
 
-void instantiate_server_dual(const std::string &fabric_spec_)
+void instantiate_server_dual(const std::string &fabric_spec_, uint16_t control_port_0_, uint16_t control_port_1_)
 {
   /* create object instance through factory */
   Component::IBase * comp = Component::load_component("libcomanche-fabric.so",
@@ -522,8 +533,8 @@ void instantiate_server_dual(const std::string &fabric_spec_)
 
   try {
     /* fails, because both servers use the same port */
-    auto srv1 = std::shared_ptr<Component::IFabric_server_factory>(fabric->open_server_factory("{}", control_port_0));
-    auto srv2 = std::shared_ptr<Component::IFabric_server_factory>(fabric->open_server_factory("{}", control_port_1));
+    auto srv1 = std::shared_ptr<Component::IFabric_server_factory>(fabric->open_server_factory("{}", control_port_0_));
+    auto srv2 = std::shared_ptr<Component::IFabric_server_factory>(fabric->open_server_factory("{}", control_port_1_));
     describe_ep(std::cerr << "ISD Endpoint 1 ", *srv1) << std::endl;
     describe_ep(std::cerr << "ISD Endpoint 2 ", *srv2) << std::endl;
   }
@@ -535,22 +546,22 @@ void instantiate_server_dual(const std::string &fabric_spec_)
 
 TEST_F(Fabric_test, InstantiateServer)
 {
-  instantiate_server(fabric_spec("verbs"));
+  instantiate_server(fabric_spec("verbs"), control_port_0);
 }
 
 TEST_F(Fabric_test, InstantiateServer_Socket)
 {
-  instantiate_server(fabric_spec("sockets"));
+  instantiate_server(fabric_spec("sockets"), control_port_0);
 }
 
 TEST_F(Fabric_test, InstantiateServerDual)
 {
-  instantiate_server_dual(fabric_spec("verbs"));
+  instantiate_server_dual(fabric_spec("verbs"), control_port_0, control_port_1);
 }
 
 TEST_F(Fabric_test, InstantiateServerDual_Sockets)
 {
-  instantiate_server_dual(fabric_spec("sockets"));
+  instantiate_server_dual(fabric_spec("sockets"), control_port_0, control_port_1);
 }
 
 TEST_F(Fabric_test, JsonSucceed)
@@ -656,7 +667,7 @@ TEST_F(Fabric_test, JsonKeyFail)
   factory->release_ref();
 }
 
-void instantiate_server_and_client(const std::string &fabric_spec_)
+void instantiate_server_and_client(const std::string &fabric_spec_, std::uint16_t control_port)
 {
   /* create object instance through factory */
   Component::IBase * comp = Component::load_component("libcomanche-fabric.so",
@@ -669,9 +680,9 @@ void instantiate_server_and_client(const std::string &fabric_spec_)
 
   {
     /* Feed the server_factory a good JSON spec */
-    auto server = std::shared_ptr<Component::IFabric_server_factory>(fabric0->open_server_factory(fabric_spec_, control_port_1));
+    auto server = std::shared_ptr<Component::IFabric_server_factory>(fabric0->open_server_factory(fabric_spec_, control_port));
     EXPECT_LT(0U, server->max_message_size());
-    auto client = std::shared_ptr<Component::IFabric_client>(open_connection_patiently(*fabric1, fabric_spec_, "127.0.0.1", control_port_1));
+    auto client = std::shared_ptr<Component::IFabric_client>(open_connection_patiently(*fabric1, fabric_spec_, "127.0.0.1", control_port));
     EXPECT_LT(0U, client->max_message_size());
     EXPECT_EQ(server->max_message_size(), client->max_message_size());
   }
@@ -681,27 +692,27 @@ void instantiate_server_and_client(const std::string &fabric_spec_)
 
 TEST_F(Fabric_test, InstantiateServerAndClient)
 {
-  instantiate_server_and_client(fabric_spec("verbs"));
+  instantiate_server_and_client(fabric_spec("verbs"), control_port_1);
 }
 
 TEST_F(Fabric_test, InstantiateServerAndClientSockets)
 {
-  instantiate_server_and_client(fabric_spec("sockets"));
+  instantiate_server_and_client(fabric_spec("sockets"), control_port_1);
 }
 
 TEST_F(Fabric_test, WriteReadSequential)
 {
-  write_read_sequential(fabric_spec("verbs"), false);
+  write_read_sequential(fabric_spec("verbs"), control_port_2, false);
 }
 
 TEST_F(Fabric_test, WriteReadSequentialSockets)
 {
-  write_read_sequential(fabric_spec("sockets"), false);
+  write_read_sequential(fabric_spec("sockets"), control_port_2, false);
 }
 
 TEST_F(Fabric_test, WriteReadSequentialWithError)
 {
-  write_read_sequential(fabric_spec("sockets"), true);
+  write_read_sequential(fabric_spec("sockets"), control_port_2, true);
 }
 
 TEST_F(Fabric_test, WriteReadParallel)
@@ -926,62 +937,62 @@ TEST_F(Fabric_test, GroupedServer)
 
 TEST_F(Fabric_test, PingPong_1Threads)
 {
-  ping_pong(fabric_spec("verbs"), 1U);
-  ping_pong(fabric_spec("verbs"), 1U);
+  ping_pong(fabric_spec("verbs"), control_port_2, 1U);
+  ping_pong(fabric_spec("verbs"), control_port_2, 1U);
 }
 
 TEST_F(Fabric_test, PingPong_2Threads)
 {
-  ping_pong(fabric_spec("verbs"), 2U);
-  ping_pong(fabric_spec("verbs"), 2U);
+  ping_pong(fabric_spec("verbs"), control_port_2, 2U);
+  ping_pong(fabric_spec("verbs"), control_port_2, 2U);
 }
 
 TEST_F(Fabric_test, PingPong_4Threads)
 {
-  ping_pong(fabric_spec("verbs"), 4U);
-  ping_pong(fabric_spec("verbs"), 4U);
+  ping_pong(fabric_spec("verbs"), control_port_2, 4U);
+  ping_pong(fabric_spec("verbs"), control_port_2, 4U);
 }
 
 TEST_F(Fabric_test, PingPong_8Threads)
 {
-  ping_pong(fabric_spec("verbs"), 8U);
-  ping_pong(fabric_spec("verbs"), 8U);
+  ping_pong(fabric_spec("verbs"), control_port_2, 8U);
+  ping_pong(fabric_spec("verbs"), control_port_2, 8U);
 }
 
 TEST_F(Fabric_test, PingPong_16Threads)
 {
-  ping_pong(fabric_spec("verbs"), 16U);
-  ping_pong(fabric_spec("verbs"), 16U);
+  ping_pong(fabric_spec("verbs"), control_port_2, 16U);
+  ping_pong(fabric_spec("verbs"), control_port_2, 16U);
 }
 
 TEST_F(Fabric_test, PingPong1Server_1Client)
 {
-  pingpong_single_server(fabric_spec("verbs"), 1U);
-  pingpong_single_server(fabric_spec("verbs"), 1U);
+  pingpong_single_server(fabric_spec("verbs"), control_port_2, 1U);
+  pingpong_single_server(fabric_spec("verbs"), control_port_2, 1U);
 }
 
 TEST_F(Fabric_test, PingPong1Server_2Clients)
 {
-  pingpong_single_server(fabric_spec("verbs"), 2U);
-  pingpong_single_server(fabric_spec("verbs"), 2U);
+  pingpong_single_server(fabric_spec("verbs"), control_port_2, 2U);
+  pingpong_single_server(fabric_spec("verbs"), control_port_2, 2U);
 }
 
 TEST_F(Fabric_test, PingPong1Server_4Clients)
 {
-  pingpong_single_server(fabric_spec("verbs"), 4U);
-  pingpong_single_server(fabric_spec("verbs"), 4U);
+  pingpong_single_server(fabric_spec("verbs"), control_port_2, 4U);
+  pingpong_single_server(fabric_spec("verbs"), control_port_2, 4U);
 }
 
 TEST_F(Fabric_test, PingPong1Server_8Clients)
 {
-  pingpong_single_server(fabric_spec("verbs"), 8U);
-  pingpong_single_server(fabric_spec("verbs"), 8U);
+  pingpong_single_server(fabric_spec("verbs"), control_port_2, 8U);
+  pingpong_single_server(fabric_spec("verbs"), control_port_2, 8U);
 }
 
 TEST_F(Fabric_test, PingPong1Server_16Clients)
 {
-  pingpong_single_server(fabric_spec("verbs"), 16U);
-  pingpong_single_server(fabric_spec("verbs"), 16U);
+  pingpong_single_server(fabric_spec("verbs"), control_port_2, 16U);
+  pingpong_single_server(fabric_spec("verbs"), control_port_2, 16U);
 }
 
 } // namespace
