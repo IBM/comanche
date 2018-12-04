@@ -225,7 +225,7 @@ protected:
    * 
    */
   inline auto register_memory(const void * base, size_t len) {
-    return _transport->register_memory(base, len, 0, 0);
+    return _transport->register_memory(base, len, 0,0); /* flags not supported for verbs */
   }
 
   inline void deregister_memory(memory_region_t region) {

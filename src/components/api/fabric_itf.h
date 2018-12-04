@@ -85,6 +85,11 @@ public:
  * Fabric/RDMA-based network component
  *
  */
+#pragma GCC diagnostic push
+#if defined __GNUC__ && 6 < __GNUC__
+#pragma GCC diagnostic ignored "-Wnoexcept-type"
+#endif
+
 class IFabric_op_completer
 {
 public:
@@ -185,6 +190,7 @@ public:
      - support for statistics collection
   */
 };
+#pragma GCC diagnostic pop
 
 /**
  * Fabric/RDMA-based network component

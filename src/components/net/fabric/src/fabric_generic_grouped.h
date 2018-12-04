@@ -32,6 +32,11 @@ class Fabric_comm_grouped;
 class Fabric_op_control;
 class Fabric_cq;
 
+#pragma GCC diagnostic push
+#if defined __GNUC__ && 6 < __GNUC__
+#pragma GCC diagnostic ignored "-Wnoexcept-type"
+#endif
+
 class Fabric_generic_grouped
   : public Component::IFabric_active_endpoint_grouped
 {
@@ -191,5 +196,7 @@ public:
 
   void forget_group(Fabric_comm_grouped *);
 };
+
+#pragma GCC diagnostic pop
 
 #endif

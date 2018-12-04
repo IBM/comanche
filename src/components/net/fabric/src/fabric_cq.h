@@ -34,6 +34,11 @@
 
 struct fid_cq;
 
+#pragma GCC diagnostic push
+#if defined __GNUC__ && 6 < __GNUC__
+#pragma GCC diagnostic ignored "-Wnoexcept-type"
+#endif
+
 class Fabric_cq
 {
 public:
@@ -136,5 +141,7 @@ public:
   std::size_t stalled_completion_count() { return 0U; }
   void incr_inflight(const char *) { ++_inflight; }
 };
+
+#pragma GCC diagnostic pop
 
 #endif
