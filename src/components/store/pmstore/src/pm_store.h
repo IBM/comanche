@@ -22,7 +22,7 @@
 class PM_store : public Component::IKVStore
 {
 private:
-  static constexpr bool option_DEBUG = false;
+  bool option_DEBUG;
 
 public:
   /** 
@@ -31,7 +31,7 @@ public:
    * @param block_device Block device interface
    * 
    */
-  PM_store(const std::string& owner, const std::string& name);
+  PM_store(unsigned int debug_level, const std::string& owner, const std::string& name);
 
   /** 
    * Destructor
@@ -188,10 +188,12 @@ public:
     delete this;
   }
 
-  virtual Component::IKVStore * create(const std::string& owner,
-                                       const std::string& name) override
+  virtual Component::IKVStore * create(unsigned int debug_level,
+				       const std::string& owner,
+                                       const std::string& name,
+				       const std::string& param2) override
   {
-    Component::IKVStore * obj = static_cast<Component::IKVStore*>(new PM_store(owner, name));
+    Component::IKVStore * obj = static_cast<Component::IKVStore*>(new PM_store(debug_level, owner, name));
     obj->add_ref();
     return obj;
   }

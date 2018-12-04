@@ -20,11 +20,12 @@ int main(int argc, char * argv[])
       ("debug", po::value<unsigned>()->default_value(0), "Debug level 0-3")
       ("port", po::value<unsigned>()->default_value(11911), "Network port")
       ("data-dir", po::value<std::string>()->default_value(DEFAULT_PMEM_DIR), "Data directory")
-      ("forced-exit", po::value<bool>()->default_value(false), "Forced exit")
+      ("forced-exit", "Forced exit")
       ("device", po::value<std::string>()->default_value("mlx5_0"), "Network device (e.g., mlx5_0)")
       ("fabric-provider", po::value<std::string>()->default_value("verbs"), "Fabric provider")
       ("backend", po::value<std::string>()->default_value("mapstore"), "Back-end component")
       ("pci-addr", po::value<std::string>(), "Target PCI address (nvmestore)")
+      ("devdax", "Use device dax")
       ;
 
     po::variables_map vm;
@@ -44,10 +45,11 @@ int main(int argc, char * argv[])
     g_options.backend = vm["backend"].as<std::string>();    
     g_options.core = vm["core"].as<unsigned>();
     g_options.port = vm["port"].as<unsigned>();
+    g_options.devdax = vm.count("devdax");
 
     Dawn::Global::debug_level = g_options.debug_level = vm["debug"].as<unsigned>();
 
-    bool forced_exit = vm["forced-exit"].as<bool>();
+    bool forced_exit = vm.count("forced-exit");
 
     /* instantiate one shard for the moment */
     Dawn::Shard s(g_options, forced_exit);
