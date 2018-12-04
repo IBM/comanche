@@ -55,6 +55,13 @@ Fabric_cq::stats::~stats()
   }
 }
 
+namespace
+{
+  std::size_t constexpr ct_max = 16;
+  const char *force_read_str = std::getenv("FABRIC_FORCE_CQ_READ");
+  const bool force_read = force_read_str && 0 < std::strtol(force_read_str, nullptr, 0);
+}
+
 ::fi_cq_err_entry Fabric_cq::get_cq_comp_err()
 {
   ::fi_cq_err_entry err{0,0,0,0,0,0,0,0,0,0,0};
@@ -80,6 +87,53 @@ Fabric_cq::stats::~stats()
         << std::endl;
   return err;
 }
+
+ssize_t Fabric_cq::cq_read(void *buf, size_t count) noexcept
+{
+  /* Note: It would seem resonable to skip the CQ read if there are
+   * no outstanding (inflight) operations. But at one time, the
+   * combination of
+   *  - skipping cq_read
+   *  - using fi_inject
+   *  - using the bverbs provider
+   * caused a hang after about 128 operations. If this happens again,
+   * set env var FABRIC_FORCE_CQ_READ=1 to force reads.
+   */
+  auto r =
+    0U != _inflight || force_read
+    ? ::fi_cq_read(&*_cq, buf, count)
+    : -FI_EAGAIN
+    ;
+
+  if ( 0 < r )
+  {
+    _inflight -= static_cast<unsigned long>(r);
+  }
+
+  return r;
+}
+
+ssize_t Fabric_cq::cq_readerr(::fi_cq_err_entry *buf, uint64_t flags) noexcept
+{
+  auto r = ::fi_cq_readerr(&*_cq, buf, flags);
+
+  if ( 0 < r )
+  {
+    _inflight -= static_cast<unsigned long>(r);
+  }
+
+  return r;
+}
+
+void Fabric_cq::queue_completion(const Fabric_cq::fi_cq_entry_t &cq_entry_, ::status_t status_)
+{
+  _completions.push(completion_t(status_, cq_entry_));
+}
+
+#pragma GCC diagnostic push
+#if defined __GNUC__ && 6 < __GNUC__
+#pragma GCC diagnostic ignored "-Wnoexcept-type"
+#endif
 
 std::size_t Fabric_cq::process_or_queue_completion(const Fabric_cq::fi_cq_entry_t &cq_entry_, const Component::IFabric_op_completer::complete_tentative &cb_, ::status_t status_)
 {
@@ -146,13 +200,6 @@ std::size_t Fabric_cq::process_or_queue_cq_comp_err(const Component::IFabric_op_
   const auto e = get_cq_comp_err();
   const Fabric_cq::fi_cq_entry_t err_entry{e.op_context, e.flags, e.len, e.buf, e.data};
   return process_or_queue_completion(err_entry, cb_, E_FAIL, cb_param_);
-}
-
-namespace
-{
-  std::size_t constexpr ct_max = 16;
-  const char *force_read_str = std::getenv("FABRIC_FORCE_CQ_READ");
-  const bool force_read = force_read_str && 0 < std::strtol(force_read_str, nullptr, 0);
 }
 
 /**
@@ -367,48 +414,6 @@ std::size_t Fabric_cq::poll_completions_tentative(const Component::IFabric_op_co
   return ct_total;
 }
 
-ssize_t Fabric_cq::cq_read(void *buf, size_t count) noexcept
-{
-  /* Note: It would seem resonable to skip the CQ read if there are
-   * no outstanding (inflight) operations. But at one time, the
-   * combination of
-   *  - skipping cq_read
-   *  - using fi_inject
-   *  - using the bverbs provider
-   * caused a hang after about 128 operations. If this happens again,
-   * set env var FABRIC_FORCE_CQ_READ=1 to force reads.
-   */
-  auto r =
-    0U != _inflight || force_read
-    ? ::fi_cq_read(&*_cq, buf, count)
-    : -FI_EAGAIN
-    ;
-
-  if ( 0 < r )
-  {
-    _inflight -= static_cast<unsigned long>(r);
-  }
-
-  return r;
-}
-
-ssize_t Fabric_cq::cq_readerr(::fi_cq_err_entry *buf, uint64_t flags) noexcept
-{
-  auto r = ::fi_cq_readerr(&*_cq, buf, flags);
-
-  if ( 0 < r )
-  {
-    _inflight -= static_cast<unsigned long>(r);
-  }
-
-  return r;
-}
-
-void Fabric_cq::queue_completion(const Fabric_cq::fi_cq_entry_t &cq_entry_, ::status_t status_)
-{
-  _completions.push(completion_t(status_, cq_entry_));
-}
-
 std::size_t Fabric_cq::drain_old_completions(const Component::IFabric_op_completer::complete_old &cb_)
 {
   std::size_t ct_total = 0U;
@@ -506,3 +511,5 @@ std::size_t Fabric_cq::drain_old_completions(const Component::IFabric_op_complet
   }
   return ct_total;
 }
+
+#pragma GCC diagnostic pop

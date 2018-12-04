@@ -22,6 +22,11 @@
 
 struct fi_info;
 
+#pragma GCC diagnostic push
+#if defined __GNUC__ && 6 < __GNUC__
+#pragma GCC diagnostic ignored "-Wnoexcept-type"
+#endif
+
 class Fabric_connection_server
   : public Fabric_op_control
 {
@@ -122,5 +127,7 @@ public:
   std::string get_peer_addr() override { return Fabric_op_control::get_peer_addr(); }
   std::string get_local_addr() override { return Fabric_op_control::get_local_addr(); }
 };
+
+#pragma GCC diagnostic pop
 
 #endif

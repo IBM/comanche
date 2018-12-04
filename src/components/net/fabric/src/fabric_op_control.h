@@ -54,6 +54,11 @@ class Fabric;
 class Fabric_comm_grouped;
 class Fd_control;
 
+#pragma GCC diagnostic push
+#if defined __GNUC__ && 6 < __GNUC__
+#pragma GCC diagnostic ignored "-Wnoexcept-type"
+#endif
+
 class Fabric_op_control
   : public Component::IFabric_op_completer
   , public Fabric_memory_control
@@ -299,5 +304,7 @@ public:
   std::size_t max_message_size() const noexcept override;
   std::size_t max_inject_size() const noexcept override;
 };
+
+#pragma GCC diagnostic pop
 
 #endif
