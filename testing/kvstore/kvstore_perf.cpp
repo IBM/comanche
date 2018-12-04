@@ -55,7 +55,7 @@ int main(int argc, char * argv[])
     ("help", "Show help")
     ("test", po::value<std::string>(), "Test name <all|put|get|put_direct|get_direct>")
     ("component", po::value<std::string>(), "Implementation selection <filestore|pmstore|dawn|nvmestore|mapstore|hstore>")
-    ("cores", po::value<std::string>(), "Number of threads/cores (starts from core 0), or range X-Y.")
+    ("cores", po::value<std::string>(), "Cores to run tasks on. Supports singles and ranges. Example: a,b,c-d. Defaults to Core 0.")
     ("time", po::value<int>(), "Duration to run in seconds")
     ("path", po::value<std::string>(), "Path of directory for pool")
     ("size", po::value<unsigned long long int>(), "Size of pool")
@@ -91,7 +91,7 @@ int main(int argc, char * argv[])
     else
       Options.component = DEFAULT_COMPONENT;
     
-    Options.cores  = vm.count("cores") > 0 ? vm["cores"].as<std::string>() : "1";
+    Options.cores  = vm.count("cores") > 0 ? vm["cores"].as<std::string>() : "0";
     Options.time_secs  = vm.count("time") > 0 ? vm["time"].as<int>() : 4;
     Options.size = vm.count("size") > 0 ? vm["size"].as<unsigned long long int>() : MB(100);
     Options.flags = vm.count("flags") > 0 ? vm["flags"].as<int>() : Component::IKVStore::FLAGS_SET_SIZE;
