@@ -28,7 +28,7 @@ public:
   long long int _pool_size = MB(100);
   int _pool_flags = Component::IKVStore::FLAGS_SET_SIZE;
   int _pool_num_components = 100000;
-  std::string _cores = "1";
+  std::string _cores = "0";
   int _execution_time;
   std::string _component = "filestore";
   std::string _results_path = "./results";
@@ -269,49 +269,94 @@ public:
   static cpu_mask_t get_cpu_mask_from_string(std::string core_string)
   {
     cpu_mask_t mask;
-    unsigned cores_total, core_first, core_last;
-    std::string::size_type range_marker = core_string.find("-");
+    unsigned cores_total = 0;
+    unsigned core_first, core_last;
     int hardware_total_cores = std::thread::hardware_concurrency();
 
-    // if range marker ("-" character") is found in core string, parse out first/last info
-    if (range_marker != std::string::npos)
+    int start = 0;
+    int length = 0;
+    int current = 0;
+    std::string substring;
+    std::string range_start = "";
+    bool using_range = false;
+
+    while(true)
     {
-      if ((int)range_marker == 0)
+      if (core_string[current] == '-')
       {
-        PERR("no starting cpu given. Use format --cores=\"X-Y\"");
-        throw std::exception();
+        range_start = core_string.substr(start, length);
+
+        start = current + 1;
+        length = 0;
+
+        using_range = !using_range;  // toggle
       }
-      else if ((int)range_marker == core_string.length() - 1)
+      else if (core_string[current] == ',' || core_string[current] == '\0')
       {
-        PERR("no ending cpu given. Use format --cores=\"X-Y\"");
-        throw std::exception();
+        substring = core_string.substr(start, length);
+
+        if (substring == "")
+        {
+          PERR("invalid core string. Tried to use '%s'. Exiting.", core_string.c_str());
+          throw std::exception();
+        }
+
+        // if we were using a range, substring becomes the end range value
+        core_last = (unsigned)std::stoi(substring);
+
+        if (using_range)
+        {
+          if (range_start == "")
+          {
+            PERR("no start core specified for range ending with %u", core_last);
+            throw std::exception();
+          }
+
+          core_first = (unsigned)std::stoi(range_start);
+          using_range = false;
+          range_start = "";
+        }
+        else // single core add
+        {
+          core_first = core_last;
+        }
+
+        _cpu_mask_add_core_wrapper(mask, core_first, core_last, hardware_total_cores);
+
+        start = current + 1;
+        length = 0;
+
+        if (core_string[current] == '\0')
+        {
+          break;
+        }
+      }
+      else
+      {
+        length++;
       }
 
-      std::string string_first, string_last;
-      string_first = core_string.substr(0, (int)range_marker);
-      string_last = core_string.substr((int)range_marker+1, core_string.length());
-
-      core_first = (unsigned)std::stoi(string_first);
-      core_last = (unsigned)std::stoi(string_last);
-      cores_total = core_last - core_first + 1;
-    }
-    else // start at core 0 and use n cores
-    {
-      cores_total = (unsigned)std::stoi(core_string);
-      core_first = 0;
-      core_last = cores_total - 1;
+      current++;
     }
 
-    // final error check
+    return mask;
+  }
+
+  static void _cpu_mask_add_core_wrapper(cpu_mask_t &mask, unsigned core_first, unsigned core_last, unsigned max_cores)
+  {
     if (core_first > core_last)
     {
       PERR("invalid core range specified: start (%u) > end (%u).", core_first, core_last);
       throw std::exception();
     }
-    else if (core_first > hardware_total_cores - 1 || core_last > hardware_total_cores - 1) // cores are zero indexed
+    else if (core_first > max_cores - 1 || core_last > max_cores - 1)  // max_cores is zero indexed
     {
-      PERR("specified core range (%u-%u) exceeds physical core count. Valid range is 0-%d.", core_first, core_last, hardware_total_cores - 1);
+      PERR("specified core range (%u-%u) exceeds physical core count. Valid range is 0-%d.", core_first, core_last, max_cores - 1);
       throw std::exception();
+    }
+    else if (core_first < 0 || core_last < 0)
+    {
+      PERR("core values must be positive! Trying to use %u-%u.", core_first, core_last);
     }
 
     try
@@ -326,12 +371,8 @@ public:
       PERR("failed while adding core to mask.");
       throw std::exception();
     }
-
-    PINF("cpu mask: using %u cores (%u-%u)", cores_total, core_first, core_last);
-
-    return mask;
   }
-
+  
   void _debug_print(unsigned core, std::string text, bool limit_to_core0=false)
   {
     if (_verbose)
