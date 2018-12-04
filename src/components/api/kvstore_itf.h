@@ -21,6 +21,7 @@
 #include <cstdlib>
 #include <functional>
 #include <vector>
+#include <assert.h>
 
 #include <api/components.h>
 #include <api/block_itf.h>
@@ -182,6 +183,16 @@ public:
    * @param pool Pool handle
    */
   virtual void delete_pool(const pool_t pool)  = 0;
+
+  /** 
+   * Get mapped memory regions for pool
+   * 
+   * @param pool Pool handle
+   * @param out_regions Mapped memory regions
+   *
+   * @return S_OK on success.  Components that do not support this return E_NOT_SUPPORTED.
+   */  
+  virtual status_t get_pool_regions(const pool_t pool, std::vector<::iovec>& out_regions) { return E_NOT_SUPPORTED; }
 
   /** 
    * Write an object value. Key as string.
