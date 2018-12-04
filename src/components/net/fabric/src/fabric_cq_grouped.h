@@ -27,6 +27,11 @@
 class Fabric_cq_generic_grouped;
 class async_req_record;
 
+#pragma GCC diagnostic push
+#if defined __GNUC__ && 6 < __GNUC__
+#pragma GCC diagnostic ignored "-Wnoexcept-type"
+#endif
+
 class Fabric_cq_grouped
 {
   Fabric_cq_generic_grouped &_cq;
@@ -100,5 +105,7 @@ public:
   std::size_t drain_old_completions(const Component::IFabric_op_completer::complete_param_definite &completion_callback, void *callback_param);
   std::size_t drain_old_completions(const Component::IFabric_op_completer::complete_param_tentative &completion_callback, void *callback_param);
 };
+
+#pragma GCC diagnostic pop
 
 #endif

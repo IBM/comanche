@@ -62,6 +62,11 @@ void Fabric_cq_grouped::queue_completion(::status_t status_, const Fabric_cq::fi
   _completions.push(completion_t(cq_entry_, status_));
 }
 
+#pragma GCC diagnostic push
+#if defined __GNUC__ && 6 < __GNUC__
+#pragma GCC diagnostic ignored "-Wnoexcept-type"
+#endif
+
 std::size_t Fabric_cq_grouped::process_or_queue_completion(const Fabric_cq::fi_cq_entry_t &cq_entry_, const Component::IFabric_op_completer::complete_old &cb_, ::status_t status_)
 {
   std::size_t ct_total = 0U;
@@ -504,6 +509,8 @@ std::size_t Fabric_cq_grouped::poll_completions_tentative(const Component::IFabr
   _stats.ct_total += ct_total;
   return ct_total;
 }
+
+#pragma GCC diagnostic pop
 
 std::size_t Fabric_cq_grouped::stalled_completion_count()
 {

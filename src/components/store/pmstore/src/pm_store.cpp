@@ -147,9 +147,10 @@ static int check_pool(const char * path)
 }
 
 
-PM_store::PM_store(const std::string& owner, const std::string& name)
+PM_store::PM_store(unsigned int debug_level, const std::string& owner, const std::string& name)
 {
   PLOG("PMEMOBJ_MAX_ALLOC_SIZE: %lu MB", REDUCE_MB(PMEMOBJ_MAX_ALLOC_SIZE));
+  option_DEBUG = debug_level > 2;
 }
 
 PM_store::~PM_store()
@@ -191,15 +192,30 @@ IKVStore::pool_t PM_store::create_pool(const std::string& path,
       throw General_exception("failed to create new pool - %s\n", pmemobj_errormsg());
   }
   else {
-    if(option_DEBUG)
-      PLOG("PM_store: opening existing Pool: %s", fullpath.c_str());
+    if(check_pool(fullpath.c_str()) == 0) {
+      if(option_DEBUG)
+	PLOG("PM_store: trying to open existing pool: %s", fullpath.c_str());
 
-    if(check_pool(fullpath.c_str()) != 0)
-      throw General_exception("pool check failed");
+      pop = pmemobj_open(fullpath.c_str(), REGION_NAME);
+      if(not pop)
+	throw General_exception("failed to re-open pool - %s\n", pmemobj_errormsg());
+    }
+    else {
 
-    pop = pmemobj_open(fullpath.c_str(), REGION_NAME);
-    if(not pop)
-      throw General_exception("failed to re-open pool - %s\n", pmemobj_errormsg());
+      if(option_DEBUG)
+	PLOG("PM_store: pool check failed: trying to create new one: %s", fullpath.c_str());
+
+      /* probably device dax */
+      if(pmempool_rm(fullpath.c_str(), PMEMPOOL_RM_FORCE | PMEMPOOL_RM_POOLSET_LOCAL))
+	throw General_exception("pmempool_rm on (%s) failed", fullpath.c_str());
+      
+      pop = pmemobj_create(fullpath.c_str(), REGION_NAME, size, 0666);
+      if(not pop) {
+	pop = pmemobj_create(fullpath.c_str(), REGION_NAME, 0, 0666);
+	if(not pop)
+	  throw General_exception("failed to re-create pool - %s\n", pmemobj_errormsg());
+      }
+    }
   }
 
   /* see: https://github.com/pmem/pmdk/blob/stable-1.4/src/examples/libpmemobj/map/kv_server.c */

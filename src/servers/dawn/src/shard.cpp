@@ -2,6 +2,8 @@
 
 #include <api/components.h>
 #include <common/dump_utils.h>
+#include <common/utils.h>
+
 #ifdef PROFILE
 #include <gperftools/profiler.h>
 #endif
@@ -53,6 +55,9 @@ void Shard::initialize_components(const Program_options& po)
         throw General_exception("nvmestore backend needs --pci-addr option");
       
       _i_kvstore = fact->create("owner","name",po.pci_addr);
+    }
+    else if(backend == "pmstore") { /* components that support debug level */
+      _i_kvstore = fact->create(_po.debug_level, "owner","name","");
     }
     else {
       _i_kvstore = fact->create("owner","name");
@@ -184,7 +189,16 @@ void Shard::process_message_pool_request(Connection_handler* handler,
            msg->op, msg->path(), msg->pool_name());
 
     try {
-      auto pool = _i_kvstore->create_pool(msg->path(), msg->pool_name(), msg->pool_size);
+      
+      Component::IKVStore::pool_t pool;
+
+      if(!_po.devdax) {
+	pool = _i_kvstore->create_pool(msg->path(), msg->pool_name(), msg->pool_size);
+      }
+      else {
+	PLOG("Creating devdax pool.");
+	pool = _i_kvstore->create_pool("/dev/","dax0.0", msg->pool_size);
+      }
 
       if(option_DEBUG)
         PLOG("OP_CREATE: new pool id: %lx", pool);
@@ -206,6 +220,7 @@ void Shard::process_message_pool_request(Connection_handler* handler,
            msg->op, msg->path(), msg->pool_name());
 
     try {
+      PLOG("opening pool: (%s)", msg->pool_name());
       auto pool = _i_kvstore->open_pool(_data_dir, msg->pool_name());
 
       if(option_DEBUG)

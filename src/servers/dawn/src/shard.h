@@ -42,7 +42,8 @@ private:
 public:
   Shard(Program_options& po,
         bool forced_exit) :
-    Shard_transport(po.fabric_provider, po.device, po.port),
+  Shard_transport(po.fabric_provider, po.device, po.port),
+    _po(po),
     _data_dir(po.data_dir),
     _core(po.core),
     _thread(&Shard::thread_entry, this, po),
@@ -52,9 +53,11 @@ public:
     option_DEBUG = Dawn::Global::debug_level > 1;
 
     /* check data dir write access */
-    if(access(po.data_dir.c_str(), W_OK) != 0)
-      throw General_exception("data directory (%s) not writable",
-                              po.data_dir.c_str());
+    if(!po.devdax) {
+      if(access(po.data_dir.c_str(), W_OK) != 0)
+	throw General_exception("data directory (%s) not writable",
+				po.data_dir.c_str());
+    }
   }
 
   ~Shard() {
@@ -144,7 +147,8 @@ private:
   }
   
 private:
-  
+
+  const Program_options&              _po;
   const std::string                   _data_dir;
   bool                                _thread_exit = false;
   bool                                _forced_exit;

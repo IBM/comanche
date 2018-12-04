@@ -11,6 +11,7 @@ struct Program_options
   unsigned debug_level;
   unsigned core;
   unsigned port;
+  bool devdax;
 };
 
 #endif // __DAWN_PROGRAM_OPTIONS_H__
