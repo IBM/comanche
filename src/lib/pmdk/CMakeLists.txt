@@ -13,6 +13,7 @@ ExternalProject_Add(pmdk
   CONFIGURE_COMMAND ""
   BUILD_COMMAND echo "PKG_CONFIG_PATH=${CMAKE_INSTALL_PREFIX}/lib/pkgconfig:${CMAKE_INSTALL_PREFIX}/lib64/pkgconfig make install prefix=${CMAKE_INSTALL_PREFIX}"
   COMMAND cat ${CMAKE_INSTALL_PREFIX}/lib/pkgconfig/libndctl.pc
+  COMMAND cat ${CMAKE_INSTALL_PREFIX}/include/ndctl/libndctl.h
   COMMAND PKG_CONFIG_PATH=${CMAKE_INSTALL_PREFIX}/lib/pkgconfig:${CMAKE_INSTALL_PREFIX}/lib64/pkgconfig make BUILD_RPMEM=n
   INSTALL_COMMAND PKG_CONFIG_PATH=${CMAKE_INSTALL_PREFIX}/lib/pkgconfig:${CMAKE_INSTALL_PREFIX}/lib64/pkgconfig make install prefix=${CMAKE_INSTALL_PREFIX}
   )
