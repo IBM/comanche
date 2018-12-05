@@ -12,7 +12,7 @@ ExternalProject_Add(ndctl
   BUILD_COMMAND make COMMAND make check
   INSTALL_COMMAND mkdir -p ${CMAKE_INSTALL_PREFIX}/lib
   COMMAND install ${CMAKE_CURRENT_BINARY_DIR}/ndctl-prefix/src/ndctl/ndctl/lib/.libs/libndctl.so ${CMAKE_INSTALL_PREFIX}/lib
-  COMMAND install ${CMAKE_CURRENT_BINARY_DIR}/ndctl-prefix/src/daxctl/daxctl/lib/.libs/libdaxctl.so ${CMAKE_INSTALL_PREFIX}/lib
+  COMMAND install ${CMAKE_CURRENT_BINARY_DIR}/ndctl-prefix/src/ndctl/daxctl/lib/.libs/libdaxctl.so ${CMAKE_INSTALL_PREFIX}/lib
   COMMAND mkdir -p ${CMAKE_INSTALL_PREFIX}/include/ndctl/
   COMMAND install ${CMAKE_CURRENT_BINARY_DIR}/ndctl-prefix/src/ndctl/ndctl/libndctl.h ${CMAKE_INSTALL_PREFIX}/include/ndctl/
   COMMAND mkdir -p ${CMAKE_INSTALL_PREFIX}/include/daxctl/
