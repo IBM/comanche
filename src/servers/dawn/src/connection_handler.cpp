@@ -185,6 +185,7 @@ void Connection_handler::set_pending_value(void * target,
   
   auto iov = new ::iovec{target, target_len};
   auto desc = get_memory_descriptor(region);
+  assert(desc);
   _posted_value_buffer = new buffer_t(target_len); /* allocate buffer descriptor */
   _posted_value_buffer->iov = iov;
   _posted_value_buffer->region = region;
@@ -192,7 +193,8 @@ void Connection_handler::set_pending_value(void * target,
   _posted_value_buffer->flags = Buffer_manager<Fabric_connection_base>::BUFFER_FLAGS_EXTERNAL;
   _posted_value_buffer_outstanding = true;
 
-  set_state(State::POST_RECV_VALUE);
+  post_recv_value_buffer(_posted_value_buffer);
+  set_state(State::WAIT_RECV_VALUE);
 }
 
 
