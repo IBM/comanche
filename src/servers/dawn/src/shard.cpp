@@ -189,7 +189,6 @@ void Shard::process_message_pool_request(Connection_handler* handler,
            msg->op, msg->path(), msg->pool_name());
 
     try {
-      
       Component::IKVStore::pool_t pool;
 
       if(!_po.devdax) {
@@ -202,8 +201,11 @@ void Shard::process_message_pool_request(Connection_handler* handler,
 
       if(option_DEBUG)
         PLOG("OP_CREATE: new pool id: %lx", pool);
+
+      std::vector<::iovec> regions;
+      status_t rc = _i_kvstore->get_pool_regions(pool, regions);
+      rc == S_OK ? handler->add_as_open_pool(pool, &regions) : handler->add_as_open_pool(pool);
       
-      handler->add_as_open_pool(pool);
       response->pool_id = pool;
       response->status = S_OK;
     }
@@ -325,15 +327,25 @@ void Shard::process_message_IO_request(Connection_handler* handler,
     auto pool_id = msg->pool_id;
     add_locked_value(pool_id, key_handle, target);
     
-    /* register memory */
-    auto region = ondemand_register(handler, target, target_len);
-      
+    /* register memory unless pre-registered */
+    Connection_base::memory_region_t region = handler->get_preregistered(pool_id);
+    if(!region) {
+      if(option_DEBUG)
+	PLOG("using ondemand registration");
+      region = ondemand_register(handler, target, target_len);
+    }
+    else {
+      if(option_DEBUG)
+	PLOG("using pre-registered region (handle=%p)", region);
+    }
+    assert(region);
+    
     handler->set_pending_value(target, target_len, region);
 
     return;
   }
 
-  /* States that require a response */
+  /* states that we require a response */
   const auto iob = handler->allocate();
 
   Protocol::Message_IO_response * response =
@@ -404,7 +416,7 @@ void Shard::process_message_IO_request(Connection_handler* handler,
     assert(value_out_len);
     assert(value_out);
 
-    /* register region if needed */
+    /* register memory on-demand */
     auto region = ondemand_register(handler, value_out, value_out_len);
     assert(region);
 
