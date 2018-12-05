@@ -10,6 +10,7 @@ ExternalProject_Add(ndctl
   GIT_TAG ndctl-61.y
   CONFIGURE_COMMAND ./autogen.sh COMMAND ./configure --prefix=${CMAKE_INSTALL_PREFIX} --sysconfdir=${CMAKE_INSTALL_PREFIX}/etc --libdir=${CMAKE_INSTALL_PREFIX}/lib
   BUILD_COMMAND make COMMAND make check
+  # ndctl project tries to install to system, so we have to install things manually
   INSTALL_COMMAND mkdir -p ${CMAKE_INSTALL_PREFIX}/lib
   COMMAND install ${CMAKE_CURRENT_BINARY_DIR}/ndctl-prefix/src/ndctl/ndctl/lib/.libs/libndctl.so ${CMAKE_INSTALL_PREFIX}/lib
   COMMAND install ${CMAKE_CURRENT_BINARY_DIR}/ndctl-prefix/src/ndctl/ndctl/lib/.libs/libndctl.so.6 ${CMAKE_INSTALL_PREFIX}/lib
