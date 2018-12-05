@@ -873,7 +873,7 @@ std::size_t hstore::count(const pool_t pool)
   return session.map().size();
 }
 
-void hstore::debug(const pool_t, const unsigned cmd, const uint64_t arg)
+void hstore::debug(const pool_t pool, const unsigned cmd, const uint64_t arg)
 {
   switch ( cmd )
   {
@@ -882,6 +882,26 @@ void hstore::debug(const pool_t, const unsigned cmd, const uint64_t arg)
     break;
   case 1:
     perishable::reset(arg);
+    break;
+  case 2:
+    {
+      const auto &session = locate_session(pool);
+      table_t::size_type count = 0;
+      /* bucket counter */
+      for (
+        auto n = session.map().bucket_count()
+        ; n != 0
+        ; --n
+      )
+      {
+        auto last = session.map().end(n-1);
+        for ( auto first = session.map().begin(n-1); first != last; ++first )
+        {
+          ++count;
+        }
+      }
+      *reinterpret_cast<table_t::size_type *>(arg) = count;
+    }
     break;
   default:
     break;

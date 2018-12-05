@@ -38,10 +38,10 @@ namespace impl
 	{
 	public:
 		static constexpr unsigned size = 8U;
-		using value_t = std::uint64_t; /* sufficient for all owners */
+		using value_type = std::uint64_t; /* sufficient for all owners */
 		static constexpr auto pos_undefined = std::numeric_limits<std::size_t>::max();
 	private:
-		persistent_atomic_t<value_t> _value; /* at least owner::size bits */
+		persistent_atomic_t<value_type> _value; /* at least owner::size bits */
 #if TRACK_POS
 		std::size_t _pos;
 #endif
@@ -87,7 +87,7 @@ namespace impl
 				_value = (_value | (1U << dst_)) & ~(1U << src_);
 			}
 		template <typename Lock>
-			auto value(Lock &) const -> value_t { return _value; }
+			auto value(Lock &) const -> value_type { return _value; }
 		template <typename Lock>
 			auto owned(std::size_t table_size, Lock &) const -> std::string;
 		/* clear the senior owner of all the bits set in its new junior owner. */

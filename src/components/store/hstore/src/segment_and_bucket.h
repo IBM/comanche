@@ -26,7 +26,7 @@ namespace impl
 		}
 		explicit segment_and_bucket(bix_t ix);
 		auto incr(const segment_layout &) -> segment_and_bucket &;
-		auto incr_for_iterator() -> segment_and_bucket &;
+		auto incr_without_wrap() -> segment_and_bucket &;
 		auto add_small(
 			const segment_layout &
 			, unsigned fwd

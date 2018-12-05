@@ -76,20 +76,26 @@ namespace impl
 	template <typename Table>
 		class table_const_iterator;
 
+	template <typename Table>
+		class table_local_iterator;
+
+	template <typename Table>
+		class table_const_local_iterator;
+
 	template <typename Referent>
 		class bucket_ref
 		{
-			Referent *_b;
-			segment_and_bucket _i;
+			Referent *_ref;
+			segment_and_bucket _sb;
 		public:
-			bucket_ref(Referent *b_, const segment_and_bucket &i_)
-				: _b(b_)
-				, _i(i_)
+			bucket_ref(Referent *ref_, const segment_and_bucket &sb_)
+				: _ref(ref_)
+				, _sb(sb_)
 			{
 			}
 			std::size_t index() const { return sb().index(); }
-			const segment_and_bucket &sb() const { return _i; }
-			Referent &ref() const { return *_b; }
+			const segment_and_bucket &sb() const { return _sb; }
+			Referent &ref() const { return *_ref; }
 		};
 
 	template <typename Owner, typename SharedMutex>
@@ -210,6 +216,9 @@ namespace impl
 		};
 
 	template <typename Table>
+		class table_local_iterator_impl;
+
+	template <typename Table>
 		class table_iterator_impl;
 
 	template <
@@ -248,6 +257,8 @@ namespace impl
 			using const_reference = typename allocator_type::const_reference;
 			using iterator        = table_iterator<table_base>;
 			using const_iterator  = table_const_iterator<table_base>;
+			using local_iterator  = table_local_iterator<table_base>;
+			using const_local_iterator = table_const_local_iterator<table_base>;
 			using persist_data_t =
 				persist_map<typename Allocator::template rebind<value_type>::other>;
 		private:
@@ -328,6 +339,10 @@ namespace impl
 			) const -> owner_unique_lock_t;
 
 			auto make_owner_shared_lock(const key_type &k) const -> owner_shared_lock_t;
+			auto make_owner_shared_lock(
+				const segment_and_bucket &
+			) const -> owner_shared_lock_t;
+
 			auto make_content_unique_lock(
 				const segment_and_bucket &
 			) const -> content_unique_lock_t;
@@ -337,12 +352,10 @@ namespace impl
 				, unsigned fwd
 			) const -> content_unique_lock_t;
 
-			using persist_controller_t::bucket_count;
-			using persist_controller_t::max_bucket_count;
 			using persist_controller_t::mask;
 
-			auto owner_value_at(owner_unique_lock_t &bi) const -> owner::value_t;
-			auto owner_value_at(owner_shared_lock_t &bi) const -> owner::value_t;
+			auto owner_value_at(owner_unique_lock_t &bi) const -> owner::value_type;
+			auto owner_value_at(owner_shared_lock_t &bi) const -> owner::value_type;
 
 			auto make_segment_and_bucket(bix_t ix) const -> segment_and_bucket;
 			auto make_segment_and_bucket_for_iterator(
@@ -427,6 +440,41 @@ namespace impl
 					, make_segment_and_bucket_for_iterator(bucket_count())
 				);
 			}
+
+			using persist_controller_t::bucket_count;
+			using persist_controller_t::max_bucket_count;
+
+			auto begin(size_type n) -> local_iterator
+			{
+				auto sb = make_segment_and_bucket(n);
+				auto owner_lk = make_owner_shared_lock(sb);
+				return local_iterator(*this, sb, locate_owner(sb).value(owner_lk));
+			}
+			auto end(size_type n) -> local_iterator
+			{
+				auto sb = make_segment_and_bucket(n);
+				return local_iterator(*this, sb, owner::value_type(0));
+			}
+			auto begin(size_type n) const -> const_local_iterator
+			{
+				return cbegin(n);
+			}
+			auto end(size_type n) const -> const_local_iterator
+			{
+				return cend(n);
+			}
+			auto cbegin(size_type n) const -> const_local_iterator
+			{
+				auto sb = make_segment_and_bucket(n);
+				auto owner_lk = make_owner_shared_lock(sb);
+				return const_local_iterator(*this, sb, locate_owner(sb).value(owner_lk));
+			}
+			auto cend(size_type n) const -> const_local_iterator
+			{
+				auto sb = make_segment_and_bucket(n);
+				return const_local_iterator(*this, sb, owner::value_type(0));
+			}
+
 			/* use trylock to attempt a shared lock */
 			auto lock_shared(const key_type &k) -> bool;
 			/* use trylock to attempt a unique lock */
@@ -505,6 +553,8 @@ namespace impl
 				) -> std::ostream &;
 #endif
 			template <typename Table>
+				friend class impl::table_local_iterator_impl;
+			template <typename Table>
 				friend class impl::table_iterator_impl;
 		};
 }
@@ -547,6 +597,7 @@ template <
 			return size() == 0;
 		}
 		using base::size;
+		using base::bucket_count;
 		auto max_size() const noexcept -> size_type
 		{
 			return (1U << (base::_segment_capacity-1U));
@@ -606,8 +657,23 @@ template <
 		}
 
 		template <typename Table>
+			friend class impl::table_local_iterator_impl;
+
+		template <typename Table>
 			friend class impl::table_iterator_impl;
 	};
+
+template <typename Table>
+	bool operator!=(
+		const impl::table_local_iterator_impl<Table> a
+		, const impl::table_local_iterator_impl<Table> b
+	);
+
+template <typename Table>
+	bool operator==(
+		const impl::table_local_iterator_impl<Table> a
+		, const impl::table_local_iterator_impl<Table> b
+	);
 
 template <typename Table>
 	bool operator!=(
@@ -624,7 +690,7 @@ template <typename Table>
 namespace impl
 {
 	template <typename Table>
-		class table_iterator_impl
+		class table_local_iterator_impl
 			: public std::iterator
 				<
 					std::forward_iterator_tag
@@ -632,12 +698,16 @@ namespace impl
 				>
 		{
 			const Table *_t;
-			segment_and_bucket _i;
+			segment_and_bucket _sb;
+			owner::value_type _mask;
 			void advance_to_in_use()
 			{
-				while ( _i.index() < _t->bucket_count() && _t->is_free(_i) )
+				if ( _mask != 0 )
 				{
-					_i.incr_for_iterator();
+					for ( ; ( _mask & 1U ) == 0; _mask >>= 1 )
+					{
+						_sb.incr(*_t);
+					}
 				}
 			}
 
@@ -648,11 +718,68 @@ namespace impl
 			/* Table 106 (Iterator) */
 			auto deref() const -> typename base::reference
 			{
-				return _t->locate(_i).content<typename Table::value_type>::value();
+				return _t->locate(_sb).content<typename Table::value_type>::value();
 			}
 			void incr()
 			{
-				_i.incr_for_iterator();
+				_sb.incr(*_t);
+				_mask >>= 1;
+				advance_to_in_use();
+			}
+		public:
+			/* Table 17 (EqualityComparable) */
+			friend
+				bool operator== <>(
+					table_local_iterator_impl<Table> a
+					, table_local_iterator_impl<Table> b
+				);
+			/* Table 107 (InputIterator) */
+			friend
+				bool operator!= <>(
+					table_local_iterator_impl<Table> a
+					, table_local_iterator_impl<Table> b
+				);
+			/* Table 109 (ForwardIterator) - handled by 107 */
+		public:
+			table_local_iterator_impl(const Table &t_, const segment_and_bucket &sb_, owner::value_type mask_)
+				: _t(&t_)
+				, _sb(sb_)
+				, _mask(mask_)
+			{
+				advance_to_in_use();
+			}
+		};
+
+	template <typename Table>
+		class table_iterator_impl
+			: public std::iterator
+				<
+					std::forward_iterator_tag
+					, typename Table::value_type
+				>
+		{
+			const Table *_t;
+			segment_and_bucket _sb;
+			void advance_to_in_use()
+			{
+				while ( _sb.index() < _t->bucket_count() && _t->is_free(_sb) )
+				{
+					_sb.incr_without_wrap();
+				}
+			}
+
+		protected:
+			using base =
+				std::iterator<std::forward_iterator_tag, typename Table::value_type>;
+
+			/* Table 106 (Iterator) */
+			auto deref() const -> typename base::reference
+			{
+				return _t->locate(_sb).content<typename Table::value_type>::value();
+			}
+			void incr()
+			{
+				_sb.incr_without_wrap();
 				advance_to_in_use();
 			}
 		public:
@@ -670,12 +797,80 @@ namespace impl
 				);
 			/* Table 109 (ForwardIterator) - handled by 107 */
 		public:
-			table_iterator_impl(const Table &t_, const segment_and_bucket &i_)
+			table_iterator_impl(const Table &t_, const segment_and_bucket &sb_)
 				: _t(&t_)
-				, _i(i_)
+				, _sb(sb_)
 			{
 				advance_to_in_use();
 			}
+		};
+
+	template <typename Table>
+		class table_local_iterator
+			: public table_local_iterator_impl<Table>
+		{
+			using typename table_local_iterator_impl<Table>::base;
+		public:
+			table_local_iterator(const Table &t_, const segment_and_bucket & sb_, owner::value_type mask_)
+				: table_local_iterator_impl<Table>(t_, sb_, mask_)
+			{}
+			/* Table 106 (Iterator) */
+			auto operator*() const -> typename base::reference
+			{
+				return this->deref();
+			}
+			auto operator++() -> table_local_iterator &
+			{
+				this->incr();
+				return *this;
+			}
+			/* Table 17 (EqualityComparable) */
+			/* Table 107 (InputIterator) */
+			auto operator->() -> typename base::pointer
+			{
+				return &this->deref();
+			}
+			auto operator++(int) -> table_local_iterator
+			{
+				auto ti = *this;
+				this->incr();
+				return ti;
+			}
+			/* Table 109 (ForwardIterator) - handled by 107 */
+		};
+
+	template <typename Table>
+		class table_const_local_iterator
+			: public table_local_iterator_impl<Table>
+		{
+			using typename table_local_iterator_impl<Table>::base;
+		public:
+			table_const_local_iterator(const Table &t_, const segment_and_bucket & sb_, owner::value_type mask_)
+				: table_local_iterator_impl<Table>(t_, sb_, mask_)
+			{}
+			/* Table 106 (Iterator) */
+			auto operator*() const -> const typename base::reference
+			{
+				return this->deref();
+			}
+			auto operator++() -> table_const_local_iterator &
+			{
+				this->incr();
+				return *this;
+			}
+			/* Table 17 (EqualityComparable) */
+			/* Table 107 (InputIterator) */
+			auto operator->() -> const typename base::pointer
+			{
+				return &this->deref();
+			}
+			auto operator++(int) -> table_const_local_iterator
+			{
+				auto ti = *this;
+				this->incr();
+				return ti;
+			}
+			/* Table 109 (ForwardIterator) - handled by 107 */
 		};
 
 	template <typename Table>
@@ -749,12 +944,31 @@ namespace impl
 
 template <typename Table>
 	bool operator==(
+		const impl::table_local_iterator_impl<Table> a
+		, const impl::table_local_iterator_impl<Table> b
+	)
+	{
+		assert(a._t == b._t);
+		return a._mask == b._mask;
+	}
+
+template <typename Table>
+	bool operator!=(
+		const impl::table_local_iterator_impl<Table> a
+		, const impl::table_local_iterator_impl<Table> b
+	)
+	{
+		return !(a==b);
+	}
+
+template <typename Table>
+	bool operator==(
 		const impl::table_iterator_impl<Table> a
 		, const impl::table_iterator_impl<Table> b
 	)
 	{
 		assert(a._t == b._t);
-		return a._i == b._i;
+		return a._sb == b._sb;
 	}
 
 template <typename Table>
