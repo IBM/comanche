@@ -220,10 +220,18 @@ TEST_F(KVStore_test, BasicMap)
                   });
 }
 
-TEST_F(KVStore_test, Size1)
+TEST_F(KVStore_test, Count1)
 {
   auto count = _kvstore->count(pool);
   /* count should reflect Put, PutMany */
+  EXPECT_EQ(count, single_count + many_count_actual);
+}
+
+TEST_F(KVStore_test, CountByBucket)
+{
+  std::uint64_t count = 0;
+  _kvstore->debug(pool, 2 /* COUNT_BY_BUCKET */, reinterpret_cast<std::uint64_t>(&count));
+  /* should reflect Put, PutMany */
   EXPECT_EQ(count, single_count + many_count_actual);
 }
 

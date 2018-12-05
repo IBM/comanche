@@ -104,7 +104,7 @@ template <
 		 * examine the members of every owner starting with the leftmost
 		 * bucket which can include bi in its owner.
 		 */
-		owner::value_t c = 0U;
+		owner::value_type c = 0U;
 		auto sbw = make_segment_and_bucket_prev(a_, owner::size);
 		for ( auto owner_lk = make_owner_unique_lock(sbw)
 			; owner_lk.sb() != a_
@@ -662,7 +662,7 @@ template <
 		for (
 			auto sb_senior = make_segment_and_bucket(0U)
 			; sb_senior != sb_senior_end
-			; sb_senior.incr_for_iterator(), ++ix_senior
+			; sb_senior.incr_without_wrap(), ++ix_senior
 		)
 		{
 			auto senior_content_lk = make_content_unique_lock(sb_senior);
@@ -741,7 +741,7 @@ template <
 		for (
 			auto sb_senior = make_segment_and_bucket(0U)
 			; sb_senior != sb_senior_end
-			; sb_senior.incr_for_iterator(), ++ix_senior
+			; sb_senior.incr_without_wrap(), ++ix_senior
 		)
 		{
 			/* special locate, used before size has been updated
@@ -1016,8 +1016,20 @@ template <
 		const key_type &k_
 	) const -> owner_shared_lock_t
 	{
-		auto a = make_segment_and_bucket(bucket(k_));
-		return owner_shared_lock_t(locate(a), a, locate_bucket_mutexes(a)._m_owner);
+		return make_owner_shared_lock(make_segment_and_bucket(bucket(k_)));
+	}
+
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<
+		Key, T, Hash, Pred, Allocator, SharedMutex
+	>::make_owner_shared_lock(
+		const segment_and_bucket &a_
+	) const -> owner_shared_lock_t
+	{
+		return owner_shared_lock_t(locate(a_), a_, locate_bucket_mutexes(a_)._m_owner);
 	}
 
 template <
