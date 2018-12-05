@@ -11,7 +11,7 @@ ExternalProject_Add(pmdk
   GIT_REPOSITORY https://github.com/dwaddington/pmdk.git
   GIT_TAG master
   CONFIGURE_COMMAND ""
-  BUILD_COMMAND PKG_CONFIG_PATH=${CMAKE_INSTALL_PREFIX}/lib/pkgconfig:${CMAKE_INSTALL_PREFIX}/lib64/pkgconfig make BUILD_RPMEM=n
-  INSTALL_COMMAND echo "PKG_CONFIG_PATH=${CMAKE_INSTALL_PREFIX}/lib/pkgconfig:${CMAKE_INSTALL_PREFIX}/lib64/pkgconfig make install prefix=${CMAKE_INSTALL_PREFIX}"
-  COMMAND PKG_CONFIG_PATH=${CMAKE_INSTALL_PREFIX}/lib/pkgconfig:${CMAKE_INSTALL_PREFIX}/lib64/pkgconfig make install prefix=${CMAKE_INSTALL_PREFIX}
+  BUILD_COMMAND echo "PKG_CONFIG_PATH=${CMAKE_INSTALL_PREFIX}/lib/pkgconfig:${CMAKE_INSTALL_PREFIX}/lib64/pkgconfig make install prefix=${CMAKE_INSTALL_PREFIX}"
+  COMMAND PKG_CONFIG_PATH=${CMAKE_INSTALL_PREFIX}/lib/pkgconfig:${CMAKE_INSTALL_PREFIX}/lib64/pkgconfig make BUILD_RPMEM=n
+  INSTALL_COMMAND PKG_CONFIG_PATH=${CMAKE_INSTALL_PREFIX}/lib/pkgconfig:${CMAKE_INSTALL_PREFIX}/lib64/pkgconfig make install prefix=${CMAKE_INSTALL_PREFIX}
   )
