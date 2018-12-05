@@ -53,20 +53,19 @@ int main(int argc, char * argv[])
   try {
     desc.add_options()
     ("help", "Show help")
-    ("test", po::value<std::string>(), "Test name <all|put|get|put_direct|get_direct>")
-    ("component", po::value<std::string>(), "Implementation selection <filestore|pmstore|dawn|nvmestore|mapstore|hstore>")
-    ("cores", po::value<std::string>(), "Number of threads/cores (starts from core 0), or range X-Y.")
-    ("time", po::value<int>(), "Duration to run in seconds")
-    ("path", po::value<std::string>(), "Path of directory for pool")
-    ("size", po::value<unsigned long long int>(), "Size of pool")
-    ("flags", po::value<int>(), "Flags for pool creation")
-    ("elements", po::value<int>(), "Number of data elements")
-    ("key_length", po::value<unsigned int>(), "Key length of data")
-    ("value_length", po::value<unsigned int>(), "Value length of data")
-    ("bins", po::value<unsigned int>(), "Number of bins for statistics")
-    ("latency_range_min", po::value<double>(), "Lowest latency bin threshold")
-    ("latency_range_max", po::value<double>(), "Highest latency bin threshold")
-    ("debug_level", po::value<int>(), "Debug level")
+    ("test", po::value<std::string>(), "Test name <all|put|get|put_direct|get_direct>. Default: all.")
+    ("component", po::value<std::string>(), "Implementation selection <filestore|pmstore|dawn|nvmestore|mapstore|hstore>. Default: filestore.")
+    ("cores", po::value<std::string>(), "Cores to run tasks on. Supports singles and ranges. Example: a,b,c-d. Default: Core 0.")
+    ("path", po::value<std::string>(), "Path of directory for pool. Default: current directory.")
+    ("size", po::value<unsigned long long int>(), "Size of pool. Default: 100MB.")
+    ("flags", po::value<int>(), "Flags for pool creation. Default: none.")
+    ("elements", po::value<int>(), "Number of data elements. Default: 100,000.")
+    ("key_length", po::value<unsigned int>(), "Key length of data. Default: 8.")
+    ("value_length", po::value<unsigned int>(), "Value length of data. Default: 64.")
+    ("bins", po::value<unsigned int>(), "Number of bins for statistics. Default: 100. ")
+    ("latency_range_min", po::value<double>(), "Lowest latency bin threshold. Default: 10e-9.")
+    ("latency_range_max", po::value<double>(), "Highest latency bin threshold. Default: 10e-3.")
+    ("debug_level", po::value<int>(), "Debug level. Default: 0.")
     ("owner", po::value<std::string>(), "Owner name for component registration")
     ("server_address", po::value<std::string>(), "server address, with port")
     ("device_name", po::value<std::string>(), "device name")
@@ -91,8 +90,7 @@ int main(int argc, char * argv[])
     else
       Options.component = DEFAULT_COMPONENT;
     
-    Options.cores  = vm.count("cores") > 0 ? vm["cores"].as<std::string>() : "1";
-    Options.time_secs  = vm.count("time") > 0 ? vm["time"].as<int>() : 4;
+    Options.cores  = vm.count("cores") > 0 ? vm["cores"].as<std::string>() : "0";
     Options.size = vm.count("size") > 0 ? vm["size"].as<unsigned long long int>() : MB(100);
     Options.flags = vm.count("flags") > 0 ? vm["flags"].as<int>() : Component::IKVStore::FLAGS_SET_SIZE;
     Options.debug_level = vm.count("debug_level") > 0 ? vm["debug_level"].as<int>() : 0;

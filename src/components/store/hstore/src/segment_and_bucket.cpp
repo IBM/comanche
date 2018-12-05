@@ -118,7 +118,7 @@ auto impl::segment_and_bucket::subtract_small(
 	return *this;
 }
 
-auto impl::segment_and_bucket::incr_for_iterator() -> segment_and_bucket &
+auto impl::segment_and_bucket::incr_without_wrap() -> segment_and_bucket &
 {
 	/* To develop (six_t, bix_t) pair:
 	 *  1. Increment the bix_t (low) part.
