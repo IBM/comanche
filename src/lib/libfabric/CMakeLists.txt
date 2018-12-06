@@ -6,7 +6,7 @@ include(${CMAKE_ROOT}/Modules/ExternalProject.cmake)
 # build libfabric
 ExternalProject_Add(libfabric
   BUILD_IN_SOURCE 1
-  UPDTAE_DISCONNECTED 1 # will not update automatically
+  UPDATE_DISCONNECTED 1 # will not update automatically
   GIT_REPOSITORY https://github.com/ofiwg/libfabric.git
   GIT_TAG v1.6.2
   CONFIGURE_COMMAND ./autogen.sh
