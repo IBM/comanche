@@ -18,6 +18,8 @@
 #ifndef __API_KVSTORE_ITF__
 #define __API_KVSTORE_ITF__
 
+#include <sys/uio.h> /* iovec */
+
 #include <cstdlib>
 #include <functional>
 #include <vector>

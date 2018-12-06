@@ -26,6 +26,7 @@
 #include <boost/filesystem.hpp>
 
 #include <algorithm>
+#include <cassert>
 #include <cerrno>
 #include <memory> /* unique_ptr */
 #include <new>
@@ -574,6 +575,28 @@ auto hstore::put(const pool_t pool,
    * which hashes to the same hash key exists.
    */
   return i.second ? S_OK : E_KEY_EXISTS;
+}
+
+status_t hstore::get_pool_regions(const pool_t pool, std::vector<::iovec>& out_regions)
+{
+  auto &session = locate_session(pool);
+  const auto& pop = session.pool();
+
+  /* calls pmemobj extensions in modified version of PMDK */
+  unsigned idx = 0;
+  void * base = nullptr;
+  size_t len = 0;
+
+  while(pmemobj_ex_pool_get_region(pop, idx, &base, &len) == 0) {
+    assert(base);
+    assert(len);
+    out_regions.push_back(::iovec{base,len});
+    base = nullptr;
+    len = 0;
+    idx++;
+  }
+
+  return S_OK;
 }
 
 auto hstore::put_direct(const pool_t pool,
