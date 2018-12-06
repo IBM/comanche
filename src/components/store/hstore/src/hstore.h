@@ -135,6 +135,12 @@ public:
     const std::string& key,
     const std::vector<Operation *> &op_vector,
     bool take_lock) override;
+
+  status_t get_pool_regions(
+    const pool_t pool,
+    std::vector<::iovec>& out_regions
+  ) override;
+
 };
 
 class hstore_factory : public Component::IKVStore_factory
