@@ -33,7 +33,7 @@
 
 #define PREFIX "HSTORE : %s: "
 
-#define REGION_NAME "hstore-default"
+#define REGION_NAME "hstore-data"
 
 using IKVStore = Component::IKVStore;
 
@@ -377,8 +377,7 @@ auto hstore::create_pool(
     pop.reset(pmemobj_create(fullpath.c_str(), REGION_NAME, size, 0666));
     if (not pop)
     {
-      throw
-        General_exception("failed to create new pool - %s\n", pmemobj_errormsg());
+      throw General_exception("failed to create new pool %s\n", pmemobj_errormsg());
     }
   }
   else {
@@ -389,13 +388,24 @@ auto hstore::create_pool(
 
     if (check_pool(fullpath.c_str()) != 0)
     {
-      throw General_exception("pool check failed");
+      pop.reset(pmemobj_create(fullpath.c_str(), REGION_NAME, size, 0666));
+      if (not pop)
+	throw General_exception("failed to create new pool");
     }
-
-    pop.reset(pmemobj_open(fullpath.c_str(), REGION_NAME));
-    if (not pop)
-    {
-      throw General_exception("failed to re-open pool - %s\n", pmemobj_errormsg());
+    else {
+      /* open existing */
+      pop.reset(pmemobj_open(fullpath.c_str(), REGION_NAME));
+      if (not pop)
+	{
+	  PWRN(PREFIX "erasing memory pool/partition: %s", __func__, fullpath.c_str());
+	  /* try to delete pool and recreate */
+	  if(pmempool_rm(fullpath.c_str(), PMEMPOOL_RM_FORCE | PMEMPOOL_RM_POOLSET_LOCAL))
+	    throw General_exception("pmempool_rm on (%s) failed", fullpath.c_str());
+	  
+	  pop.reset(pmemobj_create(fullpath.c_str(), REGION_NAME, size, 0666));
+	  if (not pop)
+	    throw General_exception("failed to re-open or create new pool");
+	}
     }
   }
 

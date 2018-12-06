@@ -46,7 +46,7 @@ extern "C"
 #include "hashmap_atomic.h"
 }
 
-#define REGION_NAME "pmstore-default"
+#define REGION_NAME "pmstore-data"
 
 using namespace Component;
 
@@ -192,15 +192,10 @@ IKVStore::pool_t PM_store::create_pool(const std::string& path,
       throw General_exception("failed to create new pool - %s\n", pmemobj_errormsg());
   }
   else {
-    if(check_pool(fullpath.c_str()) == 0) {
-      if(option_DEBUG)
-	PLOG("PM_store: trying to open existing pool: %s", fullpath.c_str());
-
-      pop = pmemobj_open(fullpath.c_str(), REGION_NAME);
-      if(not pop)
-	throw General_exception("failed to re-open pool - %s\n", pmemobj_errormsg());
+    if((check_pool(fullpath.c_str()) == 0) &&
+       ((pop = pmemobj_open(fullpath.c_str(), REGION_NAME)))) {
     }
-    else {
+    else { /* could not open existing pool */
 
       if(option_DEBUG)
 	PLOG("PM_store: pool check failed: trying to create new one: %s", fullpath.c_str());
