@@ -12,6 +12,7 @@
 #include <queue>
 #include <thread>
 #include <set>
+#include <map>
 
 #include "protocol.h"
 #include "buffer_manager.h"
@@ -160,12 +161,37 @@ public:
    * 
    * @param pool Pool identifier
    */
-  void add_as_open_pool(pool_t pool) {
+  void add_as_open_pool(pool_t pool, std::vector<::iovec>* regions = nullptr) {
     if(_open_pools.count(pool) > 0)
       throw Logic_exception("add_as_open_pool: pool already exists");
+    
     _open_pools.insert(pool);
+
+    /* if the backend store supports region exposure, then
+       we simply register upfront 
+    */
+    if(regions) {
+      for(auto& r : *regions) {
+	assert(r.iov_base);
+	assert(r.iov_len);
+	auto h = register_memory(r.iov_base, r.iov_len);
+	_pool_memory_handles[pool].push_back(h);
+	PLOG("connection_handler: registered pool memory (%p,%lu) (%p)", r.iov_base, r.iov_len, h);
+      }
+    }	
   }
 
+  /**
+   * Get registered memory region if it exists
+   */
+  Connection_base::memory_region_t get_preregistered(pool_t pool) {
+    return nullptr; /* OVERRIDE preregistration */
+    auto i = _pool_memory_handles.find(pool);
+    if(i == _pool_memory_handles.end()) return nullptr;
+    assert(i->second.size() == 1);
+    return i->second[0]; /* for the moment return the first region handle */
+  }      
+  
   /** 
    * Remove pool open record
    * 
@@ -174,7 +200,6 @@ public:
   void remove_as_open_pool(pool_t pool) {
     _open_pools.erase(pool);
   }
-
 
   /** 
    * Set up for pending value send/recv
@@ -187,14 +212,6 @@ public:
                          size_t target_len,
                          memory_region_t region);
 
-  /** 
-   * Get hold of buffer manager
-   * 
-   * 
-   * @return Reference to buffer manager
-   */
-  //  Buffer_manager<Connection>& bm() { return _bm; }
-  
   inline uint64_t auth_id() const { return (uint64_t) this; /* temp */ }
 
   inline const std::set<pool_t>& open_pool_set() { return _open_pools; }
@@ -231,8 +248,10 @@ private:
   unsigned               _tick_count = 0;
   std::vector<buffer_t*> _pending_msgs;
   std::vector<action_t>  _pending_actions;
-  std::set<pool_t>       _open_pools; /*< pools currently open by client */
   int                    _response;
+  
+  std::set<pool_t> _open_pools; /*< pools currently open by client */
+  std::map<pool_t, std::vector<Connection_base::memory_region_t>> _pool_memory_handles;
 };
 
 

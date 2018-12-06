@@ -3,14 +3,15 @@ cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 # option to build libraies, on by default
 include(${CMAKE_ROOT}/Modules/ExternalProject.cmake)
 
-# build dpdk
+# build pmdk
 ExternalProject_Add(pmdk
   DEPENDS libfabric
+  DEPENDS ndctl
   BUILD_IN_SOURCE 1
-  SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}
-  DOWNLOAD_DIR ${CMAKE_CURRENT_SOURCE_DIR}
+  UPDATE_DISCONNECTED 1
+  GIT_REPOSITORY https://github.com/dwaddington/pmdk.git
+  GIT_TAG master
   CONFIGURE_COMMAND ""
-  DOWNLOAD_COMMAND ./bootstrap.sh
-  BUILD_COMMAND PKG_CONFIG_PATH=${CMAKE_INSTALL_PREFIX}/lib/pkgconfig:${CMAKE_INSTALL_PREFIX}/lib64/pkgconfig:${PKG_CONFIG_PATH} make -C pmdk BUILD_RPMEM=n
-  INSTALL_COMMAND PKG_CONFIG_PATH=${CMAKE_INSTALL_PREFIX}/lib/pkgconfig:${CMAKE_INSTALL_PREFIX}/lib64/pkgconfig:${PKG_CONFIG_PATH} make -C pmdk install prefix=${CMAKE_INSTALL_PREFIX}
+  BUILD_COMMAND PKG_CONFIG_PATH=${CMAKE_INSTALL_PREFIX}/lib/pkgconfig:${CMAKE_INSTALL_PREFIX}/lib64/pkgconfig make EXTRA_LDFLAGS=-Wl,-rpath=${CMAKE_INSTALL_PREFIX}/lib BUILD_RPMEM=n
+  INSTALL_COMMAND EXTRA_LDFLAGS="-Wl,-rpath,${CMAKE_INSTALL_PREFIX}/lib" PKG_CONFIG_PATH=${CMAKE_INSTALL_PREFIX}/lib/pkgconfig:${CMAKE_INSTALL_PREFIX}/lib64/pkgconfig make install prefix=${CMAKE_INSTALL_PREFIX}
   )

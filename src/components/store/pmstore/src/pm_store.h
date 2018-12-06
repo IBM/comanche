@@ -78,6 +78,8 @@ public:
 
   virtual void close_pool(const pool_t pid) override;
 
+  virtual status_t get_pool_regions(const pool_t pool, std::vector<::iovec>& out_regions) override;
+  
   virtual status_t put(const pool_t pool,
                        const std::string& key,
                        const void * value,
