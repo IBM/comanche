@@ -68,7 +68,7 @@ protected:
   {
     Fabric_connection_base * pThis = static_cast<Fabric_connection_base *>(param);
     /* set callback debugging here */
-    static constexpr bool option_DEBUG = true;
+    static constexpr bool option_DEBUG = false;
     
     if(unlikely(st != S_OK))
       throw Program_exception("RDMA operation failed unexpectedly (context=%p)", context);
@@ -86,7 +86,6 @@ protected:
       return;
     }
     else if(context == pThis->_posted_value_buffer) {
-      PNOTICE("posted value complete!!!");
       assert(pThis->_posted_value_buffer_outstanding);
       char * p = (char *) pThis->_posted_value_buffer->base();
       if(option_DEBUG) {
@@ -204,10 +203,10 @@ protected:
   void post_recv_value_buffer(buffer_t * buffer = nullptr) {
     if(buffer) {
       _posted_value_buffer = buffer;
-      PLOG("posting recv value buffer (%p)(base=%p,len=%lu)",
-	   buffer,
-	   _posted_value_buffer->iov->iov_base,
-	   _posted_value_buffer->iov->iov_len);
+      /* PLOG("posting recv value buffer (%p)(base=%p,len=%lu)", */
+      /* 	   buffer, */
+      /* 	   _posted_value_buffer->iov->iov_base, */
+      /* 	   _posted_value_buffer->iov->iov_len); */
     }
     assert(_posted_value_buffer);
     _posted_value_buffer_outstanding = true;
@@ -215,7 +214,6 @@ protected:
                           _posted_value_buffer->iov + 1,
                           &_posted_value_buffer->desc,
                           _posted_value_buffer);
-    PLOG("transport->post_recv OK");
   }
 
 
