@@ -17,7 +17,7 @@
 extern Data * _data;
 extern int g_argc;
 extern char** g_argv;
-
+extern pthread_mutex_t g_write_lock;
 extern boost::program_options::options_description desc;
 
 class Experiment : public Core::Tasklet
@@ -113,6 +113,8 @@ public:
     {
       if (component_uses_direct_memory())
       {
+        pthread_mutex_lock(&g_write_lock);
+
         size_t data_size = sizeof(KV_pair) * _data->_num_elements;
         data_size += data_size % 64;  // align
         _data->_data = (KV_pair*)aligned_alloc(MiB(2), data_size);
@@ -120,6 +122,8 @@ public:
 
         _memory_handle = _store->register_direct_memory(_data->_data, data_size);
         _data->initialize_data(false);
+
+        pthread_mutex_unlock(&g_write_lock);
       }
     }
     catch(...)
