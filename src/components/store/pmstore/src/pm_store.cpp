@@ -120,10 +120,7 @@ static int check_pool(const char * path)
   while ((status = pmempool_check(ppc)) != NULL) {
     switch (status->type) {
     case PMEMPOOL_CHECK_MSG_TYPE_ERROR:
-      printf("%s\n", status->str.msg);
-      break;
     case PMEMPOOL_CHECK_MSG_TYPE_INFO:
-      printf("%s\n", status->str.msg);
       break;
     case PMEMPOOL_CHECK_MSG_TYPE_QUESTION:
       printf("%s\n", status->str.msg);
@@ -131,7 +128,7 @@ static int check_pool(const char * path)
       break;
     default:
       pmempool_check_end(ppc);
-      throw General_exception("pmempool_check failed");
+      return 1;
     }
   }
 
@@ -257,10 +254,18 @@ IKVStore::pool_t PM_store::open_pool(const std::string& path,
   std::string fullpath = path + name;
 
   /* check integrity first */
-  if(check_pool(fullpath.c_str()) != 0)
-    throw General_exception("pool check failed");
-
-  pop = pmemobj_open(fullpath.c_str(), REGION_NAME);
+  if(check_pool(fullpath.c_str()) != 0) {
+    /* probably device dax */
+    PWRN("erasing existing pool (%s)", fullpath.c_str());
+    if(pmempool_rm(fullpath.c_str(), PMEMPOOL_RM_FORCE | PMEMPOOL_RM_POOLSET_LOCAL))
+      throw General_exception("pmempool_rm on (%s) failed", fullpath.c_str());
+      
+    pop = pmemobj_create(fullpath.c_str(), REGION_NAME, 0, 0666);
+  }
+  else {
+    pop = pmemobj_open(fullpath.c_str(), REGION_NAME);
+  }
+  
   if(not pop)
     throw General_exception("failed to re-open pool - %s\n", pmemobj_errormsg());
 

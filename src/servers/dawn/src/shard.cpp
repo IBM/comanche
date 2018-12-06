@@ -223,7 +223,14 @@ void Shard::process_message_pool_request(Connection_handler* handler,
 
     try {
       PLOG("opening pool: (%s)", msg->pool_name());
-      auto pool = _i_kvstore->open_pool(_data_dir, msg->pool_name());
+
+      Component::IKVStore::pool_t pool;
+      if(!_po.devdax) {
+	pool = _i_kvstore->open_pool(_data_dir, msg->pool_name());
+      }
+      else {
+	pool = _i_kvstore->open_pool("/dev/","dax0.0", 0);
+      }
 
       if(option_DEBUG)
         PLOG("OP_OPEN: pool id: %lx", pool);
