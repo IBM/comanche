@@ -41,6 +41,24 @@ template <typename T>
 		);
 }
 
+static inline PMEMoid palloc(
+	PMEMobjpool *pop_
+	, std::size_t size_
+	, uint64_t type_num_
+	, const char *use_
+)
+{
+	return
+		palloc_inner(
+			pop_
+			, size_
+			, type_num_
+			, nullptr
+			, nullptr
+			, use_
+		);
+}
+
 void zfree(
 	PMEMoid oid
 	, const char *why

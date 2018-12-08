@@ -54,6 +54,7 @@ using open_pool_handle = std::unique_ptr<PMEMobjpool, void(*)(PMEMobjpool *)>;
 
 namespace
 {
+  constexpr bool option_DEBUG = true;
   namespace type_num
   {
     constexpr uint64_t persist = 1U;
@@ -261,15 +262,6 @@ auto hstore::thread_safety() const -> status_t
 
 namespace
 {
-  using pc_init_arg = std::tuple<std::size_t>;
-  int pc_init(PMEMobjpool *pop, void *ptr_, void *arg_)
-  {
-    const auto ptr = static_cast<pc_t *>(ptr_);
-    const auto arg = static_cast<pc_init_arg *>(arg_);
-    new (ptr) pc_t(std::get<0>(*arg), table_t::allocator_type{pop, type_num::table});
-    return 0; /* return value is not documented, but might be an error code */
-  }
-
   pc_t *map_create_if_null(
     PMEMobjpool *pop_
     , TOID(struct store_root_t) &root
@@ -295,11 +287,10 @@ namespace
           pop_
           , sizeof(pc_t)
           , type_num::persist
-          , pc_init
-          , pc_init_arg(expected_obj_count)
           , "persist"
-       );
+        );
       pc_t *p = static_cast<pc_t *>(pmemobj_direct(oid));
+      new (p) pc_t(expected_obj_count, table_t::allocator_type{pop_, type_num::table});
       table_t::allocator_type{pop_, type_num::table}
         .persist(p, sizeof *p, "persist_data");
       D_RW(root)->pc = oid;
