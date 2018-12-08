@@ -54,7 +54,7 @@ using open_pool_handle = std::unique_ptr<PMEMobjpool, void(*)(PMEMobjpool *)>;
 
 namespace
 {
-  constexpr bool option_DEBUG = true;
+  constexpr bool option_DEBUG = false;
   namespace type_num
   {
     constexpr uint64_t persist = 1U;
