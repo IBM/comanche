@@ -74,8 +74,9 @@ ND_control::ND_control() : _n_sockets(numa_num_configured_nodes())
     if(strcmp(ndctl_region_get_type_name(region),"pmem") == 0) {
 
       if(option_DEBUG)
-        PLOG("region:%d type:%s interleaves:%d numa-node:%d dev:%s size:%llu",         
+        PLOG("region:%d (%p) type:%s interleaves:%d numa-node:%d dev:%s size:%llu",
              ndctl_region_get_id(region),
+	     (void*) ndctl_region_get_resource(region), /* phys addr */
              ndctl_region_get_type_name(region),
              ndctl_region_get_interleave_ways(region),
              ndctl_region_get_numa_node(region),
@@ -116,7 +117,7 @@ ND_control::ND_control() : _n_sockets(numa_num_configured_nodes())
         struct ndctl_dimm * dimm;
         ndctl_dimm_foreach_in_region(region, dimm) {
           /* DIMMs are paired */
-          if(option_DEBUG)
+          if(option_DEBUG && false)
             PLOG("%s->%d",
                  ndctl_namespace_get_devname(ndns),
                  ndctl_dimm_handle_get_socket(dimm));
