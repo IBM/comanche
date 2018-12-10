@@ -157,6 +157,22 @@ INLINE static addr_t round_up(addr_t p, unsigned long alignment)
 }
 
 /** 
+ * Align (upward) address
+ * 
+ * @param p Address to align
+ * @param alignment Alignment in bytes
+ * 
+ * @return Aligned address
+ */
+INLINE static void * round_up(void * p, unsigned long alignment)
+{
+  if (((addr_t)p) % alignment == 0) return p;
+  return (void*) ((mword_t(p) & ~(mword_t(alignment) - 1UL)) + alignment);
+}
+
+
+
+/** 
  * Align (down) address
  * 
  * @param p Address to align
