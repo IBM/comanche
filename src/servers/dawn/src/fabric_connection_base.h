@@ -223,9 +223,16 @@ protected:
 
   bool poll_completions() {
     bool added_deferred_unlock = false;
-    _transport->poll_completions(completion_callback, this);
-    check_for_posted_send_complete();
-    check_for_posted_value_complete(&added_deferred_unlock);
+    try {
+      _transport->poll_completions(completion_callback, this);
+      check_for_posted_send_complete();
+      check_for_posted_value_complete(&added_deferred_unlock);
+    }
+    catch (std::logic_error e) {
+      throw General_exception("client disconnected");
+    }
+      
+      
     return added_deferred_unlock;
   }
   
