@@ -7,12 +7,15 @@
 #include <common/rand.h>
 #include <common/exceptions.h>
 #include <common/spsc_bounded_queue.h>
+#include <core/xms.h>
 #include <api/components.h>
 #include <api/block_itf.h>
 #include <string>
 #include <vector>
 #include <stdio.h>
-
+#include <libpmemobj.h>
+#include <libpmempool.h>
+#include <nupm/nd_utils.h>
 using namespace std;
 
 enum {
@@ -32,24 +35,77 @@ struct {
 #define START_IO_CORE 2
 #define START_CLIENT_CORE 6
 
+
+static int check_pool(const char * path)
+{
+  PMEMpoolcheck *ppc;
+  struct pmempool_check_status * status;
+
+  struct pmempool_check_args args;
+  args.path = path;
+  args.backup_path = NULL;
+  args.pool_type = PMEMPOOL_POOL_TYPE_DETECT;
+  args.flags =
+    PMEMPOOL_CHECK_FORMAT_STR |
+    PMEMPOOL_CHECK_REPAIR |
+    PMEMPOOL_CHECK_VERBOSE;
+
+  if((ppc = pmempool_check_init(&args, sizeof(args))) == NULL) {
+    perror("pmempool_check_init");
+    return -1;
+  }
+
+  /* perform check and repair, answer 'yes' for each question */
+  while ((status = pmempool_check(ppc)) != NULL) {
+    switch (status->type) {
+    case PMEMPOOL_CHECK_MSG_TYPE_ERROR:
+    case PMEMPOOL_CHECK_MSG_TYPE_INFO:
+      break;
+    case PMEMPOOL_CHECK_MSG_TYPE_QUESTION:
+      printf("%s\n", status->str.msg);
+      status->str.answer = "yes";
+      break;
+    default:
+      pmempool_check_end(ppc);
+      return 1;
+    }
+  }
+
+  /* finalize the check and get the result */
+  int ret = pmempool_check_end(ppc);
+  switch (ret) {
+  case PMEMPOOL_CHECK_RESULT_CONSISTENT:
+  case PMEMPOOL_CHECK_RESULT_REPAIRED:
+    return 0;
+  }
+
+  return 1;
+}
+
 class Main
 {
 public:
-  Main(const vector<string>& pci_id_vector);
+  Main(const vector<string>& pci_id_vector, const std::string& pmem_path);
   ~Main();
 
   void run();
-  
+
+  const vector<Component::IBlock_device *> & block_v() const { return _block_v; }
+  const std::string pmem_path() const { return _pmem_path; }
 private:
   void create_block_components(const vector<string>& vs);
 
   vector<Component::IBlock_device *> _block_v;
-  Core::Poller *                     _io_poller;  
+  Core::Poller *                     _io_poller;
+  std::string                  _pmem_path;
 };
 
 
-Main::Main(const vector<string>& pci_id_vector)
+Main::Main(const vector<string>& pci_id_vector, const std::string& pmem_path)
+  : _pmem_path(pmem_path)
 {
+  nupm::ND_control ndctl;
+  assert(0);
   create_block_components(pci_id_vector);
 }
 
@@ -80,10 +136,17 @@ int main(int argc, char * argv[])
       ("rw", "read-write workload")
       ("randwrite", "randomw-write workload")
       ("randread", "random-read workload")
+      ("pmem", po::value<std::string>()->default_value(""), "Use persistent memory for main memory buffers")
+      ("help", "Show help.")
       ;
  
     po::variables_map vm; 
     po::store(po::parse_command_line(argc, argv, desc),  vm);
+    
+    if(vm.count("help")) {
+      std::cout << desc;
+      return -1;
+    }
 
     if(vm.count("threads")) {
       Options.n_client_threads = vm["threads"].as<int>();
@@ -112,7 +175,11 @@ int main(int argc, char * argv[])
     }
        
     if(vm.count("pci")) {
-      m = new Main(vm["pci"].as<std::vector<std::string>>());
+      std::string pmem_path;
+      if(vm.count("pmem"))
+	pmem_path = vm["pmem"].as<const std::string&>();
+      
+      m = new Main(vm["pci"].as<std::vector<std::string>>(), pmem_path);
       m->run();
       delete m;
     }
@@ -135,7 +202,9 @@ private:
   static constexpr bool option_DEBUG = true;
   
 public:
-  IO_task(vector<Component::IBlock_device *> bdv) : _bdv(bdv) {
+  IO_task(Main * m) { //vector<Component::IBlock_device *> bdv) : _bdv(bdv) {
+    _bdv = m->block_v();
+    _pmem_path = m->pmem_path();
   }
   
   void initialize(unsigned core) override {
@@ -144,14 +213,51 @@ public:
     _block->get_volume_info(_vi);
     PLOG("IO_task: %p is using IBlock_device %p (%s) %u/%lu, chunk size %u*4KB", this, _block, _vi.volume_name, index, _bdv.size(), Options.chunk_size_in_block);
 
-    /* create buffers */
-    for(unsigned i=0;i<NUM_BUFFERS;i++) {
-      auto iob = _block->allocate_io_buffer(Options.chunk_size_in_block*KB(4),KB(4), Component::NUMA_NODE_ANY);
-      _buffer_q.enqueue(iob);
+    size_t size = Options.chunk_size_in_block*KB(4) + MB(2);
+    /* check for persistent memory use */
+    if(_pmem_path == "") {
+      /* create buffers */
+      for(unsigned i=0;i<NUM_BUFFERS;i++) {
+	auto iob = _block->allocate_io_buffer(size, KB(4), Component::NUMA_NODE_ANY);
+	_buffer_q.enqueue(iob);
+      }
     }
+    else {
+      PLOG("Using persistent memory (%s)", _pmem_path.c_str());
+      /* open pool */
+      char tmp[128];
+      sprintf(tmp, "%s.%u",_pmem_path.c_str(), core);
+      PMEMobjpool * pool;
+
+      // if(check_pool(tmp) == 0) {
+      // 	pool = pmemobj_open(tmp, "block-perf");
+      // }
+      // else {
+      /* delete existing and create new pool */
+      pmempool_rm(tmp, 0);
+      pool = pmemobj_create(tmp, "block-perf", 0, 0666);
+      
+      for(unsigned i=0;i<NUM_BUFFERS;i++) {
+	PMEMoid oid;
+	int rc = pmemobj_zalloc(pool, &oid, size, 0);
+	void * ptr = round_up(pmemobj_direct(oid),MB(2));
+	PLOG("allocated (%p) in pmem", ptr);
+
+	// addr_t phys = xms_get_phys(ptr);
+	// PLOG("phys=%lx", phys);
+	  
+	auto iob = _block->register_memory_for_io(ptr, (addr_t)ptr, size);
+	//	_buffer_q.enqueue(iob);
+	assert(rc == 0);
+      }
+      PERR("goo");
+      assert(0);
+    }
+
+    
     
     PLOG("IO_task: core(%u) task(%p) using index (%u) pthread (%p)", core, this, index, (void*) pthread_self());
-    _iob = _block->allocate_io_buffer(KB(4),KB(4), Component::NUMA_NODE_ANY);
+    //    _iob = _block->allocate_io_buffer(KB(4),KB(4), Component::NUMA_NODE_ANY);
   }
 
   struct memory_pair {
@@ -256,8 +362,9 @@ private:
   Component::VOLUME_INFO             _vi;
   unsigned long                      _io_count = 0;
   vector<Component::IBlock_device *> _bdv;
+  std::string                        _pmem_path;
   Component::IBlock_device *         _block;
-  Component::io_buffer_t             _iob;
+  //  Component::io_buffer_t             _iob;
   Common::Spsc_bounded_lfq_sleeping<Component::io_buffer_t, NUM_BUFFERS> _buffer_q;
   uint64_t _last_gwid = 0;
 };
@@ -274,7 +381,7 @@ void Main::run()
 
   //  IO_task iot(_block_v);
   {
-    Core::Per_core_tasking<IO_task,typeof(_block_v)> workers(m, _block_v);
+    Core::Per_core_tasking<IO_task,typeof(this)> workers(m, this);
     
     sleep(10);
   }
