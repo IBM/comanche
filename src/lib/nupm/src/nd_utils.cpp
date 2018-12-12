@@ -74,7 +74,8 @@ ND_control::ND_control() : _n_sockets(numa_num_configured_nodes())
     if(strcmp(ndctl_region_get_type_name(region),"pmem") == 0) {
 
       if(option_DEBUG)
-        PLOG("region:%d type:%s interleaves:%d numa-node:%d dev:%s size:%llu",         
+        PLOG("region:%d (%p) type:%s interleaves:%d numa-node:%d dev:%s size:%llu",
+             (void*) ndctl_region_get_resource(region),
              ndctl_region_get_id(region),
              ndctl_region_get_type_name(region),
              ndctl_region_get_interleave_ways(region),
