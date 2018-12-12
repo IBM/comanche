@@ -369,7 +369,7 @@ auto hstore::create_pool(
     pop.reset(pmemobj_create(fullpath.c_str(), REGION_NAME, size, 0666));
     if (not pop)
     {
-      throw General_exception("failed to create new pool %s\n", pmemobj_errormsg());
+      throw General_exception("failed to create new pool (%s)\n", pmemobj_errormsg());
     }
   }
   else {
@@ -380,9 +380,15 @@ auto hstore::create_pool(
 
     if (check_pool(fullpath.c_str()) != 0)
     {
+      if(pmempool_rm(fullpath.c_str(), PMEMPOOL_RM_FORCE | PMEMPOOL_RM_POOLSET_LOCAL))
+	throw General_exception("pmempool_rm on (%s) failed", fullpath.c_str());
+
       pop.reset(pmemobj_create(fullpath.c_str(), REGION_NAME, size, 0666));
-      if (not pop)
-	throw General_exception("failed to create new pool");
+      if (not pop) {
+	pop.reset(pmemobj_create(fullpath.c_str(), REGION_NAME, 0, 0666)); /* size = 0 for devdax */
+	if (not pop)
+	  throw General_exception("failed to create new pool (%s)", fullpath.c_str());
+      }
     }
     else {
       /* open existing */
