@@ -69,7 +69,7 @@ public:
         }
         catch(...)
         {
-          PERR("put call failed! Ending experiment.");
+          PERR("put call failed! Returned %d. Ending experiment.", rc);
           throw std::exception();
         }
         end = rdtsc();
