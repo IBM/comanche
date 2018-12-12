@@ -17,8 +17,6 @@
 
 class hstore : public Component::IKVStore
 {
-  static constexpr bool option_DEBUG = false;
-
   void delete_pool(const std::string &path, const std::string &name);
 public:
   /** 
@@ -135,6 +133,10 @@ public:
     const std::string& key,
     const std::vector<Operation *> &op_vector,
     bool take_lock) override;
+
+  status_t get_pool_regions(
+    pool_t pool,
+    std::vector<::iovec>& out_regions) override;
 };
 
 class hstore_factory : public Component::IKVStore_factory
@@ -164,7 +166,7 @@ public:
   Component::IKVStore * create(const std::string &owner,
                                const std::string &name) override
   {
-    auto obj = static_cast<Component::IKVStore *>(new hstore(owner, name));
+    Component::IKVStore *obj = new hstore(owner, name);
     obj->add_ref();
     return obj;
   }
