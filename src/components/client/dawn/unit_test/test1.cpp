@@ -11,12 +11,12 @@
 #include <chrono> /* milliseconds */
 #include <thread> /* this_thread::sleep_for */
 
-#define TEST_BASIC_PUT_AND_GET
+//#define TEST_BASIC_PUT_AND_GET
 //#define TEST_PUT_DIRECT_0
 //#define TEST_PUT_DIRECT_1
 #define TEST_PERF_SMALL_PUT
-#define TEST_PERF_SMALL_GET
-#define TEST_PERF_SMALL_PUT_DIRECT
+//#define TEST_PERF_SMALL_GET
+//#define TEST_PERF_SMALL_PUT_DIRECT
 //#define TEST_PERF_LARGE_PUT_DIRECT
 //#define TEST_PERF_LARGE_GET_DIRECT
 
@@ -170,10 +170,18 @@ TEST_F(Dawn_client_test, PerfSmallPut)
 TEST_F(Dawn_client_test, PerfSmallPutDirect)
 {
   int rc;
-  
-  auto pool = _dawn->create_pool("/mnt/pmem0/dawn",
-                                 Options.pool.c_str(),
-                                 GB(4));
+
+    /* open or create pool */
+  Component::IKVStore::pool_t pool = _dawn->open_pool("/mnt/pmem0/dawn",
+                                                      Options.pool.c_str(),
+                                                      0);
+
+  if(pool == Component::IKVStore::POOL_ERROR) {
+    /* ok, try to create pool instead */
+    pool = _dawn->create_pool("/mnt/pmem0/dawn",
+                              Options.pool.c_str(),
+                              GB(1));
+  }
 
   static constexpr unsigned long ITERATIONS = 1000000;
   static constexpr unsigned long VALUE_SIZE = 32;
@@ -226,14 +234,30 @@ TEST_F(Dawn_client_test, PerfSmallPutDirect)
 TEST_F(Dawn_client_test, PerfLargePutDirect)
 {
   int rc;
-  
-  auto pool = _dawn->create_pool("/mnt/pmem0/dawn",
-                                 Options.pool.c_str(),
-                                 GB(8));
 
-  static constexpr unsigned long PER_ITERATION = 8;
+  /* open or create pool */
+  Component::IKVStore::pool_t pool = _dawn->open_pool("/mnt/pmem0/dawn",
+                                                      Options.pool.c_str(),
+                                                      0);
+
+  if(pool == Component::IKVStore::POOL_ERROR) {
+    /* ok, try to create pool instead */
+    pool = _dawn->create_pool("/mnt/pmem0/dawn",
+                              Options.pool.c_str(),
+                              GB(8));
+
+                             //    virtual pool_t create_pool(const std::string& path,
+                             // const std::string& name,
+                             // const size_t size,
+                             // unsigned int flags = 0,
+                             // uint64_t expected_obj_count = 0) = 0;
+  }
+
+  
+
+  static constexpr unsigned long PER_ITERATION = 4;
   static constexpr unsigned long ITERATIONS = 100;
-  static constexpr unsigned long VALUE_SIZE = MB(64);
+  static constexpr unsigned long VALUE_SIZE = MB(512);
   static constexpr unsigned long KEY_SIZE = 16;
 
   
@@ -273,7 +297,8 @@ TEST_F(Dawn_client_test, PerfLargePutDirect)
 
   auto end = std::chrono::high_resolution_clock::now();
   auto secs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() / 1000.0;
-  PINF("PerfLargePutDirect Throughput: %.2f MiB/sec", (( PER_ITERATION * ITERATIONS * VALUE_SIZE ) / secs )/(1024.0 * 1024));
+  PINF("PerfLargePutDirect Throughput: %.2f MiB/sec",
+       (( PER_ITERATION * ITERATIONS * VALUE_SIZE ) / secs )/(1024.0 * 1024));
 
   _dawn->close_pool(pool);
   

@@ -50,6 +50,9 @@ Connection_handler::pool_t Connection_handler::open_pool(const std::string path,
     throw Protocol_exception("expected POOL_RESPONSE message - got %x", response_msg->type_id);
 
   free_buffer(iob);
+
+  if(msg->status == -1) return 0;
+  
   return response_msg->pool_id;
 }
 
