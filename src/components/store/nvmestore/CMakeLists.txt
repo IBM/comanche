@@ -16,10 +16,10 @@ file(GLOB SOURCES ./src/*.c*)
 
 add_library(${PROJECT_NAME} SHARED ${SOURCES})
 
-target_link_libraries(${PROJECT_NAME} common comanche-core pthread numa dl rt boost_system boost_filesystem pmem pmemobj )
+target_link_libraries(${PROJECT_NAME} common comanche-core pthread numa dl rt boost_system boost_filesystem pmem pmemobj pmempool tbb cityhash)
 
 set_target_properties(${PROJECT_NAME} PROPERTIES 
-  INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib;${PMDK_PREFIX}/src/nondebug")
+  INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib;${CMAKE_INSTALL_PREFIX}/lib64;${PMDK_PREFIX}/src/nondebug")
 
 install(TARGETS ${PROJECT_NAME}
     LIBRARY 

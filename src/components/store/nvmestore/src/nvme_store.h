@@ -49,7 +49,7 @@ class NVME_store : public Component::IKVStore
   using io_buffer_t = uint64_t;
 private:
   static constexpr bool option_DEBUG = true;
-  static constexpr size_t BLOCK_SIZE = 4096;
+  static constexpr size_t BLOCK_SIZE = 4096; // TODO: this should be obtained by querying the block device
   static constexpr size_t CHUNK_SIZE_IN_BLOCKS= 8; // large IO will be splited into CHUNKs, 8*4k  seems gives optimal
   static constexpr size_t DEFAULT_IO_MEM_SIZE= MB(8); // initial IO memory size in bytes 
   std::unordered_map<pool_t, std::atomic<size_t>> _cnt_elem_map;
@@ -69,8 +69,9 @@ public:
   /** 
    * Constructor
    * 
-   * @param blk_dev_device Block device interface
-   * @param blk_alloc Block allocator
+   * @param owner
+   * @param name
+   * @param pci pci address of the Nvme
    */
   NVME_store(const std::string& owner,
              const std::string& name,

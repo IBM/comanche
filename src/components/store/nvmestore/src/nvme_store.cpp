@@ -633,15 +633,16 @@ IKVStore::key_t NVME_store::lock(const pool_t pool,
   try {
     val = hm_tx_get(pop, D_RW(root)->map, key_hash);
     
-    if(OID_IS_NULL(val.oid))
+    if(OID_IS_NULL(val.oid)){
+      /* TODO: need to create new object and continue */
       throw General_exception("nvme_store::lock key not found");
+    }
 
 #ifdef USE_ASYNC
     /* there might be pending async write for this object */
     uint64_t tag = D_RO(val)->last_tag;
     while(!blk_dev->check_completion(tag)) cpu_relax(); /* check the last completion */
 #endif
-
     
     if(type == IKVStore::STORE_LOCK_READ) {
       if(!_sm.state_get_read_lock(pool, D_RO(val)->handle))

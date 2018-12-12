@@ -1,5 +1,11 @@
 # Changelog
 This is the changelog for nvmestore
+[2018-12-12]:
+#notes:
+1. register directly memory, take a look at the dawn
+2. lock/unlock.
+  * currently lock trigger allocate io memory, this need to be fixed
+  * check lock when operating during puts/gets?, check unit\_test of other store(e.g. hstore)
 
 [2018-11-12]:
 #todo:
@@ -10,12 +16,10 @@ This is the changelog for nvmestore
   - test more cores
   - put\_direct
 
-#question:
-  - why 
 
 [2018-07-31]: 
 #added:
-  - more documents 
+  - more documents
   - test-nvmestore now can be also used to test file store performance(temprary use)
 #todo:
   - support new kv interface(uint64_t hashkey)
