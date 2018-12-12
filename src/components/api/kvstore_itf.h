@@ -65,6 +65,10 @@ public:
     FLAGS_CREATE_ONLY = 3,
   };
 
+  enum {
+    POOL_ERROR = 0,
+  };
+
   enum class Op_type {
     WRITE, /* copy bytes into memory region */
     ZERO, /* zero the memory region */
