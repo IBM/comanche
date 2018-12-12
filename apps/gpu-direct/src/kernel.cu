@@ -17,21 +17,21 @@
 #include <infiniband/verbs_exp.h>
 #include <cuda.h>
 
-#define ASSERT(x)           \
-	do {											\
-	if (!(x)) {										\
-		fprintf(stdout, "Assertion \"%s\" failed at %s:%d\n", #x, __FILE__, __LINE__);	\
-	}											\
-} while (0)
+#define ASSERT(x)                                                       \
+	do {                                                                  \
+    if (!(x)) {                                                         \
+      fprintf(stdout, "Assertion \"%s\" failed at %s:%d\n", #x, __FILE__, __LINE__); \
+    }                                                                   \
+  } while (0)
 
-#define CUDA_CHECK(x)  if(x != cudaSuccess) \
+#define CUDA_CHECK(x)  if(x != cudaSuccess)                             \
     PERR("error: cuda err=%s", cudaGetErrorString (cudaGetLastError()));
 
 #define CUCHECK(stmt)                           \
-	do {					\
-	CUresult result = (stmt);		\
-	ASSERT(CUDA_SUCCESS == result);		\
-} while (0)
+	do {                                          \
+    CUresult result = (stmt);                   \
+    ASSERT(CUDA_SUCCESS == result);             \
+  } while (0)
 
 static CUdevice cuDevice;
 static CUcontext cuContext;
@@ -44,69 +44,70 @@ __global__ void verify_memory(void * ptr)
 
 extern "C" void run_cuda(Component::IKVStore * store)
 { 
-  PINF("run_test (cuda app lib)\n");
+  PINF("run_test (cuda app lib)");
 
   CUresult error = cuInit(0);
 	if (error != CUDA_SUCCESS) {
-		PINF("cuInit(0) returned %d\n", error);
+		PINF("cuInit(0) returned %d", error);
 		exit(1);
 	}
 
 	int deviceCount = 0;
 	error = cuDeviceGetCount(&deviceCount);
 	if (error != CUDA_SUCCESS) {
-		PINF("cuDeviceGetCount() returned %d\n", error);
+		PINF("cuDeviceGetCount() returned %d", error);
 		exit(1);
 	}
 	/* This function call returns 0 if there are no CUDA capable devices. */
 	if (deviceCount == 0) {
-		throw General_exception("There are no available device(s) that support CUDA\n");
+		throw General_exception("There are no available device(s) that support CUDA");
 	} else if (deviceCount == 1)
-		PINF("There is 1 device supporting CUDA\n");
+		PINF("There is 1 device supporting CUDA");
 	else
-		PINF("There are %d devices supporting CUDA, picking first...\n", deviceCount);
+		PINF("There are %d devices supporting CUDA, picking first...", deviceCount);
 
-  int devID = 0;
+  int devID = 1;
 	/* pick up device with zero ordinal (default, or devID) */
 	CUCHECK(cuDeviceGet(&cuDevice, devID));
 
   char name[128];
 	CUCHECK(cuDeviceGetName(name, sizeof(name), devID));
-	PINF("[pid = %d, dev = %d] device name = [%s]\n", getpid(), cuDevice, name);
-	PINF("creating CUDA Ctx\n");
+	PINF("[pid = %d, dev = %d] device name = [%s]", getpid(), cuDevice, name);
+	PINF("creating CUDA Ctx");
 
 	/* Create context */
 	error = cuCtxCreate(&cuContext, CU_CTX_MAP_HOST, cuDevice);
 	if (error != CUDA_SUCCESS) {
-		throw General_exception("cuCtxCreate() error=%d\n", error);
+		throw General_exception("cuCtxCreate() error=%d", error);
 	}
 
-	PINF("making it the current CUDA Ctx\n");
+	PINF("making it the current CUDA Ctx");
 	error = cuCtxSetCurrent(cuContext);
 	if (error != CUDA_SUCCESS) {
-		throw General_exception("cuCtxSetCurrent() error=%d\n", error);
+		throw General_exception("cuCtxSetCurrent() error=%d", error);
 	}
   
-  const size_t buffer_size = MB(128);
+  const size_t obj_size = MB(1);
   CUdeviceptr d_A;
 
-  /* allocate GPU side memory and map with gdr into CPU side */
-	error = cuMemAlloc(&d_A, buffer_size);
-	if (error != CUDA_SUCCESS) {
-		throw General_exception("cuMemAlloc error=%d\n", error);
-	}
-	PINF("allocated GPU buffer address at %016llx pointer=%p\n", d_A,
-	       (void *) d_A);
+  /* allocate GPU side memory */
+	error = cuMemAlloc(&d_A, obj_size);
+	if (error != CUDA_SUCCESS)
+		throw General_exception("cuMemAlloc error=%d", error);
+  
+	PINF("allocated GPU buffer address at %p", d_A);
 
-  cuMemsetD8(d_A, 0xBB, buffer_size);
+  cuMemsetD8(d_A, 0xBB, obj_size);
   verify_memory<<<1,1>>>((char*)d_A);
 
   /* register memory with RDMA engine */
-  auto handle = store->register_direct_memory((void*)d_A, buffer_size);
+  auto handle = store->register_direct_memory((void*)d_A, obj_size);
   assert(handle);
+  PLOG("registered memory with storage/RDMA.. OK (handle=%p)", handle);
   
   /* create pool */
-  auto pool = store->create_pool("/mnt/pmem0","gpu0", GiB(8));
+  auto pool = store->create_pool("/pools","gpu0", MiB(2));
+  PLOG("Pool created OK.");
   
   /* put into dawn storage */
   status_t rc;
@@ -115,7 +116,7 @@ extern "C" void run_cuda(Component::IKVStore * store)
   constexpr unsigned ITERATIONS = 10;
   
   for(unsigned i=0;i<ITERATIONS;i++) {
-    rc = store->put_direct(pool, "key0", (void*)d_A, buffer_size, handle);
+    rc = store->put_direct(pool, "key0", (void*)d_A, obj_size, handle);
     assert(rc == S_OK);
   }
 
@@ -124,12 +125,12 @@ extern "C" void run_cuda(Component::IKVStore * store)
   PMAJOR("GPU-to-Dawn Throughput: %f MB/s", (128.0f * ITERATIONS) / secs);
 
   /* zero memory on GPU */
-  cuMemsetD8(d_A, 0x0, buffer_size);
+  cuMemsetD8(d_A, 0x0, obj_size);
   cudaDeviceSynchronize();
   verify_memory<<<1,1>>>((char*)d_A);
 
   /* reload memory from store */
-  size_t rsize = buffer_size;
+  size_t rsize = obj_size;
   assert(rsize > 0);
   
   start = std::chrono::high_resolution_clock::now();
@@ -139,7 +140,7 @@ extern "C" void run_cuda(Component::IKVStore * store)
     if(rc != S_OK) 
       throw General_exception("get_direct: returned %d", rc);
 
-    assert(rsize == buffer_size);
+    assert(rsize == obj_size);
   }
   
   end = std::chrono::high_resolution_clock::now();
