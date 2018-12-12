@@ -5,6 +5,7 @@ project(block-perf CXX)
 add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 
 include_directories(${CMAKE_INSTALL_PREFIX}/include)
+include_directories(${CMAKE_INSTALL_PREFIX}/include/dpdk)
 link_directories(${CMAKE_INSTALL_PREFIX}/lib64)
 
 add_executable(block-perf src/main.cpp)
