@@ -45,7 +45,7 @@ public:
   bool                                  _ready = false;
   Stopwatch timer;
   bool _verbose = false;
-  bool _summary = true;
+  bool _summary = false;
 
   // member variables for tracking pool sizes
   long _element_size = -1;
@@ -278,13 +278,8 @@ public:
           _bin_threshold_max = vm["latency_range_max"].as<double>();
         }
 
-        if (vm.count("verbose") > 0) {
-          _verbose = vm["verbose"].as<bool>();
-        }
-
-        if (vm.count("summary") > 0)  {
-          _summary = vm["summary"].as<bool>();
-        }
+        _verbose = vm.count("verbose");
+        _summary = vm.count("summary");
       } 
     catch (const po::error &ex)
       {
