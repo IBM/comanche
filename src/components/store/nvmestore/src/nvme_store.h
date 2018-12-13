@@ -165,12 +165,6 @@ public:
 
 private:
 
-  virtual int __apply(const pool_t pool,
-                      uint64_t key_hash,
-                      std::function<void(void*,const size_t)> functor,
-                      size_t size);
-                      
-
   /*
    * open the block device, reuse if it exists already
    *

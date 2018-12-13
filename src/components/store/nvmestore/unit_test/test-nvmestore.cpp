@@ -273,6 +273,25 @@ TEST_F(KVStore_test, BasicErase)
   _kvstore->erase(_pool, "MyKey");
 }
 
+TEST_F(KVStore_test, BasicApply)
+{
+  void * data;
+  size_t data_len = 0;
+  std::string key = "Elephant";
+  PLOG("Allocate: key_hash=%s", key.c_str());
+
+  PLOG("test 1");
+  ASSERT_TRUE(_kvstore->apply(_pool, key,
+                              [](void*p, const size_t plen) { memset(p,0xE,plen); },
+                              MB(8),
+                              true) == S_OK);
+
+  _kvstore->get(_pool, key, data, data_len);
+  EXPECT_EQ(MB(8), data_len);
+  EXPECT_EQ(0xE, *(char *)data);
+  EXPECT_EQ(0xE, *((char *)data+5));
+}
+
 #endif
 
 
@@ -383,33 +402,9 @@ TEST_F(KVStore_test, ThroughputGetDirect){
 }
 
 
-#if 0
 
-TEST_F(KVStore_test, Allocate)
-{
-  uint64_t key_hash = 0;
-  ASSERT_TRUE(_kvstore->allocate(_pool, "Elephant", MB(8), key_hash) == S_OK);
-  PLOG("Allocate: key_hash=%lx", key_hash);
 
-  PLOG("test 1");
-  ASSERT_TRUE(_kvstore->apply(_pool, key_hash,
-                              [](void*p, const size_t plen) { memset(p,0xE,plen); }) == S_OK);
 
-  PLOG("test 2");
-  ASSERT_TRUE(_kvstore->apply(_pool, key_hash,
-                              [](void*p, const size_t plen) { memset(p,0xE,plen); },
-                              KB(4),
-                              MB(2)) == S_OK);
-
-  /* out of bounds */
-  PLOG("test 3");
-  ASSERT_FALSE(_kvstore->apply(_pool, key_hash,
-                               [](void*p, const size_t plen) { memset(p,0xE,plen); },
-                               MB(128),
-                               MB(2)) == S_OK);
-
-}
-#endif
 
 #ifdef DO_ERASE
 TEST_F(KVStore_test, ErasePool)
