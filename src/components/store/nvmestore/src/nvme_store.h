@@ -61,6 +61,7 @@ private:
 
   /* type of block io*/
   enum {
+    BLOCK_IO_NOP = 0,
     BLOCK_IO_READ = 1,
     BLOCK_IO_WRITE = 2,
   };

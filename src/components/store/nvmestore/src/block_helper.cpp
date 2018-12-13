@@ -146,6 +146,9 @@ status_t  NVME_store::do_block_io(Component::IBlock_device * block,
                          lba_t lba,
                          size_t nr_io_blocks){
   switch (type){
+    case BLOCK_IO_NOP:
+      break;
+
     case BLOCK_IO_READ:
 
       if(nr_io_blocks < CHUNK_SIZE_IN_BLOCKS)
