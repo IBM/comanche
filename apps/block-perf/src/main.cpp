@@ -181,7 +181,7 @@ int main(int argc, char* argv[]) {
       ("iothreads", po::value<int>(), "# IO threads (default 1)")
       ("rw", "read-write workload")("randwrite", "randomw-write workload")
       ("randread", "random-read workload")
-      ("pmem", po::value<std::string>()->default_value(""),"Use persistent memory for main memory buffers")
+      ("pmem", po::value<std::string>(),"Use persistent memory for main memory buffers")
       ("time", po::value<unsigned>()->default_value(60),"Duration in seconds")
       ("help", "Show help.");
 
