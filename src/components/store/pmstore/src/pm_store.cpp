@@ -528,6 +528,7 @@ PM_store::lock(const pool_t pool,
        allocate value space equal in size to out_value_len */
     if(OID_IS_NULL(val.oid)) {
 
+      PINF("Creating new value (%s)", key.c_str());
       if(out_value_len == 0)
         return Component::IKVStore::KEY_NONE;
 
