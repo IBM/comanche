@@ -56,6 +56,7 @@ struct open_session_t
   size_t io_mem_size; // io memory size which will an object;
   Component::IBlock_device *_blk_dev;
   Component::IBlock_allocator *_blk_alloc;
+  std::unordered_map<uint64_t, io_buffer_t> _locked_regions;
 };
 
 struct tls_cache_t {
@@ -572,7 +573,6 @@ IKVStore::memory_handle_t NVME_store::register_direct_memory(void * vaddr, size_
 //                               uint64_t& out_key_hash)
 // {
 //   open_session_t * session = get_session(pool);
-  
 //   auto& root = session->root;
 //   auto& pop = session->pop;
 
@@ -640,6 +640,7 @@ IKVStore::key_t NVME_store::lock(const pool_t pool,
 
   auto& root = session->root;
   auto& pop = session->pop;
+  int operation_type= BLOCK_IO_NOP;
 
   /*this will lock the io  memory size*/
   if(session->io_mem){
@@ -661,35 +662,8 @@ IKVStore::key_t NVME_store::lock(const pool_t pool,
       uint64_t tag = D_RO(blk_info)->last_tag;
       while(!blk_dev->check_completion(tag)) cpu_relax(); /* check the last completion */
 #endif
-      if(type == IKVStore::STORE_LOCK_READ) {
-        if(!_sm.state_get_read_lock(pool, D_RO(blk_info)->handle))
-          throw General_exception("%s: unable to get read lock", __func__);
-      }
-      else {
-        if(!_sm.state_get_write_lock(pool, D_RO(blk_info)->handle))
-          throw General_exception("%s: unable to get write lock", __func__);
-      }
-
-      auto handle = D_RO(blk_info)->handle;
-      auto value_len = D_RO(blk_info)->size; // the length allocated before
-      auto lba = D_RO(blk_info)->lba_start;
-
-      /* fetch the data to block io mem */
-      size_t nr_io_blocks = (value_len + BLOCK_SIZE -1)/BLOCK_SIZE;
-      io_buffer_t mem = blk_dev->allocate_io_buffer(nr_io_blocks*4096, 4096,Component::NUMA_NODE_ANY);
-
-      do_block_io(blk_dev, BLOCK_IO_READ, mem, lba, nr_io_blocks);
-
-      PINF("NVME_store: read to io memory at %lu", mem);
-
-      session->io_mem = mem; //TODO: can be placed in another place
-      session->io_mem_size = nr_io_blocks*4096;
-
-      /* set output values */
-      out_value = blk_dev->virt_addr(mem);
-      out_value_len = value_len;
+      operation_type = BLOCK_IO_READ;
     }
-
     else{
       /* TODO: need to create new object and continue */
       if(!out_value_len){
@@ -697,6 +671,31 @@ IKVStore::key_t NVME_store::lock(const pool_t pool,
       }
       __alloc_new_object(session, hashkey,out_value_len, blk_info);
     }
+
+    if(type == IKVStore::STORE_LOCK_READ) {
+      if(!_sm.state_get_read_lock(pool, D_RO(blk_info)->handle))
+        throw General_exception("%s: unable to get read lock", __func__);
+    }
+    else {
+      if(!_sm.state_get_write_lock(pool, D_RO(blk_info)->handle))
+        throw General_exception("%s: unable to get write lock", __func__);
+    }
+
+    auto handle = D_RO(blk_info)->handle;
+    auto value_len = D_RO(blk_info)->size; // the length allocated before
+    auto lba = D_RO(blk_info)->lba_start;
+
+    /* fetch the data to block io mem */
+    size_t nr_io_blocks = (value_len + BLOCK_SIZE -1)/BLOCK_SIZE;
+    io_buffer_t mem = blk_dev->allocate_io_buffer(nr_io_blocks*4096, 4096,Component::NUMA_NODE_ANY);
+
+    do_block_io(blk_dev, operation_type, mem, lba, nr_io_blocks);
+
+    session->_locked_regions.emplace(hashkey, mem); //TODO: can be placed in another place
+
+    /* set output values */
+    out_value = blk_dev->virt_addr(mem);
+    out_value_len = value_len;
   }
   catch(...){
     PERR("NVME_store: lock failed");
@@ -711,8 +710,6 @@ IKVStore::key_t NVME_store::lock(const pool_t pool,
  * For nvmestore, data is not necessarily in main memory.
  * Lock will allocate iomem and load data from nvme first.
  * Unlock will will free it
- * This will send async io to nvme and return, the completion will be
- * checked for either get() or the next lock()/apply
  */
 status_t NVME_store::unlock(const pool_t pool,
                             key_t key_hash)
@@ -722,7 +719,6 @@ status_t NVME_store::unlock(const pool_t pool,
   auto& root = session->root;
   auto& pop = session->pop;
 
-  assert(session->io_mem);
 
   auto& blk_dev = session->_blk_dev;
 
@@ -736,10 +732,10 @@ status_t NVME_store::unlock(const pool_t pool,
     auto lba = D_RO(blk_info)->lba_start;
 
     size_t nr_io_blocks = (val_len + BLOCK_SIZE -1)/BLOCK_SIZE;
-    io_buffer_t mem = session->io_mem;
+    io_buffer_t mem = session->_locked_regions.at((uint64_t)key_hash);
 
     /*flush and release iomem*/
-#if USE_ASYNC
+#ifdef USE_ASYNC
     uint64_t tag = blk_dev->async_write(mem, 0, lba, nr_io_blocks);
     D_RW(blk_info)->last_tag = tag;
 #else
@@ -752,7 +748,7 @@ status_t NVME_store::unlock(const pool_t pool,
     PINF("NVME_store: released the lock");
   }
   catch(...) {
-    throw General_exception("hm_tx_get failed unexpectedly");
+    throw General_exception("hm_tx_get failed unexpectedly or iomem not found");
   }
 
   return S_OK;

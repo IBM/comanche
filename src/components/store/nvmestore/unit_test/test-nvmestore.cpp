@@ -218,7 +218,7 @@ TEST_F(KVStore_test, BasicMap)
 
 
 /* lock */
-TEST_F(KVStore_test, DISABLED_LockBasic)
+TEST_F(KVStore_test, LockBasic)
 {
   unsigned ct = 0;
 
