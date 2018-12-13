@@ -642,12 +642,6 @@ IKVStore::key_t NVME_store::lock(const pool_t pool,
   auto& pop = session->pop;
   int operation_type= BLOCK_IO_NOP;
 
-  /*this will lock the io  memory size*/
-  if(session->io_mem){
-    session->_blk_dev->free_io_buffer(session->io_mem);
-    session->io_mem = 0;
-  }
-  assert(session->io_mem == 0);
   auto& blk_dev = session->_blk_dev;
 
   uint64_t hashkey = CityHash64(key.c_str(), key.length());
@@ -670,6 +664,7 @@ IKVStore::key_t NVME_store::lock(const pool_t pool,
           throw General_exception("%s: Need value length to lock a unexsiting object", __func__);
       }
       __alloc_new_object(session, hashkey,out_value_len, blk_info);
+      _cnt_elem_map[pool]++;
     }
 
     if(type == IKVStore::STORE_LOCK_READ) {
@@ -742,6 +737,8 @@ status_t NVME_store::unlock(const pool_t pool,
     do_block_io(blk_dev, BLOCK_IO_WRITE, mem, lba, nr_io_blocks);
 #endif
 
+    blk_dev->free_io_buffer(mem);
+
     /*release the lock*/
     _sm.state_unlock(pool, D_RO(blk_info)->handle);
 
@@ -763,91 +760,22 @@ status_t NVME_store::apply(const pool_t pool,
 
   void * data;
   size_t value_len = 0;
+  key_t obj_key;
 
+  if(take_lock){
+    obj_key = lock(pool, key, IKVStore::STORE_LOCK_WRITE, data, object_size);
+  }
   /* TODO FIX: for take_lock. if take_lock == TRUE then use a lock here */
   //  lock(pool, CityHash64(key.c_str(), key.length()),IKVStore::STORE_LOCK_READ, data, value_len);
-  //  return __apply(pool,CityHash64(key.c_str(), key.length()),functor, object_size);
-  return E_NOT_IMPL;
-}
+  functor(data, object_size);
 
-// status_t NVME_store::apply(const pool_t pool,
-//                            uint64_t key_hash,
-//                            std::function<void(void*,const size_t)> functor,
-//                            size_t size)
-// {
-//   void * data;
-//   size_t value_len = 0;
-
-//   lock(pool, key_hash,IKVStore::STORE_LOCK_READ, data, value_len );
-//   return __apply(pool, key_hash, functor, size);
-// }
-
-// status_t NVME_store::locked_apply(const pool_t pool,
-//                                   const std::string& key,
-//                                   std::function<void(void*,const size_t)> functor,
-//                                   size_t size)
-// {
-//   return __apply(pool, CityHash64(key.c_str(), key.length()), functor, size);
-// }
-
-// status_t NVME_store::locked_apply(const pool_t pool,
-//                                   uint64_t key_hash,
-//                                   std::function<void(void*,const size_t)> functor,
-//                                   size_t size)
-// {
-//   return __apply(pool, key_hash, functor, size);
-// }
-
-/* currently requires lock from outside
-   this will release the lock before returning*/
-int NVME_store::__apply(const pool_t pool,
-                        uint64_t key_hash,
-                        std::function<void(void*,const size_t)> functor,
-                        size_t object_size)
-{
-  open_session_t * session = get_session(pool);
-
-  auto& root = session->root;
-  auto& pop = session->pop;
-
-  assert(session->io_mem);
-  auto& blk_dev = session->_blk_dev;
-
-  TOID(struct block_range) blk_info;
-  try {
-    blk_info = hm_tx_get(pop, D_RW(root)->map, key_hash);
-    if(OID_IS_NULL(blk_info.oid))
-      return E_KEY_NOT_FOUND;
-
-    auto data = blk_dev->virt_addr(session->io_mem);
-    auto data_len = D_RO(blk_info)->size;
-
-    auto offset_data = (void*) (((unsigned long) data));
-    size_t size_to_tx = data_len;
-
-    /* for nvmestore, the change will be synced to nvme when unlocked
-     * This can be improved to using pmemobj api*/
-    functor(offset_data, size_to_tx); /* execute functor inside of the transaction */
-
-#if 0
-    TX_BEGIN(pop) {
-      pmemobj_tx_add_range_direct(offset_data, size_to_tx); /* add only transaction range */
-      functor(offset_data, size_to_tx); /* execute functor inside of the transaction */
-    }
-    TX_ONABORT {
-      throw General_exception("TX abort");
-    }
-    TX_END
-#endif
-
-      unlock(pool, reinterpret_cast<IKVStore::key_t>(key_hash));
+  if(take_lock){
+    unlock(pool, obj_key);
   }
-  catch(...) {
-    throw General_exception("hm_tx_get failed unexpectedly");
-  }
-
   return S_OK;
+
 }
+
 
 status_t NVME_store::erase(const pool_t pool,
                            const std::string& key)
