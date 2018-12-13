@@ -38,8 +38,8 @@ POBJ_LAYOUT_END(nvme_store);
  * for block allocator
  */
 typedef struct block_range{
-  int offset;
-  int size;
+  int lba_start;
+  int size; // size in bytes
   void * handle; // handle to free this block
   //uint64_t last_tag; // tag for async block io
 } block_range_t;
