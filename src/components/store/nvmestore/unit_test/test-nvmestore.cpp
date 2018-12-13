@@ -218,11 +218,11 @@ TEST_F(KVStore_test, BasicMap)
 
 
 /* lock */
-TEST_F(KVStore_test, LockBasic)
+TEST_F(KVStore_test, DISABLED_LockBasic)
 {
   unsigned ct = 0;
 
-  Component::IKVStore::pool_t pool = pool;
+  Component::IKVStore::pool_t pool = _pool;
 
   for ( auto &kv : kvv )
   {

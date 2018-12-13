@@ -1,5 +1,9 @@
 # Changelog
 This is the changelog for nvmestore
+[2018-12-13]:
+#notes:
+1. there is only one piece of iomem, instead I should use a slab allocator (similar to blkmeta)
+2. How about blksize=512
 [2018-12-12]:
 #notes:
 1. register directly memory, take a look at the dawn
