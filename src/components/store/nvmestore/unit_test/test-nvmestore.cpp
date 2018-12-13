@@ -70,6 +70,10 @@ class KVStore_test : public ::testing::Test {
   static Component::IKVStore * _kvstore2;
   static Component::IKVStore::pool_t _pool;
   static bool _pool_is_reopen;  // this run is open a previously created pool
+
+  using kv_t = std::tuple<std::string, std::string>;
+  static std::vector<kv_t> kvv;
+  static constexpr unsigned single_value_length = MB(8);
 };
 
 
@@ -77,6 +81,9 @@ Component::IKVStore * KVStore_test::_kvstore;
 Component::IKVStore * KVStore_test::_kvstore2;
 Component::IKVStore::pool_t KVStore_test::_pool;
 bool KVStore_test::_pool_is_reopen;
+
+constexpr unsigned KVStore_test::single_value_length;
+std::vector<KVStore_test::kv_t> KVStore_test::kvv;
 
 TEST_F(KVStore_test, Instantiate)
 {
@@ -139,7 +146,9 @@ TEST_F(KVStore_test, BasicPut)
   std::string key = "MyKey";
   std::string value = "Hello world!";
   //  value.resize(value.length()+1); /* append /0 */
-  value.resize(MB(8));
+  value.resize(single_value_length);
+
+  kvv.emplace_back(key, value);
     
   EXPECT_TRUE(S_OK == _kvstore->put(_pool, key, value.c_str(), value.length()));
 }
@@ -155,7 +164,7 @@ TEST_F(KVStore_test, GetDirect)
   void * value = nullptr;
   size_t value_len = 0;
 
-  handle = mem_alloc.allocate_io_buffer(MB(8), 4096, Component::NUMA_NODE_ANY);
+  handle = mem_alloc.allocate_io_buffer(single_value_length, 4096, Component::NUMA_NODE_ANY);
   ASSERT_TRUE(handle);
   value = mem_alloc.virt_addr(handle);
 
@@ -207,146 +216,82 @@ TEST_F(KVStore_test, BasicMap)
 }
 #endif
 
+
+/* lock */
+TEST_F(KVStore_test, LockBasic)
+{
+  unsigned ct = 0;
+
+  Component::IKVStore::pool_t pool = _pool;
+
+  for ( auto &kv : kvv )
+  {
+    //if ( ct == lock_count ) { break; }
+    const auto &key = std::get<0>(kv);
+    const auto &ev = std::get<1>(kv);
+    const auto key_new = std::get<0>(kv) + "x";
+    void *value0 = nullptr;
+    std::size_t value0_len = 0;
+    auto r0 = _kvstore->lock(pool, key, IKVStore::STORE_LOCK_READ, value0, value0_len);
+    EXPECT_NE(r0, nullptr);
+    EXPECT_EQ(value0_len, single_value_length);
+    EXPECT_EQ(0, memcmp(ev.data(), value0, ev.size()));
+    void * value1 = nullptr;
+    std::size_t value1_len = 0;
+    auto r1 = _kvstore->lock(pool, key, IKVStore::STORE_LOCK_READ, value1, value1_len);
+    EXPECT_NE(r1, nullptr);
+    EXPECT_EQ(value1_len, single_value_length);
+    EXPECT_EQ(0, memcmp(ev.data(), value1, ev.size()));
+    /* Exclusive locking test. Skip if the library is built without locking. */
+    if ( _kvstore->thread_safety() == IKVStore::THREAD_MODEL_MULTI_PER_POOL )
+    {
+      void * value2 = nullptr;
+      std::size_t value2_len = 0;
+      auto r2 = _kvstore->lock(pool, key, IKVStore::STORE_LOCK_WRITE, value2, value2_len);
+      EXPECT_EQ(r2, nullptr);
+    }
+    void * value3 = nullptr;
+    std::size_t value3_len = single_value_length;
+    auto r3 = _kvstore->lock(pool, key_new, IKVStore::STORE_LOCK_WRITE, value3, value3_len);
+    EXPECT_NE(r3, nullptr);
+    EXPECT_EQ(value3_len, single_value_length);
+    EXPECT_NE(value3, nullptr);
+
+    auto r0x = _kvstore->unlock(pool, r0);
+    EXPECT_EQ(r0x, S_OK);
+    auto r1x = _kvstore->unlock(pool, r1);
+    EXPECT_EQ(r1x, S_OK);
+    auto r3x = _kvstore->unlock(pool, r3);
+    EXPECT_EQ(r3x, S_OK);
+
+    ++ct;
+  }
+}
+
 TEST_F(KVStore_test, BasicErase)
 {
   _kvstore->erase(_pool, "MyKey");
 }
 
-#endif
-
-
-TEST_F(KVStore_test, ThroughputPut)
+TEST_F(KVStore_test, BasicApply)
 {
-  ASSERT_TRUE(_pool);
-  if(_pool_is_reopen){
-    PINF("open a exisitng pool, skip PUT");
-  }
-  else{
-    size_t i;
-    std::chrono::system_clock::time_point _start, _end;
-    double secs;
-
-    Data *_data = new Data();
-
-    /* put */
-    _start = std::chrono::high_resolution_clock::now();
-
-    ProfilerStart("testnvmestore.put.profile");
-    for(i = 0; i < _data->num_elements(); i ++){
-      _kvstore->put(_pool, _data->key(i), _data->value(i), _data->value_len());
-    }
-    ProfilerStop();
-    _end = std::chrono::high_resolution_clock::now();
-
-    secs = std::chrono::duration_cast<std::chrono::milliseconds>(_end - _start).count() / 1000.0;
-    PINF("*Put summary(with memcpy)*:");
-    PINF("IOPS\tTP(MiB/s)\tValuesz(KiB)\tTime(s)\tnr_io");
-    PINF("%2g\t%.2f\t%lu\t%.2lf\t%lu",
-        ((double)i) / secs, ((double)i) / secs*_data->value_len()/(1024*1024), _data->value_len()/1024, secs, i);
-    }
-}
-
-TEST_F(KVStore_test, ThroughputGetDirect){
-
-  void * pval;
-  size_t pval_len;
-
-  ASSERT_TRUE(_pool);
-
-  size_t i;
-  std::chrono::system_clock::time_point _start, _end;
-  double secs;
-
-
-#if 0
-  /* get */
-
-  _start = std::chrono::high_resolution_clock::now();
-  ProfilerStart("testnvmestore.get.profile");
-  for(i = 0; i < _data->num_elements(); i ++){
-    _kvstore->get(_pool, _data->key(i), pval, pval_len);
-  }
-  ProfilerStop();
-  _end = std::chrono::high_resolution_clock::now();
-
-  secs = std::chrono::duration_cast<std::chrono::milliseconds>(_end - _start).count() / 1000.0;
-
-  PINF("*Get summary*:");
-  PINF("IOPS\tTP(MiB/s)\tValuesz(KiB)\tTime(s)\tnr_io");
-  PINF("%2g\t%.2f\t%lu\t%.2lf\t%lu",
-      ((double)i) / secs, ((double)i) / secs*Data::VAL_LEN/(1024*1024), Data::VAL_LEN/1024, secs, i);
-#endif
-
-  /* get direct */
-
-#ifndef USE_FILESTORE
-  io_buffer_t handle;
-  Core::Physical_memory  mem_alloc; // aligned and pinned mem allocator, TODO: should be provided through IZerocpy Memory interface of NVMestore
-
-  handle = mem_alloc.allocate_io_buffer(Data::VAL_LEN, 4096, Component::NUMA_NODE_ANY);
-  ASSERT_TRUE(handle);
-  pval = mem_alloc.virt_addr(handle);
-#else
-  pval = malloc(Data::VAL_LEN);
-  ASSERT_TRUE(pval);
-#endif
-  pval_len = Data::VAL_LEN;
-
-  int ret;
-
-  PINF("*IO memory allocated*:");
-  _start = std::chrono::high_resolution_clock::now();
-  ProfilerStart("testnvmestore.get_direct.profile");
-  for(i = 0; i < Data::NUM_ELEMENTS; i ++){
-    std::string key = "elem" + std::to_string(i);
-    if(ret  = _kvstore->get_direct(_pool, key, pval, pval_len)){
-      throw API_exception("NVME_store:: get erorr with return value %d", ret);
-    }
-  }
-  ProfilerStop();
-  _end = std::chrono::high_resolution_clock::now();
-
-  secs = std::chrono::duration_cast<std::chrono::milliseconds>(_end - _start).count() / 1000.0;
-
-  PINF("*Get direct summary*:");
-  PINF("IOPS\tTP(MiB/s)\tValuesz(KiB)\tTime(s)\tnr_io");
-  PINF("%2g\t%.2f\t%lu\t%.2lf\t%lu",
-      ((double)i) / secs, ((double)i) / secs*Data::VAL_LEN/(1024*1024), Data::VAL_LEN/1024, secs, i);
-
-#ifndef USE_FILESTORE
-  mem_alloc.free_io_buffer(handle);
-#else
-  free(pval);
-#endif
-}
-
-
-#if 0
-
-TEST_F(KVStore_test, Allocate)
-{
-  uint64_t key_hash = 0;
-  ASSERT_TRUE(_kvstore->allocate(_pool, "Elephant", MB(8), key_hash) == S_OK);
-  PLOG("Allocate: key_hash=%lx", key_hash);
+  void * data;
+  size_t data_len = 0;
+  std::string key = "Elephant";
+  PLOG("Allocate: key_hash=%s", key.c_str());
 
   PLOG("test 1");
-  ASSERT_TRUE(_kvstore->apply(_pool, key_hash,
-                              [](void*p, const size_t plen) { memset(p,0xE,plen); }) == S_OK);
-
-  PLOG("test 2");
-  ASSERT_TRUE(_kvstore->apply(_pool, key_hash,
+  ASSERT_TRUE(_kvstore->apply(_pool, key,
                               [](void*p, const size_t plen) { memset(p,0xE,plen); },
-                              KB(4),
-                              MB(2)) == S_OK);
+                              MB(8),
+                              true) == S_OK);
 
-  /* out of bounds */
-  PLOG("test 3");
-  ASSERT_FALSE(_kvstore->apply(_pool, key_hash,
-                               [](void*p, const size_t plen) { memset(p,0xE,plen); },
-                               MB(128),
-                               MB(2)) == S_OK);
-
+  _kvstore->get(_pool, key, data, data_len);
+  EXPECT_EQ(MB(8), data_len);
+  EXPECT_EQ(0xE, *(char *)data);
+  EXPECT_EQ(0xE, *((char *)data+5));
 }
+
 #endif
 
 #ifdef DO_ERASE
@@ -364,7 +309,7 @@ TEST_F(KVStore_test, ClosePool)
 /*
  * multiple store on same nvmedevice will use the same _block and the _blk_alloc
  */
-TEST_F(KVStore_test, DISABLED_Multiplestore)
+TEST_F(KVStore_test, Multiplestore)
 {
   /* create object instance through factory */
   Component::IBase * comp = Component::load_component("libcomanche-nvmestore.so",

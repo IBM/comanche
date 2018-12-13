@@ -64,7 +64,11 @@ Fabric_memory_control::~Fabric_memory_control()
 
 auto Fabric_memory_control::register_memory(const void * addr_, size_t size_, std::uint64_t key_, std::uint64_t flags_) -> Component::IFabric_connection::memory_region_t
 {
-  auto mr = make_fid_mr_reg_ptr(addr_, size_, std::uint64_t(FI_SEND|FI_RECV|FI_READ|FI_WRITE|FI_REMOTE_READ|FI_REMOTE_WRITE), key_, flags_);
+  auto mr = make_fid_mr_reg_ptr(addr_,
+                                size_,
+                                std::uint64_t(FI_SEND|FI_RECV|FI_READ|FI_WRITE|FI_REMOTE_READ|FI_REMOTE_WRITE),
+                                key_,
+                                flags_);
 
   /* operations which access local memory will need the memory "descriptor." Record it here. */
   auto desc = ::fi_mr_desc(mr);
