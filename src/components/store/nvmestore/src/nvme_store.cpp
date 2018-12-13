@@ -355,28 +355,28 @@ static int __alloc_new_object(struct open_session_t *session, uint64_t hashkey, 
 
   PDBG("write to lba %lu with length %lu, key %lx",lba, value_len, hashkey);
 
-  auto &val = out_blkmeta;
+  auto &blk_info = out_blkmeta;
   TX_BEGIN(pop) {
 
     /* allocate memory for entry - range added to tx implicitly? */
 
     //get the available range from allocator
-    val = TX_ALLOC(struct block_range, sizeof(struct block_range));
+    blk_info = TX_ALLOC(struct block_range, sizeof(struct block_range));
 
-    D_RW(val)->offset = lba;
-    D_RW(val)->size = value_len;
-    D_RW(val)->handle = handle;
+    D_RW(blk_info)->lba_start = lba;
+    D_RW(blk_info)->size = value_len;
+    D_RW(blk_info)->handle = handle;
 
     /* insert into HT */
     int rc;
-    if((rc = hm_tx_insert(pop, D_RW(root)->map, hashkey, val.oid))) {
+    if((rc = hm_tx_insert(pop, D_RW(root)->map, hashkey, blk_info.oid))) {
       if(rc == 1)
         throw General_exception("inserting same key");
       else throw General_exception("hm_tx_insert failed unexpectedly (rc=%d)", rc);
     }
   }
   TX_ONABORT {
-    //TODO: free val
+    //TODO: free blk_info
     throw General_exception("TX abort (%s) during nvmeput", pmemobj_errormsg());
   }
   TX_END
@@ -400,8 +400,8 @@ status_t NVME_store::put(IKVStore::pool_t pool,
   auto& root = session->root;
   auto& pop = session->pop;
 
-  auto& blk_alloc = _blk_alloc;
-  auto& blk_dev = _blk_dev;
+  auto& blk_alloc = session->_blk_alloc;
+  auto& blk_dev = session->_blk_dev;
 
   uint64_t hashkey = CityHash64(key.c_str(), key.length());
   TOID(struct block_range) blkmeta; // block mapping of this obj
@@ -422,10 +422,10 @@ status_t NVME_store::put(IKVStore::pool_t pool,
 #error("use_sync is deprecated")
   // TODO: can the free be triggered by callback?
   uint64_t tag = blk_dev->async_write(session->io_mem, 0, lba, nr_io_blocks);
-  D_RW(val)->last_tag = tag;
+  D_RW(blk_info)->last_tag = tag;
 #else
   auto nr_io_blocks = (value_len+ BLOCK_SIZE -1)/BLOCK_SIZE;
-  do_block_io(blk_dev, BLOCK_IO_WRITE, session->io_mem, D_RO(blkmeta)->offset, nr_io_blocks);
+  do_block_io(blk_dev, BLOCK_IO_WRITE, session->io_mem, D_RO(blkmeta)->lba_start, nr_io_blocks);
 #endif
 
   _cnt_elem_map[pool] ++;
@@ -447,23 +447,23 @@ status_t NVME_store::get(const pool_t pool,
   auto& pop = session->pop;
   auto mem = session->io_mem;
 
-  auto& blk_alloc = _blk_alloc;
-  auto& blk_dev = _blk_dev;
+  auto& blk_alloc = session->_blk_alloc;
+  auto& blk_dev = session->_blk_dev;
 
   uint64_t hashkey = CityHash64(key.c_str(), key.length());
 
-  TOID(struct block_range) val;
+  TOID(struct block_range) blk_info;
   // TODO: can write to a shadowed copy
   try {
-    val = hm_tx_get(pop, D_RW(root)->map, hashkey);
-    if(OID_IS_NULL(val.oid))
+    blk_info = hm_tx_get(pop, D_RW(root)->map, hashkey);
+    if(OID_IS_NULL(blk_info.oid))
       return E_KEY_NOT_FOUND;
 
-    auto val_len = D_RO(val)->size;
-    auto lba = D_RO(val)->offset;
+    auto val_len = D_RO(blk_info)->size;
+    auto lba = D_RO(blk_info)->lba_start;
 
 #ifdef USE_ASYNC
-    uint64_t tag = D_RO(val)->last_tag;
+    uint64_t tag = D_RO(blk_info)->last_tag;
     while(!blk_dev->check_completion(tag)) cpu_relax(); /* check the last completion, TODO: check each time makes the get slightly slow () */
 #endif
     PDBG("prepare to read lba %d with length %d, key %lx", lba, val_len, hashkey);
@@ -496,27 +496,27 @@ status_t NVME_store::get_direct(const pool_t pool,
   auto& root = session->root;
   auto& pop = session->pop;
 
-  auto& blk_alloc = _blk_alloc;
-  auto& blk_dev = _blk_dev;
+  auto& blk_alloc = session->_blk_alloc;
+  auto& blk_dev = session->_blk_dev;
 
   uint64_t hashkey = CityHash64(key.c_str(), key.length());
 
-  TOID(struct block_range) val;
+  TOID(struct block_range) blk_info;
   try {
     cpu_time_t start = rdtsc() ;
-    val = hm_tx_get(pop, D_RW(root)->map, hashkey);
-    if(OID_IS_NULL(val.oid))
+    blk_info = hm_tx_get(pop, D_RW(root)->map, hashkey);
+    if(OID_IS_NULL(blk_info.oid))
       return E_KEY_NOT_FOUND;
 
-    auto val_len = D_RO(val)->size;
-    auto lba = D_RO(val)->offset;
+    auto val_len = D_RO(blk_info)->size;
+    auto lba = D_RO(blk_info)->lba_start;
 
     cpu_time_t cycles_for_hm = rdtsc() - start;
 
     PDBG("checked hxmap read latency took %ld cycles (%f usec) per hm access", cycles_for_hm,  cycles_for_hm / 2400.0f);
 
 #ifdef USE_ASYNC
-    uint64_t tag = D_RO(val)->last_tag;
+    uint64_t tag = D_RO(blk_info)->last_tag;
     while(!blk_dev->check_completion(tag)) cpu_relax(); /* check the last completion, TODO: check each time makes the get slightly slow () */
 #endif
 
@@ -576,8 +576,8 @@ IKVStore::memory_handle_t NVME_store::register_direct_memory(void * vaddr, size_
 //   auto& root = session->root;
 //   auto& pop = session->pop;
 
-//   auto& blk_alloc = _blk_alloc;
-//   auto& blk_dev = _blk_dev;
+//   auto& blk_alloc = session->_blk_alloc;
+//   auto& blk_dev = session->_blk_dev;
 
 //   uint64_t key_hash = CityHash64(key.c_str(), key.length());
 
@@ -592,25 +592,25 @@ IKVStore::memory_handle_t NVME_store::register_direct_memory(void * vaddr, size_
 //   // transaction also happens in here
 //   lba_t lba = blk_alloc->alloc(nr_io_blocks, &handle);
 
-//   TOID(struct block_range) val;
+//   TOID(struct block_range) blk_info;
 
 //   TX_BEGIN(pop) {
 
 //     /* allocate memory for entry - range added to tx implicitly? */
     
 //     //get the available range from allocator
-//     val = TX_ALLOC(struct block_range, sizeof(struct block_range));
+//     blk_info = TX_ALLOC(struct block_range, sizeof(struct block_range));
     
-//     D_RW(val)->offset = lba;
-//     D_RW(val)->size = nbytes;
-//     D_RW(val)->handle = handle;
+//     D_RW(blk_info)->lba_start = lba;
+//     D_RW(blk_info)->size = nbytes;
+//     D_RW(blk_info)->handle = handle;
 // #ifdef USE_ASYNC
-//     D_RW(val)->last_tag = 0;
+//     D_RW(blk_info)->last_tag = 0;
 // #endif
 
 //     /* insert into HT */
 //     int rc;
-//     if((rc = hm_tx_insert(pop, D_RW(root)->map, key_hash, val.oid))) {
+//     if((rc = hm_tx_insert(pop, D_RW(root)->map, key_hash, blk_info.oid))) {
 //       if(rc == 1)
 //         return E_ALREADY_EXISTS;
 //       else throw General_exception("hm_tx_insert failed unexpectedly (rc=%d)", rc);
@@ -643,36 +643,36 @@ IKVStore::key_t NVME_store::lock(const pool_t pool,
 
   /*this will lock the io  memory size*/
   if(session->io_mem){
-    _blk_dev->free_io_buffer(session->io_mem);
+    session->_blk_dev->free_io_buffer(session->io_mem);
     session->io_mem = 0;
   }
   assert(session->io_mem == 0);
-  auto& blk_dev = _blk_dev;
+  auto& blk_dev = session->_blk_dev;
 
   uint64_t hashkey = CityHash64(key.c_str(), key.length());
 
-  TOID(struct block_range) val;
+  TOID(struct block_range) blk_info;
   try {
-    val = hm_tx_get(pop, D_RW(root)->map, hashkey);
+    blk_info = hm_tx_get(pop, D_RW(root)->map, hashkey);
 
-    if(!OID_IS_NULL(val.oid)){
+    if(!OID_IS_NULL(blk_info.oid)){
 #ifdef USE_ASYNC
       /* there might be pending async write for this object */
-      uint64_t tag = D_RO(val)->last_tag;
+      uint64_t tag = D_RO(blk_info)->last_tag;
       while(!blk_dev->check_completion(tag)) cpu_relax(); /* check the last completion */
 #endif
       if(type == IKVStore::STORE_LOCK_READ) {
-        if(!_sm.state_get_read_lock(pool, D_RO(val)->handle))
+        if(!_sm.state_get_read_lock(pool, D_RO(blk_info)->handle))
           throw General_exception("%s: unable to get read lock", __func__);
       }
       else {
-        if(!_sm.state_get_write_lock(pool, D_RO(val)->handle))
+        if(!_sm.state_get_write_lock(pool, D_RO(blk_info)->handle))
           throw General_exception("%s: unable to get write lock", __func__);
       }
 
-      auto handle = D_RO(val)->handle;
-      auto value_len = D_RO(val)->size; // the length allocated before
-      auto lba = D_RO(val)->offset;
+      auto handle = D_RO(blk_info)->handle;
+      auto value_len = D_RO(blk_info)->size; // the length allocated before
+      auto lba = D_RO(blk_info)->lba_start;
 
       /* fetch the data to block io mem */
       size_t nr_io_blocks = (value_len + BLOCK_SIZE -1)/BLOCK_SIZE;
@@ -695,7 +695,7 @@ IKVStore::key_t NVME_store::lock(const pool_t pool,
       if(!out_value_len){
           throw General_exception("%s: Need value length to lock a unexsiting object", __func__);
       }
-      __alloc_new_object(session, hashkey,out_value_len, val);
+      __alloc_new_object(session, hashkey,out_value_len, blk_info);
     }
   }
   catch(...){
@@ -724,16 +724,16 @@ status_t NVME_store::unlock(const pool_t pool,
 
   assert(session->io_mem);
 
-  auto& blk_dev = _blk_dev;
+  auto& blk_dev = session->_blk_dev;
 
-  TOID(struct block_range) val;
+  TOID(struct block_range) blk_info;
   try {
-    val = hm_tx_get(pop, D_RW(root)->map, (uint64_t) key_hash);
-    if(OID_IS_NULL(val.oid))
+    blk_info = hm_tx_get(pop, D_RW(root)->map, (uint64_t) key_hash);
+    if(OID_IS_NULL(blk_info.oid))
       return E_KEY_NOT_FOUND;
 
-    auto val_len = D_RO(val)->size;
-    auto lba = D_RO(val)->offset;
+    auto val_len = D_RO(blk_info)->size;
+    auto lba = D_RO(blk_info)->lba_start;
 
     size_t nr_io_blocks = (val_len + BLOCK_SIZE -1)/BLOCK_SIZE;
     io_buffer_t mem = session->io_mem;
@@ -741,13 +741,13 @@ status_t NVME_store::unlock(const pool_t pool,
     /*flush and release iomem*/
 #if USE_ASYNC
     uint64_t tag = blk_dev->async_write(mem, 0, lba, nr_io_blocks);
-    D_RW(val)->last_tag = tag;
+    D_RW(blk_info)->last_tag = tag;
 #else
     do_block_io(blk_dev, BLOCK_IO_WRITE, mem, lba, nr_io_blocks);
 #endif
 
     /*release the lock*/
-    _sm.state_unlock(pool, D_RO(val)->handle);
+    _sm.state_unlock(pool, D_RO(blk_info)->handle);
 
     PINF("NVME_store: released the lock");
   }
@@ -815,16 +815,16 @@ int NVME_store::__apply(const pool_t pool,
   auto& pop = session->pop;
 
   assert(session->io_mem);
-  auto& blk_dev = _blk_dev;
+  auto& blk_dev = session->_blk_dev;
 
-  TOID(struct block_range) val;
+  TOID(struct block_range) blk_info;
   try {
-    val = hm_tx_get(pop, D_RW(root)->map, key_hash);
-    if(OID_IS_NULL(val.oid))
+    blk_info = hm_tx_get(pop, D_RW(root)->map, key_hash);
+    if(OID_IS_NULL(blk_info.oid))
       return E_KEY_NOT_FOUND;
 
     auto data = blk_dev->virt_addr(session->io_mem);
-    auto data_len = D_RO(val)->size;
+    auto data_len = D_RO(blk_info)->size;
 
     auto offset_data = (void*) (((unsigned long) data));
     size_t size_to_tx = data_len;
@@ -862,27 +862,27 @@ status_t NVME_store::erase(const pool_t pool,
   auto& root = session->root;
   auto& pop = session->pop;
 
-  auto& blk_alloc = _blk_alloc;
-  auto& blk_dev = _blk_dev;
+  auto& blk_alloc = session->_blk_alloc;
+  auto& blk_dev = session->_blk_dev;
 
-  TOID(struct block_range) val;
+  TOID(struct block_range) blk_info;
 
   try {
-    val = hm_tx_get(pop, D_RW(root)->map, key_hash);
-    if(OID_IS_NULL(val.oid))
+    blk_info = hm_tx_get(pop, D_RW(root)->map, key_hash);
+    if(OID_IS_NULL(blk_info.oid))
       return E_KEY_NOT_FOUND;
 
     /* get hold of write lock to remove */
-    if(!_sm.state_get_write_lock(pool, D_RO(val)->handle))
+    if(!_sm.state_get_write_lock(pool, D_RO(blk_info)->handle))
       throw API_exception("unable to remove, value locked");
 
-    blk_alloc->free(D_RO(val)->offset, D_RO(val)->handle);
+    blk_alloc->free(D_RO(blk_info)->lba_start, D_RO(blk_info)->handle);
 
-    val = hm_tx_remove(pop, D_RW(root)->map, key_hash); /* could be optimized to not re-lookup */
-    if(OID_IS_NULL(val.oid))
+    blk_info = hm_tx_remove(pop, D_RW(root)->map, key_hash); /* could be optimized to not re-lookup */
+    if(OID_IS_NULL(blk_info.oid))
       throw API_exception("hm_tx_remove failed unexpectedly");
 
-    _sm.state_remove(pool, D_RO(val)->handle);
+    _sm.state_remove(pool, D_RO(blk_info)->handle);
   }
   catch(...) {
     throw General_exception("hm_tx_remove failed unexpectedly");
