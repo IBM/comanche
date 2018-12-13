@@ -12,7 +12,6 @@
 #include <libpmem.h>
 #include <libpmemobj.h>
 #include <libpmempool.h>
-#include <nupm/nd_utils.h>
 #include <spdk/env.h>
 #include <stdio.h>
 #include <boost/program_options.hpp>
