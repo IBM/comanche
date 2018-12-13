@@ -42,10 +42,8 @@ __global__ void verify_memory(void * ptr)
   printf("Viewed from GPU: %02x %02x %02x ...\n", p[0], p[1], p[2]);
 }
 
-extern "C" void run_cuda(Component::IKVStore * store)
-{ 
-  PINF("run_test (cuda app lib)");
-
+void initialize()
+{
   CUresult error = cuInit(0);
 	if (error != CUDA_SUCCESS) {
 		PINF("cuInit(0) returned %d", error);
@@ -66,7 +64,8 @@ extern "C" void run_cuda(Component::IKVStore * store)
 	else
 		PINF("There are %d devices supporting CUDA, picking first...", deviceCount);
 
-  int devID = 1;
+  int devID = 0;
+  
 	/* pick up device with zero ordinal (default, or devID) */
 	CUCHECK(cuDeviceGet(&cuDevice, devID));
 
@@ -86,8 +85,17 @@ extern "C" void run_cuda(Component::IKVStore * store)
 	if (error != CUDA_SUCCESS) {
 		throw General_exception("cuCtxSetCurrent() error=%d", error);
 	}
+}
   
-  const size_t obj_size = MB(1);
+
+extern "C" void run_cuda_basic_test(Component::IKVStore * store)
+{ 
+  PINF("** run_test_basic_test (cuda app lib)");
+
+  initialize();
+
+  CUresult error;
+  const size_t obj_size = MB(64);
   CUdeviceptr d_A;
 
   /* allocate GPU side memory */
@@ -116,18 +124,95 @@ extern "C" void run_cuda(Component::IKVStore * store)
   constexpr unsigned ITERATIONS = 10;
   
   for(unsigned i=0;i<ITERATIONS;i++) {
-    rc = store->put_direct(pool, "key0", (void*)d_A, obj_size, handle);
-    assert(rc == S_OK);
+    char tmp[255];
+    sprintf(tmp,"key%u", i);
+    rc = store->put_direct(pool, tmp, (void*)d_A, obj_size, handle);
+    if(rc != S_OK)
+      PLOG("put_direct returned: %d", rc);
   }
 
   auto end = std::chrono::high_resolution_clock::now();
   auto secs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() / 1000.0;
-  PMAJOR("GPU-to-Dawn Throughput: %f MB/s", (128.0f * ITERATIONS) / secs);
+  PMAJOR("GPU-to-Dawn Throughput: %f MB/s", ((float) REDUCE_MB(obj_size * ITERATIONS)) / secs);
 
   /* zero memory on GPU */
   cuMemsetD8(d_A, 0x0, obj_size);
   cudaDeviceSynchronize();
   verify_memory<<<1,1>>>((char*)d_A);
+
+  /* reload memory from store */
+  size_t rsize = obj_size;
+  assert(rsize > 0);
+  
+  start = std::chrono::high_resolution_clock::now();
+
+  for(unsigned i=0;i<ITERATIONS;i++) {
+    char tmp[255];
+    sprintf(tmp,"key%u", i);
+    
+    rc = store->get_direct(pool, tmp, (void*)d_A, rsize, handle);
+    if(rc != S_OK) 
+      throw General_exception("get_direct: returned %d", rc);
+
+    assert(rsize == obj_size);
+  }
+  
+  end = std::chrono::high_resolution_clock::now();
+  secs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() / 1000.0;
+  PMAJOR("Dawn-to-GPU Throughput: %f MB/s", ((float) REDUCE_MB(obj_size * ITERATIONS)) / secs);
+
+  /* re-verify from GPU side and voila!! */
+  cudaDeviceSynchronize();
+  verify_memory<<<1,1>>>((char*)d_A);
+
+  cudaDeviceSynchronize();
+    
+  /* clean up */
+  cuMemFree(d_A);
+  store->unregister_direct_memory(handle);
+  store->close_pool(pool);
+}
+
+
+void run_cuda_perf_direct(Component::IKVStore * store)
+{
+  PINF("** run_cuda_perf_direct (cuda app lib)");
+
+  initialize();
+  const size_t obj_size = MB(128);
+  CUdeviceptr d_A;
+  CUresult error;
+
+  /* allocate GPU side memory */
+	error = cuMemAlloc(&d_A, obj_size);
+	if (error != CUDA_SUCCESS)
+		throw General_exception("cuMemAlloc error=%d", error);  
+	PINF("allocated GPU buffer address at %p", d_A);
+
+  /* register memory with RDMA engine */
+  auto handle = store->register_direct_memory((void*)d_A, obj_size);
+  assert(handle);
+  PLOG("registered memory with storage/RDMA.. OK (handle=%p)", handle);
+  
+  /* create pool */
+  auto pool = store->create_pool("/pools","gpu0", obj_size);
+  PLOG("Pool created OK.");
+  
+  /* put into dawn storage */
+  status_t rc;
+  auto start = std::chrono::high_resolution_clock::now();
+
+  constexpr unsigned ITERATIONS = 100;
+  
+  for(unsigned i=0;i<ITERATIONS;i++) {
+    rc = store->put_direct(pool, "key0", (void*)d_A, obj_size, handle);
+    if(rc != S_OK)
+      PLOG("put_direct returned: %d", rc);
+  }
+
+  auto end = std::chrono::high_resolution_clock::now();
+  auto secs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() / 1000.0;
+  PMAJOR("GPU-to-Dawn GPU-Direct Throughput: %f MB/s", ((float) REDUCE_MB(obj_size * ITERATIONS)) / secs);
 
   /* reload memory from store */
   size_t rsize = obj_size;
@@ -145,18 +230,101 @@ extern "C" void run_cuda(Component::IKVStore * store)
   
   end = std::chrono::high_resolution_clock::now();
   secs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() / 1000.0;
-  PMAJOR("Dawn-to-GPU Throughput: %f MB/s", (128.0f * ITERATIONS) / secs);
-
-  /* re-verify from GPU side and voila!! */
-  cudaDeviceSynchronize();
-  verify_memory<<<1,1>>>((char*)d_A);
+  PMAJOR("Dawn-to-GPU GPU-Direct Throughput: %f MB/s", ((float) REDUCE_MB(obj_size * ITERATIONS)) / secs);
 
   cudaDeviceSynchronize();
-    
+  
   /* clean up */
+  cuMemFree(d_A);
   store->unregister_direct_memory(handle);
   store->close_pool(pool);
 }
 
+void run_cuda_perf_bounce(Component::IKVStore * store)
+{
+  PINF("** run_cuda_perf_bounce (cuda app lib)");
 
+  initialize();
+  const size_t obj_size = MB(128);
+  void * d_A;
+  CUdeviceptr d_B;
+  CUresult error;
+
+  /* allocate DRAM memory */  
+  error = cuMemAllocHost(&d_A, obj_size);
+  if (error != CUDA_SUCCESS)
+		throw General_exception("cuMemAllocHost error=%d", error);  
+	assert(d_A);  
+	PINF("allocated DRAM buffer address at %p", d_A);
+
+  /* allocate GPU memory */
+	error = cuMemAlloc(&d_B, obj_size);
+	if (error != CUDA_SUCCESS)
+		throw General_exception("cuMemAlloc error=%d", error);  
+	PINF("allocated GPU buffer address at %p", d_B);
+  
+  /* register memory with RDMA engine */
+  auto handle = store->register_direct_memory((void*)d_A, obj_size);
+  assert(handle);
+  PLOG("registered memory with storage/RDMA.. OK (handle=%p)", handle);
+  
+  /* create pool */
+  auto pool = store->create_pool("/pools","gpu0", obj_size);
+  PLOG("Pool created OK.");
+  
+  /* put into dawn storage */
+  status_t rc;
+  auto start = std::chrono::high_resolution_clock::now();
+
+  constexpr unsigned ITERATIONS = 100;
+  
+  for(unsigned i=0;i<ITERATIONS;i++) {
+    error = cuMemcpyDtoH(d_A, d_B, obj_size);
+    assert(error == CUDA_SUCCESS);
+    
+    rc = store->put_direct(pool, "key0", (void*)d_A, obj_size, handle);
+    if(rc != S_OK)
+      PLOG("put_direct returned: %d", rc);
+  }
+
+  auto end = std::chrono::high_resolution_clock::now();
+  auto secs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() / 1000.0;
+  PMAJOR("GPU-to-Dawn Bounce Throughput: %f MB/s", ((float) REDUCE_MB(obj_size * ITERATIONS)) / secs);
+
+  /* reload memory from store */
+  size_t rsize = obj_size;
+  assert(rsize > 0);
+  
+  start = std::chrono::high_resolution_clock::now();
+
+  for(unsigned i=0;i<ITERATIONS;i++) {
+
+    rc = store->get_direct(pool, "key0", (void*)d_A, rsize, handle);
+    if(rc != S_OK) 
+      throw General_exception("get_direct: returned %d", rc);    
+    assert(rsize == obj_size);
+
+    error = cuMemcpyHtoD(d_B, d_A, obj_size);
+    assert(error == CUDA_SUCCESS);
+  }
+  
+  end = std::chrono::high_resolution_clock::now();
+  secs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() / 1000.0;
+  PMAJOR("Dawn-to-GPU Bounce Throughput: %f MB/s", ((float) REDUCE_MB(obj_size * ITERATIONS)) / secs);
+
+  cudaDeviceSynchronize();
+  
+  /* clean up */
+  cuMemFreeHost(d_A);
+  cuMemFree(d_B);
+  store->unregister_direct_memory(handle);
+  store->close_pool(pool);
+}
+
+extern "C" void run_cuda_perf(Component::IKVStore * store)
+{
+  assert(store);
+  run_cuda_perf_direct(store);
+  run_cuda_perf_bounce(store);
+}
 
