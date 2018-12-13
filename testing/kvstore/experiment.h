@@ -7,6 +7,7 @@
 #include <ctime>
 #include <fstream>
 #include <sstream>
+#include <vector>
 
 #include "common/cycles.h"
 #include "data.h"
@@ -25,7 +26,7 @@ class Experiment : public Core::Tasklet
 public:
   std::string _pool_path = "./data";
   std::string _pool_name = "Exp.pool.";
-  long long int _pool_size = MB(100);
+  unsigned long long int _pool_size = MB(100);
   int _pool_flags = Component::IKVStore::FLAGS_SET_SIZE;
   int _pool_num_components = 100000;
   std::string _cores = "0";
@@ -72,6 +73,35 @@ public:
   {
     handle_program_options();
 
+    try
+    {
+      if (component_uses_direct_memory())
+      {
+        pthread_mutex_lock(&g_write_lock);
+
+        size_t data_size = sizeof(Data) + ((sizeof(KV_pair) + _data->_key_len + _data->_val_len ) * _pool_num_components);
+        data_size += get_difference_to_next_power_of_two(data_size);
+
+        if (_verbose)
+        {
+          PINF("allocating %zu of aligned, direct memory. Aligned to %d", data_size,  MB(2));
+        }
+
+        _data->_data = (KV_pair*)aligned_alloc(MB(2), data_size);
+        madvise(_data->_data, data_size, MADV_HUGEPAGE);
+
+        _memory_handle = _store->register_direct_memory(_data->_data, data_size);
+        _data->initialize_data(false);
+
+        pthread_mutex_unlock(&g_write_lock);
+      }
+    }
+    catch(...)
+    {
+      PERR("failed during direct memory setup");
+      throw std::exception();
+    }
+
     // make sure path is available for use
     boost::filesystem::path dir(_pool_path);
     if (boost::filesystem::create_directory(dir))
@@ -88,7 +118,17 @@ public:
         if (boost::filesystem::exists(_pool_path + "/" + poolname))
           {
             // pool already exists. Delete it.
+            if (_verbose)
+            {
+              std::cout << "pool already exists at " << _pool_path + "/" + poolname << ". Attempting to delete it...";
+            }
+
             _store->delete_pool(_store->open_pool(_pool_path, poolname));
+
+            if (_verbose)
+            {
+              std::cout << " pool deleted!" << std::endl;
+            }
           }
       }
     catch(...)
@@ -108,29 +148,6 @@ public:
     }
       
     PLOG("Created pool for worker %u...OK!", core);
-
-    try
-    {
-      if (component_uses_direct_memory())
-      {
-        pthread_mutex_lock(&g_write_lock);
-
-        size_t data_size = sizeof(KV_pair) * _data->_num_elements;
-        data_size += data_size % 64;  // align
-        _data->_data = (KV_pair*)aligned_alloc(MiB(2), data_size);
-        madvise(_data->_data, data_size, MADV_HUGEPAGE);
-
-        _memory_handle = _store->register_direct_memory(_data->_data, data_size);
-        _data->initialize_data(false);
-
-        pthread_mutex_unlock(&g_write_lock);
-      }
-    }
-    catch(...)
-    {
-      PERR("failed during direct memory setup");
-      throw std::exception();
-    }
 
     try
     {
@@ -196,6 +213,11 @@ public:
 
     try
     {
+      if (_verbose)
+      {
+        std::cout << "cleanup: attempting to delete pool" << std::endl;
+      }
+
       _store->delete_pool(_pool);
     }
     catch(...)
@@ -933,6 +955,31 @@ public:
       PERR("erase step failed");
       throw std::exception();
     }
+  }
+
+  static size_t get_difference_to_next_power_of_two(size_t value)
+  {
+    if (value < 0)
+    {
+      PERR("get_difference_to_next_power_of_two only supports positive numbers");
+      throw std::exception();
+    }
+
+    if (value == 0 || value == 1)
+    {
+      return 0;
+    }
+
+    int i = 1;
+    std::vector<size_t> powers_of_two = {1, 2};
+
+    while (value > powers_of_two[i])
+    {
+      i++;
+      powers_of_two.push_back(std::pow(2, i));
+    }
+
+    return powers_of_two[i] - value;
   }
 };
 
