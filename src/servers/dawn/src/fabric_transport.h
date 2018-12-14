@@ -36,7 +36,6 @@ public:
     if(!connection) return nullptr;
     return new Connection_handler(_server_factory, connection);
   }
-    
 
 private:
   void init(const std::string& provider,

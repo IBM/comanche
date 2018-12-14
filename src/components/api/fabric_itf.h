@@ -576,6 +576,8 @@ public:
 class IFabric
 {
 public:
+  using memory_region_t = IFabric_memory_region *;
+  
   DECLARE_INTERFACE_UUID(0xc373d083,0xe629,0x46c9,0x86fa,0x6f,0x96,0x40,0x61,0x10,0xdf);
   virtual ~IFabric() {}
   /**
@@ -674,7 +676,10 @@ public:
    * @throw IFabric_runtime_error - ::fi_ep_bind fail (event registration)
    *
    */
-  virtual IFabric_client_grouped * open_client_grouped(const std::string& json_configuration, const std::string& remote_endpoint, std::uint16_t port) = 0;
+  virtual IFabric_client_grouped * open_client_grouped(const std::string& json_configuration,
+                                                       const std::string& remote_endpoint,
+                                                       std::uint16_t port) = 0;
+  
 };
 
 class IFabric_factory : public Component::IBase
