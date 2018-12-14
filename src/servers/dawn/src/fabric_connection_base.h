@@ -1,6 +1,8 @@
 #ifndef __FABRIC_CONNECTION_BASE_H__
 #define __FABRIC_CONNECTION_BASE_H__
 
+#include "dawn_config.h"
+
 namespace Dawn
 {
 class Fabric_connection_base

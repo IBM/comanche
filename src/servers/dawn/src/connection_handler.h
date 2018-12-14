@@ -16,6 +16,7 @@
 
 #include "protocol.h"
 #include "buffer_manager.h"
+#include "region_manager.h"
 #include "dawn_config.h"
 
 #include <api/fabric_itf.h>
@@ -23,11 +24,10 @@
 
 namespace Dawn {
 
-  /* Adapter point for different transports */
   using Connection_base = Fabric_connection_base;
 
-
-  class Connection_handler : public Connection_base
+  class Connection_handler : public Connection_base,
+                             public Region_manager
   {
   private:
     bool option_DEBUG = Dawn::Global::debug_level > 1;
@@ -69,7 +69,8 @@ namespace Dawn {
 
     Connection_handler(Factory * factory,
                        Connection * connection) : 
-      Connection_base(factory, connection) {
+      Connection_base(factory, connection), Region_manager(connection)
+    {
       PLOG("Connection_handler: %p", this);
       _pending_actions.reserve(Buffer_manager<Connection>::DEFAULT_BUFFER_COUNT);
       _pending_msgs.reserve(Buffer_manager<Connection>::DEFAULT_BUFFER_COUNT);
@@ -157,50 +158,6 @@ namespace Dawn {
     }
 
     /** 
-     * Record pool as open
-     * 
-     * @param pool Pool identifier
-     */
-    void add_as_open_pool(pool_t pool, std::vector<::iovec>* regions = nullptr) {
-      if(_open_pools.count(pool) > 0)
-        throw Logic_exception("add_as_open_pool: pool already exists");
-    
-      _open_pools.insert(pool);
-
-      /* if the backend store supports region exposure, then
-         we simply register upfront 
-      */
-      if(regions) {
-        for(auto& r : *regions) {
-          assert(r.iov_base);
-          assert(r.iov_len);
-          auto h = register_memory(r.iov_base, r.iov_len);
-          _pool_memory_handles[pool].push_back(h);
-          PLOG("connection_handler: registered pool memory (%p,%lu) (%p)", r.iov_base, r.iov_len, h);
-        }
-      }	
-    }
-
-    /**
-     * Get registered memory region if it exists
-     */
-    Connection_base::memory_region_t get_preregistered(pool_t pool) {
-      auto i = _pool_memory_handles.find(pool);
-      if(i == _pool_memory_handles.end()) return nullptr;
-      assert(i->second.size() == 1);
-      return i->second[0]; /* for the moment return the first region handle */
-    }      
-  
-    /** 
-     * Remove pool open record
-     * 
-     * @param pool Pool identifier
-     */
-    void remove_as_open_pool(pool_t pool) {
-      _open_pools.erase(pool);
-    }
-
-    /** 
      * Set up for pending value send/recv
      * 
      * @param target 
@@ -209,14 +166,10 @@ namespace Dawn {
      */
     void set_pending_value(void * target,
                            size_t target_len,
-                           memory_region_t region);
+                           Component::IFabric_connection::memory_region_t region);
 
     inline uint64_t auth_id() const { return (uint64_t) this; /* temp */ }
-
-    inline const std::set<pool_t>& open_pool_set() { return _open_pools; }
-
-    inline bool validate_pool(pool_t pool) const { return _open_pools.count(pool) == 1; }
-
+    
     inline size_t max_message_size() const { return _max_message_size; }
 
   private:
@@ -248,9 +201,6 @@ namespace Dawn {
     std::vector<buffer_t*> _pending_msgs;
     std::vector<action_t>  _pending_actions;
     int                    _response;
-  
-    std::set<pool_t> _open_pools; /*< pools currently open by client */
-    std::map<pool_t, std::vector<Connection_base::memory_region_t>> _pool_memory_handles;
   };
 
 

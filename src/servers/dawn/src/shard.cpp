@@ -96,7 +96,8 @@ namespace Dawn {
 
         /* issue tick */
         auto tick_response = handler->tick();
-      
+
+        /* close session */
         if(tick_response == Dawn::Connection_handler::TICK_RESPONSE_CLOSE) {
 
           if(_forced_exit)
@@ -104,9 +105,6 @@ namespace Dawn {
         
           if(option_DEBUG)
             PLOG("Shard: closing connection %p", handler);
-        
-          for(auto& pool : handler->open_pool_set())
-            _i_kvstore->close_pool(pool);
 
           pending_close.push_back(handler_iter);
         }
@@ -190,13 +188,19 @@ namespace Dawn {
 
       try {
         Component::IKVStore::pool_t pool;
-
-        if(!_po.devdax) {
-          pool = _i_kvstore->create_pool(msg->path(), msg->pool_name(), msg->pool_size);
+        
+        const std::string pool_name = _po.devdax ? "/dev/dax0.0" : _data_dir + msg->pool_name();
+        if(_pm.check_for_open_pool(pool_name, pool)) {
+          _pm.add_reference(pool);
         }
         else {
-          PLOG("Creating devdax pool.");
-          pool = _i_kvstore->create_pool("/dev/","dax0.0", msg->pool_size);
+          if(_po.devdax)
+            pool = _i_kvstore->create_pool("/dev/","dax0.0", msg->pool_size);
+          else
+            pool = _i_kvstore->create_pool(msg->path(), msg->pool_name(), msg->pool_size);
+
+          /* register pool handle */
+          _pm.register_pool(pool_name, pool);
         }
 
         if(option_DEBUG)
@@ -204,7 +208,11 @@ namespace Dawn {
 
         std::vector<::iovec> regions;
         status_t rc = _i_kvstore->get_pool_regions(pool, regions);
-        rc == S_OK ? handler->add_as_open_pool(pool, &regions) : handler->add_as_open_pool(pool);
+        if(rc == S_OK) {
+        }
+
+        // TODO
+        //rc == S_OK ? handler->add_as_open_pool(pool, &regions) : handler->add_as_open_pool(pool);
       
         response->pool_id = pool;
         response->status = S_OK;
@@ -212,7 +220,7 @@ namespace Dawn {
       catch(...) {
         PERR("OP_CREATE: error");
         response->pool_id = 0;
-        response->status = E_FAIL; // TODO: improve error code flow through
+        response->status = E_FAIL;
       }
     }
     else if(msg->op == Dawn::Protocol::OP_OPEN) {
@@ -225,20 +233,32 @@ namespace Dawn {
         PLOG("opening pool: (%s)", msg->pool_name());
 
         Component::IKVStore::pool_t pool;
-        if(!_po.devdax) {
-          pool = _i_kvstore->open_pool(_data_dir, msg->pool_name());
+
+        const std::string pool_name = _po.devdax ? "/dev/dax0.0" : _data_dir + msg->pool_name();
+
+        /* check that pool is not already open */
+        if(!_pm.check_for_open_pool(pool_name, pool)) {
+          /* pool does not exist yet */
+          pool = _po.devdax ?
+            _i_kvstore->open_pool("/dev/","dax0.0", 0) :
+            _i_kvstore->open_pool(_data_dir, msg->pool_name());
+
+          PLOG("pool open for first time (%p)", pool);
+          /* register pool handle */
+          _pm.register_pool(pool_name, pool);
+          
+          // std::vector<::iovec> regions;
+          // status_t rc = _i_kvstore->get_pool_regions(pool, regions);
         }
         else {
-          pool = _i_kvstore->open_pool("/dev/","dax0.0", 0);
+          PLOG("reusing existing open pool (%p)", pool);
+          /* pool exists */
+          _pm.add_reference(pool);
         }
-
+        
         if(option_DEBUG)
           PLOG("OP_OPEN: pool id: %lx", pool);
         
-        std::vector<::iovec> regions;
-        status_t rc = _i_kvstore->get_pool_regions(pool, regions);
-        rc == S_OK ? handler->add_as_open_pool(pool, &regions) : handler->add_as_open_pool(pool);
-
         response->pool_id = pool;
       }
       catch(...) {
@@ -256,8 +276,10 @@ namespace Dawn {
         auto pool = msg->pool_id;
         if(option_DEBUG)
           PLOG("OP_CLOSE: pool id: %lx", pool);
-        _i_kvstore->close_pool(pool);
-        handler->remove_as_open_pool(pool);
+
+        if(_pm.release_pool_reference(pool)) {
+          _i_kvstore->close_pool(pool);
+        }
         response->pool_id = pool;
       }
       catch(...) {
@@ -275,9 +297,17 @@ namespace Dawn {
         auto pool = msg->pool_id;
         if(option_DEBUG)
           PLOG("OP_DELETE: pool id: %lx", pool);
-        _i_kvstore->delete_pool(pool);
-        response->pool_id = pool;
-        handler->remove_as_open_pool(pool);
+
+        if(_pm.release_pool_reference(pool)) {
+          _i_kvstore->delete_pool(pool);          
+          response->pool_id = pool;
+        }
+        else {
+          if(option_DEBUG)
+            PLOG("unable to delete pool that is open by another session");
+          response->pool_id = pool;
+          response->status = E_INVAL;
+        }
       }
       catch(...) {
         PLOG("OP_DELETE: error");
@@ -304,8 +334,8 @@ namespace Dawn {
   {
     using namespace Component;
   
-    if(!handler->validate_pool(msg->pool_id))
-      throw Protocol_exception("invalid pool identifier");
+    // if(!_pm->is_pool_open(msg->pool_id))
+    //   throw Protocol_exception("invalid pool identifier");
 
     /* State that does not post response (yet) */
     if(msg->op == Protocol::OP_PUT_ADVANCE) {
@@ -338,17 +368,19 @@ namespace Dawn {
       add_locked_value(pool_id, key_handle, target);
     
       /* register memory unless pre-registered */
-      Connection_base::memory_region_t region = handler->get_preregistered(pool_id);
-      if(!region) {
-        if(option_DEBUG || 1)
-          PLOG("using ondemand registration");
-        region = ondemand_register(handler, target, target_len);
-      }
-      else {
-        if(option_DEBUG)
-          PLOG("using pre-registered region (handle=%p)", region);
-      }
-      assert(region);
+      Connection_base::memory_region_t region = nullptr; // TODO handler->get_preregistered(pool_id);
+      // if(!region) {
+      //   if(option_DEBUG || 1)
+      //     PLOG("using ondemand registration");
+      //   region = ondemand_register(handler, target, target_len);
+      // }
+      // else {
+      //   if(option_DEBUG)
+      //     PLOG("using pre-registered region (handle=%p)", region);
+      // }
+      // assert(region);
+      // TODO
+      region = handler->ondemand_register(target, target_len);
     
       handler->set_pending_value(target, target_len, region);
 
@@ -427,7 +459,7 @@ namespace Dawn {
       assert(value_out);
 
       /* register memory on-demand */
-      auto region = ondemand_register(handler, value_out, value_out_len);
+      auto region = handler->ondemand_register(value_out, value_out_len);
       assert(region);
 
       response->data_len = value_out_len;
