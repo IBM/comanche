@@ -306,7 +306,7 @@ public:
     delete mp;
   }
 
-  void do_work(unsigned core) override {
+  bool do_work(unsigned core) override {
     memory_pair* mp = new memory_pair;
     mp->iob = alloc_buffer();
     mp->pthis = this;
@@ -340,6 +340,7 @@ public:
     default:
       throw General_exception("unhandled workload");
     }
+    return true;
   }
 
   void cleanup(unsigned core) override {
