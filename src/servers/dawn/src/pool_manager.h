@@ -3,10 +3,11 @@
 
 #include <map>
 #include <api/kvstore_itf.h>
-#include "fabric_transport.h"
+#include "fabric_connection_base.h"
 
 namespace Dawn
 {
+  using Connection_base = Fabric_connection_base;
 
   /**
      Pool_manager tracks open pool handles on a per-shard (single thread) basis
@@ -24,10 +25,14 @@ namespace Dawn
      *
      * @param pool Pool path
      */
-    bool check_for_open_pool(const std::string& path, pool_t& out_pool) {
-      PLOG("check_for_open_pool (%s)", path.c_str());
+    bool check_for_open_pool(const std::string& path,
+                             pool_t& out_pool) {
       auto i = _name_map.find(path);
-      if(i == _name_map.end()) return false;
+      if(i == _name_map.end()) {
+        PLOG("check_for_open_pool (%s) false", path.c_str());
+        return false;
+      }
+      PLOG("check_for_open_pool (%s) true", path.c_str());
       out_pool = i->second;
       return true;
     }
@@ -71,6 +76,17 @@ namespace Dawn
     }
 
     /**
+     *
+     * Remove pool from registration, e.g. on delete 
+     *
+     * @param pool Pool identifier
+     */
+    void blitz_pool_reference(pool_t pool) {
+      _open_pools[pool] = 0;
+    }
+    
+
+    /**
      * Determine if pool is open and valid 
      *
      * @param pool Pool identifier
@@ -86,7 +102,6 @@ namespace Dawn
     inline const std::map<pool_t, unsigned>& open_pool_set() { return _open_pools; }
     
   private:
-    Fabric_transport *                                              _transport;
     std::map<pool_t, unsigned>                                      _open_pools;
     std::map<std::string, pool_t>                                   _name_map;
     std::map<pool_t, std::vector<Connection_base::memory_region_t>> _memory_regions;
