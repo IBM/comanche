@@ -77,7 +77,7 @@ namespace Dawn {
 #endif
   
     uint64_t tick = 0;
-    static constexpr uint64_t CHECK_CONNECTION_INTERVAL = 10000;
+    static constexpr uint64_t CHECK_CONNECTION_INTERVAL = 1000;
 
     Connection_handler::action_t action;
     std::vector<std::vector<Connection_handler*>::iterator> pending_close;
@@ -189,18 +189,16 @@ namespace Dawn {
       try {
         Component::IKVStore::pool_t pool;
         
-        const std::string pool_name = _po.devdax ? "/dev/dax0.0" : _data_dir + msg->pool_name();
-        if(_pm.check_for_open_pool(pool_name, pool)) {
-          _pm.add_reference(pool);
+        const std::string pool_name = msg->path() + std::string(msg->pool_name());
+        
+        if(handler->check_for_open_pool(pool_name, pool)) {
+          handler->add_reference(pool);
         }
         else {
-          if(_po.devdax)
-            pool = _i_kvstore->create_pool("/dev/","dax0.0", msg->pool_size);
-          else
-            pool = _i_kvstore->create_pool(msg->path(), msg->pool_name(), msg->pool_size);
-
+          pool = _i_kvstore->create_pool(msg->path(), msg->pool_name(), msg->pool_size);
+          
           /* register pool handle */
-          _pm.register_pool(pool_name, pool);
+          handler->register_pool(pool_name, pool);
         }
 
         if(option_DEBUG)
@@ -234,18 +232,16 @@ namespace Dawn {
 
         Component::IKVStore::pool_t pool;
 
-        const std::string pool_name = _po.devdax ? "/dev/dax0.0" : _data_dir + msg->pool_name();
+        const std::string pool_name = msg->path() + std::string(msg->pool_name());
 
         /* check that pool is not already open */
-        if(!_pm.check_for_open_pool(pool_name, pool)) {
+        if(!handler->check_for_open_pool(pool_name, pool)) {
           /* pool does not exist yet */
-          pool = _po.devdax ?
-            _i_kvstore->open_pool("/dev/","dax0.0", 0) :
-            _i_kvstore->open_pool(_data_dir, msg->pool_name());
+          pool = _i_kvstore->open_pool(msg->path(), msg->pool_name());
 
           PLOG("pool open for first time (%p)", pool);
           /* register pool handle */
-          _pm.register_pool(pool_name, pool);
+          handler->register_pool(pool_name, pool);
           
           // std::vector<::iovec> regions;
           // status_t rc = _i_kvstore->get_pool_regions(pool, regions);
@@ -253,7 +249,7 @@ namespace Dawn {
         else {
           PLOG("reusing existing open pool (%p)", pool);
           /* pool exists */
-          _pm.add_reference(pool);
+          handler->add_reference(pool);
         }
         
         if(option_DEBUG)
@@ -277,7 +273,7 @@ namespace Dawn {
         if(option_DEBUG)
           PLOG("OP_CLOSE: pool id: %lx", pool);
 
-        if(_pm.release_pool_reference(pool)) {
+        if(handler->release_pool_reference(pool)) {
           _i_kvstore->close_pool(pool);
         }
         response->pool_id = pool;
@@ -298,9 +294,10 @@ namespace Dawn {
         if(option_DEBUG)
           PLOG("OP_DELETE: pool id: %lx", pool);
 
-        if(_pm.release_pool_reference(pool)) {
+        if(handler->release_pool_reference(pool)) {
           _i_kvstore->delete_pool(pool);          
           response->pool_id = pool;
+          handler->blitz_pool_reference(pool);
         }
         else {
           if(option_DEBUG)
