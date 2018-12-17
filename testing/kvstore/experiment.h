@@ -175,9 +175,10 @@ public:
   }
 
   // do_work should be overwritten by child class
-  void do_work(unsigned core) override
+  bool do_work(unsigned core) override
   {
     assert(false && "Experiment.do_work needs to use override!");
+    return false;
   }
    
   virtual void cleanup_custom(unsigned core)

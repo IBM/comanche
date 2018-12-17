@@ -27,7 +27,7 @@ Connection_handler::pool_t Connection_handler::open_pool(const std::string path,
 {
   API_LOCK();
   
-  PINF("open pool: %s %s", path.c_str(), name.c_str());
+  PINF("open pool: %s%s", path.c_str(), name.c_str());
 
   /* send pool request message */
   const auto iob = allocate();
