@@ -47,7 +47,7 @@ class Tasklet
 {
 public:
   virtual void initialize(unsigned core) = 0; /*< called once */
-  virtual void do_work(unsigned core) = 0; /*< called in tight loop */
+  virtual bool do_work(unsigned core) = 0; /*< called in tight loop; return false to exit */
   virtual void cleanup(unsigned core) = 0; /*< called once */
   virtual bool ready() { return true; }
 };
@@ -109,7 +109,6 @@ class Per_core_tasking
     }
   }
 
-
 private:
 
   void thread_entry(unsigned core)
@@ -122,7 +121,7 @@ private:
       
     while (!_exit_flag) {
       try {
-        _tasklet[core]->do_work(core); /* call tasklet */
+        _exit_flag = !(_tasklet[core]->do_work(core)); /* call tasklet */
       }
       catch(...) {
         _exit_flag = true;
