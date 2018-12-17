@@ -38,7 +38,7 @@ public:
       _latency_stats.init(_bin_count, _bin_threshold_min, _bin_threshold_max);
     }
 
-    void do_work(unsigned core) override 
+    bool do_work(unsigned core) override 
     {
         // handle first time setup
         if(_first_iter) 
@@ -98,6 +98,7 @@ public:
             perror("put returned !S_OK value");
             throw std::exception();
         }
+        return true;
     }
 
     void cleanup_custom(unsigned core)  
