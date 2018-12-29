@@ -62,7 +62,7 @@ public:
       PLOG("pool seeded with values\n");
     }
 
-    void do_work(unsigned core) override 
+    bool do_work(unsigned core) override 
     {
         // handle first time setup
         if(_first_iter) 
@@ -158,6 +158,7 @@ public:
               _debug_print(core, debug_message.str());
            }
        }
+       return true;
     }
 
     void cleanup_custom(unsigned core)  

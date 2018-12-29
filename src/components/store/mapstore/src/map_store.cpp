@@ -95,14 +95,24 @@ status_t Pool_handle::put(const std::string& key,
 
   RWLock_guard guard(map_lock, RWLock_guard::WRITE);
 
-  if(map.find(key) != map.end())
-    return IKVStore::E_KEY_EXISTS;
-
-  auto buffer = scalable_aligned_malloc(value_len, OBJECT_ALIGNMENT);
-  memcpy(buffer, value, value_len);
-  map.emplace(key, Value_pair{buffer, value_len});
-  scalable_free(buffer);
-  //  assert(map.find(key) != map.end());
+  auto i = map.find(key);
+  if(i != map.end()) {
+    auto& p = i->second;
+    if(p.length == value_len) {
+      memcpy(p.ptr, value, value_len);
+    }
+    else {
+      /* different size, reallocate */
+      scalable_free(p.ptr);
+      p.ptr = scalable_aligned_malloc(value_len, OBJECT_ALIGNMENT);
+      memcpy(p.ptr, value, value_len);
+    }
+  }
+  else {
+    auto buffer = scalable_aligned_malloc(value_len, OBJECT_ALIGNMENT);
+    memcpy(buffer, value, value_len);
+    map.emplace(key, Value_pair{buffer, value_len});
+  }
   
   return S_OK;
 }
