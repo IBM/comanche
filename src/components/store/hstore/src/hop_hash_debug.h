@@ -9,23 +9,24 @@ namespace impl
 {
 	template <typename Value>
 		class content;
-	class segment_and_bucket;
+	template <typename Bucket>
+		class segment_and_bucket;
 }
 
 namespace impl
 {
 	class owner;
 
-	template <typename Referent>
+	template <typename Bucket, typename Referent>
 		class bucket_ref;
 
-	template <typename Referent>
+	template <typename Bucket, typename Referent>
 		class bypass_lock
-			: public bucket_ref<Referent>
+			: public bucket_ref<Bucket, Referent>
 		{
 		public:
-			bypass_lock(Referent &b_, const segment_and_bucket &i_)
-				: bucket_ref<Referent>(&b_, i_)
+			bypass_lock(Referent &b_, const segment_and_bucket<Bucket> &i_)
+				: bucket_ref<Bucket, Referent>(&b_, i_)
 			{}
 		};
 
@@ -50,7 +51,7 @@ namespace impl
 			{}
 			const TableBase &get_table() const { return *_t; }
 			Lock &lock() const { return *_i; }
-			segment_and_bucket sb() const { return lock().sb(); }
+			auto sb() const { return lock().sb(); }
 			std::size_t index() const { return lock().index(); }
 		};
 
@@ -78,7 +79,7 @@ namespace impl
 	template <typename TableBase>
 		auto operator<<(
 			std::ostream &o
-			, const owner_print<TableBase, bypass_lock<const owner>> &
+			, const owner_print<TableBase, bypass_lock<typename TableBase::bucket_t, const owner>> &
 		) -> std::ostream &;
 
 	template <
@@ -97,7 +98,7 @@ namespace impl
 			LockOwner &lock_owner() const { return *_c; }
 			LockContent &lock() const { return *_i; }
 			std::size_t index() const { return lock().index(); }
-			segment_and_bucket sb() const { return lock().sb(); }
+			auto sb() const { return lock().sb(); }
 		};
 
 	template <

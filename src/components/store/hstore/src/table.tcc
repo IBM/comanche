@@ -44,18 +44,29 @@ template <
 	{
 		const auto bp_src = persist_controller_t::bp_src();
 		const auto bc_dst =
-			boost::make_transform_iterator(_bc, std::mem_fn(&bucket_control_t::_b));
+			boost::make_transform_iterator(_bc, std::mem_fn(&bucket_control_t::_buckets));
 		std::transform(
 			bp_src
 			, bp_src + _segment_capacity
 			, bc_dst
 			, [] (const auto &c) { return &*c; }
 		);
+		_bc[0]._index = 0;
+		_bc[0]._next = &_bc[0];
+		_bc[0]._prev = &_bc[0];
 		_bc[0]._bucket_mutexes = new bucket_mutexes_t[base_segment_size];
+		_bc[0]._buckets_end = _bc[0]._buckets + base_segment_size;
 		for ( auto ix = 1U; ix != persist_controller_t::segment_count_actual(); ++ix )
 		{
+			_bc[ix-1]._next = &_bc[ix];
+			_bc[ix]._prev = &_bc[ix-1];
+			_bc[ix]._index = ix;
+			_bc[ix]._next = &_bc[0];
+			_bc[0]._prev = &_bc[ix];
+			auto segment_size = base_segment_size << (ix-1U);
 			_bc[ix]._bucket_mutexes =
-				new bucket_mutexes_t[base_segment_size << (ix-1U)];
+				new bucket_mutexes_t[segment_size];
+			_bc[ix]._buckets_end = _bc[ix]._buckets + segment_size;
 		}
 #if TRACE_MANY
 		std::cerr << __func__ << " count " << persist_controller_t::segment_count_actual()
@@ -97,7 +108,7 @@ template <
 	auto impl::table_base<
 		Key, T, Hash, Pred, Allocator, SharedMutex
 	>::is_free_by_owner(
-		const segment_and_bucket &a_
+		const segment_and_bucket_t &a_
 	) const -> bool
 	{
 		/* In order to develop a mask of "used" (non-free) locations,
@@ -115,7 +126,7 @@ template <
 			/*
 			 * The "used" flag of a bucket is held by at most one owner.
 			 * Therefore, no corresponding bits shall be 1 in both c
-			 * (the sum of previous owners) and _b[owner_lk.index()]._owner
+			 * (the sum of previous owners) and _buckets[owner_lk.index()]._owner
 			 * (the current owner to be included).
 			 */
 
@@ -133,7 +144,7 @@ template <
 #endif
 			c |= locate_owner(sbw2).value(owner_lk);
 		}
-		/* c now contains, in its 0 bit, the "used" aspect of _b[bi_] */
+		/* c now contains, in its 0 bit, the "used" aspect of _buckets[bi_] */
 		return ( c & 1U ) == 0U;
 	}
 
@@ -143,7 +154,7 @@ template <
 	, typename Allocator, typename SharedMutex
 >
 	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::is_free(
-		const segment_and_bucket &a_
+		const segment_and_bucket_t &a_
 	) const -> bool
 	{
 		auto &b_src = locate(a_);
@@ -163,7 +174,7 @@ template <
 	, typename Allocator, typename SharedMutex
 >
 	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::is_free(
-		const segment_and_bucket &a_
+		const segment_and_bucket_t &a_
 	) -> bool
 	{
 		auto &b_src = locate_content(a_);
@@ -231,7 +242,7 @@ template <
 	auto impl::table_base<
 		Key, T, Hash, Pred, Allocator, SharedMutex
 	>::nearest_free_bucket(
-		segment_and_bucket bi_
+		segment_and_bucket_t bi_
 	) -> content_unique_lock_t
 	{
 		/* acquire content_lock(cursor) by virtue of owning owner_lock(cursor) */
@@ -335,9 +346,9 @@ template <
 			/* postconditions
 			 *   owner_lock.index() == b_dst_lock_ : we ran out of items to examine
 			 *  or
-			 *   (_b[lock.index()]._owner & eligible_items) != 0 : at least one item
+			 *   (_buckets[lock.index()]._owner & eligible_items) != 0 : at least one item
 			 *     in owner is eliglbe for the move; the best item is the 1 at the
-			 *     smallest index in _b[lock.index()]._owner & eligible_items.
+			 *     smallest index in _buckets[lock.index()]._owner & eligible_items.
 			 */
 			if ( owner_lock.sb() == b_dst_lock_.sb() )
 			{
@@ -632,13 +643,19 @@ template <
 >
 	void impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::resize()
 	{
-		_bc[segment_count()]._b = persist_controller_t::resize_prolog();
-		_bc[segment_count()]._bucket_mutexes = new bucket_mutexes_t[bucket_count()];
+		_bc[segment_count()]._buckets = persist_controller_t::resize_prolog();
+		_bc[segment_count()]._next = &_bc[0];
+		_bc[segment_count()]._prev = &_bc[segment_count()-1];
+		_bc[segment_count()]._index = segment_count();
+		auto segment_size = bucket_count();
+		_bc[segment_count()]._bucket_mutexes = new bucket_mutexes_t[segment_size];
+		_bc[segment_count()]._buckets_end = _bc[segment_count()]._buckets + segment_size;
 
 		/* adjust count and everything which depends on it (size, mask) */
 
 		/* PASS 1: copy content */
 		resize_pass1();
+
 		/* PASS 2: remove old content, update owners. Some old content mave have been
 		 * removed if pass 2 was restarted, so use the new (junior) content to drive
 		 * the operations.
@@ -659,6 +676,12 @@ template <
 		bix_t ix_senior = 0U;
 		const auto sb_senior_end =
 			make_segment_and_bucket_for_iterator(bucket_count());
+#if TRACE_MANY
+			std::cerr << __func__
+				<< " bucket_count " << bucket_count()
+				<< " sb_senior_end " << sb_senior_end.si() << "," << sb_senior_end.bi()
+				<< "\n";
+#endif
 		for (
 			auto sb_senior = make_segment_and_bucket(0U)
 			; sb_senior != sb_senior_end
@@ -668,7 +691,7 @@ template <
 			auto senior_content_lk = make_content_unique_lock(sb_senior);
 
 			/* special locate, used to pre-fill new buckets */
-			content<value_type> &junior_content = _bc[segment_count()]._b[ix_senior];
+			content<value_type> &junior_content = _bc[segment_count()]._buckets[ix_senior];
 			if ( ! is_free(senior_content_lk.sb()) )
 			{
 				/* examine hash(key) to determine whether to copy content */
@@ -684,7 +707,7 @@ template <
 					 */
 #if TRACE_MANY
 					std::cerr << __func__
-						<< ".1a no-relocate owner " << bucket_ix(hash)
+						<< " " << ix_senior << " 1a no-relocate, owner " << bucket_ix(hash)
 						<< " -> " << ix_owner << ": content " << ix_senior << "\n";
 #endif
 				}
@@ -700,7 +723,7 @@ template <
 					 */
 #if TRACE_MANY
 					std::cerr << __func__
-						<< ".1b no-relocate owner " << bucket_ix(hash)
+						<< " " << ix_senior << " 1b no-relocate, owner " << bucket_ix(hash)
 						<< " -> " << ix_owner << ": content " << ix_senior << "\n";
 #endif
 				}
@@ -712,11 +735,17 @@ template <
 					junior_content.state_set(bucket_t::ENTERING);
 #if TRACE_MANY
 					std::cerr << __func__
-						<< ".1c relocate owner " << bucket_ix(hash) << " -> " << ix_owner
+						<< " " << ix_senior << " 1c relocate, owner " << bucket_ix(hash) << " -> " << ix_owner
 						<< ": content " << ix_senior << " -> "
 						<< ix_senior + bucket_count() << "\n";
 #endif
 				}
+			}
+			else
+			{
+#if TRACE_MANY
+				std::cerr << __func__ << " " << ix_senior << " 1d empty\n";
+#endif
 			}
 		}
 
@@ -749,8 +778,8 @@ template <
 			 */
 			content_unique_lock_t
 				junior_content_lk(
-					_bc[segment_count()]._b[ix_senior]
-					, segment_and_bucket(segment_count(), ix_senior)
+					_bc[segment_count()]._buckets[ix_senior]
+					, segment_and_bucket_t(&_bc[segment_count()], ix_senior)
 					, _bc[segment_count()]._bucket_mutexes[ix_senior]._m_content
 				);
 
@@ -773,15 +802,15 @@ template <
 					auto senior_owner_lk = make_owner_unique_lock(senior_owner_sb);
 					owner_unique_lock_t
 						junior_owner_lk(
-							_bc[segment_count()]._b[ix_senior_owner]
-							, segment_and_bucket(segment_count(), ix_senior_owner)
+							_bc[segment_count()]._buckets[ix_senior_owner]
+							, segment_and_bucket_t(&_bc[segment_count()], ix_senior_owner)
 							, _bc[segment_count()]._bucket_mutexes[ix_senior_owner]._m_owner
 						);
 
 					/* special locate, used before size has been updated
 					 * to pre-fill new buckets
 					 */
-					auto &junior_owner = _bc[segment_count()]._b[ix_senior_owner];
+					auto &junior_owner = _bc[segment_count()]._buckets[ix_senior_owner];
 					auto owner_pos = distance_wrapped(ix_senior_owner, ix_senior);
 					assert(owner_pos < owner::size);
 					junior_owner.insert(ix_junior_owner, owner_pos, junior_owner_lk);
@@ -824,8 +853,8 @@ template <
 					auto senior_owner_lk = make_owner_unique_lock(senior_owner_sb);
 					owner_unique_lock_t
 						junior_owner_lk(
-							_bc[segment_count()]._b[ix_senior_owner]
-							, segment_and_bucket(segment_count(), ix_senior_owner)
+							_bc[segment_count()]._buckets[ix_senior_owner]
+							, segment_and_bucket_t(&_bc[segment_count()], ix_senior_owner)
 							, _bc[segment_count()]
 								._bucket_mutexes[ix_senior_owner]._m_owner
 						);
@@ -833,7 +862,7 @@ template <
 					/* special locate, used before size has been updated
 					 * to pre-fill new buckets
 					 */
-					auto &junior_owner = _bc[segment_count()]._b[ix_senior_owner];
+					auto &junior_owner = _bc[segment_count()]._buckets[ix_senior_owner];
 					auto owner_pos = distance_wrapped(ix_senior_owner, ix_senior);
 					assert(owner_pos < owner::size);
 					junior_owner.insert(ix_junior_owner, owner_pos, junior_owner_lk);
@@ -865,8 +894,8 @@ template <
 			 */
 			owner_unique_lock_t
 				junior_owner_lk(
-					_bc[segment_count()]._b[ix_senior_owner]
-					, segment_and_bucket(segment_count(), ix_senior_owner)
+					_bc[segment_count()]._buckets[ix_senior_owner]
+					, segment_and_bucket_t(&_bc[segment_count()], ix_senior_owner)
 					, _bc[segment_count()]._bucket_mutexes[ix_senior_owner]._m_owner
 				);
 		}
@@ -875,6 +904,10 @@ template <
 		persist_controller_t::persist_existing_segments("pass 2 senior content");
 		/* flush for state_set owner::LIVE in loop above. */
 		persist_controller_t::persist_new_segment("pass 2 junior owner");
+
+		/* link in new segment in non-persistent circular list of segments */
+		_bc[segment_count()-1]._next = &_bc[segment_count()];
+		_bc[0]._prev = &_bc[segment_count()];
 	}
 
 template <
@@ -885,7 +918,7 @@ template <
 		Key, T, Hash, Pred, Allocator, SharedMutex
 	>::make_segment_and_bucket(
 		bix_t ix_
-	) const -> segment_and_bucket
+	) const -> segment_and_bucket_t
 	{
 		assert( ix_ < bucket_count() );
 		return make_segment_and_bucket_for_iterator(ix_);
@@ -898,9 +931,9 @@ template <
 	auto impl::table_base<
 		Key, T, Hash, Pred, Allocator, SharedMutex
 	>::make_segment_and_bucket_prev(
-		segment_and_bucket a
+		segment_and_bucket_t a
 		, unsigned bkwd
-	) const -> segment_and_bucket
+	) const -> segment_and_bucket_t
 	{
 		a.subtract_small(*this, bkwd);
 		return a;
@@ -914,10 +947,30 @@ template <
 		Key, T, Hash, Pred, Allocator, SharedMutex
 	>::make_segment_and_bucket_for_iterator(
 		bix_t ix
-	) const -> segment_and_bucket
+	) const -> segment_and_bucket_t
 	{
 		assert( ix <= bucket_count() );
-		return segment_and_bucket(ix);
+
+		auto si =
+			__builtin_expect((segment_layout::ix_high(ix) == 0),false)
+			? 0
+			: segment_layout::log2(ix_high(ix))
+			;
+		auto bi =
+			(
+				__builtin_expect((segment_layout::ix_high(ix) == 0),false)
+				? 0
+				: ix_high(ix) % (1U << (si-1))
+			)
+			*
+			segment_layout::base_segment_size + segment_layout::ix_low(ix)
+			;
+
+		return
+			si == segment_count()
+			? segment_and_bucket_t(&_bc[si-1], _bc[si-1].segment_size() ) /* end iterator */
+			: segment_and_bucket_t(&_bc[si], bi)
+			;
 	}
 
 template <
@@ -925,10 +978,10 @@ template <
 	, typename Allocator, typename SharedMutex
 >
 	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::locate(
-		const segment_and_bucket &a_
+		const segment_and_bucket_t &a_
 	) const -> bucket_aligned_t &
 	{
-		return const_cast<bucket_aligned_t &>(_bc[a_.si()]._b[a_.bi()]);
+		return const_cast<bucket_aligned_t &>(_bc[a_.si()]._buckets[a_.bi()]);
 	}
 
 template <
@@ -938,7 +991,7 @@ template <
 	auto impl::table_base<
 		Key, T, Hash, Pred, Allocator, SharedMutex
 	>::locate_bucket_mutexes(
-		const segment_and_bucket &a_
+		const segment_and_bucket_t &a_
 	) const -> bucket_mutexes_t &
 	{
 		return _bc[a_.si()]._bucket_mutexes[a_.bi()];
@@ -949,7 +1002,7 @@ template <
 	, typename Allocator, typename SharedMutex
 >
 	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::locate_owner(
-		const segment_and_bucket &a_
+		const segment_and_bucket_t &a_
 	) const -> const owner &
 	{
 		return static_cast<const owner &>(locate(a_));
@@ -960,7 +1013,7 @@ template <
 	, typename Allocator, typename SharedMutex
 >
 	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::locate_content(
-		const segment_and_bucket &a_
+		const segment_and_bucket_t &a_
 	) const -> const content_t &
 	{
 		return static_cast<const content_t &>(locate(a_));
@@ -971,7 +1024,7 @@ template <
 	, typename Allocator, typename SharedMutex
 >
 	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::locate_content(
-		const segment_and_bucket &a_
+		const segment_and_bucket_t &a_
 	) -> content_t &
 	{
 		return static_cast<content_t &>(locate(a_));
@@ -984,7 +1037,7 @@ template <
 	auto impl::table_base<
 		Key, T, Hash, Pred, Allocator, SharedMutex
 	>::make_owner_unique_lock(
-		const segment_and_bucket &a_
+		const segment_and_bucket_t &a_
 	) const -> owner_unique_lock_t
 	{
 		return owner_unique_lock_t(locate(a_), a_, locate_bucket_mutexes(a_)._m_owner);
@@ -1026,7 +1079,7 @@ template <
 	auto impl::table_base<
 		Key, T, Hash, Pred, Allocator, SharedMutex
 	>::make_owner_shared_lock(
-		const segment_and_bucket &a_
+		const segment_and_bucket_t &a_
 	) const -> owner_shared_lock_t
 	{
 		return owner_shared_lock_t(locate(a_), a_, locate_bucket_mutexes(a_)._m_owner);
@@ -1039,7 +1092,7 @@ template <
 	auto impl::table_base<
 		Key, T, Hash, Pred, Allocator, SharedMutex
 	>::make_content_unique_lock(
-		const segment_and_bucket &a_
+		const segment_and_bucket_t &a_
 	) const -> content_unique_lock_t
 	{
 		return
@@ -1074,7 +1127,7 @@ template <
 		auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::locate_key(
 			Lock &bi_
 			, const key_type &k_
-		) const -> std::tuple<bucket_t *, segment_and_bucket>
+		) const -> std::tuple<bucket_t *, segment_and_bucket_t>
 		{
 			/* Use the owner to filter key checks, a performance aid
 			 * to reduce the number of key compares.
@@ -1110,7 +1163,7 @@ template <
 							<< __func__ << " returns (success) " << bfp.index() << "\n";
 #endif
 						bucket_t *bb = static_cast<bucket_t *>(c);
-						return std::tuple<bucket_t *, segment_and_bucket>(bb, bfp);
+						return std::tuple<bucket_t *, segment_and_bucket_t>(bb, bfp);
 					}
 					else
 					{
@@ -1128,9 +1181,9 @@ template <
 				<< __func__ << " returns (failure) " << bfp.index() << "\n";
 #endif
 			return
-				std::tuple<bucket_t *, segment_and_bucket>(
+				std::tuple<bucket_t *, segment_and_bucket_t>(
 					nullptr
-					, segment_and_bucket(0, 0)
+					, segment_and_bucket_t(0, 0)
 				);
 		}
 
