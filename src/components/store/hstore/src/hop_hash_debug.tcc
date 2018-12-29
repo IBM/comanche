@@ -46,14 +46,14 @@ template <typename TableBase>
 		, const bucket_print
 			<
 				TableBase
-				, bypass_lock<owner>
-				, bypass_lock<content<typename TableBase::bucket_t>>
+				, bypass_lock<typename TableBase::bucket_t, owner>
+				, bypass_lock<typename TableBase::bucket_t, content<typename TableBase::bucket_t>>
 			> &p_
 	) -> std::ostream &
 	{
 		const auto &t = p_.get_table();
 		const auto &b = t.locate(p_.index());
-		auto lk_shared_owner = bypass_lock<owner>(p_.index());
+		auto lk_shared_owner = bypass_lock<typename TableBase::bucket_t, owner>(p_.index());
 		return o_
 			<< "( "
 			<< make_owner_print(t, lk_shared_owner)

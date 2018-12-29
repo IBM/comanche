@@ -3,6 +3,7 @@
 
 #include "segment_layout.h"
 
+#include "bucket_control_unlocked.h"
 #include "trace_flags.h"
 #include "persister.h"
 #include "persist_controller.h"
@@ -82,33 +83,38 @@ namespace impl
 	template <typename Table>
 		class table_const_local_iterator;
 
-	template <typename Referent>
+	template <typename Bucket, typename Referent>
 		class bucket_ref
 		{
-			Referent *_ref;
-			segment_and_bucket _sb;
 		public:
-			bucket_ref(Referent *ref_, const segment_and_bucket &sb_)
+			using segment_and_bucket_t = segment_and_bucket<Bucket>;
+		private:
+			Referent *_ref;
+			segment_and_bucket_t _sb;
+		public:
+			bucket_ref(Referent *ref_, const segment_and_bucket_t &sb_)
 				: _ref(ref_)
 				, _sb(sb_)
 			{
 			}
 			std::size_t index() const { return sb().index(); }
-			const segment_and_bucket &sb() const { return _sb; }
+			const segment_and_bucket_t &sb() const { return _sb; }
 			Referent &ref() const { return *_ref; }
 		};
 
-	template <typename Owner, typename SharedMutex>
+	template <typename Bucket, typename Owner, typename SharedMutex>
 		struct bucket_unique_lock
-			: public bucket_ref<Owner>
+			: public bucket_ref<Bucket, Owner>
 			, public std::unique_lock<SharedMutex>
 		{
+			using base_ref = bucket_ref<Bucket, Owner>;
+			using segment_and_bucket_t = typename base_ref::segment_and_bucket_t;
 			bucket_unique_lock(
 				Owner &b_
-				, const segment_and_bucket &i_
+				, const segment_and_bucket_t &i_
 				, SharedMutex &m_
 			)
-				: bucket_ref<Owner>(&b_, i_)
+				: bucket_ref<Bucket, Owner>(&b_, i_)
 				, std::unique_lock<SharedMutex>(m_)
 			{
 #if TRACE_LOCK
@@ -123,7 +129,7 @@ namespace impl
 					<< "->" << other_.index() << "\n";
 #endif
 				std::unique_lock<SharedMutex>::operator=(std::move(other_));
-				bucket_ref<Owner>::operator=(std::move(other_));
+				base_ref::operator=(std::move(other_));
 				return *this;
 			}
 			~bucket_unique_lock()
@@ -142,18 +148,21 @@ namespace impl
 				}
 		};
 
-	template <typename BucketAligned, typename SharedMutex>
+	template <typename Bucket, typename Referent, typename SharedMutex>
 		struct bucket_shared_lock
-			: public bucket_ref<BucketAligned>
+			: public bucket_ref<Bucket, Referent>
 			, public std::shared_lock<SharedMutex>
 		{
+			using base_ref = bucket_ref<Bucket, Referent>;
+			using base_lock = std::shared_lock<SharedMutex>;
+			using segment_and_bucket_t = typename base_ref::segment_and_bucket_t;
 			bucket_shared_lock(
-				BucketAligned &b_
-				, const segment_and_bucket &i_
+				Bucket &b_
+				, const segment_and_bucket_t &i_
 				, SharedMutex &m_
 			)
-				: bucket_ref<BucketAligned>(&b_, i_)
-				, std::shared_lock<SharedMutex>(m_)
+				: base_ref(&b_, i_)
+				, base_lock(m_)
 			{
 #if TRACE_LOCK
 				std::cerr << __func__ << " " << this->index() << "\n";
@@ -166,8 +175,8 @@ namespace impl
 				std::cerr << __func__ << " " << this->index()
 					<< "->" << other_.index() << "\n";
 #endif
-				std::shared_lock<SharedMutex>::operator=(std::move(other_));
-				bucket_ref<BucketAligned>::operator=(std::move(other_));
+				base_lock::operator=(std::move(other_));
+				base_ref::operator=(std::move(other_));
 				return *this;
 			}
 			~bucket_shared_lock()
@@ -199,10 +208,23 @@ namespace impl
 
 	template <typename Bucket, typename Mutex>
 		struct bucket_control
+			: public bucket_control_unlocked<Bucket>
 		{
-			using bucket_aligned_t = bucket_aligned<Bucket>;
 			bucket_mutexes<Mutex> *_bucket_mutexes;
-			bucket_aligned_t *_b;
+		public:
+			using base = bucket_control_unlocked<Bucket>;
+			using bucket_aligned_t = typename base::bucket_aligned_t;
+			using six_t = typename base::six_t;
+			explicit bucket_control(
+				six_t index_
+				, bucket_aligned_t *buckets_
+			)
+				: bucket_control_unlocked<Bucket>(index_, buckets_)
+				, _bucket_mutexes(nullptr)
+			{}
+			explicit bucket_control()
+				: bucket_control(0U, nullptr)
+			{}
 		};
 
 	template <typename Allocator>
@@ -271,10 +293,11 @@ namespace impl
 			using bucket_aligned_t = typename bucket_control_t::bucket_aligned_t;
 			using bucket_allocator_t =
 				typename Allocator::template rebind<bucket_aligned_t>::other;
-			using owner_unique_lock_t = bucket_unique_lock<owner, SharedMutex>;
-			using owner_shared_lock_t = bucket_shared_lock<owner, SharedMutex>;
-			using content_unique_lock_t = bucket_unique_lock<content_t, SharedMutex>;
-			using content_shared_lock_t = bucket_shared_lock<content_t, SharedMutex>;
+			using owner_unique_lock_t = bucket_unique_lock<bucket_t, owner, SharedMutex>;
+			using owner_shared_lock_t = bucket_shared_lock<bucket_t, owner, SharedMutex>;
+			using content_unique_lock_t = bucket_unique_lock<bucket_t, content_t, SharedMutex>;
+			using content_shared_lock_t = bucket_shared_lock<bucket_t, content_t, SharedMutex>;
+			using segment_and_bucket_t = segment_and_bucket<bucket_t>;
 			static constexpr auto _segment_capacity =
 				persist_controller_t::_segment_capacity;
 			/* Need to adjust hash and bucket_ix interpretations in more places
@@ -308,7 +331,7 @@ namespace impl
 			auto bucket_ix(const hash_result_t h) const -> bix_t;
 			auto bucket_expanded_ix(const hash_result_t h) const -> bix_t;
 
-			auto nearest_free_bucket(segment_and_bucket bi) -> content_unique_lock_t;
+			auto nearest_free_bucket(segment_and_bucket_t bi) -> content_unique_lock_t;
 
 			auto make_space_for_insert(
 				bix_t bi
@@ -319,17 +342,17 @@ namespace impl
 				auto locate_key(
 					Lock &bi
 					, const key_type &k
-				) const -> std::tuple<bucket_t *, segment_and_bucket>;
+				) const -> std::tuple<bucket_t *, segment_and_bucket_t>;
 
 			void resize();
 			void resize_pass1();
 			void resize_pass2();
 			auto locate_bucket_mutexes(
-				const segment_and_bucket &
+				const segment_and_bucket_t &
 			) const -> bucket_mutexes_t &;
 
 			auto make_owner_unique_lock(
-				const segment_and_bucket &a
+				const segment_and_bucket_t &a
 			) const -> owner_unique_lock_t;
 
 			/* lock an owner which precedes content */
@@ -340,11 +363,11 @@ namespace impl
 
 			auto make_owner_shared_lock(const key_type &k) const -> owner_shared_lock_t;
 			auto make_owner_shared_lock(
-				const segment_and_bucket &
+				const segment_and_bucket_t &
 			) const -> owner_shared_lock_t;
 
 			auto make_content_unique_lock(
-				const segment_and_bucket &
+				const segment_and_bucket_t &
 			) const -> content_unique_lock_t;
 			/* lock content which follows an owner */
 			auto make_content_unique_lock(
@@ -357,27 +380,27 @@ namespace impl
 			auto owner_value_at(owner_unique_lock_t &bi) const -> owner::value_type;
 			auto owner_value_at(owner_shared_lock_t &bi) const -> owner::value_type;
 
-			auto make_segment_and_bucket(bix_t ix) const -> segment_and_bucket;
+			auto make_segment_and_bucket(bix_t ix) const -> segment_and_bucket_t;
 			auto make_segment_and_bucket_for_iterator(
 				bix_t ix
-			) const -> segment_and_bucket;
+			) const -> segment_and_bucket_t;
 			auto make_segment_and_bucket_prev(
-				segment_and_bucket a
+				segment_and_bucket_t a
 				, unsigned bkwd
-			) const -> segment_and_bucket;
-			auto locate(const segment_and_bucket &) const -> bucket_aligned_t &;
+			) const -> segment_and_bucket_t;
+			auto locate(const segment_and_bucket_t &) const -> bucket_aligned_t &;
 
-			auto locate_owner(const segment_and_bucket &a) const -> const owner &;
+			auto locate_owner(const segment_and_bucket_t &a) const -> const owner &;
 
-			auto locate_content(const segment_and_bucket &a) const -> const content_t &;
-			auto locate_content(const segment_and_bucket &a) -> content_t &;
+			auto locate_content(const segment_and_bucket_t &a) const -> const content_t &;
+			auto locate_content(const segment_and_bucket_t &a) -> content_t &;
 
 			auto bucket(const key_type &) const -> size_type;
 			auto bucket_size(const size_type n) const -> size_type;
 
-			bool is_free_by_owner(const segment_and_bucket &a) const;
-			bool is_free(const segment_and_bucket &a);
-			bool is_free(const segment_and_bucket &a) const;
+			bool is_free_by_owner(const segment_and_bucket_t &a) const;
+			bool is_free(const segment_and_bucket_t &a);
+			bool is_free(const segment_and_bucket_t &a) const;
 
 			/* computed distance from first to last, accounting for the possibility that
 			 * last is smaller than first due to wrapping.
@@ -518,7 +541,7 @@ namespace impl
 						std::ostream &o_
 						, const owner_print<
 							TableBase
-							, bypass_lock<const owner>
+							, bypass_lock<typename TableBase::bucket_t, const owner>
 						> &
 					) -> std::ostream &;
 #endif
@@ -542,12 +565,13 @@ namespace impl
 				friend
 				auto operator<<(
 					std::ostream &o_
-					, const impl::bucket_print
+					, const bucket_print
 					<
 						table_base
-						, impl::bypass_lock<const impl::owner>
-						, impl::bypass_lock<
-							const impl::content<typename Table::value_type>
+						, bypass_lock<typename Table::bucket_t, const owner>
+						, bypass_lock<
+							typename Table::bucket_t
+							, const content<typename Table::value_type>
 						>
 					> &
 				) -> std::ostream &;
@@ -556,6 +580,14 @@ namespace impl
 				friend class impl::table_local_iterator_impl;
 			template <typename Table>
 				friend class impl::table_iterator_impl;
+			template <typename Table>
+				friend class impl::table_local_iterator;
+			template <typename Table>
+				friend class impl::table_const_local_iterator;
+			template <typename Table>
+				friend class impl::table_iterator;
+			template <typename Table>
+				friend class impl::table_const_iterator;
 		};
 }
 
@@ -697,8 +729,9 @@ namespace impl
 					, typename Table::value_type
 				>
 		{
+			using segment_and_bucket_t = typename Table::segment_and_bucket_t;
 			const Table *_t;
-			segment_and_bucket _sb;
+			segment_and_bucket_t _sb;
 			owner::value_type _mask;
 			void advance_to_in_use()
 			{
@@ -741,7 +774,7 @@ namespace impl
 				);
 			/* Table 109 (ForwardIterator) - handled by 107 */
 		public:
-			table_local_iterator_impl(const Table &t_, const segment_and_bucket &sb_, owner::value_type mask_)
+			table_local_iterator_impl(const Table &t_, const segment_and_bucket_t &sb_, owner::value_type mask_)
 				: _t(&t_)
 				, _sb(sb_)
 				, _mask(mask_)
@@ -758,8 +791,9 @@ namespace impl
 					, typename Table::value_type
 				>
 		{
+			using segment_and_bucket_t = typename Table::segment_and_bucket_t;
 			const Table *_t;
-			segment_and_bucket _sb;
+			segment_and_bucket_t _sb;
 			void advance_to_in_use()
 			{
 				while ( _sb.index() < _t->bucket_count() && _t->is_free(_sb) )
@@ -797,7 +831,7 @@ namespace impl
 				);
 			/* Table 109 (ForwardIterator) - handled by 107 */
 		public:
-			table_iterator_impl(const Table &t_, const segment_and_bucket &sb_)
+			table_iterator_impl(const Table &t_, const segment_and_bucket_t &sb_)
 				: _t(&t_)
 				, _sb(sb_)
 			{
@@ -809,9 +843,10 @@ namespace impl
 		class table_local_iterator
 			: public table_local_iterator_impl<Table>
 		{
+			using segment_and_bucket_t = typename Table::segment_and_bucket_t;
 			using typename table_local_iterator_impl<Table>::base;
 		public:
-			table_local_iterator(const Table &t_, const segment_and_bucket & sb_, owner::value_type mask_)
+			table_local_iterator(const Table &t_, const segment_and_bucket_t & sb_, owner::value_type mask_)
 				: table_local_iterator_impl<Table>(t_, sb_, mask_)
 			{}
 			/* Table 106 (Iterator) */
@@ -843,9 +878,10 @@ namespace impl
 		class table_const_local_iterator
 			: public table_local_iterator_impl<Table>
 		{
+			using segment_and_bucket_t = typename Table::segment_and_bucket_t;
 			using typename table_local_iterator_impl<Table>::base;
 		public:
-			table_const_local_iterator(const Table &t_, const segment_and_bucket & sb_, owner::value_type mask_)
+			table_const_local_iterator(const Table &t_, const segment_and_bucket_t & sb_, owner::value_type mask_)
 				: table_local_iterator_impl<Table>(t_, sb_, mask_)
 			{}
 			/* Table 106 (Iterator) */
@@ -877,9 +913,10 @@ namespace impl
 		class table_iterator
 			: public table_iterator_impl<Table>
 		{
+			using segment_and_bucket_t = typename Table::segment_and_bucket_t;
 			using typename table_iterator_impl<Table>::base;
 		public:
-			table_iterator(const Table &t, const segment_and_bucket & i)
+			table_iterator(const Table &t, const segment_and_bucket_t & i)
 				: table_iterator_impl<Table>(t, i)
 			{}
 			/* Table 106 (Iterator) */
@@ -911,6 +948,7 @@ namespace impl
 		class table_const_iterator
 			: public table_iterator_impl<Table>
 		{
+			using segment_and_bucket_t = typename Table::segment_and_bucket_t;
 			using typename table_iterator_impl<Table>::base;
 		public:
 			table_const_iterator(const Table &t, typename Table::size_type i)

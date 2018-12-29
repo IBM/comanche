@@ -33,6 +33,14 @@ namespace impl
 				std::numeric_limits<unsigned long>::digits - unsigned(__builtin_clzl(v))
 				;
 		}
+		static auto ix_high(bix_t ix) -> bix_t
+		{
+			return ix >> log2_base_segment_size;
+		}
+		static auto ix_low(bix_t ix) -> bix_t
+		{
+			return ix % base_segment_size;
+		}
 	};
 }
 
