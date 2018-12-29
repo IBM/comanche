@@ -104,6 +104,7 @@ status_t NVME_store::open_block_allocator(IBlock_device *block,Component::IBlock
     VOLUME_INFO devinfo;
 
 
+    // TODO: remove hardcopied block size
     constexpr size_t TOO_MANY_BLOCKS = GB(128)/KB(4);
 
     IBase * comp = load_component("libcomanche-blkalloc-aep.so",
@@ -145,6 +146,9 @@ status_t  NVME_store::do_block_io(Component::IBlock_device * block,
                          lba_t lba,
                          size_t nr_io_blocks){
   switch (type){
+    case BLOCK_IO_NOP:
+      break;
+
     case BLOCK_IO_READ:
 
       if(nr_io_blocks < CHUNK_SIZE_IN_BLOCKS)

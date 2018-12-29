@@ -67,6 +67,10 @@ public:
     FLAGS_CREATE_ONLY = 3,
   };
 
+  enum {
+    POOL_ERROR = 0,
+  };
+
   enum class Op_type {
     WRITE, /* copy bytes into memory region */
     ZERO, /* zero the memory region */
@@ -180,7 +184,7 @@ public:
   virtual void close_pool(const pool_t pool) = 0;
 
   /** 
-   * Delete an existing pool
+   * Close and delete an existing pool
    * 
    * @param pool Pool handle
    */
@@ -194,10 +198,15 @@ public:
    *
    * @return S_OK on success.  Components that do not support this return E_NOT_SUPPORTED.
    */  
-  virtual status_t get_pool_regions(const pool_t pool, std::vector<::iovec>& out_regions) { return E_NOT_SUPPORTED; }
+  virtual status_t get_pool_regions(const pool_t pool,
+                                    std::vector<::iovec>& out_regions) {
+    return E_NOT_SUPPORTED;
+  }
 
   /** 
-   * Write an object value. Key as string.
+   * Write or overwrite an object value. If there already exists a
+   * object with matching key, then it should be replaced
+   * (i.e. reallocated) or overwritten. 
    * 
    * @param pool Pool handle
    * @param key Object key
@@ -212,7 +221,8 @@ public:
                        const size_t value_len) { return E_NOT_SUPPORTED; }
 
   /** 
-   * Zero-copy put operation.
+   * Zero-copy put operation.  If there does not exist an object
+   * with matching key, then an error E_KEY_EXISTS should be returned.
    * 
    * @param pool Pool handle
    * @param key Object key
@@ -227,7 +237,9 @@ public:
                               const std::string& key,
                               const void * value,
                               const size_t value_len,
-                              memory_handle_t handle = HANDLE_NONE) { return E_NOT_SUPPORTED; }
+                              memory_handle_t handle = HANDLE_NONE) {
+    return E_NOT_SUPPORTED;
+  }
 
   /** 
    * Read an object value

@@ -6,20 +6,22 @@
 #include <api/kvstore_itf.h>
 #include <common/str_utils.h>
 #include <core/dpdk.h>
+#include <core/task.h>
+#include <common/cpu.h>
 #include <sys/mman.h>
 
 #include <chrono> /* milliseconds */
 #include <thread> /* this_thread::sleep_for */
 
-#define TEST_BASIC_PUT_AND_GET
+//#define TEST_BASIC_PUT_AND_GET
 //#define TEST_PUT_DIRECT_0
 //#define TEST_PUT_DIRECT_1
-#define TEST_PERF_SMALL_PUT
-#define TEST_PERF_SMALL_GET
-#define TEST_PERF_SMALL_PUT_DIRECT
+//#define TEST_PERF_SMALL_PUT
+//#define TEST_PERF_SMALL_GET
+//#define TEST_PERF_SMALL_PUT_DIRECT
 //#define TEST_PERF_LARGE_PUT_DIRECT
 //#define TEST_PERF_LARGE_GET_DIRECT
-
+#define TEST_SCALE_IOPS
 
 struct
 {
@@ -28,6 +30,8 @@ struct
   std::string device;
   unsigned debug_level;
 } Options;
+
+Component::IKVStore_factory * fact;
 
 
 using namespace Component;
@@ -63,17 +67,13 @@ Component::IKVStore * Dawn_client_test::_dawn;
 DECLARE_STATIC_COMPONENT_UUID(dawn_client, 0x2f666078,0xcb8a,0x4724,0xa454,0xd1,0xd8,0x8d,0xe2,0xdb,0x87);
 DECLARE_STATIC_COMPONENT_UUID(dawn_client_factory, 0xfac66078,0xcb8a,0x4724,0xa454,0xd1,0xd8,0x8d,0xe2,0xdb,0x87);
 
-TEST_F(Dawn_client_test, LibInstantiate)
-{
-}
-
 TEST_F(Dawn_client_test, Instantiate)
 {
   /* create object instance through factory */
   Component::IBase * comp = Component::load_component("libcomanche-dawn-client.so", dawn_client_factory);
 
   ASSERT_TRUE(comp);
-  IKVStore_factory * fact = (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
+  fact = (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
 
   _dawn = fact->create(Options.debug_level,
                        "dwaddington",
@@ -81,7 +81,7 @@ TEST_F(Dawn_client_test, Instantiate)
                        Options.device);
   ASSERT_TRUE(_dawn);
 
-  fact->release_ref();
+  //  fact->release_ref();
 }
 
 #ifdef TEST_BASIC_PUT_AND_GET
@@ -115,6 +115,117 @@ TEST_F(Dawn_client_test, BasicPutAndGet)
   PLOG("BasicPutAndGet OK!");
 }
 #endif
+
+#ifdef TEST_SCALE_IOPS
+
+struct record_t {
+  std::string key;
+  char value[32];
+};
+
+std::mutex    _iops_lock;
+static double _iops = 0.0;
+
+class IOPS_task : public Core::Tasklet
+{
+public:
+  static constexpr unsigned long ITERATIONS = 1000000;
+  static constexpr unsigned long VALUE_SIZE = 32;
+  static constexpr unsigned long KEY_SIZE = 8;
+
+  IOPS_task(void *) {
+  }
+  
+  virtual void initialize(unsigned core) override {
+    _store = fact->create(Options.debug_level,
+                          "dwaddington",
+                          Options.addr,
+                          Options.device);
+
+    char poolname[64];
+    sprintf(poolname, "dax0.%u", core);
+    
+    _pool = _store->create_pool("/dev/",
+                                poolname,
+                                GiB(1));
+
+    _data = (record_t *) malloc(sizeof(record_t) * ITERATIONS);
+    ASSERT_FALSE(_data == nullptr);
+
+    PLOG("Setting up data worker: %u", core);
+    
+    /* set up data */
+    for(unsigned long i=0;i<ITERATIONS;i++) {
+      auto val = Common::random_string(VALUE_SIZE);
+      auto key = Common::random_string(KEY_SIZE);
+      memcpy(_data[i].value, val.c_str(), VALUE_SIZE);
+    }
+
+    _ready_flag = true;
+    _start_time = std::chrono::high_resolution_clock::now();
+  }
+  
+  virtual bool do_work(unsigned core) override {
+    if(_iterations == 0)
+      PLOG("Starting worker: %u", core);
+    
+    _iterations ++;
+    status_t rc = _store->put(_pool,
+                              _data[_iterations].key,
+                              _data[_iterations].value, VALUE_SIZE);
+
+    if(rc != S_OK)
+      throw General_exception("put operation failed:rc=%d", rc);
+      
+    assert(rc==S_OK);
+    
+    if(_iterations > ITERATIONS) {
+      _end_time = std::chrono::high_resolution_clock::now();
+      return false;
+    }
+    return true;
+  }
+  
+  virtual void cleanup(unsigned core) override {
+    PLOG("Cleanup %u", core);
+    double secs = std::chrono::duration_cast<std::chrono::milliseconds>(_end_time - _start_time).count() / 1000.0;
+    _iops_lock.lock();
+    auto iops = ((double) ITERATIONS) / secs;
+    PLOG("%f iops", iops);
+    _iops += iops;
+    _iops_lock.unlock();
+    _store->close_pool(_pool);
+    _store->release_ref();
+  }
+  
+  virtual bool ready() override {
+    return _ready_flag;
+  }
+
+private:
+  std::chrono::high_resolution_clock::time_point _start_time, _end_time;
+  bool _ready_flag = false;
+  unsigned long _iterations = 0;
+  Component::IKVStore * _store;
+  record_t * _data;
+  Component::IKVStore::pool_t _pool;
+};
+
+
+TEST_F(Dawn_client_test, PerfScaleIops)
+{
+  static constexpr unsigned NUM_CORES = 4;
+  cpu_mask_t mask;
+  for(unsigned c=0;c<NUM_CORES;c++)
+    mask.add_core(c);
+  {
+    Core::Per_core_tasking<IOPS_task,void*> t(mask, nullptr);
+    t.wait_for_all();
+  }
+  PINF("Aggregate IOPS: %2g", _iops);
+}
+#endif
+
 
 #ifdef TEST_PERF_SMALL_PUT
 TEST_F(Dawn_client_test, PerfSmallPut)
@@ -170,10 +281,18 @@ TEST_F(Dawn_client_test, PerfSmallPut)
 TEST_F(Dawn_client_test, PerfSmallPutDirect)
 {
   int rc;
-  
-  auto pool = _dawn->create_pool("/mnt/pmem0/dawn",
-                                 Options.pool.c_str(),
-                                 GB(4));
+
+    /* open or create pool */
+  Component::IKVStore::pool_t pool = _dawn->open_pool("/mnt/pmem0/dawn",
+                                                      Options.pool.c_str(),
+                                                      0);
+
+  if(pool == Component::IKVStore::POOL_ERROR) {
+    /* ok, try to create pool instead */
+    pool = _dawn->create_pool("/mnt/pmem0/dawn",
+                              Options.pool.c_str(),
+                              GB(1));
+  }
 
   static constexpr unsigned long ITERATIONS = 1000000;
   static constexpr unsigned long VALUE_SIZE = 32;
@@ -226,14 +345,30 @@ TEST_F(Dawn_client_test, PerfSmallPutDirect)
 TEST_F(Dawn_client_test, PerfLargePutDirect)
 {
   int rc;
-  
-  auto pool = _dawn->create_pool("/mnt/pmem0/dawn",
-                                 Options.pool.c_str(),
-                                 GB(8));
 
-  static constexpr unsigned long PER_ITERATION = 8;
+  /* open or create pool */
+  Component::IKVStore::pool_t pool = _dawn->open_pool("/mnt/pmem0/dawn",
+                                                      Options.pool.c_str(),
+                                                      0);
+
+  if(pool == Component::IKVStore::POOL_ERROR) {
+    /* ok, try to create pool instead */
+    pool = _dawn->create_pool("/mnt/pmem0/dawn",
+                              Options.pool.c_str(),
+                              GB(8));
+
+                             //    virtual pool_t create_pool(const std::string& path,
+                             // const std::string& name,
+                             // const size_t size,
+                             // unsigned int flags = 0,
+                             // uint64_t expected_obj_count = 0) = 0;
+  }
+
+  
+
+  static constexpr unsigned long PER_ITERATION = 4;
   static constexpr unsigned long ITERATIONS = 100;
-  static constexpr unsigned long VALUE_SIZE = MB(64);
+  static constexpr unsigned long VALUE_SIZE = MB(512);
   static constexpr unsigned long KEY_SIZE = 16;
 
   
@@ -273,7 +408,8 @@ TEST_F(Dawn_client_test, PerfLargePutDirect)
 
   auto end = std::chrono::high_resolution_clock::now();
   auto secs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() / 1000.0;
-  PINF("PerfLargePutDirect Throughput: %.2f MiB/sec", (( PER_ITERATION * ITERATIONS * VALUE_SIZE ) / secs )/(1024.0 * 1024));
+  PINF("PerfLargePutDirect Throughput: %.2f MiB/sec",
+       (( PER_ITERATION * ITERATIONS * VALUE_SIZE ) / secs )/(1024.0 * 1024));
 
   _dawn->close_pool(pool);
   
