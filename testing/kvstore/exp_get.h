@@ -25,11 +25,6 @@ public:
   ExperimentGet(struct ProgramOptions options): Experiment(options)
   {
     _test_name = "get";
-
-    if (!options.store)
-      {
-        perror("ExperimentGet passed invalid store");
-      }
   }
 
   void initialize_custom(unsigned core) override

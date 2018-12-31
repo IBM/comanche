@@ -27,11 +27,6 @@ public:
     ExperimentGetDirect(struct ProgramOptions options) : Experiment(options) 
     {    
         _test_name = "get_direct";
-        
-        if (!options.store)
-        {
-            perror("ExperimentGetDirect passed an invalid store");
-        }
     }
 
     void initialize_custom(unsigned core)
