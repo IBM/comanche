@@ -76,7 +76,7 @@ public:
         {
           PINF("[%u] get_direct: reached total number of components. Exiting.", core);
           timer.stop();
-          throw std::exception();
+          return false; 
         }
 
         // check time it takes to complete a single put operation

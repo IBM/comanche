@@ -53,7 +53,7 @@ public:
     if (_i + 1 == _pool_num_components)
       {
         PINF("[%u] reached total number of components. Exiting.", core);
-        throw std::exception();
+        return false; 
       }
 
     // check time it takes to complete a single put operation

@@ -48,7 +48,7 @@ public:
         {
             timer.stop();
             PINF("[%u] put: reached total number of components. Exiting.", core);
-            throw std::exception();
+            return false;
         }
 
         // check time it takes to complete a single put operation
