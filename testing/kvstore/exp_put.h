@@ -25,12 +25,6 @@ public:
     ExperimentPut(struct ProgramOptions options): Experiment(options) 
     {
         _test_name = "put";
-
-        if (!options.store)
-        {
-            perror("ExperimentPut passed an invalid store");
-            throw std::exception();
-        }
     }
 
     void initialize_custom(unsigned core) override

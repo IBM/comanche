@@ -25,12 +25,6 @@ public:
     ExperimentPutDirect(struct ProgramOptions options): Experiment(options) 
     {
         _test_name = "put_direct";
-
-        if (!options.store)
-        {
-            perror("ExperimentPutDirect passed an invalid store");
-            throw std::exception();
-        }
     }
 
     void initialize_custom(unsigned core)

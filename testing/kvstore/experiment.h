@@ -26,11 +26,13 @@ class Experiment : public Core::Tasklet
 public:
   std::string _pool_path = "./data";
   std::string _pool_name = "Exp.pool.";
+  std::string _owner = "owner";
   unsigned long long int _pool_size = MB(100);
   int _pool_flags = Component::IKVStore::FLAGS_SET_SIZE;
   int _pool_num_components = 100000;
   std::string _cores = "0";
   int _execution_time;
+  int _debug_level = 0;
   std::string _component = "filestore";
   std::string _results_path = "./results";
   std::string _report_filename;
@@ -41,6 +43,9 @@ public:
   size_t                                _i = 0;
   Component::IKVStore *                 _store;
   Component::IKVStore::pool_t           _pool;
+  std::string                           _server_address;
+  std::string                           _device_name;
+  std::string                           _pci_address;
   bool                                  _first_iter = true;
   bool                                  _ready = false;
   Stopwatch timer;
@@ -62,16 +67,20 @@ public:
 
   float _cycles_per_second = Core::get_rdtsc_frequency_mhz() * 1000000;
 
-  Experiment(struct ProgramOptions options): _store(options.store)
+  Experiment(struct ProgramOptions options) 
   {
-    assert(options.store);
-
     _report_filename = options.report_file_name;
   }
     
   void initialize(unsigned core) override 
   {
     handle_program_options();
+
+    if (initialize_store(core) != 0)
+    {
+      PERR("initialize returned an error. Aborting setup.");
+      throw std::exception();
+    }
 
     try
     {
@@ -163,6 +172,83 @@ public:
     _ready = true;
   };
 
+  int initialize_store(unsigned core)
+  {
+    Component::IBase * comp;
+  
+    try
+    { 
+      if(_component == "pmstore") {
+        comp = Component::load_component(PMSTORE_PATH, Component::pmstore_factory);
+      }
+      else if(_component == "filestore") {
+        comp = Component::load_component(FILESTORE_PATH, Component::filestore_factory);
+      }
+      else if(_component == "nvmestore") {
+        comp = Component::load_component(NVMESTORE_PATH, Component::nvmestore_factory);
+      }
+      else if(_component == "rockstore") {
+        comp = Component::load_component(ROCKSTORE_PATH, Component::rocksdb_factory);
+      }
+      else if(_component == "dawn") {
+      
+        DECLARE_STATIC_COMPONENT_UUID(dawn_factory, 0xfac66078,0xcb8a,0x4724,0xa454,0xd1,0xd8,0x8d,0xe2,0xdb,0x87);  // TODO: find a better way to register arbitrary components to promote modular use
+        comp = Component::load_component(DAWN_PATH, dawn_factory);
+      }
+      else if (_component == "hstore") {
+        comp = Component::load_component("libcomanche-hstore.so", Component::hstore_factory);
+      }
+      else if (_component == "mapstore") {
+        comp = Component::load_component("libcomanche-storemap.so", Component::mapstore_factory);
+      }
+      else throw General_exception("unknown --component option (%s)", _component.c_str());
+    }
+    catch(...)
+    {
+      PERR("error during load_component.");
+      return 1;
+    }
+
+    if (_verbose)
+    {
+      PINF("[%u] component address: %p", core, &comp);
+    }
+
+    if (!comp)
+    {
+      PERR("comp loaded, but returned invalid value");
+      return 1;
+    }
+
+    try
+    {
+      IKVStore_factory * fact = (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
+
+      if(_component == "nvmestore") {
+        _store = fact->create("owner",_owner, _pci_address);
+      }
+      else if (_component == "dawn") {
+        _store = fact->create(_debug_level, _owner, _server_address, _device_name);
+      }
+      else {
+        _store = fact->create("owner", _owner);
+      }
+
+      if (_verbose)
+      {
+        PINF("factory: release_ref on %p", &fact);
+      }
+      fact->release_ref();
+    }
+    catch(...)
+    {
+      PERR("factory creation step failed");
+      return 1;
+    }
+
+    return 0;
+  }
+
   virtual void initialize_custom(unsigned core)
   {
     // does nothing by itself; put per-experiment initialization functions here
@@ -226,6 +312,24 @@ public:
       PERR("delete_pool failed! Ending experiment.");
       throw std::exception();
     }
+
+    try
+    {
+      if (_verbose)
+      {
+        std::cout << "cleanup: attempting to release_ref on store at " << &_store;
+      }
+
+      if (_verbose)
+      {
+        std::cout << " ...done!" << std::endl;
+      }
+    }
+    catch(...)
+    {
+      PERR("release_ref call on _store failed!");
+      throw std::exception();
+    }
   }
 
   bool component_uses_direct_memory()
@@ -246,7 +350,13 @@ public:
         if (vm.count("component") > 0) {
           _component = vm["component"].as<std::string>();
         }
-        
+       
+        if ((_component == "pmstore" || _component == "hstore") && vm.count("path") == 0)
+        {
+          PERR("component '%s' requires --path input argument for persistent memory store. Aborting!", _component.c_str());
+          throw std::exception();
+        }
+
         if(vm.count("path") > 0) {
           _pool_path = vm["path"].as<std::string>();
         }
@@ -267,6 +377,10 @@ public:
           _cores = vm["cores"].as<std::string>();
         }
 
+        if (vm.count("owner") > 0) {
+          _owner = vm["owner"].as<std::string>();
+        }
+
         if (vm.count("bins") > 0) {
           _bin_count = vm["bins"].as<int>();
         }
@@ -281,6 +395,18 @@ public:
 
         _verbose = vm.count("verbose");
         _summary = vm.count("summary");
+
+        _debug_level = vm.count("debug_level") > 0 ? vm["debug_level"].as<int>() : 0;
+        _server_address = vm.count("server_address") ? vm["server_address"].as<std::string>() : "127.0.0.1";
+        _device_name = vm.count("device_name") ? vm["device_name"].as<std::string>() : "unused";
+
+        if (_component == "nvmestore" && vm.count("pci_addr") == 0)
+        {
+          PERR("nvmestore requires pci_addr as an input. Aborting!");
+          throw std::exception();
+        }
+
+        _pci_address = vm.count("pci_addr") ? vm["pci_addr"].as<std::string>() : "no_pci_addr";
       } 
     catch (const po::error &ex)
       {
