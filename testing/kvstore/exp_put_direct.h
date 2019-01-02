@@ -63,6 +63,8 @@ public:
         end = rdtsc();
         timer.stop();
 
+        _update_data_process_amount(core, _i);
+
         cycles = end - start;
         double time = (cycles / _cycles_per_second);
         //printf("start: %u  end: %u  cycles: %u seconds: %f\n", start, end, cycles, time);
@@ -98,6 +100,9 @@ public:
         double iops = _i / run_time;
         PINF("[%u] put_direct: IOPS: %2g in %2g seconds", core, iops, run_time);
 
+        double throughput = _calculate_current_throughput();
+        PINF("[%u] put_direct: THROUGHPUT: %.2f MB/s (%ld bytes over %.3f seconds)", core, throughput, _total_data_processed, run_time);
+
         if (_verbose)
         {
             std::stringstream stats_info;
@@ -120,14 +125,17 @@ public:
          // collect latency stats
          rapidjson::Value latency_object = _add_statistics_to_report("latency", _latency_stats, document);
          rapidjson::Value timing_object = _add_statistics_to_report("start_time", start_time_stats, document);
+         rapidjson::Value iops_object;
+         rapidjson::Value throughput_object;
 
-         rapidjson::Value iops_object; 
          iops_object.SetDouble(iops);
+         throughput_object.SetDouble(throughput);
 
          // save everything
          rapidjson::Value experiment_object(rapidjson::kObjectType);
 
          experiment_object.AddMember("IOPS", iops_object, document.GetAllocator());
+         experiment_object.AddMember("throughput (MB/s)", throughput_object, document.GetAllocator());
          experiment_object.AddMember("latency", latency_object, document.GetAllocator());
          experiment_object.AddMember("start_time", timing_object, document.GetAllocator()); 
          
