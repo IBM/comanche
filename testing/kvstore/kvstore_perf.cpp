@@ -9,10 +9,7 @@
 #include <iostream>
 #include <gperftools/profiler.h>
 #define DEFAULT_PATH "/mnt/pmem0/"
-//#define PATH "/dev/dax0.0"
 #define POOL_NAME "test.pool"
-
-#define DEFAULT_COMPONENT "filestore"
 
 using namespace Component;
 
