@@ -53,11 +53,13 @@ public:
   bool _summary = false;
 
   // member variables for tracking pool sizes
-  long _element_size = -1;
+  long _element_size_on_disk = -1; // floor: filesystem block size
+  long _element_size = -1; // raw amount of file data (bytes)
   long _elements_in_use = 0;
   long _pool_element_start = 0;
   long _pool_element_end = -1;
   long _elements_stored = 0;
+  long _total_data_processed = 0;  // for use with throughput calculation
 
   // bin statistics
   int _bin_count = 100;
@@ -575,6 +577,7 @@ public:
     return document;
   }
 
+  // returns file size in bytes
   long GetFileSize(std::string filename)
   {
     struct stat stat_buf;
@@ -855,24 +858,49 @@ public:
 
   unsigned long GetElementSize(unsigned core, int index)
   {
-    if (_element_size == -1)  // -1 is reserved value and impossible (must be positive size)
-      {
+    if (_element_size == -1)  // -1 is reserved and impossible
+    {
         std::string path = _pool_path + "/" +  _pool_name + std::to_string(core) + "/" + _data->key(index);
+        _element_size = GetFileSize(path);
+    }
+
+    if (_element_size_on_disk == -1)  // -1 is reserved value and impossible (must be positive size)
+      {
         long block_size = GetBlockSize(_pool_path);
-        long file_size = GetFileSize(path);
 
         // take the larger of the two
-        if (file_size > block_size)
+        if (_element_size > block_size)
           {
-            _element_size = file_size;
+            _element_size_on_disk = _element_size;
           }
         else
           {
-            _element_size = block_size;
+            _element_size_on_disk = block_size;
           }
       }
 
-    return _element_size;
+    return _element_size_on_disk;
+  }
+
+  void _update_data_process_amount(unsigned core, int index)
+  {
+    if (_element_size == -1)  // -1 is reserved and impossible
+    {
+      std::string path = _pool_path + "/" +  _pool_name + std::to_string(core) + "/" + _data->key(index);
+      _element_size = GetFileSize(path);
+    }
+
+    _total_data_processed += _element_size;
+  }
+
+  // throughput = Mib/s here
+  double _calculate_current_throughput()
+  {
+    double size_mb = _total_data_processed * 0.000001;  // bytes -> MB
+    double time = timer.get_time_in_seconds();
+    double throughput = size_mb / time;
+
+    return throughput;
   }
 
   void _populate_pool_to_capacity(unsigned core, Component::IKVStore::memory_handle_t memory_handle = Component::IKVStore::HANDLE_NONE)
@@ -927,21 +955,21 @@ public:
       }
 
       // calculate maximum number of elements we can put in pool at one time
-      if (_element_size == -1)
+      if (_element_size_on_disk == -1)
       {
-        _element_size = GetElementSize(core, current);
+        _element_size_on_disk = GetElementSize(core, current);
 
         if (_verbose)
           {
             std::stringstream debug_element_size;
-            debug_element_size << "element size is " << _element_size;
+            debug_element_size << "element size is " << _element_size_on_disk;
             _debug_print(core, debug_element_size.str());
           }
       }
 
       if (maximum_elements == -1)
       {
-        maximum_elements = (long)(_pool_size / _element_size);
+        maximum_elements = (long)(_pool_size / _element_size_on_disk);
 
         if (_verbose)
         {
@@ -996,7 +1024,7 @@ public:
     _elements_in_use++;
 
     // erase elements that exceed pool capacity and start again
-    if ((_elements_in_use * _element_size) >= _pool_size)
+    if ((_elements_in_use * _element_size_on_disk) >= _pool_size)
     {
       bool timer_running_at_start = timer.is_running();  // if timer was running, pause it
 
