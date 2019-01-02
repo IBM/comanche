@@ -33,7 +33,7 @@ public:
   std::string _cores = "0";
   int _execution_time;
   int _debug_level = 0;
-  std::string _component = "filestore";
+  std::string _component = DEFAULT_COMPONENT;
   std::string _results_path = "./results";
   std::string _report_filename;
   std::string _test_name;
@@ -157,6 +157,13 @@ public:
     }
       
     PLOG("Created pool for worker %u...OK!", core);
+
+    // initialize experiment report
+    rapidjson::Document document = _get_report_document();
+    if (!document.HasMember("experiment"))
+    {
+      _initialize_experiment_report(document); 
+    }
 
     try
     {
@@ -546,15 +553,23 @@ public:
     {
       FILE *pFile = fopen(_report_filename.c_str(), "r");
       if (!pFile)
-        {
-          std::cerr << "attempted to open filename '" << _report_filename << "'" << std::endl;
-          perror("_get_report_document failed fopen call");
-          throw std::exception();
-        }
+      {
+        std::cerr << "attempted to open filename '" << _report_filename << "'" << std::endl;
+        perror("_get_report_document failed fopen call");
+        throw std::exception();
+      }
 
-      char readBuffer[GetFileSize(_report_filename)];
+      size_t buffer_size = GetFileSize(_report_filename);
 
-      rapidjson::FileReadStream is(pFile, readBuffer, sizeof(readBuffer));
+      const size_t MIN_READ_BUFFER_SIZE = 4;  // if FileReadStream has a buffer smaller than this, it'll assert
+      if (buffer_size < MIN_READ_BUFFER_SIZE)
+      {
+        buffer_size = MIN_READ_BUFFER_SIZE;
+      }
+
+      char readBuffer[buffer_size];
+
+      rapidjson::FileReadStream is(pFile, readBuffer, buffer_size);
       document.ParseStream<0>(is);
 
       if (document.HasParseError())
@@ -572,8 +587,79 @@ public:
     }
 
     _debug_print(0, "returning report document");
+
     return document;
   }
+
+  void _initialize_experiment_report(rapidjson::Document& document)
+  {
+    if (_verbose)
+    {
+      PINF("writing experiment parameters to file");
+    }
+    rapidjson::Document::AllocatorType &allocator = document.GetAllocator();
+
+    rapidjson::Value temp_object(rapidjson::kObjectType);
+    rapidjson::Value temp_value;
+
+    // experiment parameters
+    temp_value.SetString(rapidjson::StringRef(_component.c_str()));
+    temp_object.AddMember("component", temp_value, allocator);
+
+    temp_value.SetString(rapidjson::StringRef(_cores.c_str()));
+    temp_object.AddMember("cores", temp_value, allocator);
+
+    temp_value.SetInt(_data->_key_len);
+    temp_object.AddMember("key_length", temp_value, allocator);
+
+    temp_value.SetInt(_data->_val_len);
+    temp_object.AddMember("value_length", temp_value, allocator);
+
+    temp_value.SetInt(_pool_num_components);
+    temp_object.AddMember("elements", temp_value, allocator);
+
+    temp_value.SetDouble(_pool_size);
+    temp_object.AddMember("pool_size", temp_value, allocator);
+
+    temp_value.SetInt(_pool_flags);
+    temp_object.AddMember("pool_flags", temp_value, allocator);
+
+    // first experiment could take some time; parse out start time from the filename we're using
+    const std::string REPORT_NAME_START = "results_";
+    const std::string REPORT_NAME_END = ".json";
+    unsigned time_start =  _report_filename.find(REPORT_NAME_START);
+    unsigned time_end = _report_filename.find(REPORT_NAME_END);
+    std::string timestring = _report_filename.substr(time_start + REPORT_NAME_START.length(), time_end - time_start - REPORT_NAME_START.length());
+
+    temp_value.SetString(rapidjson::StringRef(timestring.c_str()));
+    temp_object.AddMember("date", temp_value, allocator);
+
+    document.AddMember("experiment", temp_object, allocator);
+
+    rapidjson::StringBuffer strbuf;
+
+    try
+    {
+      // write back to file
+      rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(strbuf);
+      document.Accept(writer);
+    }
+    catch(...)
+    {
+      PERR("failed during write to json document");
+    }
+
+    try
+    {
+      std::ofstream outf(_report_filename.c_str());
+      outf << strbuf.GetString() << std::endl;
+    }
+    catch(...)
+    {
+      PERR("failed while writing to ofstream");
+      throw std::exception();
+    }
+  } 
 
   long GetFileSize(std::string filename)
   {
@@ -786,39 +872,6 @@ public:
     rapidjson::Document document;
     document.SetObject();
 
-    rapidjson::Document::AllocatorType &allocator = document.GetAllocator();
-
-    rapidjson::Value temp_object(rapidjson::kObjectType);
-    rapidjson::Value temp_value;
-
-    // experiment parameters
-    temp_value.SetString(rapidjson::StringRef(options.component.c_str()));
-    temp_object.AddMember("component", temp_value, allocator);
-
-    temp_value.SetString(rapidjson::StringRef(options.cores.c_str()));
-    temp_object.AddMember("cores", temp_value, allocator);
-
-    temp_value.SetInt(options.key_length);
-    temp_object.AddMember("key_length", temp_value, allocator);
-
-    temp_value.SetInt(options.value_length);
-    temp_object.AddMember("value_length", temp_value, allocator);
-
-    temp_value.SetInt(options.elements);
-    temp_object.AddMember("elements", temp_value, allocator);
-
-    temp_value.SetDouble(options.size);
-    temp_object.AddMember("pool_size", temp_value, allocator);
-
-    temp_value.SetInt(options.flags);
-    temp_object.AddMember("pool_flags", temp_value, allocator);
-
-    temp_value.SetString(rapidjson::StringRef(timestring.c_str()));
-    temp_object.AddMember("date", temp_value, allocator);
-
-    document.AddMember("experiment", temp_object, allocator);
-
-
     // write to file
     std::string results_path = "./results";
     boost::filesystem::path dir(results_path);
@@ -849,9 +902,11 @@ public:
       }
 
     outf << sb.GetString() << std::endl;
+    PLOG("created report with filename '%s'", output_file_name.c_str());
 
     return output_file_name;
   }
+
 
   unsigned long GetElementSize(unsigned core, int index)
   {

@@ -10,6 +10,7 @@
 #include "rapidjson/prettywriter.h"
 #include "rapidjson/stringbuffer.h"
 
+#define DEFAULT_COMPONENT "filestore"
 #define PMSTORE_PATH "libcomanche-pmstore.so"
 #define FILESTORE_PATH "libcomanche-storefile.so"
 #define NVMESTORE_PATH "libcomanche-nvmestore.so"
@@ -18,7 +19,7 @@
 
 struct ProgramOptions {
   std::string test;
-  std::string component;
+  std::string component = DEFAULT_COMPONENT;
   std::string cores;
   unsigned time_secs;
   std::string path;
