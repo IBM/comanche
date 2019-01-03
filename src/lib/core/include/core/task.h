@@ -121,7 +121,8 @@ private:
       
     while (!_exit_flag) {
       try {
-        _exit_flag = !(_tasklet[core]->do_work(core)); /* call tasklet */
+        if(!(_tasklet[core]->do_work(core)))
+          _exit_flag = true;
       }
       catch(...) {
         _exit_flag = true;
