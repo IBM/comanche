@@ -346,6 +346,11 @@ public:
     return _component.compare("dawn") == 0;
   }
 
+  bool component_uses_rdma()
+  {
+    return _component.compare("dawn") == 0;
+  }
+
   void handle_program_options()
   {
     namespace po = boost::program_options;
@@ -371,7 +376,7 @@ public:
         }
 
         if(vm.count("size") > 0) {
-          _pool_size = vm["size"].as<long long int>();
+          _pool_size = vm["size"].as<unsigned long long int>();
         }
 
         if (vm.count("elements") > 0) {
@@ -911,12 +916,26 @@ public:
   }
 
 
+  long GetDataInputSize(int index)
+  {
+    std::string value = _data->value(index);
+    int size = value.size();
+
+    return size;
+  }
+
+
   unsigned long GetElementSize(unsigned core, int index)
   {
-    if (_element_size == -1)  // -1 is reserved and impossible
+    if (_element_size <= 0)
     {
         std::string path = _pool_path + "/" +  _pool_name + std::to_string(core) + "/" + _data->key(index);
         _element_size = GetFileSize(path);
+
+        if (_element_size == -1)  // this means GetFileSize failed, maybe due to RDMA
+        {
+          _element_size = GetDataInputSize(index);
+        }
     }
 
     if (_element_size_on_disk == -1)  // -1 is reserved value and impossible (must be positive size)
@@ -924,7 +943,7 @@ public:
         long block_size = GetBlockSize(_pool_path);
 
         // take the larger of the two
-        if (_element_size > block_size)
+        if (_element_size > block_size || component_uses_rdma())
           {
             _element_size_on_disk = _element_size;
           }
@@ -943,6 +962,11 @@ public:
     {
       std::string path = _pool_path + "/" +  _pool_name + std::to_string(core) + "/" + _data->key(index);
       _element_size = GetFileSize(path);
+
+      if (_element_size == -1)  // this means GetFileSize failed, maybe due to RDMA
+      {
+        _element_size = GetDataInputSize(index);
+      }
     }
 
     _total_data_processed += _element_size;
@@ -951,6 +975,11 @@ public:
   // throughput = Mib/s here
   double _calculate_current_throughput()
   {
+    if (_verbose)
+    {
+      PINF("throughput calculation: %ld data (element size %ld)", _total_data_processed, _element_size);
+    }
+
     double size_mb = _total_data_processed * 0.000001;  // bytes -> MB
     double time = timer.get_time_in_seconds();
     double throughput = size_mb / time;
@@ -1084,14 +1113,19 @@ public:
       bool timer_running_at_start = timer.is_running();  // if timer was running, pause it
 
       if (timer_running_at_start)
+      {
+        timer.stop();
+
+        if (_verbose)
         {
-          timer.stop();
+          PLOG("enforce_maximum_pool_size pausing timer");
         }
+      }
 
       if(_verbose)
       {
         std::stringstream debug_message;
-        debug_message << "exceeded acceptable pool size. Erasing " << _elements_in_use << " elements...";
+        debug_message << "exceeded acceptable pool size of " << _pool_size << ". Erasing " << _elements_in_use << " elements of size " << _element_size_on_disk << " (" << _elements_in_use * _element_size_on_disk << " total)";
 
         _debug_print(core, debug_message.str(), true);
       }
@@ -1129,6 +1163,11 @@ public:
 
       if (timer_running_at_start)
       {
+        if (_verbose)
+        {
+          PLOG("enforce_maximum_pool_size restarting timer");
+        }
+
         timer.start();
       }
     }

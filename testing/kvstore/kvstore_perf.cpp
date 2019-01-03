@@ -70,6 +70,7 @@ int main(int argc, char * argv[])
       return 0;
     }
 
+    Options.component = vm.count("component") > 0 ? vm["component"].as<std::string>() : DEFAULT_COMPONENT;
     Options.test = vm.count("test") > 0 ? vm["test"].as<std::string>() : "all";
     Options.cores  = vm.count("cores") > 0 ? vm["cores"].as<std::string>() : "0";
 
