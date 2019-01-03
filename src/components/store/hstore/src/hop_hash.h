@@ -388,12 +388,8 @@ namespace impl
 				segment_and_bucket_t a
 				, unsigned bkwd
 			) const -> segment_and_bucket_t;
-			auto locate(const segment_and_bucket_t &) const -> bucket_aligned_t &;
 
-			auto locate_owner(const segment_and_bucket_t &a) const -> const owner &;
-
-			auto locate_content(const segment_and_bucket_t &a) const -> const content_t &;
-			auto locate_content(const segment_and_bucket_t &a) -> content_t &;
+			static auto locate_owner(const segment_and_bucket_t &a) -> const owner &;
 
 			auto bucket(const key_type &) const -> size_type;
 			auto bucket_size(const size_type n) const -> size_type;
@@ -435,13 +431,12 @@ namespace impl
 			auto count(const key_type &k) const -> size_type;
 			auto begin() -> iterator
 			{
-				return iterator(*this, make_segment_and_bucket(0U));
+				return iterator(make_segment_and_bucket(0U));
 			}
 			auto end() -> iterator
 			{
 				return iterator(
-					*this
-					, make_segment_and_bucket_for_iterator(bucket_count())
+					make_segment_and_bucket_for_iterator(bucket_count())
 				);
 			}
 			auto begin() const -> const_iterator
@@ -490,12 +485,12 @@ namespace impl
 			{
 				auto sb = make_segment_and_bucket(n);
 				auto owner_lk = make_owner_shared_lock(sb);
-				return const_local_iterator(*this, sb, locate_owner(sb).value(owner_lk));
+				return const_local_iterator(sb, locate_owner(sb).value(owner_lk));
 			}
 			auto cend(size_type n) const -> const_local_iterator
 			{
 				auto sb = make_segment_and_bucket(n);
-				return const_local_iterator(*this, sb, owner::value_type(0));
+				return const_local_iterator(sb, owner::value_type(0));
 			}
 
 			/* use trylock to attempt a shared lock */
@@ -730,7 +725,6 @@ namespace impl
 				>
 		{
 			using segment_and_bucket_t = typename Table::segment_and_bucket_t;
-			const Table *_t;
 			segment_and_bucket_t _sb;
 			owner::value_type _mask;
 			void advance_to_in_use()
@@ -739,7 +733,7 @@ namespace impl
 				{
 					for ( ; ( _mask & 1U ) == 0; _mask >>= 1 )
 					{
-						_sb.incr(*_t);
+						_sb.incr();
 					}
 				}
 			}
@@ -751,11 +745,11 @@ namespace impl
 			/* Table 106 (Iterator) */
 			auto deref() const -> typename base::reference
 			{
-				return _t->locate(_sb).content<typename Table::value_type>::value();
+				return _sb.deref().content<typename Table::value_type>::value();
 			}
 			void incr()
 			{
-				_sb.incr(*_t);
+				_sb.incr();
 				_mask >>= 1;
 				advance_to_in_use();
 			}
@@ -774,9 +768,8 @@ namespace impl
 				);
 			/* Table 109 (ForwardIterator) - handled by 107 */
 		public:
-			table_local_iterator_impl(const Table &t_, const segment_and_bucket_t &sb_, owner::value_type mask_)
-				: _t(&t_)
-				, _sb(sb_)
+			table_local_iterator_impl(const segment_and_bucket_t &sb_, owner::value_type mask_)
+				: _sb(sb_)
 				, _mask(mask_)
 			{
 				advance_to_in_use();
@@ -792,11 +785,10 @@ namespace impl
 				>
 		{
 			using segment_and_bucket_t = typename Table::segment_and_bucket_t;
-			const Table *_t;
 			segment_and_bucket_t _sb;
 			void advance_to_in_use()
 			{
-				while ( _sb.index() < _t->bucket_count() && _t->is_free(_sb) )
+				while ( _sb.can_incr_without_wrap() && _sb.deref().state_get() != Table::bucket_t::IN_USE )
 				{
 					_sb.incr_without_wrap();
 				}
@@ -809,7 +801,7 @@ namespace impl
 			/* Table 106 (Iterator) */
 			auto deref() const -> typename base::reference
 			{
-				return _t->locate(_sb).content<typename Table::value_type>::value();
+				return _sb.deref().content<typename Table::value_type>::value();
 			}
 			void incr()
 			{
@@ -831,9 +823,8 @@ namespace impl
 				);
 			/* Table 109 (ForwardIterator) - handled by 107 */
 		public:
-			table_iterator_impl(const Table &t_, const segment_and_bucket_t &sb_)
-				: _t(&t_)
-				, _sb(sb_)
+			table_iterator_impl(const segment_and_bucket_t &sb_)
+				: _sb(sb_)
 			{
 				advance_to_in_use();
 			}
@@ -847,7 +838,7 @@ namespace impl
 			using typename table_local_iterator_impl<Table>::base;
 		public:
 			table_local_iterator(const Table &t_, const segment_and_bucket_t & sb_, owner::value_type mask_)
-				: table_local_iterator_impl<Table>(t_, sb_, mask_)
+				: table_local_iterator_impl<Table>(sb_, mask_)
 			{}
 			/* Table 106 (Iterator) */
 			auto operator*() const -> typename base::reference
@@ -881,8 +872,8 @@ namespace impl
 			using segment_and_bucket_t = typename Table::segment_and_bucket_t;
 			using typename table_local_iterator_impl<Table>::base;
 		public:
-			table_const_local_iterator(const Table &t_, const segment_and_bucket_t & sb_, owner::value_type mask_)
-				: table_local_iterator_impl<Table>(t_, sb_, mask_)
+			table_const_local_iterator(const segment_and_bucket_t & sb_, owner::value_type mask_)
+				: table_local_iterator_impl<Table>(sb_, mask_)
 			{}
 			/* Table 106 (Iterator) */
 			auto operator*() const -> const typename base::reference
@@ -916,8 +907,8 @@ namespace impl
 			using segment_and_bucket_t = typename Table::segment_and_bucket_t;
 			using typename table_iterator_impl<Table>::base;
 		public:
-			table_iterator(const Table &t, const segment_and_bucket_t & i)
-				: table_iterator_impl<Table>(t, i)
+			table_iterator(const segment_and_bucket_t & i)
+				: table_iterator_impl<Table>(i)
 			{}
 			/* Table 106 (Iterator) */
 			auto operator*() const -> typename base::reference
@@ -952,7 +943,7 @@ namespace impl
 			using typename table_iterator_impl<Table>::base;
 		public:
 			table_const_iterator(const Table &t, typename Table::size_type i)
-				: table_iterator_impl<Table>(t, i)
+				: table_iterator_impl<Table>(i)
 			{}
 			/* Table 106 (Iterator) */
 			auto operator*() const -> const typename base::reference
@@ -986,7 +977,6 @@ template <typename Table>
 		, const impl::table_local_iterator_impl<Table> b
 	)
 	{
-		assert(a._t == b._t);
 		return a._mask == b._mask;
 	}
 
@@ -1005,7 +995,6 @@ template <typename Table>
 		, const impl::table_iterator_impl<Table> b
 	)
 	{
-		assert(a._t == b._t);
 		return a._sb == b._sb;
 	}
 

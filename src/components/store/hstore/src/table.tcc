@@ -119,7 +119,7 @@ template <
 		auto sbw = make_segment_and_bucket_prev(a_, owner::size);
 		for ( auto owner_lk = make_owner_unique_lock(sbw)
 			; owner_lk.sb() != a_
-			; sbw.incr(*this), owner_lk = make_owner_unique_lock(sbw)
+			; sbw.incr(), owner_lk = make_owner_unique_lock(sbw)
 		)
 		{
 			c >>= 1U;
@@ -131,7 +131,7 @@ template <
 			 */
 
 			auto sbw2 = sbw;
-			sbw2.incr(*this);
+			sbw2.incr();
 #if TRACE_PERISHABLE_EXPIRY
 			if ( (c & locate_owner(sbw2).value(owner_lk)) != 0 )
 			{
@@ -157,7 +157,7 @@ template <
 		const segment_and_bucket_t &a_
 	) const -> bool
 	{
-		auto &b_src = locate(a_);
+		auto &b_src = a_.deref();
 		switch ( b_src.state_get() )
 		{
 			case bucket_t::FREE:
@@ -177,7 +177,7 @@ template <
 		const segment_and_bucket_t &a_
 	) -> bool
 	{
-		auto &b_src = locate_content(a_);
+		content_t &b_src = a_.deref();
 		switch ( b_src.state_get() )
 		{
 			case bucket_t::FREE:
@@ -251,7 +251,7 @@ template <
 
 		while ( ! is_free(content_lk.sb()) )
 		{
-			bi_.incr(*this);
+			bi_.incr();
 			content_lk = make_content_unique_lock(bi_);
 			if ( content_lk.sb() == start )
 			{
@@ -337,7 +337,7 @@ template <
 			)
 			{
 				auto sb = owner_lock.sb();
-				sb.incr(*this);
+				sb.incr();
 				owner_lock = make_owner_unique_lock(sb);
 				/* The leftmost eligible item is no longer eligible; remove it */
 				eligible_items >>= 1U;
@@ -463,14 +463,14 @@ template <
 			if ( auto cv = owner_lk.ref().value(owner_lk) )
 			{
 				auto sbc = sbw;
-				for ( ; cv ; cv >>= 1U, sbc.incr(*this) )
+				for ( ; cv ; cv >>= 1U, sbc.incr() )
 				{
-					if ( (cv & 1U) && key_equal()(locate(sbc).key(), v.first) )
+					if ( (cv & 1U) && key_equal()(sbc.deref().key(), v.first) )
 					{
 #if TRACE_MANY
 						std::cerr << __func__ << " (already present)\n";
 #endif
-						return {iterator{*this, sbc}, false};
+						return {iterator{sbc}, false};
 					}
 				}
 			}
@@ -509,7 +509,7 @@ template <
 					<< " " << b_dst.ref() << "\n";
 #endif
 				persist_controller_t::size_incr();
-				return {iterator{*this, b_dst.sb()}, true};
+				return {iterator{b_dst.sb()}, true};
 			}
 			catch ( const no_near_empty_bucket &e )
 			{
@@ -563,12 +563,12 @@ template <
 			auto sbc = sbw;
 			for ( ; cv ; cv >>= 1U, sbc.incr(*this) )
 			{
-				if ( (cv & 1U) && key_equal()(locate(sbc).key(), v_.first) )
+				if ( (cv & 1U) && key_equal()(sbc.deref().key(), v_.first) )
 				{
 #if TRACE_MANY
 					std::cerr << __func__ << " (already present)\n";
 #endif
-					return {iterator{*this, sbc}, false};
+					return {iterator{sbc}, false};
 				}
 			}
 		}
@@ -608,7 +608,7 @@ template <
 				<< " " << b_dst.ref() << "\n";
 #endif
 			persist_controller_t::size_incr();
-			return {iterator{*this, b_dst.sb()}, true};
+			return {iterator{b_dst.sb()}, true};
 		}
 		catch ( const no_near_empty_bucket &e )
 		{
@@ -977,17 +977,6 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::locate(
-		const segment_and_bucket_t &a_
-	) const -> bucket_aligned_t &
-	{
-		return const_cast<bucket_aligned_t &>(_bc[a_.si()]._buckets[a_.bi()]);
-	}
-
-template <
-	typename Key, typename T, typename Hash, typename Pred
-	, typename Allocator, typename SharedMutex
->
 	auto impl::table_base<
 		Key, T, Hash, Pred, Allocator, SharedMutex
 	>::locate_bucket_mutexes(
@@ -1003,31 +992,9 @@ template <
 >
 	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::locate_owner(
 		const segment_and_bucket_t &a_
-	) const -> const owner &
+	) -> const owner &
 	{
-		return static_cast<const owner &>(locate(a_));
-	}
-
-template <
-	typename Key, typename T, typename Hash, typename Pred
-	, typename Allocator, typename SharedMutex
->
-	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::locate_content(
-		const segment_and_bucket_t &a_
-	) const -> const content_t &
-	{
-		return static_cast<const content_t &>(locate(a_));
-	}
-
-template <
-	typename Key, typename T, typename Hash, typename Pred
-	, typename Allocator, typename SharedMutex
->
-	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::locate_content(
-		const segment_and_bucket_t &a_
-	) -> content_t &
-	{
-		return static_cast<content_t &>(locate(a_));
+		return static_cast<const owner &>(a_.deref());
 	}
 
 template <
@@ -1040,7 +1007,7 @@ template <
 		const segment_and_bucket_t &a_
 	) const -> owner_unique_lock_t
 	{
-		return owner_unique_lock_t(locate(a_), a_, locate_bucket_mutexes(a_)._m_owner);
+		return owner_unique_lock_t(a_.deref(), a_, locate_bucket_mutexes(a_)._m_owner);
 	}
 
 template <
@@ -1056,7 +1023,7 @@ template <
 	{
 		auto a = cl_.sb();
 		a.subtract_small(*this, bkwd);
-		return owner_unique_lock_t(locate(a), a, locate_bucket_mutexes(a)._m_owner);
+		return owner_unique_lock_t(a.deref(), a, locate_bucket_mutexes(a)._m_owner);
 	}
 
 template <
@@ -1082,7 +1049,7 @@ template <
 		const segment_and_bucket_t &a_
 	) const -> owner_shared_lock_t
 	{
-		return owner_shared_lock_t(locate(a_), a_, locate_bucket_mutexes(a_)._m_owner);
+		return owner_shared_lock_t(a_.deref(), a_, locate_bucket_mutexes(a_)._m_owner);
 	}
 
 template <
@@ -1097,7 +1064,7 @@ template <
 	{
 		return
 			content_unique_lock_t(
-				locate(a_)
+				a_.deref()
 				, a_
 				, locate_bucket_mutexes(a_)._m_content
 			);
@@ -1154,7 +1121,7 @@ template <
 				if ( ( wv & 1 ) == 1 )
 				{
 					++t._locate_key_owned;
-					auto c = &locate(bfp);
+					auto c = &bfp.deref();
 					if ( key_equal()(c->key(), k_) )
 					{
 						++t._locate_key_match;
@@ -1173,7 +1140,7 @@ template <
 				{
 					++t._locate_key_unowned;
 				}
-				bfp.incr(*this);
+				bfp.incr();
 				wv >>= 1U;
 			}
 #if TRACE_MANY
@@ -1321,7 +1288,7 @@ template <
 	) const -> size_type
 	{
 		auto a = make_segment_and_bucket(n_);
-		auto g = owner_shared_lock_t(locate(a), a, locate_bucket_mutexes(a)._m_owner);
+		auto g = owner_shared_lock_t(a.deref(), a, locate_bucket_mutexes(a)._m_owner);
 		size_type s = 0;
 		for ( auto v = g.ref().get_value(g); v; v >>= 1U )
 		{

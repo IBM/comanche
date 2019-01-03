@@ -16,13 +16,15 @@ namespace impl
 		private:
 			const bucket_control_unlocked<Bucket> *_seg;
 			bix_t _bi;
+			bix_t segment_size() const { return _seg->segment_size(); }
 		public:
 			explicit segment_and_bucket(const bucket_control_unlocked<Bucket> *seg_, bix_t bi_)
 				: _seg(seg_)
 				, _bi(bi_)
 			{
 			}
-			auto incr(const segment_layout &) -> segment_and_bucket &
+			auto &deref() const { return _seg->deref(_bi); }
+			auto incr() -> segment_and_bucket &
 			{
 				/* To develop (six_t, bix_t) pair:
 				 *  1. Increment the bix_t (low) part.
@@ -30,13 +32,17 @@ namespace impl
 				 *    a. Increment the six_t (high) part
 				 *    b. In case of carry, wrap
 				 */
-				_bi = (_bi + 1U) % _seg->segment_size();
+				_bi = (_bi + 1U) % segment_size();
 				if ( _bi == 0U )
 				{
 					_seg = _seg->_next;
 				}
 				return *this;
 			}
+			/* one or the other is necessary, not both */
+			bool at_end() const { return _bi == segment_size() && _seg->_next->index() == 0; }
+			bool can_incr_without_wrap() const { return _bi != segment_size() || _seg->_next->index() != 0; }
+
 			auto incr_without_wrap() -> segment_and_bucket &
 			{
 				/* To develop (six_t, bix_t) pair:
@@ -46,7 +52,7 @@ namespace impl
 				 *    b. In case of carry, do not wrap
 				 */
 				++_bi;
-				if ( _bi == _seg->segment_size() && _seg->_next->index() != 0 )
+				if ( _bi == segment_size() && _seg->_next->index() != 0 )
 				{
 					_bi = 0;
 					_seg = _seg->_next;
@@ -65,7 +71,7 @@ namespace impl
 				 *    b. In case of carry, wrap
 				 */
 				const auto old_bi = _bi;
-				_bi = (_bi + fwd) % _seg->segment_size();
+				_bi = (_bi + fwd) % segment_size();
 				if ( _bi < old_bi )
 				{
 					_seg = _seg->_next;
@@ -88,7 +94,7 @@ namespace impl
 				{
 					_bi -= bkwd;
 					_seg = _seg->_prev;
-					_bi %= _seg->segment_size();
+					_bi %= segment_size();
 				}
 				else
 				{
