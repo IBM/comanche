@@ -122,10 +122,10 @@ private:
     while (!_exit_flag) {
       try {
         if(!(_tasklet[core]->do_work(core)))
-          _exit_flag = true;
+          break; /* if do_work return false, we exit the thread */
       }
       catch(...) {
-        _exit_flag = true;
+        PERR("do_work threw exception");
         break;
       }
     }
