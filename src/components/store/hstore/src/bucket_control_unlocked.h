@@ -12,6 +12,7 @@ namespace impl
 		public:
 			using bucket_aligned_t = bucket_aligned<Bucket>;
 			using six_t = std::size_t;
+			using bix_t = std::size_t;
 		public:
 			six_t _index;
 		public:
@@ -32,6 +33,7 @@ namespace impl
 			{}
 			six_t index() const { return _index; }
 			std::size_t segment_size() const { return _buckets_end - _buckets; }
+			bucket_aligned_t &deref(bix_t bi) const { return _buckets[bi]; }
 		};
 }
 
