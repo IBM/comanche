@@ -24,15 +24,15 @@
 
 namespace impl
 {
-	template <typename Bucket, typename Lock>
+	template <typename Bucket, typename Referent, typename Lock>
 		struct bucket_shared_lock;
-	template <typename Bucket, typename Lock>
-		using bucket_shared_ref = bucket_shared_lock<Bucket, Lock> &;
+	template <typename Bucket, typename Referent, typename Lock>
+		using bucket_shared_ref = bucket_shared_lock<Bucket, Referent, Lock> &;
 
-	template <typename Bucket, typename Lock>
+	template <typename Bucket, typename Referent, typename Lock>
 		struct bucket_unique_lock;
-	template <typename Bucket, typename Lock>
-		using bucket_unique_ref = bucket_unique_lock<Bucket, Lock> &;
+	template <typename Bucket, typename Referent, typename Lock>
+		using bucket_unique_ref = bucket_unique_lock<Bucket, Referent, Lock> &;
 
 	class owner
 	{
@@ -53,14 +53,14 @@ namespace impl
 #endif
 		{}
 
-		template<typename Bucket, typename SharedMutex>
+		template<typename Bucket, typename Referent, typename SharedMutex>
 			void insert(
 				const std::size_t
 #if TRACK_POS
 					pos_
 #endif
 				, const unsigned p_
-				, bucket_unique_ref<Bucket, SharedMutex>
+				, bucket_unique_ref<Bucket, Referent, SharedMutex>
 			)
 		{
 #if TRACK_POS
@@ -70,16 +70,16 @@ namespace impl
 #endif
 			_value |= (1U << p_);
 		}
-		template<typename Bucket, typename SharedMutex>
-			void erase(unsigned p, bucket_unique_ref<Bucket, SharedMutex>)
+		template<typename Bucket, typename Referent, typename SharedMutex>
+			void erase(unsigned p, bucket_unique_ref<Bucket, Referent, SharedMutex>)
 			{
 				_value &= ~(1U << p);
 			}
-		template<typename Bucket, typename SharedMutex>
+		template<typename Bucket, typename Referent, typename SharedMutex>
 			void move(
 				unsigned dst_
 				, unsigned src_
-				, bucket_unique_ref<Bucket, SharedMutex>
+				, bucket_unique_ref<Bucket, Referent, SharedMutex>
 			)
 			{
 				assert(dst_ < size);
@@ -91,11 +91,11 @@ namespace impl
 		template <typename Lock>
 			auto owned(std::size_t table_size, Lock &) const -> std::string;
 		/* clear the senior owner of all the bits set in its new junior owner. */
-		template <typename Bucket, typename SharedMutex>
+		template <typename Bucket, typename Referent, typename SharedMutex>
 			void clear_from(
 				const owner &junior
-				, bucket_unique_ref<Bucket, SharedMutex>
-				, bucket_shared_ref<Bucket, SharedMutex>
+				, bucket_unique_ref<Bucket, Referent, SharedMutex>
+				, bucket_shared_ref<Bucket, Referent, SharedMutex>
 			)
 			{
 				_value &= ~junior._value;
@@ -113,7 +113,7 @@ namespace impl
 		template <typename Table>
 			friend auto operator<<(
 				std::ostream &o
-				, const impl::owner_print<Table, impl::bypass_lock<const impl::owner>> &
+				, const impl::owner_print<Table, impl::bypass_lock<const typename Table::bucket_t, const impl::owner>> &
 			) -> std::ostream &;
 #endif
 	};
