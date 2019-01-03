@@ -35,9 +35,9 @@ template <typename TableBase>
 		o_ << "Buckets\n";
 		for ( std::size_t k = 0; k != tbl_base.bucket_count(); ++k )
 		{
-			auto sb = segment_and_bucket(k);
-			bypass_lock<const owner> owner_lk(tbl_base.locate_owner(sb), sb);
-			bypass_lock<const content<typename TableBase::value_type>>
+			auto sb = tbl_base.make_segment_and_bucket(k);
+			bypass_lock<typename TableBase::bucket_t, const owner> owner_lk(tbl_base.locate_owner(sb), sb);
+			bypass_lock<typename TableBase::bucket_t, const content<typename TableBase::value_type>>
 				content_lk(
 					tbl_base.locate_content(sb)
 					, sb
@@ -55,21 +55,21 @@ template <typename TableBase>
 			}
 		}
 		if (
-			tbl_base._pc.segment_count_actual() < tbl_base._pc.segment_count_target()
+			tbl_base.segment_count_actual() < tbl_base.segment_count_target()
 		)
 		{
 			auto &loc = tbl_base._bc[tbl_base.segment_count()];
-			if ( loc._b )
+			if ( loc._buckets )
 			{
 				o_ << "Pending buckets\n";
 				for ( std::size_t ks = 0; ks != tbl_base.bucket_count(); ++ks )
 				{
 					const auto kj = tbl_base.bucket_count() + ks;
-					const auto sbj = segment_and_bucket(kj);
-					bypass_lock<const owner> owner_lk(loc._b[ks], sbj);
-					bypass_lock<const content<typename TableBase::value_type>>
+					const auto sbj = tbl_base.make_segment_and_bucket(kj);
+					bypass_lock<typename TableBase::bucket_t, const owner> owner_lk(loc._buckets[ks], sbj);
+					bypass_lock<typename TableBase::bucket_t, const content<typename TableBase::value_type>>
 						content_lk(
-							loc._b[ks]
+							loc._buckets[ks]
 							, sbj
 						);
 					if (
