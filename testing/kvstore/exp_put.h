@@ -25,12 +25,6 @@ public:
     ExperimentPut(struct ProgramOptions options): Experiment(options) 
     {
         _test_name = "put";
-
-        if (!options.store)
-        {
-            perror("ExperimentPut passed an invalid store");
-            throw std::exception();
-        }
     }
 
     void initialize_custom(unsigned core) override
@@ -54,7 +48,7 @@ public:
         {
             timer.stop();
             PINF("[%u] put: reached total number of components. Exiting.", core);
-            throw std::exception();
+            return false;
         }
 
         // check time it takes to complete a single put operation
@@ -74,6 +68,8 @@ public:
         }
         end = rdtsc();
         timer.stop();
+
+        _update_data_process_amount(core, _i);
 
         cycles = end - start;
         double time = (cycles / _cycles_per_second);
@@ -121,7 +117,10 @@ public:
 
           double run_time = timer.get_time_in_seconds();
           double iops = _i / run_time;
-          PINF("[%u] put: IOPS: %2g in %2g seconds", core, iops, run_time);
+          PINF("[%u] put: IOPS: %2g (%ld operations over %.3f seconds)", core, iops, _i, run_time);
+
+          double throughput = _calculate_current_throughput();
+          PINF("[%u] put: THROUGHPUT: %.2f MB/s (%ld bytes over %.3f seconds)", core, throughput, _total_data_processed, run_time);
 
           pthread_mutex_lock(&g_write_lock);
          _debug_print(core, "cleanup_custom mutex locked");
@@ -132,13 +131,17 @@ public:
          // collect latency stats
          rapidjson::Value latency_object = _add_statistics_to_report("latency", _latency_stats, document);
          rapidjson::Value timing_object = _add_statistics_to_report("start_time", start_time_stats, document);
-         rapidjson::Value iops_object; 
+         rapidjson::Value iops_object;
+         rapidjson::Value throughput_object;
+
          iops_object.SetDouble(iops);
+         throughput_object.SetDouble(throughput);
 
          // save everything
          rapidjson::Value experiment_object(rapidjson::kObjectType);
          
          experiment_object.AddMember("IOPS", iops_object, document.GetAllocator());
+         experiment_object.AddMember("throughput (MB/s)", throughput_object, document.GetAllocator());
          experiment_object.AddMember("latency", latency_object, document.GetAllocator());
          experiment_object.AddMember("start_time", timing_object, document.GetAllocator()); 
            _print_highest_count_bin(_latency_stats, core);

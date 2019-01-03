@@ -26,12 +26,14 @@ class Experiment : public Core::Tasklet
 public:
   std::string _pool_path = "./data";
   std::string _pool_name = "Exp.pool.";
+  std::string _owner = "owner";
   unsigned long long int _pool_size = MB(100);
   int _pool_flags = Component::IKVStore::FLAGS_SET_SIZE;
   int _pool_num_components = 100000;
   std::string _cores = "0";
   int _execution_time;
-  std::string _component = "filestore";
+  int _debug_level = 0;
+  std::string _component = DEFAULT_COMPONENT;
   std::string _results_path = "./results";
   std::string _report_filename;
   std::string _test_name;
@@ -41,6 +43,9 @@ public:
   size_t                                _i = 0;
   Component::IKVStore *                 _store;
   Component::IKVStore::pool_t           _pool;
+  std::string                           _server_address;
+  std::string                           _device_name;
+  std::string                           _pci_address;
   bool                                  _first_iter = true;
   bool                                  _ready = false;
   Stopwatch timer;
@@ -48,11 +53,13 @@ public:
   bool _summary = false;
 
   // member variables for tracking pool sizes
-  long _element_size = -1;
+  long _element_size_on_disk = -1; // floor: filesystem block size
+  long _element_size = -1; // raw amount of file data (bytes)
   long _elements_in_use = 0;
   long _pool_element_start = 0;
   long _pool_element_end = -1;
   long _elements_stored = 0;
+  long _total_data_processed = 0;  // for use with throughput calculation
 
   // bin statistics
   int _bin_count = 100;
@@ -62,16 +69,20 @@ public:
 
   float _cycles_per_second = Core::get_rdtsc_frequency_mhz() * 1000000;
 
-  Experiment(struct ProgramOptions options): _store(options.store)
+  Experiment(struct ProgramOptions options) 
   {
-    assert(options.store);
-
     _report_filename = options.report_file_name;
   }
     
   void initialize(unsigned core) override 
   {
     handle_program_options();
+
+    if (initialize_store(core) != 0)
+    {
+      PERR("initialize returned an error. Aborting setup.");
+      throw std::exception();
+    }
 
     try
     {
@@ -149,6 +160,13 @@ public:
       
     PLOG("Created pool for worker %u...OK!", core);
 
+    // initialize experiment report
+    rapidjson::Document document = _get_report_document();
+    if (!document.HasMember("experiment"))
+    {
+      _initialize_experiment_report(document); 
+    }
+
     try
     {
       initialize_custom(core);
@@ -162,6 +180,83 @@ public:
     ProfilerRegisterThread();
     _ready = true;
   };
+
+  int initialize_store(unsigned core)
+  {
+    Component::IBase * comp;
+  
+    try
+    { 
+      if(_component == "pmstore") {
+        comp = Component::load_component(PMSTORE_PATH, Component::pmstore_factory);
+      }
+      else if(_component == "filestore") {
+        comp = Component::load_component(FILESTORE_PATH, Component::filestore_factory);
+      }
+      else if(_component == "nvmestore") {
+        comp = Component::load_component(NVMESTORE_PATH, Component::nvmestore_factory);
+      }
+      else if(_component == "rockstore") {
+        comp = Component::load_component(ROCKSTORE_PATH, Component::rocksdb_factory);
+      }
+      else if(_component == "dawn") {
+      
+        DECLARE_STATIC_COMPONENT_UUID(dawn_factory, 0xfac66078,0xcb8a,0x4724,0xa454,0xd1,0xd8,0x8d,0xe2,0xdb,0x87);  // TODO: find a better way to register arbitrary components to promote modular use
+        comp = Component::load_component(DAWN_PATH, dawn_factory);
+      }
+      else if (_component == "hstore") {
+        comp = Component::load_component("libcomanche-hstore.so", Component::hstore_factory);
+      }
+      else if (_component == "mapstore") {
+        comp = Component::load_component("libcomanche-storemap.so", Component::mapstore_factory);
+      }
+      else throw General_exception("unknown --component option (%s)", _component.c_str());
+    }
+    catch(...)
+    {
+      PERR("error during load_component.");
+      return 1;
+    }
+
+    if (_verbose)
+    {
+      PINF("[%u] component address: %p", core, &comp);
+    }
+
+    if (!comp)
+    {
+      PERR("comp loaded, but returned invalid value");
+      return 1;
+    }
+
+    try
+    {
+      IKVStore_factory * fact = (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
+
+      if(_component == "nvmestore") {
+        _store = fact->create("owner",_owner, _pci_address);
+      }
+      else if (_component == "dawn") {
+        _store = fact->create(_debug_level, _owner, _server_address, _device_name);
+      }
+      else {
+        _store = fact->create("owner", _owner);
+      }
+
+      if (_verbose)
+      {
+        PINF("factory: release_ref on %p", &fact);
+      }
+      fact->release_ref();
+    }
+    catch(...)
+    {
+      PERR("factory creation step failed");
+      return 1;
+    }
+
+    return 0;
+  }
 
   virtual void initialize_custom(unsigned core)
   {
@@ -226,6 +321,24 @@ public:
       PERR("delete_pool failed! Ending experiment.");
       throw std::exception();
     }
+
+    try
+    {
+      if (_verbose)
+      {
+        std::cout << "cleanup: attempting to release_ref on store at " << &_store;
+      }
+
+      if (_verbose)
+      {
+        std::cout << " ...done!" << std::endl;
+      }
+    }
+    catch(...)
+    {
+      PERR("release_ref call on _store failed!");
+      throw std::exception();
+    }
   }
 
   bool component_uses_direct_memory()
@@ -246,7 +359,13 @@ public:
         if (vm.count("component") > 0) {
           _component = vm["component"].as<std::string>();
         }
-        
+       
+        if ((_component == "pmstore" || _component == "hstore") && vm.count("path") == 0)
+        {
+          PERR("component '%s' requires --path input argument for persistent memory store. Aborting!", _component.c_str());
+          throw std::exception();
+        }
+
         if(vm.count("path") > 0) {
           _pool_path = vm["path"].as<std::string>();
         }
@@ -267,6 +386,10 @@ public:
           _cores = vm["cores"].as<std::string>();
         }
 
+        if (vm.count("owner") > 0) {
+          _owner = vm["owner"].as<std::string>();
+        }
+
         if (vm.count("bins") > 0) {
           _bin_count = vm["bins"].as<int>();
         }
@@ -281,6 +404,18 @@ public:
 
         _verbose = vm.count("verbose");
         _summary = vm.count("summary");
+
+        _debug_level = vm.count("debug_level") > 0 ? vm["debug_level"].as<int>() : 0;
+        _server_address = vm.count("server_address") ? vm["server_address"].as<std::string>() : "127.0.0.1";
+        _device_name = vm.count("device_name") ? vm["device_name"].as<std::string>() : "unused";
+
+        if (_component == "nvmestore" && vm.count("pci_addr") == 0)
+        {
+          PERR("nvmestore requires pci_addr as an input. Aborting!");
+          throw std::exception();
+        }
+
+        _pci_address = vm.count("pci_addr") ? vm["pci_addr"].as<std::string>() : "no_pci_addr";
       } 
     catch (const po::error &ex)
       {
@@ -420,15 +555,23 @@ public:
     {
       FILE *pFile = fopen(_report_filename.c_str(), "r");
       if (!pFile)
-        {
-          std::cerr << "attempted to open filename '" << _report_filename << "'" << std::endl;
-          perror("_get_report_document failed fopen call");
-          throw std::exception();
-        }
+      {
+        std::cerr << "attempted to open filename '" << _report_filename << "'" << std::endl;
+        perror("_get_report_document failed fopen call");
+        throw std::exception();
+      }
 
-      char readBuffer[GetFileSize(_report_filename)];
+      size_t buffer_size = GetFileSize(_report_filename);
 
-      rapidjson::FileReadStream is(pFile, readBuffer, sizeof(readBuffer));
+      const size_t MIN_READ_BUFFER_SIZE = 4;  // if FileReadStream has a buffer smaller than this, it'll assert
+      if (buffer_size < MIN_READ_BUFFER_SIZE)
+      {
+        buffer_size = MIN_READ_BUFFER_SIZE;
+      }
+
+      char readBuffer[buffer_size];
+
+      rapidjson::FileReadStream is(pFile, readBuffer, buffer_size);
       document.ParseStream<0>(is);
 
       if (document.HasParseError())
@@ -446,9 +589,81 @@ public:
     }
 
     _debug_print(0, "returning report document");
+
     return document;
   }
 
+  void _initialize_experiment_report(rapidjson::Document& document)
+  {
+    if (_verbose)
+    {
+      PINF("writing experiment parameters to file");
+    }
+    rapidjson::Document::AllocatorType &allocator = document.GetAllocator();
+
+    rapidjson::Value temp_object(rapidjson::kObjectType);
+    rapidjson::Value temp_value;
+
+    // experiment parameters
+    temp_value.SetString(rapidjson::StringRef(_component.c_str()));
+    temp_object.AddMember("component", temp_value, allocator);
+
+    temp_value.SetString(rapidjson::StringRef(_cores.c_str()));
+    temp_object.AddMember("cores", temp_value, allocator);
+
+    temp_value.SetInt(_data->_key_len);
+    temp_object.AddMember("key_length", temp_value, allocator);
+
+    temp_value.SetInt(_data->_val_len);
+    temp_object.AddMember("value_length", temp_value, allocator);
+
+    temp_value.SetInt(_pool_num_components);
+    temp_object.AddMember("elements", temp_value, allocator);
+
+    temp_value.SetDouble(_pool_size);
+    temp_object.AddMember("pool_size", temp_value, allocator);
+
+    temp_value.SetInt(_pool_flags);
+    temp_object.AddMember("pool_flags", temp_value, allocator);
+
+    // first experiment could take some time; parse out start time from the filename we're using
+    const std::string REPORT_NAME_START = "results_";
+    const std::string REPORT_NAME_END = ".json";
+    unsigned time_start =  _report_filename.find(REPORT_NAME_START);
+    unsigned time_end = _report_filename.find(REPORT_NAME_END);
+    std::string timestring = _report_filename.substr(time_start + REPORT_NAME_START.length(), time_end - time_start - REPORT_NAME_START.length());
+
+    temp_value.SetString(rapidjson::StringRef(timestring.c_str()));
+    temp_object.AddMember("date", temp_value, allocator);
+
+    document.AddMember("experiment", temp_object, allocator);
+
+    rapidjson::StringBuffer strbuf;
+
+    try
+    {
+      // write back to file
+      rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(strbuf);
+      document.Accept(writer);
+    }
+    catch(...)
+    {
+      PERR("failed during write to json document");
+    }
+
+    try
+    {
+      std::ofstream outf(_report_filename.c_str());
+      outf << strbuf.GetString() << std::endl;
+    }
+    catch(...)
+    {
+      PERR("failed while writing to ofstream");
+      throw std::exception();
+    }
+  } 
+
+  // returns file size in bytes
   long GetFileSize(std::string filename)
   {
     struct stat stat_buf;
@@ -660,39 +875,6 @@ public:
     rapidjson::Document document;
     document.SetObject();
 
-    rapidjson::Document::AllocatorType &allocator = document.GetAllocator();
-
-    rapidjson::Value temp_object(rapidjson::kObjectType);
-    rapidjson::Value temp_value;
-
-    // experiment parameters
-    temp_value.SetString(rapidjson::StringRef(options.component.c_str()));
-    temp_object.AddMember("component", temp_value, allocator);
-
-    temp_value.SetString(rapidjson::StringRef(options.cores.c_str()));
-    temp_object.AddMember("cores", temp_value, allocator);
-
-    temp_value.SetInt(options.key_length);
-    temp_object.AddMember("key_length", temp_value, allocator);
-
-    temp_value.SetInt(options.value_length);
-    temp_object.AddMember("value_length", temp_value, allocator);
-
-    temp_value.SetInt(options.elements);
-    temp_object.AddMember("elements", temp_value, allocator);
-
-    temp_value.SetDouble(options.size);
-    temp_object.AddMember("pool_size", temp_value, allocator);
-
-    temp_value.SetInt(options.flags);
-    temp_object.AddMember("pool_flags", temp_value, allocator);
-
-    temp_value.SetString(rapidjson::StringRef(timestring.c_str()));
-    temp_object.AddMember("date", temp_value, allocator);
-
-    document.AddMember("experiment", temp_object, allocator);
-
-
     // write to file
     std::string results_path = "./results";
     boost::filesystem::path dir(results_path);
@@ -723,30 +905,57 @@ public:
       }
 
     outf << sb.GetString() << std::endl;
+    PLOG("created report with filename '%s'", output_file_name.c_str());
 
     return output_file_name;
   }
 
+
   unsigned long GetElementSize(unsigned core, int index)
   {
-    if (_element_size == -1)  // -1 is reserved value and impossible (must be positive size)
-      {
+    if (_element_size == -1)  // -1 is reserved and impossible
+    {
         std::string path = _pool_path + "/" +  _pool_name + std::to_string(core) + "/" + _data->key(index);
+        _element_size = GetFileSize(path);
+    }
+
+    if (_element_size_on_disk == -1)  // -1 is reserved value and impossible (must be positive size)
+      {
         long block_size = GetBlockSize(_pool_path);
-        long file_size = GetFileSize(path);
 
         // take the larger of the two
-        if (file_size > block_size)
+        if (_element_size > block_size)
           {
-            _element_size = file_size;
+            _element_size_on_disk = _element_size;
           }
         else
           {
-            _element_size = block_size;
+            _element_size_on_disk = block_size;
           }
       }
 
-    return _element_size;
+    return _element_size_on_disk;
+  }
+
+  void _update_data_process_amount(unsigned core, int index)
+  {
+    if (_element_size == -1)  // -1 is reserved and impossible
+    {
+      std::string path = _pool_path + "/" +  _pool_name + std::to_string(core) + "/" + _data->key(index);
+      _element_size = GetFileSize(path);
+    }
+
+    _total_data_processed += _element_size;
+  }
+
+  // throughput = Mib/s here
+  double _calculate_current_throughput()
+  {
+    double size_mb = _total_data_processed * 0.000001;  // bytes -> MB
+    double time = timer.get_time_in_seconds();
+    double throughput = size_mb / time;
+
+    return throughput;
   }
 
   void _populate_pool_to_capacity(unsigned core, Component::IKVStore::memory_handle_t memory_handle = Component::IKVStore::HANDLE_NONE)
@@ -801,21 +1010,21 @@ public:
       }
 
       // calculate maximum number of elements we can put in pool at one time
-      if (_element_size == -1)
+      if (_element_size_on_disk == -1)
       {
-        _element_size = GetElementSize(core, current);
+        _element_size_on_disk = GetElementSize(core, current);
 
         if (_verbose)
           {
             std::stringstream debug_element_size;
-            debug_element_size << "element size is " << _element_size;
+            debug_element_size << "element size is " << _element_size_on_disk;
             _debug_print(core, debug_element_size.str());
           }
       }
 
       if (maximum_elements == -1)
       {
-        maximum_elements = (long)(_pool_size / _element_size);
+        maximum_elements = (long)(_pool_size / _element_size_on_disk);
 
         if (_verbose)
         {
@@ -870,7 +1079,7 @@ public:
     _elements_in_use++;
 
     // erase elements that exceed pool capacity and start again
-    if ((_elements_in_use * _element_size) >= _pool_size)
+    if ((_elements_in_use * _element_size_on_disk) >= _pool_size)
     {
       bool timer_running_at_start = timer.is_running();  // if timer was running, pause it
 
