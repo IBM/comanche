@@ -27,11 +27,6 @@ public:
     ExperimentGetDirect(struct ProgramOptions options) : Experiment(options) 
     {    
         _test_name = "get_direct";
-        
-        if (!options.store)
-        {
-            perror("ExperimentGetDirect passed an invalid store");
-        }
     }
 
     void initialize_custom(unsigned core)
@@ -81,7 +76,7 @@ public:
         {
           PINF("[%u] get_direct: reached total number of components. Exiting.", core);
           timer.stop();
-          throw std::exception();
+          return false; 
         }
 
         // check time it takes to complete a single put operation
@@ -116,7 +111,9 @@ public:
         int rc = _store->get_direct(_pool, _data->key(_i), pval, pval_len, memory_handle);
         end = rdtsc();
         timer.stop();
-        
+       
+        _update_data_process_amount(core, _i);
+
         cycles = end - start;
         double time = (cycles / _cycles_per_second);
         //printf("start: %u  end: %u  cycles: %u seconds: %f\n", start, end, cycles, time);
@@ -172,6 +169,9 @@ public:
         double iops = _i / run_time;
         PINF("[%u] get_direct: IOPS: %2g in %2g seconds", core, iops, run_time);
 
+        double throughput = _calculate_current_throughput();
+        PINF("[%u] get_direct: THROUGHPUT: %.2f MB/s (%ld bytes over %.3f seconds)", core, throughput, _total_data_processed, run_time);
+
         if (_verbose)
         {
             std::stringstream stats_info;
@@ -190,13 +190,17 @@ public:
        // collect latency stats
        rapidjson::Value latency_object = _add_statistics_to_report("latency", _latency_stats, document);
        rapidjson::Value timing_object = _add_statistics_to_report("start_time", start_time_stats, document);
-       rapidjson::Value iops_object; 
+       rapidjson::Value iops_object;
+       rapidjson::Value throughput_object;
+
        iops_object.SetDouble(iops);
+       throughput_object.SetDouble(throughput);
 
        // save everything
        rapidjson::Value experiment_object(rapidjson::kObjectType);
 
        experiment_object.AddMember("IOPS", iops_object, document.GetAllocator());
+       experiment_object.AddMember("throughput (MB/s)", throughput_object, document.GetAllocator());
        experiment_object.AddMember("latency", latency_object, document.GetAllocator());
        experiment_object.AddMember("start_time", timing_object, document.GetAllocator()); 
         _print_highest_count_bin(_latency_stats, core);
