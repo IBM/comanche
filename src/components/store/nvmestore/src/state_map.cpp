@@ -18,7 +18,7 @@ bool State_map::state_get_read_lock(const pool_t pool, const void * ptr) {
   auto entry = pool_state_map.find(ptr);
   if(entry == pool_state_map.end())  /* create new entry */
     return pool_state_map[ptr]._lock.read_lock() == 0;
-  else 
+  else
     return entry->second._lock.read_trylock() == 0;
 }
 
@@ -29,7 +29,7 @@ bool State_map::state_get_write_lock(const pool_t pool, const void * ptr) {
   auto entry = pool_state_map.find(ptr);
   if(entry == pool_state_map.end())  /* create new entry */
     return pool_state_map[ptr]._lock.write_lock() == 0;
-  else 
+  else
     return entry->second._lock.write_trylock() == 0;
 }
 
