@@ -19,7 +19,6 @@ class ExperimentPut : public Experiment
 public:
     std::vector<double> _start_time;
     std::vector<double> _latencies;
-    std::chrono::high_resolution_clock::time_point _exp_start_time;
     BinStatistics _latency_stats;
 
     ExperimentPut(struct ProgramOptions options): Experiment(options) 
@@ -39,8 +38,6 @@ public:
         {
             PLOG("[%u] Starting Put experiment...", core);
             _first_iter = false;
-            uint64_t _start_rdtsc = rdtsc();
-            _exp_start_time = std::chrono::high_resolution_clock::now();
         }     
 
         // end experiment if we've reached the total number of components
@@ -52,11 +49,9 @@ public:
         }
 
         // check time it takes to complete a single put operation
-        unsigned int cycles, start, end;
         int rc;
 
         timer.start();
-        start = rdtsc();
         try
         {
           rc = _store->put(_pool, _data->key(_i), _data->value(_i), _data->value_len());
@@ -66,17 +61,12 @@ public:
           PERR("put call failed! Returned %d. Ending experiment.", rc);
           throw std::exception();
         }
-        end = rdtsc();
         timer.stop();
 
         _update_data_process_amount(core, _i);
 
-        cycles = end - start;
-        double time = (cycles / _cycles_per_second);
-        //printf("start: %u  end: %u  cycles: %u seconds: %f\n", start, end, cycles, time);
-
-        std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
-        double time_since_start = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - _exp_start_time).count() / 1000.0;
+        double time = timer.get_lap_time();
+        double time_since_start = timer.get_time_in_seconds();
 
         // store the information for later use
         _start_time.push_back(time_since_start);
