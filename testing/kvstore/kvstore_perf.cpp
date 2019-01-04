@@ -27,7 +27,7 @@ int g_argc;
 char ** g_argv;
 
 pthread_mutex_t g_write_lock = PTHREAD_MUTEX_INITIALIZER;
-boost::program_options::options_description desc("Options"); 
+extern boost::program_options::options_description desc;
 
 int main(int argc, char * argv[])
 {
@@ -39,28 +39,7 @@ int main(int argc, char * argv[])
   namespace po = boost::program_options; 
 
   try {
-    desc.add_options()
-      ("help", "Show help")
-      ("test", po::value<std::string>(), "Test name <all|put|get|put_direct|get_direct>. Default: all.")
-      ("component", po::value<std::string>()->default_value(DEFAULT_COMPONENT), "Implementation selection <filestore|pmstore|dawn|nvmestore|mapstore|hstore>. Default: filestore.")
-      ("cores", po::value<std::string>(), "Cores to run tasks on. Supports singles and ranges. Example: a,b,c-d. Default: Core 0.")
-      ("path", po::value<std::string>(), "Path of directory for pool. Default: current directory.")
-      ("size", po::value<unsigned long long int>(), "Size of pool. Default: 100MB.")
-      ("flags", po::value<int>(), "Flags for pool creation. Default: none.")
-      ("elements", po::value<int>(), "Number of data elements. Default: 100,000.")
-      ("key_length", po::value<unsigned int>(), "Key length of data. Default: 8.")
-      ("value_length", po::value<unsigned int>(), "Value length of data. Default: 64.")
-      ("bins", po::value<unsigned int>(), "Number of bins for statistics. Default: 100. ")
-      ("latency_range_min", po::value<double>(), "Lowest latency bin threshold. Default: 10e-9.")
-      ("latency_range_max", po::value<double>(), "Highest latency bin threshold. Default: 10e-3.")
-      ("debug_level", po::value<int>(), "Debug level. Default: 0.")
-      ("owner", po::value<std::string>(), "Owner name for component registration")
-      ("server_address", po::value<std::string>(), "Server address, with port")
-      ("device_name", po::value<std::string>(), "Device name")
-      ("pci_addr", po::value<std::string>(), "PCI address (e.g. 0b:00.0)")
-      ("verbose", "Verbose output")    
-      ("summary", "Prints summary statement: most frequent latency bin info per core")
-      ;
+    show_program_options();
 
     po::variables_map vm; 
     po::store(po::parse_command_line(argc, argv, desc),  vm);
@@ -70,6 +49,7 @@ int main(int argc, char * argv[])
       return 0;
     }
 
+    Options.component = vm.count("component") > 0 ? vm["component"].as<std::string>() : DEFAULT_COMPONENT;
     Options.test = vm.count("test") > 0 ? vm["test"].as<std::string>() : "all";
     Options.cores  = vm.count("cores") > 0 ? vm["cores"].as<std::string>() : "0";
 
