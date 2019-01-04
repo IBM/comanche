@@ -25,7 +25,7 @@ class Experiment : public Core::Tasklet
 { 
 public:
   std::string _pool_path = "./data";
-  std::string _pool_name = "Exp.pool.";
+  std::string _pool_name = "Exp.pool";
   std::string _owner = "owner";
   unsigned long long int _pool_size = MB(100);
   int _pool_flags = Component::IKVStore::FLAGS_SET_SIZE;
@@ -122,7 +122,7 @@ public:
 
     // initialize experiment
     char poolname[256];
-    sprintf(poolname, "%s%u", _pool_name.c_str(), core);
+    sprintf(poolname, "%s.%u", _pool_name.c_str(), core);
 
     try
       {
@@ -373,6 +373,10 @@ public:
 
         if(vm.count("path") > 0) {
           _pool_path = vm["path"].as<std::string>();
+        }
+
+        if (vm.count("pool_name") > 0) {
+          _pool_name = vm["pool_name"].as<std::string>();
         }
 
         if(vm.count("size") > 0) {
@@ -929,7 +933,7 @@ public:
   {
     if (_element_size <= 0)
     {
-        std::string path = _pool_path + "/" +  _pool_name + std::to_string(core) + "/" + _data->key(index);
+        std::string path = _pool_path + "/" +  _pool_name + "." + std::to_string(core) + "/" + _data->key(index);
         _element_size = GetFileSize(path);
 
         if (_element_size == -1)  // this means GetFileSize failed, maybe due to RDMA
@@ -960,7 +964,7 @@ public:
   {
     if (_element_size == -1)  // -1 is reserved and impossible
     {
-      std::string path = _pool_path + "/" +  _pool_name + std::to_string(core) + "/" + _data->key(index);
+      std::string path = _pool_path + "/" +  _pool_name + "." + std::to_string(core) + "/" + _data->key(index);
       _element_size = GetFileSize(path);
 
       if (_element_size == -1)  // this means GetFileSize failed, maybe due to RDMA
