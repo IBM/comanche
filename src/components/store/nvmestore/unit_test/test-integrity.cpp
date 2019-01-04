@@ -49,7 +49,7 @@ class KVStore_test : public ::testing::Test {
 
   // If the constructor and destructor are not enough for setting up
   // and cleaning up each test, you can define the following methods:
-  
+
   virtual void SetUp() {
     // Code here will be called immediately after the constructor (right
     // before each test).
@@ -59,7 +59,7 @@ class KVStore_test : public ::testing::Test {
     // Code here will be called immediately after each test (right
     // before the destructor).
   }
-  
+
   // Objects declared here can be used by all tests in the test case
   static Component::IKVStore * _kvstore;
   static Component::IKVStore::pool_t _pool;
@@ -83,8 +83,8 @@ TEST_F(KVStore_test, Instantiate)
   IKVStore_factory * fact = (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
 
   // this nvme-store use a block device and a block allocator
-  _kvstore = fact->create("owner","name", opt.pci.c_str());
-  
+  _kvstore = fact->create("owner","name", opt.pci);
+
   fact->release_ref();
 }
 
@@ -109,7 +109,7 @@ TEST_F(KVStore_test, BasicPut)
     PDBG("Checksum: %d", result.checksum());
 
 		_crc_map[key]=result.checksum();
-      
+
     EXPECT_TRUE(S_OK == _kvstore->put(_pool, key, val.c_str(), VAL_LEN));
   }
 }
@@ -191,7 +191,7 @@ int main(int argc, char **argv) {
 
   opt.pci = argv[1];
 
-  
+ 
   ::testing::InitGoogleTest(&argc, argv);
   auto r = RUN_ALL_TESTS();
 

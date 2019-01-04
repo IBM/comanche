@@ -38,12 +38,23 @@ static std::unordered_map<IBlock_device *, IBlock_allocator *> _alloc_map; //blk
 std::mutex _dev_map_mutex;
 std::mutex _alloc_map_mutex;
 
-status_t NVME_store:: open_block_device(std::string pci, IBlock_device* &block)
+status_t NVME_store:: open_block_device(const std::string &pci, IBlock_device* &block)
 {
   std::lock_guard<std::mutex> guard(_dev_map_mutex);
 
   if(_dev_map.find(pci) == _dev_map.end()){
     PLOG("[%s]: creating new block device...", __func__);
+    /* Note: may fail due to no free hugepages, in which case increasing
+     * /sys/devices/system/node/node<N>/hugepages/hugepages-2048kB/nr_hugepages for all NUMA nodes <n> may help.
+     * Note: may create many dir entries /dev/hugepages/<prefix>map_<n>
+     *  where prefix is
+     *     nvme_comanche
+     *   or
+     *     value of env var SPDK_DEVICE0
+     *  where n is 0..127, 32768,,32895
+     * Note that the dir entries will persist after execution
+     */
+    /* initialize "Data Plane Development Kit Environment Abstraction Layer (EAL)" */
     DPDK::eal_init(512);
 
 #ifdef USE_SPDK_NVME_DEVICE
@@ -52,11 +63,11 @@ status_t NVME_store:: open_block_device(std::string pci, IBlock_device* &block)
 
     assert(comp);
     IBlock_device_factory * fact = (IBlock_device_factory *) comp->query_interface(IBlock_device_factory::iid());
-    
+
     cpu_mask_t cpus;
     cpus.add_core(2);
 
-    block = fact->create(pci.c_str(), &cpus);
+    block = fact->create(pci, &cpus);
     assert(block);
     fact->release_ref();
 
@@ -84,7 +95,7 @@ status_t NVME_store:: open_block_device(std::string pci, IBlock_device* &block)
     _dev_map.insert(std::pair<std::string, IBlock_device*>(pci, block));
     return S_OK;
   }
-  else{ 
+  else{
     block = _dev_map[pci];
     block->add_ref();
     return S_OK;
@@ -120,15 +131,15 @@ status_t NVME_store::open_block_allocator(IBlock_device *block,Component::IBlock
 
     nr_blocks_tracked = nr_blocks> TOO_MANY_BLOCKS? TOO_MANY_BLOCKS:nr_blocks;
 
-    PLOG("%s: Opening allocator to support %lu \/ %lu blocks", 
+    PLOG("%s: Opening allocator to support %lu \/ %lu blocks",
         __func__, nr_blocks_tracked, nr_blocks);
 
     persist_id_t id_alloc = std::string(devinfo.volume_name) + ".alloc.pool";
 
     alloc = fact->open_allocator(nr_blocks_tracked,
                                  PMEM_PATH_ALLOC,
-                                 id_alloc);  
-    fact->release_ref();  
+                                 id_alloc);
+    fact->release_ref();
 
     _alloc_map.insert(std::pair<IBlock_device *, IBlock_allocator *>(block, alloc));
     return S_OK;

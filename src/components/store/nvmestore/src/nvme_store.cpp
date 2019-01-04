@@ -131,15 +131,16 @@ static int check_pool(const char * path)
 
 NVME_store::NVME_store(const std::string& owner,
                        const std::string& name,
-                       std::string pci)
+                       const std::string& pci)
 {
   status_t ret;
   PLOG("NVMESTORE: chunk size in blocks: %lu", CHUNK_SIZE_IN_BLOCKS);
   PLOG("PMEMOBJ_MAX_ALLOC_SIZE: %lu MB", REDUCE_MB(PMEMOBJ_MAX_ALLOC_SIZE));
 
+  /* Note: see note in open_block_device for failure info */
   ret = open_block_device(pci, _blk_dev);
   if(S_OK != ret){
-    throw General_exception("failed to open block device at pci %s\n", pci.c_str());
+    throw General_exception("failed (%d) to open block device at pci %s\n", ret, pci.c_str());
   }
 
   ret = open_block_allocator(_blk_dev, _blk_alloc);
@@ -386,7 +387,7 @@ static int __alloc_new_object(struct open_session_t *session, uint64_t hashkey, 
 }
 
 /*
- * when using NVMe, only insert the block range descriptor into the mapping 
+ * when using NVMe, only insert the block range descriptor into the mapping
  */
 status_t NVME_store::put(IKVStore::pool_t pool,
                          const std::string& key,
@@ -597,10 +598,10 @@ IKVStore::memory_handle_t NVME_store::register_direct_memory(void * vaddr, size_
 //   TX_BEGIN(pop) {
 
 //     /* allocate memory for entry - range added to tx implicitly? */
-    
+
 //     //get the available range from allocator
 //     blk_info = TX_ALLOC(struct block_range, sizeof(struct block_range));
-    
+
 //     D_RW(blk_info)->lba_start = lba;
 //     D_RW(blk_info)->size = nbytes;
 //     D_RW(blk_info)->handle = handle;
@@ -623,7 +624,7 @@ IKVStore::memory_handle_t NVME_store::register_direct_memory(void * vaddr, size_
 //   TX_END
 
 //     out_key_hash = key_hash;
-  
+
 //   return S_OK;
 // }
 
