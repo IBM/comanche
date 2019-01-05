@@ -53,7 +53,9 @@ class KVStore_test : public ::testing::Test {
 
   static std::string single_key;
   static std::string single_value;
-  static std::string single_value_updated;
+  static std::string single_value_updated_same_size;
+  static std::string single_value_updated_different_size;
+  static std::string single_value_updated3;
   static std::size_t single_count;
 
   static constexpr unsigned many_key_length = 8;
@@ -79,9 +81,12 @@ Component::IKVStore::pool_t KVStore_test::pool;
 
 const std::size_t KVStore_test::estimated_object_count = pmem_simulated ? estimated_object_count_small : estimated_object_count_large;
 
-std::string KVStore_test::single_key = "MySingleKeyLongEnoughToFoceAllocation";
+/* Keys 23-byte or fewer are stored inline. Provide one longer to force allocation */
+std::string KVStore_test::single_key = "MySingleKeyLongEnoughToForceAllocation";
 std::string KVStore_test::single_value         = "Hello world!";
-std::string KVStore_test::single_value_updated = "WeXYZ world!";
+std::string KVStore_test::single_value_updated_same_size = "Jello world!";
+std::string KVStore_test::single_value_updated_different_size = "Hello world!";
+std::string KVStore_test::single_value_updated3 = "WeXYZ world!";
 std::size_t KVStore_test::single_count = 1U;
 
 constexpr unsigned KVStore_test::many_key_length;
@@ -95,7 +100,6 @@ const std::size_t KVStore_test::lock_count = 60;
 #define PMEM_PATH "/mnt/pmem0/pool/0/"
 //#define PMEM_PATH "/dev/pmem0"
 
-
 TEST_F(KVStore_test, Instantiate)
 {
   /* create object instance through factory */
@@ -106,7 +110,7 @@ TEST_F(KVStore_test, Instantiate)
   ASSERT_TRUE(comp);
   auto fact = static_cast<IKVStore_factory *>(comp->query_interface(IKVStore_factory::iid()));
 
-  _kvstore = fact->create("owner","name");
+  _kvstore = fact->create("owner", "name", store_map::location);
 
   fact->release_ref();
 }
@@ -166,6 +170,38 @@ TEST_F(KVStore_test, BasicGet1)
   EXPECT_EQ(r, S_OK);
   PINF("Value=(%.50s) %lu", static_cast<char *>(value), value_len);
   EXPECT_EQ(0, memcmp(single_value.data(), value, single_value.size()));
+  _kvstore->free_memory(value);
+}
+
+/* hstore issue 41 specifies different implementations for same-size replace vs different-size replace. */
+TEST_F(KVStore_test, BasicReplaceSameSize)
+{
+  {
+    single_value_updated_same_size.resize(MB(8));
+    auto r = _kvstore->put(pool, single_key, single_value_updated_same_size.data(), single_value_updated_same_size.length());
+    EXPECT_EQ(r, S_OK);
+  }
+  void * value = nullptr;
+  size_t value_len = 0;
+  auto r = _kvstore->get(pool, single_key, value, value_len);
+  EXPECT_EQ(r, S_OK);
+  PINF("Value=(%.50s) %lu", static_cast<char *>(value), value_len);
+  EXPECT_EQ(0, memcmp(single_value_updated_same_size.data(), value, single_value_updated_same_size.size()));
+  _kvstore->free_memory(value);
+}
+
+TEST_F(KVStore_test, BasicReplaceDifferentSize)
+{
+  {
+    auto r = _kvstore->put(pool, single_key, single_value_updated_different_size.data(), single_value_updated_different_size.length());
+    EXPECT_EQ(r, S_OK);
+  }
+  void * value = nullptr;
+  size_t value_len = 0;
+  auto r = _kvstore->get(pool, single_key, value, value_len);
+  EXPECT_EQ(r, S_OK);
+  PINF("Value=(%.50s) %lu", static_cast<char *>(value), value_len);
+  EXPECT_EQ(0, memcmp(single_value_updated_different_size.data(), value, single_value_updated_different_size.size()));
   _kvstore->free_memory(value);
 }
 
@@ -380,8 +416,8 @@ TEST_F(KVStore_test, BasicUpdate)
     auto r = _kvstore->get(pool, single_key, value, value_len);
     EXPECT_EQ(r, S_OK);
     PINF("Value=(%.50s) %lu", static_cast<char *>(value), value_len);
-    EXPECT_EQ(value_len, single_value.size());
-    EXPECT_EQ(0, memcmp(single_value_updated.data(), value, single_value_updated.size()));
+    EXPECT_EQ(value_len, single_value_updated_different_size.size());
+    EXPECT_EQ(0, memcmp(single_value_updated3.data(), value, single_value_updated3.size()));
     _kvstore->free_memory(value);
   }
 
@@ -415,10 +451,6 @@ TEST_F(KVStore_test, EraseMany)
   EXPECT_LE(many_count_actual, erase_count);
   auto count = _kvstore->count(pool);
   EXPECT_EQ(count, lock_count);
-}
-
-TEST_F(KVStore_test, Size3)
-{
 }
 
 TEST_F(KVStore_test, DeletePool)
