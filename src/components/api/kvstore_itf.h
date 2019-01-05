@@ -448,7 +448,7 @@ public:
                             const std::string& owner,
                             const std::string& param,
                             const std::string& param2){
-    throw(API_exception("factory::create(debug_level,owner,param,param2)"));
+    throw(API_exception("factory::create(debug_level,owner,param,param2) not implemented"));
   }
 
 
