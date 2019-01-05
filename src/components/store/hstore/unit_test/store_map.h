@@ -24,6 +24,7 @@ private:
   static const impl_spec pmstore_impl;
 public:
   static const impl_spec *const impl;
+  static const std::string location;
 };
 
 #endif

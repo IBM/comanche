@@ -852,7 +852,7 @@ namespace impl
 			}
 			/* Table 17 (EqualityComparable) */
 			/* Table 107 (InputIterator) */
-			auto operator->() -> typename base::pointer
+			auto operator->() const -> typename base::pointer
 			{
 				return &this->deref();
 			}
@@ -887,7 +887,7 @@ namespace impl
 			}
 			/* Table 17 (EqualityComparable) */
 			/* Table 107 (InputIterator) */
-			auto operator->() -> const typename base::pointer
+			auto operator->() const -> const typename base::pointer
 			{
 				return &this->deref();
 			}
@@ -922,7 +922,7 @@ namespace impl
 			}
 			/* Table 17 (EqualityComparable) */
 			/* Table 107 (InputIterator) */
-			auto operator->() -> typename base::pointer
+			auto operator->() const -> typename base::pointer
 			{
 				return &this->deref();
 			}
@@ -957,7 +957,7 @@ namespace impl
 			}
 			/* Table 17 (EqualityComparable) */
 			/* Table 107 (InputIterator) */
-			auto operator->() -> const typename base::pointer
+			auto operator->() const -> const typename base::pointer
 			{
 				return &this->deref();
 			}
