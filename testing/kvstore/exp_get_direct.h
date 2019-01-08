@@ -13,7 +13,7 @@
 #include "kvstore_perf.h"
 #include "statistics.h"
 
-extern Data * _data;
+extern Data * g_data;
 
 class ExperimentGetDirect: public Experiment
 { 
@@ -27,11 +27,6 @@ public:
     ExperimentGetDirect(struct ProgramOptions options) : Experiment(options) 
     {    
         _test_name = "get_direct";
-        
-        if (!options.store)
-        {
-            perror("ExperimentGetDirect passed an invalid store");
-        }
     }
 
     void initialize_custom(unsigned core)
@@ -47,7 +42,7 @@ public:
       {
         if (_component.compare("dawn") == 0)
         {
-           size_t data_size = sizeof(KV_pair) * _data->_num_elements;
+           size_t data_size = sizeof(KV_pair) * g_data->_num_elements;
            Data * data = (Data*)aligned_alloc(_pool_size, data_size);
            madvise(data, data_size, MADV_HUGEPAGE);
            _direct_memory_handle = _store->register_direct_memory(data, data_size);
@@ -62,7 +57,7 @@ public:
       PLOG("pool seeded with values\n");
     }
 
-    void do_work(unsigned core) override 
+    bool do_work(unsigned core) override 
     {
         // handle first time setup
         if(_first_iter) 
@@ -77,17 +72,17 @@ public:
         }     
 
         // end experiment if we've reached the total number of components
-        if (_i + 1 == _pool_num_components)
+        if (_i + 1 == _pool_num_objects)
         {
           PINF("[%u] get_direct: reached total number of components. Exiting.", core);
           timer.stop();
-          throw std::exception();
+          return false; 
         }
 
         // check time it takes to complete a single put operation
         uint64_t cycles, start, end;
 
-        io_buffer_t handle;
+        Component::io_buffer_t handle;
         Core::Physical_memory mem_alloc;
         size_t pval_len = 64;
         void* pval = operator new(pval_len);
@@ -113,10 +108,12 @@ public:
 
         timer.start();
         start = rdtsc();
-        int rc = _store->get_direct(_pool, _data->key(_i), pval, pval_len, memory_handle);
+        int rc = _store->get_direct(_pool, g_data->key(_i), pval, pval_len, memory_handle);
         end = rdtsc();
         timer.stop();
-        
+       
+        _update_data_process_amount(core, _i);
+
         cycles = end - start;
         double time = (cycles / _cycles_per_second);
         //printf("start: %u  end: %u  cycles: %u seconds: %f\n", start, end, cycles, time);
@@ -158,6 +155,7 @@ public:
               _debug_print(core, debug_message.str());
            }
        }
+       return true;
     }
 
     void cleanup_custom(unsigned core)  
@@ -170,6 +168,9 @@ public:
         double run_time = timer.get_time_in_seconds();
         double iops = _i / run_time;
         PINF("[%u] get_direct: IOPS: %2g in %2g seconds", core, iops, run_time);
+
+        double throughput = _calculate_current_throughput();
+        PINF("[%u] get_direct: THROUGHPUT: %.2f MB/s (%ld bytes over %.3f seconds)", core, throughput, _total_data_processed, run_time);
 
         if (_verbose)
         {
@@ -189,13 +190,17 @@ public:
        // collect latency stats
        rapidjson::Value latency_object = _add_statistics_to_report("latency", _latency_stats, document);
        rapidjson::Value timing_object = _add_statistics_to_report("start_time", start_time_stats, document);
-       rapidjson::Value iops_object; 
+       rapidjson::Value iops_object;
+       rapidjson::Value throughput_object;
+
        iops_object.SetDouble(iops);
+       throughput_object.SetDouble(throughput);
 
        // save everything
        rapidjson::Value experiment_object(rapidjson::kObjectType);
 
        experiment_object.AddMember("IOPS", iops_object, document.GetAllocator());
+       experiment_object.AddMember("throughput (MB/s)", throughput_object, document.GetAllocator());
        experiment_object.AddMember("latency", latency_object, document.GetAllocator());
        experiment_object.AddMember("start_time", timing_object, document.GetAllocator()); 
         _print_highest_count_bin(_latency_stats, core);

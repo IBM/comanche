@@ -52,6 +52,13 @@ public:
     delete this;
   }
 
+  auto update_by_issue_41(const pool_t pool,
+                 const std::string &key,
+                 const void * value,
+                 std::size_t value_len,
+                 void * old_value,
+                 const std::size_t old_value_len) -> status_t;
+
 public:
 
   /* IKVStore */
@@ -152,25 +159,21 @@ public:
     0xfacbf8cf,0xc2eb,0x4710,0x9bf1,0x63,0xf5,0xe8,0x1a,0xcf,0xbd
   );
 
-  void * query_interface(Component::uuid_t& itf_uuid) override {
-    return itf_uuid == Component::IKVStore_factory::iid()
-       ? static_cast<Component::IKVStore_factory *>(this)
-       : nullptr
-       ;
-  }
+  void * query_interface(Component::uuid_t& itf_uuid) override;
 
-  void unload() override {
-    delete this;
-  }
+  void unload() override;
 
   Component::IKVStore * create(const std::string &owner,
-                               const std::string &name) override
-  {
-    Component::IKVStore *obj = new hstore(owner, name);
-    obj->add_ref();
-    return obj;
-  }
+                               const std::string &name) override;
 
+  Component::IKVStore * create(const std::string &owner,
+                               const std::string &name,
+                               const std::string &) override;
+
+  Component::IKVStore * create(unsigned debug_level,
+                               const std::string &owner,
+                               const std::string &name,
+                               const std::string &param2) override;
 };
 
 #endif

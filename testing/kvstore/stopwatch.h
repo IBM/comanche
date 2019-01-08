@@ -1,57 +1,70 @@
 #ifndef __STOPWATCH_H__
 #define __STOPWATCH_H__
 
-#include <chrono> 
+#include <cstdlib>
+#include "common/cycles.h"
 
 class Stopwatch
 {
 public:
-    bool is_running()
+  bool is_running()
+  {
+    return running;
+  }
+
+  void start()
+  {
+    if (!running)
     {
-        return running;
+      start_time = rdtsc(); 
+      running = true;
     }
+  }
 
-    void start()
+  void stop()
+  {
+    if (running)
     {
-        if (!running)
-        {
-            start_time = std::chrono::high_resolution_clock::now();
-            running = true;
-        }
+      uint64_t stop_time = rdtsc();
+      running = false;
+
+      lap_time = stop_time - start_time;
+      total += lap_time; 
     }
+  }
 
-    void stop()
-    {
-        if (running)
-        {
-            std::chrono::system_clock::time_point stop_time = std::chrono::high_resolution_clock::now();
-            running = false;
+  void reset()
+  {
+    running = false;
+    start_time = 0;
+    total = 0;
+  }
 
-            total += (stop_time - start_time);
-        }
+  double get_time_in_seconds()
+  {
+    double running_time = 0;
+
+    if (running) {
+      uint64_t stop_time = rdtsc();
+      return ((double)(stop_time - start_time)) / cycles_per_second;
     }
-
-    double get_time_in_seconds()
-    {
-        std::chrono::duration<double, std::milli> running_time = std::chrono::duration<double>(std::chrono::duration_values<double>::zero());
-
-        if (running)
-        {
-            // take into account the time that's running but hasn't stopped, like glancing at the clock
-            std::chrono::system_clock::time_point stop_time = std::chrono::high_resolution_clock::now();
-
-            running_time = (stop_time - start_time);
-        }
-
-        double seconds = std::chrono::duration_cast<std::chrono::milliseconds>(total + running_time).count() / 1000.0;
-
-        return seconds;
+    else {
+      return ((double)total) / cycles_per_second;
     }
+  }
+
+  double get_lap_time()
+  {
+    return lap_time;
+  }
+
 
 private:
-    std::chrono::duration<double, std::milli> total = std::chrono::duration<double>(std::chrono::duration_values<double>::zero());
-    bool running = false;
-    std::chrono::system_clock::time_point start_time;
+  double total = 0;
+  double lap_time = 0;
+  bool running = false;
+  uint64_t start_time = 0;
+  double cycles_per_second = Core::get_rdtsc_frequency_mhz() * 1000000;
 };
 
 

@@ -17,6 +17,7 @@
 #include "protocol.h"
 #include "buffer_manager.h"
 #include "region_manager.h"
+#include "pool_manager.h"
 #include "dawn_config.h"
 
 #include <api/fabric_itf.h>
@@ -27,7 +28,8 @@ namespace Dawn {
   using Connection_base = Fabric_connection_base;
 
   class Connection_handler : public Connection_base,
-                             public Region_manager
+                             public Region_manager,
+                             public Pool_manager
   {
   private:
     bool option_DEBUG = Dawn::Global::debug_level > 1;
@@ -77,6 +79,7 @@ namespace Dawn {
     }
 
     ~Connection_handler() {
+      PLOG("Connection_handler dtor: %p", this);
       dump_stats();
     }
   
@@ -195,7 +198,6 @@ namespace Dawn {
     }
   
   private:
-
     bool                   _complete;
     unsigned               _tick_count = 0;
     std::vector<buffer_t*> _pending_msgs;

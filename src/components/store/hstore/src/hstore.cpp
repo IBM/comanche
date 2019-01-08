@@ -568,11 +568,41 @@ auto hstore::put(const pool_t pool,
                           , std::forward_as_tuple(key.begin(), key.end(), pop, type_num::key, "key")
                           , std::forward_as_tuple(cvalue, cvalue + value_len, pop, type_num::mapped, "value")
                           );
-  /* ERROR: E_KEY_EXISTS is a guess. It might be that some other key_str
-   * which hashes to the same hash key exists.
-   */
-  return i.second ? S_OK : E_KEY_EXISTS;
+  return i.second ? S_OK : update_by_issue_41(pool, key, value, value_len,  i.first->second.data(), i.first->second.size());
 }
+
+auto hstore::update_by_issue_41(const pool_t pool,
+                 const std::string &key,
+                 const void * value,
+                 const std::size_t value_len,
+                 void * old_value,
+                 const std::size_t old_value_len
+) -> status_t
+{
+  /* hstore issue 41: "a put should replace any existing k,v pairs that match. If the new put is a different size, then the object should be reallocated. If the new put is the same size, then it should be updated in place." */
+  if ( value_len != old_value_len )
+  {
+    this->erase(pool, key);
+    return put(pool, key, value, value_len);
+  }
+  else {
+    std::memcpy(old_value, value, value_len);
+    return S_OK;
+#if 0
+    std::vector<std::unique_ptr<IKVStore::Operation>> v;
+    v.emplace_back(std::make_unique<IKVStore::Operation_write>(0, value_len, value));
+    std::vector<IKVStore::Operation *> v2;
+    std::transform(v.begin(), v.end(), std::back_inserter(v2), [] (const auto &i) { return i.get(); });
+    return this->atomic_update(
+      pool
+      , key
+      , v2
+      , false
+    );
+#endif
+  }
+}
+
 
 status_t hstore::get_pool_regions(const pool_t pool, std::vector<::iovec>& out_regions)
 {
@@ -1014,4 +1044,46 @@ extern "C" void * factory_createInstance(Component::uuid_t& component_id)
     ? new ::hstore_factory()
     : nullptr
     ;
+}
+
+void * hstore_factory::query_interface(Component::uuid_t& itf_uuid)
+{
+  return itf_uuid == Component::IKVStore_factory::iid()
+     ? static_cast<Component::IKVStore_factory *>(this)
+     : nullptr
+     ;
+}
+
+void hstore_factory::unload()
+{
+  delete this;
+}
+
+auto hstore_factory::create(
+  const std::string &owner
+  , const std::string &name
+) -> Component::IKVStore *
+{
+  Component::IKVStore *obj = new hstore(owner, name);
+  obj->add_ref();
+  return obj;
+}
+
+auto hstore_factory::create(
+  const std::string &owner
+  , const std::string &name
+  , const std::string &
+) -> Component::IKVStore *
+{
+  return create(owner, name);
+}
+
+auto hstore_factory::create(
+  unsigned
+  , const std::string &owner
+  , const std::string &name
+  , const std::string &param2
+) -> Component::IKVStore *
+{
+  return create(owner, name, param2);
 }

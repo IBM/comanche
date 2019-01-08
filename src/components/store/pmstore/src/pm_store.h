@@ -191,11 +191,19 @@ public:
   }
 
   virtual Component::IKVStore * create(unsigned int debug_level,
-				       const std::string& owner,
+                                       const std::string& owner,
                                        const std::string& name,
-				       const std::string& param2) override
+                                       const std::string& param2) override
   {
     Component::IKVStore * obj = static_cast<Component::IKVStore*>(new PM_store(debug_level, owner, name));
+    obj->add_ref();
+    return obj;
+  }
+
+  virtual Component::IKVStore * create(const std::string& owner,
+                                       const std::string& name) override
+  {
+    Component::IKVStore * obj = static_cast<Component::IKVStore*>(new PM_store(0, owner, name));
     obj->add_ref();
     return obj;
   }
