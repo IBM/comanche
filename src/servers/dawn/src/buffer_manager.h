@@ -19,7 +19,7 @@ class Buffer_manager
   static constexpr bool option_DEBUG = false;
   
 public:
-  static constexpr size_t DEFAULT_BUFFER_COUNT = 32;
+  static constexpr size_t DEFAULT_BUFFER_COUNT = 8;
   static constexpr size_t BUFFER_LEN = MiB(2);
 
   enum {
@@ -105,6 +105,7 @@ private:
       
       assert(iov->iov_base);
       madvise(iov->iov_base, iov->iov_len, MADV_HUGEPAGE);
+      memset(iov->iov_base, 0, iov->iov_len);
       return iov;
     };
 
