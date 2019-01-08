@@ -85,7 +85,7 @@ struct Message {
   uint8_t  resvd;
 } __attribute__((packed));
 
-
+static_assert(sizeof(Message)==16, "Unexpected Message data structure size");
 
 /* Constructor definitions */
 
@@ -306,7 +306,6 @@ struct Message_IO_request : public Message {
   uint64_t request_id; /*< id or sender timestamp counter */
   uint64_t key_len;
   uint64_t val_len;
-  char     padding[0];
   char     data[];
 
 } __attribute__((packed));

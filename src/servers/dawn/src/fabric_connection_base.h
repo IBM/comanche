@@ -154,23 +154,25 @@ protected:
                         buffer_t * val_buffer = nullptr) {
     assert(buffer);
     assert(_posted_send_buffer_outstanding == false);
-
+    
     _posted_send_buffer = buffer;
     _posted_send_buffer_outstanding = true;
 
     if(!val_buffer) {
       const auto iov = _posted_send_buffer->iov;
-      // if(iov->iov_len < Dawn::Fabric_transport::INJECT_SIZE) {
-      //   /* if it small, we can inject */
-      //   _transport->inject_send(iov, iov + 1);
+
+      /* if packet is small enough use inject */
+      // BROKEN
+      // if(iov->iov_len <= _transport->max_inject_size()) {
+      //   _transport->inject_send(iov->iov_base, iov->iov_len);
       //   free_buffer(_posted_send_buffer);
+      //   PLOG("injected!..:)");
       // }
-      // else {
+      // else
         _transport->post_send(iov,
-                              iov + 1,
-                              &_posted_send_buffer->desc,
-                              _posted_send_buffer);
-        //      }
+                            iov + 1,
+                            &_posted_send_buffer->desc,
+                            _posted_send_buffer);
     }
     else {
       iovec v[2] = { *buffer->iov, *val_buffer->iov };
