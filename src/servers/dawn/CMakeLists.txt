@@ -18,7 +18,7 @@ set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--no-undefined")
 add_executable(dawn src/main.cpp src/shard.cpp src/connection_handler.cpp)
 
 target_link_libraries(dawn ${ASAN_LIB} common comanche-core numa pthread dl z
-  boost_system boost_program_options profiler)
+  boost_system boost_program_options profiler tbbmalloc_proxy)
 
 #add_subdirectory(unit_test)
 

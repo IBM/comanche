@@ -98,7 +98,7 @@ public:
 
     PLOG("Pmem_allocator using path (%s) mapped %p @ len %lu", path.c_str(), _base, _len);
 
-    //    memset(_base, 0, GB(1)); //_len);
+    memset(_base, 0, GB(4)); //_len); /* force page faults */
     
     if(spdk_mem_register(_base, _len))
       throw General_exception("spdk_mem_register failed");
@@ -159,6 +159,7 @@ Main::Main(const vector<string>& pci_id_vector, const std::string& pmem_path, un
 }
 
 Main::~Main() {
+  PLOG("Signalling IO poller to exit..");
   _io_poller->signal_exit();
   delete _io_poller;
 
@@ -402,6 +403,7 @@ void Main::run() {
   {
     Core::Per_core_tasking<IO_task, typeof(this)> workers(m, this);
     sleep(_duration);
+    PLOG("sleep complete.");
   }
   sleep(1);
   PLOG("Per core tasking complete");

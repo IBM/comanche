@@ -77,7 +77,7 @@ namespace Dawn {
 #endif
   
     uint64_t tick = 0;
-    static constexpr uint64_t CHECK_CONNECTION_INTERVAL = 1000;
+    static constexpr uint64_t CHECK_CONNECTION_INTERVAL = 1000000;
 
     Connection_handler::action_t action;
     std::vector<std::vector<Connection_handler*>::iterator> pending_close;
@@ -412,14 +412,16 @@ namespace Dawn {
                                  k,
                                  msg->value(),
                                  msg->val_len);
+
+        if(option_DEBUG) {
+          if(status == Component::IKVStore::E_ALREADY_EXISTS)
+            PLOG("kvstore->put returned E_ALREADY_EXISTS");
+          else
+            PLOG("kvstore->put returned %d", status);
+        }
+
       }
 
-      if(option_DEBUG) {
-        if(status == Component::IKVStore::E_ALREADY_EXISTS)
-          PLOG("kvstore->put returned E_ALREADY_EXISTS");
-        else
-          PLOG("kvstore->put returned %d", status);
-      }
     }
     else if(msg->op == Protocol::OP_GET) {
 
