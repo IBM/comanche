@@ -124,7 +124,7 @@ template <typename T>
 			return pobj_pointer<T>(oid);
 		}
 		void deallocate(
-			pointer p
+			pointer oid
 			, size_type
 #if TRACE_PALLOC
 				s
@@ -133,14 +133,14 @@ template <typename T>
 		{
 #if TRACE_PALLOC
 			{
-				auto ptr = static_cast<char *>(pmemobj_direct(p));
+				auto ptr = static_cast<char *>(pmemobj_direct(oid));
 				std::cerr << __func__
 					<< " [" << ptr
 					<< ".." << static_cast<void *>(ptr + s * sizeof(T))
 					<< ")\n";
 			}
 #endif
-			pmemobj_free(&p);
+			pmemobj_free(&oid);
 		}
 		auto max_size() const
 		{
@@ -274,7 +274,7 @@ template <typename T>
 			return pointer(oid);
 		}
 		void deallocate(
-			pointer p
+			pointer oid
 			, size_type
 #if TRACE_PALLOC
 			s
@@ -283,7 +283,7 @@ template <typename T>
 		{
 #if TRACE_PALLOC
 			{
-				auto ptr = static_cast<char *>(pmemobj_direct(p)) - cache_align;
+				auto ptr = static_cast<char *>(pmemobj_direct(oid)) - cache_align;
 				std::cerr << __func__
 					<< " [" << static_cast<void *>(ptr)
 					<< ".." << static_cast<void *>(ptr + s * sizeof(T))
@@ -291,7 +291,7 @@ template <typename T>
 					;
 			}
 #endif
-			pmemobj_free(&p);
+			pmemobj_free(&oid);
 		}
 	};
 

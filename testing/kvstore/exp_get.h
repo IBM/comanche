@@ -11,7 +11,7 @@
 #include "kvstore_perf.h"
 #include "statistics.h"
 
-extern Data * _data;
+extern Data * g_data;
 extern pthread_mutex_t g_write_lock;
 
 class ExperimentGet : public Experiment
@@ -25,11 +25,6 @@ public:
   ExperimentGet(struct ProgramOptions options): Experiment(options)
   {
     _test_name = "get";
-
-    if (!options.store)
-      {
-        perror("ExperimentGet passed invalid store");
-      }
   }
 
   void initialize_custom(unsigned core) override
@@ -39,7 +34,7 @@ public:
     PLOG("[%u] exp_get: pool seeded with values", core);
   }
 
-  void do_work(unsigned core) override
+  bool do_work(unsigned core) override
   {
     // handle first time setup
     if(_first_iter) 
@@ -55,10 +50,10 @@ public:
       }     
 
     // end experiment if we've reached the total number of components
-    if (_i + 1 == _pool_num_components)
+    if (_i + 1 == _pool_num_objects)
       {
         PINF("[%u] reached total number of components. Exiting.", core);
-        throw std::exception();
+        return false; 
       }
 
     // check time it takes to complete a single put operation
@@ -72,7 +67,7 @@ public:
 
     try
       {
-        rc = _store->get(_pool, _data->key(_i), pval, pval_len);
+        rc = _store->get(_pool, g_data->key(_i), pval, pval_len);
       }
     catch(...)
       {
@@ -81,6 +76,8 @@ public:
       }
     end = rdtsc();
     timer.stop();
+
+    _update_data_process_amount(core, _i);
 
     cycles = end - start;
     double time = (cycles / _cycles_per_second);
@@ -128,6 +125,7 @@ public:
             _debug_print(core, debug_message.str());
           }
       }
+    return true;
   }
 
   void cleanup_custom(unsigned core)  
@@ -137,6 +135,9 @@ public:
     double run_time = timer.get_time_in_seconds();
     double iops = ((double) _i / run_time);
     PINF("[%u] get: IOPS: %2g in %2g seconds", core, iops, run_time);
+    
+    double throughput = _calculate_current_throughput();
+    PINF("[%u] get: THROUGHPUT: %.2f MB/s (%ld bytes over %.3f seconds)", core, throughput, _total_data_processed, run_time);
 
     // compute _start_time_stats pre-lock
     BinStatistics start_time_stats = _compute_bin_statistics_from_vectors(_latencies, _start_time, _bin_count, _start_time.front(), _start_time.at(_i-1), _i); 
@@ -149,13 +150,17 @@ public:
     // collect latency stats
     rapidjson::Value latency_object = _add_statistics_to_report("latency", _latency_stats, document);
     rapidjson::Value timing_object = _add_statistics_to_report("start_time", start_time_stats, document);
-    rapidjson::Value iops_object; 
+    rapidjson::Value iops_object;
+    rapidjson::Value throughput_object;
+
     iops_object.SetDouble(iops);
+    throughput_object.SetDouble(throughput);
 
     // save everything
     rapidjson::Value experiment_object(rapidjson::kObjectType);
 
     experiment_object.AddMember("IOPS", iops_object, document.GetAllocator());
+    experiment_object.AddMember("throughput (MB/s)", throughput_object, document.GetAllocator());
     experiment_object.AddMember("latency", latency_object, document.GetAllocator());
     experiment_object.AddMember("start_time", timing_object, document.GetAllocator()); 
        

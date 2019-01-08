@@ -45,15 +45,15 @@ typedef struct block_range{
 } block_range_t;
 
 class NVME_store : public Component::IKVStore
-{  
+{
   using io_buffer_t = uint64_t;
 private:
   static constexpr bool option_DEBUG = true;
   static constexpr size_t BLOCK_SIZE = 4096; // TODO: this should be obtained by querying the block device
   static constexpr size_t CHUNK_SIZE_IN_BLOCKS= 8; // large IO will be splited into CHUNKs, 8*4k  seems gives optimal
-  static constexpr size_t DEFAULT_IO_MEM_SIZE= MB(8); // initial IO memory size in bytes 
+  static constexpr size_t DEFAULT_IO_MEM_SIZE= MB(8); // initial IO memory size in bytes
   std::unordered_map<pool_t, std::atomic<size_t>> _cnt_elem_map;
-  
+
   Component::IBlock_device *_blk_dev;
   Component::IBlock_allocator *_blk_alloc;
 
@@ -73,10 +73,11 @@ public:
    * @param owner
    * @param name
    * @param pci pci address of the Nvme
+   *   The "pci address" is in Bus:Device.Function (BDF) form with Bus and Device zero-padded to 2 digits each, e.g. 86:00.0
    */
   NVME_store(const std::string& owner,
              const std::string& name,
-             std::string pci);
+             const std::string& pci);
 
   /** 
    * Destructor
@@ -89,7 +90,7 @@ public:
    */
   DECLARE_VERSION(0.1);
   DECLARE_COMPONENT_UUID(0x59564581,0x9e1b,0x4811,0xbdb2,0x19,0x57,0xa0,0xa6,0x84,0x57);
-  
+
   void * query_interface(Component::uuid_t& itf_uuid) override {
     if(itf_uuid == Component::IKVStore::iid()) {
       return (void *) static_cast<Component::IKVStore*>(this);
@@ -105,7 +106,7 @@ public:
 
   /* IKVStore */
   virtual int thread_safety() const override { return THREAD_MODEL_SINGLE_PER_POOL; }
-  
+
 
   virtual pool_t create_pool(const std::string& path,
                              const std::string& name,
@@ -113,14 +114,14 @@ public:
                              unsigned int flags,
                              uint64_t expected_obj_count = 0
                              ) override;
-  
+
   virtual pool_t open_pool(const std::string& path,
                            const std::string& name,
                            unsigned int flags) override;
 
 
   virtual void delete_pool(const pool_t pid) override;
-  
+
   virtual void close_pool(const pool_t pid) override;
 
   virtual status_t put(const pool_t pool,
@@ -158,7 +159,7 @@ public:
 
   virtual status_t erase(const pool_t pool,
                          const std::string& key) override;
-  
+
   virtual size_t count(const pool_t pool) override { return _cnt_elem_map[pool]; }
 
   virtual void debug(const pool_t pool, unsigned cmd, uint64_t arg) { }
@@ -169,11 +170,13 @@ private:
    * open the block device, reuse if it exists already
    *
    * @param pci in pci address of the nvme
-   * @param block out reference of block device 
+   *   The "pci address" is in Bus:Device.Function (BDF) form with Bus and Device zero-padded to 2 digits each, e.g. 86:00.0
+   *   The domain is implicitly 0000.
+   * @param block out reference of block device
    *
    * @return S_OK if success
    */
-  status_t open_block_device(std::string pci, Component::IBlock_device* &block);
+  status_t open_block_device(const std::string &pci, Component::IBlock_device* &block);
 
   /*
    * open an allocator for block device, reuse if it exsits already
@@ -201,7 +204,7 @@ private:
 
 
 class NVME_store_factory : public Component::IKVStore_factory
-{  
+{
 public:
 
   /** 
@@ -210,7 +213,7 @@ public:
    */
   DECLARE_VERSION(0.1);
   DECLARE_COMPONENT_UUID(0xfac64581,0x1993,0x4811,0xbdb2,0x19,0x57,0xa0,0xa6,0x84,0x57);
-  
+
   void * query_interface(Component::uuid_t& itf_uuid) override {
     if(itf_uuid == Component::IKVStore_factory::iid()) {
       return (void *) static_cast<Component::IKVStore_factory*>(this);
@@ -223,13 +226,15 @@ public:
     delete this;
   }
 
-
+  /*
+   *   "pci" is in Bus:Device.Function (BDF) form. Bus and Device must be zero-padded to 2 digits each, e.g. 86:00.0
+   */
   virtual Component::IKVStore * create(const std::string& owner,
                                        const std::string& name,
                                        const std::string& pci)
                                        override
-  {    
-    Component::IKVStore * obj = static_cast<Component::IKVStore*>(new NVME_store(owner, name,pci));   
+  {
+    Component::IKVStore * obj = static_cast<Component::IKVStore*>(new NVME_store(owner, name, pci));
     obj->add_ref();
     return obj;
   }

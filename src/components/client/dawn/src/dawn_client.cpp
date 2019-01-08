@@ -42,7 +42,7 @@ Dawn_client::Dawn_client(unsigned debug_level,
   const int port = (int) strtoul(m[2].str().c_str(), &end, 10);
   const std::string provider = m[3].matched ? m[3].str() : "verbs"; /* default provider */
 
-  PLOG("Session: (%s) (%d) (%s)", ip_addr.c_str(), port, provider.c_str());
+  PLOG("Protocol session: (%s) (%d) (%s)", ip_addr.c_str(), port, provider.c_str());
 
   open_transport(device, ip_addr, port, provider);
 }

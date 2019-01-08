@@ -30,7 +30,7 @@ typedef std::unordered_map<const void*, volatile_state_t> pool_state_map_t;
 typedef tbb::concurrent_hash_map<const pool_t, pool_state_map_t> state_map_t;
 
 /* we use a concurrent/thread-safe map so we can support multiple
-   threads on different pools 
+   threads on different pools
    TODO: cleaning up out pool entries? */
 
 class State_map

@@ -47,7 +47,7 @@ class Tasklet
 {
 public:
   virtual void initialize(unsigned core) = 0; /*< called once */
-  virtual void do_work(unsigned core) = 0; /*< called in tight loop */
+  virtual bool do_work(unsigned core) = 0; /*< called in tight loop; return false to exit */
   virtual void cleanup(unsigned core) = 0; /*< called once */
   virtual bool ready() { return true; }
 };
@@ -60,7 +60,7 @@ public:
 template <typename __Tasklet_t, typename __Arg_t>
 class Per_core_tasking
 {
-  static constexpr unsigned MAX_CORES = 128;
+  static constexpr unsigned MAX_CORES = 256;
   static constexpr bool option_DEBUG = false;
   
  public:
@@ -93,6 +93,7 @@ class Per_core_tasking
       if(_threads[c]) {
         _threads[c]->join();
         delete _threads[c];
+        delete _tasklet[c];
       }
     }
     if(option_DEBUG)
@@ -105,10 +106,15 @@ class Per_core_tasking
         _threads[c]->join();
         delete _threads[c];
         _threads[c] = nullptr;
+        delete _tasklet[c];
       }
     }
   }
 
+  __Tasklet_t* tasklet(unsigned core) {
+    if(core >= MAX_CORES) throw General_exception("out of bounds");
+    return _tasklet[core];
+  }
 
 private:
 
@@ -122,10 +128,11 @@ private:
       
     while (!_exit_flag) {
       try {
-        _tasklet[core]->do_work(core); /* call tasklet */
+        if(!(_tasklet[core]->do_work(core)))
+          break; /* if do_work return false, we exit the thread */
       }
       catch(...) {
-        _exit_flag = true;
+        PERR("do_work threw exception");
         break;
       }
     }

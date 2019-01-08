@@ -11,7 +11,7 @@
 #include "kvstore_perf.h"
 #include "statistics.h"
 
-extern Data * _data;
+extern Data * g_data;
 extern pthread_mutex_t g_write_lock;
 
 class ExperimentPut : public Experiment
@@ -19,18 +19,11 @@ class ExperimentPut : public Experiment
 public:
     std::vector<double> _start_time;
     std::vector<double> _latencies;
-    std::chrono::high_resolution_clock::time_point _exp_start_time;
     BinStatistics _latency_stats;
 
     ExperimentPut(struct ProgramOptions options): Experiment(options) 
     {
         _test_name = "put";
-
-        if (!options.store)
-        {
-            perror("ExperimentPut passed an invalid store");
-            throw std::exception();
-        }
     }
 
     void initialize_custom(unsigned core) override
@@ -38,49 +31,42 @@ public:
       _latency_stats.init(_bin_count, _bin_threshold_min, _bin_threshold_max);
     }
 
-    void do_work(unsigned core) override 
+    bool do_work(unsigned core) override 
     {
         // handle first time setup
         if(_first_iter) 
         {
             PLOG("[%u] Starting Put experiment...", core);
             _first_iter = false;
-            uint64_t _start_rdtsc = rdtsc();
-            _exp_start_time = std::chrono::high_resolution_clock::now();
         }     
 
         // end experiment if we've reached the total number of components
-        if (_i == _pool_num_components)
+        if (_i == _pool_num_objects)
         {
             timer.stop();
             PINF("[%u] put: reached total number of components. Exiting.", core);
-            throw std::exception();
+            return false;
         }
 
         // check time it takes to complete a single put operation
-        unsigned int cycles, start, end;
         int rc;
 
         timer.start();
-        start = rdtsc();
         try
         {
-          rc = _store->put(_pool, _data->key(_i), _data->value(_i), _data->value_len());
+          rc = _store->put(_pool, g_data->key(_i), g_data->value(_i), g_data->value_len());
         }
         catch(...)
         {
           PERR("put call failed! Returned %d. Ending experiment.", rc);
           throw std::exception();
         }
-        end = rdtsc();
         timer.stop();
 
-        cycles = end - start;
-        double time = (cycles / _cycles_per_second);
-        //printf("start: %u  end: %u  cycles: %u seconds: %f\n", start, end, cycles, time);
+        _update_data_process_amount(core, _i);
 
-        std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
-        double time_since_start = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - _exp_start_time).count() / 1000.0;
+        double time = timer.get_lap_time();
+        double time_since_start = timer.get_time_in_seconds();
 
         // store the information for later use
         _start_time.push_back(time_since_start);
@@ -98,6 +84,7 @@ public:
             perror("put returned !S_OK value");
             throw std::exception();
         }
+        return true;
     }
 
     void cleanup_custom(unsigned core)  
@@ -120,7 +107,10 @@ public:
 
           double run_time = timer.get_time_in_seconds();
           double iops = _i / run_time;
-          PINF("[%u] put: IOPS: %2g in %2g seconds", core, iops, run_time);
+          PINF("[%u] put: IOPS: %2g (%ld operations over %.3f seconds)", core, iops, _i, run_time);
+
+          double throughput = _calculate_current_throughput();
+          PINF("[%u] put: THROUGHPUT: %.2f MB/s (%ld bytes over %.3f seconds)", core, throughput, _total_data_processed, run_time);
 
           pthread_mutex_lock(&g_write_lock);
          _debug_print(core, "cleanup_custom mutex locked");
@@ -131,13 +121,17 @@ public:
          // collect latency stats
          rapidjson::Value latency_object = _add_statistics_to_report("latency", _latency_stats, document);
          rapidjson::Value timing_object = _add_statistics_to_report("start_time", start_time_stats, document);
-         rapidjson::Value iops_object; 
+         rapidjson::Value iops_object;
+         rapidjson::Value throughput_object;
+
          iops_object.SetDouble(iops);
+         throughput_object.SetDouble(throughput);
 
          // save everything
          rapidjson::Value experiment_object(rapidjson::kObjectType);
          
          experiment_object.AddMember("IOPS", iops_object, document.GetAllocator());
+         experiment_object.AddMember("throughput (MB/s)", throughput_object, document.GetAllocator());
          experiment_object.AddMember("latency", latency_object, document.GetAllocator());
          experiment_object.AddMember("start_time", timing_object, document.GetAllocator()); 
            _print_highest_count_bin(_latency_stats, core);

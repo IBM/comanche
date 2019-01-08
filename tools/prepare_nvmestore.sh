@@ -57,7 +57,7 @@ PINF "Checking hugepage."
 mount |grep -q /mnt/huge
 if [ 0  -ne $? ]; then
   PERR "hugetlbfs not mounted at /mnt/huge!setting..."
-  PINPROGRESS "now mounting..." 
+  PINPROGRESS "now mounting..."
   sudo mkdir -pv /mnt/huge
   sudo mount -t hugetlbfs nodev /mnt/huge
   PPOSTMSG "hugetblfs now mounted"
@@ -70,9 +70,9 @@ ls /dev/vfio -alt
 ls /dev/vfio -alt |grep -q $USER
 if [ 0  -ne $? ]; then
   PERR "vfio is not assigned to current user"
-  PINPROGRESS "now reset nvme...step1: unload" 
+  PINPROGRESS "now reset nvme...step1: unload"
   sudo ./tools/nvme_setup.sh reset
-  PINPROGRESS "now reset nvme...step2: reload" 
+  PINPROGRESS "now reset nvme...step2: reload"
   sudo ./tools/nvme_setup.sh
 fi
 PINF "OK."
@@ -83,7 +83,7 @@ PINF "Checking XMS"
 lsmod|grep -q xms
 if [ 0  -ne $? ]; then
   PERR "no xms kernel module found!"
-  PINPROGRESS "now mounting..." 
+  PINPROGRESS "now mounting..."
   sudo rmmod xmsmod
   sudo insmod ./lib/xmsmod.ko
   PPOSTMSG "xms loaded!!"
@@ -93,7 +93,7 @@ PINF "OK."
 ## check ulimit -l
 if [ x$(ulimit -l) != x"unlimited" ]; then
   PERR "the memlock limit for current user is low"
-  PINPROGRESS "YOU SHOULD: set memlock to unlimited at /et/security/limits.conf, and reboot"
+  PINPROGRESS "YOU SHOULD: set memlock to unlimited at /etc/security/limits.conf, and reboot"
   PINPROGRESS "see comanche/src/components/store/nvmestore/HOWTO.md # memlock limit# for more details"
   exit
 fi

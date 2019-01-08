@@ -92,7 +92,7 @@ TEST_F(KVStore_test, Instantiate)
   ASSERT_TRUE(comp);
   auto fact = static_cast<IKVStore_factory *>(comp->query_interface(IKVStore_factory::iid()));
 
-  _kvstore = fact->create("owner","name");
+  _kvstore = fact->create("owner", "name", store_map::location);
 
   fact->release_ref();
 }

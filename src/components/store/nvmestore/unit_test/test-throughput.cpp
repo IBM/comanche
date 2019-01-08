@@ -54,7 +54,7 @@ class KVStore_test : public ::testing::Test {
 
   // If the constructor and destructor are not enough for setting up
   // and cleaning up each test, you can define the following methods:
-  
+
   virtual void SetUp() {
     // Code here will be called immediately after the constructor (right
     // before each test).
@@ -64,7 +64,7 @@ class KVStore_test : public ::testing::Test {
     // Code here will be called immediately after each test (right
     // before the destructor).
   }
-  
+ 
   // Objects declared here can be used by all tests in the test case
   static Component::IKVStore * _kvstore;
   static Component::IKVStore * _kvstore2;
@@ -96,7 +96,7 @@ TEST_F(KVStore_test, Instantiate)
   IKVStore_factory * fact = (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
 
   // this nvme-store use a block device and a block allocator
-  _kvstore = fact->create("owner","name", opt.pci.c_str());
+  _kvstore = fact->create("owner","name", opt.pci);
 #else
   Component::IBase * comp = Component::load_component("libcomanche-storefile.so",
                                                       Component::filestore_factory);
@@ -107,7 +107,7 @@ TEST_F(KVStore_test, Instantiate)
   // this nvme-store use a block device and a block allocator
   _kvstore = fact->create("owner","name");
 #endif
-  
+
   fact->release_ref();
 }
 
@@ -132,7 +132,7 @@ TEST_F(KVStore_test, OpenPool)
   }
   catch(...){
     // open the pool if it exists
-    _pool = _kvstore->open_pool(pool_path, pool_name); 
+    _pool = _kvstore->open_pool(pool_path, pool_name);
     _pool_is_reopen = true;
     PINF("NVMEStore:open a exsiting pool instead!");
   }
@@ -275,7 +275,7 @@ int main(int argc, char **argv) {
 
   opt.pci = argv[1];
 
-  
+
   ::testing::InitGoogleTest(&argc, argv);
   auto r = RUN_ALL_TESTS();
 
