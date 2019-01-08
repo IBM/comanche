@@ -38,6 +38,7 @@
 
 #include <common/logging.h>
 #include <common/types.h>
+#include <common/exceptions.h>
 #include <pthread.h>
 #include <sched.h>
 #include <string>
@@ -76,6 +77,13 @@ class cpu_mask_t
   bool check_core(int cpu)
   {
     return CPU_ISSET(cpu, &cpu_set_);
+  }
+
+  int first_core() {
+    if(!is_something_set()) throw General_exception("nothing set");
+    int i = 0;
+    while(!check_core(i)) i++;
+    return i;
   }
 
   void set_mask(uint64_t mask)
