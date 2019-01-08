@@ -1,12 +1,12 @@
 #!/bin/bash
-
-for i in {1..4}
+killall -9 ib_send_bw
+for i in {1..16}
 do
-    port=$((11910 + $i))
-    ib_send_bw -x 0 -c RC -s 128 -D 10 -q 2 -p $port $0 &
+    port=$((18515 + $i))
+    ib_send_bw -F -x 0 -c RC -s 128 -D 10 -p $port $1 &
 done
 
-pause
+read
 killall -9 ib_send_bw
 
 
