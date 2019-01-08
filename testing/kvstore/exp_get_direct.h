@@ -13,7 +13,7 @@
 #include "kvstore_perf.h"
 #include "statistics.h"
 
-extern Data * _data;
+extern Data * g_data;
 
 class ExperimentGetDirect: public Experiment
 { 
@@ -42,7 +42,7 @@ public:
       {
         if (_component.compare("dawn") == 0)
         {
-           size_t data_size = sizeof(KV_pair) * _data->_num_elements;
+           size_t data_size = sizeof(KV_pair) * g_data->_num_elements;
            Data * data = (Data*)aligned_alloc(_pool_size, data_size);
            madvise(data, data_size, MADV_HUGEPAGE);
            _direct_memory_handle = _store->register_direct_memory(data, data_size);
@@ -72,7 +72,7 @@ public:
         }     
 
         // end experiment if we've reached the total number of components
-        if (_i + 1 == _pool_num_components)
+        if (_i + 1 == _pool_num_objects)
         {
           PINF("[%u] get_direct: reached total number of components. Exiting.", core);
           timer.stop();
@@ -82,7 +82,7 @@ public:
         // check time it takes to complete a single put operation
         uint64_t cycles, start, end;
 
-        io_buffer_t handle;
+        Component::io_buffer_t handle;
         Core::Physical_memory mem_alloc;
         size_t pval_len = 64;
         void* pval = operator new(pval_len);
@@ -108,7 +108,7 @@ public:
 
         timer.start();
         start = rdtsc();
-        int rc = _store->get_direct(_pool, _data->key(_i), pval, pval_len, memory_handle);
+        int rc = _store->get_direct(_pool, g_data->key(_i), pval, pval_len, memory_handle);
         end = rdtsc();
         timer.stop();
        

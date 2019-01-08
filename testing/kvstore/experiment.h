@@ -2,24 +2,27 @@
 #define __EXPERIMENT_H__
 
 #include <boost/filesystem.hpp>
+#include <gperftools/profiler.h>
 #include <cmath>
 #include <cstdio>
 #include <ctime>
 #include <fstream>
 #include <sstream>
 #include <vector>
+#include <common/cycles.h>
+#include <core/task.h>
+#include <api/kvstore_itf.h>
 
-#include "common/cycles.h"
 #include "data.h"
 #include "kvstore_perf.h"
 #include "statistics.h"
 #include "stopwatch.h"
 
-extern Data * _data;
+extern Data * g_data;
 extern int g_argc;
 extern char** g_argv;
 extern pthread_mutex_t g_write_lock;
-extern boost::program_options::options_description desc;
+extern boost::program_options::options_description g_desc;
 
 class Experiment : public Core::Tasklet
 { 
@@ -29,7 +32,7 @@ public:
   std::string _owner = "owner";
   unsigned long long int _pool_size = MB(100);
   int _pool_flags = Component::IKVStore::FLAGS_SET_SIZE;
-  int _pool_num_components = 100000;
+  int _pool_num_objects = 100000;
   std::string _cores = "0";
   int _execution_time;
   int _debug_level = 0;
@@ -73,6 +76,11 @@ public:
   {
     _report_filename = options.report_file_name;
   }
+
+  ~Experiment() {
+    PLOG("dtor");
+    _store->release_ref();
+  } 
     
   void initialize(unsigned core) override 
   {
@@ -90,7 +98,7 @@ public:
       {
         pthread_mutex_lock(&g_write_lock);
 
-        size_t data_size = sizeof(Data) + ((sizeof(KV_pair) + _data->_key_len + _data->_val_len ) * _pool_num_components);
+        size_t data_size = sizeof(Data) + ((sizeof(KV_pair) + g_data->_key_len + g_data->_val_len ) * _pool_num_objects);
         data_size += get_difference_to_next_power_of_two(data_size);
 
         if (_verbose)
@@ -98,11 +106,11 @@ public:
           PINF("allocating %zu of aligned, direct memory. Aligned to %d", data_size,  MB(2));
         }
 
-        _data->_data = (KV_pair*)aligned_alloc(MB(2), data_size);
-        madvise(_data->_data, data_size, MADV_HUGEPAGE);
+        g_data->_data = (KV_pair*)aligned_alloc(MB(2), data_size);
+        madvise(g_data->_data, data_size, MADV_HUGEPAGE);
 
-        _memory_handle = _store->register_direct_memory(_data->_data, data_size);
-        _data->initialize_data(false);
+        _memory_handle = _store->register_direct_memory(g_data->_data, data_size);
+        g_data->initialize_data(false);
 
         pthread_mutex_unlock(&g_write_lock);
       }
@@ -150,7 +158,7 @@ public:
     PLOG("Creating pool for worker %u ...", core);
     try
     {
-      _pool = _store->create_pool(_pool_path, poolname, _pool_size, _pool_flags, _pool_num_components);
+      _pool = _store->create_pool(_pool_path, poolname, _pool_size, _pool_flags, _pool_num_objects);
     }
     catch(...)
     {
@@ -177,38 +185,42 @@ public:
       throw std::exception();
     }
 
+#ifdef PROFILE
     ProfilerRegisterThread();
+#endif
     _ready = true;
   };
 
   int initialize_store(unsigned core)
   {
-    Component::IBase * comp;
+    using namespace Component;
+    
+    IBase * comp;
   
     try
     { 
       if(_component == "pmstore") {
-        comp = Component::load_component(PMSTORE_PATH, Component::pmstore_factory);
+        comp = load_component(PMSTORE_PATH, pmstore_factory);
       }
       else if(_component == "filestore") {
-        comp = Component::load_component(FILESTORE_PATH, Component::filestore_factory);
+        comp = load_component(FILESTORE_PATH, filestore_factory);
       }
       else if(_component == "nvmestore") {
-        comp = Component::load_component(NVMESTORE_PATH, Component::nvmestore_factory);
+        comp = load_component(NVMESTORE_PATH, nvmestore_factory);
       }
       else if(_component == "rockstore") {
-        comp = Component::load_component(ROCKSTORE_PATH, Component::rocksdb_factory);
+        comp = load_component(ROCKSTORE_PATH, rocksdb_factory);
       }
       else if(_component == "dawn") {
       
         DECLARE_STATIC_COMPONENT_UUID(dawn_factory, 0xfac66078,0xcb8a,0x4724,0xa454,0xd1,0xd8,0x8d,0xe2,0xdb,0x87);  // TODO: find a better way to register arbitrary components to promote modular use
-        comp = Component::load_component(DAWN_PATH, dawn_factory);
+        comp = load_component(DAWN_PATH, dawn_factory);
       }
       else if (_component == "hstore") {
-        comp = Component::load_component("libcomanche-hstore.so", Component::hstore_factory);
+        comp = load_component("libcomanche-hstore.so", hstore_factory);
       }
       else if (_component == "mapstore") {
-        comp = Component::load_component("libcomanche-storemap.so", Component::mapstore_factory);
+        comp = load_component("libcomanche-storemap.so", mapstore_factory);
       }
       else throw General_exception("unknown --component option (%s)", _component.c_str());
     }
@@ -359,7 +371,7 @@ public:
     try 
       {
         po::variables_map vm; 
-        po::store(po::parse_command_line(g_argc, g_argv, desc),  vm);
+        po::store(po::parse_command_line(g_argc, g_argv, g_desc),  vm);
 
         if (vm.count("component") > 0) {
           _component = vm["component"].as<std::string>();
@@ -384,7 +396,7 @@ public:
         }
 
         if (vm.count("elements") > 0) {
-          _pool_num_components = vm["elements"].as<int>();
+          _pool_num_objects = vm["elements"].as<int>();
         }
 
         if (vm.count("flags") > 0) {
@@ -620,13 +632,13 @@ public:
     temp_value.SetString(rapidjson::StringRef(_cores.c_str()));
     temp_object.AddMember("cores", temp_value, allocator);
 
-    temp_value.SetInt(_data->_key_len);
+    temp_value.SetInt(g_data->_key_len);
     temp_object.AddMember("key_length", temp_value, allocator);
 
-    temp_value.SetInt(_data->_val_len);
+    temp_value.SetInt(g_data->_val_len);
     temp_object.AddMember("value_length", temp_value, allocator);
 
-    temp_value.SetInt(_pool_num_components);
+    temp_value.SetInt(_pool_num_objects);
     temp_object.AddMember("elements", temp_value, allocator);
 
     temp_value.SetDouble(_pool_size);
@@ -922,7 +934,7 @@ public:
 
   long GetDataInputSize(int index)
   {
-    std::string value = _data->value(index);
+    std::string value = g_data->value(index);
     int size = value.size();
 
     return size;
@@ -933,7 +945,7 @@ public:
   {
     if (_element_size <= 0)
     {
-        std::string path = _pool_path + "/" +  _pool_name + "." + std::to_string(core) + "/" + _data->key(index);
+        std::string path = _pool_path + "/" +  _pool_name + "." + std::to_string(core) + "/" + g_data->key(index);
         _element_size = GetFileSize(path);
 
         if (_element_size == -1)  // this means GetFileSize failed, maybe due to RDMA
@@ -964,7 +976,7 @@ public:
   {
     if (_element_size == -1)  // -1 is reserved and impossible
     {
-      std::string path = _pool_path + "/" +  _pool_name + "." + std::to_string(core) + "/" + _data->key(index);
+      std::string path = _pool_path + "/" +  _pool_name + "." + std::to_string(core) + "/" + g_data->key(index);
       _element_size = GetFileSize(path);
 
       if (_element_size == -1)  // this means GetFileSize failed, maybe due to RDMA
@@ -996,10 +1008,10 @@ public:
     // how much space do we have?
     if (_verbose)
     {
-      std::cout << "_populate_pool_to_capacity start: _pool_num_components = " << _pool_num_components << ", _elements_stored = " << _elements_stored << ", _pool_element_end = " << _pool_element_end << std::endl;
+      std::cout << "_populate_pool_to_capacity start: _pool_num_components = " << _pool_num_objects << ", _elements_stored = " << _elements_stored << ", _pool_element_end = " << _pool_element_end << std::endl;
     }
 
-    long elements_remaining = _pool_num_components - _elements_stored;
+    long elements_remaining = _pool_num_objects - _elements_stored;
     bool can_add_more_elements;
     int rc;
     long current = _pool_element_end + 1;  // first run: should be 0 (start index)
@@ -1019,11 +1031,11 @@ public:
       {
         if (memory_handle != Component::IKVStore::HANDLE_NONE)
         {
-          rc = _store->put_direct(_pool, _data->key(current), _data->value(current), _data->_val_len, memory_handle);
+          rc = _store->put_direct(_pool, g_data->key(current), g_data->value(current), g_data->_val_len, memory_handle);
         }
         else
         {
-          rc = _store->put(_pool, _data->key(current), _data->value(current), _data->value_len());
+          rc = _store->put(_pool, g_data->key(current), g_data->value(current), g_data->value_len());
         }
 
         _elements_stored++;
@@ -1070,7 +1082,7 @@ public:
       current++;
 
       bool can_add_more_in_batch = (current - _pool_element_start) != maximum_elements;
-      bool can_add_more_overall = current != _pool_num_components;
+      bool can_add_more_overall = current != _pool_num_objects;
 
       can_add_more_elements = can_add_more_in_batch && can_add_more_overall;
 
@@ -1138,7 +1150,7 @@ public:
       {
         for (int i = _i - 1; i > (_i - _elements_in_use); i--)
         {
-          int rc =_store->erase(_pool, _data->key(i));
+          int rc =_store->erase(_pool, g_data->key(i));
           if (rc != S_OK && core == 0)
             {
               // throw exception
@@ -1190,7 +1202,7 @@ public:
     {
       for (int i = start; i < finish; i++)
       {
-        rc = _store->erase(_pool, _data->key(i));
+        rc = _store->erase(_pool, g_data->key(i));
 
         if (rc != S_OK)
           {

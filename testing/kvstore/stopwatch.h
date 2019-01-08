@@ -28,7 +28,7 @@ public:
       uint64_t stop_time = rdtsc();
       running = false;
 
-      lap_time = cycle_difference_to_real_time(start_time, stop_time);
+      lap_time = stop_time - start_time;
       total += lap_time; 
     }
   }
@@ -44,24 +44,13 @@ public:
   {
     double running_time = 0;
 
-    if (running)
-    {
-      // take into account the time that's running but hasn't stopped, like glancing at the clock
+    if (running) {
       uint64_t stop_time = rdtsc();
-      
-      running_time = cycle_difference_to_real_time(start_time, stop_time);
+      return ((double)(stop_time - start_time)) / cycles_per_second;
     }
-
-    double seconds = total + running_time;
-
-    return seconds;
-  }
-
-  double cycle_difference_to_real_time(uint64_t start_time, uint64_t stop_time)
-  {
-    double time_difference = (stop_time - start_time) / cycles_per_second;
-
-    return time_difference;
+    else {
+      return ((double)total) / cycles_per_second;
+    }
   }
 
   double get_lap_time()
@@ -75,7 +64,7 @@ private:
   double lap_time = 0;
   bool running = false;
   uint64_t start_time = 0;
-  float cycles_per_second = Core::get_rdtsc_frequency_mhz() * 1000000;
+  double cycles_per_second = Core::get_rdtsc_frequency_mhz() * 1000000;
 };
 
 

@@ -29,6 +29,7 @@ struct
   std::string pool;
   std::string device;
   unsigned debug_level;
+  unsigned base_core;
 } Options;
 
 Component::IKVStore_factory * fact;
@@ -133,10 +134,11 @@ public:
   static constexpr unsigned long VALUE_SIZE = 32;
   static constexpr unsigned long KEY_SIZE = 8;
 
-  IOPS_task(void *) {
+  IOPS_task(unsigned arg) {
   }
   
   virtual void initialize(unsigned core) override {
+
     _store = fact->create(Options.debug_level,
                           "dwaddington",
                           Options.addr,
@@ -157,7 +159,7 @@ public:
     /* set up data */
     for(unsigned long i=0;i<ITERATIONS;i++) {
       auto val = Common::random_string(VALUE_SIZE);
-      auto key = Common::random_string(KEY_SIZE);
+      _data[i].key = Common::random_string(KEY_SIZE);
       memcpy(_data[i].value, val.c_str(), VALUE_SIZE);
     }
 
@@ -181,6 +183,7 @@ public:
     
     if(_iterations > ITERATIONS) {
       _end_time = std::chrono::high_resolution_clock::now();
+      PLOG("Worker: %u complete", core);
       return false;
     }
     return true;
@@ -191,7 +194,7 @@ public:
     double secs = std::chrono::duration_cast<std::chrono::milliseconds>(_end_time - _start_time).count() / 1000.0;
     _iops_lock.lock();
     auto iops = ((double) ITERATIONS) / secs;
-    PLOG("%f iops", iops);
+    PLOG("%f iops (core=%u)", iops, core);
     _iops += iops;
     _iops_lock.unlock();
     _store->close_pool(_pool);
@@ -214,15 +217,15 @@ private:
 
 TEST_F(Dawn_client_test, PerfScaleIops)
 {
-  static constexpr unsigned NUM_CORES = 4;
+  static constexpr unsigned NUM_CORES = 8;
   cpu_mask_t mask;
   for(unsigned c=0;c<NUM_CORES;c++)
-    mask.add_core(c);
+    mask.add_core(c + Options.base_core);
   {
-    Core::Per_core_tasking<IOPS_task,void*> t(mask, nullptr);
+    Core::Per_core_tasking<IOPS_task,unsigned> t(mask, 11911);
     t.wait_for_all();
   }
-  PINF("Aggregate IOPS: %2g", _iops);
+  PMAJOR("Aggregate IOPS: %2g", _iops);
 }
 #endif
 
@@ -253,7 +256,7 @@ TEST_F(Dawn_client_test, PerfSmallPut)
   /* set up data */
   for(unsigned long i=0;i<ITERATIONS;i++) {
     auto val = Common::random_string(VALUE_SIZE);
-    auto key = Common::random_string(KEY_SIZE);
+    data[i].key = Common::random_string(KEY_SIZE);
     memcpy(data[i].value, val.c_str(), VALUE_SIZE);
   }
 
@@ -389,7 +392,7 @@ TEST_F(Dawn_client_test, PerfLargePutDirect)
   /* set up data */
   for(unsigned long i=0;i<PER_ITERATION;i++) {
     auto val = Common::random_string(VALUE_SIZE);
-    auto key = Common::random_string(KEY_SIZE);
+    data[i].key = Common::random_string(KEY_SIZE);
     memcpy(data[i].value, val.c_str(), VALUE_SIZE);
   }
   PLOG("Starting put operation...");
@@ -452,8 +455,7 @@ TEST_F(Dawn_client_test, PerfLargeGettDirect)
   /* set up data */
   for(unsigned long i=0;i<PER_ITERATION;i++) {
     auto val = Common::random_string(VALUE_SIZE);
-    auto key = Common::random_string(KEY_SIZE);
-    data[i].key = key;
+    data[i].key = Common::random_string(KEY_SIZE);
     memcpy(data[i].value, val.c_str(), VALUE_SIZE);
   }
   PLOG("Starting PUT operation...");
@@ -533,8 +535,7 @@ TEST_F(Dawn_client_test, PerfSmallGetDirect)
   /* set up data */
   for(unsigned long i=0;i<PER_ITERATION;i++) {
     auto val = Common::random_string(VALUE_SIZE);
-    auto key = Common::random_string(KEY_SIZE);
-    data[i].key = key;
+    data[i].key = Common::random_string(KEY_SIZE);
     memcpy(data[i].value, val.c_str(), VALUE_SIZE);
   }
   PLOG("Starting PUT operation...");
@@ -662,6 +663,7 @@ int main(int argc, char **argv) {
       ("server-addr", po::value<std::string>()->default_value("10.0.0.21:11911"), "Server address IP:PORT")
       ("device", po::value<std::string>()->default_value("mlx5_0"), "Network device (e.g., mlx5_0)")
       ("pool", po::value<std::string>()->default_value("myPool"), "Pool name")
+      ("base", po::value<unsigned>()->default_value(0), "Base core.")
       ;
 
     po::variables_map vm;
@@ -676,6 +678,7 @@ int main(int argc, char **argv) {
     Options.debug_level = vm["debug"].as<unsigned>();
     Options.pool = vm["pool"].as<std::string>();
     Options.device = vm["device"].as<std::string>();   
+    Options.base_core = vm["base"].as<unsigned>();
     
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

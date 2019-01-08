@@ -11,7 +11,7 @@
 #include "kvstore_perf.h"
 #include "statistics.h"
 
-extern Data * _data;
+extern Data * g_data;
 extern pthread_mutex_t g_write_lock;
 
 class ExperimentGet : public Experiment
@@ -50,7 +50,7 @@ public:
       }     
 
     // end experiment if we've reached the total number of components
-    if (_i + 1 == _pool_num_components)
+    if (_i + 1 == _pool_num_objects)
       {
         PINF("[%u] reached total number of components. Exiting.", core);
         return false; 
@@ -67,7 +67,7 @@ public:
 
     try
       {
-        rc = _store->get(_pool, _data->key(_i), pval, pval_len);
+        rc = _store->get(_pool, g_data->key(_i), pval, pval_len);
       }
     catch(...)
       {
