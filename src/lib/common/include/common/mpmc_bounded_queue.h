@@ -64,32 +64,30 @@
 #include <atomic>
 
 #include <common/utils.h>
-#include <sstream>
 #include <semaphore.h>
+#include <sstream>
 #include "memory.h"
 
 #define DCACHE1_LINESIZE 64
-#define __cacheline_aligned	__attribute__((aligned(DCACHE1_LINESIZE)))
+#define __cacheline_aligned __attribute__((aligned(DCACHE1_LINESIZE)))
 
-namespace Common {
-
+namespace Common
+{
 /**
  * Multi-producer, multi-consumer class based on Vyukov's algorithm.  This
  * version
  * requires polling during empty conditions.
  *
  */
-template <typename T = void*>
-class Mpmc_bounded_lfq
-{
+template <typename T = void *>
+class Mpmc_bounded_lfq {
  private:
   struct node_t {
-    volatile T                   data;
+    volatile T data;
     volatile std::atomic<size_t> seq;
   };
 
  public:
-
   /**
    * Constructor requiring generic memory allocator
    *
@@ -97,23 +95,22 @@ class Mpmc_bounded_lfq
    * @param allocator Generic shared memory allocator.
    *
    */
-  Mpmc_bounded_lfq(size_t size, Base_memory_allocator* allocator)
-    : _size(size),
-      _mask(size - 1),
-      _buffer(NULL),
-      _head_seq(0),
-      _tail_seq(0),
-      _allocator(allocator)
-  {
+  Mpmc_bounded_lfq(size_t size, Base_memory_allocator *allocator)
+      : _size(size),
+        _mask(size - 1),
+        _buffer(NULL),
+        _head_seq(0),
+        _tail_seq(0),
+        _allocator(allocator) {
     assert(allocator);
 
     std::stringstream ss;
     ss << this;
     _memory_id = ss.str();
 
-    _buffer = reinterpret_cast<node_t*>(new (_allocator->alloc(sizeof(aligned_node_t)
-                                                               * _size, -1/*numa*/, 64))
-                                        aligned_node_t[_size]);
+    _buffer = reinterpret_cast<node_t *>(
+        new (_allocator->alloc(sizeof(aligned_node_t) * _size, -1 /*numa*/, 64))
+            aligned_node_t[_size]);
     assert(_buffer);
 
     // make sure it's a power of 2
@@ -132,14 +129,13 @@ class Mpmc_bounded_lfq
    * @param buf_addr The actual buffer array starting address.
    *
    */
-  Mpmc_bounded_lfq(size_t size, void* buf_addr)
-    : _size(size),
-      _mask(size - 1),
-      _buffer(NULL),
-      _head_seq(0),
-      _tail_seq(0),
-      _allocator(NULL)
-  {
+  Mpmc_bounded_lfq(size_t size, void *buf_addr)
+      : _size(size),
+        _mask(size - 1),
+        _buffer(NULL),
+        _head_seq(0),
+        _tail_seq(0),
+        _allocator(NULL) {
     assert(buf_addr);
 
     std::stringstream ss;
@@ -149,10 +145,11 @@ class Mpmc_bounded_lfq
     PINF("mpmc size=%ld buffer=%p", size, buf_addr);
 
     assert(check_aligned(buf_addr, sizeof(aligned_node_t)));
-    _buffer = reinterpret_cast<node_t*>(new (buf_addr) aligned_node_t[_size]);
+    _buffer = reinterpret_cast<node_t *>(new (buf_addr) aligned_node_t[_size]);
     assert(_buffer);
 
-    assert((_size != 0) && ((_size & (~_size + 1)) == _size)); // make sure queue len is a power of 2
+    assert((_size != 0) && ((_size & (~_size + 1)) ==
+                            _size));  // make sure queue len is a power of 2
 
     // populate the sequence initial values
     for (size_t i = 0; i < _size; ++i) {
@@ -160,18 +157,18 @@ class Mpmc_bounded_lfq
     }
   }
 
-  ~Mpmc_bounded_lfq()
-  {
+  ~Mpmc_bounded_lfq() {
     if (_allocator) {
       for (size_t i = 0; i < _size; ++i)
-        ((aligned_node_t*)&_buffer[i])->~aligned_node_t(); /* manually call dtors */
+        ((aligned_node_t *) &_buffer[i])
+            ->~aligned_node_t(); /* manually call dtors */
 
       _allocator->free(_buffer);
     }
   }
 
   void exit_threads() {}
-  
+
   /**
    * Returns a shared memory pointer to the allocated buffer. This can be
    * used to free the memory after destruction of the object
@@ -179,10 +176,7 @@ class Mpmc_bounded_lfq
    *
    * @return Pointer to allocated buffer
    */
-  node_t* allocated_memory() const
-  {
-    return _buffer;
-  }
+  node_t *allocated_memory() const { return _buffer; }
 
   /**
    * Enqueue an item
@@ -191,8 +185,7 @@ class Mpmc_bounded_lfq
    *
    * @return True if enqueued OK. False if blocked, or full.
    */
-  bool enqueue(const T& data)
-  {
+  bool enqueue(const T &data) {
     // _head_seq only wraps at MAX(_head_seq) instead we use a mask to convert
     // the sequence to an array index
     // this is why the ring buffer must be a size which is a power of 2. this
@@ -200,9 +193,9 @@ class Mpmc_bounded_lfq
     size_t head_seq = _head_seq.load(std::memory_order_relaxed);
 
     for (;;) {
-      node_t*  node     = &_buffer[head_seq & _mask];
-      size_t   node_seq = node->seq.load(std::memory_order_acquire);
-      intptr_t dif      = (intptr_t)node_seq - (intptr_t)head_seq;
+      node_t *node = &_buffer[head_seq & _mask];
+      size_t node_seq = node->seq.load(std::memory_order_acquire);
+      intptr_t dif = (intptr_t) node_seq - (intptr_t) head_seq;
 
       // if seq and head_seq are the same then it means this slot is empty
       if (dif == 0) {
@@ -211,20 +204,19 @@ class Mpmc_bounded_lfq
         // beat us to the punch
         // weak compare is faster, but can return spurious results
         // which in this instance is OK, because it's in the loop
-        if (_head_seq.compare_exchange_weak(head_seq, head_seq + 1, std::memory_order_relaxed)) {
+        if (_head_seq.compare_exchange_weak(head_seq, head_seq + 1,
+                                            std::memory_order_relaxed)) {
           // set the data
           node->data = data;
           // increment the sequence so that the tail knows it's accessible
           node->seq.store(head_seq + 1, std::memory_order_release);
           return true;
         }
-      }
-      else if (dif < 0) {
+      } else if (dif < 0) {
         // if seq is less than head seq then it means this slot is full
         // and therefore the buffer is full
         return false;
-      }
-      else {
+      } else {
         // under normal circumstances this branch should never be taken
         head_seq = _head_seq.load(std::memory_order_relaxed);
       }
@@ -241,14 +233,13 @@ class Mpmc_bounded_lfq
    *
    * @return Return true on success. False on empty queue.
    */
-  bool dequeue(T& data)
-  {
+  bool dequeue(T &data) {
     size_t tail_seq = _tail_seq.load(std::memory_order_relaxed);
 
     for (;;) {
-      node_t*  node     = &_buffer[tail_seq & _mask];
-      size_t   node_seq = node->seq.load(std::memory_order_acquire);
-      intptr_t dif      = (intptr_t)node_seq - (intptr_t)(tail_seq + 1);
+      node_t *node = &_buffer[tail_seq & _mask];
+      size_t node_seq = node->seq.load(std::memory_order_acquire);
+      intptr_t dif = (intptr_t) node_seq - (intptr_t)(tail_seq + 1);
 
       // if seq and head_seq are the same then it means this slot is empty
       if (dif == 0) {
@@ -257,7 +248,8 @@ class Mpmc_bounded_lfq
         // beat us to the punch
         // weak compare is faster, but can return spurious results
         // which in this instance is OK, because it's in the loop
-        if (_tail_seq.compare_exchange_weak(tail_seq, tail_seq + 1, std::memory_order_relaxed)) {
+        if (_tail_seq.compare_exchange_weak(tail_seq, tail_seq + 1,
+                                            std::memory_order_relaxed)) {
           // set the output
           data = node->data;
           // set the sequence to what the head sequence should be next time
@@ -265,12 +257,10 @@ class Mpmc_bounded_lfq
           node->seq.store(tail_seq + _mask + 1, std::memory_order_release);
           return true;
         }
-      }
-      else if (dif < 0) {
+      } else if (dif < 0) {
         // queue is empty
         return false;
-      }
-      else {
+      } else {
         // under normal circumstances this branch should never be taken
         tail_seq = _tail_seq.load(std::memory_order_relaxed);
       }
@@ -282,34 +272,25 @@ class Mpmc_bounded_lfq
 
   /* compatibility helpers */
 
-  inline bool push(const T& data)
-  {
-    return enqueue(data);
-  }
+  inline bool push(const T &data) { return enqueue(data); }
 
-  inline bool pop(T& data)
-  {
-    return dequeue(data);
-  }
+  inline bool pop(T &data) { return dequeue(data); }
 
-  bool empty()
-  {
+  bool empty() {
     size_t tail_seq = _tail_seq.load(std::memory_order_relaxed);
 
     for (;;) {
-      node_t*  node     = &_buffer[tail_seq & _mask];
-      size_t   node_seq = node->seq.load(std::memory_order_acquire);
-      intptr_t dif      = (intptr_t)node_seq - (intptr_t)(tail_seq + 1);
+      node_t *node = &_buffer[tail_seq & _mask];
+      size_t node_seq = node->seq.load(std::memory_order_acquire);
+      intptr_t dif = (intptr_t) node_seq - (intptr_t)(tail_seq + 1);
 
       // if seq and head_seq are the same then it means this slot is empty
       if (dif == 0) {
         return false;
-      }
-      else if (dif < 0) {
+      } else if (dif < 0) {
         // queue is empty
         return true;
-      }
-      else {
+      } else {
         // under normal circumstances this branch should never be taken
         tail_seq = _tail_seq.load(std::memory_order_relaxed);
       }
@@ -319,27 +300,26 @@ class Mpmc_bounded_lfq
     return false;
   }
 
-  static size_t memory_footprint(size_t queue_size)
-  {
-    return sizeof(Common::Mpmc_bounded_lfq<void*>) +
-      (sizeof(Common::Mpmc_bounded_lfq<void*>::aligned_node_t) * queue_size);
+  static size_t memory_footprint(size_t queue_size) {
+    return sizeof(Common::Mpmc_bounded_lfq<void *>) +
+           (sizeof(Common::Mpmc_bounded_lfq<void *>::aligned_node_t) *
+            queue_size);
   }
 
-public:
-  typedef typename std::aligned_storage<sizeof(node_t), std::alignment_of<node_t>::value>::type
-               aligned_node_t;
-private:
+ public:
+  typedef typename std::aligned_storage<
+      sizeof(node_t), std::alignment_of<node_t>::value>::type aligned_node_t;
 
-  std::atomic<size_t>          _head_seq __cacheline_aligned;
-  std::atomic<size_t>          _tail_seq __cacheline_aligned;
+ private:
+  std::atomic<size_t> _head_seq __cacheline_aligned;
+  std::atomic<size_t> _tail_seq __cacheline_aligned;
 
-  byte                         _padding[DCACHE1_LINESIZE];
-  std::string                  _memory_id;
-  Base_memory_allocator*       _allocator = nullptr;
-  const size_t                 _size;
-  const size_t                 _mask;
-  node_t*                      _buffer;
-
+  byte _padding[DCACHE1_LINESIZE];
+  std::string _memory_id;
+  Base_memory_allocator *_allocator = nullptr;
+  const size_t _size;
+  const size_t _mask;
+  node_t *_buffer;
 };
 
 /**
@@ -349,33 +329,29 @@ private:
  *
  */
 template <typename T>
-class Mpmc_bounded_lfq_sleeping
-{
+class Mpmc_bounded_lfq_sleeping {
  private:
   enum ConsumerState {
     SLEEPING = 1,
-    AWAKE    = 2,
+    AWAKE = 2,
   };
 
-  static const int  RETRY_THRESHOLD = 100000;       // # of retries before sleeping
-  static const long TIMEOUT_NS      = 1000000;  // 1ms
+  static const int RETRY_THRESHOLD = 100000;  // # of retries before sleeping
+  static const long TIMEOUT_NS = 1000000;     // 1ms
 
   Mpmc_bounded_lfq<T> queue_;
-  bool                exit_;
-  sem_t               sem_;
-  volatile ConsumerState       consumer_state_;
+  bool exit_;
+  sem_t sem_;
+  volatile ConsumerState consumer_state_;
 
  public:
-
-  Mpmc_bounded_lfq_sleeping(size_t size, Base_memory_allocator* allocator)
-    : queue_(size, allocator), exit_(false), consumer_state_(AWAKE)
-  {
+  Mpmc_bounded_lfq_sleeping(size_t size, Base_memory_allocator *allocator)
+      : queue_(size, allocator), exit_(false), consumer_state_(AWAKE) {
     sem_init(&sem_, 1, 0);  // shared, 0 count
   }
 
-  Mpmc_bounded_lfq_sleeping(size_t size, void* buf_addr)
-    : queue_(size, buf_addr), exit_(false), consumer_state_(AWAKE)
-  {
+  Mpmc_bounded_lfq_sleeping(size_t size, void *buf_addr)
+      : queue_(size, buf_addr), exit_(false), consumer_state_(AWAKE) {
     sem_init(&sem_, 1, 0);  // shared, 0 count
   }
 
@@ -383,8 +359,7 @@ class Mpmc_bounded_lfq_sleeping
    * Destructor. Clears up waker thread.
    *
    */
-  ~Mpmc_bounded_lfq_sleeping()
-  {
+  ~Mpmc_bounded_lfq_sleeping() {
     exit_ = true;
     sem_post(&sem_);
     sem_destroy(&sem_);
@@ -397,10 +372,8 @@ class Mpmc_bounded_lfq_sleeping
    *
    * @return True if enqueued OK. False if blocked, or full.
    */
-  bool enqueue(const T& elem)
-  {
-    if(consumer_state_ == SLEEPING)
-      sem_post(&sem_);  // wake up waker thread
+  bool enqueue(const T &elem) {
+    if (consumer_state_ == SLEEPING) sem_post(&sem_);  // wake up waker thread
 
     return queue_.enqueue(elem); /* we don't sleep on the producer side */
   }
@@ -413,8 +386,7 @@ class Mpmc_bounded_lfq_sleeping
    *
    * @return Return true on success. False on empty queue.
    */
-  bool dequeue(T& elem)
-  {
+  bool dequeue(T &elem) {
     unsigned retries = 0;
     while (!queue_.dequeue(elem)) {
       retries++;
@@ -449,23 +421,18 @@ class Mpmc_bounded_lfq_sleeping
    * Signal deque threads to return even without element
    *
    */
-  void exit_threads()
-  {
+  void exit_threads() {
     exit_ = true;
     sem_post(&sem_);
   }
 
-  inline bool empty()
-  {
-    return queue_.empty();
-  }
+  inline bool empty() { return queue_.empty(); }
 
-  static size_t memory_footprint(size_t queue_size)
-  {
-    return sizeof(Common::Mpmc_bounded_lfq<void*>) +
-      (sizeof(Common::Mpmc_bounded_lfq<void*>::aligned_node_t) * queue_size);
+  static size_t memory_footprint(size_t queue_size) {
+    return sizeof(Common::Mpmc_bounded_lfq<void *>) +
+           (sizeof(Common::Mpmc_bounded_lfq<void *>::aligned_node_t) *
+            queue_size);
   }
-
 };
 
 /**
@@ -475,37 +442,39 @@ class Mpmc_bounded_lfq_sleeping
  *
  */
 template <typename T>
-class Mpmc_bounded_lfq_sleeping_dual
-{
+class Mpmc_bounded_lfq_sleeping_dual {
  private:
   enum ThreadState {
     SLEEPING = 1,
-    AWAKE    = 2,
+    AWAKE = 2,
   };
 
-  static const int  RETRY_THRESHOLD = 1000;      // # of retries before dual_sleeping
-  static const long TIMEOUT_NS      = 10000000;  // 10ms
+  static const int RETRY_THRESHOLD = 1000;  // # of retries before dual_sleeping
+  static const long TIMEOUT_NS = 10000000;  // 10ms
 
   Mpmc_bounded_lfq<T> queue_;
-  bool                exit_;
+  bool exit_;
 
-  sem_t       consumer_sem_;
-  sem_t       producer_sem_;
+  sem_t consumer_sem_;
+  sem_t producer_sem_;
   ThreadState consumer_state_;
   ThreadState producer_state_;
 
  public:
-
-  Mpmc_bounded_lfq_sleeping_dual(size_t size, Base_memory_allocator* allocator)
-    : queue_(size, allocator), exit_(false), consumer_state_(AWAKE), producer_state_(AWAKE)
-  {
+  Mpmc_bounded_lfq_sleeping_dual(size_t size, Base_memory_allocator *allocator)
+      : queue_(size, allocator),
+        exit_(false),
+        consumer_state_(AWAKE),
+        producer_state_(AWAKE) {
     sem_init(&consumer_sem_, 1, 0);  // shared, 0 count
     sem_init(&producer_sem_, 1, 0);  // shared, 0 count
   }
 
-  Mpmc_bounded_lfq_sleeping_dual(size_t size, void* buf_addr)
-    : queue_(size, buf_addr), exit_(false), consumer_state_(AWAKE), producer_state_(AWAKE)
-  {
+  Mpmc_bounded_lfq_sleeping_dual(size_t size, void *buf_addr)
+      : queue_(size, buf_addr),
+        exit_(false),
+        consumer_state_(AWAKE),
+        producer_state_(AWAKE) {
     sem_init(&consumer_sem_, 1, 0);  // shared, 0 count
     sem_init(&producer_sem_, 1, 0);  // shared, 0 count
   }
@@ -514,8 +483,7 @@ class Mpmc_bounded_lfq_sleeping_dual
    * Destructor. Clears up waker thread.
    *
    */
-  ~Mpmc_bounded_lfq_sleeping_dual()
-  {
+  ~Mpmc_bounded_lfq_sleeping_dual() {
     exit_ = true;
     sem_post(&producer_sem_);
     sem_post(&consumer_sem_);
@@ -530,8 +498,7 @@ class Mpmc_bounded_lfq_sleeping_dual
    *
    * @return True if enqueued OK. False if blocked, or full.
    */
-  bool enqueue(T& elem)
-  {
+  bool enqueue(T &elem) {
     if (consumer_state_ == SLEEPING) sem_post(&consumer_sem_);
 
     unsigned retries = 0;
@@ -570,8 +537,7 @@ class Mpmc_bounded_lfq_sleeping_dual
    *
    * @return Return true on success. False on empty queue.
    */
-  bool dequeue(T& elem)
-  {
+  bool dequeue(T &elem) {
     if (producer_state_ == SLEEPING) {
       sem_post(&producer_sem_);  // wake up waker thread
     }
@@ -610,25 +576,20 @@ class Mpmc_bounded_lfq_sleeping_dual
    * Signal deque threads to return even without element
    *
    */
-  void exit_threads()
-  {
+  void exit_threads() {
     exit_ = true;
     sem_post(&producer_sem_);
     sem_post(&consumer_sem_);
   }
 
-  inline bool empty()
-  {
-    return queue_.empty();
-  }
+  inline bool empty() { return queue_.empty(); }
 
-  static size_t memory_footprint(size_t queue_size)
-  {
-    return sizeof(Common::Mpmc_bounded_lfq<void*>) +
-      (sizeof(Common::Mpmc_bounded_lfq<void*>::aligned_node_t) * queue_size);
+  static size_t memory_footprint(size_t queue_size) {
+    return sizeof(Common::Mpmc_bounded_lfq<void *>) +
+           (sizeof(Common::Mpmc_bounded_lfq<void *>::aligned_node_t) *
+            queue_size);
   }
-
 };
-}
+}  // namespace Common
 
 #endif

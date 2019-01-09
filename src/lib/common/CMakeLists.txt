@@ -1,8 +1,8 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
-
 project(common CXX)
 enable_language(CXX C ASM)
+include(../../../mk/clang-dev-tools.cmake)
 
 set(CMAKE_CXX_STANDARD 11)
 

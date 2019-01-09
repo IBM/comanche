@@ -35,7 +35,7 @@
 #include <sstream>
 #include <string>
 
-int set_cpu_affinity_mask(cpu_mask_t& mask) {
+int set_cpu_affinity_mask(cpu_mask_t &mask) {
 #if defined(unix)
   return sched_setaffinity(0, mask.size(), mask.cpu_set());
 #else
@@ -69,7 +69,7 @@ int set_cpu_affinity(unsigned long mask) {
  *
  * @return
  */
-status_t string_to_mask(std::string def, cpu_mask_t& mask) {
+status_t string_to_mask(std::string def, cpu_mask_t &mask) {
   using namespace std;
   using namespace boost;
 
@@ -87,7 +87,7 @@ status_t string_to_mask(std::string def, cpu_mask_t& mask) {
   boost::tokenizer<boost::char_separator<char>> tok(def, sep);
 
   try {
-    for_each(tok.begin(), tok.end(), [&](const string& s) {
+    for_each(tok.begin(), tok.end(), [&](const string &s) {
       try {
         mask.add_core(stoi(s));
       } catch (std::invalid_argument e) {

@@ -26,7 +26,6 @@
    in files containing the exception.
 */
 
-
 /*
  * Modifications by:
  *
@@ -40,164 +39,144 @@
 #include <iostream>
 #include <vector>
 
-namespace Common {
-
-template <class T, typename K = std::size_t>
-class Interval
+namespace Common
 {
+template <class T, typename K = std::size_t>
+class Interval {
  public:
   K start;
   K stop;
   T value;
-  Interval(K s, K e, const T& v) : start(s), stop(e), value(v)
-  {
-  }
-  Interval() : start(0), stop(0)
-  {
-  }
+  Interval(K s, K e, const T &v) : start(s), stop(e), value(v) {}
+  Interval() : start(0), stop(0) {}
 };
 
 template <class T, typename K = std::size_t>
-bool operator<(const Interval<T, K>& left, const Interval<T, K>& right)
-{
+bool operator<(const Interval<T, K> &left, const Interval<T, K> &right) {
   return left.start <= right.start;
 }
 
 template <class T, typename K>
-K interval_start(const Interval<T, K>& i)
-{
+K interval_start(const Interval<T, K> &i) {
   return i.start;
 }
 
 template <class T, typename K>
-K interval_stop(const Interval<T, K>& i)
-{
+K interval_stop(const Interval<T, K> &i) {
   return i.stop;
 }
 
 template <class T, typename K>
-std::ostream& operator<<(std::ostream& out, Interval<T, K>& i)
-{
+std::ostream &operator<<(std::ostream &out, Interval<T, K> &i) {
   out << "Interval(" << i.start << ", " << i.stop << "): " << i.value;
   return out;
 }
 
 template <class T, typename K = std::size_t>
-class IntervalStartSorter
-{
+class IntervalStartSorter {
  public:
-  bool operator()(const Interval<T, K>& a, const Interval<T, K>& b)
-  {
+  bool operator()(const Interval<T, K> &a, const Interval<T, K> &b) {
     return a.start < b.start;
   }
 };
 
 template <class T, typename K = std::size_t>
-class Interval_tree
-{
+class Interval_tree {
  public:
   typedef Interval<T, K> interval_t;
   typedef std::vector<interval_t> interval_vector_t;
   typedef Interval_tree<T, K> interval_tree_t;
 
   interval_vector_t intervals;
-  interval_tree_t*  left;
-  interval_tree_t*  right;
-  K                 center;
+  interval_tree_t *left;
+  interval_tree_t *right;
+  K center;
 
-  Interval_tree<T, K>(void) : left(NULL), right(NULL), center(0)
-  {
-  }
+  Interval_tree<T, K>(void) : left(NULL), right(NULL), center(0) {}
 
-  Interval_tree<T, K>(const interval_tree_t& other) : left(NULL), right(NULL)
-  {
-    center               = other.center;
-    intervals            = other.intervals;
+  Interval_tree<T, K>(const interval_tree_t &other) : left(NULL), right(NULL) {
+    center = other.center;
+    intervals = other.intervals;
     if (other.left) left = new interval_tree_t(*other.left);
 
     if (other.right) right = new interval_tree_t(*other.right);
   }
 
-  Interval_tree<T, K>& operator=(const interval_tree_t& other)
-  {
-    center    = other.center;
+  Interval_tree<T, K> &operator=(const interval_tree_t &other) {
+    center = other.center;
     intervals = other.intervals;
     if (other.left) {
       left = new interval_tree_t(*other.left);
-    }
-    else {
+    } else {
       if (left) delete left;
       left = NULL;
     }
 
     if (other.right) {
       right = new interval_tree_t(*other.right);
-    }
-    else {
+    } else {
       if (right) delete right;
       right = NULL;
     }
     return *this;
   }
 
-  Interval_tree<T, K>(interval_vector_t& ivals, std::size_t depth = 16, std::size_t minbucket = 64,
-                      K leftextent = 0, K rightextent = 0, std::size_t maxbucket = 512)
-    : left(NULL), right(NULL)
-  {
+  Interval_tree<T, K>(interval_vector_t &ivals, std::size_t depth = 16,
+                      std::size_t minbucket = 64, K leftextent = 0,
+                      K rightextent = 0, std::size_t maxbucket = 512)
+      : left(NULL), right(NULL) {
     --depth;
     IntervalStartSorter<T, K> intervalStartSorter;
     if (depth == 0 || (ivals.size() < minbucket && ivals.size() < maxbucket)) {
       std::sort(ivals.begin(), ivals.end(), intervalStartSorter);
       intervals = ivals;
-    }
-    else {
+    } else {
       if (leftextent == 0 && rightextent == 0) {
         // sort intervals by start
         std::sort(ivals.begin(), ivals.end(), intervalStartSorter);
       }
 
-      K leftp   = 0;
-      K rightp  = 0;
+      K leftp = 0;
+      K rightp = 0;
       K centerp = 0;
 
       if (leftextent || rightextent) {
-        leftp  = leftextent;
+        leftp = leftextent;
         rightp = rightextent;
-      }
-      else {
+      } else {
         leftp = ivals.front().start;
         std::vector<K> stops;
         stops.resize(ivals.size());
-        transform(ivals.begin(), ivals.end(), stops.begin(), interval_stop<T, K>);
+        transform(ivals.begin(), ivals.end(), stops.begin(),
+                  interval_stop<T, K>);
         rightp = *max_element(stops.begin(), stops.end());
       }
 
       // centerp = ( leftp + rightp ) / 2;
       centerp = ivals.at(ivals.size() / 2).start;
-      center  = centerp;
+      center = centerp;
 
       interval_vector_t lefts, rights;
 
       for (auto interval : ivals) {
         if (interval.stop < center) {
           lefts.push_back(interval);
-        }
-        else if (interval.start > center) {
+        } else if (interval.start > center) {
           rights.push_back(interval);
-        }
-        else {
+        } else {
           intervals.push_back(interval);
         }
       }
 
-      if (!lefts.empty()) left = new interval_tree_t(lefts, depth, minbucket, leftp, centerp);
+      if (!lefts.empty())
+        left = new interval_tree_t(lefts, depth, minbucket, leftp, centerp);
 
-      if (!rights.empty()) right = new interval_tree_t(rights, depth, minbucket, centerp, rightp);
+      if (!rights.empty())
+        right = new interval_tree_t(rights, depth, minbucket, centerp, rightp);
     }
   }
 
-  void find_overlapping(K start, K stop, interval_vector_t& overlapping) const
-  {
+  void find_overlapping(K start, K stop, interval_vector_t &overlapping) const {
     if (!intervals.empty() && !(stop < intervals.front().start)) {
       for (auto interval : intervals) {
         if (interval.stop >= start && interval.start <= stop) {
@@ -206,13 +185,14 @@ class Interval_tree
       }
     }
 
-    if (left && start <= center) left->find_overlapping(start, stop, overlapping);
+    if (left && start <= center)
+      left->find_overlapping(start, stop, overlapping);
 
-    if (right && stop >= center) right->find_overlapping(start, stop, overlapping);
+    if (right && stop >= center)
+      right->find_overlapping(start, stop, overlapping);
   }
 
-  bool find_point(K point, interval_t& ret_val) const
-  {
+  bool find_point(K point, interval_t &ret_val) const {
     if (!intervals.empty() && !(point < intervals.front().start)) {
       for (auto interval : intervals) {
         if (point >= interval.start && point <= interval.stop) {
@@ -229,18 +209,11 @@ class Interval_tree
     return false;
   }
 
-  K earliest_time() const
-  {
-    return intervals.front().start;
-  }
+  K earliest_time() const { return intervals.front().start; }
 
-  K latest_time() const
-  {
-    return intervals.back().stop;
-  }
+  K latest_time() const { return intervals.back().stop; }
 
-  void find_contained(K start, K stop, interval_vector_t& contained) const
-  {
+  void find_contained(K start, K stop, interval_vector_t &contained) const {
     if (!intervals.empty() && !(stop < intervals.front().start)) {
       for (auto interval : intervals) {
         if (interval.start >= start && interval.stop <= stop) {
@@ -254,8 +227,7 @@ class Interval_tree
     if (right && stop >= center) right->find_contained(start, stop, contained);
   }
 
-  ~Interval_tree(void)
-  {
+  ~Interval_tree(void) {
     // traverse the left and right
     // delete them all the way down
     if (left) delete left;
@@ -263,5 +235,5 @@ class Interval_tree
     if (right) delete right;
   }
 };
-}
+}  // namespace Common
 #endif

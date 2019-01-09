@@ -26,7 +26,6 @@
    in files containing the exception.
 */
 
-
 /*
   Authors:
   Copyright (C) 2017, Daniel G. Waddington <daniel.waddington@ibm.com>
@@ -35,45 +34,39 @@
 #ifndef __COMMON_SEMAPHORE_H__
 #define __COMMON_SEMAPHORE_H__
 
-#include <mutex>
-#include <condition_variable>
 #include <atomic>
-#include <condition_variable>
-#include <thread>
 #include <chrono>
+#include <condition_variable>
+#include <mutex>
+#include <thread>
 
 namespace Common
 {
-
 class Semaphore {
-public:
-  Semaphore (int count_ = 0)
-    : count(count_) {}
+ public:
+  Semaphore(int count_ = 0) : count(count_) {}
 
-  inline void post()
-  {
+  inline void post() {
     std::unique_lock<std::mutex> lock(mtx);
     count++;
     cv.notify_one();
   }
 
-  inline void wait()
-  {
+  inline void wait() {
     std::unique_lock<std::mutex> lock(mtx);
 
-    while(count == 0){
+    while (count == 0) {
       cv.wait(lock);
     }
     count--;
   }
 
-  inline bool wait_for(unsigned rel_ms)
-  {
+  inline bool wait_for(unsigned rel_ms) {
     std::unique_lock<std::mutex> lock(mtx);
 
-    while(count == 0){
-      if(cv.wait_for(lock, std::chrono::milliseconds(rel_ms))
-         == std::cv_status::timeout) {
+    while (count == 0) {
+      if (cv.wait_for(lock, std::chrono::milliseconds(rel_ms)) ==
+          std::cv_status::timeout) {
         return false;
       }
     }
@@ -81,11 +74,11 @@ public:
     return true;
   }
 
-private:
+ private:
   std::mutex mtx;
   std::condition_variable cv;
   int count;
 };
 
-} // namespace Common
+}  // namespace Common
 #endif
