@@ -202,7 +202,8 @@ class Std_allocator : public Base_memory_allocator {
       int rc = posix_memalign(&ptr, alignment, size);
       if (rc) return nullptr;
       return ptr;
-    } else {
+    }
+    else {
       return malloc(size);
     }
   }

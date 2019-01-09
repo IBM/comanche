@@ -43,10 +43,12 @@ class RWLock_guard {
     if (mode == WRITE) {
       if (_lock.write_lock() != 0)
         throw General_exception("failed to take write lock");
-    } else if (mode == READ) {
+    }
+    else if (mode == READ) {
       if (_lock.read_lock() != 0)
         throw General_exception("failed to take read lock");
-    } else
+    }
+    else
       throw API_exception("unexpected RWLock_guard mode (mode=%d)", mode);
   }
 
