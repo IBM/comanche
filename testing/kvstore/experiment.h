@@ -78,7 +78,6 @@ public:
   }
 
   ~Experiment() {
-    PLOG("dtor");
     _store->release_ref();
   } 
     
@@ -169,11 +168,15 @@ public:
     PLOG("Created pool for worker %u...OK!", core);
 
     // initialize experiment report
+    pthread_mutex_lock(&g_write_lock);
+
     rapidjson::Document document = _get_report_document();
     if (!document.HasMember("experiment"))
     {
       _initialize_experiment_report(document); 
     }
+
+    pthread_mutex_unlock(&g_write_lock);
 
     try
     {
