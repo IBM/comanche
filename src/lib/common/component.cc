@@ -26,108 +26,106 @@
    in files containing the exception.
 */
 
-
 /*
   Authors:
   Copyright (C) 2014, Daniel G. Waddington <daniel.waddington@acm.org>
 */
 
-#include <stdint.h>
-#include <dlfcn.h>
 #include <assert.h>
+#include <dlfcn.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
-#include <component/base.h>
 #include <common/errors.h>
 #include <common/logging.h>
+#include <component/base.h>
 #include <config_comanche.h>
 
 namespace Component
 {
+bool operator==(const Component::uuid_t &lhs, const Component::uuid_t &rhs) {
+  return memcmp(&lhs, &rhs, sizeof(Component::uuid_t)) == 0;
+}
 
-  bool operator==(const Component::uuid_t& lhs, const Component::uuid_t& rhs) {
-    return memcmp(&lhs, &rhs, sizeof(Component::uuid_t))==0;
-  }
+/**
+ * Called by the client to load the component from a DLL file
+ *
+ */
+IBase *load_component(const char *dllname, Component::uuid_t component_id) {
+  void *(*factory_createInstance)(Component::uuid_t &);
+  char *error;
 
-  /** 
-    * Called by the client to load the component from a DLL file
-    * 
-    */
-  IBase * load_component(const char * dllname, Component::uuid_t component_id) {
+  PLOG("Load path: %s", dllname);
 
-    void * (*factory_createInstance)(Component::uuid_t&);
-    char * error;
+  void *dll = dlopen(dllname, RTLD_NOW);
 
+  if (!dll) {
+    std::string dll_path = CONF_COMANCHE_INSTALL;
+    dll_path += "/lib/";
+    dll_path += dllname;
 
-    PLOG("Load path: %s", dllname);
-    
-    void * dll = dlopen(dllname,RTLD_NOW);
+    PLOG("Load path: %s", dll_path.c_str());
+    dll = dlopen(dll_path.c_str(), RTLD_NOW);
 
-    if(!dll) {
-
-      std::string dll_path = CONF_COMANCHE_INSTALL;
-      dll_path += "/lib/";
-      dll_path += dllname;
-
-      PLOG("Load path: %s", dll_path.c_str());
-      dll = dlopen(dll_path.c_str(), RTLD_NOW);
-
-      if(!dll) {
-        PERR("Unable to load library (%s) at path (%s) - check dependencies with ldd tool (reason:%s)",dllname, dll_path.c_str(), dlerror());
-        return nullptr;
-      }
-    }
-    *(void **) (&factory_createInstance) = dlsym(dll,"factory_createInstance");
-
-    if ((error = dlerror()) != nullptr)  {
-      PERR("Error: %s\n", error);
+    if (!dll) {
+      PERR("Unable to load library (%s) at path (%s) - check dependencies with "
+           "ldd tool (reason:%s)",
+           dllname, dll_path.c_str(), dlerror());
       return nullptr;
     }
+  }
+  *(void **) (&factory_createInstance) = dlsym(dll, "factory_createInstance");
 
-    IBase* comp = (IBase*) factory_createInstance(component_id);
-
-    if(comp==nullptr) {
-      PERR("Factory create instance returned nullptr (%s). Possible component ID mismatch.", dllname);
-      return nullptr;
-    }
-
-    comp->set_dll_handle(dll); /* record so we can call dlclose() */
-    comp->add_ref();
-
-    return comp;
+  if ((error = dlerror()) != nullptr) {
+    PERR("Error: %s\n", error);
+    return nullptr;
   }
 
-  void IBase::release_ref() {
-    int val = _ref_count.fetch_sub(1) - 1;
-    assert(val >= 0);
-    if(val == 0) {
-      PLOG("unloading component (%p)", static_cast<void*>(this));
-      this->unload(); /* call virtual unload function */
-    }
+  IBase *comp = (IBase *) factory_createInstance(component_id);
+
+  if (comp == nullptr) {
+    PERR("Factory create instance returned nullptr (%s). Possible component ID "
+         "mismatch.",
+         dllname);
+    return nullptr;
   }
 
-  /** 
-   * Perform pairwise binding of components
-   * 
-   * @param components List of components to bind
-   * 
-   * @return S_OK on success.
-   */
-  status_t bind(std::vector<IBase *> components) {
+  comp->set_dll_handle(dll); /* record so we can call dlclose() */
+  comp->add_ref();
 
-    for(int i=0;i<components.size();i++) {
-      assert(components[i]);
-      for(int j=0;j<components.size();j++) {
-        assert(components[j]);
-        if(i==j) continue;
-        if(components[i]->bind(components[j]) == -1) {
-          PDBG("connect call in pairwise bind failed.");
-          return E_FAIL;
-        }
-      }
-    }
+  return comp;
+}
 
-    return S_OK;
+void IBase::release_ref() {
+  int val = _ref_count.fetch_sub(1) - 1;
+  assert(val >= 0);
+  if (val == 0) {
+    PLOG("unloading component (%p)", static_cast<void *>(this));
+    this->unload(); /* call virtual unload function */
   }
 }
+
+/**
+ * Perform pairwise binding of components
+ *
+ * @param components List of components to bind
+ *
+ * @return S_OK on success.
+ */
+status_t bind(std::vector<IBase *> components) {
+  for (int i = 0; i < components.size(); i++) {
+    assert(components[i]);
+    for (int j = 0; j < components.size(); j++) {
+      assert(components[j]);
+      if (i == j) continue;
+      if (components[i]->bind(components[j]) == -1) {
+        PDBG("connect call in pairwise bind failed.");
+        return E_FAIL;
+      }
+    }
+  }
+
+  return S_OK;
+}
+}  // namespace Component

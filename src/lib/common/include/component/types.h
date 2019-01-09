@@ -26,10 +26,9 @@
    in files containing the exception.
 */
 
-
-/* 
- * Authors: 
- * 
+/*
+ * Authors:
+ *
  * Daniel G. Waddington (daniel.waddington@ibm.com)
  *
  */
@@ -39,19 +38,19 @@
 #ifndef __COMANCHE_API_TYPES_H_
 #define __COMANCHE_API_TYPES_H_
 
-#include <common/types.h>
 #include <common/errors.h>
+#include <common/types.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
 namespace Component
 {
-using io_buffer_t  = uint64_t;
-using status_t     = int;
-using addr_t       = unsigned long;
-using workid_t     = uint64_t;
+using io_buffer_t = uint64_t;
+using status_t = int;
+using addr_t = unsigned long;
+using workid_t = uint64_t;
 
-} /*< Component */
+}  // namespace Component
 
 #endif

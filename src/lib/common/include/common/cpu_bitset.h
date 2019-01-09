@@ -26,7 +26,6 @@
    in files containing the exception.
 */
 
-
 /*
   Authors:
   Copyright (C) 2013, Juan A. Colmenares <juan.col@samsung.com>

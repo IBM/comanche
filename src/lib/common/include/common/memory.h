@@ -29,8 +29,8 @@
 #define __COMMON_MEMORY_H__
 
 #include <assert.h>
-#include <common/types.h>
 #include <common/logging.h>
+#include <common/types.h>
 
 #if defined(__linux__)
 #include <malloc.h>
@@ -41,7 +41,8 @@
 #include <stdlib.h>
 #include <sys/mman.h>
 
-namespace Common {
+namespace Common
+{
 /**
  * Allocate memory at a specific region.  Mainly for debugging purposes.
  *
@@ -50,9 +51,9 @@ namespace Common {
  *
  * @return
  */
-void* malloc_at(size_t size, addr_t addr = 0);
+void *malloc_at(size_t size, addr_t addr = 0);
 
-void free_at(void* ptr);
+void free_at(void *ptr);
 
 /**
  * Generic slab memory interface
@@ -60,8 +61,7 @@ void free_at(void* ptr);
  *
  * @return
  */
-class Base_slab_allocator
-{
+class Base_slab_allocator {
  public:
   /**
    * Allocate slab element
@@ -69,14 +69,14 @@ class Base_slab_allocator
    *
    * @return Pointer to new element
    */
-  virtual void* alloc() = 0;
+  virtual void *alloc() = 0;
 
   /**
    * Free slab element
    *
    * @return 0 on success
    */
-  virtual size_t free(void*) = 0;
+  virtual size_t free(void *) = 0;
 
   /**
    * Determine if slab was reconstructed
@@ -92,24 +92,19 @@ class Base_slab_allocator
    *
    * @return Pointer to first element.
    */
-  virtual void* get_first_element()
-  {
+  virtual void *get_first_element() {
     PWRN("get_first_element not implemented");
     return nullptr;
   }
 
-  virtual void dump_info()
-  {
-    PWRN("dump_info not implemented");
-  }
+  virtual void dump_info() { PWRN("dump_info not implemented"); }
 };
 
 /**
  * Generic memory allocation interface
  *
  */
-class Base_memory_allocator
-{
+class Base_memory_allocator {
  public:
   /**
    * Allocate memory
@@ -120,31 +115,29 @@ class Base_memory_allocator
    *
    * @return Pointer to allocated memory
    */
-  virtual void* alloc(size_t size, int numa_node = -1, size_t alignment = 0) = 0;
+  virtual void *alloc(size_t size, int numa_node = -1,
+                      size_t alignment = 0) = 0;
 
   /**
    * Free previously allocated memory
    *
    * @param ptr Pointer to allocated region
    */
-  virtual size_t free(void* ptr) = 0;
+  virtual size_t free(void *ptr) = 0;
 };
 
-
-/** 
+/**
  * Generic heap allocator interface
- * 
- * 
+ *
+ *
  */
-class Base_heap_allocator : public Base_memory_allocator
-{
+class Base_heap_allocator : public Base_memory_allocator {
  public:
   enum {
-    HEAP_TYPE_UNSPECIFIED      = 0,
-    HEAP_TYPE_NVME_FIXED       = 1,
+    HEAP_TYPE_UNSPECIFIED = 0,
+    HEAP_TYPE_NVME_FIXED = 1,
     HEAP_TYPE_NVME_DUNE_PAGING = 2,
   };
-
 
   /**
    * Determine if slab was reconstructed
@@ -154,45 +147,40 @@ class Base_heap_allocator : public Base_memory_allocator
    */
   virtual bool is_reconstructed() = 0;
 
-  /** 
+  /**
    * Get first element/base of heap
-   * 
-   * 
+   *
+   *
    * @return Pointer to base of heap
    */
-  virtual void* base() = 0;
+  virtual void *base() = 0;
 
-  /** 
+  /**
    * Get type of heap
-   * 
-   * 
+   *
+   *
    * @return Enumeration type (see above)
    */
-  virtual int type() const
-  {
-    return HEAP_TYPE_UNSPECIFIED;
-  }
+  virtual int type() const { return HEAP_TYPE_UNSPECIFIED; }
 
-  /** 
+  /**
    * Flush data on the slab
-   * 
+   *
    */
   virtual void flush() = 0;
 
-  /** 
+  /**
    * Dump debugging information
-   * 
+   *
    */
-  virtual void dump_info() {};
+  virtual void dump_info(){};
 
   /**
-   * Return free space in bytes 
+   * Return free space in bytes
    *
    */
   virtual size_t free_space() { return 0; };
-
 };
-
 
 /**
  * Standard allocator based on POSIX calls
@@ -203,47 +191,38 @@ class Base_heap_allocator : public Base_memory_allocator
  *
  * @return
  */
-class Std_allocator : public Base_memory_allocator
-{
+class Std_allocator : public Base_memory_allocator {
  public:
-  Std_allocator()
-  {
-  }
+  Std_allocator() {}
 
-  void* alloc(size_t size, int numa_node = -1, size_t alignment = 0)
-  {
+  void *alloc(size_t size, int numa_node = -1, size_t alignment = 0) {
     assert(numa_node == -1);
     if (alignment > 0) {
-      void* ptr;
-      int   rc = posix_memalign(&ptr, alignment, size);
+      void *ptr;
+      int rc = posix_memalign(&ptr, alignment, size);
       if (rc) return nullptr;
       return ptr;
-    }
-    else {
+    } else {
       return malloc(size);
     }
   }
 
-  size_t free(void* ptr)
-  {
+  size_t free(void *ptr) {
     size_t size;
     assert(ptr);
 #if defined(__linux__)
     size = malloc_usable_size(ptr);
-#elif defined (__MACH__)
+#elif defined(__MACH__)
     size = malloc_size(ptr);
 #else
     size = 0;
 #endif
-    
+
     ::free(ptr);
     return size;
   }
 
-  void* realloc(void* ptr, size_t size)
-  {
-    return ::realloc(ptr, size);
-  }
+  void *realloc(void *ptr, size_t size) { return ::realloc(ptr, size); }
 };
-}
+}  // namespace Common
 #endif
