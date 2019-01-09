@@ -329,7 +329,7 @@ template <
 			/* Any item in bucket owner_lock precedes b_dst_lock_,
 			 * and is eligible for move
 			 */
-			auto eligible_items = ( 1U << owner::size ) - 1U;
+			auto eligible_items = ( 1UL << owner::size ) - 1U;
 			while (
 				owner_lock.sb() != b_dst_lock_.sb()
 				&&
