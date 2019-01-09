@@ -26,7 +26,6 @@
    in files containing the exception.
 */
 
-
 /*
   Authors:
   Copyright (C) 2017, Daniel G. Waddington <daniel.waddington@ibm.com>
@@ -35,10 +34,11 @@
 #ifndef __COMMON_CHECKSUM_H__
 #define __COMMON_CHECKSUM_H__
 
-#include <zlib.h>
 #include <common/types.h>
+#include <zlib.h>
 
-namespace Common {
+namespace Common
+{
 /**
  * Simple 32bit checksum
  *
@@ -47,12 +47,11 @@ namespace Common {
  *
  * @return 32-bit checksum
  */
-inline uint32_t chksum32(void* buffer, size_t len)
-{
+inline uint32_t chksum32(void *buffer, size_t len) {
   uint32_t chksum = crc32(0L, NULL, 0);
-  chksum          = crc32(chksum, (unsigned char*)buffer, len);
+  chksum = crc32(chksum, (unsigned char *) buffer, len);
   return chksum;
 }
-}
+}  // namespace Common
 
 #endif

@@ -124,7 +124,7 @@ namespace Dawn {
      * 
      * @return True if action
      */
-    bool get_pending_action(action_t& action) {
+    inline bool get_pending_action(action_t& action) {
       if(_pending_actions.empty()) return false;
       action = _pending_actions.back();
       _pending_actions.pop_back();
@@ -156,8 +156,7 @@ namespace Dawn {
       _stats.response_count++;
 
       set_state(POST_MSG_RECV); /* don't wait for this, let it be picked up in
-                                //the check_completions cycle */
-      //set_state(WAIT_POST_RESPONSE);
+                                   the check_completions cycle */
     }
 
     /** 
@@ -191,15 +190,14 @@ namespace Dawn {
       PINF("-----------------------------------------");
       PINF("Recv message count          : %lu", _stats.recv_msg_count);
       PINF("Response count              : %lu", _stats.response_count);     
-      PINF("WAIT_MSG_RECV misses        : %lu", _stats.wait_msg_recv_misses);
+      PINF("NEW_MSG_RECV misses         : %lu K", _stats.wait_msg_recv_misses / 1000);
       PINF("WAIT_RECV_VALUE misses      : %lu", _stats.wait_recv_value_misses);
       PINF("WAIT_RESPOND_COMPLETE misses: %lu", _stats.wait_respond_complete_misses);
       PINF("-----------------------------------------");
     }
   
   private:
-    bool                   _complete;
-    unsigned               _tick_count = 0;
+    unsigned long          _tick_count = 0;
     std::vector<buffer_t*> _pending_msgs;
     std::vector<action_t>  _pending_actions;
     int                    _response;

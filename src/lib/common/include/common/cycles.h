@@ -26,7 +26,6 @@
    in files containing the exception.
 */
 
-
 /*
   Authors:
   Copyright (C) 2016, Daniel G. Waddington <daniel.waddington@ibm.com>
@@ -37,10 +36,10 @@
 #ifndef __CYCLES_H__
 #define __CYCLES_H__
 
-#include "types.h"
 #include <stdlib.h>
 #include <sys/syscall.h>
 #include <unistd.h>
+#include "types.h"
 
 #ifndef INLINE
 #define INLINE inline __attribute__((always_inline))
@@ -54,20 +53,18 @@
  * Reads the timestamp counter.
  * @return the read value.
  */
-INLINE cpu_time_t rdtsc()
-{
+INLINE cpu_time_t rdtsc() {
   unsigned a, d;
   asm volatile("lfence");  // should be mfence for AMD
   asm volatile("rdtsc" : "=a"(a), "=d"(d));
-  return ((unsigned long long)a) | (((unsigned long long)d) << 32);
+  return ((unsigned long long) a) | (((unsigned long long) d) << 32);
 }
 
 /**
  * Reads low 32 bits of the timestamp counter.
  * @return the read value.
  */
-INLINE uint32_t rdtsc_low()
-{
+INLINE uint32_t rdtsc_low() {
   uint32_t a;
   asm volatile("lfence");           // should be mfence for AMD
   asm volatile("rdtsc" : "=a"(a));  //, "=d" (d));
@@ -88,12 +85,11 @@ INLINE uint32_t rdtsc_low()
  * @return the timestamp counter's value.
  */
 INLINE
-cpu_time_t rdtscp(uint32_t& aux)
-{
+cpu_time_t rdtscp(uint32_t &aux) {
   unsigned a, d;
   asm volatile("lfence");  // should be mfence for AMD
   asm volatile("rdtscp" : "=a"(a), "=d"(d), "=c"(aux));
-  return ((unsigned long long)a) | (((unsigned long long)d) << 32);
+  return ((unsigned long long) a) | (((unsigned long long) d) << 32);
   ;
 }
 
@@ -111,14 +107,13 @@ cpu_time_t rdtscp(uint32_t& aux)
  * @return the timestamp counter's value.
  */
 INLINE
-cpu_time_t rdtscp(uint32_t& socket_id, uint32_t& cpu_id)
-{
+cpu_time_t rdtscp(uint32_t &socket_id, uint32_t &cpu_id) {
   unsigned a, d, c;
   asm volatile("lfence");  // should be mfence for AMD
   asm volatile("rdtscp" : "=a"(a), "=d"(d), "=c"(c));
   socket_id = (c & 0xFFF000) >> 12;
-  cpu_id    = c & 0xFFF;
-  return ((unsigned long long)a) | (((unsigned long long)d) << 32);
+  cpu_id = c & 0xFFF;
+  return ((unsigned long long) a) | (((unsigned long long) d) << 32);
   ;
 }
 
@@ -130,8 +125,7 @@ cpu_time_t rdtscp(uint32_t& socket_id, uint32_t& cpu_id)
  * Reads complete 40 bit counter into 64 bit value.
  * @return the read value.
  */
-INLINE cpu_time_t rdtsc()
-{
+INLINE cpu_time_t rdtsc() {
   unsigned long long ret;
   asm volatile("lfence");  // should be mfence for AMD
   asm volatile("rdtsc" : "=A"(ret));
@@ -144,18 +138,16 @@ INLINE cpu_time_t rdtsc()
 #error Platform not supported.
 #endif
 
-
 namespace Core
 {
-/** 
+/**
  * Get RDTSC frequency in MHz.
- * 
- * 
+ *
+ *
  * @return Clock frequency in MHz
  */
 float get_rdtsc_frequency_mhz();
-}
-
+}  // namespace Core
 
 #undef INLINE
 

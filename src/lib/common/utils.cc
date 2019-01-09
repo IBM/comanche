@@ -26,7 +26,6 @@
    in files containing the exception.
 */
 
-
 /*
   Authors:
   Copyright (C) 2014, Daniel G. Waddington <daniel.waddington@acm.org>
@@ -35,11 +34,11 @@
 #include <common/assert.h>
 #include <common/logging.h>
 #include <common/utils.h>
+#include <numa.h>
 #include <stdarg.h>
 #include <stdio.h>
-#include <numa.h>
 
-extern "C" void panic(const char* fmt, ...) {
+extern "C" void panic(const char *fmt, ...) {
   printf("\033[31m Panic: ");
   va_list list;
   va_start(list, fmt);
@@ -60,12 +59,12 @@ extern "C" void panic(const char* fmt, ...) {
  * @param addr Pointer to memory to touch
  * @param size Size of memory in bytes
  */
-void touch_huge_pages(void* addr, size_t size) {
+void touch_huge_pages(void *addr, size_t size) {
   SUPPRESS_NOT_USED_WARN volatile byte b;
 
   // Touch memory to trigger page mapping.
-  for (volatile byte* p = (byte*)addr;
-       ((unsigned long)p) < (((unsigned long)addr) + size);
+  for (volatile byte *p = (byte *) addr;
+       ((unsigned long) p) < (((unsigned long) addr) + size);
        p += HUGE_PAGE_SIZE) {
     b = *p;  // R touch.
   }
@@ -77,22 +76,22 @@ void touch_huge_pages(void* addr, size_t size) {
  * @param addr Pointer to memory to touch
  * @param size Size of memory in bytes
  */
-void touch_pages(void* addr, size_t size) {
+void touch_pages(void *addr, size_t size) {
   SUPPRESS_NOT_USED_WARN volatile byte b;
 
   // Touch memory to trigger page mapping.
-  for (volatile byte* p = (byte*)addr;
-       ((unsigned long)p) < (((unsigned long)addr) + size); p += PAGE_SIZE) {
+  for (volatile byte *p = (byte *) addr;
+       ((unsigned long) p) < (((unsigned long) addr) + size); p += PAGE_SIZE) {
     b = *p;  // R touch.
   }
 }
 
 #if defined(__linux__)
-Cpu_bitset get_actual_affinities(const Cpu_bitset& logical_affinities,
+Cpu_bitset get_actual_affinities(const Cpu_bitset &logical_affinities,
                                  const int numa_node) {
   assert(numa_node >= 0 && numa_node < numa_num_configured_nodes());
 
-  struct bitmask* node_cpumask = numa_allocate_cpumask();
+  struct bitmask *node_cpumask = numa_allocate_cpumask();
 
   if (numa_node_to_cpus(numa_node, node_cpumask) < 0) {
     panic("numa_node_to_cpus() failed!");
@@ -152,17 +151,16 @@ Cpu_bitset get_actual_affinities(const Cpu_bitset& logical_affinities,
   return cpu_bitset;
 }
 
-bool check_ptr_valid(void * pointer, size_t len)
-{
-  // int nullfd = open("/dev/random", O_WRONLY); 
+bool check_ptr_valid(void *pointer, size_t len) {
+  // int nullfd = open("/dev/random", O_WRONLY);
   // int rc = write(nullfd, pointer, len);
   // close(nullfd);
   // return (rc >= 0);
-  char * p = (char *) pointer;
-  int total=0;
-  while(len > 0) {
+  char *p = (char *) pointer;
+  int total = 0;
+  while (len > 0) {
     char x = *p;
-    total+=x;
+    total += x;
     p++;
     len--;
   }
@@ -170,4 +168,3 @@ bool check_ptr_valid(void * pointer, size_t len)
 }
 
 #endif  // __linux__
-

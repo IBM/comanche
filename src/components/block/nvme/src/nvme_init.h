@@ -14,10 +14,9 @@
    limitations under the License.
 */
 
-
-/* 
- * Authors: 
- * 
+/*
+ * Authors:
+ *
  * Daniel G. Waddington (daniel.waddington@ibm.com)
  *
  */
@@ -35,17 +34,14 @@ struct probed_device {
   struct spdk_nvme_ns *ns;
 };
 
-bool probe_cb(void *cb_ctx,
-              const struct spdk_nvme_transport_id *trid,
+bool probe_cb(void *cb_ctx, const struct spdk_nvme_transport_id *trid,
               struct spdk_nvme_ctrlr_opts *opts);
 
 void cleanup(void);
 
-void attach_cb(void *cb_ctx,
-               const struct spdk_nvme_transport_id *trid,
+void attach_cb(void *cb_ctx, const struct spdk_nvme_transport_id *trid,
                struct spdk_nvme_ctrlr *ctrlr,
                const struct spdk_nvme_ctrlr_opts *opts);
-
 
 #if defined(__cplusplus)
 }

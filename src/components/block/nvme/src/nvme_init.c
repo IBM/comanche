@@ -14,16 +14,14 @@
   limitations under the License.
 */
 
-
-
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 
 #include <common/logging.h>
 #include <rte_config.h>
-#include <rte_mempool.h>
 #include <rte_malloc.h>
+#include <rte_mempool.h>
 
 #include <spdk/nvme.h>
 //#include "spdk/pci.h"
@@ -48,7 +46,8 @@
 /* 	cdata = spdk_nvme_ctrlr_get_data(ctrlr); */
 
 /* 	if (!spdk_nvme_ns_is_active(ns)) { */
-/* 		PINF("Controller %-20.20s (%-20.20s): Skipping inactive NS %u\n", */
+/* 		PINF("Controller %-20.20s (%-20.20s): Skipping inactive NS %u\n",
+ */
 /* 		       cdata->mn, cdata->sn, */
 /* 		       spdk_nvme_ns_get_id(ns)); */
 /* 		return; */
@@ -61,27 +60,24 @@
 /* 	       spdk_nvme_ns_get_size(ns) / 1000000000); */
 /* } */
 
-
-/** 
+/**
  * Call during the probe process
- * 
- * @param cb_ctx 
+ *
+ * @param cb_ctx
  * @param dev Device descriptor
- * @param opts 
- * 
+ * @param opts
+ *
  * @return true to attach to this device
  */
-bool probe_cb(void *cb_ctx,
-              const struct spdk_nvme_transport_id *trid,
-              struct spdk_nvme_ctrlr_opts *opts)
-{
-  struct probed_device * pd = (struct probed_device *) cb_ctx;
+bool probe_cb(void *cb_ctx, const struct spdk_nvme_transport_id *trid,
+              struct spdk_nvme_ctrlr_opts *opts) {
+  struct probed_device *pd = (struct probed_device *) cb_ctx;
 
   char tmp[255];
-  sprintf(tmp,"0000:%s", pd->device_id);
+  sprintf(tmp, "0000:%s", pd->device_id);
 
-  bool result = (strcmp(tmp, trid->traddr)==0);
-  if(result)
+  bool result = (strcmp(tmp, trid->traddr) == 0);
+  if (result)
     PLOG("Using device: %s", trid->traddr);
   else
     PLOG("Ignoring device: %s", trid->traddr);
@@ -89,38 +85,34 @@ bool probe_cb(void *cb_ctx,
   return result;
 }
 
-/** 
+/**
  * Callback for spdk_nvme_probe() to report a device that has been
  * attached to the userspace NVMe driver.
- * 
- * @param cb_ctx 
+ *
+ * @param cb_ctx
  * @param dev Device descriptor
- * @param ctrlr 
- * @param opts 
+ * @param ctrlr
+ * @param opts
  */
-void attach_cb(void *cb_ctx,
-               const struct spdk_nvme_transport_id *trid,
+void attach_cb(void *cb_ctx, const struct spdk_nvme_transport_id *trid,
                struct spdk_nvme_ctrlr *ctrlr,
-               const struct spdk_nvme_ctrlr_opts *opts)
-{
+               const struct spdk_nvme_ctrlr_opts *opts) {
   int num_ns;
-  
+
   const struct spdk_nvme_ctrlr_data *cdata = spdk_nvme_ctrlr_get_data(ctrlr);
-  struct probed_device * pd = (struct probed_device *) cb_ctx;
-  
+  struct probed_device *pd = (struct probed_device *) cb_ctx;
+
   /* entry = malloc(sizeof(struct ctrlr_entry)); */
   /* if (entry == NULL) { */
   /* 	perror("ctrlr_entry malloc"); */
   /* 	exit(1); */
   /* } */
 
-  PINF("Attaching to NVMe device %s:%s:%s",
-       trid->traddr,
-       trid->trsvcid,
+  PINF("Attaching to NVMe device %s:%s:%s", trid->traddr, trid->trsvcid,
        trid->subnqn);
-  
-  snprintf((char*)pd->device_id, sizeof(pd->device_id), 
-	   "%-20.20s (%-20.20s)", cdata->mn, cdata->sn);
+
+  snprintf((char *) pd->device_id, sizeof(pd->device_id), "%-20.20s (%-20.20s)",
+           cdata->mn, cdata->sn);
 
   pd->ctrlr = ctrlr;
 
@@ -134,10 +126,9 @@ void attach_cb(void *cb_ctx,
    */
   num_ns = spdk_nvme_ctrlr_get_num_ns(ctrlr);
   PINF("Using controller %s with %d namespaces", pd->device_id, num_ns);
-  
+
   /* for (nsid = 1; nsid <= num_ns; nsid++) { */
   /* 	register_ns(pd,ctrlr, spdk_nvme_ctrlr_get_ns(ctrlr, nsid)); */
   /* } */
   pd->ns = spdk_nvme_ctrlr_get_ns(ctrlr, 1); /* namespace 1 */
 }
-

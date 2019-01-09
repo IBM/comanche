@@ -26,7 +26,6 @@
    in files containing the exception.
 */
 
-
 /*
   Authors:
   Copyright (C) 2017, Daniel G. Waddington <daniel.waddington@ibm.com>
@@ -40,41 +39,36 @@
 
 namespace Common
 {
-  
 template <typename T, size_t STACK_SIZE = 10000000>
-class Fixed_stack
-{
-private:
-  T * _base;
-  T * _top;
-  T * _max;
-  
-public:
+class Fixed_stack {
+ private:
+  T *_base;
+  T *_top;
+  T *_max;
+
+ public:
   Fixed_stack() {
-    _base = (T*) ::malloc(sizeof(T) * STACK_SIZE);
+    _base = (T *) ::malloc(sizeof(T) * STACK_SIZE);
     assert(_base);
     _top = _base;
     _max = _base + STACK_SIZE;
   }
 
-  ~Fixed_stack() {
-    ::free(_base);
-  }
+  ~Fixed_stack() { ::free(_base); }
 
-  void push(T& val) {
-    if(_top == _max) {
-      for(unsigned i=0;i<20;i++,_top--)
-        PLOG("entry: %p", *_top);
-    
+  void push(T &val) {
+    if (_top == _max) {
+      for (unsigned i = 0; i < 20; i++, _top--) PLOG("entry: %p", *_top);
+
       throw General_exception("stack overflow!");
     }
-    
+
     *_top = val;
     _top++;
   }
-  
+
   T pop() {
-    if(_top == _base) {
+    if (_top == _base) {
       throw General_exception("stack empty!");
     }
     _top--;
@@ -83,12 +77,8 @@ public:
     return rval;
   }
 
-  bool empty() const {
-    return _base == _top;
-  }
+  bool empty() const { return _base == _top; }
 };
+}  // namespace Common
 
-
-}
-
-#endif // _COMMON_STACK_H__
+#endif  // _COMMON_STACK_H__

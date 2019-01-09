@@ -3,9 +3,9 @@ cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
 # We statically compile in the DPDK and SPDK into this module
 #
-project(comanche-core CXX)
-
+project(core CXX)
 enable_language(CXX C ASM)
+include(../../../mk/clang-dev-tools.cmake)
 
 set(CMAKE_CXX_STANDARD 11)
 
@@ -42,7 +42,7 @@ add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 
 file(GLOB SOURCES src/*.c*)
 
-add_library(comanche-core SHARED ${SOURCES})
+add_library(core SHARED ${SOURCES})
 set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--no-undefined -Wl,--whole-archive")
 
 set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${EXTLIB_DPDK} ${EXTLIB_SPDK_ENV_DPDK} ${EXTLIB_SPDK_NVME}  ${EXTLIB_SPDK_UTIL} ${EXTLIB_SPDK_EVENT} ${EXTLIB_SPDK_TRACE} ${EXTLIB_SPDK_LOG} ${EXTLIB_SPDK_CONF} ${EXTLIB_SPDK_IOAT} ${EXTLIB_SPDK_RPC} ${EXTLIB_SPDK_JSONRPC} ${EXTLIB_SPDK_JSON} ${EXTLIB_SPDK_THREAD}")
@@ -52,7 +52,5 @@ target_link_libraries(${PROJECT_NAME} ${ASAN_LIB} common rt pthread numa pcap uu
 
 install(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION lib)
 install(DIRECTORY "include/core" DESTINATION include FILES_MATCHING PATTERN "*.h*")
-
-#target_compile_features(comanche-core PRIVATE cxx_range_for)
 
 add_subdirectory(./unit_test)

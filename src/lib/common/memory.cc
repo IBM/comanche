@@ -27,7 +27,8 @@
 */
 #include <common/memory.h>
 
-namespace Common {
+namespace Common
+{
 /**
  * Allocate memory at a specific region.  Mainly for debugging purposes.
  *
@@ -36,7 +37,7 @@ namespace Common {
  *
  * @return
  */
-void* malloc_at(size_t size, addr_t addr) {
+void *malloc_at(size_t size, addr_t addr) {
   static addr_t hint = 0xEE00000000ULL;
 
   if (addr == 0) {
@@ -44,16 +45,16 @@ void* malloc_at(size_t size, addr_t addr) {
     hint += 0x10000000ULL;
   }
 
-  void* ptr =
-      ::mmap((void*)(addr), size + sizeof(uint32_t), PROT_READ | PROT_WRITE,
+  void *ptr =
+      ::mmap((void *) (addr), size + sizeof(uint32_t), PROT_READ | PROT_WRITE,
              MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, 0, 0);
 
-  *((uint32_t*)ptr) = size;
-  return (void*)(((addr_t)ptr) + sizeof(uint32_t));
+  *((uint32_t *) ptr) = size;
+  return (void *) (((addr_t) ptr) + sizeof(uint32_t));
 }
 
-void free_at(void* ptr) {
-  void* base = (void*)(((addr_t)ptr) - sizeof(uint32_t));
-  ::munmap(base, *((uint32_t*)ptr));
+void free_at(void *ptr) {
+  void *base = (void *) (((addr_t) ptr) - sizeof(uint32_t));
+  ::munmap(base, *((uint32_t *) ptr));
 }
-}
+}  // namespace Common

@@ -32,13 +32,14 @@
 #include <functional>  //for std::function
 #include <string>
 
-static const unsigned int __seed = (const unsigned int)rdtsc();
+static const unsigned int __seed = (const unsigned int) rdtsc();
 
 __attribute__((constructor)) static void _init_rand() { srand(rdtsc()); }
 
-namespace Common {
-std::string string_replace(std::string& subject, const std::string& search,
-                           const std::string& replace) {
+namespace Common
+{
+std::string string_replace(std::string &subject, const std::string &search,
+                           const std::string &replace) {
   size_t pos = 0;
   while ((pos = subject.find(search, pos)) != std::string::npos) {
     subject.replace(pos, search.length(), replace);
@@ -49,10 +50,9 @@ std::string string_replace(std::string& subject, const std::string& search,
 
 std::string random_string(size_t length) {
   auto randchar = []() -> char {
-    const char charset[] =
-        "0123456789"
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        "abcdefghijklmnopqrstuvwxyz";
+    const char charset[] = "0123456789"
+                           "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                           "abcdefghijklmnopqrstuvwxyz";
     const size_t max_index = (sizeof(charset) - 1);
     return charset[rand() % max_index];
   };
@@ -60,4 +60,4 @@ std::string random_string(size_t length) {
   std::generate_n(str.begin(), length, randchar);
   return str;
 }
-}
+}  // namespace Common

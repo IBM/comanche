@@ -30,7 +30,7 @@
 
 #include <common/types.h>
 
-uint32_t crc_1024_c(uint8_t* buffer, uint32_t initval);
+uint32_t crc_1024_c(uint8_t *buffer, uint32_t initval);
 bool check_sse4();
 
 #endif

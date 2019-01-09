@@ -7,6 +7,7 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -D_BSD_SOURCE -D_FILE_OFFSET_BITS=6
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -D_BSD_SOURCE -D_FILE_OFFSET_BITS=64 -MD -MP")
 
 project(comanche-blknvme CXX)
+include (../../../../mk/clang-dev-tools.cmake)
 
 include_directories(${CMAKE_INSTALL_PREFIX}/include)
 include_directories(${CMAKE_INSTALL_PREFIX}/include/dpdk)

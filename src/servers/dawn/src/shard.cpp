@@ -73,11 +73,11 @@ namespace Dawn {
     assert(_i_kvstore);
 
 #ifdef PROFILE
-    ProfilerStart("shard_loop");
+    ProfilerStart("shard_main_loop");
 #endif
   
     uint64_t tick = 0;
-    static constexpr uint64_t CHECK_CONNECTION_INTERVAL = 1000000;
+    static constexpr uint64_t CHECK_CONNECTION_INTERVAL = 10000;
 
     Connection_handler::action_t action;
     std::vector<std::vector<Connection_handler*>::iterator> pending_close;
@@ -128,13 +128,13 @@ namespace Dawn {
         while((iob = handler->get_pending_msg(p_msg))!=nullptr) {
           assert(p_msg);
           switch(p_msg->type_id) {
-          case MSG_TYPE_POOL_REQUEST:
-            process_message_pool_request(handler,
-                                         static_cast<Protocol::Message_pool_request*>(p_msg));
-            break;
           case MSG_TYPE_IO_REQUEST:
             process_message_IO_request(handler,
                                        static_cast<Protocol::Message_IO_request*>(p_msg));
+            break;
+          case MSG_TYPE_POOL_REQUEST:
+            process_message_pool_request(handler,
+                                         static_cast<Protocol::Message_pool_request*>(p_msg));
             break;
           default:
             throw General_exception("unrecognizable message type");
@@ -239,15 +239,12 @@ namespace Dawn {
           /* pool does not exist yet */
           pool = _i_kvstore->open_pool(msg->path(), msg->pool_name());
 
-          PLOG("pool open for first time (%p)", pool);
+          PLOG("pool open for first time (%p)", (void*) pool);
           /* register pool handle */
           handler->register_pool(pool_name, pool);
-          
-          // std::vector<::iovec> regions;
-          // status_t rc = _i_kvstore->get_pool_regions(pool, regions);
         }
         else {
-          PLOG("reusing existing open pool (%p)", pool);
+          PLOG("reusing existing open pool (%p)", (void*) pool);
           /* pool exists */
           handler->add_reference(pool);
         }
@@ -334,7 +331,9 @@ namespace Dawn {
     // if(!_pm->is_pool_open(msg->pool_id))
     //   throw Protocol_exception("invalid pool identifier");
 
-    /* State that does not post response (yet) */
+    /////////////////////////////////////////////////////////////////////////////
+    //   PUT ADVANCE   //
+    /////////////////////
     if(msg->op == Protocol::OP_PUT_ADVANCE) {
 
       if(option_DEBUG)
@@ -391,6 +390,10 @@ namespace Dawn {
       new (iob->base()) Protocol::Message_IO_response(iob->length(), handler->auth_id());
 
     int status;
+    
+    /////////////////////////////////////////////////////////////////////////////
+    //   PUT           //
+    /////////////////////
     if(msg->op == Protocol::OP_PUT) {
 
       /* for basic 'puts' we have to do a memcpy - to support "in-place"
@@ -419,10 +422,11 @@ namespace Dawn {
           else
             PLOG("kvstore->put returned %d", status);
         }
-
       }
-
     }
+    /////////////////////////////////////////////////////////////////////////////
+    //   GET           //
+    /////////////////////
     else if(msg->op == Protocol::OP_GET) {
 
       if(option_DEBUG)
