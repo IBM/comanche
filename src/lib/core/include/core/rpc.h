@@ -14,9 +14,9 @@
    limitations under the License.
 */
 
-/* 
- * Authors: 
- * 
+/*
+ * Authors:
+ *
  * Daniel G. Waddington (daniel.waddington@ibm.com)
  *
  */

@@ -14,9 +14,9 @@
    limitations under the License.
 */
 
-/* 
- * Authors: 
- * 
+/*
+ * Authors:
+ *
  * Daniel G. Waddington (daniel.waddington@ibm.com)
  *
  */
@@ -26,7 +26,7 @@
 
 #include <common/types.h>
 
-extern "C" addr_t xms_get_phys(void * vaddr);
-extern "C" void * xms_mmap(void* vaddr, addr_t paddr, size_t size);
+extern "C" addr_t xms_get_phys(void* vaddr);
+extern "C" void* xms_mmap(void* vaddr, addr_t paddr, size_t size);
 
-#endif // __CORE_XMS_H__
+#endif  // __CORE_XMS_H__

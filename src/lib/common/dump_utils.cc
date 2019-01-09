@@ -26,7 +26,6 @@
    in files containing the exception.
 */
 
-
 /*
   Authors:
   Copyright (C) 2014, Daniel G. Waddington <daniel.waddington@acm.org>
@@ -37,10 +36,10 @@
 #include <stdint.h>
 #include <stdio.h>
 
-void hexdump(void* data, unsigned len) {
+void hexdump(void *data, unsigned len) {
   printf("HEXDUMP----------------------------------------------");
   assert(len > 0);
-  uint8_t* d = (uint8_t*)data;
+  uint8_t *d = (uint8_t *) data;
   for (unsigned i = 0; i < len; i++) {
     if (i % 16 == 0) {
       printf("\n0x%x:\t", i);
@@ -51,10 +50,10 @@ void hexdump(void* data, unsigned len) {
   fflush(0);
 }
 
-void asciidump(void* data, unsigned len) {
+void asciidump(void *data, unsigned len) {
   printf("ASCIIDUMP----------------------------------------------");
   assert(len > 0);
-  uint8_t* d = (uint8_t*)data;
+  uint8_t *d = (uint8_t *) data;
   for (unsigned i = 0; i < len; i++) {
     if (i % 16 == 0) {
       printf("\n0x%x:\t", i);

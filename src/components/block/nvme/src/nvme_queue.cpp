@@ -14,51 +14,47 @@
    limitations under the License.
 */
 
-
-/* 
- * Authors: 
- * 
+/*
+ * Authors:
+ *
  * Daniel G. Waddington (daniel.waddington@ibm.com)
  *
  */
 
-#include <common/utils.h>
-#include <common/exceptions.h>
 #include <common/cycles.h>
+#include <common/exceptions.h>
+#include <common/utils.h>
 
-#include <pthread.h>
 #include <assert.h>
-#include <rte_ring.h>
+#include <pthread.h>
 #include <rte_errno.h>
 #include <rte_malloc.h>
+#include <rte_ring.h>
 #include <spdk/nvme.h>
 
-#include "nvme_queue.h"
 #include "nvme_device.h"
+#include "nvme_queue.h"
 
-Nvme_queue::Nvme_queue(Nvme_device* device,
-                       unsigned qid,
+Nvme_queue::Nvme_queue(Nvme_device* device, unsigned qid,
                        struct spdk_nvme_qpair* const qpair)
-  : _device(device),
-    _qpair(qpair),
-    _rdtsc_freq_mhz(Core::get_rdtsc_frequency_mhz())
-{
-  if(option_DEBUG)
-    PLOG("New Nvme_queue: %u", qid);
+    : _device(device),
+      _qpair(qpair),
+      _rdtsc_freq_mhz(Core::get_rdtsc_frequency_mhz()) {
+  if (option_DEBUG) PLOG("New Nvme_queue: %u", qid);
 
   PLOG("blk-nvme: clock freq %f", _rdtsc_freq_mhz);
-  
+
   assert(device);
   assert(qpair);
 
   _ns_id = spdk_nvme_ns_get_id(device->ns());
   _queue_id = qid;
-  _block_size = _device->get_block_size(1); // namespace id
+  _block_size = _device->get_block_size(1);  // namespace id
   _max_lba = spdk_nvme_ns_get_num_sectors(device->ns());
-  
+
 #ifdef CONFIG_QUEUE_STATS
   PLOG("blk-nvme: queue stats ON");
-  
+
   /* reset stats */
   _stats.issued = 0;
   _stats.polls = 0;
@@ -72,151 +68,139 @@ Nvme_queue::Nvme_queue(Nvme_device* device,
   _stats.max_io_size_blocks = 0;
   _stats.total_io_cycles = 0;
 #endif
-  
+
   PLOG("created new IO queue: namespace=%d max_lba=%ld", _ns_id, _max_lba);
 }
 
-Nvme_queue::~Nvme_queue()
-{
+Nvme_queue::~Nvme_queue() {
   assert(_qpair);
-  
+
   PLOG("freeing nvme io queue pair: %p", _qpair);
   int rc = spdk_nvme_ctrlr_free_io_qpair(_qpair);
   if (rc)
-    throw General_exception("spdk_nvme_ctrlr_free_io_qpair failed unexpectedly.");
+    throw General_exception(
+        "spdk_nvme_ctrlr_free_io_qpair failed unexpectedly.");
 }
-
 
 /* --------- async operations ----------*/
 
-/** 
+/**
  * Completion callback for IO operations
- * 
- * @param arg 
- * @param completion 
+ *
+ * @param arg
+ * @param completion
  */
-static void
-async_io_internal_complete(void* arg, const struct spdk_nvme_cpl* completion)
-{
-  IO_descriptor * desc = static_cast<IO_descriptor *>(arg);
+static void async_io_internal_complete(void* arg,
+                                       const struct spdk_nvme_cpl* completion) {
+  IO_descriptor* desc = static_cast<IO_descriptor*>(arg);
 
 #ifdef CONFIG_QUEUE_STATS
   desc->queue->_stats.total_io_cycles += (rdtsc() - desc->time_stamp);
 #endif
 
-  if(desc->cb)
+  if (desc->cb)
     desc->cb(desc->tag, desc->arg0, desc->arg1); /* make call back if needed */
 
   desc->queue->remove_pending_fifo(desc);
-  
-  if(completion->status.sc != 0)
-    PERR("IO error: tag=%lu", desc->tag);
+
+  if (completion->status.sc != 0) PERR("IO error: tag=%lu", desc->tag);
   assert(desc);
-  
+
   desc->queue->device()->free_desc(desc);
 }
 
-
-void Nvme_queue::submit_async_op_internal(IO_descriptor * desc)
-{
+void Nvme_queue::submit_async_op_internal(IO_descriptor* desc) {
   assert(desc);
   assert(desc->buffer);
   assert(check_aligned(desc->buffer, CONFIG_IO_MEMORY_ALIGNMENT_REQUIREMENT));
 
   if (option_DEBUG)
-    PINF("[+] submit_async_op_internal: queue=%p, lba=%ld lba_count=%ld, op=%s, tag=%lu",
-         this, desc->lba, desc->lba_count, desc->op==COMANCHE_OP_READ ? "R" : "W", desc->tag);
+    PINF("[+] submit_async_op_internal: queue=%p, lba=%ld lba_count=%ld, "
+         "op=%s, tag=%lu",
+         this, desc->lba, desc->lba_count,
+         desc->op == COMANCHE_OP_READ ? "R" : "W", desc->tag);
 
 #ifdef CONFIG_QUEUE_STATS
-  if(desc->lba_count > _stats.max_io_size_blocks)
+  if (desc->lba_count > _stats.max_io_size_blocks)
     _stats.max_io_size_blocks = desc->lba_count;
 #endif
 
   // bounds check LBA
   if (desc->lba + desc->lba_count > _max_lba)
-    throw API_exception("lba out of bounds (lba=%lu, max=%lu)",desc->lba + desc->lba_count, _max_lba);
+    throw API_exception("lba out of bounds (lba=%lu, max=%lu)",
+                        desc->lba + desc->lba_count, _max_lba);
 
- retry_submission:
+retry_submission:
 
 #ifdef CONFIG_QUEUE_STATS
   cpu_time_t start_time = desc->time_stamp = rdtsc();
   desc->queue = this;
 #endif
-  
+
   int rc = 0;
   if (desc->op == OP_FLAG_READ) {
-    rc = spdk_nvme_ns_cmd_read(_device->ns(),
-                               _qpair,
-                               desc->buffer,
-                               desc->lba, /* LBA start */
-                               desc->lba_count,         /* number of LBAs */
-                               async_io_internal_complete, /* completion callback */
-                               (void*)desc,        /* callback arg */
-                               0 /* flags */);
-  }
-  else if (desc->op == OP_FLAG_WRITE) {
-
+    rc = spdk_nvme_ns_cmd_read(
+        _device->ns(), _qpair, desc->buffer, desc->lba, /* LBA start */
+        desc->lba_count,                                /* number of LBAs */
+        async_io_internal_complete, /* completion callback */
+        (void*) desc,               /* callback arg */
+        0 /* flags */);
+  } else if (desc->op == OP_FLAG_WRITE) {
     wmb();
-    
-    rc = spdk_nvme_ns_cmd_write(_device->ns(),
-                                _qpair,
-                                desc->buffer,
-                                desc->lba, /* LBA start */
-                                desc->lba_count,         /* number of LBAs */
-                                async_io_internal_complete, /* completion callback */
-                                (void*)desc,        /* callback arg */
-                                0 /* flags */);
-  }
-  else {
+
+    rc = spdk_nvme_ns_cmd_write(
+        _device->ns(), _qpair, desc->buffer, desc->lba, /* LBA start */
+        desc->lba_count,                                /* number of LBAs */
+        async_io_internal_complete, /* completion callback */
+        (void*) desc,               /* callback arg */
+        0 /* flags */);
+  } else {
     throw Logic_exception("unexpected condition");
   }
 
-  if(rc == -ENOMEM) {
-    // PERR("(queued mode) IO submission failed. No resources. ns=%p lba=%ld buffer=%p",
+  if (rc == -ENOMEM) {
+    // PERR("(queued mode) IO submission failed. No resources. ns=%p lba=%ld
+    // buffer=%p",
     //      _device->ns(), desc->lba, desc->buffer);
     process_completions();
     goto retry_submission;
   }
 
-  
 #ifdef CONFIG_QUEUE_STATS
   cpu_time_t duration = rdtsc() - start_time;
-  if(duration > _stats.max_submit_cycles)
-    _stats.max_submit_cycles = duration;
+  if (duration > _stats.max_submit_cycles) _stats.max_submit_cycles = duration;
 
-  _stats.total_submit_cycles+=duration;
+  _stats.total_submit_cycles += duration;
   _stats.issued++;
   _stats.lba_count += desc->lba_count;
 
-
-  if(_stats.issued % CONFIG_STATS_REPORT_INTERVAL == 0) {
-
-#ifdef CONFIG_QUEUE_STATS_DETAILED  
-    PLOG("blknvme: Queue (%p) failed polls(%lu), skips(%lu), issued(%lu), polls(%lu), maxsubmit(%lu), \
+  if (_stats.issued % CONFIG_STATS_REPORT_INTERVAL == 0) {
+#ifdef CONFIG_QUEUE_STATS_DETAILED
+    PLOG(
+        "blknvme: Queue (%p) failed polls(%lu), skips(%lu), issued(%lu), polls(%lu), maxsubmit(%lu), \
 maxcompl(%lu), meansubmit(%.2f), meancompl(%.2f), maxiosizeblks(%lu), meancyclesperio(%.2f)",
-         this, _stats.failed_polls, _stats.list_skips,
-         _stats.issued, _stats.polls, _stats.max_submit_cycles, _stats.max_complete_cycles,
-         (float)_stats.total_submit_cycles / (float) _stats.issued,
-         (float)_stats.total_complete_cycles / (float) _stats.issued,
-         _stats.max_io_size_blocks,
-         (float)_stats.total_io_cycles / (float) _stats.issued
-         );
-    
-#endif
-    if(_stats.last_report_timestamp > 0) {
-      uint64_t time_delta_usec = (rdtsc() - _stats.last_report_timestamp) / _rdtsc_freq_mhz;
+        this, _stats.failed_polls, _stats.list_skips, _stats.issued,
+        _stats.polls, _stats.max_submit_cycles, _stats.max_complete_cycles,
+        (float) _stats.total_submit_cycles / (float) _stats.issued,
+        (float) _stats.total_complete_cycles / (float) _stats.issued,
+        _stats.max_io_size_blocks,
+        (float) _stats.total_io_cycles / (float) _stats.issued);
 
-      auto bps = ((double)_stats.lba_count) / ((double)time_delta_usec / 1000000.0);
-      PLOG("blknvme: throughput %1g BPS (%2g MiB/s)", bps, (bps * 4.0)/1024.0);
+#endif
+    if (_stats.last_report_timestamp > 0) {
+      uint64_t time_delta_usec =
+          (rdtsc() - _stats.last_report_timestamp) / _rdtsc_freq_mhz;
+
+      auto bps =
+          ((double) _stats.lba_count) / ((double) time_delta_usec / 1000000.0);
+      PLOG("blknvme: throughput %1g BPS (%2g MiB/s)", bps,
+           (bps * 4.0) / 1024.0);
     }
     _stats.last_report_timestamp = rdtsc();
     _stats.lba_count = 0;
   }
 
-
-  
 #endif
-  
 }
 
 // uint64_t
@@ -227,8 +211,9 @@ maxcompl(%lu), meansubmit(%.2f), meancompl(%.2f), maxiosizeblks(%lu), meancycles
 //   _stats.polls++;
 // #endif
 
-//   int32_t rc = spdk_nvme_qpair_process_completions(_qpair,0); /* process all completions */
-//   if(rc < 0) throw General_exception("spdk_nvme_qpair_process_completions failed");
+//   int32_t rc = spdk_nvme_qpair_process_completions(_qpair,0); /* process all
+//   completions */ if(rc < 0) throw
+//   General_exception("spdk_nvme_qpair_process_completions failed");
 
 //   if(_completion_list.empty()) {
 //     return 0;
@@ -255,15 +240,16 @@ maxcompl(%lu), meansubmit(%.2f), meancompl(%.2f), maxiosizeblks(%lu), meancycles
 //   cpu_time_t start_time = rdtsc();
 //   _stats.polls++;
 // #endif
-//   int32_t rc = spdk_nvme_qpair_process_completions(_qpair,0); /* process all completions */
-//   if(rc < 0) throw General_exception("spdk_nvme_qpair_process_completions failed");
+//   int32_t rc = spdk_nvme_qpair_process_completions(_qpair,0); /* process all
+//   completions */ if(rc < 0) throw
+//   General_exception("spdk_nvme_qpair_process_completions failed");
 
 //   uint64_t tag = 0;
 //   while(1) {
 
 //     process_completions(0);
 //     _completion_list.mc_dequeue(tag);
-    
+
 //     if(tag == _status.last_tag + 1) {
 //       _status.last_tag = tag;
 //       return _status.last_tag;
@@ -274,28 +260,25 @@ maxcompl(%lu), meansubmit(%.2f), meancompl(%.2f), maxiosizeblks(%lu), meancycles
 //   throw General_exception("get_last_completion spun");
 
 // }
-  
 
-int32_t Nvme_queue::process_completions(int limit)
-{
+int32_t Nvme_queue::process_completions(int limit) {
 #ifdef CONFIG_QUEUE_STATS
   cpu_time_t start_time = rdtsc();
   _stats.polls++;
 #endif
 
-  int32_t nc = spdk_nvme_qpair_process_completions(_qpair,
-                                                   limit /* max number of completions */);
+  int32_t nc = spdk_nvme_qpair_process_completions(
+      _qpair, limit /* max number of completions */);
 
-  if(nc < 0) throw General_exception("spdk_nvme_qpair_process_completions failed");
-
+  if (nc < 0)
+    throw General_exception("spdk_nvme_qpair_process_completions failed");
 
 #ifdef CONFIG_QUEUE_STATS
-  if(nc == 0) {
+  if (nc == 0) {
     _stats.failed_polls++;
-  }
-  else {
+  } else {
     cpu_time_t duration = rdtsc() - start_time;
-    if(duration > _stats.max_complete_cycles) {
+    if (duration > _stats.max_complete_cycles) {
       _stats.max_complete_cycles = duration;
     }
     _stats.total_complete_cycles += duration;
@@ -305,11 +288,9 @@ int32_t Nvme_queue::process_completions(int limit)
   return nc;
 }
 
-bool Nvme_queue::
-check_completion(uint64_t gwid)
-{
+bool Nvme_queue::check_completion(uint64_t gwid) {
   uint64_t last = get_last_completion();
   //  PLOG("!!!! Check_completion last=%lu", last);
-  if(last == UINT64_MAX) return true; // all complete!
+  if (last == UINT64_MAX) return true;  // all complete!
   return (last >= gwid);
 }

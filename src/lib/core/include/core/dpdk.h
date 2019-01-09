@@ -14,9 +14,9 @@
    limitations under the License.
 */
 
-/* 
- * Authors: 
- * 
+/*
+ * Authors:
+ *
  * Daniel G. Waddington (daniel.waddington@ibm.com)
  *
  */
@@ -24,35 +24,35 @@
 #ifndef __CORE_DPDK_H__
 #define __CORE_DPDK_H__
 
-#include <sstream>
-#include <stdlib.h>
-#include <sys/stat.h>
-#include <pthread.h>
-#include <string.h>
-#include <numa.h>
 #include <common/exceptions.h>
+#include <numa.h>
+#include <pthread.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sstream>
 
 #define CONFIG_MAX_MEMORY_PER_INSTANCE_MB 16384  // 16GB
-#define CONFIG_THREAD_LIMIT 48  // limit number of EAL threads
+#define CONFIG_THREAD_LIMIT 48                   // limit number of EAL threads
 
 namespace DPDK
 {
 extern bool _g_eal_initialized;
 
-#define DEV_OPT_DECL(name, var)                                                                                        \
-  char* var = getenv(name);                                                                                            \
-  if (var) {                                                                                                           \
-    strcpy(var##_, "-w ");                                                                                             \
-    strcat(var##_, var);                                                                                               \
-  }                                                                                                                    \
-  else                                                                                                                 \
+#define DEV_OPT_DECL(name, var) \
+  char* var = getenv(name);     \
+  if (var) {                    \
+    strcpy(var##_, "-w ");      \
+    strcat(var##_, var);        \
+  }                             \
+  else                          \
     strcpy(var##_, "");
 
 void meminfo_display(void);
 
-void eal_init(size_t memory_limit_MB, unsigned master_core = 0, bool primary=true);
+void eal_init(size_t memory_limit_MB, unsigned master_core = 0,
+              bool primary = true);
 void eal_show_info();
-
 
 }  // namespace DPDK
 

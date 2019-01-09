@@ -55,7 +55,8 @@
 
 #include <atomic>
 
-namespace Common {
+namespace Common
+{
 /**
  * Non-intrusive lock-free unbounded single-consumer/single-producer (SPSC)
  * queue.
@@ -64,18 +65,16 @@ namespace Common {
  * http://cbloomrants.blogspot.com/2009/02/02-26-09-low-level-threading-part-51.html
  */
 template <typename T>
-class spsc_queue_t
-{
+class spsc_queue_t {
  public:
   /** Constructor. */
-  spsc_queue_t() : _head(reinterpret_cast<node_t*>(new node_aligned_t)), _tail(_head)
-  {
+  spsc_queue_t()
+      : _head(reinterpret_cast<node_t *>(new node_aligned_t)), _tail(_head) {
     _head->next = NULL;
   }
 
   /** Destructor. */
-  virtual ~spsc_queue_t()
-  {
+  virtual ~spsc_queue_t() {
     T output;
     while (this->dequeue(output)) {
     }
@@ -83,20 +82,18 @@ class spsc_queue_t
   }
 
   /** Inserts an item into the back of the queue. */
-  void enqueue(const T& input)
-  {
-    node_t* node = reinterpret_cast<node_t*>(new node_aligned_t);
-    node->data   = input;
-    node->next   = NULL;
+  void enqueue(const T &input) {
+    node_t *node = reinterpret_cast<node_t *>(new node_aligned_t);
+    node->data = input;
+    node->next = NULL;
 
     std::atomic_thread_fence(std::memory_order_acq_rel);
     _head->next = node;
-    _head       = node;
+    _head = node;
   }
 
   /** Gets an item from the front of the queue. */
-  bool dequeue(T& output)
-  {
+  bool dequeue(T &output) {
     std::atomic_thread_fence(std::memory_order_consume);
     if (!_tail->next) {
       return false;
@@ -114,26 +111,22 @@ class spsc_queue_t
  private:
   /** Internal list node. */
   struct node_t {
-    node_t* next;
-    T       data;
+    node_t *next;
+    T data;
   };
 
-  typedef typename std::aligned_storage<sizeof(node_t), std::alignment_of<node_t>::value>::type
-    node_aligned_t;
+  typedef typename std::aligned_storage<
+      sizeof(node_t), std::alignment_of<node_t>::value>::type node_aligned_t;
 
-  node_t* _head;
-  char    _cache_line[64];
-  node_t* _tail;
-  node_t* _back;
+  node_t *_head;
+  char _cache_line[64];
+  node_t *_tail;
+  node_t *_back;
 
   // Private copy constructor and =operator.
-  spsc_queue_t(const spsc_queue_t&)
-  {
-  }
-  void operator=(const spsc_queue_t&)
-  {
-  }
+  spsc_queue_t(const spsc_queue_t &) {}
+  void operator=(const spsc_queue_t &) {}
 };
-}
+}  // namespace Common
 
 #endif
