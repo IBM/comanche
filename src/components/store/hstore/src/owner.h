@@ -37,8 +37,8 @@ namespace impl
 	class owner
 	{
 	public:
-		static constexpr unsigned size = 8U;
-		using value_type = std::uint64_t; /* sufficient for all owners */
+		static constexpr unsigned size = 32U;
+		using value_type = std::uint64_t; /* sufficient for size not over 64U */
 		static constexpr auto pos_undefined = std::numeric_limits<std::size_t>::max();
 	private:
 		persistent_atomic_t<value_type> _value; /* at least owner::size bits */

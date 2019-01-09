@@ -16,7 +16,10 @@ template <typename Allocator>
 	impl::persist_map<Allocator>::persist_map(std::size_t n, const Allocator &av_)
 		: _size_control()
 		, _segment_count(
-			n/base_segment_size == 0 ? 1U : segment_layout::log2(n/base_segment_size)
+			/* The map tends to split when it is about 40% full.
+			 * Triple the excpected object count when creating a segment count.
+			 */
+			((n*3U)/base_segment_size == 0 ? 1U : segment_layout::log2((3U * n)/base_segment_size))
 		)
 		, _sc{}
 	{
