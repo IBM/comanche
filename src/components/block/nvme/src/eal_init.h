@@ -14,10 +14,9 @@
    limitations under the License.
 */
 
-
-/* 
- * Authors: 
- * 
+/*
+ * Authors:
+ *
  * Daniel G. Waddington (daniel.waddington@ibm.com)
  *
  */
@@ -34,8 +33,8 @@
 #error "eal_init.h is C++ only"
 #endif
 
-namespace DPDK {
-
+namespace DPDK
+{
 void eal_init(size_t memory_limit_MB);
 
 }

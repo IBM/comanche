@@ -13,38 +13,35 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 */
-#include <gtest/gtest.h>
-#include <string>
-#include <core/poller.h>
+#include <common/cpu.h>
 #include <common/cycles.h>
 #include <common/exceptions.h>
 #include <common/logging.h>
-#include <common/cpu.h>
+#include <core/poller.h>
+#include <gtest/gtest.h>
+#include <string>
 
-#include <component/base.h>
-#include <api/components.h>
 #include <api/block_itf.h>
+#include <api/components.h>
 #include <api/fs_itf.h>
+#include <component/base.h>
 
 using namespace Component;
 
 #define TEST_QUEUE_ID 0
 
-struct
-{
+struct {
   std::string pci;
 } opt;
 
-namespace {
-
+namespace
+{
 // The fixture for testing class Foo.
 class Block_nvme_test : public ::testing::Test {
-
  protected:
-
   // If the constructor and destructor are not enough for setting up
   // and cleaning up each test, you can define the following methods:
-  
+
   virtual void SetUp() {
     // Code here will be called immediately after the constructor (right
     // before each test).
@@ -54,31 +51,29 @@ class Block_nvme_test : public ::testing::Test {
     // Code here will be called immediately after each test (right
     // before the destructor).
   }
-  
+
   // Objects declared here can be used by all tests in the test case
-  static Component::IBlock_device * _block;
+  static Component::IBlock_device *_block;
 };
 
+Component::IBlock_device *Block_nvme_test::_block;
 
-Component::IBlock_device * Block_nvme_test::_block;
-
-TEST_F(Block_nvme_test, InstantiateBlockDevice)
-{
+TEST_F(Block_nvme_test, InstantiateBlockDevice) {
   using namespace Component;
-  IBase * comp = load_component("libcomanche-blknvme.so",
-                                block_nvme_factory);
+  IBase *comp = load_component("libcomanche-blknvme.so", block_nvme_factory);
   assert(comp);
   PLOG("Block_device factory loaded OK.");
 
-  IBlock_device_factory * fact = (IBlock_device_factory *) comp->query_interface(IBlock_device_factory::iid());
+  IBlock_device_factory *fact = (IBlock_device_factory *) comp->query_interface(
+      IBlock_device_factory::iid());
 
   cpu_mask_t m;
   m.add_core(TEST_QUEUE_ID);
-  
+
   Core::Poller *poller = new Core::Poller(m);
-  
-  _block = fact->create(opt.pci.c_str(),nullptr, poller);
-  
+
+  _block = fact->create(opt.pci.c_str(), nullptr, poller);
+
   assert(_block);
   fact->release_ref();
   PINF("nvme-based block-layer component loaded OK.");
@@ -145,40 +140,41 @@ TEST_F(Block_nvme_test, PartitionIntegrity)
 }
 #endif
 
-
 #if 1
-TEST_F(Block_nvme_test, WriteThroughput)
-{
+TEST_F(Block_nvme_test, WriteThroughput) {
   using namespace Component;
-  
-  io_buffer_t mem = _block->allocate_io_buffer(4096,4096,Component::NUMA_NODE_ANY);
-  
+
+  io_buffer_t mem =
+      _block->allocate_io_buffer(4096, 4096, Component::NUMA_NODE_ANY);
+
   unsigned ITERATIONS = 100000;
   uint64_t tag;
 
   /* warm up */
-  for(unsigned i=0;i<100;i++) 
+  for (unsigned i = 0; i < 100; i++)
     tag = _block->async_write(mem, 0, i, 1, TEST_QUEUE_ID);
-  while(!_block->check_completion(tag, TEST_QUEUE_ID)); /* we only have to check the last completion */
+  while (!_block->check_completion(tag, TEST_QUEUE_ID))
+    ; /* we only have to check the last completion */
 
   cpu_time_t start = rdtsc();
   uint64_t last_checked = 0;
-  uint64_t water_mark = 2048; 
+  uint64_t water_mark = 2048;
 
-  for(unsigned i=0;i<ITERATIONS;i++) {
+  for (unsigned i = 0; i < ITERATIONS; i++) {
     tag = _block->async_write(mem, 0, i, 1, TEST_QUEUE_ID);
-    if(tag - last_checked > water_mark) {
-      if(_block->check_completion(last_checked+water_mark, TEST_QUEUE_ID)) {
-        last_checked+=water_mark;
+    if (tag - last_checked > water_mark) {
+      if (_block->check_completion(last_checked + water_mark, TEST_QUEUE_ID)) {
+        last_checked += water_mark;
       }
     }
   }
-  while(!_block->check_completion(tag, TEST_QUEUE_ID));
+  while (!_block->check_completion(tag, TEST_QUEUE_ID))
+    ;
 
-
-  cpu_time_t cycles_per_iop = (rdtsc() - start)/(ITERATIONS);
-  PINF("took %ld cycles (%f usec) per IOP", cycles_per_iop,  cycles_per_iop / 2400.0f);
-  PINF("rate: %f KIOPS", (2400.0 * 1000.0)/cycles_per_iop);
+  cpu_time_t cycles_per_iop = (rdtsc() - start) / (ITERATIONS);
+  PINF("took %ld cycles (%f usec) per IOP", cycles_per_iop,
+       cycles_per_iop / 2400.0f);
+  PINF("rate: %f KIOPS", (2400.0 * 1000.0) / cycles_per_iop);
 
   _block->free_io_buffer(mem);
 }
@@ -248,32 +244,31 @@ TEST_F(Block_nvme_test, CheckAllWriteThroughput)
 }
 #endif
 
-
 #if 1
-TEST_F(Block_nvme_test, WriteLatency)
-{
-  io_buffer_t mem = _block->allocate_io_buffer(4096,4096,Component::NUMA_NODE_ANY);
+TEST_F(Block_nvme_test, WriteLatency) {
+  io_buffer_t mem =
+      _block->allocate_io_buffer(4096, 4096, Component::NUMA_NODE_ANY);
 
   unsigned ITERATIONS = 1000;
   uint64_t tag;
 
   /* warm up */
-  for(unsigned i=0;i<10000;i++) 
+  for (unsigned i = 0; i < 10000; i++)
     tag = _block->async_write(mem, 0, i, 1, TEST_QUEUE_ID);
-  while(!_block->check_completion(tag, TEST_QUEUE_ID)); /* we only have to check the last completion */
-  
+  while (!_block->check_completion(tag, TEST_QUEUE_ID))
+    ; /* we only have to check the last completion */
 
-  for(unsigned i=0;i<ITERATIONS;i++) {
+  for (unsigned i = 0; i < ITERATIONS; i++) {
     cpu_time_t start = rdtsc();
     _block->write(mem, 0, i, 1, TEST_QUEUE_ID);
     cpu_time_t cycles_for_iop = rdtsc() - start;
-    PINF("write latency took %ld cycles (%f usec) per IOP", cycles_for_iop,  cycles_for_iop / 2400.0f);
+    PINF("write latency took %ld cycles (%f usec) per IOP", cycles_for_iop,
+         cycles_for_iop / 2400.0f);
   }
 
   _block->free_io_buffer(mem);
 }
 #endif
-
 
 #if 0
 TEST_F(Block_nvme_test, SharedWork)
@@ -295,18 +290,15 @@ TEST_F(Block_nvme_test, SharedWork)
 }
 #endif
 
-
-TEST_F(Block_nvme_test, ReleaseBlockDevice)
-{
+TEST_F(Block_nvme_test, ReleaseBlockDevice) {
   assert(_block);
   _block->release_ref();
 }
 
-
-} // namespace
+}  // namespace
 
 int main(int argc, char **argv) {
-  if(argc!=2) {
+  if (argc != 2) {
     PINF("test <pci-address>");
     return 0;
   }
