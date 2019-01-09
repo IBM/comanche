@@ -107,14 +107,16 @@ class Interval_tree {
     intervals = other.intervals;
     if (other.left) {
       left = new interval_tree_t(*other.left);
-    } else {
+    }
+    else {
       if (left) delete left;
       left = NULL;
     }
 
     if (other.right) {
       right = new interval_tree_t(*other.right);
-    } else {
+    }
+    else {
       if (right) delete right;
       right = NULL;
     }
@@ -130,7 +132,8 @@ class Interval_tree {
     if (depth == 0 || (ivals.size() < minbucket && ivals.size() < maxbucket)) {
       std::sort(ivals.begin(), ivals.end(), intervalStartSorter);
       intervals = ivals;
-    } else {
+    }
+    else {
       if (leftextent == 0 && rightextent == 0) {
         // sort intervals by start
         std::sort(ivals.begin(), ivals.end(), intervalStartSorter);
@@ -143,7 +146,8 @@ class Interval_tree {
       if (leftextent || rightextent) {
         leftp = leftextent;
         rightp = rightextent;
-      } else {
+      }
+      else {
         leftp = ivals.front().start;
         std::vector<K> stops;
         stops.resize(ivals.size());
@@ -161,9 +165,11 @@ class Interval_tree {
       for (auto interval : ivals) {
         if (interval.stop < center) {
           lefts.push_back(interval);
-        } else if (interval.start > center) {
+        }
+        else if (interval.start > center) {
           rights.push_back(interval);
-        } else {
+        }
+        else {
           intervals.push_back(interval);
         }
       }

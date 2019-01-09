@@ -14,9 +14,9 @@
    limitations under the License.
 */
 
-/* 
- * Authors: 
- * 
+/*
+ * Authors:
+ *
  * Daniel G. Waddington (daniel.waddington@ibm.com)
  *
  */
@@ -28,139 +28,141 @@
 
 namespace DPDK
 {
-bool validate_memory(void * ptr, size_t * psize = nullptr);
+bool validate_memory(void* ptr, size_t* psize = nullptr);
 }
 
 namespace Core
 {
-
-class Physical_memory
-{
-private:
+class Physical_memory {
+ private:
   static constexpr bool option_DEBUG = false; /*< leak detection helper */
-  
-public:
 
-  /** 
+ public:
+  /**
    * Allocate a contiguous memory region that can be used for IO
-   * 
+   *
    * @param size Size of memory in bytes
    * @param alignment Alignment
    * @param numa_node NUMA zone, or Component::NUMA_NODE_ANY
-   * 
+   *
    * @return Handle to IO memory region
    */
-  virtual Component::io_buffer_t allocate_io_buffer(size_t size, unsigned alignment, int numa_node);
-  
-  /** 
+  virtual Component::io_buffer_t allocate_io_buffer(size_t size,
+                                                    unsigned alignment,
+                                                    int numa_node);
+
+  /**
    * Re-allocate area of memory
-   * 
+   *
    * @param io_mem Memory handle (from allocate_io_buffer)
    * @param size New size of memory in bytes
    * @param alignment Alignment in bytes
-   * 
+   *
    * @return S_OK or E_NO_MEM
    */
-  virtual status_t realloc_io_buffer(Component::io_buffer_t io_mem, size_t size, unsigned alignment);
+  virtual status_t realloc_io_buffer(Component::io_buffer_t io_mem, size_t size,
+                                     unsigned alignment);
 
-  /** 
+  /**
    * Free a previously allocated buffer
-   * 
+   *
    * @param io_mem Handle to IO memory allocated by allocate_io_buffer
-   * 
+   *
    * @return S_OK on success
    */
   virtual status_t free_io_buffer(Component::io_buffer_t io_mem);
 
-  /** 
+  /**
    * Register memory for DMA with the SPDK subsystem.
-   * 
-   * @param vaddr 
-   * @param len 
+   *
+   * @param vaddr
+   * @param len
    */
-  virtual Component::io_buffer_t register_memory_for_io(void* vaddr, addr_t paddr, size_t len);
+  virtual Component::io_buffer_t register_memory_for_io(void* vaddr,
+                                                        addr_t paddr,
+                                                        size_t len);
 
-  /** 
+  /**
    * Unregister memory for DMA with the SPDK subsystem.
-   * 
-   * @param vaddr 
-   * @param len 
+   *
+   * @param vaddr
+   * @param len
    */
   virtual void unregister_memory_for_io(void* vaddr, size_t len);
 
-  /** 
+  /**
    * Get pointer (virtual address) to start of IO buffer
-   * 
+   *
    * @param buffer IO buffer handle
-   * 
+   *
    * @return pointer
    */
   virtual void* virt_addr(Component::io_buffer_t buffer);
 
-  /** 
+  /**
    * Get physical address
-   * 
-   * @param buffer 
-   * 
-   * @return 
+   *
+   * @param buffer
+   *
+   * @return
    */
   virtual addr_t phys_addr(Component::io_buffer_t buffer);
 
-  /** 
+  /**
    * Get size of memory buffer
-   * 
+   *
    * @param buffer IO memory buffer handle
-   * 
+   *
    * @return Size in bytes of the IOB
    */
   virtual size_t get_size(Component::io_buffer_t buffer);
-  
 };
 
-} // namespace Core
+}  // namespace Core
 
-
-/** 
+/**
  * Used to inline forward to the base class so that we can
  * avoid using templates and inherit the memory management directly.
- * 
+ *
  */
 
-#define INLINE_FORWARDING_MEMORY_METHODS  \
-  inline virtual Component::io_buffer_t                                 \
-  allocate_io_buffer(size_t size, unsigned alignment, int numa_node) override {  \
-    return Physical_memory::allocate_io_buffer(size,alignment,numa_node); \
-  }                                                                     \
-                                                                        \
-  inline virtual status_t realloc_io_buffer(Component::io_buffer_t io_mem, size_t size, \
-                                    unsigned alignment) override {               \
-    return Physical_memory::realloc_io_buffer(io_mem, size, alignment); \
-  }                                                                     \
-                                                                        \
-  inline virtual status_t free_io_buffer(Component::io_buffer_t io_mem) override { \
-    return Physical_memory::free_io_buffer(io_mem);                     \
-  }                                                                     \
-                                                                        \
-  inline virtual Component::io_buffer_t register_memory_for_io(void * vaddr, addr_t paddr, size_t len) override { \
-    return Physical_memory::register_memory_for_io(vaddr, paddr, len);          \
-  }                                                                     \
-                                                                        \
-  inline virtual void unregister_memory_for_io(void * vaddr, size_t len) override { \
-    Physical_memory::unregister_memory_for_io(vaddr,len);               \
-  }                                                                     \
-                                                                        \
-  inline virtual void * virt_addr(Component::io_buffer_t buffer) override {      \
-    return Physical_memory::virt_addr(buffer);                          \
-  }                                                                     \
-                                                                        \
-  inline virtual addr_t phys_addr(Component::io_buffer_t buffer) override {      \
-    return Physical_memory::phys_addr(buffer);                          \
-  }                                                                     \
-                                                                        \
-  inline virtual size_t get_size(Component::io_buffer_t buffer) override {      \
-    return Physical_memory::get_size(buffer);                          \
+#define INLINE_FORWARDING_MEMORY_METHODS                                     \
+  inline virtual Component::io_buffer_t allocate_io_buffer(                  \
+      size_t size, unsigned alignment, int numa_node) override {             \
+    return Physical_memory::allocate_io_buffer(size, alignment, numa_node);  \
+  }                                                                          \
+                                                                             \
+  inline virtual status_t realloc_io_buffer(Component::io_buffer_t io_mem,   \
+                                            size_t size, unsigned alignment) \
+      override {                                                             \
+    return Physical_memory::realloc_io_buffer(io_mem, size, alignment);      \
+  }                                                                          \
+                                                                             \
+  inline virtual status_t free_io_buffer(Component::io_buffer_t io_mem)      \
+      override {                                                             \
+    return Physical_memory::free_io_buffer(io_mem);                          \
+  }                                                                          \
+                                                                             \
+  inline virtual Component::io_buffer_t register_memory_for_io(              \
+      void* vaddr, addr_t paddr, size_t len) override {                      \
+    return Physical_memory::register_memory_for_io(vaddr, paddr, len);       \
+  }                                                                          \
+                                                                             \
+  inline virtual void unregister_memory_for_io(void* vaddr, size_t len)      \
+      override {                                                             \
+    Physical_memory::unregister_memory_for_io(vaddr, len);                   \
+  }                                                                          \
+                                                                             \
+  inline virtual void* virt_addr(Component::io_buffer_t buffer) override {   \
+    return Physical_memory::virt_addr(buffer);                               \
+  }                                                                          \
+                                                                             \
+  inline virtual addr_t phys_addr(Component::io_buffer_t buffer) override {  \
+    return Physical_memory::phys_addr(buffer);                               \
+  }                                                                          \
+                                                                             \
+  inline virtual size_t get_size(Component::io_buffer_t buffer) override {   \
+    return Physical_memory::get_size(buffer);                                \
   }
-
-
 
 #endif

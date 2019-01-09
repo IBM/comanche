@@ -212,11 +212,13 @@ class Mpmc_bounded_lfq {
           node->seq.store(head_seq + 1, std::memory_order_release);
           return true;
         }
-      } else if (dif < 0) {
+      }
+      else if (dif < 0) {
         // if seq is less than head seq then it means this slot is full
         // and therefore the buffer is full
         return false;
-      } else {
+      }
+      else {
         // under normal circumstances this branch should never be taken
         head_seq = _head_seq.load(std::memory_order_relaxed);
       }
@@ -257,10 +259,12 @@ class Mpmc_bounded_lfq {
           node->seq.store(tail_seq + _mask + 1, std::memory_order_release);
           return true;
         }
-      } else if (dif < 0) {
+      }
+      else if (dif < 0) {
         // queue is empty
         return false;
-      } else {
+      }
+      else {
         // under normal circumstances this branch should never be taken
         tail_seq = _tail_seq.load(std::memory_order_relaxed);
       }
@@ -287,10 +291,12 @@ class Mpmc_bounded_lfq {
       // if seq and head_seq are the same then it means this slot is empty
       if (dif == 0) {
         return false;
-      } else if (dif < 0) {
+      }
+      else if (dif < 0) {
         // queue is empty
         return true;
-      } else {
+      }
+      else {
         // under normal circumstances this branch should never be taken
         tail_seq = _tail_seq.load(std::memory_order_relaxed);
       }

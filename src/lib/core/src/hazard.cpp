@@ -17,7 +17,6 @@
 
 namespace Concurrent
 {
-
 __thread unsigned int __hazard_thread_num;
 
 }
