@@ -13,35 +13,32 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 */
-#include <gtest/gtest.h>
-#include <string>
+#include <common/cpu.h>
 #include <common/cycles.h>
 #include <common/exceptions.h>
 #include <common/logging.h>
-#include <common/cpu.h>
+#include <gtest/gtest.h>
+#include <string>
 
-#include <component/base.h>
-#include <api/components.h>
 #include <api/block_itf.h>
+#include <api/components.h>
 #include <api/fs_itf.h>
+#include <component/base.h>
 
 using namespace Component;
 
-struct
-{
+struct {
   std::string pci;
 } opt;
 
-namespace {
-
+namespace
+{
 // The fixture for testing class Foo.
 class Block_nvme_test : public ::testing::Test {
-
  protected:
-
   // If the constructor and destructor are not enough for setting up
   // and cleaning up each test, you can define the following methods:
-  
+
   virtual void SetUp() {
     // Code here will be called immediately after the constructor (right
     // before each test).
@@ -51,28 +48,27 @@ class Block_nvme_test : public ::testing::Test {
     // Code here will be called immediately after each test (right
     // before the destructor).
   }
-  
+
   // Objects declared here can be used by all tests in the test case
-  static Component::IBlock_device * _block;
+  static Component::IBlock_device *_block;
 };
 
+Component::IBlock_device *Block_nvme_test::_block;
 
-Component::IBlock_device * Block_nvme_test::_block;
-
-TEST_F(Block_nvme_test, InstantiateBlockDevice)
-{
-  Component::IBase * comp = Component::load_component("libcomanche-blknvme.so",
-                                                      Component::block_nvme_factory);
+TEST_F(Block_nvme_test, InstantiateBlockDevice) {
+  Component::IBase *comp = Component::load_component(
+      "libcomanche-blknvme.so", Component::block_nvme_factory);
   assert(comp);
   PLOG("Block_device factory loaded OK.");
 
-  IBlock_device_factory * fact = (IBlock_device_factory *) comp->query_interface(IBlock_device_factory::iid());
+  IBlock_device_factory *fact = (IBlock_device_factory *) comp->query_interface(
+      IBlock_device_factory::iid());
   cpu_mask_t cpus;
   cpus.add_core(2);
   //  cpus.add_core(25);
 
   _block = fact->create(opt.pci.c_str(), &cpus);
-  
+
   assert(_block);
   fact->release_ref();
   PINF("nvme-based block-layer component loaded OK.");
@@ -139,55 +135,55 @@ TEST_F(Block_nvme_test, PartitionIntegrity)
 }
 #endif
 
-
 #if 1
-TEST_F(Block_nvme_test, Throughput)
-{
+TEST_F(Block_nvme_test, Throughput) {
   using namespace Component;
-  
-  io_buffer_t mem = _block->allocate_io_buffer(4096,4096,Component::NUMA_NODE_ANY);
-  
+
+  io_buffer_t mem =
+      _block->allocate_io_buffer(4096, 4096, Component::NUMA_NODE_ANY);
+
   unsigned ITERATIONS = 1000000;
   uint64_t tag;
 
   /* warm up */
-  for(unsigned i=0;i<100;i++) 
-    tag = _block->async_write(mem, 0, i, 1);
-  while(!_block->check_completion(tag)); /* we only have to check the last completion */
+  for (unsigned i = 0; i < 100; i++) tag = _block->async_write(mem, 0, i, 1);
+  while (!_block->check_completion(tag))
+    ; /* we only have to check the last completion */
 
   cpu_time_t start = rdtsc();
 
   uint64_t last_checked = 0;
-  uint64_t water_mark = 2048; //(ITERATIONS << 2);
-  
-  for(unsigned i=0;i<ITERATIONS;i++) {
+  uint64_t water_mark = 2048;  //(ITERATIONS << 2);
+
+  for (unsigned i = 0; i < ITERATIONS; i++) {
     tag = _block->async_write(mem, 0, i, 1);
-    if(tag - last_checked > water_mark) {
-      if(_block->check_completion(last_checked+water_mark)) {
-        last_checked+=water_mark;
+    if (tag - last_checked > water_mark) {
+      if (_block->check_completion(last_checked + water_mark)) {
+        last_checked += water_mark;
       }
     }
   }
-  while(!_block->check_completion(tag));
+  while (!_block->check_completion(tag))
+    ;
 
-
-  cpu_time_t cycles_per_iop = (rdtsc() - start)/(ITERATIONS);
-  PINF("[async write]: took %ld cycles (%f usec) per IOP", cycles_per_iop,  cycles_per_iop / 2400.0f);
-  PINF("[async write]: rate: %f KIOPS", (2400.0 * 1000.0)/cycles_per_iop);
+  cpu_time_t cycles_per_iop = (rdtsc() - start) / (ITERATIONS);
+  PINF("[async write]: took %ld cycles (%f usec) per IOP", cycles_per_iop,
+       cycles_per_iop / 2400.0f);
+  PINF("[async write]: rate: %f KIOPS", (2400.0 * 1000.0) / cycles_per_iop);
 
   /* also check the the sync read */
   start = rdtsc();
 
-  for(unsigned i=0;i<ITERATIONS;i++) {
+  for (unsigned i = 0; i < ITERATIONS; i++) {
     _block->read(mem, 0, i, 1);
   }
-  while(!_block->check_completion(tag));
+  while (!_block->check_completion(tag))
+    ;
 
-  cycles_per_iop = (rdtsc() - start)/(ITERATIONS);
-  PINF("[sync_read]: took %ld cycles (%f usec) per IOP", cycles_per_iop,  cycles_per_iop / 2400.0f);
-  PINF("[sync_read]: rate: %f KIOPS", (2400.0 * 1000.0)/cycles_per_iop);
-
-
+  cycles_per_iop = (rdtsc() - start) / (ITERATIONS);
+  PINF("[sync_read]: took %ld cycles (%f usec) per IOP", cycles_per_iop,
+       cycles_per_iop / 2400.0f);
+  PINF("[sync_read]: rate: %f KIOPS", (2400.0 * 1000.0) / cycles_per_iop);
 
   _block->free_io_buffer(mem);
 }
@@ -257,7 +253,6 @@ TEST_F(Block_nvme_test, CheckAllWriteThroughput)
 }
 #endif
 
-
 #if 0
 TEST_F(Block_nvme_test, WriteLatency)
 {
@@ -283,7 +278,6 @@ TEST_F(Block_nvme_test, WriteLatency)
 }
 #endif
 
-
 #if 0
 TEST_F(Block_nvme_test, SharedWork)
 {
@@ -304,18 +298,15 @@ TEST_F(Block_nvme_test, SharedWork)
 }
 #endif
 
-
-TEST_F(Block_nvme_test, ReleaseBlockDevice)
-{
+TEST_F(Block_nvme_test, ReleaseBlockDevice) {
   assert(_block);
   _block->release_ref();
 }
 
-
-} // namespace
+}  // namespace
 
 int main(int argc, char **argv) {
-  if(argc!=2) {
+  if (argc != 2) {
     PINF("test <pci-address>");
     return 0;
   }

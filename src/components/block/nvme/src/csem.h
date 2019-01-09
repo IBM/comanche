@@ -14,10 +14,9 @@
    limitations under the License.
 */
 
-
-/* 
- * Authors: 
- * 
+/*
+ * Authors:
+ *
  * Daniel G. Waddington (daniel.waddington@ibm.com)
  *
  */
@@ -25,32 +24,29 @@
 #ifndef __COMANCHE_SEMAPHORE_H__
 #define __COMANCHE_SEMAPHORE_H__
 
-#include <mutex>
 #include <condition_variable>
+#include <mutex>
 
 class Semaphore {
-public:
-  Semaphore (int count_ = 0)
-    : count(count_) {}
+ public:
+  Semaphore(int count_ = 0) : count(count_) {}
 
-  inline void post()
-  {
+  inline void post() {
     std::unique_lock<std::mutex> lock(mtx);
     count++;
     cv.notify_one();
   }
 
-  inline void wait()
-  {
+  inline void wait() {
     std::unique_lock<std::mutex> lock(mtx);
 
-    while(count == 0){
+    while (count == 0) {
       cv.wait(lock);
     }
     count--;
   }
 
-private:
+ private:
   std::mutex mtx;
   std::condition_variable cv;
   int count;
