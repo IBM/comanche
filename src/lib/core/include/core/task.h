@@ -1,5 +1,5 @@
 /*
-   Copyright [2017, 2018] [IBM Corporation]
+   Copyright [2017-2019] [IBM Corporation]
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -45,8 +45,7 @@ namespace Core
 class Tasklet {
  public:
   virtual void initialize(unsigned core) = 0; /*< called once */
-  virtual bool do_work(
-      unsigned core) = 0; /*< called in tight loop; return false to exit */
+  virtual bool do_work(unsigned core) = 0; /*< called in tight loop; return false to exit */
   virtual void cleanup(unsigned core) = 0; /*< called once */
   virtual bool ready() { return true; }
 };
@@ -61,7 +60,7 @@ class Per_core_tasking {
   static constexpr bool option_DEBUG = false;
 
  public:
-  Per_core_tasking(cpu_mask_t& cpus, __Arg_t arg) {
+  Per_core_tasking(cpu_mask_t& cpus, __Arg_t arg, bool pin=true) : _pin(pin) {
     for (unsigned c = 0; c < sysconf(_SC_NPROCESSORS_ONLN); c++) {
       if (cpus.check_core(c)) {
         _tasklet[c] = new __Tasklet_t(arg);
@@ -112,7 +111,8 @@ class Per_core_tasking {
 
  private:
   void thread_entry(unsigned core) {
-    set_cpu_affinity(1UL << core);
+    if(_pin)
+      set_cpu_affinity(1UL << core);
 
     _tasklet[core]->initialize(core);
 
@@ -134,6 +134,8 @@ class Per_core_tasking {
  private:
   bool _start_flag = false;
   bool _exit_flag = false;
+  const bool _pin;
+  
   std::thread* _threads[MAX_CORES];
   __Tasklet_t* _tasklet[MAX_CORES];
 };
