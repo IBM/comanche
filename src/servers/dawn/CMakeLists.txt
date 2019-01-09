@@ -5,6 +5,7 @@ include(${CONF_COMANCHE_HOME}/mk/common.cmake)
 set(CMAKE_CXX_STANDARD 14)
 
 project(dawn CXX)
+include(../../../mk/clang-dev-tools.cmake)
 
 include_directories(${CMAKE_INSTALL_PREFIX}/include)
 link_directories(${CMAKE_INSTALL_PREFIX}/lib)

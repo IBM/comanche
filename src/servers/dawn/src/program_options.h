@@ -1,8 +1,7 @@
 #ifndef __DAWN_PROGRAM_OPTIONS_H__
 #define __DAWN_PROGRAM_OPTIONS_H__
 
-struct Program_options
-{
+struct Program_options {
   std::string fabric_provider; /*< e.g. verbs, socket */
   std::string device;
   std::string backend;
@@ -12,4 +11,4 @@ struct Program_options
   unsigned port;
 };
 
-#endif // __DAWN_PROGRAM_OPTIONS_H__
+#endif  // __DAWN_PROGRAM_OPTIONS_H__
