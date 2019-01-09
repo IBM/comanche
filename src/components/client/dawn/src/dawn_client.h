@@ -18,6 +18,7 @@
 #include <api/kvstore_itf.h>
 #include <api/rdma_itf.h>
 #include "dawn_client_config.h"
+#include "connection.h"
 
 class Dawn_client : public Component::IKVStore {
  private:
