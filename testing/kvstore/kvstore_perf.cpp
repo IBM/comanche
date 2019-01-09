@@ -95,20 +95,24 @@ int main(int argc, char * argv[])
     Core::Per_core_tasking<ExperimentPut, ProgramOptions> exp(cpus, Options);
     exp.wait_for_all();
   }
-  else if (Options.test == "all" || Options.test == "get") {
+  
+  if (Options.test == "all" || Options.test == "get") {
     Core::Per_core_tasking<ExperimentGet, ProgramOptions> exp(cpus, Options);
 
     exp.wait_for_all();
   }
-  else if (Options.test == "all" || Options.test == "get_direct") {
+  
+  if (Options.test == "all" || Options.test == "get_direct") {
     Core::Per_core_tasking<ExperimentGetDirect, ProgramOptions> exp(cpus, Options);
     exp.wait_for_all();
   }
-  else if (Options.test == "all" || Options.test == "put_direct") {
+  
+  if (Options.test == "all" || Options.test == "put_direct") {
     Core::Per_core_tasking<ExperimentPutDirect, ProgramOptions> exp(cpus, Options);
     exp.wait_for_all();
   }
-  else if (Options.test == "all" || Options.test == "throughput") {
+  
+  if (Options.test == "all" || Options.test == "throughput") {
     Core::Per_core_tasking<ExperimentThroughput, ProgramOptions> exp(cpus, Options);
     exp.wait_for_all();
     auto first_exp = exp.tasklet(cpus.first_core());
