@@ -19,6 +19,7 @@
 
 #include <functional>
 #include <common/exceptions.h>
+#include <component/base.h>
 
 namespace Component
 {
