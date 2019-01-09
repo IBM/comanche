@@ -78,7 +78,6 @@ public:
   }
 
   ~Experiment() {
-    PLOG("dtor");
     _store->release_ref();
   } 
     
