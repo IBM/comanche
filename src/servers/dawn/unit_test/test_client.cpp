@@ -12,10 +12,8 @@ int main(int argc, char* argv[]) {
   try {
     namespace po = boost::program_options;
     po::options_description desc("Options");
-    desc.add_options()("help", "Show help")("port", po::value<unsigned>(),
-                                            "Port to connect to")(
-        "endpoint", po::value<std::string>(), "Endpoint name (IPC)")(
-        "addr", po::value<std::string>(), "Server IP address");
+    desc.add_options()("help", "Show help")("port", po::value<unsigned>(), "Port to connect to")(
+        "endpoint", po::value<std::string>(), "Endpoint name (IPC)")("addr", po::value<std::string>(), "Server IP address");
 
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -26,7 +24,8 @@ int main(int argc, char* argv[]) {
     port = vm.count("port") ? vm["port"].as<unsigned>() : 11911;
     server_addr = vm.count("addr") ? vm["addr"].as<std::string>() : "10.0.0.11";
     PLOG("using port: %u", port);
-  } catch (...) {
+  }
+  catch (...) {
     return -1;
   }
 

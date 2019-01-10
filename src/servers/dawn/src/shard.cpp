@@ -20,9 +20,8 @@ namespace Global
 unsigned debug_level = 0;
 }
 
-void Shard::initialize_components(const Program_options& po) {
+void Shard::initialize_components(const std::string& backend, const std::string& pci_addr, unsigned debug_level) {
   using namespace Component;
-  auto& backend = po.backend;
 
   /* STORE */
   {
@@ -43,22 +42,18 @@ void Shard::initialize_components(const Program_options& po) {
 
     if (option_DEBUG) PLOG("Shard: using store backend (%s)", backend.c_str());
 
-    if (!comp)
-      throw General_exception(
-          "unable to initialize PMSTORE comanche component");
+    if (!comp) throw General_exception("unable to initialize PMSTORE comanche component");
 
-    IKVStore_factory* fact =
-        (IKVStore_factory*) comp->query_interface(IKVStore_factory::iid());
+    IKVStore_factory* fact = (IKVStore_factory*) comp->query_interface(IKVStore_factory::iid());
     assert(fact);
 
     if (backend == "nvmestore") {
-      if (po.pci_addr.empty())
-        throw General_exception("nvmestore backend needs --pci-addr option");
+      if (pci_addr.empty()) throw General_exception("nvmestore backend needs --pci-addr option");
 
-      _i_kvstore = fact->create("owner", "name", po.pci_addr);
+      _i_kvstore = fact->create("owner", "name", pci_addr);
     }
     else if (backend == "pmstore") { /* components that support debug level */
-      _i_kvstore = fact->create(_po.debug_level, "owner", "name", "");
+      _i_kvstore = fact->create(debug_level, "owner", "name", "");
     }
     else {
       _i_kvstore = fact->create("owner", "name");
@@ -87,9 +82,8 @@ void Shard::main_loop() {
     if (tick % CHECK_CONNECTION_INTERVAL == 0) check_for_new_connections();
 
     /* iterate connection handlers (each connection is a client session) */
-    for (std::vector<Connection_handler*>::iterator handler_iter =
-             _handlers.begin();
-         handler_iter != _handlers.end(); handler_iter++) {
+    for (std::vector<Connection_handler*>::iterator handler_iter = _handlers.begin(); handler_iter != _handlers.end();
+         handler_iter++) {
       const auto handler = *handler_iter;
 
       /* issue tick */
@@ -123,12 +117,10 @@ void Shard::main_loop() {
         assert(p_msg);
         switch (p_msg->type_id) {
           case MSG_TYPE_IO_REQUEST:
-            process_message_IO_request(
-                handler, static_cast<Protocol::Message_IO_request*>(p_msg));
+            process_message_IO_request(handler, static_cast<Protocol::Message_IO_request*>(p_msg));
             break;
           case MSG_TYPE_POOL_REQUEST:
-            process_message_pool_request(
-                handler, static_cast<Protocol::Message_pool_request*>(p_msg));
+            process_message_pool_request(handler, static_cast<Protocol::Message_pool_request*>(p_msg));
             break;
           default:
             throw General_exception("unrecognizable message type");
@@ -156,8 +148,7 @@ void Shard::main_loop() {
 #endif
 }
 
-void Shard::process_message_pool_request(Connection_handler* handler,
-                                         Protocol::Message_pool_request* msg) {
+void Shard::process_message_pool_request(Connection_handler* handler, Protocol::Message_pool_request* msg) {
   // validate auth id
   assert(msg->op);
 
@@ -167,15 +158,12 @@ void Shard::process_message_pool_request(Connection_handler* handler,
   assert(response_iob->base());
   memset(response_iob->iov->iov_base, 0, response_iob->iov->iov_len);
 
-  Protocol::Message_pool_response* response = new (response_iob->base())
-      Protocol::Message_pool_response(handler->auth_id());
+  Protocol::Message_pool_response* response = new (response_iob->base()) Protocol::Message_pool_response(handler->auth_id());
   assert(response);
 
   /* handle operation */
   if (msg->op == Dawn::Protocol::OP_CREATE) {
-    if (option_DEBUG)
-      PINF("# Message_pool_request: op=%u path=%s pool_name=%s", msg->op,
-           msg->path(), msg->pool_name());
+    if (option_DEBUG) PINF("# Message_pool_request: op=%u path=%s pool_name=%s", msg->op, msg->path(), msg->pool_name());
 
     try {
       Component::IKVStore::pool_t pool;
@@ -186,8 +174,7 @@ void Shard::process_message_pool_request(Connection_handler* handler,
         handler->add_reference(pool);
       }
       else {
-        pool = _i_kvstore->create_pool(msg->path(), msg->pool_name(),
-                                       msg->pool_size);
+        pool = _i_kvstore->create_pool(msg->path(), msg->pool_name(), msg->pool_size);
 
         /* register pool handle */
         handler->register_pool(pool_name, pool);
@@ -206,16 +193,15 @@ void Shard::process_message_pool_request(Connection_handler* handler,
 
       response->pool_id = pool;
       response->status = S_OK;
-    } catch (...) {
+    }
+    catch (...) {
       PERR("OP_CREATE: error");
       response->pool_id = 0;
       response->status = E_FAIL;
     }
   }
   else if (msg->op == Dawn::Protocol::OP_OPEN) {
-    if (option_DEBUG)
-      PINF("# Message_pool_request: op=%u path=%s pool_name=%s", msg->op,
-           msg->path(), msg->pool_name());
+    if (option_DEBUG) PINF("# Message_pool_request: op=%u path=%s pool_name=%s", msg->op, msg->path(), msg->pool_name());
 
     try {
       PLOG("opening pool: (%s)", msg->pool_name());
@@ -242,7 +228,8 @@ void Shard::process_message_pool_request(Connection_handler* handler,
       if (option_DEBUG) PLOG("OP_OPEN: pool id: %lx", pool);
 
       response->pool_id = pool;
-    } catch (...) {
+    }
+    catch (...) {
       PLOG("OP_OPEN: error");
       response->pool_id = 0;
       response->status = E_FAIL;
@@ -259,7 +246,8 @@ void Shard::process_message_pool_request(Connection_handler* handler,
         _i_kvstore->close_pool(pool);
       }
       response->pool_id = pool;
-    } catch (...) {
+    }
+    catch (...) {
       PLOG("OP_CLOSE: error");
       response->pool_id = 0;
       response->status = E_FAIL;
@@ -278,20 +266,19 @@ void Shard::process_message_pool_request(Connection_handler* handler,
         handler->blitz_pool_reference(pool);
       }
       else {
-        if (option_DEBUG)
-          PLOG("unable to delete pool that is open by another session");
+        if (option_DEBUG) PLOG("unable to delete pool that is open by another session");
         response->pool_id = pool;
         response->status = E_INVAL;
       }
-    } catch (...) {
+    }
+    catch (...) {
       PLOG("OP_DELETE: error");
       response->pool_id = 0;
       response->status = E_FAIL;
     }
   }
   else
-    throw Protocol_exception(
-        "process_message_pool_request - bad operation (msg->op = %d)", msg->op);
+    throw Protocol_exception("process_message_pool_request - bad operation (msg->op = %d)", msg->op);
 
   if (option_DEBUG) PLOG("response len: %d", response->msg_len);
 
@@ -302,8 +289,7 @@ void Shard::process_message_pool_request(Connection_handler* handler,
   handler->post_response(response_iob);
 }
 
-void Shard::process_message_IO_request(Connection_handler* handler,
-                                       Protocol::Message_IO_request* msg) {
+void Shard::process_message_IO_request(Connection_handler* handler, Protocol::Message_IO_request* msg) {
   using namespace Component;
 
   // if(!_pm->is_pool_open(msg->pool_id))
@@ -314,8 +300,8 @@ void Shard::process_message_IO_request(Connection_handler* handler,
   /////////////////////
   if (msg->op == Protocol::OP_PUT_ADVANCE) {
     if (option_DEBUG)
-      PLOG("PUT_ADVANCE: (%p) key=(%.*s) value_len=%lu request_id=%lu", this,
-           (int) msg->key_len, msg->key(), msg->val_len, msg->request_id);
+      PLOG("PUT_ADVANCE: (%p) key=(%.*s) value_len=%lu request_id=%lu", this, (int) msg->key_len, msg->key(), msg->val_len,
+           msg->request_id);
 
     const auto val_len = msg->val_len;
 
@@ -325,23 +311,18 @@ void Shard::process_message_IO_request(Connection_handler* handler,
     assert(target_len > 0);
 
     /* create (if needed) and lock value */
-    auto key_handle =
-        _i_kvstore->lock(msg->pool_id, msg->key(), IKVStore::STORE_LOCK_WRITE,
-                         target, target_len);
+    auto key_handle = _i_kvstore->lock(msg->pool_id, msg->key(), IKVStore::STORE_LOCK_WRITE, target, target_len);
 
     if (key_handle == Component::IKVStore::KEY_NONE)
-      throw Program_exception(
-          "PUT_ADVANCE failed to lock value (lock() returned KEY_NONE) ");
+      throw Program_exception("PUT_ADVANCE failed to lock value (lock() returned KEY_NONE) ");
 
-    if (target_len != msg->val_len)
-      throw Logic_exception("locked value length mismatch");
+    if (target_len != msg->val_len) throw Logic_exception("locked value length mismatch");
 
     auto pool_id = msg->pool_id;
     add_locked_value(pool_id, key_handle, target);
 
     /* register memory unless pre-registered */
-    Connection_base::memory_region_t region =
-        nullptr;  // TODO handler->get_preregistered(pool_id);
+    Connection_base::memory_region_t region = nullptr;  // TODO handler->get_preregistered(pool_id);
     // if(!region) {
     //   if(option_DEBUG || 1)
     //     PLOG("using ondemand registration");
@@ -363,8 +344,7 @@ void Shard::process_message_IO_request(Connection_handler* handler,
   /* states that we require a response */
   const auto iob = handler->allocate();
 
-  Protocol::Message_IO_response* response = new (iob->base())
-      Protocol::Message_IO_response(iob->length(), handler->auth_id());
+  Protocol::Message_IO_response* response = new (iob->base()) Protocol::Message_IO_response(iob->length(), handler->auth_id());
 
   int status;
 
@@ -376,8 +356,7 @@ void Shard::process_message_IO_request(Connection_handler* handler,
        puts for larger data, we use a two-stage operation
     */
     if (option_DEBUG)
-      PLOG("PUT: (%p) key=(%.*s) value=(%.*s)", this, (int) msg->key_len,
-           msg->key(), (int) msg->val_len, msg->value());
+      PLOG("PUT: (%p) key=(%.*s) value=(%.*s)", this, (int) msg->key_len, msg->key(), (int) msg->val_len, msg->value());
 
     if (msg->resvd & Dawn::Protocol::MSG_RESVD_SCBE) {
       status = S_OK;  // short-circuit backend
@@ -400,9 +379,7 @@ void Shard::process_message_IO_request(Connection_handler* handler,
   //   GET           //
   /////////////////////
   else if (msg->op == Protocol::OP_GET) {
-    if (option_DEBUG)
-      PMAJOR("GET: (%p) (request=%lu) key=(%.*s) ", this, msg->request_id,
-             (int) msg->key_len, msg->key());
+    if (option_DEBUG) PMAJOR("GET: (%p) (request=%lu) key=(%.*s) ", this, msg->request_id, (int) msg->key_len, msg->key());
 
     void* value_out = nullptr;
     size_t value_out_len = 0;
@@ -410,12 +387,11 @@ void Shard::process_message_IO_request(Connection_handler* handler,
     std::string k;
     k.assign(msg->key(), msg->key_len);
 
-    auto key_handle = _i_kvstore->lock(
-        msg->pool_id, k, IKVStore::STORE_LOCK_READ, value_out, value_out_len);
+    auto key_handle = _i_kvstore->lock(msg->pool_id, k, IKVStore::STORE_LOCK_READ, value_out, value_out_len);
 
     if (option_DEBUG)
-      PLOG("shard: locked OK: value_out=%p (%.*s) value_out_len=%lu", value_out,
-           (int) value_out_len, (char*) value_out, value_out_len);
+      PLOG("shard: locked OK: value_out=%p (%.*s) value_out_len=%lu", value_out, (int) value_out_len, (char*) value_out,
+           value_out_len);
 
     iob->set_length(response->base_message_size());
 
@@ -449,8 +425,7 @@ void Shard::process_message_IO_request(Connection_handler* handler,
       add_locked_value(msg->pool_id, key_handle, value_out);
     }
 
-    if (value_out_len <=
-        (handler->IO_buffer_size() - response->base_message_size())) {
+    if (value_out_len <= (handler->IO_buffer_size() - response->base_message_size())) {
       if (option_DEBUG) PLOG("posting response header and value together");
 
       /* post both buffers together in same response packet */
