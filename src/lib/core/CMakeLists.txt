@@ -3,7 +3,7 @@ cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
 # We statically compile in the DPDK and SPDK into this module
 #
-project(core CXX)
+project(comanche-core CXX)
 enable_language(CXX C ASM)
 include(../../../mk/clang-dev-tools.cmake)
 
@@ -42,7 +42,7 @@ add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 
 file(GLOB SOURCES src/*.c*)
 
-add_library(core SHARED ${SOURCES})
+add_library(comanche-core SHARED ${SOURCES})
 set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--no-undefined -Wl,--whole-archive")
 
 set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${EXTLIB_DPDK} ${EXTLIB_SPDK_ENV_DPDK} ${EXTLIB_SPDK_NVME}  ${EXTLIB_SPDK_UTIL} ${EXTLIB_SPDK_EVENT} ${EXTLIB_SPDK_TRACE} ${EXTLIB_SPDK_LOG} ${EXTLIB_SPDK_CONF} ${EXTLIB_SPDK_IOAT} ${EXTLIB_SPDK_RPC} ${EXTLIB_SPDK_JSONRPC} ${EXTLIB_SPDK_JSON} ${EXTLIB_SPDK_THREAD}")

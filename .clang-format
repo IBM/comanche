@@ -5,9 +5,11 @@ IndentWidth: 2
 SpaceAfterCStyleCast: true
 AlwaysBreakBeforeMultilineStrings: false
 BreakBeforeBraces: Custom
+MaxEmptylinestokeep: 4
 BraceWrapping:
   AfterNamespace: true
   BeforeElse:     true
+  ColumnLimit:    128
 ...
 
 #------------------------------------------
