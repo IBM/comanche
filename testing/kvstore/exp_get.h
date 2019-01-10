@@ -135,6 +135,7 @@ public:
     double run_time = timer.get_time_in_seconds();
     double iops = ((double) _i / run_time);
     PINF("[%u] get: IOPS: %2g in %2g seconds", core, iops, run_time);
+    _update_aggregate_iops(iops);
     
     double throughput = _calculate_current_throughput();
     PINF("[%u] get: THROUGHPUT: %.2f MB/s (%ld bytes over %.3f seconds)", core, throughput, _total_data_processed, run_time);
