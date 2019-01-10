@@ -55,8 +55,8 @@ class Fabric_connection_base {
     _factory->close_connection(_transport);
   }
 
-  static void completion_callback(void *context, status_t st, std::uint64_t completion_flags, std::size_t len, void *error_data,
-                                  void *param) {
+  static void completion_callback(
+      void *context, status_t st, std::uint64_t completion_flags, std::size_t len, void *error_data, void *param) {
     Fabric_connection_base *pThis = static_cast<Fabric_connection_base *>(param);
     /* set callback debugging here */
     static constexpr bool option_DEBUG = false;

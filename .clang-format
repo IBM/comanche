@@ -10,6 +10,7 @@ BraceWrapping:
   AfterNamespace: true
   BeforeElse:     true
   BeforeCatch:    true
+BinPackParameters: false
 ...
 
 #------------------------------------------

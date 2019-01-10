@@ -35,8 +35,15 @@ class Shard : public Shard_transport {
   bool option_DEBUG;
 
  public:
-  Shard(int core, unsigned int port, const std::string provider, const std::string device, const std::string net,
-        const std::string backend, const std::string pci_addr, unsigned debug_level, bool forced_exit)
+  Shard(int core,
+        unsigned int port,
+        const std::string provider,
+        const std::string device,
+        const std::string net,
+        const std::string backend,
+        const std::string pci_addr,
+        unsigned debug_level,
+        bool forced_exit)
       : Shard_transport(provider, net, port),
         _core(core),
         _forced_exit(forced_exit),

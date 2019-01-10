@@ -18,11 +18,11 @@ class Shard_launcher : public Config_file
 
     for(unsigned i = 0;i < shard_count(); i++) {
       PMAJOR("launching shard: core(%d) port(%d) device(%s) net(%s)",
-           get_shard_core(i),
-           get_shard_port(i),
-           get_shard_device(i),
-           get_shard_net(i)
-           );
+             get_shard_core(i),
+             get_shard_port(i),
+             get_shard_device(i),
+             get_shard_net(i)
+             );
 
       _shards.push_back(new Dawn::Shard(get_shard_core(i),
                                         get_shard_port(i),
