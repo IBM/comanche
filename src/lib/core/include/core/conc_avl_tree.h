@@ -31,6 +31,7 @@
 
 #include <functional>
 #include <mutex>
+#include <vector>
 
 #include "hazard.h"  // ABA protection
 
