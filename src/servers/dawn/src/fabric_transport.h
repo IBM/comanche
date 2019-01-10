@@ -20,8 +20,7 @@ class Fabric_transport {
   Fabric_transport(const std::string provider, const std::string device, unsigned port) {
     option_DEBUG = Dawn::Global::debug_level > 1;
 
-    if (option_DEBUG)
-      PLOG("fabric_transport: (provider=%s, device=%s, port=%u)", provider.c_str(), device.c_str(), port);
+    if (option_DEBUG) PLOG("fabric_transport: (provider=%s, device=%s, port=%u)", provider.c_str(), device.c_str(), port);
 
     init(provider, device, port);
   }

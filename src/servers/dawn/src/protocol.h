@@ -88,8 +88,13 @@ static_assert(sizeof(Message) == 16, "Unexpected Message data structure size");
 // POOL OPERATIONS - create, delete
 
 struct Message_pool_request : public Message {
-  Message_pool_request(size_t buffer_size, uint64_t auth_id, uint64_t request_id, size_t pool_size, uint8_t op,
-                       const std::string& path, const std::string& pool_name)
+  Message_pool_request(size_t buffer_size,
+                       uint64_t auth_id,
+                       uint64_t request_id,
+                       size_t pool_size,
+                       uint8_t op,
+                       const std::string& path,
+                       const std::string& pool_name)
       : Message(auth_id, MSG_TYPE_POOL_REQUEST, op), pool_size(pool_size) {
     assert(op);
     assert(this->op);
@@ -144,29 +149,52 @@ struct Message_pool_response : public Message {
 // IO OPERATIONS
 
 struct Message_IO_request : public Message {
-  Message_IO_request(size_t buffer_size, uint64_t auth_id, uint64_t request_id, uint64_t pool_id, uint8_t op,
-                     const std::string& key, const std::string& value)
+  Message_IO_request(size_t buffer_size,
+                     uint64_t auth_id,
+                     uint64_t request_id,
+                     uint64_t pool_id,
+                     uint8_t op,
+                     const std::string& key,
+                     const std::string& value)
       : Message(auth_id, MSG_TYPE_IO_REQUEST, op), request_id(request_id), pool_id(pool_id) {
     set_key_and_value(buffer_size, key, value);
     msg_len = sizeof(Message_IO_request) + key_len + value.length();
   }
 
-  Message_IO_request(size_t buffer_size, uint64_t auth_id, uint64_t request_id, uint64_t pool_id, uint8_t op, const void* key,
-                     size_t key_len, size_t value_len)
+  Message_IO_request(size_t buffer_size,
+                     uint64_t auth_id,
+                     uint64_t request_id,
+                     uint64_t pool_id,
+                     uint8_t op,
+                     const void* key,
+                     size_t key_len,
+                     size_t value_len)
       : Message(auth_id, MSG_TYPE_IO_REQUEST, op), request_id(request_id), pool_id(pool_id) {
     set_key_value_len(buffer_size, key, key_len, value_len);
     msg_len = sizeof(Message_IO_request) + key_len;
   }
 
-  Message_IO_request(size_t buffer_size, uint64_t auth_id, uint64_t request_id, uint64_t pool_id, uint8_t op, std::string& key,
+  Message_IO_request(size_t buffer_size,
+                     uint64_t auth_id,
+                     uint64_t request_id,
+                     uint64_t pool_id,
+                     uint8_t op,
+                     std::string& key,
                      size_t value_len)
       : Message(auth_id, MSG_TYPE_IO_REQUEST, op), request_id(request_id), pool_id(pool_id) {
     set_key_value_len(buffer_size, key, value_len);
     msg_len = sizeof(Message_IO_request) + key_len;
   }
 
-  Message_IO_request(size_t buffer_size, uint64_t auth_id, uint64_t request_id, uint64_t pool_id, uint8_t op, const void* key,
-                     size_t key_len, const void* value, size_t value_len)
+  Message_IO_request(size_t buffer_size,
+                     uint64_t auth_id,
+                     uint64_t request_id,
+                     uint64_t pool_id,
+                     uint8_t op,
+                     const void* key,
+                     size_t key_len,
+                     const void* value,
+                     size_t value_len)
       : Message(auth_id, MSG_TYPE_IO_REQUEST, op), request_id(request_id), pool_id(pool_id) {
     set_key_and_value(buffer_size, key, key_len, value, value_len);
     msg_len = sizeof(Message_IO_request) + key_len + value_len + 1;
@@ -213,8 +241,8 @@ struct Message_IO_request : public Message {
     set_key_and_value(buffer_size, key.c_str(), key.length(), value.c_str(), value.length());
   }
 
-  void set_key_and_value(const size_t buffer_size, const void* p_key, const size_t p_key_len, const void* p_value,
-                         const size_t p_value_len) {
+  void set_key_and_value(
+      const size_t buffer_size, const void* p_key, const size_t p_key_len, const void* p_value, const size_t p_value_len) {
     assert(buffer_size > 0);
     if (unlikely((p_key_len + p_value_len + 2 + sizeof(Message_IO_request)) > buffer_size))
       throw API_exception("Message_IO_request::set_key_and_value - insufficient buffer for "
