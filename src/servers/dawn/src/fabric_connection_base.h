@@ -33,8 +33,7 @@ class Fabric_connection_base {
    */
   Fabric_connection_base(Component::IFabric_server_factory *factory,
                          Component::IFabric_server *fabric_connection)
-      : _factory(factory),
-        _transport(fabric_connection),
+      : _factory(factory), _transport(fabric_connection),
         _bm(fabric_connection) {
     assert(_transport);
     _max_message_size = _transport->max_message_size();
@@ -58,9 +57,11 @@ class Fabric_connection_base {
     _factory->close_connection(_transport);
   }
 
-  static void completion_callback(void *context, status_t st,
+  static void completion_callback(void *context,
+                                  status_t st,
                                   std::uint64_t completion_flags,
-                                  std::size_t len, void *error_data,
+                                  std::size_t len,
+                                  void *error_data,
                                   void *param) {
     Fabric_connection_base *pThis =
         static_cast<Fabric_connection_base *>(param);
@@ -219,7 +220,8 @@ class Fabric_connection_base {
       _transport->poll_completions(completion_callback, this);
       check_for_posted_send_complete();
       check_for_posted_value_complete(&added_deferred_unlock);
-    } catch (std::logic_error e) {
+    }
+    catch (std::logic_error e) {
       throw General_exception("client disconnected");
     }
 

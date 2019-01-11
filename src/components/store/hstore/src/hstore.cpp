@@ -311,6 +311,20 @@ std::string make_full_path(const std::string &prefix, const std::string &suffix)
 }
 }
 
+static PMEMobjpool *delete_and_recreate_pool(const char *fullpath, const std::size_t size, const char *action)
+{
+  if ( pmempool_rm(fullpath, PMEMPOOL_RM_FORCE | PMEMPOOL_RM_POOLSET_LOCAL))
+    throw General_exception("pmempool_rm on (%s) failed", fullpath);
+
+ auto pop = pmemobj_create(fullpath, REGION_NAME, size, 0666);
+  if (not pop) {
+    pop = pmemobj_create(fullpath, REGION_NAME, 0, 0666); /* size = 0 for devdax */
+    if (not pop)
+      throw General_exception("failed to %s (%s) %s", action, fullpath, pmemobj_errormsg());
+  }
+  return pop;
+}
+
 auto hstore::create_pool(
                          const std::string &path,
                          const std::string &name,
@@ -380,15 +394,7 @@ auto hstore::create_pool(
 
     if (check_pool(fullpath.c_str()) != 0)
       {
-        if(pmempool_rm(fullpath.c_str(), PMEMPOOL_RM_FORCE | PMEMPOOL_RM_POOLSET_LOCAL))
-          throw General_exception("pmempool_rm on (%s) failed", fullpath.c_str());
-
-        pop.reset(pmemobj_create(fullpath.c_str(), REGION_NAME, size, 0666));
-        if (not pop) {
-          pop.reset(pmemobj_create(fullpath.c_str(), REGION_NAME, 0, 0666)); /* size = 0 for devdax */
-          if (not pop)
-            throw General_exception("failed to create new pool (%s) %s", fullpath.c_str(), pmemobj_errormsg());
-        }
+	pop.reset(delete_and_recreate_pool(fullpath.c_str(), size, "create new pool"));
       }
     else {
       /* open existing */
@@ -397,12 +403,8 @@ auto hstore::create_pool(
         {
           PWRN(PREFIX "erasing memory pool/partition: %s", __func__, fullpath.c_str());
           /* try to delete pool and recreate */
-          if(pmempool_rm(fullpath.c_str(), PMEMPOOL_RM_FORCE | PMEMPOOL_RM_POOLSET_LOCAL))
-            throw General_exception("pmempool_rm on (%s) failed", fullpath.c_str());
-	  
-          pop.reset(pmemobj_create(fullpath.c_str(), REGION_NAME, size, 0666));
-          if (not pop)
-            throw General_exception("failed to re-open or create new pool (%s) %s", fullpath.c_str(), pmemobj_errormsg());
+	  pop.reset(delete_and_recreate_pool(fullpath.c_str(), size, "re-open or create new pool"));
+
         }
     }
   }

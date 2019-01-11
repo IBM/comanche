@@ -20,9 +20,10 @@ namespace Global
 unsigned debug_level = 0;
 }
 
-void Shard::initialize_components(const Program_options& po) {
+void Shard::initialize_components(const std::string& backend,
+                                  const std::string& pci_addr,
+                                  unsigned debug_level) {
   using namespace Component;
-  auto& backend = po.backend;
 
   /* STORE */
   {
@@ -52,13 +53,13 @@ void Shard::initialize_components(const Program_options& po) {
     assert(fact);
 
     if (backend == "nvmestore") {
-      if (po.pci_addr.empty())
+      if (pci_addr.empty())
         throw General_exception("nvmestore backend needs --pci-addr option");
 
-      _i_kvstore = fact->create("owner", "name", po.pci_addr);
+      _i_kvstore = fact->create("owner", "name", pci_addr);
     }
     else if (backend == "pmstore") { /* components that support debug level */
-      _i_kvstore = fact->create(_po.debug_level, "owner", "name", "");
+      _i_kvstore = fact->create(debug_level, "owner", "name", "");
     }
     else {
       _i_kvstore = fact->create("owner", "name");
@@ -206,7 +207,8 @@ void Shard::process_message_pool_request(Connection_handler* handler,
 
       response->pool_id = pool;
       response->status = S_OK;
-    } catch (...) {
+    }
+    catch (...) {
       PERR("OP_CREATE: error");
       response->pool_id = 0;
       response->status = E_FAIL;
@@ -242,7 +244,8 @@ void Shard::process_message_pool_request(Connection_handler* handler,
       if (option_DEBUG) PLOG("OP_OPEN: pool id: %lx", pool);
 
       response->pool_id = pool;
-    } catch (...) {
+    }
+    catch (...) {
       PLOG("OP_OPEN: error");
       response->pool_id = 0;
       response->status = E_FAIL;
@@ -259,7 +262,8 @@ void Shard::process_message_pool_request(Connection_handler* handler,
         _i_kvstore->close_pool(pool);
       }
       response->pool_id = pool;
-    } catch (...) {
+    }
+    catch (...) {
       PLOG("OP_CLOSE: error");
       response->pool_id = 0;
       response->status = E_FAIL;
@@ -283,7 +287,8 @@ void Shard::process_message_pool_request(Connection_handler* handler,
         response->pool_id = pool;
         response->status = E_INVAL;
       }
-    } catch (...) {
+    }
+    catch (...) {
       PLOG("OP_DELETE: error");
       response->pool_id = 0;
       response->status = E_FAIL;

@@ -166,7 +166,8 @@ int Connection_handler::tick() {
   return _response;
 }
 
-void Connection_handler::set_pending_value(void *target, size_t target_len,
+void Connection_handler::set_pending_value(void *target,
+                                           size_t target_len,
                                            memory_region_t region) {
   assert(target);
   assert(target_len);

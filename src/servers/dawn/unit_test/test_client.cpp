@@ -26,7 +26,8 @@ int main(int argc, char* argv[]) {
     port = vm.count("port") ? vm["port"].as<unsigned>() : 11911;
     server_addr = vm.count("addr") ? vm["addr"].as<std::string>() : "10.0.0.11";
     PLOG("using port: %u", port);
-  } catch (...) {
+  }
+  catch (...) {
     return -1;
   }
 

@@ -27,9 +27,10 @@ namespace Dawn
 {
 using Connection_base = Fabric_connection_base;
 
-class Connection_handler : public Connection_base,
-                           public Region_manager,
-                           public Pool_manager {
+class Connection_handler
+    : public Connection_base
+    , public Region_manager
+    , public Pool_manager {
  private:
   bool option_DEBUG = Dawn::Global::debug_level > 1;
 
@@ -40,6 +41,7 @@ class Connection_handler : public Connection_base,
  public:
   enum {
     TICK_RESPONSE_CONTINUE = 0,
+    TICK_RESPONSE_BOOTSTRAP_SPAWN = 1,
     TICK_RESPONSE_CLOSE = 0xFF,
   };
 
@@ -160,7 +162,8 @@ class Connection_handler : public Connection_base,
    * @param target_len
    * @param region
    */
-  void set_pending_value(void* target, size_t target_len,
+  void set_pending_value(void* target,
+                         size_t target_len,
                          Component::IFabric_connection::memory_region_t region);
 
   inline uint64_t auth_id() const { return (uint64_t) this; /* temp */ }
