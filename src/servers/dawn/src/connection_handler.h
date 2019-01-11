@@ -27,7 +27,10 @@ namespace Dawn
 {
 using Connection_base = Fabric_connection_base;
 
-class Connection_handler : public Connection_base, public Region_manager, public Pool_manager {
+class Connection_handler
+    : public Connection_base
+    , public Region_manager
+    , public Pool_manager {
  private:
   bool option_DEBUG = Dawn::Global::debug_level > 1;
 
@@ -38,6 +41,7 @@ class Connection_handler : public Connection_base, public Region_manager, public
  public:
   enum {
     TICK_RESPONSE_CONTINUE = 0,
+    TICK_RESPONSE_BOOTSTRAP_SPAWN = 1,
     TICK_RESPONSE_CLOSE = 0xFF,
   };
 
@@ -128,7 +132,9 @@ class Connection_handler : public Connection_base, public Region_manager, public
    *
    * @param action Action to add
    */
-  inline void add_pending_action(const action_t action) { _pending_actions.push_back(action); }
+  inline void add_pending_action(const action_t action) {
+    _pending_actions.push_back(action);
+  }
 
   /**
    * Post a response
@@ -156,7 +162,9 @@ class Connection_handler : public Connection_base, public Region_manager, public
    * @param target_len
    * @param region
    */
-  void set_pending_value(void* target, size_t target_len, Component::IFabric_connection::memory_region_t region);
+  void set_pending_value(void* target,
+                         size_t target_len,
+                         Component::IFabric_connection::memory_region_t region);
 
   inline uint64_t auth_id() const { return (uint64_t) this; /* temp */ }
 
@@ -177,9 +185,11 @@ class Connection_handler : public Connection_base, public Region_manager, public
     PINF("-----------------------------------------");
     PINF("Recv message count          : %lu", _stats.recv_msg_count);
     PINF("Response count              : %lu", _stats.response_count);
-    PINF("NEW_MSG_RECV misses         : %lu K", _stats.wait_msg_recv_misses / 1000);
+    PINF("NEW_MSG_RECV misses         : %lu K",
+         _stats.wait_msg_recv_misses / 1000);
     PINF("WAIT_RECV_VALUE misses      : %lu", _stats.wait_recv_value_misses);
-    PINF("WAIT_RESPOND_COMPLETE misses: %lu", _stats.wait_respond_complete_misses);
+    PINF("WAIT_RESPOND_COMPLETE misses: %lu",
+         _stats.wait_respond_complete_misses);
     PINF("-----------------------------------------");
   }
 

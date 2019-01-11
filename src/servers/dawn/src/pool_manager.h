@@ -41,7 +41,8 @@ class Pool_manager {
    */
   void register_pool(const std::string& path, pool_t pool) {
     assert(pool);
-    if (_open_pools.find(pool) != _open_pools.end()) throw General_exception("pool already registered");
+    if (_open_pools.find(pool) != _open_pools.end())
+      throw General_exception("pool already registered");
 
     _open_pools[pool] = 1;
     _name_map[path] = pool;
@@ -63,8 +64,10 @@ class Pool_manager {
    */
   bool release_pool_reference(pool_t pool) {
     std::map<pool_t, unsigned>::iterator i = _open_pools.find(pool);
-    if (i == _open_pools.end()) throw Logic_exception("release_pool_reference on invalid pool");
-    if (i->second == 0) throw Logic_exception("invalid release, reference is already");
+    if (i == _open_pools.end())
+      throw Logic_exception("release_pool_reference on invalid pool");
+    if (i->second == 0)
+      throw Logic_exception("invalid release, reference is already");
     i->second--;
     return i->second == 0; /* return true if last reference */
   }
@@ -91,12 +94,15 @@ class Pool_manager {
       return false;
   }
 
-  inline const std::map<pool_t, unsigned>& open_pool_set() { return _open_pools; }
+  inline const std::map<pool_t, unsigned>& open_pool_set() {
+    return _open_pools;
+  }
 
  private:
   std::map<pool_t, unsigned> _open_pools;
   std::map<std::string, pool_t> _name_map;
-  std::map<pool_t, std::vector<Connection_base::memory_region_t>> _memory_regions;
+  std::map<pool_t, std::vector<Connection_base::memory_region_t>>
+      _memory_regions;
 };
 }  // namespace Dawn
 

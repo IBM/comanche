@@ -12,8 +12,10 @@ int main(int argc, char* argv[]) {
   try {
     namespace po = boost::program_options;
     po::options_description desc("Options");
-    desc.add_options()("help", "Show help")("port", po::value<unsigned>(), "Port to connect to")(
-        "endpoint", po::value<std::string>(), "Endpoint name (IPC)")("addr", po::value<std::string>(), "Server IP address");
+    desc.add_options()("help", "Show help")("port", po::value<unsigned>(),
+                                            "Port to connect to")(
+        "endpoint", po::value<std::string>(), "Endpoint name (IPC)")(
+        "addr", po::value<std::string>(), "Server IP address");
 
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
