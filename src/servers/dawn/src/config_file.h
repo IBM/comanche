@@ -1,14 +1,24 @@
 #ifndef __DAWN_CONFIG_FILE_H__
 #define __DAWN_CONFIG_FILE_H__
 
-#include <fstream>
+
 #include <string>
 #include <assert.h>
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <common/exceptions.h>
 #include <rapidjson/document.h>
-#include <rapidjson/istreamwrapper.h>
+#include <rapidjson/filereadstream.h>
 
-static const char* k_typenames[] = { "Null", "False", "True", "Object", "Array", "String", "Number" };
+static const char* k_typenames[] = { "Null",
+                                     "False",
+                                     "True",
+                                     "Object",
+                                     "Array",
+                                     "String",
+                                     "Number" };
 
 namespace Dawn
 {
@@ -17,7 +27,7 @@ class Config_file
 {
  private:
   static constexpr bool option_DEBUG = true;
-  
+
  public:
   Config_file(const std::string& filename) {
 
@@ -26,18 +36,24 @@ class Config_file
     
     using namespace rapidjson;
 
-    std::ifstream ifs;    
-    ifs.open(filename);
-    if (ifs.fail())
+    /* use file stream instead of istreamwrapper because of older Ubuntu 16.04 */
+    FILE * fp = fopen(filename.c_str(),"rb");
+    if(fp == nullptr)
       throw General_exception("configuration file open/parse failed");
 
-    try {        
-      IStreamWrapper isw(ifs);
-      _doc.ParseStream(isw);
+    struct stat st;
+    stat(filename.c_str(), &st);
+    char * buffer = (char *) malloc(st.st_size);
+
+    try {
+      FileReadStream is(fp, buffer, st.st_size);
+      _doc.ParseStream(is);
     }
     catch(...) {
       throw General_exception("configuration file open/parse failed");
     }
+    free(buffer);
+    fclose(fp);
 
     _shards = _doc["shards"];
     
