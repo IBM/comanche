@@ -13,7 +13,7 @@ for i in $(seq 1 1 $SHARDS)
 do
     PORT=$(( 11910 + $i ))
     CORE=%i    
-    SHORT_CIRCUIT_BACKEND=1 $BIN_DIR/kvstore-perf  --component dawn --test throughput --server_address $SERVER:$PORT --debug_level 0 --device_name mlx5_0 --pool_name dax0 --path=/dev/ --elements 1000000 --cores 0-3 --nopin &> log.$i &
+    SHORT_CIRCUIT_BACKEND=1 $BIN_DIR/kvstore-perf  --component dawn --test throughput --server_address $SERVER:$PORT --debug_level 0 --device_name mlx5_0 --pool_name dax$i --path=/dev/ --elements 1000000 --cores 0-5 --nopin &> log.$i &
     pids[${i}]=$!
 done
 

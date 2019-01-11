@@ -17,7 +17,8 @@ class Fabric_transport {
   using memory_region_t = Component::IFabric_memory_region*;
   using buffer_t = Buffer_manager<Component::IFabric_server>::buffer_t;
 
-  Fabric_transport(const std::string provider, const std::string device,
+  Fabric_transport(const std::string provider,
+                   const std::string device,
                    unsigned port) {
     option_DEBUG = Dawn::Global::debug_level > 1;
 
@@ -35,7 +36,8 @@ class Fabric_transport {
   }
 
  private:
-  void init(const std::string& provider, const std::string& device,
+  void init(const std::string& provider,
+            const std::string& device,
             unsigned port) {
     using namespace Component;
 
