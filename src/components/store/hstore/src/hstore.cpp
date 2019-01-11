@@ -223,7 +223,7 @@ int check_pool(const char * path)
           break;
         default:
           pmempool_check_end(ppc);
-          throw General_exception("pmempool_check failed");
+          throw General_exception("pmempool_check failed %s", path);
         }
       }
 
@@ -238,7 +238,7 @@ int check_pool(const char * path)
       return 1;
     }
 
-  perror("pmempool_check_init");
+  PLOG("pmempool_check_init (%s) %s", path, strerror(errno));
   return -1;
 }
 }
@@ -369,7 +369,7 @@ auto hstore::create_pool(
     pop.reset(pmemobj_create(fullpath.c_str(), REGION_NAME, size, 0666));
     if (not pop)
       {
-        throw General_exception("failed to create new pool (%s)\n", pmemobj_errormsg());
+        throw General_exception("failed to create new pool %s (%s)\n", fullpath.c_str(), pmemobj_errormsg());
       }
   }
   else {
@@ -387,7 +387,7 @@ auto hstore::create_pool(
         if (not pop) {
           pop.reset(pmemobj_create(fullpath.c_str(), REGION_NAME, 0, 0666)); /* size = 0 for devdax */
           if (not pop)
-            throw General_exception("failed to create new pool (%s)", fullpath.c_str());
+            throw General_exception("failed to create new pool (%s) %s", fullpath.c_str(), pmemobj_errormsg());
         }
       }
     else {
@@ -402,7 +402,7 @@ auto hstore::create_pool(
 	  
           pop.reset(pmemobj_create(fullpath.c_str(), REGION_NAME, size, 0666));
           if (not pop)
-            throw General_exception("failed to re-open or create new pool");
+            throw General_exception("failed to re-open or create new pool (%s) %s", fullpath.c_str(), pmemobj_errormsg());
         }
     }
   }
