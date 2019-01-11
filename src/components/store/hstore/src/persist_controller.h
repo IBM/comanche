@@ -36,6 +36,7 @@ namespace impl
 		private:
 			using bucket_allocator_t = typename persist_data_t::bucket_allocator_t;
 			persist_data_t *_persist;
+			std::size_t _bucket_count_cached;
 			/* enable persist call if Allocator supports persist */
 			using persist_switch_t =
 				persist_switch<Allocator, std::is_base_of<persister, Allocator>::value>;
@@ -47,6 +48,10 @@ namespace impl
 				, const char *what
 			);
 			void size_stabilize();
+			auto bucket_count_uncached() -> size_type
+			{
+				return base_segment_size << (segment_count_actual() - 1U);
+			}
 
 		public:
 			explicit persist_controller(const Allocator &av, persist_data_t *persist);
@@ -105,7 +110,7 @@ namespace impl
 
 			auto bucket_count() const -> size_type
 			{
-				return base_segment_size << (segment_count_actual() - 1U);
+				return _bucket_count_cached;
 			}
 
 			auto max_bucket_count() const -> size_type
