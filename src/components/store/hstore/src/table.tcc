@@ -966,11 +966,14 @@ template <
 			segment_layout::base_segment_size + segment_layout::ix_low(ix)
 			;
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
 		return
 			si == segment_count()
 			? segment_and_bucket_t(&_bc[si-1], _bc[si-1].segment_size() ) /* end iterator */
 			: segment_and_bucket_t(&_bc[si], bi)
 			;
+#pragma GCC diagnostic pop
 	}
 
 template <
