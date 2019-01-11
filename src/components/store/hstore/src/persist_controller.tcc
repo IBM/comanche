@@ -22,6 +22,7 @@ template <typename Allocator>
 	)
 		: Allocator(av_)
 		, _persist(persist_)
+		, _bucket_count_cached(bucket_count_uncached())
 	{
 		assert(_persist->_segment_count._target <= _segment_capacity);
 		assert(
@@ -193,5 +194,6 @@ template <typename Allocator>
 	void impl::persist_controller<Allocator>::resize_epilog()
 	{
 		_persist->_segment_count._actual = _persist->_segment_count._target;
+		_bucket_count_cached = bucket_count_uncached();
 		persist_segment_count();
 	}
