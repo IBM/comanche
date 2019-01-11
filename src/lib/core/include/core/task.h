@@ -32,6 +32,7 @@
 #include <numa.h>
 #include <sched.h>
 #include <unistd.h>
+#include <exception>
 #include <mutex>
 #include <thread>
 #include <vector>
@@ -122,6 +123,12 @@ class Per_core_tasking {
       try {
         if (!(_tasklet[core]->do_work(core)))
           break; /* if do_work return false, we exit the thread */
+      } catch ( const Exception &e ) {
+        PERR("do_work threw exception: %s", e.cause());
+        break;
+      } catch ( const std::exception &e ) {
+        PERR("do_work threw exception %s", e.what());
+        break;
       } catch (...) {
         PERR("do_work threw exception");
         break;

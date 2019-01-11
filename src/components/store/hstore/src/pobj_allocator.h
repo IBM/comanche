@@ -109,7 +109,7 @@ template <typename T>
 				);
 			if ( r != 0 )
 			{
-				throw pobj_bad_alloc(errno);
+				throw 0, pobj_bad_alloc(s, sizeof(T), errno);
 			}
 #if TRACE_PALLOC
 			{
@@ -259,7 +259,7 @@ template <typename T>
 				);
 			if ( r != 0 )
 			{
-				throw pobj_bad_alloc(errno);
+				throw pobj_bad_alloc(cache_align, s, sizeof(T), errno);
 			}
 #if TRACE_PALLOC
 			{
