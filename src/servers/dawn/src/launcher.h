@@ -5,6 +5,7 @@
 #include <string>
 
 #include "config_file.h"
+#include "program_options.h"
 #include "shard.h"
 
 namespace Dawn
@@ -12,9 +13,11 @@ namespace Dawn
 class Shard_launcher : public Config_file
 {
   static constexpr auto DEFAULT_PROVIDER = "verbs";
+  
  public:
   Shard_launcher(Program_options& options)
-      : Config_file(options.config_file) {
+      : Config_file(options.config_file)
+  {
 
     for(unsigned i = 0;i < shard_count(); i++) {
       PMAJOR("launching shard: core(%d) port(%d) device(%s) net(%s)",
@@ -49,8 +52,9 @@ class Shard_launcher : public Config_file
     do {
       sleep(1);
       alive = false;
-      for(auto& sp : _shards)
+      for(auto& sp : _shards) {
         alive = !sp->exited();
+      }
     }
     while(alive);
   }

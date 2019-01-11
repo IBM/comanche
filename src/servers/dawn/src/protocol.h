@@ -26,6 +26,11 @@ enum {
 };
 
 enum {
+  PROTOCOL_KV = 0x0, /*< Key-Value Store */
+  PROTOCOL_AS = 0x1, /*< Active Storage */
+};
+
+enum {
   MSG_RESVD_SCBE = 0x2,
 };
 
@@ -67,7 +72,10 @@ struct Message {
 
   Message() {}
 
-  void print() { PLOG("Message:%p auth_id:%lu msg_len=%u type=%x", this, auth_id, msg_len, type_id); }
+  void print() {
+    PLOG("Message:%p auth_id:%lu msg_len=%u type=%x", this, auth_id, msg_len,
+         type_id);
+  }
 
   uint64_t auth_id;  // authorization token
   uint32_t msg_len;
@@ -102,7 +110,8 @@ struct Message_pool_request : public Message {
     auto max_data_len = buffer_size - sizeof(Message_pool_request);
 
     size_t len = pool_name.length() + path.length();
-    if (len >= max_data_len) throw API_exception("buffer space too small for name (%u)", max_data_len);
+    if (len >= max_data_len)
+      throw API_exception("buffer space too small for name (%u)", max_data_len);
 
     size_t path_len = path.length();
     strncpy(data, path.c_str(), path_len);
@@ -117,7 +126,10 @@ struct Message_pool_request : public Message {
     msg_len = sizeof(Message_pool_request) + len + 2;
   }
 
-  Message_pool_request(size_t buffer_size, uint64_t auth_id, uint64_t request_id, uint8_t op)
+  Message_pool_request(size_t buffer_size,
+                       uint64_t auth_id,
+                       uint64_t request_id,
+                       uint8_t op)
       : Message(auth_id, MSG_TYPE_POOL_REQUEST, op), pool_size(0) {
     assert(op);
     assert(buffer_size > sizeof(Message_pool_request));
@@ -138,7 +150,8 @@ struct Message_pool_request : public Message {
 } __attribute__((packed));
 
 struct Message_pool_response : public Message {
-  Message_pool_response(uint64_t auth_id) : Message(auth_id, MSG_TYPE_POOL_RESPONSE) {
+  Message_pool_response(uint64_t auth_id)
+      : Message(auth_id, MSG_TYPE_POOL_RESPONSE) {
     msg_len = sizeof(Message_pool_response);
   }
   Message_pool_response() { assert(this->version == PROTOCOL_VERSION); }
@@ -156,7 +169,8 @@ struct Message_IO_request : public Message {
                      uint8_t op,
                      const std::string& key,
                      const std::string& value)
-      : Message(auth_id, MSG_TYPE_IO_REQUEST, op), request_id(request_id), pool_id(pool_id) {
+      : Message(auth_id, MSG_TYPE_IO_REQUEST, op), request_id(request_id),
+        pool_id(pool_id) {
     set_key_and_value(buffer_size, key, value);
     msg_len = sizeof(Message_IO_request) + key_len + value.length();
   }
@@ -169,7 +183,8 @@ struct Message_IO_request : public Message {
                      const void* key,
                      size_t key_len,
                      size_t value_len)
-      : Message(auth_id, MSG_TYPE_IO_REQUEST, op), request_id(request_id), pool_id(pool_id) {
+      : Message(auth_id, MSG_TYPE_IO_REQUEST, op), request_id(request_id),
+        pool_id(pool_id) {
     set_key_value_len(buffer_size, key, key_len, value_len);
     msg_len = sizeof(Message_IO_request) + key_len;
   }
@@ -181,7 +196,8 @@ struct Message_IO_request : public Message {
                      uint8_t op,
                      std::string& key,
                      size_t value_len)
-      : Message(auth_id, MSG_TYPE_IO_REQUEST, op), request_id(request_id), pool_id(pool_id) {
+      : Message(auth_id, MSG_TYPE_IO_REQUEST, op), request_id(request_id),
+        pool_id(pool_id) {
     set_key_value_len(buffer_size, key, value_len);
     msg_len = sizeof(Message_IO_request) + key_len;
   }
@@ -195,7 +211,8 @@ struct Message_IO_request : public Message {
                      size_t key_len,
                      const void* value,
                      size_t value_len)
-      : Message(auth_id, MSG_TYPE_IO_REQUEST, op), request_id(request_id), pool_id(pool_id) {
+      : Message(auth_id, MSG_TYPE_IO_REQUEST, op), request_id(request_id),
+        pool_id(pool_id) {
     set_key_and_value(buffer_size, key, key_len, value, value_len);
     msg_len = sizeof(Message_IO_request) + key_len + value_len + 1;
   }
@@ -205,13 +222,16 @@ struct Message_IO_request : public Message {
   void dump() {
     switch (op) {
       case OP_PUT:
-        PINF("Message_IO_request: OP_PUT key_len:%lu val_len:%lu", key_len, val_len);
+        PINF("Message_IO_request: OP_PUT key_len:%lu val_len:%lu", key_len,
+             val_len);
         break;
       case OP_GET:
-        PINF("Message_IO_request: OP_GET key_len:%lu val_len:%lu", key_len, val_len);
+        PINF("Message_IO_request: OP_GET key_len:%lu val_len:%lu", key_len,
+             val_len);
         break;
       default:
-        PINF("Message_IO_request: op:%d key_len:%lu val_len:%lu", op, key_len, val_len);
+        PINF("Message_IO_request: op:%d key_len:%lu val_len:%lu", op, key_len,
+             val_len);
     }
   }
 
@@ -221,15 +241,21 @@ struct Message_IO_request : public Message {
   const size_t get_key_len() const { return key_len; }
   const size_t get_value_len() const { return val_len; }
 
-  inline void set_key_value_len(size_t buffer_size, const std::string& key, const size_t value_len) {
+  inline void set_key_value_len(size_t buffer_size,
+                                const std::string& key,
+                                const size_t value_len) {
     set_key_value_len(buffer_size, key.c_str(), key.length(), value_len);
   }
 
-  void set_key_value_len(size_t buffer_size, const void* key, const size_t key_len, const size_t value_len) {
+  void set_key_value_len(size_t buffer_size,
+                         const void* key,
+                         const size_t key_len,
+                         const size_t value_len) {
     if (unlikely((key_len + sizeof(Message_IO_request)) > buffer_size))
-      throw API_exception("Message_IO_request::set_key_value_len - insufficient buffer for "
-                          "key-value_len pair (key_len=%lu) (val_len=%lu)",
-                          key_len, value_len);
+      throw API_exception(
+          "Message_IO_request::set_key_value_len - insufficient buffer for "
+          "key-value_len pair (key_len=%lu) (val_len=%lu)",
+          key_len, value_len);
 
     memcpy(data, key, key_len); /* only copy key and set value length */
     data[key_len] = '\0';
@@ -237,17 +263,25 @@ struct Message_IO_request : public Message {
     this->key_len = key_len;
   }
 
-  inline void set_key_and_value(const size_t buffer_size, const std::string& key, const std::string& value) {
-    set_key_and_value(buffer_size, key.c_str(), key.length(), value.c_str(), value.length());
+  inline void set_key_and_value(const size_t buffer_size,
+                                const std::string& key,
+                                const std::string& value) {
+    set_key_and_value(buffer_size, key.c_str(), key.length(), value.c_str(),
+                      value.length());
   }
 
-  void set_key_and_value(
-      const size_t buffer_size, const void* p_key, const size_t p_key_len, const void* p_value, const size_t p_value_len) {
+  void set_key_and_value(const size_t buffer_size,
+                         const void* p_key,
+                         const size_t p_key_len,
+                         const void* p_value,
+                         const size_t p_value_len) {
     assert(buffer_size > 0);
-    if (unlikely((p_key_len + p_value_len + 2 + sizeof(Message_IO_request)) > buffer_size))
-      throw API_exception("Message_IO_request::set_key_and_value - insufficient buffer for "
-                          "key-value pair (key_len=%lu) (val_len=%lu) (buffer_size=%lu)",
-                          p_key_len, p_value_len, buffer_size);
+    if (unlikely((p_key_len + p_value_len + 2 + sizeof(Message_IO_request)) >
+                 buffer_size))
+      throw API_exception(
+          "Message_IO_request::set_key_and_value - insufficient buffer for "
+          "key-value pair (key_len=%lu) (val_len=%lu) (buffer_size=%lu)",
+          p_key_len, p_value_len, buffer_size);
 
     memcpy(data, p_key, p_key_len);
     data[p_key_len] = '\0';
@@ -268,7 +302,8 @@ struct Message_IO_request : public Message {
 struct Message_IO_response : public Message {
   static constexpr uint64_t BIT_TWOSTAGE = 1ULL << 63;
 
-  Message_IO_response(size_t buffer_size, uint64_t auth_id) : Message(auth_id, MSG_TYPE_IO_RESPONSE) {
+  Message_IO_response(size_t buffer_size, uint64_t auth_id)
+      : Message(auth_id, MSG_TYPE_IO_RESPONSE) {
     data_len = 0;
     msg_len = sizeof(Message_IO_response);
   }
@@ -296,37 +331,21 @@ struct Message_IO_response : public Message {
   char data[];
 } __attribute__((packed));
 
-// ////////////////////////////////////////////////////////////////////////
-// // SEGMENT
-
-// struct Message_segment : public Message {
-
-//   Message_segment(size_t buffer_size,
-//                   uint64_t auth_id,
-//                   uint64_t request_id)
-//     : Message(auth_id, MSG_TYPE_IO_REQUEST, OP_PUT_SEGMENT),
-//       request_id(request_id)
-//   {
-//     assert(buffer_size > size());
-//     msg_len = sizeof(Message_segment);
-//   }
-
-//   static size_t size() { return sizeof(Message_segment); }
-
-//   uint64_t request_id;
-// } __attribute__((packed));
-
 ////////////////////////////////////////////////////////////////////////
 // HANDSHAKE
 
 struct Message_handshake : public Message {
-  Message_handshake(uint64_t auth_id, uint64_t sequence) : Message(auth_id, MSG_TYPE_HANDSHAKE), seq(sequence) {
+  Message_handshake(uint64_t auth_id, uint64_t sequence)
+      : Message(auth_id, MSG_TYPE_HANDSHAKE), seq(sequence), protocol(PROTOCOL_KV) {
     msg_len = sizeof(Message_handshake);
   }
   Message_handshake() {}
 
   // fields
   uint64_t seq;
+  uint8_t protocol;
+
+  void set_as_protocol() { protocol = PROTOCOL_AS; }
 
 } __attribute__((packed));
 
@@ -335,7 +354,8 @@ struct Message_handshake : public Message {
 
 struct Message_handshake_reply : public Message {
   Message_handshake_reply(uint64_t auth_id, uint64_t sequence, size_t mms)
-      : Message(auth_id, MSG_TYPE_HANDSHAKE_REPLY), seq(sequence), max_message_size(mms) {
+      : Message(auth_id, MSG_TYPE_HANDSHAKE_REPLY), seq(sequence),
+        max_message_size(mms) {
     msg_len = sizeof(Message_handshake_reply);
   }
   Message_handshake_reply() {}
@@ -350,7 +370,8 @@ struct Message_handshake_reply : public Message {
 // CLOSE SESSION
 
 struct Message_close_session : public Message {
-  Message_close_session(uint64_t auth_id) : Message(auth_id, MSG_TYPE_CLOSE_SESSION) {
+  Message_close_session(uint64_t auth_id)
+      : Message(auth_id, MSG_TYPE_CLOSE_SESSION) {
     msg_len = sizeof(Message_handshake_reply);
   }
   Message_close_session() { msg_len = sizeof(Message_handshake_reply); }
@@ -360,8 +381,10 @@ struct Message_close_session : public Message {
 
 } __attribute__((packed));
 
-static_assert(sizeof(Message_IO_request) % 8 == 0, "Message_IO_request should be 64bit aligned");
-static_assert(sizeof(Message_IO_response) % 8 == 0, "Message_IO_request should be 64bit aligned");
+static_assert(sizeof(Message_IO_request) % 8 == 0,
+              "Message_IO_request should be 64bit aligned");
+static_assert(sizeof(Message_IO_response) % 8 == 0,
+              "Message_IO_request should be 64bit aligned");
 
 }  // namespace Protocol
 }  // namespace Dawn

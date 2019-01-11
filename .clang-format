@@ -11,6 +11,9 @@ BraceWrapping:
   BeforeElse:     true
   BeforeCatch:    true
 BinPackParameters: false
+ConstructorInitializerAllOnOneLineOrOnePerLine: false
+BreakBeforeInheritanceComma: true
+ColumnLimit: 80
 ...
 
 #------------------------------------------

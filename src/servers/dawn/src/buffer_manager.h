@@ -32,7 +32,8 @@ class Buffer_manager {
     int flags;
     const unsigned magic;
 
-    buffer_t(size_t length) : original_length(length), flags(0), magic(0xC0FFEE) {}
+    buffer_t(size_t length)
+        : original_length(length), flags(0), magic(0xC0FFEE) {}
 
     ~buffer_t() { delete iov; }
 
@@ -50,7 +51,8 @@ class Buffer_manager {
   };
 
  public:
-  Buffer_manager(Transport *transport, size_t buffer_count = DEFAULT_BUFFER_COUNT)
+  Buffer_manager(Transport *transport,
+                 size_t buffer_count = DEFAULT_BUFFER_COUNT)
       : _buffer_count(buffer_count), _transport(transport) {
     init();
   }
@@ -95,7 +97,8 @@ class Buffer_manager {
 
     for (unsigned i = 0; i < _buffer_count; i++) {
       auto iov = alloc_iov();
-      auto region = _transport->register_memory(iov->iov_base, iov->iov_len, 0, 0);
+      auto region =
+          _transport->register_memory(iov->iov_base, iov->iov_len, 0, 0);
       auto desc = _transport->get_memory_descriptor(region);
 
       auto new_buffer = new buffer_t(BUFFER_LEN);
