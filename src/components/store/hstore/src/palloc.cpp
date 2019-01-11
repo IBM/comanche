@@ -29,7 +29,7 @@ PMEMoid palloc_inner(
 	PMEMoid oid;
 	if ( 0 != pmemobj_alloc(pop_, &oid, size_, type_num_, ctor_, ctor_arg_) )
 	{
-		throw pobj_bad_alloc(errno);
+		throw pobj_bad_alloc(0, 1, size_, errno);
 	}
 #if TRACE_PALLOC
 	{

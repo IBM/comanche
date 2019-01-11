@@ -106,6 +106,14 @@ struct store_root_t
 
 TOID_DECLARE_ROOT(struct store_root_t);
 
+namespace
+{
+  std::string make_full_path(const std::string &prefix, const std::string &suffix)
+  {
+    return prefix + ( prefix[prefix.length()-1] != '/' ? "/" : "") + suffix;
+  }
+}
+
 class open_session
 {
   TOID(struct store_root_t) _root;
@@ -132,8 +140,9 @@ public:
   open_session(const open_session &) = delete;
   open_session& operator=(const open_session &) = delete;
   PMEMobjpool *pool() const { return _pop.get(); }
-#if 0
-  const std::string &path() const noexcept { return _path; }
+#if 1
+  /* debugging only */
+  std::string path() const noexcept { return make_full_path(dir(), name()); }
 #endif
   const std::string &dir() const noexcept { return _dir; }
   const std::string &name() const noexcept { return _name; }
@@ -300,14 +309,6 @@ pc_t *map_create_if_null(
   auto pc = pmemobj_direct(rt->pc);
   PLOG(PREFIX "persist root addr %p", __func__, static_cast<const void *>(rt));
   return static_cast<pc_t *>(pc);
-}
-}
-
-namespace
-{
-std::string make_full_path(const std::string &prefix, const std::string &suffix)
-{
-  return prefix + ( prefix[prefix.length()-1] != '/' ? "/" : "") + suffix;
 }
 }
 
@@ -492,8 +493,11 @@ auto hstore::open_pool(const std::string &path,
 }
 
 void hstore::close_pool(const pool_t pid)
+{
+  std::string path;
   try
     {
+
       auto session = move_session(pid);
       if ( option_DEBUG )
         {
@@ -504,6 +508,13 @@ void hstore::close_pool(const pool_t pid)
     {
       throw API_exception("%s in %s", e.cause(), __func__);
     }
+  if ( path != "" ) {
+    if ( check_pool(path.c_str()) != 0 )
+    {
+      PLOG("pool check failed (%s) %s", path.c_str(), pmemobj_errormsg());
+    }
+  }
+}
 
 void hstore::delete_pool(const std::string &dir, const std::string &name)
 {
