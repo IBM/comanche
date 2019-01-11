@@ -214,17 +214,9 @@ public:
   DECLARE_VERSION(0.1);
   DECLARE_COMPONENT_UUID(0xfac64581,0x1993,0x4811,0xbdb2,0x19,0x57,0xa0,0xa6,0x84,0x57);
 
-  void * query_interface(Component::uuid_t& itf_uuid) override {
-    if(itf_uuid == Component::IKVStore_factory::iid()) {
-      return (void *) static_cast<Component::IKVStore_factory*>(this);
-    }
-    else return NULL; // we don't support this interface
-  }
+  void * query_interface(Component::uuid_t& itf_uuid) override;
 
-
-  void unload() override {
-    delete this;
-  }
+  void unload() override;
 
   /*
    *   "pci" is in Bus:Device.Function (BDF) form. Bus and Device must be zero-padded to 2 digits each, e.g. 86:00.0
@@ -232,16 +224,13 @@ public:
   virtual Component::IKVStore * create(const std::string& owner,
                                        const std::string& name,
                                        const std::string& pci)
-                                       override
-  {
-    Component::IKVStore * obj = static_cast<Component::IKVStore*>(new NVME_store(owner, name, pci));
-    obj->add_ref();
-    return obj;
-  }
+                                       override;
+
+  virtual Component::IKVStore * create(unsigned,
+                                       const std::string& owner,
+                                       const std::string& name,
+                                       const std::string& pci)
+                                       override;
 };
-
-
-
-
 
 #endif

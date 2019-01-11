@@ -31,6 +31,7 @@ ProgramOptions Options;
 Data * g_data;
 int g_argc;
 char ** g_argv;
+double g_iops;
 
 pthread_mutex_t g_write_lock = PTHREAD_MUTEX_INITIALIZER;
 boost::program_options::options_description g_desc("Options");
@@ -94,22 +95,34 @@ int main(int argc, char * argv[])
   if (Options.test == "all" || Options.test == "put") {
     Core::Per_core_tasking<ExperimentPut, ProgramOptions> exp(cpus, Options, Options.pin);
     exp.wait_for_all();
+
+    auto first_exp = exp.tasklet(cpus.first_core());
+    first_exp->summarize();
   }
   
   if (Options.test == "all" || Options.test == "get") {
     Core::Per_core_tasking<ExperimentGet, ProgramOptions> exp(cpus, Options, Options.pin);
 
     exp.wait_for_all();
+
+    auto first_exp = exp.tasklet(cpus.first_core());
+    first_exp->summarize();
   }
   
   if (Options.test == "all" || Options.test == "get_direct") {
     Core::Per_core_tasking<ExperimentGetDirect, ProgramOptions> exp(cpus, Options, Options.pin);
     exp.wait_for_all();
+
+    auto first_exp = exp.tasklet(cpus.first_core());
+    first_exp->summarize();
   }
   
   if (Options.test == "all" || Options.test == "put_direct") {
     Core::Per_core_tasking<ExperimentPutDirect, ProgramOptions> exp(cpus, Options, Options.pin);
     exp.wait_for_all();
+
+    auto first_exp = exp.tasklet(cpus.first_core());
+    first_exp->summarize();
   }
   
   if (Options.test == "all" || Options.test == "throughput") {

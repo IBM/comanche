@@ -27,16 +27,13 @@ class Region_manager {
     auto entry = _reg.find(target);
     if (entry != _reg.end()) {
       region = entry->second;
-      if (option_DEBUG)
-        PLOG("region already registered %p len=%lu", target, target_len);
+      if (option_DEBUG) PLOG("region already registered %p len=%lu", target, target_len);
       return region;
     }
     else {
       region = _conn->register_memory(target, target_len, 0, 0);
       _reg[target] = region;
-      if (option_DEBUG)
-        PLOG("registering memory with fabric transport %p len=%lu", target,
-             target_len);
+      if (option_DEBUG) PLOG("registering memory with fabric transport %p len=%lu", target, target_len);
     }
     return region;
   }
