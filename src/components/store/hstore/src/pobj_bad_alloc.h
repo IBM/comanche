@@ -11,9 +11,9 @@ class pobj_bad_alloc
 	int _err;
 	std::string _what;
 public:
-	pobj_bad_alloc(int err_)
+	pobj_bad_alloc(std::size_t pad, std::size_t count, std::size_t size, int err_)
 		: _err(err_)
-		, _what(std::string("pobj_bad_alloc: ") + strerror(_err))
+		, _what(std::string("pobj_bad_alloc: ") + std::to_string(pad) + "+" + std::to_string(count) + "*" + std::to_string(size) + " " + strerror(_err))
 	{}
 	const char *what() const noexcept override
 	{

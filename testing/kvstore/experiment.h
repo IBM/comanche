@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstdio>
 #include <ctime>
+#include <exception>
 #include <fstream>
 #include <sstream>
 #include <vector>
@@ -161,10 +162,20 @@ public:
     {
       _pool = _store->create_pool(_pool_path, poolname, _pool_size, _pool_flags, _pool_num_objects);
     }
+    catch ( const Exception &e )
+    {
+      PERR("create_pool failed: %s. Aborting experiment.", e.cause());
+      throw;
+    }
+    catch ( const std::exception &e )
+    {
+      PERR("create_pool failed: %s. Aborting experiment.", e.what());
+      throw;
+    }
     catch(...)
     {
       PERR("create_pool failed! Aborting experiment.");
-      throw std::exception();
+      throw;
     }
       
     PLOG("Created pool for worker %u...OK!", core);
@@ -184,6 +195,16 @@ public:
     try
     {
       initialize_custom(core);
+    }
+    catch ( const Exception &e )
+    {
+      PERR("initialize_custom failed: %s. Aborting experiment.", e.cause());
+      throw;
+    }
+    catch ( const std::exception &e )
+    {
+      PERR("initialize_custom failed: %s. Aborting experiment.", e.what());
+      throw;
     }
     catch(...)
     {
@@ -230,6 +251,16 @@ public:
       }
       else throw General_exception("unknown --component option (%s)", _component.c_str());
     }
+    catch ( const Exception &e )
+    {
+      PERR("error during load_component: %s. Aborting experiment.", e.cause());
+      throw;
+    }
+    catch ( const std::exception &e )
+    {
+      PERR("error during load_component: %s. Aborting experiment.", e.what());
+      throw;
+    }
     catch(...)
     {
       PERR("error during load_component.");
@@ -266,6 +297,16 @@ public:
         PINF("factory: release_ref on %p", &fact);
       }
       fact->release_ref();
+    }
+    catch ( const Exception &e )
+    {
+      PERR("factory creation step failed: %s. Aborting experiment.", e.cause());
+      throw;
+    }
+    catch ( const std::exception &e )
+    {
+      PERR("factory creation step failed: %s. Aborting experiment.", e.what());
+      throw;
     }
     catch(...)
     {
@@ -321,6 +362,16 @@ public:
     {
       cleanup_custom(core);
     }
+    catch ( const Exception &e )
+    {
+      PERR("cleanup_custom failed: %s. Aborting experiment.", e.cause());
+      throw;
+    }
+    catch ( const std::exception &e )
+    {
+      PERR("cleanup_custom failed: %s. Aborting experiment.", e.what());
+      throw;
+    }
     catch(...)
     {
       PERR("cleanup_custom failed!");
@@ -333,6 +384,16 @@ public:
       {
         _store->unregister_direct_memory(_memory_handle);
       }
+    }
+    catch ( const Exception &e )
+    {
+      PERR("unregister_direct_memory failed: %s. Aborting experiment.", e.cause());
+      throw;
+    }
+    catch ( const std::exception &e )
+    {
+      PERR("unregister_direct_memory failed: %s. Aborting experiment.", e.what());
+      throw;
     }
     catch(...)
     {
@@ -348,6 +409,16 @@ public:
       }
 
       _store->delete_pool(_pool);
+    }
+    catch ( const Exception &e )
+    {
+      PERR("delete_pool failed: %s. Ending experiment.", e.cause());
+      throw;
+    }
+    catch ( const std::exception &e )
+    {
+      PERR("delete_pool failed: %s. Ending experiment.", e.what());
+      throw;
     }
     catch(...)
     {
@@ -366,6 +437,16 @@ public:
       {
         std::cout << " ...done!" << std::endl;
       }
+    }
+    catch ( const Exception &e )
+    {
+      PERR("release_ref call on _store failed: %s.", e.cause());
+      throw;
+    }
+    catch ( const std::exception &e )
+    {
+      PERR("release_ref failed: %s.", e.what());
+      throw;
     }
     catch(...)
     {
@@ -1060,6 +1141,12 @@ public:
         }
 
         _elements_stored++;
+      }
+      catch ( const std::exception &e )
+      {
+        std::cerr << "current = " << current << std::endl;
+        PERR("populate_pool_to_capacity failed at put call: %s.", e.what());
+        throw;
       }
       catch(...)
       {
