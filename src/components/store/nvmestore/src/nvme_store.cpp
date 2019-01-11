@@ -128,17 +128,15 @@ static int check_pool(const char * path)
   return 1;
 }
 
-
 NVME_store::NVME_store(const std::string& owner,
                        const std::string& name,
                        const std::string& pci)
 {
-  status_t ret;
   PLOG("NVMESTORE: chunk size in blocks: %lu", CHUNK_SIZE_IN_BLOCKS);
   PLOG("PMEMOBJ_MAX_ALLOC_SIZE: %lu MB", REDUCE_MB(PMEMOBJ_MAX_ALLOC_SIZE));
 
   /* Note: see note in open_block_device for failure info */
-  ret = open_block_device(pci, _blk_dev);
+  status_t ret = open_block_device(pci, _blk_dev);
   if(S_OK != ret){
     throw General_exception("failed (%d) to open block device at pci %s\n", ret, pci.c_str());
   }
@@ -146,7 +144,7 @@ NVME_store::NVME_store(const std::string& owner,
   ret = open_block_allocator(_blk_dev, _blk_alloc);
 
   if(S_OK != ret){
-    throw General_exception("failed to open block block allocator for device at pci %s\n", pci.c_str());
+    throw General_exception("failed (%d) to open block block allocator for device at pci %s\n", ret, pci.c_str());
   }
 
   PDBG("NVME_store: using block device %p with allocator %p", _blk_dev, _blk_alloc);
@@ -630,7 +628,10 @@ IKVStore::memory_handle_t NVME_store::register_direct_memory(void * vaddr, size_
 
 /* For nvmestore, data is not necessarily in main memory.
  * Lock will allocate iomem and load data from nvme first.
- * Unlock will will free it*/
+ * Unlock will will free it
+ *
+ * Note: nvmestore does not support multiple read locks on the same key by the same thread.
+ */
 IKVStore::key_t NVME_store::lock(const pool_t pool,
                                  const std::string& key,
                                  lock_type_t type,
@@ -828,4 +829,38 @@ extern "C" void * factory_createInstance(Component::uuid_t& component_id)
     return reinterpret_cast<void*>(new NVME_store_factory());
   }
   else return NULL;
+}
+
+void * NVME_store_factory::query_interface(Component::uuid_t& itf_uuid) {
+  if(itf_uuid == Component::IKVStore_factory::iid()) {
+    return this;
+  }
+  else return NULL; // we don't support this interface
+}
+
+
+void NVME_store_factory::unload() {
+  delete this;
+}
+
+auto NVME_store_factory::create(const std::string& owner,
+                                const std::string& name,
+                                const std::string& pci) -> Component::IKVStore *
+{
+  if ( pci.size() != 7 || pci[2] != ':' || pci[5] != '.' )
+  {
+    PWRN("Parameter '%s' does not look like a PCI address", pci.c_str());
+  }
+
+  Component::IKVStore * obj = static_cast<Component::IKVStore*>(new NVME_store(owner, name, pci));
+  obj->add_ref();
+  return obj;
+}
+
+auto NVME_store_factory::create(unsigned,
+                                const std::string& owner,
+                                const std::string& name,
+                                const std::string& pci) -> Component::IKVStore *
+{
+  return create(owner, name, pci);
 }
