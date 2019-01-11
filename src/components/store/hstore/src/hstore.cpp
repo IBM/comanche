@@ -401,8 +401,11 @@ auto hstore::create_pool(
             throw General_exception("pmempool_rm on (%s) failed", fullpath.c_str());
 	  
           pop.reset(pmemobj_create(fullpath.c_str(), REGION_NAME, size, 0666));
-          if (not pop)
-            throw General_exception("failed to re-open or create new pool");
+          if (not pop) {
+            pop.reset(pmemobj_create(fullpath.c_str(), REGION_NAME, 0, 0666)); /* size = 0 for devdax */
+            if (not pop)
+              throw General_exception("%d: failed to re-open or create new pool", __LINE__);
+          }            
         }
     }
   }
