@@ -31,6 +31,7 @@
 #include <memory> /* unique_ptr */
 #include <new>
 #include <map> /* session set */
+#include <mutex> /* thread safe use of libpmempool */
 
 #define PREFIX "HSTORE : %s: "
 
@@ -55,6 +56,11 @@ using open_pool_handle = std::unique_ptr<PMEMobjpool, void(*)(PMEMobjpool *)>;
 namespace
 {
 constexpr bool option_DEBUG = false;
+/* At least when using /dev/dax*, pmempool calls do not appear to be thred-safe.
+ * They use of mmap, and seem to hope that mappings do not change during the call.
+ */
+std::mutex pmempool_mutex;
+using pmempool_guard_t = std::lock_guard<std::mutex>;
 namespace type_num
 {
 constexpr uint64_t persist = 1U;
@@ -206,6 +212,7 @@ auto move_session(const IKVStore::pool_t pid) -> std::unique_ptr<open_session>
 
 int check_pool(const char * path)
 {
+  pmempool_guard_t g{pmempool_mutex};
   struct pmempool_check_args args;
   args.path = path;
   args.backup_path = NULL;
@@ -314,8 +321,9 @@ pc_t *map_create_if_null(
 
 static PMEMobjpool *delete_and_recreate_pool(const char *fullpath, const std::size_t size, const char *action)
 {
-  if ( pmempool_rm(fullpath, PMEMPOOL_RM_FORCE | PMEMPOOL_RM_POOLSET_LOCAL))
-    throw General_exception("pmempool_rm on (%s) failed", fullpath);
+  pmempool_guard_t g{pmempool_mutex};
+  if ( 0 != pmempool_rm(fullpath, PMEMPOOL_RM_FORCE | PMEMPOOL_RM_POOLSET_LOCAL))
+    throw General_exception("pmempool_rm on (%s) failed: %x", fullpath, pmemobj_errormsg());
 
  auto pop = pmemobj_create(fullpath, REGION_NAME, size, 0666);
   if (not pop) {
@@ -381,6 +389,7 @@ auto hstore::create_pool(
     boost::filesystem::path p(fullpath);
     boost::filesystem::create_directories(p.parent_path());
 
+    pmempool_guard_t g{pmempool_mutex};
     pop.reset(pmemobj_create(fullpath.c_str(), REGION_NAME, size, 0666));
     if (not pop)
       {
@@ -399,7 +408,10 @@ auto hstore::create_pool(
       }
     else {
       /* open existing */
-      pop.reset(pmemobj_open(fullpath.c_str(), REGION_NAME));
+      {
+        pmempool_guard_t g{pmempool_mutex};
+        pop.reset(pmemobj_open(fullpath.c_str(), REGION_NAME));
+      }
       if (not pop)
         {
           PWRN(PREFIX "erasing memory pool/partition: %s", __func__, fullpath.c_str());
@@ -467,9 +479,10 @@ auto hstore::open_pool(const std::string &path,
       throw General_exception("pool check failed");
     }
 
+  pmempool_guard_t g{pmempool_mutex};
   if (
       auto pop =
-      open_pool_handle(pmemobj_open(fullpath.c_str(), REGION_NAME), pmemobj_close)
+        open_pool_handle(pmemobj_open(fullpath.c_str(), REGION_NAME), pmemobj_close)
       )
     {
 #pragma GCC diagnostic push
@@ -519,13 +532,17 @@ void hstore::close_pool(const pool_t pid)
 void hstore::delete_pool(const std::string &dir, const std::string &name)
 {
   const int flags = 0;
-  if ( auto e = pmempool_rm(make_full_path(dir, name).c_str(), flags) ) {
+  auto path = make_full_path(dir, name);
+  pmempool_guard_t g{pmempool_mutex};
+  if ( 0 != pmempool_rm(path.c_str(), flags) ) {
+    auto e = errno;
     throw
       General_exception(
-                        "unable to delete pool (%s/%s) error %d"
-                        , dir.c_str()
-                        , name.c_str()
-                        , e
+                        "unable to delete pool (%s): pmem err %s errno %d (%s)"
+                        , path.c_str()
+                        , pmemobj_errormsg()
+			, e
+			, strerror(e)
                         );
   }
 
