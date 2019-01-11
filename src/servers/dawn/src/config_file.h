@@ -43,8 +43,6 @@ class Config_file
 
     struct stat st;
     stat(filename.c_str(), &st);
-    //    size = st.st_size;
-    //    off_t size = buf.st_size;
     char * buffer = (char *) malloc(st.st_size);
 
     try {
@@ -54,7 +52,7 @@ class Config_file
     catch(...) {
       throw General_exception("configuration file open/parse failed");
     }
-    
+    free(buffer);
     fclose(fp);
 
     _shards = _doc["shards"];
