@@ -141,38 +141,49 @@ public:
     // initialize experiment
     char poolname[256];
     sprintf(poolname, "%s.%u", _pool_name.c_str(), core);
+    auto path = _pool_path + "/" + poolname;
 
-    try
-      {
-        if (boost::filesystem::exists(_pool_path + "/" + poolname))
-          {
-            // pool already exists. Delete it.
-            if (_verbose)
-            {
-              std::cout << "pool already exists at " << _pool_path + "/" + poolname << ". Attempting to delete it...";
-            }
-
-            _store->delete_pool(_store->open_pool(_pool_path, poolname));
-
-            if (_verbose)
-            {
-              std::cout << " pool deleted!" << std::endl;
-            }
-          }
-      }
-    catch ( const Exception &e )
+    if (boost::filesystem::exists(path))
     {
-      PERR("open+delete existing pool %s failed: %s.", poolname, e.cause());
-    }
-    catch ( const std::exception &e )
-    {
-      PERR("open+delete existing pool %s failed: %s.", poolname, e.what());
-    }
-    catch(...)
+      bool might_be_dax = boost::filesystem::exists(path);
+      try
       {
-        PERR("open+delete existing pool %s failed.", poolname);
-        std::cerr << "open+delete existing pool failed" << std::endl;
+        // pool already exists. Delete it.
+        if (_verbose)
+        {
+          std::cout << "pool might already exists at " << path << ". Attempting to delete it...";
+        }
+
+        _store->delete_pool(_store->open_pool(_pool_path, poolname));
+
+        if (_verbose)
+        {
+          std::cout << " pool deleted!" << std::endl;
+        }
       }
+      catch ( const Exception &e )
+      {
+	if ( ! might_be_dax )
+        {
+          PERR("open+delete existing pool %s failed: %s.", poolname, e.cause());
+        }
+      }
+      catch ( const std::exception &e )
+      {
+	if ( ! might_be_dax )
+        {
+          PERR("open+delete existing pool %s failed: %s.", poolname, e.what());
+        }
+      }
+      catch(...)
+      {
+	if ( ! might_be_dax )
+        {
+          PERR("open+delete existing pool %s failed.", poolname);
+          std::cerr << "open+delete existing pool failed" << std::endl;
+        }
+      }
+    }
 
     PLOG("Creating pool for worker %u ...", core);
     try
