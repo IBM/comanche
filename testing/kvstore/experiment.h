@@ -117,6 +117,14 @@ public:
         pthread_mutex_unlock(&g_write_lock);
       }
     }
+    catch ( const Exception &e )
+    {
+      PERR("failed during direct memory setup: %s.", e.cause());
+    }
+    catch ( const std::exception &e )
+    {
+      PERR("failed during direct memory setup: %s.", e.what());
+    }
     catch(...)
     {
       PERR("failed during direct memory setup");
@@ -152,9 +160,18 @@ public:
             }
           }
       }
+    catch ( const Exception &e )
+    {
+      PERR("open+delete existing pool %s failed: %s.", poolname, e.cause());
+    }
+    catch ( const std::exception &e )
+    {
+      PERR("open+delete existing pool %s failed: %s.", poolname, e.what());
+    }
     catch(...)
       {
-        std::cerr << "open existing pool failed" << std::endl;
+        PERR("open+delete existing pool %s failed.", poolname);
+        std::cerr << "open+delete existing pool failed" << std::endl;
       }
 
     PLOG("Creating pool for worker %u ...", core);
@@ -356,8 +373,8 @@ public:
     PINF("[TOTAL] %s IOPS: %.3f", _test_name.c_str(), g_iops);
   }
 
-  void cleanup(unsigned core) override 
-  {
+  void cleanup(unsigned core) noexcept override
+  try {
     try
     {
       cleanup_custom(core);
@@ -453,6 +470,10 @@ public:
       PERR("release_ref call on _store failed!");
       throw std::exception();
     }
+  }
+  catch ( ... )
+  {
+    PERR("cleanup of core %u was incomplete.");
   }
 
   bool component_uses_direct_memory()
@@ -645,6 +666,10 @@ public:
       {
         mask.add_core(core);
       }
+    }
+    catch ( const Exception &e )
+    {
+      PERR("failed while adding core to mask: %s.", e.cause());
     }
     catch(...)
     {
