@@ -37,6 +37,14 @@ public:
       {
         PLOG("[%u] Starting Throughput experiment (value len:%lu)...", core, g_data->value_len());
         _first_iter = false;
+#if 1
+	/* DAX inifialization is serialized by thread (due to libpmempool behavior).
+	 * It is in some sense unfair to start measurement in initialize_custom,
+	 * which occurs before DAX initialization. Reset start of measurement to first
+	 * put operation.
+	 */
+        _start_time = std::chrono::high_resolution_clock::now();
+#endif
       }     
 
     // end experiment if we've reached the total number of components
