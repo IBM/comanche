@@ -140,20 +140,6 @@ template <typename Allocator>
 	}
 
 template <typename Allocator>
-	void impl::persist_controller<Allocator>::size_incr()
-	{
-		_persist->_size_control.incr();
-		size_stabilize();
-	}
-
-template <typename Allocator>
-	void impl::persist_controller<Allocator>::size_decr()
-	{
-		_persist->_size_control.decr();
-		size_stabilize();
-	}
-
-template <typename Allocator>
 	void impl::persist_controller<Allocator>::size_stabilize()
 	{
 		_persist->_size_control.stabilize();
