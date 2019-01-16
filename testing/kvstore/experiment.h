@@ -43,6 +43,7 @@ public:
   std::string _component = DEFAULT_COMPONENT;
   std::string _results_path = "./results";
   std::string _report_filename;
+  bool _skip_json_reporting = false;
   std::string _test_name;
   Component::IKVStore::memory_handle_t _memory_handle = Component::IKVStore::HANDLE_NONE;
 
@@ -210,13 +211,16 @@ public:
       
     PLOG("Created pool for worker %u...OK!", core);
 
-    // initialize experiment report
-    pthread_mutex_lock(&g_write_lock);
-
-    rapidjson::Document document = _get_report_document();
-    if (!document.HasMember("experiment"))
+    if (!_skip_json_reporting)
     {
-      _initialize_experiment_report(document); 
+      // initialize experiment report
+      pthread_mutex_lock(&g_write_lock);
+
+      rapidjson::Document document = _get_report_document();
+      if (!document.HasMember("experiment"))
+      {
+        _initialize_experiment_report(document); 
+      }
     }
 
     g_iops = 0;
@@ -486,7 +490,7 @@ public:
   }
   catch ( ... )
   {
-    PERR("cleanup of core %u was incomplete.");
+    PERR("cleanup of core %u was incomplete.", core);
   }
 
   bool component_uses_direct_memory()
@@ -561,6 +565,7 @@ public:
 
         _verbose = vm.count("verbose");
         _summary = vm.count("summary");
+        _skip_json_reporting = vm.count("skip_json_reporting");
 
         _debug_level = vm.count("debug_level") > 0 ? vm["debug_level"].as<int>() : 0;
         _server_address = vm.count("server_address") ? vm["server_address"].as<std::string>() : "127.0.0.1";
@@ -1076,6 +1081,11 @@ public:
    */ 
   static std::string create_report(ProgramOptions options)
   {
+    if (options.skip_json_reporting)
+    {
+      return "";
+    }
+
     PLOG("creating JSON report");
     std::string timestring = get_time_string();
 
