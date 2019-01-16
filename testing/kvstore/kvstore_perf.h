@@ -39,6 +39,7 @@ struct ProgramOptions {
   double bin_threshold_max;
   int debug_level;
   bool summary;
+  bool skip_json_reporting;
   bool pin;
   std::string owner;
   std::string server_address;
