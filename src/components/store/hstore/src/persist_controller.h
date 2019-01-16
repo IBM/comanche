@@ -91,7 +91,7 @@ namespace impl
 			}
 			std::size_t size() const
 			{
-				return _persist->_size_control.size;
+				return _persist->_size_control.size();
 			}
 
 			/* NOTE: this function returns an non-const iterator over _persist data,
