@@ -37,6 +37,7 @@ public:
   int _pool_flags = Component::IKVStore::FLAGS_SET_SIZE;
   int _pool_num_objects = 100000;
   std::string _cores = "0";
+  std::vector<int> _core_list = std::vector<int>();
   int _execution_time;
   int _debug_level = 0;
   std::string _component = DEFAULT_COMPONENT;
@@ -140,7 +141,8 @@ public:
 
     // initialize experiment
     char poolname[256];
-    sprintf(poolname, "%s.%u", _pool_name.c_str(), core);
+    int core_index = _get_core_index(core);
+    sprintf(poolname, "%s.%d", _pool_name.c_str(), core_index);
     auto path = _pool_path + "/" + poolname;
 
     if (boost::filesystem::exists(path))
@@ -578,12 +580,9 @@ public:
       }
   }
 
-  static cpu_mask_t get_cpu_mask_from_string(std::string core_string)
+  static std::vector<int> get_cpu_vector_from_string(std::string core_string)
   {
-    cpu_mask_t mask;
-    unsigned cores_total = 0;
-    unsigned core_first, core_last;
-    int hardware_total_cores = std::thread::hardware_concurrency();
+    std::vector<int> cores;
 
     int start = 0;
     int length = 0;
@@ -591,6 +590,9 @@ public:
     std::string substring;
     std::string range_start = "";
     bool using_range = false;
+
+    unsigned cores_total = 0;
+    unsigned core_first, core_last, core_num;
 
     while(true)
     {
@@ -633,7 +635,10 @@ public:
           core_first = core_last;
         }
 
-        _cpu_mask_add_core_wrapper(mask, core_first, core_last, hardware_total_cores);
+        for (core_num = core_first; core_num <= core_last; core_num++)
+        {
+          cores.push_back(core_num);
+        }
 
         start = current + 1;
         length = 0;
@@ -651,8 +656,23 @@ public:
       current++;
     }
 
+    return cores;
+  }
+
+  static cpu_mask_t get_cpu_mask_from_string(std::string core_string)
+  {
+    std::vector<int> cores = get_cpu_vector_from_string(core_string);
+    cpu_mask_t mask;
+    int hardware_total_cores = std::thread::hardware_concurrency();
+
+    for (int i = 0; i < cores.size(); i++)
+    {
+      _cpu_mask_add_core_wrapper(mask, cores.at(i), cores.at(i), hardware_total_cores);
+    }
+
     return mask;
   }
+
 
   static void _cpu_mask_add_core_wrapper(cpu_mask_t &mask, unsigned core_first, unsigned core_last, unsigned max_cores)
   {
@@ -698,6 +718,35 @@ public:
             std::cout << "[" << core << "]: " << text << std::endl;
           }
       }
+  }
+  int _get_core_index(unsigned core)
+  {
+    int index = -1;
+    int core_int = (int)core;
+
+    if (_core_list.empty())
+    {
+      // construct list
+      _core_list = get_cpu_vector_from_string(_cores);
+    }
+
+    // this is inefficient, but number of cores should be relatively small (hundreds at most)
+    for (int i = 0; i < _core_list.size(); i++)
+    {
+      if (_core_list.at(i) == core_int)
+      {
+        index = i;
+        break;
+      }
+    }
+
+    if (index == -1)
+    {
+      PERR("_get_core_index couldn't find core %d! Exiting.", core_int);
+      throw std::exception();
+    }
+
+    return index;
   }
 
   rapidjson::Document _get_report_document()
