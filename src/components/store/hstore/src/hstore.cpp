@@ -404,7 +404,7 @@ auto hstore::create_pool(
 
     if (check_pool(fullpath.c_str()) != 0)
       {
-	pop.reset(delete_and_recreate_pool(fullpath.c_str(), size, "create new pool"));
+        pop.reset(delete_and_recreate_pool(fullpath.c_str(), size, "create new pool"));
       }
     else {
       /* open existing */
@@ -416,7 +416,7 @@ auto hstore::create_pool(
         {
           PWRN(PREFIX "erasing memory pool/partition: %s", __func__, fullpath.c_str());
           /* try to delete pool and recreate */
-	  pop.reset(delete_and_recreate_pool(fullpath.c_str(), size, "re-open or create new pool"));
+          pop.reset(delete_and_recreate_pool(fullpath.c_str(), size, "re-open or create new pool"));
 
         }
     }
