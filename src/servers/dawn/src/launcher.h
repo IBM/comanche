@@ -23,17 +23,18 @@ class Shard_launcher : public Config_file
       PMAJOR("launching shard: core(%d) port(%d) device(%s) net(%s)",
              get_shard_core(i),
              get_shard_port(i),
-             get_shard_device(i),
-             get_shard_net(i)
+             get_shard("device", i).c_str(),
+             get_shard("net", i).c_str()
              );
 
       _shards.push_back(new Dawn::Shard(get_shard_core(i),
                                         get_shard_port(i),
                                         DEFAULT_PROVIDER,
-                                        get_shard_device(i),
-                                        get_shard_net(i),
-                                        options.backend,
-                                        options.pci_addr,
+                                        get_shard("device", i),
+                                        get_shard("net", i),
+                                        get_shard("default_backend", i),
+                                        get_shard("nvme_device", i),
+                                        get_shard("pm_path", i),
                                         options.debug_level,
                                         options.forced_exit));
 
