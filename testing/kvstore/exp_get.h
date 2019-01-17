@@ -143,6 +143,11 @@ public:
     // compute _start_time_stats pre-lock
     BinStatistics start_time_stats = _compute_bin_statistics_from_vectors(_latencies, _start_time, _bin_count, _start_time.front(), _start_time.at(_i-1), _i); 
 
+    if (_skip_json_reporting)
+    {
+      return;
+    }
+
     pthread_mutex_lock(&g_write_lock);
 
     // get existing results, read to document variable
