@@ -122,44 +122,27 @@ template <typename Allocator>
 template <typename Allocator>
 	bool impl::persist_controller<Allocator>::is_size_unstable() const
 	{
-		return _persist->_size_control.unstable != 0;
+		return ! _persist->_size_control.is_stable();
 	}
 
 template <typename Allocator>
 	void impl::persist_controller<Allocator>::size_set(std::size_t n)
 	{
-		_persist->_size_control.size = n;
-		persist_size();
-		_persist->_size_control.unstable = 0U;
+		_persist->_size_control.size_set_stable(n);
 		persist_size();
 	}
 
 template <typename Allocator>
 	void impl::persist_controller<Allocator>::size_destabilize()
 	{
-		++_persist->_size_control.unstable;
+		_persist->_size_control.destabilize();
 		persist_size();
-	}
-
-template <typename Allocator>
-	void impl::persist_controller<Allocator>::size_incr()
-	{
-		++_persist->_size_control.size;
-		size_stabilize();
-	}
-
-template <typename Allocator>
-	void impl::persist_controller<Allocator>::size_decr()
-	{
-		--_persist->_size_control.size;
-		size_stabilize();
 	}
 
 template <typename Allocator>
 	void impl::persist_controller<Allocator>::size_stabilize()
 	{
-		persist_size();
-		--_persist->_size_control.unstable;
+		_persist->_size_control.stabilize();
 		persist_size();
 	}
 

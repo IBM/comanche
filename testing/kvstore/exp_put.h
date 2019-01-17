@@ -113,6 +113,11 @@ public:
           double throughput = _calculate_current_throughput();
           PINF("[%u] put: THROUGHPUT: %.2f MB/s (%ld bytes over %.3f seconds)", core, throughput, _total_data_processed, run_time);
 
+          if (_skip_json_reporting)
+          {
+            return;
+          }
+
           pthread_mutex_lock(&g_write_lock);
          _debug_print(core, "cleanup_custom mutex locked");
 

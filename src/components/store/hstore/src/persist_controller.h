@@ -18,6 +18,26 @@
 
 namespace impl
 {
+	template <typename Allocator, typename SizeChange>
+		class persist_size_change
+			: public SizeChange
+		{
+			persist_controller<Allocator> *_pc;
+		public:
+			persist_size_change(persist_controller<Allocator> &pc_)
+				: SizeChange(pc_.get_size_control())
+				, _pc(&pc_)
+			{
+				_pc->size_destabilize();
+			}
+			persist_size_change(const persist_size_change &) = delete;
+			persist_size_change& operator=(const persist_size_change &) = delete;
+			~persist_size_change()
+			{
+				_pc->size_stabilize();
+			}
+		};
+
 	template <typename Allocator>
 		class persist_controller
 			: public Allocator
@@ -47,7 +67,6 @@ namespace impl
 				, const void *last
 				, const char *what
 			);
-			void size_stabilize();
 			auto bucket_count_uncached() -> size_type
 			{
 				return base_segment_size << (segment_count_actual() - 1U);
@@ -64,9 +83,8 @@ namespace impl
 			auto resize_prolog() -> bucket_aligned_t *;
 			void resize_epilog();
 
+			void size_stabilize();
 			void size_destabilize();
-			void size_incr();
-			void size_decr();
 
 			void persist_owner(
 				const owner &b
@@ -91,7 +109,11 @@ namespace impl
 			}
 			std::size_t size() const
 			{
-				return _persist->_size_control.size;
+				return _persist->_size_control.size();
+			}
+			size_control &get_size_control()
+			{
+				return _persist->_size_control;
 			}
 
 			/* NOTE: this function returns an non-const iterator over _persist data,
