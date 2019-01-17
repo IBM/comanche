@@ -39,7 +39,7 @@ Nvme_queue::Nvme_queue(Nvme_device* device, unsigned qid,
                        struct spdk_nvme_qpair* const qpair)
     : _device(device),
       _qpair(qpair),
-      _rdtsc_freq_mhz(Core::get_rdtsc_frequency_mhz()) {
+      _rdtsc_freq_mhz(Common::get_rdtsc_frequency_mhz()) {
   if (option_DEBUG) PLOG("New Nvme_queue: %u", qid);
 
   PLOG("blk-nvme: clock freq %f", _rdtsc_freq_mhz);
