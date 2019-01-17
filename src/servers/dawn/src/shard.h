@@ -40,6 +40,7 @@ class Shard : public Shard_transport {
         const std::string net,
         const std::string backend,
         const std::string pci_addr,
+        const std::string pm_path,
         unsigned debug_level,
         bool forced_exit)
       : Shard_transport(provider, net, port), _core(core),

@@ -4,8 +4,6 @@
 struct Program_options {
   std::string config_file;
   std::string device;
-  std::string backend;
-  std::string pci_addr;
   unsigned debug_level;
   bool forced_exit;
 };

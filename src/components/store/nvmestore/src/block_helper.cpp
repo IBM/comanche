@@ -137,7 +137,7 @@ status_t NVME_store::open_block_allocator(IBlock_device *block,Component::IBlock
     persist_id_t id_alloc = std::string(devinfo.volume_name) + ".alloc.pool";
 
     alloc = fact->open_allocator(nr_blocks_tracked,
-                                 PMEM_PATH_ALLOC,
+                                 _pm_path,
                                  id_alloc);
     fact->release_ref();
 
@@ -172,7 +172,8 @@ status_t  NVME_store::do_block_io(Component::IBlock_device * block,
         do{
           tag = block->async_read(mem, offset*BLOCK_SIZE, lba+offset, CHUNK_SIZE_IN_BLOCKS);
           offset += CHUNK_SIZE_IN_BLOCKS;
-        }while(offset < nr_io_blocks);
+        }
+        while(offset < nr_io_blocks);
 
         // leftover
         if(offset > nr_io_blocks){

@@ -63,18 +63,16 @@ class Config_file
     for (auto& m : _shards.GetArray()) {
       if(!m["core"].IsInt()) throw General_exception("bad JSON: shards::core member not integer");
       if(!m["port"].IsInt()) throw General_exception("bad JSON: shards::port member not integer");
-      if(!m["device"].IsString()) throw General_exception("bad JSON: shards::device member not string");
 
       if(!m["net"].IsNull())
         if(!m["net"].IsString()) throw General_exception("bad JSON: optional shards::net member not string");     
     }
     if(option_DEBUG) {
       for(unsigned i=0;i<shard_count();i++) {
-        PLOG("shard: core(%d) port(%d) device(%s) net(%s)",
+        PLOG("shard: core(%d) port(%d) net(%s)",
              get_shard_core(i),
              get_shard_port(i),
-             get_shard_device(i),
-             get_shard_net(i)
+             get_shard("net",i).c_str()
              );
       }
     }
@@ -105,20 +103,14 @@ class Config_file
     return shard["port"].GetUint();
   }
 
-  const char * get_shard_device(rapidjson::SizeType i) const {
+  std::string get_shard(std::string name, rapidjson::SizeType i) const {
     if(i > shard_count()) throw General_exception("get_shard out of bounds");
     assert(_shards[i].IsObject());    
     auto shard = _shards[i].GetObject();
-    return shard["device"].GetString();
+    if(shard[name.c_str()].IsNull()) return std::string();
+    return std::string(shard[name.c_str()].GetString());
   }
 
-  const char * get_shard_net(rapidjson::SizeType i) const {
-    if(i > shard_count()) throw General_exception("get_shard out of bounds");
-    assert(_shards[i].IsObject());    
-    auto shard = _shards[i].GetObject();
-    if(shard["net"].IsNull()) return nullptr;
-    return shard["net"].GetString();
-  }
 
   unsigned int debug_level() const {
     if(_doc["debug_level"].IsNull()) return 0;

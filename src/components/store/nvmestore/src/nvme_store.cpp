@@ -1,11 +1,13 @@
 /*
- * (C) Copyright IBM Corporation 2017. All rights reserved.
+ * (C) Copyright IBM Corporation 2017-2019. All rights reserved.
  *
  */
 
 /*
  * Author: Feng Li
  * e-mail: fengggli@yahoo.com
+ * Author: Daniel Waddington
+ * e-mail: daniel.waddington@ibm.com
  */
 #include "nvme_store.h"
 
@@ -130,7 +132,8 @@ static int check_pool(const char * path)
 
 NVME_store::NVME_store(const std::string& owner,
                        const std::string& name,
-                       const std::string& pci)
+                       const std::string& pci,
+                       const std::string& pm_path) : _pm_path(pm_path)
 {
   PLOG("NVMESTORE: chunk size in blocks: %lu", CHUNK_SIZE_IN_BLOCKS);
   PLOG("PMEMOBJ_MAX_ALLOC_SIZE: %lu MB", REDUCE_MB(PMEMOBJ_MAX_ALLOC_SIZE));
@@ -169,19 +172,19 @@ IKVStore::pool_t NVME_store::create_pool(const std::string& path,
   PMEMobjpool *pop = nullptr; //pool to allocate all mapping
   int ret =0;
 
-  PINF("NVME_store::create_pool path=%s name=%s", path.c_str(), name.c_str());
-
   size_t max_sz_hxmap = MB(500); // this can fit 1M objects (block_range_t)
 
   // TODO: need to check size
-
-  std::string fullpath;
-
+  // TODO: pass prefix (pm_path) into nvmestore component config
+  std::string fullpath = "/mnt/pmem0/";
+  
   if(path[path.length()-1]!='/')
-    fullpath = path + "/" + name;
+    fullpath += path + "/" + name;
   else
-    fullpath = path + name;
+    fullpath += path + name;
 
+  PINF("NVME_store::create_pool fullpath=%s name=%s", fullpath.c_str(), name.c_str());
+  
   /* open existing pool */
   pop = pmemobj_open(fullpath.c_str(), POBJ_LAYOUT_NAME(nvme_store));
 
@@ -851,8 +854,9 @@ auto NVME_store_factory::create(const std::string& owner,
   {
     PWRN("Parameter '%s' does not look like a PCI address", pci.c_str());
   }
+  /* TODO, 3rd parameter to create should be a JSON string including pci address and pmem path */
 
-  Component::IKVStore * obj = static_cast<Component::IKVStore*>(new NVME_store(owner, name, pci));
+  Component::IKVStore * obj = static_cast<Component::IKVStore*>(new NVME_store(owner, name, pci, "/mnt/pmem0"));
   obj->add_ref();
   return obj;
 }
