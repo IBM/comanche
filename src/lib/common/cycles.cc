@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
-namespace Core
+namespace Common
 {
 float get_rdtsc_frequency_mhz() {
   FILE *fp;
@@ -40,6 +40,11 @@ float get_rdtsc_frequency_mhz() {
   assert(clock_speed_in_MHz > 0);
 
   return clock_speed_in_MHz;
+}
+
+float cycles_to_usec(cpu_time_t time)
+{
+  return ((float) time) / get_rdtsc_frequency_mhz();
 }
 
 }  // namespace Core
