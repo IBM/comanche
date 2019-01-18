@@ -20,7 +20,7 @@ add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 
 file(GLOB SOURCES src/*.c*)
 
-add_library(nupm SHARED ${SOURCES})
+add_library(nupm SHARED ${SOURCES} src/tx_cache.cpp)
 
 target_link_libraries(${PROJECT_NAME} stdc++fs common numa ${LIB_NDCTL} pmem vmem dl)
 

@@ -3,6 +3,9 @@
 #include <gtest/gtest.h>
 #include <common/utils.h>
 #include <common/rand.h>
+#include <common/cycles.h>
+#include <core/heap_allocator.h>
+#include "tx_cache.h"
 #include "vmem_numa.h"
 #include "arena_alloc.h"
 #include "rp_alloc.h"
@@ -30,14 +33,14 @@ class Libnupm_test : public ::testing::Test {
   // Objects declared here can be used by all tests in the test case
 };
 
-static bool memcheck(void * p, char val, size_t len)
-{
-  for(size_t i=0; i<len; i++) {
-    if(((char *)p)[i] != val)
-      return false;
-  }
-  return true;
-}
+// static bool memcheck(void * p, char val, size_t len)
+// {
+//   for(size_t i=0; i<len; i++) {
+//     if(((char *)p)[i] != val)
+//       return false;
+//   }
+//   return true;
+// }
 
   //#define RUN_RPALLOCATOR_TESTS
 //#define RUN_VMEM_ALLOCATOR_TESTS
@@ -45,8 +48,41 @@ static bool memcheck(void * p, char val, size_t len)
 TEST_F(Libnupm_test, NdControl)
 {
   nupm::ND_control ctrl;
-  PLOG("ND_control init complete.");
+  PLOG("ND_control init complete!");
 }
+
+TEST_F(Libnupm_test, TxCache)
+{
+  size_t NUM_PAGES = 2048;
+  size_t p_size = NUM_PAGES * MB(2);
+  void * p = nupm::allocate_virtual_pages(p_size/MB(2), MB(2), 0x900000000ULL);
+
+  cpu_time_t start = rdtsc();
+  for(size_t i=0;i<NUM_PAGES;i++) {
+    ((char*)p)[i*MB(2)]='a';
+  }
+  cpu_time_t delta = (rdtsc() - start)/NUM_PAGES;
+  PLOG("Mean PF cost: (%f usec) %lu", Common::cycles_to_usec(delta), delta);  
+  // { // important
+  //   Core::Heap_allocator<char> heap(p, p_size, "heapA");
+
+  //   char * q = heap.allocate(128);
+  //   memset(q, 0, 128);
+  // }
+
+#if 0
+  char * c = (char*) p;
+  cpu_time_t start = rdtsc();
+  c[0] = 'a';
+  cpu_time_t delta = rdtsc() - start;
+  c[4096] = 'a';
+  PLOG("touched! in %ld cycles (%f usec)", delta, Common::cycles_to_usec(delta));
+#endif
+  
+  nupm::free_virtual_pages(p);
+}
+
+
 
 #ifdef RUN_RPALLOCATOR_TESTS
 TEST_F(Libnupm_test, RpAllocatorPerf)

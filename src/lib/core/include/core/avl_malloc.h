@@ -28,7 +28,6 @@
 #error This is a C++ header
 #endif
 
-#include <common/chksum.h>
 #include <common/stack.h>
 #include <common/types.h>
 #include <core/slab.h>
@@ -459,12 +458,6 @@ class AVL_range_allocator {
       _tree->insert_node(left_over);
     }
 
-    if (region->_addr == 0x5dc0000) {
-      PNOTICE("allocated at 5dc0000!!");
-    }
-    else {
-      PLOG("allocated at:%lx", region->_addr);
-    }
     return region;
   }
 
@@ -688,8 +681,7 @@ class AVL_range_allocator {
  private:
   /* NOTE: specifically no members that will be on the stack */
 
-  Common::Base_slab_allocator&
-      _slab; /**< volatile slab allocator for metadata */
+  Common::Base_slab_allocator&_slab; /**< volatile slab allocator for metadata */
   //  addr_t _base;
 };
 
@@ -710,7 +702,7 @@ class Arena_allocator : public Common::Base_memory_allocator {
    * @param region_size Size of memory region
    *
    */
-  Arena_allocator(Common::Base_slab_allocator& metadata_slab, void* region,
+  Arena_allocator(Common::Base_slab_allocator& metadata_slab, const void* region,
                   size_t region_size)
       : _range_allocator(metadata_slab, (addr_t) region, region_size) {
     if (!region)

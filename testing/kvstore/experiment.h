@@ -75,9 +75,9 @@ public:
   double _bin_threshold_max = 0.001;
   double _bin_increment;
 
-  float _cycles_per_second = Core::get_rdtsc_frequency_mhz() * 1000000;
+  float _cycles_per_second = Common::get_rdtsc_frequency_mhz() * 1000000;
 
-  Experiment(struct ProgramOptions options) 
+  Experiment(struct ProgramOptions options)
   {
     _report_filename = options.report_file_name;
   }
