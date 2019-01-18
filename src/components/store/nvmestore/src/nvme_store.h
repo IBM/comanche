@@ -26,7 +26,7 @@
 
 class State_map;
 
-static constexpr char PMEM_PATH_ALLOC[] = "/mnt/pmem0/pool/0/"; // the pool for allocation info
+//static constexpr char PMEM_PATH_ALLOC[] = "/mnt/pmem0/pool/0/"; // the pool for allocation info
 
 POBJ_LAYOUT_BEGIN(nvme_store);
 POBJ_LAYOUT_ROOT(nvme_store, struct store_root_t);
@@ -53,7 +53,7 @@ private:
   static constexpr size_t CHUNK_SIZE_IN_BLOCKS= 8; // large IO will be splited into CHUNKs, 8*4k  seems gives optimal
   static constexpr size_t DEFAULT_IO_MEM_SIZE= MB(8); // initial IO memory size in bytes
   std::unordered_map<pool_t, std::atomic<size_t>> _cnt_elem_map;
-
+  std::string _pm_path; 
   Component::IBlock_device *_blk_dev;
   Component::IBlock_allocator *_blk_alloc;
 
@@ -77,7 +77,8 @@ public:
    */
   NVME_store(const std::string& owner,
              const std::string& name,
-             const std::string& pci);
+             const std::string& pci,
+             const std::string& pm_path);
 
   /** 
    * Destructor

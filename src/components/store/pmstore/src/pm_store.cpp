@@ -1,5 +1,6 @@
 #include <iostream>
 #include <set>
+#include <mutex>
 #include <errno.h>
 #include <libpmemobj.h>
 #include <libpmempool.h>
@@ -49,6 +50,14 @@ extern "C"
 #define REGION_NAME "pmstore-data"
 
 using namespace Component;
+
+std::mutex pmempool_mutex; /*< global lock for non-thread safe pmempool_rm */
+
+inline int safe_pmempool_rm(const char *path, int flags)
+{
+  std::lock_guard<std::mutex> g(pmempool_mutex);
+  return pmempool_rm(path, flags);
+}
 
 struct map_value {
   uint64_t len;
@@ -195,17 +204,17 @@ IKVStore::pool_t PM_store::create_pool(const std::string& path,
     else { /* could not open existing pool */
 
       if(option_DEBUG)
-	PLOG("PM_store: pool check failed: trying to create new one: %s", fullpath.c_str());
+        PLOG("PM_store: pool check failed: trying to create new one: %s", fullpath.c_str());
 
       /* probably device dax */
-      if(pmempool_rm(fullpath.c_str(), PMEMPOOL_RM_FORCE | PMEMPOOL_RM_POOLSET_LOCAL))
-	throw General_exception("pmempool_rm on (%s) failed", fullpath.c_str());
+      if(safe_pmempool_rm(fullpath.c_str(), PMEMPOOL_RM_FORCE | PMEMPOOL_RM_POOLSET_LOCAL))
+        throw General_exception("pmempool_rm on (%s) failed", fullpath.c_str());
       
       pop = pmemobj_create(fullpath.c_str(), REGION_NAME, size, 0666);
       if(not pop) {
-	pop = pmemobj_create(fullpath.c_str(), REGION_NAME, 0, 0666);
-	if(not pop)
-	  throw General_exception("failed to re-create pool - %s\n", pmemobj_errormsg());
+        pop = pmemobj_create(fullpath.c_str(), REGION_NAME, 0, 0666);
+        if(not pop)
+          throw General_exception("failed to re-create pool - %s\n", pmemobj_errormsg());
       }
     }
   }
@@ -257,7 +266,7 @@ IKVStore::pool_t PM_store::open_pool(const std::string& path,
   if(check_pool(fullpath.c_str()) != 0) {
     /* probably device dax */
     PWRN("erasing existing pool (%s)", fullpath.c_str());
-    if(pmempool_rm(fullpath.c_str(), PMEMPOOL_RM_FORCE | PMEMPOOL_RM_POOLSET_LOCAL))
+    if(safe_pmempool_rm(fullpath.c_str(), PMEMPOOL_RM_FORCE | PMEMPOOL_RM_POOLSET_LOCAL))
       throw General_exception("pmempool_rm on (%s) failed", fullpath.c_str());
       
     pop = pmemobj_create(fullpath.c_str(), REGION_NAME, 0, 0666);
@@ -323,7 +332,7 @@ void PM_store::delete_pool(const pool_t pid)
   g_sessions.erase(session);
   pmemobj_close(session->pop);
 
-  if(pmempool_rm(session->path.c_str(), 0)) {
+  if(safe_pmempool_rm(session->path.c_str(), 0)) {
     throw General_exception("unable to delete pool (%s)", session->path.c_str());
   }
 
@@ -566,7 +575,7 @@ PM_store::lock(const pool_t pool,
   }
   TX_END
 
-  return reinterpret_cast<Component::IKVStore::key_t>(key_hash);
+    return reinterpret_cast<Component::IKVStore::key_t>(key_hash);
 }
 
 
