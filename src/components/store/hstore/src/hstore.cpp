@@ -31,7 +31,7 @@
 #include <memory> /* unique_ptr */
 #include <new>
 #include <map> /* session set */
-#include <mutex> /* thread safe use of libpmempool */
+#include <mutex> /* thread safe use of libpmempool/obj */
 
 #define PREFIX "HSTORE : %s: "
 
@@ -51,16 +51,12 @@ using hstore_shared_mutex = dummy::shared_mutex;
 static constexpr auto thread_model = IKVStore::THREAD_MODEL_SINGLE_PER_POOL;
 #endif
 
+
 using open_pool_handle = std::unique_ptr<PMEMobjpool, void(*)(PMEMobjpool *)>;
 
 namespace
 {
 constexpr bool option_DEBUG = false;
-/* At least when using /dev/dax*, pmempool calls do not appear to be thred-safe.
- * They use of mmap, and seem to hope that mappings do not change during the call.
- */
-std::mutex pmempool_mutex;
-using pmempool_guard_t = std::lock_guard<std::mutex>;
 namespace type_num
 {
 constexpr uint64_t persist = 1U;
@@ -117,6 +113,29 @@ namespace
   std::string make_full_path(const std::string &prefix, const std::string &suffix)
   {
     return prefix + ( prefix[prefix.length()-1] != '/' ? "/" : "") + suffix;
+  }
+  /* At least when using /dev/dax*, pmempool calls do not appear to be thred-safe.
+   * They use of mmap, and seem to hope that mappings do not change during the call.
+   */
+  std::mutex pmemobj_mutex;
+
+  using pmemobj_guard_t = std::lock_guard<std::mutex>;
+
+  PMEMobjpool *pmemobj_create_guarded(const char *path, const char *layout,
+	size_t poolsize, mode_t mode)
+  {
+    pmemobj_guard_t g{pmemobj_mutex};
+    return ::pmemobj_create(path, layout, poolsize, mode);
+  }
+  PMEMobjpool *pmemobj_open_guarded(const char *path, const char *layout)
+  {
+    pmemobj_guard_t g{pmemobj_mutex};
+    return ::pmemobj_open(path, layout);
+  }
+  void pmemobj_close_guarded(PMEMobjpool *pop)
+  {
+    pmemobj_guard_t g{pmemobj_mutex};
+    ::pmemobj_close(pop);
   }
 }
 
@@ -212,7 +231,6 @@ auto move_session(const IKVStore::pool_t pid) -> std::unique_ptr<open_session>
 
 int check_pool(const char * path)
 {
-  pmempool_guard_t g{pmempool_mutex};
   struct pmempool_check_args args;
   args.path = path;
   args.backup_path = NULL;
@@ -321,13 +339,12 @@ pc_t *map_create_if_null(
 
 static PMEMobjpool *delete_and_recreate_pool(const char *fullpath, const std::size_t size, const char *action)
 {
-  pmempool_guard_t g{pmempool_mutex};
   if ( 0 != pmempool_rm(fullpath, PMEMPOOL_RM_FORCE | PMEMPOOL_RM_POOLSET_LOCAL))
     throw General_exception("pmempool_rm on (%s) failed: %x", fullpath, pmemobj_errormsg());
 
- auto pop = pmemobj_create(fullpath, REGION_NAME, size, 0666);
+  auto pop = pmemobj_create_guarded(fullpath, REGION_NAME, size, 0666);
   if (not pop) {
-    pop = pmemobj_create(fullpath, REGION_NAME, 0, 0666); /* size = 0 for devdax */
+    pop = pmemobj_create_guarded(fullpath, REGION_NAME, 0, 0666); /* size = 0 for devdax */
     if (not pop)
       throw General_exception("failed to %s (%s) %s", action, fullpath, pmemobj_errormsg());
   }
@@ -370,7 +387,7 @@ auto hstore::create_pool(
 
   std::string fullpath = make_full_path(path, name);
 
-  open_pool_handle pop(nullptr, pmemobj_close);
+  open_pool_handle pop(nullptr, pmemobj_close_guarded);
 
   /* NOTE: conditions can change between the access call and the create/open call.
    * This code makes no prevision for such a change.
@@ -389,8 +406,7 @@ auto hstore::create_pool(
     boost::filesystem::path p(fullpath);
     boost::filesystem::create_directories(p.parent_path());
 
-    pmempool_guard_t g{pmempool_mutex};
-    pop.reset(pmemobj_create(fullpath.c_str(), REGION_NAME, size, 0666));
+    pop.reset(pmemobj_create_guarded(fullpath.c_str(), REGION_NAME, size, 0666));
     if (not pop)
       {
         throw General_exception("failed to create new pool %s (%s)\n", fullpath.c_str(), pmemobj_errormsg());
@@ -409,8 +425,7 @@ auto hstore::create_pool(
     else {
       /* open existing */
       {
-        pmempool_guard_t g{pmempool_mutex};
-        pop.reset(pmemobj_open(fullpath.c_str(), REGION_NAME));
+        pop.reset(pmemobj_open_guarded(fullpath.c_str(), REGION_NAME));
       }
       if (not pop)
         {
@@ -479,10 +494,9 @@ auto hstore::open_pool(const std::string &path,
       throw General_exception("pool check failed");
     }
 
-  pmempool_guard_t g{pmempool_mutex};
   if (
       auto pop =
-        open_pool_handle(pmemobj_open(fullpath.c_str(), REGION_NAME), pmemobj_close)
+        open_pool_handle(pmemobj_open_guarded(fullpath.c_str(), REGION_NAME), pmemobj_close_guarded)
       )
     {
 #pragma GCC diagnostic push
@@ -533,7 +547,6 @@ void hstore::delete_pool(const std::string &dir, const std::string &name)
 {
   const int flags = 0;
   auto path = make_full_path(dir, name);
-  pmempool_guard_t g{pmempool_mutex};
   if ( 0 != pmempool_rm(path.c_str(), flags) ) {
     auto e = errno;
     throw
