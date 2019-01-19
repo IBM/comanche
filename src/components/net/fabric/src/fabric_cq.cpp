@@ -58,8 +58,9 @@ Fabric_cq::stats::~stats()
 namespace
 {
   std::size_t constexpr ct_max = 16;
-  const char *force_read_str = std::getenv("FABRIC_FORCE_CQ_READ");
-  const bool force_read = force_read_str && 0 < std::strtol(force_read_str, nullptr, 0);
+  const char *force_read_str = std::getenv("FABRIC_DO_NOT_FORCE_CQ_READ");
+  const bool force_read = !(force_read_str &&
+                            0 < std::strtol(force_read_str, nullptr, 0));
 }
 
 ::fi_cq_err_entry Fabric_cq::get_cq_comp_err()
@@ -97,7 +98,7 @@ ssize_t Fabric_cq::cq_read(void *buf, size_t count) noexcept
    *  - using fi_inject
    *  - using the bverbs provider
    * caused a hang after about 128 operations. If this happens again,
-   * set env var FABRIC_FORCE_CQ_READ=1 to force reads.
+   * use FABRIC_DO_NOT_FORCE_CQ_READ=1 to avoid forced reads.
    */
   auto r =
     0U != _inflight || force_read
