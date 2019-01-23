@@ -19,6 +19,10 @@ public:
       start_time = rdtsc(); 
       running = true;
     }
+    else
+    {
+      std::cerr << "WARNING: trying to start a running counter" << std::endl;
+    }
   }
 
   void stop()
@@ -30,6 +34,10 @@ public:
 
       lap_time = stop_time - start_time;
       total += lap_time; 
+    }
+    else
+    {
+      std::cerr << "WARNING: trying to stop a stopped counter" << std::endl;
     }
   }
 
@@ -43,13 +51,13 @@ public:
 
   double get_time_in_seconds()
   {
-    // if (running) {
-    //   uint64_t stop_time = rdtsc();
-    //   return ((double)(stop_time - start_time)) / cycles_per_second;
-    // }
-    // else {
-    return ((double)total) / cycles_per_second;
-      //    }
+    if (running) {
+      uint64_t stop_time = rdtsc();
+      return (total + (stop_time - start_time)) / cycles_per_second;
+    }
+    else {
+      return ((double)total) / cycles_per_second;
+    }
   }
 
   double get_lap_time_in_seconds()
