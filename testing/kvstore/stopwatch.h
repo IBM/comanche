@@ -38,6 +38,7 @@ public:
     running = false;
     start_time = 0;
     total = 0;
+    lap_time = 0;
   }
 
   double get_time_in_seconds()
@@ -47,15 +48,14 @@ public:
     //   return ((double)(stop_time - start_time)) / cycles_per_second;
     // }
     // else {
-      return ((double)total) / cycles_per_second;
+    return ((double)total) / cycles_per_second;
       //    }
   }
 
-  double get_lap_time()
+  double get_lap_time_in_seconds()
   {
-    return lap_time;
+    return ((double)lap_time) / cycles_per_second;
   }
-
 
 private:
   uint64_t total = 0;
