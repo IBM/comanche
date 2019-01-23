@@ -14,9 +14,10 @@
 #include <iostream> /* cerr */
 #endif
 
-PMEMoid palloc_inner(
+std::tuple<PMEMoid, std::size_t> palloc_inner(
 	PMEMobjpool *pop_
-	, std::size_t size_
+	, std::size_t size_min_
+	, std::size_t size_max_
 	, uint64_t type_num_
 	, pmemobj_constr ctor_
 	, void *ctor_arg_
@@ -27,18 +28,26 @@ PMEMoid palloc_inner(
 )
 {
 	PMEMoid oid;
-	if ( 0 != pmemobj_alloc(pop_, &oid, size_, type_num_, ctor_, ctor_arg_) )
+	if ( size_max_ < size_min_ )
 	{
-		throw pobj_bad_alloc(0, 1, size_, errno);
+		throw pobj_bad_alloc(0, 1, size_max_, size_min_, EINVAL);
+	}
+    while ( 0 != pmemobj_alloc(pop_, &oid, size_max_, type_num_, ctor_, ctor_arg_) )
+	{
+		size_max_ = size_max_ / 64U * 63U;
+		if ( size_max_ < size_min_ )
+		{
+			throw pobj_bad_alloc(0, 1, size_max_, size_min_, errno);
+		}
 	}
 #if TRACE_PALLOC
 	{
 		void *ptr = pmemobj_direct(oid);
 		std::cerr << __func__ << " " << use_ << " [" << ptr << ".."
-			<< static_cast<void *>(static_cast<char *>(ptr)+size_) << ")\n";
+			<< static_cast<void *>(static_cast<char *>(ptr)+size_max_) << ")\n";
 	}
 #endif
-	return oid;
+	return std::tuple<PMEMoid, std::size_t>(oid, size_max_);
 }
 
 void zfree(

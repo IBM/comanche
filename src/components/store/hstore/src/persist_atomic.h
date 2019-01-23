@@ -33,20 +33,20 @@ namespace impl
 		explicit mod_control() : mod_control(0, 0, 0) {}
 	};
 
-	template <typename Allocator>
+	template <typename Value>
 		class persist_atomic
 		{
 #if 0
 #else
 		public:
 #endif
-			using allocator_type = Allocator;
-			using mod_ctl_ptr_t = typename allocator_type::pointer;
+			using allocator_type = typename Value::first_type::allocator_type;
+			using mod_ctl_ptr_t = typename allocator_type::template rebind<mod_control>::other::pointer;
 
 			/* key to destination of modification data */
-			persist_fixed_string<char> mod_key;
+			persist_fixed_string<char, typename Value::first_type::allocator_type> mod_key;
 			/* source of modification data */
-			persist_fixed_string<char> mod_mapped;
+			persist_fixed_string<char, typename Value::second_type::allocator_type> mod_mapped;
 			/* control of modification datai */
 			persistent_t<mod_ctl_ptr_t> mod_ctl;
 			/* size of control located by mod_ctl (0 if no outstanding modification) */
@@ -59,6 +59,8 @@ namespace impl
 				, mod_size(0U)
 			{
 			}
+			persist_atomic(const persist_atomic &) = delete;
+			persist_atomic& operator=(const persist_atomic &) = delete;
 #if 0
 			friend class atomic_controller<Allocator>;
 #endif

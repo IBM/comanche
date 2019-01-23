@@ -5,7 +5,6 @@
 #include "perishable.h"
 #include "perishable_expiry.h"
 #include "persistent.h"
-#include "pobj_allocator.h"
 
 #include <boost/iterator/transform_iterator.hpp>
 
