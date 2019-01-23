@@ -296,7 +296,7 @@ class Allocator : public Common::Base_slab_allocator {
       return -1;
     }
 
-    if (option_DEBUG) PDBG("freeing: %p", pval);
+    if (option_DEBUG) PDBG("freeing slab element: %p", pval);
 
     Element<T>* slot = (Element<T>*) (((addr_t) pval) - sizeof(slot->hdr));
     slot->hdr.used = false;
