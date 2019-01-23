@@ -65,7 +65,9 @@ constexpr uint64_t key = 3U;
 constexpr uint64_t mapped = 4U;
 }
 
-using KEY_T = persist_fixed_string<char>;
+using ALLOC_T = pobj_cache_aligned_allocator<char>;
+using KEY_T = persist_fixed_string<char, ALLOC_T>;
+using MAPPED_T = persist_fixed_string<char, ALLOC_T>;
 
 struct pstr_hash
 {
@@ -82,7 +84,7 @@ using HASHER_T = pstr_hash;
 using allocator_segment_t =
   pobj_cache_aligned_allocator
   <
-  std::pair<const KEY_T, persist_fixed_string<char>>
+  std::pair<const KEY_T, MAPPED_T>
   >;
 
 using allocator_atomic_t =
@@ -91,14 +93,14 @@ using allocator_atomic_t =
 using table_t =
   table<
   KEY_T
-  , persist_fixed_string<char>
+  , MAPPED_T
   , HASHER_T
   , std::equal_to<KEY_T>
   , allocator_segment_t
   , hstore_shared_mutex
   >;
 
-using pc_t = typename impl::persist_data<allocator_segment_t, allocator_atomic_t>;
+using persist_data_t = typename impl::persist_data<allocator_segment_t, table_t::value_type>;
 
 struct store_root_t
 {
@@ -153,7 +155,7 @@ public:
                         , open_pool_handle &&pop_
                         , const std::string &dir_
                         , const std::string &name_
-                        , pc_t *pc
+                        , persist_data_t *pc
                         )
     : _root(root_)
     , _pop(std::move(pop_))
@@ -175,15 +177,15 @@ public:
   const table_t &map() const noexcept { return _map; }
 
   auto enter(
-             persist_fixed_string<char> &key
+             KEY_T &key
              , std::uint64_t type_num_data
              , std::vector<Component::IKVStore::Operation *>::const_iterator first
              , std::vector<Component::IKVStore::Operation *>::const_iterator last
              ) -> Component::status_t
   {
-    return _atomic_state.enter(_pop.get(), key, type_num_data, first, last);
+    return _atomic_state.enter(ALLOC_T(_pop.get(), type_num_data), key, first, last);
   }
-                            };
+};
 
 struct tls_cache_t {
   open_session *session;
@@ -296,7 +298,7 @@ auto hstore::thread_safety() const -> status_t
 
 namespace
 {
-pc_t *map_create_if_null(
+persist_data_t *map_create_if_null(
                          PMEMobjpool *pop_
                          , TOID(struct store_root_t) &root
                          , std::size_t expected_obj_count
@@ -319,12 +321,12 @@ pc_t *map_create_if_null(
       auto oid =
         palloc(
                pop_
-               , sizeof(pc_t)
+               , sizeof(persist_data_t)
                , type_num::persist
                , "persist"
                );
-      pc_t *p = static_cast<pc_t *>(pmemobj_direct(oid));
-      new (p) pc_t(expected_obj_count, table_t::allocator_type{pop_, type_num::table});
+      persist_data_t *p = static_cast<persist_data_t *>(pmemobj_direct(oid));
+      new (p) persist_data_t(expected_obj_count, table_t::allocator_type{pop_, type_num::table});
       table_t::allocator_type{pop_, type_num::table}
       .persist(p, sizeof *p, "persist_data");
       D_RW(root)->pc = oid;
@@ -333,7 +335,7 @@ pc_t *map_create_if_null(
 #pragma GCC diagnostic pop
   auto pc = pmemobj_direct(rt->pc);
   PLOG(PREFIX "persist root addr %p", __func__, static_cast<const void *>(rt));
-  return static_cast<pc_t *>(pc);
+  return static_cast<persist_data_t *>(pc);
 }
 }
 
@@ -608,8 +610,8 @@ auto hstore::put(const pool_t pool,
   const auto i =
     session.map().emplace(
                           std::piecewise_construct
-                          , std::forward_as_tuple(key.begin(), key.end(), pop, type_num::key, "key")
-                          , std::forward_as_tuple(cvalue, cvalue + value_len, pop, type_num::mapped, "value")
+                          , std::forward_as_tuple(key.begin(), key.end(), ALLOC_T(pop, type_num::key))
+                          , std::forward_as_tuple(cvalue, cvalue + value_len, ALLOC_T(pop, type_num::mapped))
                           );
   return i.second ? S_OK : update_by_issue_41(pool, key, value, value_len,  i.first->second.data(), i.first->second.size());
 }
@@ -690,7 +692,7 @@ auto hstore::get(const pool_t pool,
     {
       const auto &session = locate_session(pool);
       auto *const pop = session.pool();
-      auto p_key = KEY_T(key.begin(), key.end(), pop, type_num::key, "key");
+      auto p_key = KEY_T(key.begin(), key.end(), ALLOC_T(pop, type_num::key));
 
       auto &v = session.map().at(p_key);
       out_value_len = v.size();
@@ -704,7 +706,9 @@ auto hstore::get(const pool_t pool,
     }
   catch ( std::out_of_range & )
     {
+#if 0
       PWRN("key:%s not found", key.c_str());
+#endif
       return E_KEY_NOT_FOUND;
     }
   catch (...) {
@@ -720,7 +724,7 @@ auto hstore::get_direct(const pool_t pool,
   try {
     const auto &session = locate_session(pool);
     auto *const pop = session.pool();
-    auto p_key = KEY_T(key.begin(), key.end(), pop, type_num::key, "key");
+    auto p_key = KEY_T(key.begin(), key.end(), ALLOC_T(pop, type_num::key));
 
     auto &v = session.map().at(p_key);
 
@@ -803,11 +807,11 @@ auto hstore::lock(const pool_t pool,
 {
   auto &session = locate_session(pool);
   auto *const pop = session.pool();
-  const auto p_key = KEY_T(key.begin(), key.end(), pop, type_num::key, "key");
+  const auto p_key = KEY_T(key.begin(), key.end(), ALLOC_T(pop, type_num::key));
 
   try
     {
-      persist_fixed_string<char> &val = session.map().at(p_key);
+      MAPPED_T &val = session.map().at(p_key);
       if ( ! try_lock(session.map(), type, p_key) )
         {
           return KEY_NONE;
@@ -830,7 +834,7 @@ auto hstore::lock(const pool_t pool,
         session.map().emplace(
                               std::piecewise_construct
                               , std::forward_as_tuple(p_key)
-                              , std::forward_as_tuple(out_value_len, pop, type_num::mapped)
+                              , std::forward_as_tuple(out_value_len, ALLOC_T(pop, type_num::mapped))
                               );
 
       if ( ! r.second )
@@ -855,7 +859,7 @@ auto hstore::unlock(const pool_t pool,
       try {
         auto &session = locate_session(pool);
         auto *const pop = session.pool();
-        auto p_key = KEY_T(key->begin(), key->end(), pop, type_num::key, "key");
+        auto p_key = KEY_T(key->begin(), key->end(), ALLOC_T(pop, type_num::key));
 
         session.map().unlock(p_key);
       }
@@ -911,8 +915,8 @@ auto hstore::apply(
 {
   auto &session = locate_session(pool);
   auto *const pop = session.pool();
-  persist_fixed_string<char> *val;
-  auto p_key = KEY_T(key.begin(), key.end(), pop, type_num::key, "key");
+  MAPPED_T *val;
+  auto p_key = KEY_T(key.begin(), key.end(), ALLOC_T(pop, type_num::key));
   try
     {
       val = &session.map().at(p_key);
@@ -932,7 +936,7 @@ auto hstore::apply(
         session.map().emplace(
                               std::piecewise_construct
                               , std::forward_as_tuple(p_key)
-                              , std::forward_as_tuple(object_size, pop, type_num::mapped)
+                              , std::forward_as_tuple(object_size, ALLOC_T(pop, type_num::mapped))
                               );
       if ( ! r.second )
         {
@@ -958,7 +962,7 @@ auto hstore::erase(const pool_t pool,
   try {
     auto &session = locate_session(pool);
     auto *const pop = session.pool();
-    auto p_key = KEY_T(key.begin(), key.end(), pop, type_num::key, "key");
+    auto p_key = KEY_T(key.begin(), key.end(), ALLOC_T(pop, type_num::key));
     return
       session.map().erase(p_key) == 0
       ? E_KEY_NOT_FOUND
@@ -1024,7 +1028,7 @@ namespace
 /* Return value not set. Ignored?? */
 int _functor(
              const std::string &key
-             , persist_fixed_string<char> &m
+             , MAPPED_T &m
              , std::function
              <
              int(const std::string &key, const void *val, std::size_t val_len)
@@ -1065,7 +1069,7 @@ auto hstore::atomic_update(
     {
       auto &session = locate_session(pool);
 
-      auto p_key = KEY_T(key.begin(), key.end(), session.pool(), type_num::key, "key");
+      auto p_key = KEY_T(key.begin(), key.end(), ALLOC_T(session.pool(), type_num::key));
 
       maybe_lock m(session.map(), p_key, take_lock);
 
