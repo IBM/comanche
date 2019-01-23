@@ -2,7 +2,6 @@
 #define _DAWN_PERSIST_CONTROLLER_H
 
 #include "persist_data.h"
-#include "persist_switch.h"
 
 #include <boost/iterator/transform_iterator.hpp>
 
@@ -57,9 +56,6 @@ namespace impl
 			using bucket_allocator_t = typename persist_data_t::bucket_allocator_t;
 			persist_data_t *_persist;
 			std::size_t _bucket_count_cached;
-			/* enable persist call if Allocator supports persist */
-			using persist_switch_t =
-				persist_switch<Allocator, std::is_base_of<persister, Allocator>::value>;
 
 			void persist_segment_table(); /* Flush the bucket pointers (*_b) */
 			void persist_internal(

@@ -149,10 +149,12 @@ template <typename T>
 			return PMEMOBJ_MAX_ALLOC_SIZE;
 #pragma GCC diagnostic pop
 		}
-		void persist(const void *ptr, size_type len, const char *
+		void persist(const void *ptr, size_type len
+			, const char *
 #if TRACE_PALLOC
 			what
 #endif
+				= "unspecified"
 		) const override
 	{
 #if TRACE_PALLOC
@@ -180,8 +182,8 @@ template <>
 	class pobj_cache_aligned_allocator<void>
 	{
 	public:
-		using pointer = PMEMoid *;
-		using const_pointer = PMEMoid *;
+		using pointer = pobj_pointer<void>;
+		using const_pointer = pobj_pointer<const void>;
 		using value_type = void;
 		template <typename U>
 			struct rebind
@@ -259,7 +261,7 @@ template <typename T>
 				);
 			if ( r != 0 )
 			{
-				throw pobj_bad_alloc(cache_align, s, sizeof(T), errno);
+				throw pobj_bad_alloc(cache_align, s, sizeof(T), sizeof(T), errno);
 			}
 #if TRACE_PALLOC
 			{

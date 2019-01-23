@@ -5,7 +5,6 @@
 #include <type_traits> /* is_base_of */
 
 #include "perishable.h"
-#include "persist_switch.h"
 #include "segment_layout.h"
 
 /*
@@ -13,7 +12,7 @@
  */
 
 template <typename Allocator>
-	impl::persist_map<Allocator>::persist_map(std::size_t n, const Allocator &av_)
+	impl::persist_map<Allocator>::persist_map(std::size_t n, Allocator av_)
 		: _size_control()
 		, _segment_count(
 			/* The map tends to split when it is about 40% full.
@@ -55,8 +54,6 @@ template <typename Allocator>
 		}
 
 		_segment_count._actual = _segment_count._target;
-		using ps_t =
-			persist_switch<Allocator, std::is_base_of<persister, Allocator>::value>;
-		ps_t::persist(av_, &_segment_count, (&_segment_count)+1U, "count");
-		ps_t::persist(av_, &_size_control, (&_size_control)+1U, "size");
+		av_.persist(&_segment_count, sizeof _segment_count);
+		av_.persist(&_size_control, sizeof _size_control);
 	}
