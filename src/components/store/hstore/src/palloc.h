@@ -10,10 +10,12 @@
 #pragma GCC diagnostic pop
 
 #include <cstddef> /* size_t */
+#include <tuple>
 
-PMEMoid palloc_inner(
+std::tuple<PMEMoid, std::size_t> palloc_inner(
 	PMEMobjpool *pop
-	, std::size_t size
+	, std::size_t size_min
+	, std::size_t size_max
 	, uint64_t type_num
 	, pmemobj_constr ctor
 	, void *ctor_arg
@@ -31,13 +33,16 @@ template <typename T>
 )
 {
 	return
-		palloc_inner(
-			pop_
-			, size_
-			, type_num_
-			, ctor_
-			, &const_cast<T &>(ctor_arg_)
-			, use_
+		std::get<0>(
+			palloc_inner(
+				pop_
+				, size_
+				, size_
+				, type_num_
+				, ctor_
+				, &const_cast<T &>(ctor_arg_)
+				, use_
+			)
 		);
 }
 
@@ -49,9 +54,32 @@ static inline PMEMoid palloc(
 )
 {
 	return
+		std::get<0>(
+			palloc_inner(
+				pop_
+				, size_
+				, size_
+				, type_num_
+				, nullptr
+				, nullptr
+				, use_
+			)
+		);
+}
+
+static inline std::tuple<PMEMoid, std::size_t> palloc(
+	PMEMobjpool *pop_
+	, std::size_t size_min_
+	, std::size_t size_mac_
+	, uint64_t type_num_
+	, const char *use_
+)
+{
+	return
 		palloc_inner(
 			pop_
-			, size_
+			, size_min_
+			, size_mac_
 			, type_num_
 			, nullptr
 			, nullptr

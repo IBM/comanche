@@ -18,13 +18,13 @@ namespace {
 // The fixture for testing class Foo.
 class KVStore_test : public ::testing::Test {
 
-  static constexpr std::size_t estimated_object_count_large = 64000000;
-  /* More testing of table splits, at a performance cost */
-  static constexpr std::size_t estimated_object_count_small = 1;
-
   static constexpr std::size_t many_count_target_large = 2000000;
   /* Shorter test: use when PMEM_IS_PMEM_FORCE=0 */
   static constexpr std::size_t many_count_target_small = 400;
+
+  static constexpr std::size_t estimated_object_count_large = many_count_target_large;
+  /* More testing of table splits, at a performance cost */
+  static constexpr std::size_t estimated_object_count_small = 1;
 
  protected:
 
@@ -53,6 +53,7 @@ class KVStore_test : public ::testing::Test {
 
   static std::string single_key;
   static std::string single_value;
+  static std::size_t single_value_size;
   static std::string single_value_updated_same_size;
   static std::string single_value_updated_different_size;
   static std::string single_value_updated3;
@@ -65,8 +66,10 @@ class KVStore_test : public ::testing::Test {
   static const std::size_t many_count_target;
   static std::size_t many_count_actual;
 
-  /* NOTE: ingoring the remote possibility of a random number collision in the first lock_count entries */
+  /* NOTE: ignoring the remote possibility of a random number collision in the first lock_count entries */
   static const std::size_t lock_count;
+
+  static std::size_t extant_count; /* Number of PutMany keys not placed because they already existed */
 };
 
 constexpr std::size_t KVStore_test::estimated_object_count_small;
@@ -84,6 +87,7 @@ const std::size_t KVStore_test::estimated_object_count = pmem_simulated ? estima
 /* Keys 23-byte or fewer are stored inline. Provide one longer to force allocation */
 std::string KVStore_test::single_key = "MySingleKeyLongEnoughToForceAllocation";
 std::string KVStore_test::single_value         = "Hello world!";
+std::size_t KVStore_test::single_value_size    = MB(8);
 std::string KVStore_test::single_value_updated_same_size = "Jello world!";
 std::string KVStore_test::single_value_updated_different_size = "Hello world!";
 std::string KVStore_test::single_value_updated3 = "WeXYZ world!";
@@ -93,6 +97,7 @@ constexpr unsigned KVStore_test::many_key_length;
 constexpr unsigned KVStore_test::many_value_length;
 const std::size_t KVStore_test::many_count_target = pmem_simulated ? many_count_target_small : many_count_target_large;
 std::size_t KVStore_test::many_count_actual;
+std::size_t KVStore_test::extant_count = 0;
 std::vector<KVStore_test::kv_t> KVStore_test::kvv;
 
 const std::size_t KVStore_test::lock_count = 60;
@@ -136,7 +141,7 @@ TEST_F(KVStore_test, RemoveOldPool)
 TEST_F(KVStore_test, CreatePool)
 {
   ASSERT_TRUE(_kvstore);
-  pool = _kvstore->create_pool(PMEM_PATH, "test-" + store_map::impl->name + ".pool", MB(128UL), 0, estimated_object_count);
+  pool = _kvstore->create_pool(PMEM_PATH, "test-" + store_map::impl->name + ".pool", many_count_target * 4U * 64U + 2 * single_value_size, 0, estimated_object_count);
   ASSERT_LT(0, int64_t(pool));
 }
 
@@ -156,7 +161,7 @@ TEST_F(KVStore_test, BasicGet0)
 
 TEST_F(KVStore_test, BasicPut)
 {
-  single_value.resize(MB(8));
+  single_value.resize(single_value_size);
 
   auto r = _kvstore->put(pool, single_key, single_value.data(), single_value.length());
   EXPECT_EQ(r, S_OK);
@@ -177,7 +182,7 @@ TEST_F(KVStore_test, BasicGet1)
 TEST_F(KVStore_test, BasicReplaceSameSize)
 {
   {
-    single_value_updated_same_size.resize(MB(8));
+    single_value_updated_same_size.resize(single_value_size);
     auto r = _kvstore->put(pool, single_key, single_value_updated_same_size.data(), single_value_updated_same_size.length());
     EXPECT_EQ(r, S_OK);
   }
@@ -229,14 +234,22 @@ TEST_F(KVStore_test, PutMany)
   {
     const auto &key = std::get<0>(kv);
     const auto &value = std::get<1>(kv);
-    auto r = _kvstore->put(pool, key, value.data(), value.length());
-    if ( r == S_OK )
+    void * old_value = nullptr;
+    size_t old_value_len = 0;
+    if ( S_OK == _kvstore->get(pool, key, old_value, old_value_len) )
     {
-      ++many_count_actual;
+      std::cerr << __func__ << " KEY EXISTS " << key << "\n";
+      _kvstore->free_memory(old_value);
+      ++extant_count;
     }
     else
     {
-      std::cerr << __func__ << " FAIL " << key << "\n";
+      auto r = _kvstore->put(pool, key, value.data(), value.length());
+      EXPECT_EQ(r, S_OK);
+      if ( r == S_OK )
+      {
+        ++many_count_actual;
+      }
     }
   }
   EXPECT_LE(many_count_actual, many_count_target);
@@ -317,6 +330,7 @@ TEST_F(KVStore_test, GetMany)
 {
   for ( auto i = 0; i != 10; ++i )
   {
+    std::size_t mismatch_count = 0;
     for ( auto &kv : kvv )
     {
       const auto &key = std::get<0>(kv);
@@ -326,9 +340,10 @@ TEST_F(KVStore_test, GetMany)
       auto r = _kvstore->get(pool, key, value, value_len);
       EXPECT_EQ(r, S_OK);
       EXPECT_EQ(value_len, many_value_length);
-      EXPECT_EQ(0, memcmp(ev.data(), value, ev.size()));
+      mismatch_count += ( 0 != memcmp(ev.data(), value, ev.size()) );
       _kvstore->free_memory(value);
     }
+    EXPECT_EQ(mismatch_count, extant_count);
   }
 }
 

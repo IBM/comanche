@@ -101,6 +101,23 @@ namespace impl
 			using bucket_allocator_t =
 				typename Allocator::template rebind<bucket_aligned_t>::other;
 			using bucket_ptr = typename bucket_allocator_t::pointer;
+			/* bucket indexes */
+			using bix_t = segment_layout::bix_t;
+			/* segment indexes */
+			using six_t = segment_layout::six_t;
+
+			struct segment_count
+			{
+				/* current segment count */
+				persistent_atomic_t<six_t> _actual;
+				/* desired segment count */
+				persistent_atomic_t<six_t> _target;
+				segment_count(six_t target_)
+					: _actual(0)
+					, _target(target_)
+				{}
+			};
+
 			struct segment_control
 			{
 				persistent_t<bucket_ptr> bp;
@@ -110,10 +127,6 @@ namespace impl
 				}
 			};
 
-			/* bucket indexes */
-			using bix_t = segment_layout::bix_t;
-			/* segment indexes */
-			using six_t = segment_layout::six_t;
 			static constexpr six_t _segment_capacity = 32U;
 			static constexpr unsigned log2_base_segment_size =
 				segment_layout::log2_base_segment_size;
@@ -122,22 +135,12 @@ namespace impl
 
 			size_control _size_control;
 
-			struct segment_count_t
-			{
-				/* current segment count */
-				persistent_atomic_t<six_t> _actual;
-				/* desired segment count */
-				persistent_atomic_t<six_t> _target;
-				segment_count_t(six_t target_)
-					: _actual(0)
-					, _target(target_)
-				{}
-			} _segment_count;
+			segment_count _segment_count;
 
 			segment_control _sc[_segment_capacity];
 
 		public:
-			persist_map(std::size_t n, const Allocator &av);
+			persist_map(std::size_t n, Allocator av);
 			friend class persist_controller<Allocator>;
 		};
 }

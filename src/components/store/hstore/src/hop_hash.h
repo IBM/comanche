@@ -5,7 +5,6 @@
 
 #include "bucket_control_unlocked.h"
 #include "trace_flags.h"
-#include "persister.h"
 #include "persist_controller.h"
 #include "segment_and_bucket.h"
 
@@ -414,7 +413,9 @@ namespace impl
 				persist_data_t *pc
 				, const Allocator &av = Allocator()
 			);
-			~table_base();
+		protected:
+			virtual ~table_base();
+		public:
 			table_base(const table_base &) = delete;
 			table_base &operator=(const table_base &) = delete;
 			allocator_type get_allocator() const noexcept
@@ -616,6 +617,7 @@ template <
 		)
 			: base(pc, av)
 		{}
+
 		using base::get_allocator;
 
 		/* size and capacity */

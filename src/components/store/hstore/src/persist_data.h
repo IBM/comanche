@@ -9,15 +9,15 @@
 
 namespace impl
 {
-	template <typename AllocatorSegment, typename AllocatorAtomic>
+	template <typename AllocatorSegment, typename TypeAtomic>
 		class persist_data
 			: public persist_map<AllocatorSegment>
-			, public persist_atomic<AllocatorAtomic>
+			, public persist_atomic<TypeAtomic>
 		{
 		public:
 			persist_data(std::size_t n, const AllocatorSegment &av)
 				: persist_map<AllocatorSegment>(n, av)
-				, persist_atomic<AllocatorAtomic>()
+				, persist_atomic<TypeAtomic>()
 			{}
 		};
 }

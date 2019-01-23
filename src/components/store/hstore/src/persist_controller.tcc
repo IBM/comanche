@@ -60,10 +60,15 @@ template <typename Allocator>
 
 template <typename Allocator>
 	void impl::persist_controller<Allocator>::persist_internal(
-		const void *first_, const void *last_, const char *what_
+		const void *first_
+		, const void *last_
+		, const char *
+#if 0
+			what_
+#endif
 	)
 	{
-		persist_switch_t::persist(*this, first_, last_, what_);
+		this->Allocator::persist(first_, static_cast<const char *>(last_) - static_cast<const char *>(first_));
 	}
 
 template <typename Allocator>
