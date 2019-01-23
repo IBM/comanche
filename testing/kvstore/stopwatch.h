@@ -64,7 +64,7 @@ private:
   double lap_time = 0;
   bool running = false;
   uint64_t start_time = 0;
-  double cycles_per_second = Core::get_rdtsc_frequency_mhz() * 1000000;
+  double cycles_per_second = Common::get_rdtsc_frequency_mhz() * 1000000;
 };
 
 
