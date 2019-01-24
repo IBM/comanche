@@ -48,6 +48,7 @@ else(BOOTSTRAP_DEPS)
   add_subdirectory(common)
   add_subdirectory(core)
   add_subdirectory(nupm)
+  add_subdirectory(tds)
 
 endif(BOOTSTRAP_DEPS)
 
