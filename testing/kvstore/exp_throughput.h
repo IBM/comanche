@@ -60,7 +60,6 @@ public:
     int rc = _store->put(_pool, g_data->key_as_string(_i), g_data->value(_i), g_data->value_len());
     assert(rc == S_OK);
     _sw.stop();
-    
 
     _i++;
     return true;
