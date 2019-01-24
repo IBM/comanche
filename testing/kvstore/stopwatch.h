@@ -43,13 +43,8 @@ public:
 
   double get_time_in_seconds()
   {
-    // if (running) {
-    //   uint64_t stop_time = rdtsc();
-    //   return ((double)(stop_time - start_time)) / cycles_per_second;
-    // }
-    // else {
+    assert(!running);
     return ((double)total) / cycles_per_second;
-      //    }
   }
 
   double get_lap_time_in_seconds()
@@ -63,7 +58,7 @@ private:
   uint64_t start_time = 0;
   
   bool     running = false;
-  double   cycles_per_second = Common::get_rdtsc_frequency_mhz() * 1000000;
+  double   cycles_per_second = Common::get_rdtsc_frequency_mhz() * 1000000.0f;
 };
 
 
