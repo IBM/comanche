@@ -76,7 +76,8 @@ public:
 
     _i++;  // increment after running so all elements get used
 
-    _enforce_maximum_pool_size(core);
+    // TODO: enforce pool limit
+    //_enforce_maximum_pool_size(core);
 
     if (rc != S_OK)
       {
