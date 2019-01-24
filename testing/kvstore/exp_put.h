@@ -62,7 +62,8 @@ public:
         throw std::exception();
       }
     timer.stop();
-
+    assert(rc == S_OK);
+    
     _update_data_process_amount(core, _i);
 
     double time = timer.get_lap_time_in_seconds();
@@ -81,7 +82,6 @@ public:
 
     if (rc != S_OK)
       {
-        //            timer.stop();
         perror("put returned !S_OK value");
         throw std::exception();
       }
@@ -107,8 +107,8 @@ public:
         _debug_print(core, "time_stats created"); 
 
         double run_time = timer.get_time_in_seconds();
-        double iops = _i / run_time;
-        PINF("[%u] put: IOPS--> %2g (%ld operations over %2g seconds)", core, iops, _i, run_time);
+        unsigned iops = ((double)_i) / run_time;
+        PINF("[%u] put: IOPS--> %u (%lu operations over %2g seconds)", core, iops, _i, run_time);
         _update_aggregate_iops(iops);
 
         double throughput = _calculate_current_throughput();

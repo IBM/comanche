@@ -31,7 +31,7 @@ ProgramOptions Options;
 Data * g_data;
 int g_argc;
 char ** g_argv;
-double g_iops;
+uint64_t g_iops;
 
 pthread_mutex_t g_write_lock = PTHREAD_MUTEX_INITIALIZER;
 boost::program_options::options_description g_desc("Options");

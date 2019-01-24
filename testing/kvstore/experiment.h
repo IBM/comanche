@@ -25,7 +25,7 @@ extern char** g_argv;
 extern pthread_mutex_t g_write_lock;
 extern boost::program_options::options_description g_desc;
 
-extern double g_iops;
+extern uint64_t g_iops;
 
 class Experiment : public Core::Tasklet
 { 
@@ -375,19 +375,19 @@ public:
     printf("no cleanup_custom function used\n");
   }
 
-  void _update_aggregate_iops(double iops)
+  void _update_aggregate_iops(uint64_t iops)
   {
     g_iops += iops;
 
     if (_verbose)
     {
-      PLOG("_update_aggregate_iops done. Currently = %.3f", g_iops) ;
+      PLOG("_update_aggregate_iops done. Currently = %lu", g_iops) ;
     }
   }
 
   void summarize()
   {
-    PINF("[TOTAL] %s IOPS: %.3f", _test_name.c_str(), g_iops);
+    PINF("[TOTAL] %s IOPS: %lu", _test_name.c_str(), g_iops);
   }
 
   void cleanup(unsigned core) noexcept override
