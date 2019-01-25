@@ -67,7 +67,8 @@ Connection_handler::pool_t Connection_handler::create_pool(
       iob->length(), auth_id(), /* auth id */
       ++_request_id, size, Dawn::Protocol::OP_CREATE, path, name);
   assert(msg->op);
-
+  
+  msg->expected_object_count = expected_obj_count;
   iob->set_length(msg->msg_len);
   sync_inject_send(iob);
 
