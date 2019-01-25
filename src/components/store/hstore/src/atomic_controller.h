@@ -19,7 +19,9 @@ namespace impl
 			using allocator_type =
 				typename table_t::allocator_type::template rebind<mod_control>::other;
 
-			persist_atomic<typename Table::value_type> *_persist; /* persist_atomic is a bad name. Should be a noun. */
+			using persist_t = persist_atomic<typename Table::value_type>;
+			using mod_key_t = typename persist_t::mod_key_t;
+			persist_t *_persist; /* persist_atomic is a bad name. Should be a noun. */
 			table_t *_map;
 		public:
 			atomic_controller(
