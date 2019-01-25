@@ -103,7 +103,7 @@ struct Message_pool_request : public Message {
                        uint8_t op,
                        const std::string& path,
                        const std::string& pool_name)
-      : Message(auth_id, MSG_TYPE_POOL_REQUEST, op), pool_size(pool_size) {
+    : Message(auth_id, MSG_TYPE_POOL_REQUEST, op), pool_size(pool_size), expected_object_count(0) {
     assert(op);
     assert(this->op);
     assert(buffer_size > sizeof(Message_pool_request));
@@ -130,7 +130,10 @@ struct Message_pool_request : public Message {
                        uint64_t auth_id,
                        uint64_t request_id,
                        uint8_t op)
-      : Message(auth_id, MSG_TYPE_POOL_REQUEST, op), pool_size(0) {
+    : Message(auth_id, MSG_TYPE_POOL_REQUEST, op),
+      pool_size(0),
+      expected_object_count(0) {
+    
     assert(op);
     assert(buffer_size > sizeof(Message_pool_request));
     data[0] = '\0';
@@ -141,8 +144,9 @@ struct Message_pool_request : public Message {
   const char* pool_name() const { return &data[pool_name_offset]; }
 
   size_t pool_size; /*< size of pool in bytes */
+  size_t expected_object_count;
   union {
-    size_t pool_name_offset; /* offse in data[] for pool name */
+    size_t pool_name_offset; /* offset in data[] for pool name */
     uint64_t pool_id;
   };
   char data[]; /*< unique name of pool (for this client) */
