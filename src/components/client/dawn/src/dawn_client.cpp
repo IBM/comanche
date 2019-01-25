@@ -55,23 +55,6 @@ Dawn_client::~Dawn_client() { close_transport(); }
 void Dawn_client::open_transport(const std::string& device,
                                  const std::string& ip_addr, const int port,
                                  const std::string& provider) {
-#ifdef CONFIG_TRANSPORT_RDMA
-  {
-    /* create object instance through factory */
-    Component::IBase* comp = Component::load_component(
-        "libcomanche-rdma.so", Component::net_rdma_factory);
-
-    assert(comp);
-    IRdma_factory* fact =
-        (IRdma_factory*) comp->query_interface(IRdma_factory::iid());
-
-    _transport = fact->create("any");
-    auto rc = _transport->connect(ip_addr, port);
-    if (rc != S_OK) throw General_exception("RDMA unable to connect to server");
-
-    fact->release_ref();
-  }
-#else
   {
     IBase* comp = load_component("libcomanche-fabric.so", net_fabric_factory);
     assert(comp);
@@ -103,7 +86,6 @@ void Dawn_client::open_transport(const std::string& device,
     _transport = _fabric->open_client(client_spec, ip_addr, port);
     assert(_transport);
   }
-#endif
 
   assert(_transport);
   _connection = new Dawn::Client::Connection_handler(_transport);
@@ -116,15 +98,11 @@ void Dawn_client::close_transport() {
   if (_connection) {
     _connection->shutdown();
   }
+  
   delete _connection;
-
   delete _transport;
-
-#ifdef CONFIG_TRANSPORT_RDMA
-#else
   delete _fabric;
   _factory->release_ref();
-#endif
 }
 
 int Dawn_client::thread_safety() const {

@@ -4,7 +4,10 @@ BasedOnStyle: Google
 IndentWidth: 2
 ColumnLimit: 128
 SpaceAfterCStyleCast: true
+AlignAfterOpenBracket: Align
 AlwaysBreakBeforeMultilineStrings: false
+AllowAllParametersOfDeclarationOnNextLine: true
+AlignConsecutiveAssignments: true
 BreakBeforeBraces: Custom
 BraceWrapping:
   AfterNamespace: true
