@@ -187,8 +187,12 @@ void Shard::process_message_pool_request(Connection_handler* handler,
         handler->add_reference(pool);
       }
       else {
-        pool = _i_kvstore->create_pool(msg->path(), msg->pool_name(),
-                                       msg->pool_size);
+        pool = _i_kvstore->create_pool(msg->path(),
+                                       msg->pool_name(),
+                                       msg->pool_size,
+                                       0, // flags
+                                       msg->expected_object_count
+                                       );
 
         /* register pool handle */
         handler->register_pool(pool_name, pool);

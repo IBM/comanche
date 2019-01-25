@@ -57,7 +57,7 @@ Connection_handler::pool_t Connection_handler::create_pool(
     const std::string path, const std::string name, const size_t size,
     unsigned int flags, uint64_t expected_obj_count) {
   API_LOCK();
-  PMAJOR("create pool: %s %s", path.c_str(), name.c_str());
+  PMAJOR("create pool: %s %s (expected objs=%lu)", path.c_str(), name.c_str(), expected_obj_count);
 
   /* send pool request message */
   const auto iob = allocate();
