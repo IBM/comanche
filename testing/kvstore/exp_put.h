@@ -61,23 +61,24 @@ public:
         throw std::exception();
       }
     timer.stop();
-    assert(rc == S_OK);
     
-    _update_data_process_amount(core, _i);
 
+    assert(rc == S_OK);
+   
     double lap_time = timer.get_lap_time_in_seconds();
     double time_since_start = timer.get_time_in_seconds();
 
+    _update_data_process_amount(core, _i);
     // store the information for later use
     _start_time.push_back(time_since_start);
     _latencies.push_back(lap_time);
-
     _latency_stats.update(lap_time);
+
+    // THIS IS SKEWING THINGS?
+    //_enforce_maximum_pool_size(core);
 
     _i++;  // increment after running so all elements get used
 
-    // TODO: enforce pool limit
-    //_enforce_maximum_pool_size(core);
 
     if (rc != S_OK)
       {
@@ -89,6 +90,12 @@ public:
 
   void cleanup_custom(unsigned core)  
   {
+    auto total_time = timer.get_time_in_seconds();
+    PLOG("stopwatch : %g secs", total_time);
+    
+    unsigned long iops = (unsigned long) ((double) _pool_num_objects) / total_time;
+    PLOG("%lu iops (core=%u)", iops, core);
+
     try
       {
         _debug_print(core, "cleanup_custom started");

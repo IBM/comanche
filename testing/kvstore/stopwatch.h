@@ -16,6 +16,7 @@ public:
   {
     if (!running)
     {
+      __sync_synchronize(); /* we need the barrier to avoid measuring out of order execution */
       start_time = rdtsc(); 
       running = true;
     }
@@ -25,6 +26,7 @@ public:
   {
     if (running)
     {
+      __sync_synchronize(); /* we need the barrier to avoid measuring out of order execution */
       uint64_t stop_time = rdtsc();
       running = false;
 

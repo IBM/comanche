@@ -91,47 +91,47 @@ public:
     handle_program_options();
 
     if (initialize_store(core) != 0)
-    {
-      PERR("initialize returned an error. Aborting setup.");
-      throw std::exception();
-    }
+      {
+        PERR("initialize returned an error. Aborting setup.");
+        throw std::exception();
+      }
 
     try
-    {
-      if (component_uses_direct_memory())
       {
-        pthread_mutex_lock(&g_write_lock);
+        if (component_uses_direct_memory())
+          {
+            pthread_mutex_lock(&g_write_lock);
 
-        size_t data_size = sizeof(Data) + ((sizeof(KV_pair) + g_data->_key_len + g_data->_val_len ) * _pool_num_objects);
-        data_size += get_difference_to_next_power_of_two(data_size);
+            size_t data_size = sizeof(Data) + ((sizeof(KV_pair) + g_data->_key_len + g_data->_val_len ) * _pool_num_objects);
+            data_size += get_difference_to_next_power_of_two(data_size);
 
-        if (_verbose)
-        {
-          PINF("allocating %zu of aligned, direct memory. Aligned to %d", data_size,  MB(2));
-        }
+            if (_verbose)
+              {
+                PINF("allocating %zu of aligned, direct memory. Aligned to %d", data_size,  MB(2));
+              }
 
-        g_data->_data = (KV_pair*)aligned_alloc(MB(2), data_size);
-        madvise(g_data->_data, data_size, MADV_HUGEPAGE);
+            g_data->_data = (KV_pair*)aligned_alloc(MB(2), data_size);
+            madvise(g_data->_data, data_size, MADV_HUGEPAGE);
 
-        _memory_handle = _store->register_direct_memory(g_data->_data, data_size);
-        g_data->initialize_data(false);
+            _memory_handle = _store->register_direct_memory(g_data->_data, data_size);
+            g_data->initialize_data(false);
 
-        pthread_mutex_unlock(&g_write_lock);
+            pthread_mutex_unlock(&g_write_lock);
+          }
       }
-    }
     catch ( const Exception &e )
-    {
-      PERR("failed during direct memory setup: %s.", e.cause());
-    }
+      {
+        PERR("failed during direct memory setup: %s.", e.cause());
+      }
     catch ( const std::exception &e )
-    {
-      PERR("failed during direct memory setup: %s.", e.what());
-    }
+      {
+        PERR("failed during direct memory setup: %s.", e.what());
+      }
     catch(...)
-    {
-      PERR("failed during direct memory setup");
-      throw std::exception();
-    }
+      {
+        PERR("failed during direct memory setup");
+        throw std::exception();
+      }
 
     // make sure path is available for use
     boost::filesystem::path dir(_pool_path);
@@ -147,104 +147,104 @@ public:
     auto path = _pool_path + "/" + poolname;
 
     if (boost::filesystem::exists(path))
-    {
-      bool might_be_dax = boost::filesystem::exists(path);
-      try
       {
-        // pool already exists. Delete it.
-        if (_verbose)
-        {
-          std::cout << "pool might already exists at " << path << ". Attempting to delete it...";
-        }
+        bool might_be_dax = boost::filesystem::exists(path);
+        try
+          {
+            // pool already exists. Delete it.
+            if (_verbose)
+              {
+                std::cout << "pool might already exists at " << path << ". Attempting to delete it...";
+              }
 
-        _store->delete_pool(_store->open_pool(_pool_path, poolname));
+            _store->delete_pool(_store->open_pool(_pool_path, poolname));
 
-        if (_verbose)
-        {
-          std::cout << " pool deleted!" << std::endl;
-        }
+            if (_verbose)
+              {
+                std::cout << " pool deleted!" << std::endl;
+              }
+          }
+        catch ( const Exception &e )
+          {
+            if ( ! might_be_dax )
+              {
+                PERR("open+delete existing pool %s failed: %s.", poolname, e.cause());
+              }
+          }
+        catch ( const std::exception &e )
+          {
+            if ( ! might_be_dax )
+              {
+                PERR("open+delete existing pool %s failed: %s.", poolname, e.what());
+              }
+          }
+        catch(...)
+          {
+            if ( ! might_be_dax )
+              {
+                PERR("open+delete existing pool %s failed.", poolname);
+                std::cerr << "open+delete existing pool failed" << std::endl;
+              }
+          }
       }
-      catch ( const Exception &e )
-      {
-	if ( ! might_be_dax )
-        {
-          PERR("open+delete existing pool %s failed: %s.", poolname, e.cause());
-        }
-      }
-      catch ( const std::exception &e )
-      {
-	if ( ! might_be_dax )
-        {
-          PERR("open+delete existing pool %s failed: %s.", poolname, e.what());
-        }
-      }
-      catch(...)
-      {
-	if ( ! might_be_dax )
-        {
-          PERR("open+delete existing pool %s failed.", poolname);
-          std::cerr << "open+delete existing pool failed" << std::endl;
-        }
-      }
-    }
 
     PLOG("Creating pool for worker %u ...", core);
     try
-    {
-      _pool = _store->create_pool(_pool_path, poolname, _pool_size, _pool_flags, _pool_num_objects);
-    }
+      {
+        _pool = _store->create_pool(_pool_path, poolname, _pool_size, _pool_flags, _pool_num_objects);
+      }
     catch ( const Exception &e )
-    {
-      PERR("create_pool failed: %s. Aborting experiment.", e.cause());
-      throw;
-    }
+      {
+        PERR("create_pool failed: %s. Aborting experiment.", e.cause());
+        throw;
+      }
     catch ( const std::exception &e )
-    {
-      PERR("create_pool failed: %s. Aborting experiment.", e.what());
-      throw;
-    }
+      {
+        PERR("create_pool failed: %s. Aborting experiment.", e.what());
+        throw;
+      }
     catch(...)
-    {
-      PERR("create_pool failed! Aborting experiment.");
-      throw;
-    }
+      {
+        PERR("create_pool failed! Aborting experiment.");
+        throw;
+      }
       
     PLOG("Created pool for worker %u...OK!", core);
 
     if (!_skip_json_reporting)
-    {
-      // initialize experiment report
-      pthread_mutex_lock(&g_write_lock);
-
-      rapidjson::Document document = _get_report_document();
-      if (!document.HasMember("experiment"))
       {
-        _initialize_experiment_report(document); 
+        // initialize experiment report
+        pthread_mutex_lock(&g_write_lock);
+
+        rapidjson::Document document = _get_report_document();
+        if (!document.HasMember("experiment"))
+          {
+            _initialize_experiment_report(document); 
+          }
       }
-    }
 
     g_iops = 0;
     pthread_mutex_unlock(&g_write_lock);
 
     try
-    {
-      initialize_custom(core);
-    }
+      {
+        initialize_custom(core);
+      }
     catch ( const Exception &e )
-    {
-      PERR("initialize_custom failed: %s. Aborting experiment.", e.cause());
-      throw;
-    }
+      {
+        PERR("initialize_custom failed: %s. Aborting experiment.", e.cause());
+        throw;
+      }
     catch ( const std::exception &e )
-    {
-      PERR("initialize_custom failed: %s. Aborting experiment.", e.what());
-      throw;
-    }
+      {
+        PERR("initialize_custom failed: %s. Aborting experiment.", e.what());
+        throw;
+      }
     catch(...)
-    {
-      PERR("initialize_custom failed! Aborting experiment.");
-      throw std::exception();
-    }
+      {
+        PERR("initialize_custom failed! Aborting experiment.");
+        throw std::exception();
+      }
 
 #ifdef PROFILE
     ProfilerRegisterThread();
@@ -259,94 +259,94 @@ public:
     IBase * comp;
   
     try
-    { 
-      if(_component == "pmstore") {
-        comp = load_component(PMSTORE_PATH, pmstore_factory);
-      }
-      else if(_component == "filestore") {
-        comp = load_component(FILESTORE_PATH, filestore_factory);
-      }
-      else if(_component == "nvmestore") {
-        comp = load_component(NVMESTORE_PATH, nvmestore_factory);
-      }
-      else if(_component == "rockstore") {
-        comp = load_component(ROCKSTORE_PATH, rocksdb_factory);
-      }
-      else if(_component == "dawn") {
+      { 
+        if(_component == "pmstore") {
+          comp = load_component(PMSTORE_PATH, pmstore_factory);
+        }
+        else if(_component == "filestore") {
+          comp = load_component(FILESTORE_PATH, filestore_factory);
+        }
+        else if(_component == "nvmestore") {
+          comp = load_component(NVMESTORE_PATH, nvmestore_factory);
+        }
+        else if(_component == "rockstore") {
+          comp = load_component(ROCKSTORE_PATH, rocksdb_factory);
+        }
+        else if(_component == "dawn") {
       
-        DECLARE_STATIC_COMPONENT_UUID(dawn_factory, 0xfac66078,0xcb8a,0x4724,0xa454,0xd1,0xd8,0x8d,0xe2,0xdb,0x87);  // TODO: find a better way to register arbitrary components to promote modular use
-        comp = load_component(DAWN_PATH, dawn_factory);
+          DECLARE_STATIC_COMPONENT_UUID(dawn_factory, 0xfac66078,0xcb8a,0x4724,0xa454,0xd1,0xd8,0x8d,0xe2,0xdb,0x87);  // TODO: find a better way to register arbitrary components to promote modular use
+          comp = load_component(DAWN_PATH, dawn_factory);
+        }
+        else if (_component == "hstore") {
+          comp = load_component("libcomanche-hstore.so", hstore_factory);
+        }
+        else if (_component == "mapstore") {
+          comp = load_component("libcomanche-storemap.so", mapstore_factory);
+        }
+        else throw General_exception("unknown --component option (%s)", _component.c_str());
       }
-      else if (_component == "hstore") {
-        comp = load_component("libcomanche-hstore.so", hstore_factory);
-      }
-      else if (_component == "mapstore") {
-        comp = load_component("libcomanche-storemap.so", mapstore_factory);
-      }
-      else throw General_exception("unknown --component option (%s)", _component.c_str());
-    }
     catch ( const Exception &e )
-    {
-      PERR("error during load_component: %s. Aborting experiment.", e.cause());
-      throw;
-    }
+      {
+        PERR("error during load_component: %s. Aborting experiment.", e.cause());
+        throw;
+      }
     catch ( const std::exception &e )
-    {
-      PERR("error during load_component: %s. Aborting experiment.", e.what());
-      throw;
-    }
+      {
+        PERR("error during load_component: %s. Aborting experiment.", e.what());
+        throw;
+      }
     catch(...)
-    {
-      PERR("error during load_component.");
-      return 1;
-    }
+      {
+        PERR("error during load_component.");
+        return 1;
+      }
 
     if (_verbose)
-    {
-      PINF("[%u] component address: %p", core, &comp);
-    }
+      {
+        PINF("[%u] component address: %p", core, &comp);
+      }
 
     if (!comp)
-    {
-      PERR("comp loaded, but returned invalid value");
-      return 1;
-    }
+      {
+        PERR("comp loaded, but returned invalid value");
+        return 1;
+      }
 
     try
-    {
-      IKVStore_factory * fact = (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
-
-      if(_component == "nvmestore") {
-        _store = fact->create("owner",_owner, _pci_address);
-      }
-      else if (_component == "dawn") {
-        _store = fact->create(_debug_level, _owner, _server_address, _device_name);
-      }
-      else {
-        _store = fact->create("owner", _owner);
-      }
-
-      if (_verbose)
       {
-        PINF("factory: release_ref on %p", &fact);
+        IKVStore_factory * fact = (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
+
+        if(_component == "nvmestore") {
+          _store = fact->create("owner",_owner, _pci_address);
+        }
+        else if (_component == "dawn") {
+          _store = fact->create(_debug_level, _owner, _server_address, _device_name);
+        }
+        else {
+          _store = fact->create("owner", _owner);
+        }
+
+        if (_verbose)
+          {
+            PINF("factory: release_ref on %p", &fact);
+          }
+        fact->release_ref();
       }
-      fact->release_ref();
-    }
     catch ( const Exception &e )
-    {
-      PERR("factory creation step failed: %s. Aborting experiment.", e.cause());
-      throw;
-    }
+      {
+        PERR("factory creation step failed: %s. Aborting experiment.", e.cause());
+        throw;
+      }
     catch ( const std::exception &e )
-    {
-      PERR("factory creation step failed: %s. Aborting experiment.", e.what());
-      throw;
-    }
+      {
+        PERR("factory creation step failed: %s. Aborting experiment.", e.what());
+        throw;
+      }
     catch(...)
-    {
-      PERR("factory creation step failed");
-      return 1;
-    }
+      {
+        PERR("factory creation step failed");
+        return 1;
+      }
 
     return 0;
   }
@@ -380,9 +380,9 @@ public:
     g_iops += iops;
 
     if (_verbose)
-    {
-      PLOG("_update_aggregate_iops done. Currently = %lu", g_iops) ;
-    }
+      {
+        PLOG("_update_aggregate_iops done. Currently = %lu", g_iops) ;
+      }
   }
 
   void summarize()
@@ -391,107 +391,107 @@ public:
   }
 
   void cleanup(unsigned core) noexcept override
-  try {
-    try
-    {
-      cleanup_custom(core);
-    }
-    catch ( const Exception &e )
-    {
-      PERR("cleanup_custom failed: %s. Aborting experiment.", e.cause());
-      throw;
-    }
-    catch ( const std::exception &e )
-    {
-      PERR("cleanup_custom failed: %s. Aborting experiment.", e.what());
-      throw;
-    }
-    catch(...)
-    {
-      PERR("cleanup_custom failed!");
-      throw std::exception();
-    }
+    try {
+      try
+        {
+          cleanup_custom(core);
+        }
+      catch ( const Exception &e )
+        {
+          PERR("cleanup_custom failed: %s. Aborting experiment.", e.cause());
+          throw;
+        }
+      catch ( const std::exception &e )
+        {
+          PERR("cleanup_custom failed: %s. Aborting experiment.", e.what());
+          throw;
+        }
+      catch(...)
+        {
+          PERR("cleanup_custom failed!");
+          throw std::exception();
+        }
 
-    try
-    {
-      if (component_uses_direct_memory())
+      try
+        {
+          if (component_uses_direct_memory())
+            {
+              _store->unregister_direct_memory(_memory_handle);
+            }
+        }
+      catch ( const Exception &e )
+        {
+          PERR("unregister_direct_memory failed: %s. Aborting experiment.", e.cause());
+          throw;
+        }
+      catch ( const std::exception &e )
+        {
+          PERR("unregister_direct_memory failed: %s. Aborting experiment.", e.what());
+          throw;
+        }
+      catch(...)
+        {
+          PERR("unregister_direct_memory failed!");
+          throw std::exception();
+        }
+
+      try
+        {
+          if (_verbose)
+            {
+              std::cout << "cleanup: attempting to delete pool" << std::endl;
+            }
+
+          _store->delete_pool(_pool);
+        }
+      catch ( const Exception &e )
+        {
+          PERR("delete_pool failed: %s. Ending experiment.", e.cause());
+          throw;
+        }
+      catch ( const std::exception &e )
+        {
+          PERR("delete_pool failed: %s. Ending experiment.", e.what());
+          throw;
+        }
+      catch(...)
+        {
+          PERR("delete_pool failed! Ending experiment.");
+          throw std::exception();
+        }
+
+      try
+        {
+          if (_verbose)
+            {
+              std::cout << "cleanup: attempting to release_ref on store at " << &_store;
+            }
+
+          if (_verbose)
+            {
+              std::cout << " ...done!" << std::endl;
+            }
+        }
+      catch ( const Exception &e )
+        {
+          PERR("release_ref call on _store failed: %s.", e.cause());
+          throw;
+        }
+      catch ( const std::exception &e )
+        {
+          PERR("release_ref failed: %s.", e.what());
+          throw;
+        }
+      catch(...)
+        {
+          PERR("release_ref call on _store failed!");
+          throw std::exception();
+        }
+    }
+    catch ( ... )
       {
-        _store->unregister_direct_memory(_memory_handle);
+        PERR("cleanup of core %u was incomplete.", core);
       }
-    }
-    catch ( const Exception &e )
-    {
-      PERR("unregister_direct_memory failed: %s. Aborting experiment.", e.cause());
-      throw;
-    }
-    catch ( const std::exception &e )
-    {
-      PERR("unregister_direct_memory failed: %s. Aborting experiment.", e.what());
-      throw;
-    }
-    catch(...)
-    {
-      PERR("unregister_direct_memory failed!");
-      throw std::exception();
-    }
-
-    try
-    {
-      if (_verbose)
-      {
-        std::cout << "cleanup: attempting to delete pool" << std::endl;
-      }
-
-      _store->delete_pool(_pool);
-    }
-    catch ( const Exception &e )
-    {
-      PERR("delete_pool failed: %s. Ending experiment.", e.cause());
-      throw;
-    }
-    catch ( const std::exception &e )
-    {
-      PERR("delete_pool failed: %s. Ending experiment.", e.what());
-      throw;
-    }
-    catch(...)
-    {
-      PERR("delete_pool failed! Ending experiment.");
-      throw std::exception();
-    }
-
-    try
-    {
-      if (_verbose)
-      {
-        std::cout << "cleanup: attempting to release_ref on store at " << &_store;
-      }
-
-      if (_verbose)
-      {
-        std::cout << " ...done!" << std::endl;
-      }
-    }
-    catch ( const Exception &e )
-    {
-      PERR("release_ref call on _store failed: %s.", e.cause());
-      throw;
-    }
-    catch ( const std::exception &e )
-    {
-      PERR("release_ref failed: %s.", e.what());
-      throw;
-    }
-    catch(...)
-    {
-      PERR("release_ref call on _store failed!");
-      throw std::exception();
-    }
-  }
-  catch ( ... )
-  {
-    PERR("cleanup of core %u was incomplete.", core);
-  }
 
   bool component_uses_direct_memory()
   {
@@ -518,10 +518,10 @@ public:
         }
        
         if ((_component == "pmstore" || _component == "hstore") && vm.count("path") == 0)
-        {
-          PERR("component '%s' requires --path input argument for persistent memory store. Aborting!", _component.c_str());
-          throw std::exception();
-        }
+          {
+            PERR("component '%s' requires --path input argument for persistent memory store. Aborting!", _component.c_str());
+            throw std::exception();
+          }
 
         if(vm.count("path") > 0) {
           _pool_path = vm["path"].as<std::string>();
@@ -572,10 +572,10 @@ public:
         _device_name = vm.count("device_name") ? vm["device_name"].as<std::string>() : "unused";
 
         if (_component == "nvmestore" && vm.count("pci_addr") == 0)
-        {
-          PERR("nvmestore requires pci_addr as an input. Aborting!");
-          throw std::exception();
-        }
+          {
+            PERR("nvmestore requires pci_addr as an input. Aborting!");
+            throw std::exception();
+          }
 
         _pci_address = vm.count("pci_addr") ? vm["pci_addr"].as<std::string>() : "no_pci_addr";
       } 
@@ -600,66 +600,66 @@ public:
     unsigned core_first, core_last, core_num;
 
     while(true)
-    {
-      if (core_string[current] == '-')
       {
-        range_start = core_string.substr(start, length);
-
-        start = current + 1;
-        length = 0;
-
-        using_range = !using_range;  // toggle
-      }
-      else if (core_string[current] == ',' || core_string[current] == '\0')
-      {
-        substring = core_string.substr(start, length);
-
-        if (substring == "")
-        {
-          PERR("invalid core string. Tried to use '%s'. Exiting.", core_string.c_str());
-          throw std::exception();
-        }
-
-        // if we were using a range, substring becomes the end range value
-        core_last = (unsigned)std::stoi(substring);
-
-        if (using_range)
-        {
-          if (range_start == "")
+        if (core_string[current] == '-')
           {
-            PERR("no start core specified for range ending with %u", core_last);
-            throw std::exception();
+            range_start = core_string.substr(start, length);
+
+            start = current + 1;
+            length = 0;
+
+            using_range = !using_range;  // toggle
+          }
+        else if (core_string[current] == ',' || core_string[current] == '\0')
+          {
+            substring = core_string.substr(start, length);
+
+            if (substring == "")
+              {
+                PERR("invalid core string. Tried to use '%s'. Exiting.", core_string.c_str());
+                throw std::exception();
+              }
+
+            // if we were using a range, substring becomes the end range value
+            core_last = (unsigned)std::stoi(substring);
+
+            if (using_range)
+              {
+                if (range_start == "")
+                  {
+                    PERR("no start core specified for range ending with %u", core_last);
+                    throw std::exception();
+                  }
+
+                core_first = (unsigned)std::stoi(range_start);
+                using_range = false;
+                range_start = "";
+              }
+            else // single core add
+              {
+                core_first = core_last;
+              }
+
+            for (core_num = core_first; core_num <= core_last; core_num++)
+              {
+                cores.push_back(core_num);
+              }
+
+            start = current + 1;
+            length = 0;
+
+            if (core_string[current] == '\0')
+              {
+                break;
+              }
+          }
+        else
+          {
+            length++;
           }
 
-          core_first = (unsigned)std::stoi(range_start);
-          using_range = false;
-          range_start = "";
-        }
-        else // single core add
-        {
-          core_first = core_last;
-        }
-
-        for (core_num = core_first; core_num <= core_last; core_num++)
-        {
-          cores.push_back(core_num);
-        }
-
-        start = current + 1;
-        length = 0;
-
-        if (core_string[current] == '\0')
-        {
-          break;
-        }
+        current++;
       }
-      else
-      {
-        length++;
-      }
-
-      current++;
-    }
 
     return cores;
   }
@@ -671,9 +671,9 @@ public:
     int hardware_total_cores = std::thread::hardware_concurrency();
 
     for (int i = 0; i < cores.size(); i++)
-    {
-      _cpu_mask_add_core_wrapper(mask, cores.at(i), cores.at(i), hardware_total_cores);
-    }
+      {
+        _cpu_mask_add_core_wrapper(mask, cores.at(i), cores.at(i), hardware_total_cores);
+      }
 
     return mask;
   }
@@ -682,36 +682,36 @@ public:
   static void _cpu_mask_add_core_wrapper(cpu_mask_t &mask, unsigned core_first, unsigned core_last, unsigned max_cores)
   {
     if (core_first > core_last)
-    {
-      PERR("invalid core range specified: start (%u) > end (%u).", core_first, core_last);
-      throw std::exception();
-    }
+      {
+        PERR("invalid core range specified: start (%u) > end (%u).", core_first, core_last);
+        throw std::exception();
+      }
     else if (core_first > max_cores - 1 || core_last > max_cores - 1)  // max_cores is zero indexed
-    {
-      PERR("specified core range (%u-%u) exceeds physical core count. Valid range is 0-%d.", core_first, core_last, max_cores - 1);
-      throw std::exception();
-    }
+      {
+        PERR("specified core range (%u-%u) exceeds physical core count. Valid range is 0-%d.", core_first, core_last, max_cores - 1);
+        throw std::exception();
+      }
     else if (core_first < 0 || core_last < 0)
-    {
-      PERR("core values must be positive! Trying to use %u-%u.", core_first, core_last);
-    }
+      {
+        PERR("core values must be positive! Trying to use %u-%u.", core_first, core_last);
+      }
 
     try
-    {
-      for (unsigned core = core_first; core <= core_last; core++)
       {
-        mask.add_core(core);
+        for (unsigned core = core_first; core <= core_last; core++)
+          {
+            mask.add_core(core);
+          }
       }
-    }
     catch ( const Exception &e )
-    {
-      PERR("failed while adding core to mask: %s.", e.cause());
-    }
+      {
+        PERR("failed while adding core to mask: %s.", e.cause());
+      }
     catch(...)
-    {
-      PERR("failed while adding core to mask.");
-      throw std::exception();
-    }
+      {
+        PERR("failed while adding core to mask.");
+        throw std::exception();
+      }
   }
   
   void _debug_print(unsigned core, std::string text, bool limit_to_core0=false)
@@ -730,26 +730,26 @@ public:
     int core_int = (int)core;
 
     if (_core_list.empty())
-    {
-      // construct list
-      _core_list = get_cpu_vector_from_string(_cores);
-    }
+      {
+        // construct list
+        _core_list = get_cpu_vector_from_string(_cores);
+      }
 
     // this is inefficient, but number of cores should be relatively small (hundreds at most)
     for (int i = 0; i < _core_list.size(); i++)
-    {
-      if (_core_list.at(i) == core_int)
       {
-        index = i;
-        break;
+        if (_core_list.at(i) == core_int)
+          {
+            index = i;
+            break;
+          }
       }
-    }
 
     if (index == -1)
-    {
-      PERR("_get_core_index couldn't find core %d! Exiting.", core_int);
-      throw std::exception();
-    }
+      {
+        PERR("_get_core_index couldn't find core %d! Exiting.", core_int);
+        throw std::exception();
+      }
 
     return index;
   }
@@ -759,47 +759,47 @@ public:
     rapidjson::Document document;
 
     if (_report_filename.empty())
-    {
-      PERR("filename for report is empty!");
-      throw std::exception();
-    }
+      {
+        PERR("filename for report is empty!");
+        throw std::exception();
+      }
 
     try
-    {
-      FILE *pFile = fopen(_report_filename.c_str(), "r");
-      if (!pFile)
       {
-        std::cerr << "attempted to open filename '" << _report_filename << "'" << std::endl;
-        perror("_get_report_document failed fopen call");
-        throw std::exception();
+        FILE *pFile = fopen(_report_filename.c_str(), "r");
+        if (!pFile)
+          {
+            std::cerr << "attempted to open filename '" << _report_filename << "'" << std::endl;
+            perror("_get_report_document failed fopen call");
+            throw std::exception();
+          }
+
+        size_t buffer_size = GetFileSize(_report_filename);
+
+        const size_t MIN_READ_BUFFER_SIZE = 4;  // if FileReadStream has a buffer smaller than this, it'll assert
+        if (buffer_size < MIN_READ_BUFFER_SIZE)
+          {
+            buffer_size = MIN_READ_BUFFER_SIZE;
+          }
+
+        char readBuffer[buffer_size];
+
+        rapidjson::FileReadStream is(pFile, readBuffer, buffer_size);
+        document.ParseStream<0>(is);
+
+        if (document.HasParseError())
+          {
+            PERR("parsing error in document, code = %d", (int)document.GetParseError());
+            throw std::exception();
+          }
+
+        fclose(pFile);
       }
-
-      size_t buffer_size = GetFileSize(_report_filename);
-
-      const size_t MIN_READ_BUFFER_SIZE = 4;  // if FileReadStream has a buffer smaller than this, it'll assert
-      if (buffer_size < MIN_READ_BUFFER_SIZE)
-      {
-        buffer_size = MIN_READ_BUFFER_SIZE;
-      }
-
-      char readBuffer[buffer_size];
-
-      rapidjson::FileReadStream is(pFile, readBuffer, buffer_size);
-      document.ParseStream<0>(is);
-
-      if (document.HasParseError())
-      {
-        PERR("parsing error in document, code = %d", (int)document.GetParseError());
-        throw std::exception();
-      }
-
-      fclose(pFile);
-    }
     catch(...)
-    {
-      PERR("failed while reading in existing json document");
-      throw std::exception();
-    }
+      {
+        PERR("failed while reading in existing json document");
+        throw std::exception();
+      }
 
     _debug_print(0, "returning report document");
 
@@ -809,9 +809,9 @@ public:
   void _initialize_experiment_report(rapidjson::Document& document)
   {
     if (_verbose)
-    {
-      PINF("writing experiment parameters to file");
-    }
+      {
+        PINF("writing experiment parameters to file");
+      }
     rapidjson::Document::AllocatorType &allocator = document.GetAllocator();
 
     rapidjson::Value temp_object(rapidjson::kObjectType);
@@ -854,26 +854,26 @@ public:
     rapidjson::StringBuffer strbuf;
 
     try
-    {
-      // write back to file
-      rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(strbuf);
-      document.Accept(writer);
-    }
+      {
+        // write back to file
+        rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(strbuf);
+        document.Accept(writer);
+      }
     catch(...)
-    {
-      PERR("failed during write to json document");
-    }
+      {
+        PERR("failed during write to json document");
+      }
 
     try
-    {
-      std::ofstream outf(_report_filename.c_str());
-      outf << strbuf.GetString() << std::endl;
-    }
+      {
+        std::ofstream outf(_report_filename.c_str());
+        outf << strbuf.GetString() << std::endl;
+      }
     catch(...)
-    {
-      PERR("failed while writing to ofstream");
-      throw std::exception();
-    }
+      {
+        PERR("failed while writing to ofstream");
+        throw std::exception();
+      }
   } 
 
   // returns file size in bytes
@@ -900,10 +900,10 @@ public:
     _debug_print(core, "_report_document_save started");
 
     if (_test_name.empty())
-    {
-      PERR("_test_name is empty!");
-      throw std::exception();
-    }
+      {
+        PERR("_test_name is empty!");
+        throw std::exception();
+      }
 
     rapidjson::Value temp_value;
     rapidjson::Value temp_object(rapidjson::kObjectType);
@@ -913,39 +913,39 @@ public:
     temp_value.SetString(rapidjson::StringRef(core_string.c_str()));
 
     try
-    {
-      if (document.IsObject() && !document.HasMember(_test_name.c_str()))
       {
-        temp_object.AddMember(temp_value, new_info, document.GetAllocator());
-        document.AddMember(rapidjson::StringRef(_test_name.c_str()), temp_object, document.GetAllocator());
-      }
-      else
-      {
-        rapidjson::Value &items = document[_test_name.c_str()];
+        if (document.IsObject() && !document.HasMember(_test_name.c_str()))
+          {
+            temp_object.AddMember(temp_value, new_info, document.GetAllocator());
+            document.AddMember(rapidjson::StringRef(_test_name.c_str()), temp_object, document.GetAllocator());
+          }
+        else
+          {
+            rapidjson::Value &items = document[_test_name.c_str()];
 
-        &items.AddMember(temp_value, new_info, document.GetAllocator());
-      }
+            &items.AddMember(temp_value, new_info, document.GetAllocator());
+          }
 
-      // write back to file
-      rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(strbuf);
-      document.Accept(writer);
-    }
+        // write back to file
+        rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(strbuf);
+        document.Accept(writer);
+      }
     catch(...)
-    {
-      PERR("failed during write to json document");
-    }
+      {
+        PERR("failed during write to json document");
+      }
 
     _debug_print(core, "_report_document_save: writing to ofstream");
     try
-    {
-      std::ofstream outf(_report_filename.c_str());
-      outf << strbuf.GetString() << std::endl;
-    }
+      {
+        std::ofstream outf(_report_filename.c_str());
+        outf << strbuf.GetString() << std::endl;
+      }
     catch(...)
-    {
-      PERR("failed while writing to ofstream");
-      throw std::exception();
-    }
+      {
+        PERR("failed while writing to ofstream");
+        throw std::exception();
+      }
 
     _debug_print(core, "_report_document_save finished");
   }
@@ -1082,9 +1082,9 @@ public:
   static std::string create_report(ProgramOptions options)
   {
     if (options.skip_json_reporting)
-    {
-      return "";
-    }
+      {
+        return "";
+      }
 
     PLOG("creating JSON report");
     std::string timestring = get_time_string();
@@ -1141,15 +1141,15 @@ public:
   unsigned long GetElementSize(unsigned core, int index)
   {
     if (_element_size <= 0)
-    {
+      {
         std::string path = _pool_path + "/" +  _pool_name + "." + std::to_string(core) + "/" + g_data->key(index);
         _element_size = GetFileSize(path);
 
         if (_element_size == -1)  // this means GetFileSize failed, maybe due to RDMA
-        {
-          _element_size = GetDataInputSize(index);
-        }
-    }
+          {
+            _element_size = GetDataInputSize(index);
+          }
+      }
 
     if (_element_size_on_disk == -1)  // -1 is reserved value and impossible (must be positive size)
       {
@@ -1172,15 +1172,15 @@ public:
   void _update_data_process_amount(unsigned core, int index)
   {
     if (_element_size == -1)  // -1 is reserved and impossible
-    {
-      std::string path = _pool_path + "/" +  _pool_name + "." + std::to_string(core) + "/" + g_data->key(index);
-      _element_size = GetFileSize(path);
-
-      if (_element_size == -1)  // this means GetFileSize failed, maybe due to RDMA
       {
-        _element_size = GetDataInputSize(index);
+        std::string path = _pool_path + "/" +  _pool_name + "." + std::to_string(core) + "/" + g_data->key(index);
+        _element_size = GetFileSize(path);
+
+        if (_element_size == -1)  // this means GetFileSize failed, maybe due to RDMA
+          {
+            _element_size = GetDataInputSize(index);
+          }
       }
-    }
 
     _total_data_processed += _element_size;
   }
@@ -1189,9 +1189,9 @@ public:
   double _calculate_current_throughput()
   {
     if (_verbose)
-    {
-      PINF("throughput calculation: %ld data (element size %ld)", _total_data_processed, _element_size);
-    }
+      {
+        PINF("throughput calculation: %ld data (element size %ld)", _total_data_processed, _element_size);
+      }
 
     double size_mb = _total_data_processed * 0.000001;  // bytes -> MB
     double time = timer.get_time_in_seconds();
@@ -1204,9 +1204,9 @@ public:
   {
     // how much space do we have?
     if (_verbose)
-    {
-      std::cout << "_populate_pool_to_capacity start: _pool_num_components = " << _pool_num_objects << ", _elements_stored = " << _elements_stored << ", _pool_element_end = " << _pool_element_end << std::endl;
-    }
+      {
+        std::cout << "_populate_pool_to_capacity start: _pool_num_components = " << _pool_num_objects << ", _elements_stored = " << _elements_stored << ", _pool_element_end = " << _pool_element_end << std::endl;
+      }
 
     long elements_remaining = _pool_num_objects - _elements_stored;
     bool can_add_more_elements;
@@ -1216,107 +1216,107 @@ public:
     _pool_element_start = current;
       
     if (_verbose)
-    { 
-      std::stringstream debug_start;
-      debug_start << "current = " << current << ", end = " << _pool_element_end;
-      _debug_print(core, debug_start.str());
-    }
+      { 
+        std::stringstream debug_start;
+        debug_start << "current = " << current << ", end = " << _pool_element_end;
+        _debug_print(core, debug_start.str());
+      }
 
     do
-    {
-      try
       {
-        if (memory_handle != Component::IKVStore::HANDLE_NONE)
-        {
-          rc = _store->put_direct(_pool, g_data->key(current), g_data->value(current), g_data->_val_len, memory_handle);
-        }
-        else
-        {
-          rc = _store->put(_pool, g_data->key(current), g_data->value(current), g_data->value_len());
-        }
-
-        _elements_stored++;
-      }
-      catch ( const std::exception &e )
-      {
-        std::cerr << "current = " << current << std::endl;
-        PERR("populate_pool_to_capacity failed at put call: %s.", e.what());
-        throw;
-      }
-      catch(...)
-      {
-        std::cerr << "current = " << current << std::endl;
-        PERR("_populate_pool_to_capacity failed at put call");
-        throw std::exception();
-      }
-
-      if (rc != S_OK)
-      {
-        std::cerr << "current = " << current << std::endl;
-        perror("rc didn't return S_OK");
-        throw std::exception(); 
-      }
-
-      // calculate maximum number of elements we can put in pool at one time
-      if (_element_size_on_disk == -1)
-      {
-        _element_size_on_disk = GetElementSize(core, current);
-
-        if (_verbose)
+        try
           {
-            std::stringstream debug_element_size;
-            debug_element_size << "element size is " << _element_size_on_disk;
-            _debug_print(core, debug_element_size.str());
+            if (memory_handle != Component::IKVStore::HANDLE_NONE)
+              {
+                rc = _store->put_direct(_pool, g_data->key(current), g_data->value(current), g_data->_val_len, memory_handle);
+              }
+            else
+              {
+                rc = _store->put(_pool, g_data->key(current), g_data->value(current), g_data->value_len());
+              }
+
+            _elements_stored++;
           }
-      }
-
-      if (maximum_elements == -1)
-      {
-        maximum_elements = (long)(_pool_size / _element_size_on_disk);
-
-        if (_verbose)
-        {
-          std::stringstream debug_element_max;
-          debug_element_max << "maximum element count: " << maximum_elements;
-          _debug_print(core, debug_element_max.str());
-        }
-      }
-
-      current++;
-
-      bool can_add_more_in_batch = (current - _pool_element_start) != maximum_elements;
-      bool can_add_more_overall = current != _pool_num_objects;
-
-      can_add_more_elements = can_add_more_in_batch && can_add_more_overall;
-
-      if (!can_add_more_elements)
-      {
-        if (!can_add_more_in_batch)
+        catch ( const std::exception &e )
           {
-            _debug_print(core, "reached capacity", true);
+            std::cerr << "current = " << current << std::endl;
+            PERR("populate_pool_to_capacity failed at put call: %s.", e.what());
+            throw;
+          }
+        catch(...)
+          {
+            std::cerr << "current = " << current << std::endl;
+            PERR("_populate_pool_to_capacity failed at put call");
+            throw std::exception();
           }
 
-        if (!can_add_more_overall)
+        if (rc != S_OK)
           {
-            _debug_print(core, "reached last element", true);
+            std::cerr << "current = " << current << std::endl;
+            perror("rc didn't return S_OK");
+            throw std::exception(); 
+          }
+
+        // calculate maximum number of elements we can put in pool at one time
+        if (_element_size_on_disk == -1)
+          {
+            _element_size_on_disk = GetElementSize(core, current);
+
+            if (_verbose)
+              {
+                std::stringstream debug_element_size;
+                debug_element_size << "element size is " << _element_size_on_disk;
+                _debug_print(core, debug_element_size.str());
+              }
+          }
+
+        if (maximum_elements == -1)
+          {
+            maximum_elements = (long)(_pool_size / _element_size_on_disk);
+
+            if (_verbose)
+              {
+                std::stringstream debug_element_max;
+                debug_element_max << "maximum element count: " << maximum_elements;
+                _debug_print(core, debug_element_max.str());
+              }
+          }
+
+        current++;
+
+        bool can_add_more_in_batch = (current - _pool_element_start) != maximum_elements;
+        bool can_add_more_overall = current != _pool_num_objects;
+
+        can_add_more_elements = can_add_more_in_batch && can_add_more_overall;
+
+        if (!can_add_more_elements)
+          {
+            if (!can_add_more_in_batch)
+              {
+                _debug_print(core, "reached capacity", true);
+              }
+
+            if (!can_add_more_overall)
+              {
+                _debug_print(core, "reached last element", true);
+              }
           }
       }
-    }
     while(can_add_more_elements);
 
     _pool_element_end = current - 1;
 
     if (_verbose)
-    {
-      std::cout << "_pool_element_end = " << _pool_element_end << std::endl;
-      std::stringstream range_info;
-      range_info << "current = " << current << ", end = " << _pool_element_end;
-      _debug_print(core, range_info.str(), true);
+      {
+        std::cout << "_pool_element_end = " << _pool_element_end << std::endl;
+        std::stringstream range_info;
+        range_info << "current = " << current << ", end = " << _pool_element_end;
+        _debug_print(core, range_info.str(), true);
 
-      range_info = std::stringstream();
-      range_info << "elements added to pool: " << current - _pool_element_start << ". Last = " << current;
-      _debug_print(core, range_info.str(), true);
-    }
+        range_info = std::stringstream();
+        range_info << "elements added to pool: " << current - _pool_element_start << ". Last = " << current;
+        _debug_print(core, range_info.str(), true);
+      }
   }
 
   // assumptions: _i is tracking current element in use
@@ -1328,119 +1328,119 @@ public:
 
     // erase elements that exceed pool capacity and start again
     if ((_elements_in_use * _element_size_on_disk) >= _pool_size)
-    {
-      bool timer_running_at_start = timer.is_running();  // if timer was running, pause it
-
-      if (timer_running_at_start)
       {
-        timer.stop();
+        bool timer_running_at_start = timer.is_running();  // if timer was running, pause it
+
+        if (timer_running_at_start)
+          {
+            timer.stop();
+
+            if (_verbose)
+              {
+                PLOG("enforce_maximum_pool_size pausing timer");
+              }
+          }
+
+        if(_verbose)
+          {
+            std::stringstream debug_message;
+            debug_message << "exceeded acceptable pool size of " << _pool_size << ". Erasing " << _elements_in_use << " elements of size " << _element_size_on_disk << " (" << _elements_in_use * _element_size_on_disk << " total)";
+
+            _debug_print(core, debug_message.str(), true);
+          }
+
+        try
+          {
+            for (int i = _i - 1; i > (_i - _elements_in_use); i--)
+              {
+                int rc =_store->erase(_pool, g_data->key(i));
+                if (rc != S_OK && core == 0)
+                  {
+                    // throw exception
+                    std::string error_string = "erase returned !S_OK: ";
+                    error_string.append(std::to_string(rc));
+                    error_string.append(", i = " + std::to_string(i) + ", _i = " + std::to_string(_i));
+                    perror(error_string.c_str());
+                  }                 
+              }
+          }
+        catch(...)
+          {
+            PERR("failed during erase step");
+            throw std::exception();
+          }
+
+        _elements_in_use = 0;
 
         if (_verbose)
-        {
-          PLOG("enforce_maximum_pool_size pausing timer");
-        }
+          {
+            std::stringstream debug_end;
+            debug_end << "done. _i = " << _i;
+
+            _debug_print(core, debug_end.str(), true);
+          }
+
+        if (timer_running_at_start)
+          {
+            if (_verbose)
+              {
+                PLOG("enforce_maximum_pool_size restarting timer");
+              }
+
+            timer.start();
+          }
       }
-
-      if(_verbose)
-      {
-        std::stringstream debug_message;
-        debug_message << "exceeded acceptable pool size of " << _pool_size << ". Erasing " << _elements_in_use << " elements of size " << _element_size_on_disk << " (" << _elements_in_use * _element_size_on_disk << " total)";
-
-        _debug_print(core, debug_message.str(), true);
-      }
-
-      try
-      {
-        for (int i = _i - 1; i > (_i - _elements_in_use); i--)
-        {
-          int rc =_store->erase(_pool, g_data->key(i));
-          if (rc != S_OK && core == 0)
-            {
-              // throw exception
-              std::string error_string = "erase returned !S_OK: ";
-              error_string.append(std::to_string(rc));
-              error_string.append(", i = " + std::to_string(i) + ", _i = " + std::to_string(_i));
-              perror(error_string.c_str());
-            }                 
-        }
-      }
-      catch(...)
-      {
-        PERR("failed during erase step");
-        throw std::exception();
-      }
-
-      _elements_in_use = 0;
-
-      if (_verbose)
-      {
-        std::stringstream debug_end;
-        debug_end << "done. _i = " << _i;
-
-        _debug_print(core, debug_end.str(), true);
-      }
-
-      if (timer_running_at_start)
-      {
-        if (_verbose)
-        {
-          PLOG("enforce_maximum_pool_size restarting timer");
-        }
-
-        timer.start();
-      }
-    }
   }
 
   void _erase_pool_entries_in_range(int start, int finish)
   {
     if (_verbose)
-    {
-      std::cout << "erasing pool entries in range " << start << " to " << finish << std::endl;
-    }
+      {
+        std::cout << "erasing pool entries in range " << start << " to " << finish << std::endl;
+      }
 
     int rc;
 
     try
-    {
-      for (int i = start; i < finish; i++)
       {
-        rc = _store->erase(_pool, g_data->key(i));
-
-        if (rc != S_OK)
+        for (int i = start; i < finish; i++)
           {
-            throw std::exception();
+            rc = _store->erase(_pool, g_data->key(i));
+
+            if (rc != S_OK)
+              {
+                throw std::exception();
+              }
           }
       }
-    }
     catch(...)
-    {
-      PERR("erase step failed");
-      throw std::exception();
-    }
+      {
+        PERR("erase step failed");
+        throw std::exception();
+      }
   }
 
   static size_t get_difference_to_next_power_of_two(size_t value)
   {
     if (value < 0)
-    {
-      PERR("get_difference_to_next_power_of_two only supports positive numbers");
-      throw std::exception();
-    }
+      {
+        PERR("get_difference_to_next_power_of_two only supports positive numbers");
+        throw std::exception();
+      }
 
     if (value == 0 || value == 1)
-    {
-      return 0;
-    }
+      {
+        return 0;
+      }
 
     int i = 1;
     std::vector<size_t> powers_of_two = {1, 2};
 
     while (value > powers_of_two[i])
-    {
-      i++;
-      powers_of_two.push_back(std::pow(2, i));
-    }
+      {
+        i++;
+        powers_of_two.push_back(std::pow(2, i));
+      }
 
     return powers_of_two[i] - value;
   }

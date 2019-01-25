@@ -60,7 +60,6 @@ public:
     int rc;
 
     timer.start();
-
     try
       {
         rc = _store->get(_pool, g_data->key(_i), pval, pval_len);
@@ -121,8 +120,6 @@ public:
 
   void cleanup_custom(unsigned core)  
   {
-    timer.stop();  // just in case; normal code should have already stopped by now
-
     double run_time = timer.get_time_in_seconds();
     double iops = ((double) _i / run_time);
     PINF("[%u] get: IOPS: %2g in %2g seconds", core, iops, run_time);
