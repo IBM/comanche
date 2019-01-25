@@ -44,7 +44,8 @@ namespace impl
 			using mod_ctl_ptr_t = typename allocator_type::template rebind<mod_control>::other::pointer;
 
 			/* key to destination of modification data */
-			persist_fixed_string<char, typename Value::first_type::allocator_type> mod_key;
+			using mod_key_t = persist_fixed_string<char, typename Value::first_type::allocator_type>;
+			mod_key_t mod_key;
 			/* source of modification data */
 			persist_fixed_string<char, typename Value::second_type::allocator_type> mod_mapped;
 			/* control of modification datai */

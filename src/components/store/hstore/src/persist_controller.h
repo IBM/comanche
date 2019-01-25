@@ -15,6 +15,7 @@
  * goes through this class. Ideally this should also get writes to persist_data::_sc.
  */
 
+#include <iostream>
 namespace impl
 {
 	template <typename Allocator, typename SizeChange>
@@ -119,8 +120,13 @@ namespace impl
 			auto bp_src()
 			{
 				return boost::make_transform_iterator(
+					/* original iterator */
 					_persist->_sc
-					, std::mem_fn(&persist_data_t::segment_control::bp)
+					/* transform function applied to that each item returned from the original iterator */
+					, [] ( const typename persist_data_t::segment_control &sc ) -> auto
+					{
+						return sc.bp;
+					}
 				);
 			}
 			bool is_size_unstable() const;

@@ -41,15 +41,23 @@ template <
 		, _locate_key_match(0)
 		, _locate_key_mismatch(0)
 	{
+
 		const auto bp_src = persist_controller_t::bp_src();
 		const auto bc_dst =
 			boost::make_transform_iterator(_bc, std::mem_fn(&bucket_control_t::_buckets));
+		/*
+		 * Copy bucket pointers from pmem to DRAM.
+		 */
 		std::transform(
 			bp_src
 			, bp_src + _segment_capacity
 			, bc_dst
-			, [] (const auto &c) { return &*c; }
+			, [] (const auto &c) {
+				return c ? &*c : nullptr;
+			}
 		);
+
+
 		_bc[0]._index = 0;
 		_bc[0]._next = &_bc[0];
 		_bc[0]._prev = &_bc[0];
@@ -453,6 +461,7 @@ template <
 				<< __func__ << " END LIST\n";
 #endif
 		RETRY:
+			/* convert the args to a value_type */
 			auto v = value_type(std::forward<Args>(args)...);
 			/* The bucket in which to place the new entry */
 			auto sbw = make_segment_and_bucket(bucket(v.first));
@@ -922,7 +931,7 @@ template <
 	) const -> segment_and_bucket_t
 	{
 		assert( ix_ < bucket_count() );
-		/* Same as in make_segment_and_bucket, but with the knowledge dhat ix_ != bucket_count() */
+		/* Same as in make_segment_and_bucket_for_iterator, but with the knowledge that ix_ != bucket_count() */
 #if 0
 		return make_segment_and_bucket_for_iterator(ix_);
 #else
