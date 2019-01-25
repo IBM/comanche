@@ -23,34 +23,31 @@ template <typename Allocator>
 		, _sc{}
 	{
 		using void_allocator_t = typename Allocator::template rebind<void>::other;
-		_sc[0].bp =
-			bucket_allocator_t(av_).address(
-				*new (
-						&*bucket_allocator_t(av_).allocate(
-							base_segment_size
-							, typename void_allocator_t::const_pointer()
-							, "persist_control_segment_0"
-						)
-					)
-					bucket_aligned_t[base_segment_size]
+
+		{
+			auto ptr =
+				bucket_allocator_t(av_).allocate(
+					base_segment_size
+					, typename void_allocator_t::const_pointer()
+					, "persist_control_segment_0"
 				);
+			new ( &*ptr ) bucket_aligned_t[base_segment_size];
+			_sc[0].bp = ptr;
+		}
 
 		/* while are not enough allocated segments to hold n elements */
 		for ( auto ix = 1U; ix != _segment_count._target; ++ix )
 		{
 			auto segment_size = base_segment_size<<(ix-1U);
 
-			_sc[ix].bp =
-				bucket_allocator_t(av_).address(
-					*new (
-						&*bucket_allocator_t(av_).allocate(
-							segment_size
-							, typename void_allocator_t::const_pointer()
-							, "persist_control_segment_n"
-						)
-					)
-					bucket_aligned_t[base_segment_size << (ix-1U)]
+			auto ptr =
+				bucket_allocator_t(av_).allocate(
+					segment_size
+					, typename void_allocator_t::const_pointer()
+					, "persist_control_segment_n"
 				);
+			new (&*ptr) bucket_aligned_t[base_segment_size << (ix-1U)];
+			_sc[ix].bp = ptr;
 		}
 
 		_segment_count._actual = _segment_count._target;

@@ -101,6 +101,7 @@ namespace impl
 			using bucket_allocator_t =
 				typename Allocator::template rebind<bucket_aligned_t>::other;
 			using bucket_ptr = typename bucket_allocator_t::pointer;
+private:
 			/* bucket indexes */
 			using bix_t = segment_layout::bix_t;
 			/* segment indexes */
