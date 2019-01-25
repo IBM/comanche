@@ -42,7 +42,7 @@ void Shard::initialize_components(const std::string& backend,
     else
       throw General_exception("invalid backend (%s)", backend.c_str());
 
-    if (option_DEBUG) PLOG("Shard: using store backend (%s)", backend.c_str());
+    if (option_DEBUG > 2) PLOG("Shard: using store backend (%s)", backend.c_str());
 
     if (!comp)
       throw General_exception(
@@ -100,7 +100,7 @@ void Shard::main_loop() {
       if (tick_response == Dawn::Connection_handler::TICK_RESPONSE_CLOSE) {
         if (_forced_exit) _thread_exit = true;
 
-        if (option_DEBUG) PLOG("Shard: closing connection %p", handler);
+        if (option_DEBUG > 2) PLOG("Shard: closing connection %p", handler);
 
         pending_close.push_back(handler_iter);
       }
@@ -109,7 +109,7 @@ void Shard::main_loop() {
       while (handler->get_pending_action(action)) {
         switch (action.op) {
           case Connection_handler::ACTION_RELEASE_VALUE_LOCK:
-            if (option_DEBUG) PLOG("releasing value lock (%p)", action.parm);
+            if (option_DEBUG > 2) PLOG("releasing value lock (%p)", action.parm);
             release_locked_value(action.parm);
             break;
           default:
@@ -174,9 +174,9 @@ void Shard::process_message_pool_request(Connection_handler* handler,
 
   /* handle operation */
   if (msg->op == Dawn::Protocol::OP_CREATE) {
-    if (option_DEBUG)
-      PINF("# Message_pool_request: op=%u path=%s pool_name=%s", msg->op,
-           msg->path(), msg->pool_name());
+    if (option_DEBUG > 1)
+      PINF("# Message_pool_request: op=%u path=%s pool_name=%s size=%lu", msg->op,
+           msg->path(), msg->pool_name(), msg->pool_size);
 
     try {
       Component::IKVStore::pool_t pool;
@@ -194,7 +194,7 @@ void Shard::process_message_pool_request(Connection_handler* handler,
         handler->register_pool(pool_name, pool);
       }
 
-      if (option_DEBUG) PLOG("OP_CREATE: new pool id: %lx", pool);
+      if (option_DEBUG > 2) PLOG("OP_CREATE: new pool id: %lx", pool);
 
       std::vector<::iovec> regions;
       status_t rc = _i_kvstore->get_pool_regions(pool, regions);
@@ -215,7 +215,7 @@ void Shard::process_message_pool_request(Connection_handler* handler,
     }
   }
   else if (msg->op == Dawn::Protocol::OP_OPEN) {
-    if (option_DEBUG)
+    if (option_DEBUG > 1)
       PINF("# Message_pool_request: op=%u path=%s pool_name=%s", msg->op,
            msg->path(), msg->pool_name());
 
@@ -241,7 +241,7 @@ void Shard::process_message_pool_request(Connection_handler* handler,
         handler->add_reference(pool);
       }
 
-      if (option_DEBUG) PLOG("OP_OPEN: pool id: %lx", pool);
+      if (option_DEBUG > 2) PLOG("OP_OPEN: pool id: %lx", pool);
 
       response->pool_id = pool;
     }
@@ -252,11 +252,11 @@ void Shard::process_message_pool_request(Connection_handler* handler,
     }
   }
   else if (msg->op == Dawn::Protocol::OP_CLOSE) {
-    if (option_DEBUG) PINF("# Message_pool_request: op=%u", msg->op);
+    if (option_DEBUG > 1) PINF("# Message_pool_request: op=%u", msg->op);
 
     try {
       auto pool = msg->pool_id;
-      if (option_DEBUG) PLOG("OP_CLOSE: pool id: %lx", pool);
+      if (option_DEBUG > 2) PLOG("OP_CLOSE: pool id: %lx", pool);
 
       if (handler->release_pool_reference(pool)) {
         _i_kvstore->close_pool(pool);
@@ -270,11 +270,11 @@ void Shard::process_message_pool_request(Connection_handler* handler,
     }
   }
   else if (msg->op == Dawn::Protocol::OP_DELETE) {
-    if (option_DEBUG) PINF("# Message_pool_request: op=%u", msg->op);
+    if (option_DEBUG > 1) PINF("# Message_pool_request: op=%u", msg->op);
 
     try {
       auto pool = msg->pool_id;
-      if (option_DEBUG) PLOG("OP_DELETE: pool id: %lx", pool);
+      if (option_DEBUG > 2) PLOG("OP_DELETE: pool id: %lx", pool);
 
       if (handler->release_pool_reference(pool)) {
         _i_kvstore->delete_pool(pool);
@@ -282,7 +282,7 @@ void Shard::process_message_pool_request(Connection_handler* handler,
         handler->blitz_pool_reference(pool);
       }
       else {
-        if (option_DEBUG)
+        if (option_DEBUG > 2)
           PLOG("unable to delete pool that is open by another session");
         response->pool_id = pool;
         response->status = E_INVAL;
@@ -298,7 +298,7 @@ void Shard::process_message_pool_request(Connection_handler* handler,
     throw Protocol_exception(
         "process_message_pool_request - bad operation (msg->op = %d)", msg->op);
 
-  if (option_DEBUG) PLOG("response len: %d", response->msg_len);
+  if (option_DEBUG > 2) PLOG("response len: %d", response->msg_len);
 
   /* trim response length */
   response_iob->set_length(response->msg_len);
@@ -318,7 +318,7 @@ void Shard::process_message_IO_request(Connection_handler* handler,
   //   PUT ADVANCE   //
   /////////////////////
   if (msg->op == Protocol::OP_PUT_ADVANCE) {
-    if (option_DEBUG)
+    if (option_DEBUG > 2)
       PLOG("PUT_ADVANCE: (%p) key=(%.*s) value_len=%lu request_id=%lu", this,
            (int) msg->key_len, msg->key(), msg->val_len, msg->request_id);
 
@@ -353,7 +353,7 @@ void Shard::process_message_IO_request(Connection_handler* handler,
     //   region = ondemand_register(handler, target, target_len);
     // }
     // else {
-    //   if(option_DEBUG)
+    //   if(option_DEBUG > 2)
     //     PLOG("using pre-registered region (handle=%p)", region);
     // }
     // assert(region);
@@ -380,20 +380,20 @@ void Shard::process_message_IO_request(Connection_handler* handler,
     /* for basic 'puts' we have to do a memcpy - to support "in-place"
        puts for larger data, we use a two-stage operation
     */
-    if (option_DEBUG)
+    if (option_DEBUG > 2)
       PLOG("PUT: (%p) key=(%.*s) value=(%.*s)", this, (int) msg->key_len,
            msg->key(), (int) msg->val_len, msg->value());
 
     if (msg->resvd & Dawn::Protocol::MSG_RESVD_SCBE) {
       status = S_OK;  // short-circuit backend
-      if (option_DEBUG) PLOG("PUT: short-circuited backend");
+      if (option_DEBUG > 2) PLOG("PUT: short-circuited backend");
     }
     else {
       std::string k;
       k.assign(msg->key(), msg->key_len);
       status = _i_kvstore->put(msg->pool_id, k, msg->value(), msg->val_len);
 
-      if (option_DEBUG) {
+      if (option_DEBUG > 2) {
         if (status == Component::IKVStore::E_ALREADY_EXISTS)
           PLOG("kvstore->put returned E_ALREADY_EXISTS");
         else
@@ -405,7 +405,7 @@ void Shard::process_message_IO_request(Connection_handler* handler,
   //   GET           //
   /////////////////////
   else if (msg->op == Protocol::OP_GET) {
-    if (option_DEBUG)
+    if (option_DEBUG > 2)
       PMAJOR("GET: (%p) (request=%lu) key=(%.*s) ", this, msg->request_id,
              (int) msg->key_len, msg->key());
 
@@ -418,7 +418,7 @@ void Shard::process_message_IO_request(Connection_handler* handler,
     auto key_handle = _i_kvstore->lock(
         msg->pool_id, k, IKVStore::STORE_LOCK_READ, value_out, value_out_len);
 
-    if (option_DEBUG)
+    if (option_DEBUG > 2)
       PLOG("shard: locked OK: value_out=%p (%.*s) value_out_len=%lu", value_out,
            (int) value_out_len, (char*) value_out, value_out_len);
 
@@ -456,7 +456,7 @@ void Shard::process_message_IO_request(Connection_handler* handler,
 
     if (value_out_len <=
         (handler->IO_buffer_size() - response->base_message_size())) {
-      if (option_DEBUG) PLOG("posting response header and value together");
+      if (option_DEBUG > 2) PLOG("posting response header and value together");
 
       /* post both buffers together in same response packet */
       handler->post_response(iob, value_buffer);
@@ -494,7 +494,7 @@ void Shard::check_for_new_connections() {
   Connection_handler* handler;
 
   while ((handler = get_new_connection()) != nullptr) {
-    if (option_DEBUG) PLOG("Shard: processing new connection (%p)", handler);
+    if (option_DEBUG > 2) PLOG("Shard: processing new connection (%p)", handler);
     _handlers.push_back(handler);
   }
 }
