@@ -19,7 +19,6 @@ class ExperimentGet : public Experiment
 public:
   std::vector<double> _start_time;
   std::vector<double> _latencies;
-  std::chrono::high_resolution_clock::time_point _exp_start_time;
   BinStatistics _latency_stats;
 
   ExperimentGet(struct ProgramOptions options): Experiment(options)
@@ -46,7 +45,6 @@ public:
         PLOG("[%u] Starting Get experiment...", core);
 
         _first_iter = false;
-        _exp_start_time = std::chrono::high_resolution_clock::now();
       }     
 
     // end experiment if we've reached the total number of components
@@ -57,13 +55,11 @@ public:
       }
 
     // check time it takes to complete a single put operation
-    uint64_t cycles, start, end;
     void * pval;
     size_t pval_len;
     int rc;
 
     timer.start();
-    start = rdtsc();
 
     try
       {
@@ -74,17 +70,12 @@ public:
         PERR("get call failed! Ending experiment.");
         throw std::exception();
       }
-    end = rdtsc();
     timer.stop();
 
     _update_data_process_amount(core, _i);
 
-    cycles = end - start;
-    double time = (cycles / _cycles_per_second);
-    //printf("start: %u  end: %u  cycles: %u seconds: %f\n", start, end, cycles, time);
-
-    std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
-    double time_since_start = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - _exp_start_time).count() / 1000.0;
+    double lap_time = timer.get_lap_time_in_seconds();
+    double time_since_start = timer.get_time_in_seconds();
 
     if (pval != nullptr)
       {
@@ -92,9 +83,9 @@ public:
       }
 
     // store the information for later use
-    _latency_stats.update(time);
+    _latency_stats.update(lap_time);
     _start_time.push_back(time_since_start);
-    _latencies.push_back(time);
+    _latencies.push_back(lap_time);
 
     if (rc != S_OK)
       {

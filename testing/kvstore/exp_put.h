@@ -43,7 +43,6 @@ public:
     // end experiment if we've reached the total number of components
     if (_i == _pool_num_objects)
       {
-        //            timer.stop();
         PINF("[%u] put: reached total number of components. Exiting.", core);
         return false;
       }
@@ -66,14 +65,14 @@ public:
     
     _update_data_process_amount(core, _i);
 
-    double time = timer.get_lap_time_in_seconds();
+    double lap_time = timer.get_lap_time_in_seconds();
     double time_since_start = timer.get_time_in_seconds();
 
     // store the information for later use
     _start_time.push_back(time_since_start);
-    _latencies.push_back(time);
+    _latencies.push_back(lap_time);
 
-    _latency_stats.update(time);
+    _latency_stats.update(lap_time);
 
     _i++;  // increment after running so all elements get used
 
@@ -92,7 +91,6 @@ public:
   {
     try
       {
-        //          timer.stop();
         _debug_print(core, "cleanup_custom started");
 
         if (_verbose)
