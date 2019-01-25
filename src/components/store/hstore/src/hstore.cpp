@@ -5,7 +5,8 @@
 #include "palloc.h"
 #include "perishable.h"
 #include "persist_fixed_string.h"
-#include "pobj_allocator.h"
+#include "persister_pmem.h"
+#include "allocator_pobj_cache_aligned.h"
 
 #include <city.h>
 #include <common/exceptions.h>
@@ -65,9 +66,10 @@ constexpr uint64_t key = 3U;
 constexpr uint64_t mapped = 4U;
 }
 
-using ALLOC_T = pobj_cache_aligned_allocator<char>;
-using KEY_T = persist_fixed_string<char, ALLOC_T>;
-using MAPPED_T = persist_fixed_string<char, ALLOC_T>;
+using DEALLOC_T = deallocator_pobj_cache_aligned<char>;
+using ALLOC_T = allocator_pobj_cache_aligned<char>;
+using KEY_T = persist_fixed_string<char, DEALLOC_T>;
+using MAPPED_T = persist_fixed_string<char, DEALLOC_T>;
 
 struct pstr_hash
 {
@@ -82,13 +84,16 @@ struct pstr_hash
 using HASHER_T = pstr_hash;
 
 using allocator_segment_t =
-  pobj_cache_aligned_allocator
-  <
-  std::pair<const KEY_T, MAPPED_T>
-  >;
+  allocator_pobj_cache_aligned<std::pair<const KEY_T, MAPPED_T>>;
 
 using allocator_atomic_t =
-  pobj_cache_aligned_allocator<impl::mod_control>;
+  allocator_pobj_cache_aligned
+  <
+    deallocator_pobj_cache_aligned
+    <
+      impl::mod_control
+    >
+  >;
 
 using table_t =
   table<
@@ -124,7 +129,7 @@ namespace
   using pmemobj_guard_t = std::lock_guard<std::mutex>;
 
   PMEMobjpool *pmemobj_create_guarded(const char *path, const char *layout,
-	size_t poolsize, mode_t mode)
+  size_t poolsize, mode_t mode)
   {
     pmemobj_guard_t g{pmemobj_mutex};
     return ::pmemobj_create(path, layout, poolsize, mode);
@@ -556,8 +561,8 @@ void hstore::delete_pool(const std::string &dir, const std::string &name)
                         "unable to delete pool (%s): pmem err %s errno %d (%s)"
                         , path.c_str()
                         , pmemobj_errormsg()
-			, e
-			, strerror(e)
+      , e
+      , strerror(e)
                         );
   }
 
@@ -783,19 +788,11 @@ namespace
 {
 bool try_lock(table_t &map, hstore::lock_type_t type, const KEY_T &p_key)
 {
-  if ( type == IKVStore::STORE_LOCK_READ ) {
-    if ( ! map.lock_shared(p_key) )
-      {
-        return false;
-      }
-  }
-  else {
-    if ( ! map.lock_unique(p_key) )
-      {
-        return false;
-      }
-  }
-  return true;
+  return
+    type == IKVStore::STORE_LOCK_READ
+    ? map.lock_shared(p_key)
+    : map.lock_unique(p_key)
+    ;
 }
 }
 

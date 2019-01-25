@@ -238,7 +238,6 @@ TEST_F(KVStore_test, PutMany)
     size_t old_value_len = 0;
     if ( S_OK == _kvstore->get(pool, key, old_value, old_value_len) )
     {
-      std::cerr << __func__ << " KEY EXISTS " << key << "\n";
       _kvstore->free_memory(old_value);
       ++extant_count;
     }
