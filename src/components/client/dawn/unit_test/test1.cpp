@@ -13,6 +13,7 @@
 #include <chrono> /* milliseconds */
 #include <thread> /* this_thread::sleep_for */
 
+#define TEST_SESSION_CONTROL
 //#define TEST_BASIC_PUT_AND_GET
 //#define TEST_PUT_DIRECT_0
 //#define TEST_PUT_DIRECT_1
@@ -21,7 +22,7 @@
 //#define TEST_PERF_SMALL_PUT_DIRECT
 //#define TEST_PERF_LARGE_PUT_DIRECT
 //#define TEST_PERF_LARGE_GET_DIRECT
-#define TEST_SCALE_IOPS
+//#define TEST_SCALE_IOPS
 
 struct {
   std::string addr;
@@ -64,6 +65,71 @@ DECLARE_STATIC_COMPONENT_UUID(dawn_client, 0x2f666078, 0xcb8a, 0x4724, 0xa454,
 DECLARE_STATIC_COMPONENT_UUID(dawn_client_factory, 0xfac66078, 0xcb8a, 0x4724,
                               0xa454, 0xd1, 0xd8, 0x8d, 0xe2, 0xdb, 0x87);
 
+
+void basic_test(IKVStore * kv, unsigned shard)
+{
+  int rc;
+  char poolname[32];
+  sprintf(poolname, "%u", shard);
+  
+  auto pool = kv->create_pool("/dev/dax0.",
+                                 poolname,
+                                 MB(8));
+
+  std::string value = "Hello! Value";  // 12 chars
+
+  void *pv;
+  for (unsigned i = 0; i < 10; i++) {
+    std::string key = Common::random_string(8);
+    rc = kv->put(pool, key.c_str(), value.c_str(), value.length());
+    ASSERT_TRUE(rc == S_OK || rc == -2);
+
+    pv = nullptr;
+    size_t pv_len = 0;
+    rc = kv->get(pool, key.c_str(), pv, pv_len);
+    ASSERT_TRUE(rc == S_OK);
+    ASSERT_TRUE(strncmp((char *) pv, value.c_str(), value.length()) == 0);
+  }
+
+  kv->delete_pool(pool);
+  free(pv);
+}
+
+  
+#ifdef TEST_SESSION_CONTROL
+
+TEST_F(Dawn_client_test, SessionControl)
+{
+    /* create object instance through factory */
+  Component::IBase *comp = Component::load_component(
+      "libcomanche-dawn-client.so", dawn_client_factory);
+
+  ASSERT_TRUE(comp);
+  fact = (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
+  
+  auto dawn = fact->create(Options.debug_level, "dwaddington", Options.addr,
+                           Options.device);
+  ASSERT_TRUE(dawn);
+  dawn->release_ref();
+
+  auto dawn2 = fact->create(Options.debug_level, "dwaddington", Options.addr,
+                           Options.device);
+  ASSERT_TRUE(dawn2);
+  auto dawn3 = fact->create(Options.debug_level, "dwaddington", Options.addr,
+                           Options.device);
+  ASSERT_TRUE(dawn3);
+
+  basic_test(dawn2,0);
+  basic_test(dawn3,1);
+  
+  dawn2->release_ref();
+  dawn3->release_ref();
+  
+  fact->release_ref();
+}
+  
+#else
+  
 TEST_F(Dawn_client_test, Instantiate) {
   /* create object instance through factory */
   Component::IBase *comp = Component::load_component(
@@ -76,9 +142,10 @@ TEST_F(Dawn_client_test, Instantiate) {
                        Options.device);
   ASSERT_TRUE(_dawn);
 
-  //  fact->release_ref();
+  fact->release_ref();
 }
-
+#endif
+  
 #ifdef TEST_BASIC_PUT_AND_GET
 TEST_F(Dawn_client_test, BasicPutAndGet) {
   ASSERT_TRUE(_dawn);
@@ -590,12 +657,14 @@ TEST_F(Dawn_client_test, PutDirectLarge) {
 }
 #endif
 
+#ifndef TEST_SESSION_CONTROL
 TEST_F(Dawn_client_test, Release) {
   PLOG("Releasing instance...");
 
   /* release instance */
   _dawn->release_ref();
 }
+#endif
 
 }  // namespace
 

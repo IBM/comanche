@@ -19,6 +19,8 @@
 #include "statistics.h"
 #include "stopwatch.h"
 
+#define HT_SIZE_FACTOR 3
+
 extern Data * g_data;
 extern int g_argc;
 extern char** g_argv;
@@ -146,7 +148,7 @@ public:
     sprintf(poolname, "%s.%d", _pool_name.c_str(), core_index);
     auto path = _pool_path + "/" + poolname;
 
-    if (boost::filesystem::exists(path))
+    if (_component != "dawn" && boost::filesystem::exists(path))
       {
         bool might_be_dax = boost::filesystem::exists(path);
         try
@@ -191,7 +193,7 @@ public:
     PLOG("Creating pool for worker %u ...", core);
     try
       {
-        _pool = _store->create_pool(_pool_path, poolname, _pool_size, _pool_flags, _pool_num_objects);
+        _pool = _store->create_pool(_pool_path, poolname, _pool_size, _pool_flags, _pool_num_objects * HT_SIZE_FACTOR);
       }
     catch ( const Exception &e )
       {
@@ -321,6 +323,7 @@ public:
         }
         else if (_component == "dawn") {
           _store = fact->create(_debug_level, _owner, _server_address, _device_name);
+          PMAJOR("dawn component instance: %p", _store);
         }
         else {
           _store = fact->create("owner", _owner);

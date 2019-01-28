@@ -118,7 +118,7 @@
 #ifdef CONFIG_DEBUG
 #define PASSERT(cond, f, ...)                                        \
   do { if (!cond) {                                                  \
-    fprintf(stderr, "%s[KIVATI]: ASSERT FAIL %s:" f "\n%s", ESC_ERR, \
+    fprintf(stderr, "%s[COMANCHE]: ASSERT FAIL %s:" f "\n%s", ESC_ERR, \
             __FUNCTION__, ##__VA_ARGS__, ESC_END);                   \
     assert(cond);                                                    \
   } } while (0)

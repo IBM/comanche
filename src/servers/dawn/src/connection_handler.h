@@ -69,13 +69,11 @@ class Connection_handler
  public:
   Connection_handler(Factory* factory, Connection* connection)
       : Connection_base(factory, connection), Region_manager(connection) {
-    PLOG("Connection_handler: %p", this);
     _pending_actions.reserve(Buffer_manager<Connection>::DEFAULT_BUFFER_COUNT);
     _pending_msgs.reserve(Buffer_manager<Connection>::DEFAULT_BUFFER_COUNT);
   }
 
   ~Connection_handler() {
-    PLOG("Connection_handler dtor: %p", this);
     dump_stats();
   }
 
