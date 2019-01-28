@@ -713,7 +713,7 @@ auto hstore::put(const pool_t pool,
 
   if(value == nullptr)
     throw std::invalid_argument("value argument is null");
-  
+
   auto &session = locate_session(pool);
 
   auto cvalue = static_cast<const char *>(value);
