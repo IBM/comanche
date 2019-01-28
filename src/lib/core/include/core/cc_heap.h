@@ -46,7 +46,7 @@ namespace Core
 			assert(_state->_sw < _state->_bounds.size());
 		}
 	public:
-		sbrk_alloc(void *area, std::size_t sz)
+		explicit sbrk_alloc(void *area, std::size_t sz)
 			: _state(static_cast<state *>(area))
 		{
 			if ( _state->_location == 0 )
@@ -70,7 +70,7 @@ namespace Core
 				restore();
 			}
 		}
-		sbrk_alloc(void *area)
+		explicit sbrk_alloc(void *area)
 			: _state(static_cast<state *>(area))
 		{
 			restore();
@@ -96,10 +96,10 @@ namespace Core
 		: public sbrk_alloc
 	{
 	public:
-		cc_alloc(void *area, std::size_t sz)
+		explicit cc_alloc(void *area, std::size_t sz)
 			: sbrk_alloc(area, sz)
 		{}
-		cc_alloc(void *area)
+		explicit cc_alloc(void *area)
 			: sbrk_alloc(area)
 		{}
 	};
