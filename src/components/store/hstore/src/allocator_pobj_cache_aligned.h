@@ -47,12 +47,12 @@ template <>
 			};
 	};
 
-#include <cassert>
 template <typename T, typename Deallocator>
 	class allocator_pobj_cache_aligned
 		: public Deallocator
 		, public pool_pobj
 	{
+	public:
 		using deallocator_type = Deallocator;
 	protected:
 		using deallocator_type::cache_align;
@@ -130,7 +130,6 @@ template <typename T, typename Deallocator>
 					<< ") OID " << std::hex << oid.pool_uuid_lo << "." << oid.off << "\n";
 			}
 #endif
-			assert((reinterpret_cast<std::uintptr_t>(&*pointer(oid)) & 63) == 0);
 			return pointer(oid);
 		}
 	};
