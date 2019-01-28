@@ -644,14 +644,12 @@ auto hstore::put(const pool_t pool,
     throw std::invalid_argument("value argument is null");
   
   auto &session = locate_session(pool);
-<<<<<<< HEAD
+
   auto *const pop = session.pool();
 
   if(pop == nullptr)
     throw std::invalid_argument("invalid pool");
 
-=======
->>>>>>> 3219f48b754aec33ec6ecb92739464c0d353317f
   auto cvalue = static_cast<const char *>(value);
 
   const auto i =
