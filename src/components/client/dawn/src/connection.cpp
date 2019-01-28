@@ -140,8 +140,7 @@ namespace Dawn
 
       const auto iob = allocate();
 
-      const auto msg = new (iob->base()) Dawn::Protocol::Message_IO_request(
-                                                                            iob->length(), auth_id(), ++_request_id, pool,
+      const auto msg = new (iob->base()) Dawn::Protocol::Message_IO_request(iob->length(), auth_id(), ++_request_id, pool,
                                                                             Dawn::Protocol::OP_PUT,  // op
                                                                             key, key_len, value, value_len);
 
@@ -168,8 +167,7 @@ namespace Dawn
       return response_msg->status;
     }
 
-    status_t Connection_handler::two_stage_put_direct(
-                                                      const pool_t pool, const void* key, const size_t key_len, const void* value,
+    status_t Connection_handler::two_stage_put_direct(const pool_t pool, const void* key, const size_t key_len, const void* value,
                                                       const size_t value_len, Component::IKVStore::memory_handle_t handle) {
       using namespace Dawn;
 
@@ -206,8 +204,7 @@ namespace Dawn
       return S_OK;
     }
 
-    status_t Connection_handler::put_direct(
-                                            const pool_t pool, const std::string& key, const void* value,
+    status_t Connection_handler::put_direct(const pool_t pool, const std::string& key, const void* value,
                                             const size_t value_len, Component::IKVStore::memory_handle_t handle) {
       API_LOCK();
 
@@ -234,8 +231,7 @@ namespace Dawn
              value_buffer->iov->iov_len, value_buffer->region, value_buffer->desc);
 
       const auto iob = allocate();
-      const auto msg = new (iob->base()) Dawn::Protocol::Message_IO_request(
-                                                                            iob->length(), auth_id(), ++_request_id, pool,
+      const auto msg = new (iob->base()) Dawn::Protocol::Message_IO_request(iob->length(), auth_id(), ++_request_id, pool,
                                                                             Dawn::Protocol::OP_PUT,  // op
                                                                             key.c_str(), key_len, value_len);
 
@@ -245,8 +241,7 @@ namespace Dawn
       iob->set_length(msg->msg_len);
       sync_send(iob, value_buffer); /* send two concatentated buffers */
 
-      sync_recv(
-                iob); /* re-using iob; if we want to issue before, we'll have to rework */
+      sync_recv(iob); /* re-using iob; if we want to issue before, we'll have to rework */
 
       auto response_msg = new (iob->base()) Dawn::Protocol::Message_IO_response();
       if (response_msg->type_id != Dawn::Protocol::MSG_TYPE_IO_RESPONSE)
@@ -267,10 +262,13 @@ namespace Dawn
       const auto iob = allocate();
       assert(iob);
 
-      const auto msg = new (iob->base()) Dawn::Protocol::Message_IO_request(
-                                                                            iob->length(), auth_id(), ++_request_id, pool,
+      const auto msg = new (iob->base()) Dawn::Protocol::Message_IO_request(iob->length(), auth_id(), ++_request_id, pool,
                                                                             Dawn::Protocol::OP_GET,  // op
                                                                             key, "");
+
+      if (_options.short_circuit_backend)
+        msg->resvd |= Dawn::Protocol::MSG_RESVD_SCBE;
+
       iob->set_length(msg->msg_len);
       sync_inject_send(iob);
 
@@ -309,7 +307,9 @@ namespace Dawn
       const auto msg = new (iob->base()) Dawn::Protocol::Message_IO_request(
                                                                             iob->length(), auth_id(), ++_request_id, pool,
                                                                             Dawn::Protocol::OP_GET,  // op
-                                                                            key.c_str(), key.length(), 0);
+                                                                            key.c_str(), key.length(), 0);      
+      if (_options.short_circuit_backend)
+        msg->resvd |= Dawn::Protocol::MSG_RESVD_SCBE;
 
       iob->set_length(msg->msg_len);
       sync_inject_send(iob);
