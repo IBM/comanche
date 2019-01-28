@@ -8,6 +8,7 @@
 #include "persister_pmem.h"
 #include "allocator_pobj_cache_aligned.h"
 
+#include <stdexcept>
 #include <city.h>
 #include <common/exceptions.h>
 #include <common/logging.h>
@@ -206,7 +207,7 @@ session_map g_sessions;
 auto locate_session(const IKVStore::pool_t pid) -> open_session &
 {
   auto *const session = reinterpret_cast<struct open_session *>(pid);
-  if ( session != tls_cache.session )
+  if ( session == nullptr || session != tls_cache.session )
     {
       std::unique_lock<std::mutex> sessions_lk(sessions_mutex);
       auto ps = g_sessions.find(session);
@@ -608,8 +609,15 @@ auto hstore::put(const pool_t pool,
     assert(0 < value_len);
   }
 
+  if(value == nullptr)
+    throw std::invalid_argument("value argument is null");
+  
   auto &session = locate_session(pool);
   auto *const pop = session.pool();
+
+  if(pop == nullptr)
+    throw std::invalid_argument("invalid pool");
+
   auto cvalue = static_cast<const char *>(value);
 
   const auto i =

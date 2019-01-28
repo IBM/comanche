@@ -44,13 +44,16 @@ Dawn_client::Dawn_client(unsigned debug_level, const std::string& owner,
   const std::string provider =
       m[3].matched ? m[3].str() : "verbs"; /* default provider */
 
-  PLOG("Protocol session: (%s) (%d) (%s)", ip_addr.c_str(), port,
-       provider.c_str());
+  PMAJOR("Dawn-client protocol session: %p (%s) (%d) (%s)", this, ip_addr.c_str(), port,
+         provider.c_str());
 
   open_transport(device, ip_addr, port, provider);
 }
 
-Dawn_client::~Dawn_client() { close_transport(); }
+Dawn_client::~Dawn_client()
+{
+  close_transport();
+}
 
 void Dawn_client::open_transport(const std::string& device,
                                  const std::string& ip_addr, const int port,
@@ -93,7 +96,7 @@ void Dawn_client::open_transport(const std::string& device,
 }
 
 void Dawn_client::close_transport() {
-  PLOG("Dawn_client: closing fabric transport..");
+  PLOG("Dawn_client: closing fabric transport (%p)", this);
 
   if (_connection) {
     _connection->shutdown();
@@ -103,6 +106,7 @@ void Dawn_client::close_transport() {
   delete _transport;
   delete _fabric;
   _factory->release_ref();
+  PLOG("Dawn_client: closed fabric transport.");
 }
 
 int Dawn_client::thread_safety() const {
@@ -181,7 +185,9 @@ void Dawn_client::debug(const IKVStore::pool_t pool, unsigned cmd,
  */
 extern "C" void* factory_createInstance(Component::uuid_t& component_id) {
   if (component_id == Dawn_client_factory::component_id()) {
-    return static_cast<void*>(new Dawn_client_factory());
+    auto fact = new Dawn_client_factory();
+    fact->add_ref();
+    return static_cast<void*>(fact);
   }
   else
     return NULL;

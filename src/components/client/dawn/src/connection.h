@@ -53,6 +53,10 @@ class Connection_handler : public Connection_base {
    */
   Connection_handler(Connection_base::Transport* connection);
 
+  ~Connection_handler() {
+    PLOG("Connection_handler::dtor (%p)", this);
+  }
+  
  private:
   enum State {
     INITIALIZE,
@@ -78,8 +82,7 @@ class Connection_handler : public Connection_base {
 
   void shutdown() {
     set_state(SHUTDOWN);
-    while (tick() > 0)
-      ;
+    while (tick() > 0) sleep(1);
   }
 
   pool_t open_pool(const std::string path, const std::string name,

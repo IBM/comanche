@@ -516,7 +516,7 @@ status_t NVME_store::get_direct(const pool_t pool,
 
     cpu_time_t cycles_for_hm = rdtsc() - start;
 
-    PDBG("checked hxmap read latency took %ld cycles (%f usec) per hm access", cycles_for_hm,  cycles_for_hm / 2400.0f);
+    PLOG("checked hxmap read latency took %ld cycles (%f usec) per hm access", cycles_for_hm,  cycles_for_hm / 2400.0f);
 
 #ifdef USE_ASYNC
     uint64_t tag = D_RO(blk_info)->last_tag;

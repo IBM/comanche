@@ -357,8 +357,10 @@ struct Message_handshake : public Message {
 // HANDSHAKE REPLY
 
 struct Message_handshake_reply : public Message {
-  Message_handshake_reply(uint64_t auth_id, uint64_t sequence, size_t mms)
-      : Message(auth_id, MSG_TYPE_HANDSHAKE_REPLY), seq(sequence),
+  Message_handshake_reply(uint64_t auth_id, uint64_t sequence, uint64_t session_id, size_t mms)
+      : Message(auth_id, MSG_TYPE_HANDSHAKE_REPLY),
+        seq(sequence),
+        session_id(session_id),
         max_message_size(mms) {
     msg_len = sizeof(Message_handshake_reply);
   }
@@ -366,6 +368,7 @@ struct Message_handshake_reply : public Message {
 
   // fields
   uint64_t seq;
+  uint64_t session_id;
   size_t max_message_size;
 
 } __attribute__((packed));
