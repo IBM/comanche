@@ -98,9 +98,8 @@ void Shard::main_loop() {
 
       /* close session */
       if (tick_response == Dawn::Connection_handler::TICK_RESPONSE_CLOSE) {
-        if (_forced_exit) _thread_exit = true;
 
-        if (option_DEBUG > 2) PLOG("Shard: closing connection %p", handler);
+        if (option_DEBUG > 1) PMAJOR("Shard: closing connection %p", handler);
 
         pending_close.push_back(handler_iter);
       }
@@ -136,20 +135,27 @@ void Shard::main_loop() {
         }
         handler->free_recv_buffer();
       }
-    }
+    } // handler iter
 
     /* handle pending close sessions */
     if (unlikely(!pending_close.empty())) {
       for (auto& h : pending_close) {
+        if(option_DEBUG > 1)
+          PLOG("Deleting handler (%p)", *h);
         delete *h;
         _handlers.erase(h);
-      }
 
+        if(option_DEBUG > 1)
+          PLOG("# remaining handlers (%lu)", _handlers.size());
+      }
       pending_close.clear();
     }
 
     tick++;
   }
+  
+  if(option_DEBUG > 1)
+    PMAJOR("Shard (%p) exited", this);
 
 #ifdef PROFILE
   ProfilerStop();
@@ -175,13 +181,13 @@ void Shard::process_message_pool_request(Connection_handler* handler,
   /* handle operation */
   if (msg->op == Dawn::Protocol::OP_CREATE) {
     if (option_DEBUG > 1)
-      PINF("# Message_pool_request: op=%u path=%s pool_name=%s size=%lu", msg->op,
-           msg->path(), msg->pool_name(), msg->pool_size);
+      PMAJOR("POOL CREATE: op=%u path=%s%s size=%lu obj-count=%lu", msg->op,
+             msg->path(), msg->pool_name(), msg->pool_size, msg->expected_object_count);
 
+    const std::string pool_name = msg->path() + std::string(msg->pool_name());
+    
     try {
-      Component::IKVStore::pool_t pool;
-
-      const std::string pool_name = msg->path() + std::string(msg->pool_name());
+      Component::IKVStore::pool_t pool;      
 
       if (handler->check_for_open_pool(pool_name, pool)) {
         handler->add_reference(pool);
@@ -213,19 +219,16 @@ void Shard::process_message_pool_request(Connection_handler* handler,
       response->status = S_OK;
     }
     catch (...) {
-      PERR("OP_CREATE: error");
+      PERR("OP_CREATE: error (pool_name=%s)", pool_name.c_str());
       response->pool_id = 0;
       response->status = E_FAIL;
     }
   }
   else if (msg->op == Dawn::Protocol::OP_OPEN) {
     if (option_DEBUG > 1)
-      PINF("# Message_pool_request: op=%u path=%s pool_name=%s", msg->op,
-           msg->path(), msg->pool_name());
+      PMAJOR("POOL OPEN: path=%s%s", msg->path(), msg->pool_name());
 
     try {
-      PLOG("opening pool: (%s)", msg->pool_name());
-
       Component::IKVStore::pool_t pool;
 
       const std::string pool_name = msg->path() + std::string(msg->pool_name());
@@ -256,11 +259,11 @@ void Shard::process_message_pool_request(Connection_handler* handler,
     }
   }
   else if (msg->op == Dawn::Protocol::OP_CLOSE) {
-    if (option_DEBUG > 1) PINF("# Message_pool_request: op=%u", msg->op);
+    if (option_DEBUG > 1)
+      PMAJOR("POOL CLOSE: pool_id=%lx", msg->pool_id);
 
     try {
       auto pool = msg->pool_id;
-      if (option_DEBUG > 2) PLOG("OP_CLOSE: pool id: %lx", pool);
 
       if (handler->release_pool_reference(pool)) {
         _i_kvstore->close_pool(pool);
@@ -274,11 +277,12 @@ void Shard::process_message_pool_request(Connection_handler* handler,
     }
   }
   else if (msg->op == Dawn::Protocol::OP_DELETE) {
-    if (option_DEBUG > 1) PINF("# Message_pool_request: op=%u", msg->op);
+
+    if (option_DEBUG > 2)
+      PMAJOR("POOL DELETE: pool_id=%lx", msg->pool_id);
 
     try {
       auto pool = msg->pool_id;
-      if (option_DEBUG > 2) PLOG("OP_DELETE: pool id: %lx", pool);
 
       if (handler->release_pool_reference(pool)) {
         _i_kvstore->delete_pool(pool);
@@ -301,8 +305,6 @@ void Shard::process_message_pool_request(Connection_handler* handler,
   else
     throw Protocol_exception(
         "process_message_pool_request - bad operation (msg->op = %d)", msg->op);
-
-  if (option_DEBUG > 2) PLOG("response len: %d", response->msg_len);
 
   /* trim response length */
   response_iob->set_length(response->msg_len);
@@ -498,7 +500,7 @@ void Shard::check_for_new_connections() {
   Connection_handler* handler;
 
   while ((handler = get_new_connection()) != nullptr) {
-    if (option_DEBUG > 2) PLOG("Shard: processing new connection (%p)", handler);
+    if (option_DEBUG > 1) PMAJOR("Shard: processing new connection (%p)", handler);
     _handlers.push_back(handler);
   }
 }
