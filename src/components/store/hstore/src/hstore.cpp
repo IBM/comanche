@@ -209,8 +209,8 @@ session_map g_sessions;
 
 auto locate_session(const IKVStore::pool_t pid) -> session &
 {
-  auto *const session = reinterpret_cast<struct open_session *>(pid);
-  if ( session == nullptr || session != tls_cache.session )
+  auto *const s = reinterpret_cast<struct session *>(pid);
+  if ( s == nullptr || s != tls_cache.recent_session )
     {
       std::unique_lock<std::mutex> sessions_lk(sessions_mutex);
       auto ps = g_sessions.find(s);
@@ -644,11 +644,6 @@ auto hstore::put(const pool_t pool,
     throw std::invalid_argument("value argument is null");
   
   auto &session = locate_session(pool);
-
-  auto *const pop = session.pool();
-
-  if(pop == nullptr)
-    throw std::invalid_argument("invalid pool");
 
   auto cvalue = static_cast<const char *>(value);
 
