@@ -1,5 +1,5 @@
 /*
- * (C) Copyright IBM Corporation 2018. All rights reserved.
+ * (C) Copyright IBM Corporation 2018i, 2019. All rights reserved.
  *
  */
 
@@ -14,9 +14,28 @@
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 #include <api/kvstore_itf.h>
 #pragma GCC diagnostic pop
+#include <map>
+#include <memory>
+#include <string>
+
+class session;
 
 class hstore : public Component::IKVStore
 {
+#if 0
+public:
+  struct tls_cache_t {
+    session *recent_session;
+  };
+#endif
+
+private:
+  std::mutex sessions_mutex;
+  using session_map = std::map<session *, std::unique_ptr<session>>;
+  session_map g_sessions;
+  auto locate_session(const IKVStore::pool_t pid) -> session &;
+  auto move_session(const IKVStore::pool_t pid) -> std::unique_ptr<session>;
+
   void delete_pool(const std::string &path, const std::string &name);
 public:
   /** 
