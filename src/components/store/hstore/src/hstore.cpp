@@ -804,12 +804,13 @@ auto hstore::get(const pool_t pool,
       const auto &session = locate_session(pool);
       auto p_key = KEY_T(key.begin(), key.end(), session.allocator(type_num::key));
       auto &v = session.map().at(p_key);
-      out_value_len = v.size();
-      out_value = malloc(out_value_len);
-      if ( ! out_value )
-        {
+
+      if(out_value == nullptr || out_value_len == 0) {
+        out_value_len = v.size();
+        out_value = malloc(out_value_len);
+        if ( ! out_value )
           throw std::bad_alloc();
-        }
+      }
       memcpy(out_value, v.data(), out_value_len);
       return S_OK;
     }
