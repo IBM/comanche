@@ -141,7 +141,7 @@ TEST_F(KVStore_test, RemoveOldPool)
 TEST_F(KVStore_test, CreatePool)
 {
   ASSERT_TRUE(_kvstore);
-  pool = _kvstore->create_pool(PMEM_PATH, "test-" + store_map::impl->name + ".pool", many_count_target * 4U * 64U + 2 * single_value_size, 0, estimated_object_count);
+  pool = _kvstore->create_pool(PMEM_PATH, "test-" + store_map::impl->name + ".pool", many_count_target * 4U * 64U + 3 * single_value_size, 0, estimated_object_count);
   ASSERT_LT(0, int64_t(pool));
 }
 
@@ -238,7 +238,6 @@ TEST_F(KVStore_test, PutMany)
     size_t old_value_len = 0;
     if ( S_OK == _kvstore->get(pool, key, old_value, old_value_len) )
     {
-      std::cerr << __func__ << " KEY EXISTS " << key << "\n";
       _kvstore->free_memory(old_value);
       ++extant_count;
     }

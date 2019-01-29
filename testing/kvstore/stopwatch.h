@@ -16,6 +16,7 @@ public:
   {
     if (!running)
     {
+      __sync_synchronize(); /* we need the barrier to avoid measuring out of order execution */
       start_time = rdtsc(); 
       running = true;
     }
@@ -29,6 +30,7 @@ public:
   {
     if (running)
     {
+      __sync_synchronize(); /* we need the barrier to avoid measuring out of order execution */
       uint64_t stop_time = rdtsc();
       running = false;
 
@@ -71,7 +73,7 @@ private:
   uint64_t start_time = 0;
   
   bool     running = false;
-  double   cycles_per_second = Common::get_rdtsc_frequency_mhz() * 1000000;
+  double   cycles_per_second = Common::get_rdtsc_frequency_mhz() * 1000000.0f;
 };
 
 

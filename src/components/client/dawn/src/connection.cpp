@@ -25,7 +25,7 @@ Connection_handler::pool_t Connection_handler::open_pool(const std::string path,
                                                          unsigned int flags) {
   API_LOCK();
 
-  PINF("open pool: %s%s", path.c_str(), name.c_str());
+  PMAJOR("open pool: %s %s", path.c_str(), name.c_str());
 
   /* send pool request message */
   const auto iob = allocate();
@@ -35,6 +35,7 @@ Connection_handler::pool_t Connection_handler::open_pool(const std::string path,
       iob->length(), auth_id(), /* auth id */
       ++_request_id, 0,         /* size */
       Dawn::Protocol::OP_OPEN, path, name);
+
   iob->set_length(msg->msg_len);
   sync_inject_send(iob);
 
@@ -48,26 +49,33 @@ Connection_handler::pool_t Connection_handler::open_pool(const std::string path,
 
   free_buffer(iob);
 
-  if (msg->status == -1) return 0;
+  if (msg->status == -1) throw General_exception("status: -1");
 
   return response_msg->pool_id;
 }
 
 Connection_handler::pool_t Connection_handler::create_pool(
-    const std::string path, const std::string name, const size_t size,
-    unsigned int flags, uint64_t expected_obj_count) {
+    const std::string path,
+    const std::string name,
+    const size_t size,
+    unsigned int flags,
+    uint64_t expected_obj_count) {
   API_LOCK();
-  PMAJOR("create pool: %s %s", path.c_str(), name.c_str());
+  PMAJOR("create pool: %s %s (expected objs=%lu)", path.c_str(), name.c_str(),
+         expected_obj_count);
 
   /* send pool request message */
   const auto iob = allocate();
   assert(iob);
+
+  PLOG("Connection_handler::create_pool");
 
   const auto msg = new (iob->base()) Dawn::Protocol::Message_pool_request(
       iob->length(), auth_id(), /* auth id */
       ++_request_id, size, Dawn::Protocol::OP_CREATE, path, name);
   assert(msg->op);
 
+  msg->expected_object_count = expected_obj_count;
   iob->set_length(msg->msg_len);
   sync_inject_send(iob);
 
@@ -77,15 +85,19 @@ Connection_handler::pool_t Connection_handler::create_pool(
   if (response_msg->type_id != Dawn::Protocol::MSG_TYPE_POOL_RESPONSE)
     throw Protocol_exception("expected POOL_RESPONSE message - got %x",
                              response_msg->type_id);
+  status_t rc = response_msg->status;
 
   free_buffer(iob);
+
+  if (rc != S_OK) throw General_exception("create_pool operation failed");
+
   return response_msg->pool_id;
 }
 
 void Connection_handler::close_or_delete_pool(pool_t pool, int op) {
   API_LOCK();
   /* send pool request message */
-  auto iob = allocate();
+  auto iob       = allocate();
   const auto msg = new (iob->base()) Dawn::Protocol::Message_pool_request(
       iob->length(), auth_id(), ++_request_id, op);
   msg->pool_id = pool;
@@ -115,13 +127,17 @@ void Connection_handler::delete_pool(Connection_handler::pool_t pool) {
  * Memcpy version; both key and value are copied
  *
  */
-status_t Connection_handler::put(const pool_t pool, const std::string key,
-                                 const void* value, const size_t value_len) {
+status_t Connection_handler::put(const pool_t pool,
+                                 const std::string key,
+                                 const void* value,
+                                 const size_t value_len) {
   return put(pool, key.c_str(), key.length(), value, value_len);
 }
 
-status_t Connection_handler::put(const pool_t pool, const void* key,
-                                 const size_t key_len, const void* value,
+status_t Connection_handler::put(const pool_t pool,
+                                 const void* key,
+                                 const size_t key_len,
+                                 const void* value,
                                  const size_t value_len) {
   API_LOCK();
 
@@ -146,6 +162,7 @@ status_t Connection_handler::put(const pool_t pool, const void* key,
 
   const auto response_msg =
       new (iob->base()) Dawn::Protocol::Message_IO_response();
+  
   if (response_msg->type_id != Dawn::Protocol::MSG_TYPE_IO_RESPONSE)
     throw Protocol_exception("expected IO_RESPONSE message - got %x",
                              response_msg->type_id);
@@ -160,8 +177,12 @@ status_t Connection_handler::put(const pool_t pool, const void* key,
 }
 
 status_t Connection_handler::two_stage_put_direct(
-    const pool_t pool, const void* key, const size_t key_len, const void* value,
-    const size_t value_len, Component::IKVStore::memory_handle_t handle) {
+    const pool_t pool,
+    const void* key,
+    const size_t key_len,
+    const void* value,
+    const size_t value_len,
+    Component::IKVStore::memory_handle_t handle) {
   using namespace Dawn;
 
   if (option_DEBUG)
@@ -175,7 +196,7 @@ status_t Connection_handler::two_stage_put_direct(
 
   /* send advance message, this will be followed by partial puts */
   const auto request_id = ++_request_id;
-  const auto msg = new (iob->base())
+  const auto msg        = new (iob->base())
       Protocol::Message_IO_request(iob->length(), auth_id(), request_id, pool,
                                    Protocol::OP_PUT_ADVANCE,  // op
                                    key, key_len, value_len);
@@ -198,8 +219,11 @@ status_t Connection_handler::two_stage_put_direct(
 }
 
 status_t Connection_handler::put_direct(
-    const pool_t pool, const std::string& key, const void* value,
-    const size_t value_len, Component::IKVStore::memory_handle_t handle) {
+    const pool_t pool,
+    const std::string& key,
+    const void* value,
+    const size_t value_len,
+    Component::IKVStore::memory_handle_t handle) {
   API_LOCK();
 
   assert(_max_message_size);
@@ -251,7 +275,8 @@ status_t Connection_handler::put_direct(
   return msg->status;
 }
 
-status_t Connection_handler::get(const pool_t pool, const std::string& key,
+status_t Connection_handler::get(const pool_t pool,
+                                 const std::string& key,
                                  std::string& value) {
   API_LOCK();
 
@@ -262,6 +287,10 @@ status_t Connection_handler::get(const pool_t pool, const std::string& key,
       iob->length(), auth_id(), ++_request_id, pool,
       Dawn::Protocol::OP_GET,  // op
       key, "");
+
+  if (_options.short_circuit_backend)
+    msg->resvd |= Dawn::Protocol::MSG_RESVD_SCBE;
+
   iob->set_length(msg->msg_len);
   sync_inject_send(iob);
 
@@ -290,8 +319,10 @@ status_t Connection_handler::get(const pool_t pool, const std::string& key,
   return status;
 }
 
-status_t Connection_handler::get(const pool_t pool, const std::string& key,
-                                 void*& value, size_t& value_len) {
+status_t Connection_handler::get(const pool_t pool,
+                                 const std::string& key,
+                                 void*& value,
+                                 size_t& value_len) {
   API_LOCK();
 
   const auto iob = allocate();
@@ -301,6 +332,8 @@ status_t Connection_handler::get(const pool_t pool, const std::string& key,
       iob->length(), auth_id(), ++_request_id, pool,
       Dawn::Protocol::OP_GET,  // op
       key.c_str(), key.length(), 0);
+  if (_options.short_circuit_backend)
+    msg->resvd |= Dawn::Protocol::MSG_RESVD_SCBE;
 
   iob->set_length(msg->msg_len);
   sync_inject_send(iob);
@@ -326,11 +359,10 @@ status_t Connection_handler::get(const pool_t pool, const std::string& key,
   if (response_msg->is_set_twostage_bit()) {
     /* two-stage get */
     const auto data_len = response_msg->data_length() + 1;
-    value = ::aligned_alloc(MiB(2), data_len);
+    value               = ::aligned_alloc(MiB(2), data_len);
     madvise(value, data_len, MADV_HUGEPAGE);
 
-    auto region = register_memory(
-        value, data_len); /* we could have some pre-registered? */
+    auto region = register_memory(value, data_len); /* we could have some pre-registered? */
     auto desc = get_memory_descriptor(region);
 
     iovec iov{value, data_len - 1};
@@ -343,7 +375,7 @@ status_t Connection_handler::get(const pool_t pool, const std::string& key,
   }
   else {
     /* copy off value from IO buffer */
-    value = ::malloc(response_msg->data_len + 1);
+    value     = ::malloc(response_msg->data_len + 1);
     value_len = response_msg->data_len;
 
     memcpy(value, response_msg->data, response_msg->data_len);
@@ -355,8 +387,11 @@ status_t Connection_handler::get(const pool_t pool, const std::string& key,
 }
 
 status_t Connection_handler::get_direct(
-    const pool_t pool, const std::string& key, void* value,
-    size_t& out_value_len, Component::IKVStore::memory_handle_t handle) {
+    const pool_t pool,
+    const std::string& key,
+    void* value,
+    size_t& out_value_len,
+    Component::IKVStore::memory_handle_t handle) {
   API_LOCK();
 
   if (!value || out_value_len == 0)
@@ -459,10 +494,14 @@ int Connection_handler::tick() {
       free_buffer(iob);
       break;
     }
+    case READY: {
+      return 0;
+      break;
+    }
     case SHUTDOWN: {
-      PMAJOR("client : SHUTDOWN");
       auto iob = allocate();
-      auto msg = new (iob->base()) Dawn::Protocol::Message_close_session(999);
+      auto msg = new (iob->base())
+          Dawn::Protocol::Message_close_session((uint64_t) this);
 
       iob->set_length(msg->msg_len);
       post_send(iob->iov, iob->iov + 1, &iob->desc, iob);
@@ -471,14 +510,12 @@ int Connection_handler::tick() {
 
       free_buffer(iob);
       set_state(STOPPED);
+      PLOG("Dawn_client: connection %p shutdown.", this);
       return 0;
     }
     case STOPPED: {
+      assert(0);
       return 0;
-    }
-    case READY: {
-      return 0;
-      break;
     }
   }  // end switch
 

@@ -18,7 +18,8 @@ unsigned debug_level = 0;
 }
 }  // namespace Dawn
 
-Dawn_client::Dawn_client(unsigned debug_level, const std::string& owner,
+Dawn_client::Dawn_client(unsigned debug_level,
+                         const std::string& owner,
                          const std::string& addr_port_str,
                          const std::string& device) {
   using namespace std;
@@ -34,7 +35,8 @@ Dawn_client::Dawn_client(unsigned debug_level, const std::string& owner,
     regex r("([[:digit:]]+[.][[:digit:]]+[.][[:digit:]]+[.][[:digit:]]+)[:]([[:"
             "digit:]]+)(?:[:]([[:alnum:]]+))?");
     regex_search(addr_port_str, m, r);
-  } catch (...) {
+  }
+  catch (...) {
     throw API_exception("invalid parameter");
   }
 
@@ -44,8 +46,8 @@ Dawn_client::Dawn_client(unsigned debug_level, const std::string& owner,
   const std::string provider =
       m[3].matched ? m[3].str() : "verbs"; /* default provider */
 
-  PLOG("Protocol session: (%s) (%d) (%s)", ip_addr.c_str(), port,
-       provider.c_str());
+  PMAJOR("Dawn-client protocol session: %p (%s) (%d) (%s)", this,
+         ip_addr.c_str(), port, provider.c_str());
 
   open_transport(device, ip_addr, port, provider);
 }
@@ -53,25 +55,9 @@ Dawn_client::Dawn_client(unsigned debug_level, const std::string& owner,
 Dawn_client::~Dawn_client() { close_transport(); }
 
 void Dawn_client::open_transport(const std::string& device,
-                                 const std::string& ip_addr, const int port,
+                                 const std::string& ip_addr,
+                                 const int port,
                                  const std::string& provider) {
-#ifdef CONFIG_TRANSPORT_RDMA
-  {
-    /* create object instance through factory */
-    Component::IBase* comp = Component::load_component(
-        "libcomanche-rdma.so", Component::net_rdma_factory);
-
-    assert(comp);
-    IRdma_factory* fact =
-        (IRdma_factory*) comp->query_interface(IRdma_factory::iid());
-
-    _transport = fact->create("any");
-    auto rc = _transport->connect(ip_addr, port);
-    if (rc != S_OK) throw General_exception("RDMA unable to connect to server");
-
-    fact->release_ref();
-  }
-#else
   {
     IBase* comp = load_component("libcomanche-fabric.so", net_fabric_factory);
     assert(comp);
@@ -103,7 +89,6 @@ void Dawn_client::open_transport(const std::string& device,
     _transport = _fabric->open_client(client_spec, ip_addr, port);
     assert(_transport);
   }
-#endif
 
   assert(_transport);
   _connection = new Dawn::Client::Connection_handler(_transport);
@@ -111,20 +96,17 @@ void Dawn_client::open_transport(const std::string& device,
 }
 
 void Dawn_client::close_transport() {
-  PLOG("Dawn_client: closing fabric transport..");
+  PLOG("Dawn_client: closing fabric transport (%p)", this);
 
   if (_connection) {
     _connection->shutdown();
   }
+
   delete _connection;
-
   delete _transport;
-
-#ifdef CONFIG_TRANSPORT_RDMA
-#else
   delete _fabric;
   _factory->release_ref();
-#endif
+  PLOG("Dawn_client: closed fabric transport.");
 }
 
 int Dawn_client::thread_safety() const {
@@ -133,7 +115,8 @@ int Dawn_client::thread_safety() const {
 
 IKVStore::pool_t Dawn_client::create_pool(const std::string& path,
                                           const std::string& name,
-                                          const size_t size, unsigned int flags,
+                                          const size_t size,
+                                          unsigned int flags,
                                           uint64_t expected_obj_count) {
   return _connection->create_pool(path, name, size, flags, expected_obj_count);
 }
@@ -154,25 +137,32 @@ void Dawn_client::delete_pool(const IKVStore::pool_t pool) {
   _connection->delete_pool(pool);
 }
 
-status_t Dawn_client::put(const IKVStore::pool_t pool, const std::string& key,
-                          const void* value, const size_t value_len) {
+status_t Dawn_client::put(const IKVStore::pool_t pool,
+                          const std::string& key,
+                          const void* value,
+                          const size_t value_len) {
   return _connection->put(pool, key, value, value_len);
 }
 
-status_t Dawn_client::put_direct(const pool_t pool, const std::string& key,
-                                 const void* value, const size_t value_len,
+status_t Dawn_client::put_direct(const pool_t pool,
+                                 const std::string& key,
+                                 const void* value,
+                                 const size_t value_len,
                                  memory_handle_t handle) {
   return _connection->put_direct(pool, key, value, value_len, handle);
 }
 
-status_t Dawn_client::get(const IKVStore::pool_t pool, const std::string& key,
+status_t Dawn_client::get(const IKVStore::pool_t pool,
+                          const std::string& key,
                           void*& out_value, /* release with free() */
                           size_t& out_value_len) {
   return _connection->get(pool, key, out_value, out_value_len);
 }
 
-status_t Dawn_client::get_direct(const pool_t pool, const std::string& key,
-                                 void* out_value, size_t& out_value_len,
+status_t Dawn_client::get_direct(const pool_t pool,
+                                 const std::string& key,
+                                 void* out_value,
+                                 size_t& out_value_len,
                                  memory_handle_t handle) {
   return _connection->get_direct(pool, key, out_value, out_value_len, handle);
 }
@@ -194,7 +184,8 @@ status_t Dawn_client::erase(const IKVStore::pool_t pool,
 
 size_t Dawn_client::count(const IKVStore::pool_t pool) { return 0; }
 
-void Dawn_client::debug(const IKVStore::pool_t pool, unsigned cmd,
+void Dawn_client::debug(const IKVStore::pool_t pool,
+                        unsigned cmd,
                         uint64_t arg) {}
 
 /**
@@ -203,7 +194,9 @@ void Dawn_client::debug(const IKVStore::pool_t pool, unsigned cmd,
  */
 extern "C" void* factory_createInstance(Component::uuid_t& component_id) {
   if (component_id == Dawn_client_factory::component_id()) {
-    return static_cast<void*>(new Dawn_client_factory());
+    auto fact = new Dawn_client_factory();
+    fact->add_ref();
+    return static_cast<void*>(fact);
   }
   else
     return NULL;

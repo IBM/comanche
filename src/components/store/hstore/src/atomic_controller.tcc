@@ -107,18 +107,17 @@ template <typename Table>
 			); /* PERSISTED? */
 		using void_allocator_t =
 			typename allocator_type::template rebind<void>::other;
-		_persist->mod_ctl =
-			allocator_type(*this).address(
-				*new
-					(
-						&*allocator_type(*this).allocate(
-							mods.size()
-							, typename void_allocator_t::const_pointer()
-							, "mod_ctl"
-						)
-					)
-					mod_control[mods.size()]
-		);
+
+		{
+			auto ptr =
+				allocator_type(*this).allocate(
+					mods.size()
+					, typename void_allocator_t::const_pointer()
+					, "mod_ctl"
+				);
+			new (&*ptr) mod_control[mods.size()];
+			_persist->mod_ctl = ptr;
+		}
 
 		std::copy(mods.begin(), mods.end(), &*_persist->mod_ctl);
 		/* 8-byte atomic write */

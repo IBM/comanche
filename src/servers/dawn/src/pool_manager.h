@@ -45,7 +45,7 @@ class Pool_manager {
       throw General_exception("pool already registered");
 
     _open_pools[pool] = 1;
-    _name_map[path] = pool;
+    _name_map[path]   = pool;
   }
 
   void add_reference(pool_t pool) {

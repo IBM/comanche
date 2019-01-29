@@ -23,7 +23,7 @@ int main(int argc, char* argv[]) {
     if (vm.count("help"))  // || vm.count("endpoint")==0 )
       std::cout << desc;
 
-    port = vm.count("port") ? vm["port"].as<unsigned>() : 11911;
+    port        = vm.count("port") ? vm["port"].as<unsigned>() : 11911;
     server_addr = vm.count("addr") ? vm["addr"].as<std::string>() : "10.0.0.11";
     PLOG("using port: %u", port);
   }
@@ -38,7 +38,7 @@ int main(int argc, char* argv[]) {
   auto p = s.open_pool("myPoolname", MB(32), Session::FLAGS_CREATE_ON_MISSING);
   PINF("Opened pool: %lx", p);
 
-  std::string key = "Animal";
+  std::string key   = "Animal";
   std::string value = "Elephant";
 
   s.put(p, key, value);

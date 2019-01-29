@@ -56,11 +56,26 @@ public:
       }
 
     // assert(g_data);
+
+    //#define DO_GET
+#if DO_GET
+    void * pval;
+    size_t pval_len;
+    int rc;
+
+    rc = _store->put(_pool, g_data->key_as_string(_i), g_data->value(_i), g_data->value_len());
+    _sw.start();
+    rc = _store->get(_pool, g_data->key(_i), pval, pval_len);
+    _sw.stop();
+    _store->free_memory(pval);
+#else
     _sw.start();
     int rc = _store->put(_pool, g_data->key_as_string(_i), g_data->value(_i), g_data->value_len());
-    assert(rc == S_OK);
     _sw.stop();
+#endif
+#undef DO_GET
     
+    assert(rc == S_OK);
 
     _i++;
     return true;
