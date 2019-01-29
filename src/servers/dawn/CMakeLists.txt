@@ -12,7 +12,7 @@ link_directories(${CMAKE_INSTALL_PREFIX}/lib)
 
 include_directories(include)
 add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
-add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DNDEBUG)
+#add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DNDEBUG)
 
 
 set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--no-undefined")

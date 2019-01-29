@@ -28,7 +28,7 @@ using Shard_transport = Fabric_transport;
 class Shard : public Shard_transport {
  private:
   using buffer_t = Shard_transport::buffer_t;
-  using pool_t = Component::IKVStore::pool_t;
+  using pool_t   = Component::IKVStore::pool_t;
 
   unsigned option_DEBUG;
 

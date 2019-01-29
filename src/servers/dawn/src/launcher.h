@@ -10,42 +10,26 @@
 
 namespace Dawn
 {
-class Shard_launcher : public Config_file
-{
+class Shard_launcher : public Config_file {
   static constexpr auto DEFAULT_PROVIDER = "verbs";
-  
+
  public:
-  Shard_launcher(Program_options& options)
-      : Config_file(options.config_file)
-  {
+  Shard_launcher(Program_options& options) : Config_file(options.config_file) {
+    for (unsigned i = 0; i < shard_count(); i++) {
+      PMAJOR("launching shard: core(%d) port(%d) net(%s)", get_shard_core(i),
+             get_shard_port(i), get_shard("net", i).c_str());
 
-    for(unsigned i = 0;i < shard_count(); i++) {
-      PMAJOR("launching shard: core(%d) port(%d) device(%s) net(%s)",
-             get_shard_core(i),
-             get_shard_port(i),
-             get_shard("device", i).c_str(),
-             get_shard("net", i).c_str()
-             );
-
-      _shards.push_back(new Dawn::Shard(get_shard_core(i),
-                                        get_shard_port(i),
-                                        DEFAULT_PROVIDER,
-                                        get_shard("device", i),
-                                        get_shard("net", i),
-                                        get_shard("default_backend", i),
-                                        get_shard("nvme_device", i),
-                                        get_shard("pm_path", i),
-                                        options.debug_level,
-                                        options.forced_exit));
-
+      _shards.push_back(new Dawn::Shard(
+          get_shard_core(i), get_shard_port(i), DEFAULT_PROVIDER,
+          get_shard("device", i), get_shard("net", i),
+          get_shard("default_backend", i), get_shard("nvme_device", i),
+          get_shard("pm_path", i), options.debug_level, options.forced_exit));
     }
-
   }
 
   ~Shard_launcher() {
     PLOG("exiting shard (%p)", this);
-    for(auto& sp : _shards)
-      delete sp;
+    for (auto& sp : _shards) delete sp;
   }
 
   void wait_for_all() {
@@ -53,16 +37,15 @@ class Shard_launcher : public Config_file
     do {
       sleep(1);
       alive = false;
-      for(auto& sp : _shards) {
+      for (auto& sp : _shards) {
         alive = !sp->exited();
       }
-    }
-    while(alive);
+    } while (alive);
   }
-          
+
  private:
   std::vector<Dawn::Shard*> _shards;
 };
 }
 
-#endif // __DAWN_LAUNCHER_H__
+#endif  // __DAWN_LAUNCHER_H__
