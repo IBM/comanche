@@ -53,6 +53,8 @@ class Connection_handler : public Connection_base {
    */
   Connection_handler(Connection_base::Transport* connection);
 
+  ~Connection_handler() { PLOG("Connection_handler::dtor (%p)", this); }
+
  private:
   enum State {
     INITIALIZE,
@@ -78,37 +80,50 @@ class Connection_handler : public Connection_base {
 
   void shutdown() {
     set_state(SHUTDOWN);
-    while (tick() > 0)
-      ;
+    while (tick() > 0) sleep(1);
   }
 
-  pool_t open_pool(const std::string path, const std::string name,
+  pool_t open_pool(const std::string path,
+                   const std::string name,
                    unsigned int flags);
 
-  pool_t create_pool(const std::string path, const std::string name,
-                     const size_t size, unsigned int flags,
+  pool_t create_pool(const std::string path,
+                     const std::string name,
+                     const size_t size,
+                     unsigned int flags,
                      uint64_t expected_obj_count);
 
   void close_pool(pool_t pool);
 
   void delete_pool(pool_t pool);
 
-  status_t put(const pool_t pool, const std::string key, const void* value,
+  status_t put(const pool_t pool,
+               const std::string key,
+               const void* value,
                const size_t value_len);
 
-  status_t put(const pool_t pool, const void* key, const size_t key_len,
-               const void* value, const size_t value_len);
+  status_t put(const pool_t pool,
+               const void* key,
+               const size_t key_len,
+               const void* value,
+               const size_t value_len);
 
-  status_t put_direct(const pool_t pool, const std::string& key,
-                      const void* value, const size_t value_len,
+  status_t put_direct(const pool_t pool,
+                      const std::string& key,
+                      const void* value,
+                      const size_t value_len,
                       Component::IKVStore::memory_handle_t handle);
 
   status_t get(const pool_t pool, const std::string& key, std::string& value);
 
-  status_t get(const pool_t pool, const std::string& key, void*& value,
+  status_t get(const pool_t pool,
+               const std::string& key,
+               void*& value,
                size_t& value_len);
 
-  status_t get_direct(const pool_t pool, const std::string& key, void* value,
+  status_t get_direct(const pool_t pool,
+                      const std::string& key,
+                      void* value,
                       size_t& out_value_len,
                       Component::IKVStore::memory_handle_t handle =
                           Component::IKVStore::HANDLE_NONE);
@@ -146,8 +161,10 @@ class Connection_handler : public Connection_base {
    *
    * @return
    */
-  status_t two_stage_put_direct(const pool_t pool, const void* key,
-                                const size_t key_len, const void* value,
+  status_t two_stage_put_direct(const pool_t pool,
+                                const void* key,
+                                const size_t key_len,
+                                const void* value,
                                 const size_t value_len,
                                 Component::IKVStore::memory_handle_t handle);
 
@@ -164,8 +181,8 @@ class Connection_handler : public Connection_base {
   std::mutex _api_lock;
 #endif
 
-  bool _exit = false;
-  uint64_t _request_id = 0;
+  bool _exit               = false;
+  uint64_t _request_id     = 0;
   size_t _max_message_size = 0;
 
   struct {

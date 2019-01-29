@@ -56,7 +56,7 @@ public:
  *    MB(2048UL)   918925    16        32
  *    MB(4096UL) >2000000    16        32
  *
- * (this table obsoleted, or at least mady harder to generate, but use of multiple key and data sizes)
+ * (this table obsoleted, or at least made harder to generate, but use of multiple key and data sizes)
  */
 
 using namespace Component;
@@ -182,7 +182,7 @@ TEST_F(KVStore_test, RemoveOldPool)
 TEST_F(KVStore_test, CreatePool)
 {
   ASSERT_TRUE(_kvstore);
-  pool = _kvstore->create_pool(PMEM_PATH, "test-" + store_map::impl->name + ".pool", MB(4096UL), 0, estimated_object_count);
+  pool = _kvstore->create_pool(PMEM_PATH, "test-" + store_map::impl->name + ".pool", MB(16381UL), 0, estimated_object_count);
   ASSERT_LT(0, int64_t(pool));
 }
 

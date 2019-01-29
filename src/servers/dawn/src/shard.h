@@ -28,9 +28,9 @@ using Shard_transport = Fabric_transport;
 class Shard : public Shard_transport {
  private:
   using buffer_t = Shard_transport::buffer_t;
-  using pool_t = Component::IKVStore::pool_t;
+  using pool_t   = Component::IKVStore::pool_t;
 
-  bool option_DEBUG;
+  unsigned option_DEBUG;
 
  public:
   Shard(int core,
@@ -46,8 +46,7 @@ class Shard : public Shard_transport {
       : Shard_transport(provider, net, port), _core(core),
         _forced_exit(forced_exit),
         _thread(&Shard::thread_entry, this, backend, pci_addr, debug_level) {
-    Dawn::Global::debug_level = debug_level;
-    option_DEBUG = Dawn::Global::debug_level > 1;
+    option_DEBUG = Dawn::Global::debug_level = debug_level;
   }
 
   ~Shard() {
@@ -63,7 +62,7 @@ class Shard : public Shard_transport {
   void thread_entry(const std::string& backend,
                     const std::string& pci_addr,
                     unsigned debug_level) {
-    if (option_DEBUG) PLOG("shard:%u worker thread entered.", _core);
+    if (option_DEBUG > 2) PLOG("shard:%u worker thread entered.", _core);
 
     if (set_cpu_affinity(1UL << _core) != 0)
       throw General_exception("unable to set cpu affinity (%lu)", _core);
@@ -72,13 +71,13 @@ class Shard : public Shard_transport {
 
     main_loop();
 
-    if (option_DEBUG) PLOG("shard:%u worker thread exited.", _core);
+    if (option_DEBUG > 2) PLOG("shard:%u worker thread exited.", _core);
   }
 
   void add_locked_value(const pool_t pool_id,
                         Component::IKVStore::key_t key,
                         void* target) {
-    if (option_DEBUG) PLOG("shard: locked value (target=%p)", target);
+    if (option_DEBUG > 2) PLOG("shard: locked value (target=%p)", target);
     _locked_values[target] = std::make_pair(pool_id, key);
   }
 
@@ -89,7 +88,7 @@ class Shard : public Shard_transport {
 
     _i_kvstore->unlock(i->second.first, i->second.second);
 
-    if (option_DEBUG) PLOG("unlocked value: %p", target);
+    if (option_DEBUG > 2) PLOG("unlocked value: %p", target);
 
     _locked_values.erase(i);
   }

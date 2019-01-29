@@ -43,7 +43,6 @@ public:
     // end experiment if we've reached the total number of components
     if (_i == _pool_num_objects)
       {
-        //            timer.stop();
         PINF("[%u] put: reached total number of components. Exiting.", core);
         return false;
       }
@@ -62,25 +61,27 @@ public:
         throw std::exception();
       }
     timer.stop();
+    
 
-    _update_data_process_amount(core, _i);
-
-    double time = timer.get_lap_time_in_seconds();
+    assert(rc == S_OK);
+   
+    double lap_time = timer.get_lap_time_in_seconds();
     double time_since_start = timer.get_time_in_seconds();
 
+    _update_data_process_amount(core, _i);
     // store the information for later use
     _start_time.push_back(time_since_start);
-    _latencies.push_back(time);
+    _latencies.push_back(lap_time);
+    _latency_stats.update(lap_time);
 
-    _latency_stats.update(time);
+    // THIS IS SKEWING THINGS?
+    //_enforce_maximum_pool_size(core);
 
     _i++;  // increment after running so all elements get used
 
-    _enforce_maximum_pool_size(core);
 
     if (rc != S_OK)
       {
-        //            timer.stop();
         perror("put returned !S_OK value");
         throw std::exception();
       }
@@ -89,9 +90,14 @@ public:
 
   void cleanup_custom(unsigned core)  
   {
+    auto total_time = timer.get_time_in_seconds();
+    PLOG("stopwatch : %g secs", total_time);
+    
+    unsigned long iops = (unsigned long) ((double) _pool_num_objects) / total_time;
+    PLOG("%lu iops (core=%u)", iops, core);
+
     try
       {
-        //          timer.stop();
         _debug_print(core, "cleanup_custom started");
 
         if (_verbose)
@@ -106,8 +112,8 @@ public:
         _debug_print(core, "time_stats created"); 
 
         double run_time = timer.get_time_in_seconds();
-        double iops = _i / run_time;
-        PINF("[%u] put: IOPS--> %2g (%ld operations over %2g seconds)", core, iops, _i, run_time);
+        unsigned iops = ((double)_i) / run_time;
+        PINF("[%u] put: IOPS--> %u (%lu operations over %2g seconds)", core, iops, _i, run_time);
         _update_aggregate_iops(iops);
 
         double throughput = _calculate_current_throughput();

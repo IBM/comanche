@@ -160,18 +160,16 @@ template <typename Allocator>
 
 		using void_allocator_t =
 			typename bucket_allocator_t::template rebind<void>::other;
-		_persist->_sc[_persist->_segment_count._actual].bp =
-			bucket_allocator_t(*this).address(
-				*new
-					(
-						&*bucket_allocator_t(*this).allocate(
-							bucket_count()
-							, typename void_allocator_t::const_pointer()
-							, "resize"
-						)
-					)
-					typename persist_data_t::bucket_aligned_t[bucket_count()]
+
+		auto ptr =
+			bucket_allocator_t(*this).allocate(
+				bucket_count()
+				, typename void_allocator_t::const_pointer()
+				, "resize"
 			);
+		new (&*ptr) typename persist_data_t::bucket_aligned_t[bucket_count()];
+		_persist->_sc[_persist->_segment_count._actual].bp = ptr;
+
 		persist_segment_table();
 
 		auto sc = &*_persist->_sc;
