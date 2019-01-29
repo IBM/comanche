@@ -39,7 +39,7 @@ int Connection_handler::tick() {
       // }
     case NEW_MSG_RECV: {
       if (check_for_posted_recv_complete()) {
-        const auto iob = posted_recv();
+        const auto iob     = posted_recv();
         const Message *msg = static_cast<Message *>(iob->base());
         assert(msg);
 
@@ -136,10 +136,8 @@ int Connection_handler::tick() {
           auto reply_iob = allocate();
           assert(reply_iob);
           auto reply_msg =
-              new (reply_iob->base()) Dawn::Protocol::Message_handshake_reply(auth_id(),
-                                                                              1 /* seq */,
-                                                                              max_message_size(),
-                                                                              (uint64_t) this);
+              new (reply_iob->base()) Dawn::Protocol::Message_handshake_reply(
+                  auth_id(), 1 /* seq */, max_message_size(), (uint64_t) this);
           /* post response */
           reply_iob->set_length(reply_msg->msg_len);
           post_send_buffer(reply_iob);
@@ -177,14 +175,14 @@ void Connection_handler::set_pending_value(void *target,
   if (option_DEBUG > 2)
     PLOG("set_pending_value (target=%p, target_len=%lu)", target, target_len);
 
-  auto iov = new ::iovec{target, target_len};
+  auto iov  = new ::iovec{target, target_len};
   auto desc = get_memory_descriptor(region);
   assert(desc);
   _posted_value_buffer =
       new buffer_t(target_len); /* allocate buffer descriptor */
-  _posted_value_buffer->iov = iov;
+  _posted_value_buffer->iov    = iov;
   _posted_value_buffer->region = region;
-  _posted_value_buffer->desc = desc;
+  _posted_value_buffer->desc   = desc;
   _posted_value_buffer->flags =
       Buffer_manager<Fabric_connection_base>::BUFFER_FLAGS_EXTERNAL;
   _posted_value_buffer_outstanding = true;
