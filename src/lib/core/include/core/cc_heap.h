@@ -17,9 +17,11 @@ namespace Core
 			void set(char *e) noexcept { _end = e; }
 			char *end() const noexcept { return _end; }
 		};
-		struct state
+		struct state /* persists */
 		{
-			void *_location; /* persists. Initially 0, thereafter contains its own expected address */
+			static const std::uint64_t magic_value = 0x47b3a47358294161;
+			std::uint64_t _magic; /* persists. Initially not magic (we hope). */
+			void *_location; /* persists. contains its own expected address */
 			unsigned _sw; /* persists. Initially 0. Toggles between 0 and 1 */
 			char *_limit; /* persists */
 			std::array<bound, 2U> _bounds; /* persists, depends on _sw */
@@ -49,24 +51,18 @@ namespace Core
 		explicit sbrk_alloc(void *area, std::size_t sz)
 			: _state(static_cast<state *>(area))
 		{
-			if ( _state->_location == 0 )
+			if ( _state->_magic != state::magic_value )
 			{
 				/* one-time initialization; assumes that initial bytes in area are zeros/nullptr */
-				if ( 2 <= _state->_sw || current()._end == nullptr )
-				{
-					_state->_limit = static_cast<char *>(area) + sz;
-					_state->_bounds[0]._end = _state->begin();
-					_state->_sw = 0;
-				}
+				_state->_limit = static_cast<char *>(area) + sz;
+				_state->_bounds[0]._end = _state->begin();
+				_state->_sw = 0;
 				_state->_location = &_state->_location;
+				_state->_magic = state::magic_value;
 				persist(_state);
 			}
 			else
 			{
-				if ( _state->_location != &_state->_location )
-				{
-
-				}
 				restore();
 			}
 		}
