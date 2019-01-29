@@ -17,7 +17,7 @@ class Fabric_connection_base {
 
  protected:
   using buffer_t = Buffer_manager<Component::IFabric_server>::buffer_t;
-  using pool_t = Component::IKVStore::pool_t;
+  using pool_t   = Component::IKVStore::pool_t;
 
   /* deferred actions */
   typedef struct {
@@ -141,7 +141,7 @@ class Fabric_connection_base {
   void post_recv_buffer(buffer_t *buffer) {
     assert(buffer);
     assert(_posted_recv_buffer_outstanding == false);
-    _posted_recv_buffer = buffer;
+    _posted_recv_buffer             = buffer;
     _posted_recv_buffer_outstanding = true;
     _transport->post_recv(_posted_recv_buffer->iov,
                           _posted_recv_buffer->iov + 1,
@@ -161,7 +161,7 @@ class Fabric_connection_base {
             buffer); /* buffer can be immediately freed; see fi_inject */
       }
       else {
-        _posted_send_buffer = buffer;
+        _posted_send_buffer             = buffer;
         _posted_send_buffer_outstanding = true;
 
         _transport->post_send(iov, iov + 1, &_posted_send_buffer->desc,
@@ -169,10 +169,10 @@ class Fabric_connection_base {
       }
     }
     else {
-      _posted_send_buffer = buffer;
+      _posted_send_buffer             = buffer;
       _posted_send_buffer_outstanding = true;
 
-      iovec v[2] = {*buffer->iov, *val_buffer->iov};
+      iovec v[2]   = {*buffer->iov, *val_buffer->iov};
       void *desc[] = {buffer->desc, val_buffer->desc};
 
       if (option_DEBUG)
@@ -266,16 +266,16 @@ class Fabric_connection_base {
   /* xx_buffer_outstanding is the signal for completion,
      xx_buffer is the buffer pointer that needs to be freed (and set to null)
   */
-  buffer_t *_posted_recv_buffer = nullptr;
+  buffer_t *_posted_recv_buffer        = nullptr;
   bool _posted_recv_buffer_outstanding = false;
 
-  buffer_t *_posted_send_buffer = nullptr;
+  buffer_t *_posted_send_buffer        = nullptr;
   bool _posted_send_buffer_outstanding = false;
 
   /* value for two-phase get & put - assumes get and put don't happen
      at the same time for the same FSM
    */
-  buffer_t *_posted_value_buffer = nullptr;
+  buffer_t *_posted_value_buffer        = nullptr;
   bool _posted_value_buffer_outstanding = false;
 };
 

@@ -16,7 +16,7 @@ class Buffer_manager {
 
  public:
   static constexpr size_t DEFAULT_BUFFER_COUNT = 8;
-  static constexpr size_t BUFFER_LEN = MiB(2);
+  static constexpr size_t BUFFER_LEN           = MiB(2);
 
   enum {
     BUFFER_FLAGS_EXTERNAL = 1,
@@ -85,9 +85,9 @@ class Buffer_manager {
  private:
   void init() {
     auto alloc_iov = []() -> iovec * {
-      iovec *iov = new iovec;
+      iovec *iov    = new iovec;
       iov->iov_base = aligned_alloc(MiB(2), BUFFER_LEN);
-      iov->iov_len = BUFFER_LEN;
+      iov->iov_len  = BUFFER_LEN;
 
       assert(iov->iov_base);
       madvise(iov->iov_base, iov->iov_len, MADV_HUGEPAGE);
@@ -101,10 +101,10 @@ class Buffer_manager {
           _transport->register_memory(iov->iov_base, iov->iov_len, 0, 0);
       auto desc = _transport->get_memory_descriptor(region);
 
-      auto new_buffer = new buffer_t(BUFFER_LEN);
-      new_buffer->iov = iov;
+      auto new_buffer    = new buffer_t(BUFFER_LEN);
+      new_buffer->iov    = iov;
       new_buffer->region = region;
-      new_buffer->desc = desc;
+      new_buffer->desc   = desc;
 
       _buffers.push_back(new_buffer);
       _free.push_back(new_buffer);
@@ -112,7 +112,7 @@ class Buffer_manager {
   }
 
   using pool_t = Component::IKVStore::pool_t;
-  using key_t = std::uint64_t;
+  using key_t  = std::uint64_t;
 
   Transport *_transport;
   const size_t _buffer_count;
