@@ -60,33 +60,47 @@ class Dawn_client_test : public ::testing::Test {
 
 Component::IKVStore *Dawn_client_test::_dawn;
 
-DECLARE_STATIC_COMPONENT_UUID(dawn_client, 0x2f666078, 0xcb8a, 0x4724, 0xa454,
-                              0xd1, 0xd8, 0x8d, 0xe2, 0xdb, 0x87);
-DECLARE_STATIC_COMPONENT_UUID(dawn_client_factory, 0xfac66078, 0xcb8a, 0x4724,
-                              0xa454, 0xd1, 0xd8, 0x8d, 0xe2, 0xdb, 0x87);
+DECLARE_STATIC_COMPONENT_UUID(dawn_client,
+                              0x2f666078,
+                              0xcb8a,
+                              0x4724,
+                              0xa454,
+                              0xd1,
+                              0xd8,
+                              0x8d,
+                              0xe2,
+                              0xdb,
+                              0x87);
+DECLARE_STATIC_COMPONENT_UUID(dawn_client_factory,
+                              0xfac66078,
+                              0xcb8a,
+                              0x4724,
+                              0xa454,
+                              0xd1,
+                              0xd8,
+                              0x8d,
+                              0xe2,
+                              0xdb,
+                              0x87);
 
-
-void basic_test(IKVStore * kv, unsigned shard)
-{
+void basic_test(IKVStore *kv, unsigned shard) {
   int rc;
   char poolname[32];
   sprintf(poolname, "%u", shard);
-  
-  auto pool = kv->create_pool("/dev/dax0.",
-                                 poolname,
-                                 MB(8));
+
+  auto pool = kv->create_pool("/dev/dax0.", poolname, MB(8));
 
   std::string value = "Hello! Value";  // 12 chars
 
   void *pv;
   for (unsigned i = 0; i < 10; i++) {
     std::string key = Common::random_string(8);
-    rc = kv->put(pool, key.c_str(), value.c_str(), value.length());
+    rc              = kv->put(pool, key.c_str(), value.c_str(), value.length());
     ASSERT_TRUE(rc == S_OK || rc == -2);
 
-    pv = nullptr;
+    pv            = nullptr;
     size_t pv_len = 0;
-    rc = kv->get(pool, key.c_str(), pv, pv_len);
+    rc            = kv->get(pool, key.c_str(), pv, pv_len);
     ASSERT_TRUE(rc == S_OK);
     ASSERT_TRUE(strncmp((char *) pv, value.c_str(), value.length()) == 0);
   }
@@ -95,41 +109,39 @@ void basic_test(IKVStore * kv, unsigned shard)
   free(pv);
 }
 
-  
 #ifdef TEST_SESSION_CONTROL
 
-TEST_F(Dawn_client_test, SessionControl)
-{
-    /* create object instance through factory */
+TEST_F(Dawn_client_test, SessionControl) {
+  /* create object instance through factory */
   Component::IBase *comp = Component::load_component(
       "libcomanche-dawn-client.so", dawn_client_factory);
 
   ASSERT_TRUE(comp);
   fact = (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
-  
+
   auto dawn = fact->create(Options.debug_level, "dwaddington", Options.addr,
                            Options.device);
   ASSERT_TRUE(dawn);
   dawn->release_ref();
 
   auto dawn2 = fact->create(Options.debug_level, "dwaddington", Options.addr,
-                           Options.device);
+                            Options.device);
   ASSERT_TRUE(dawn2);
   auto dawn3 = fact->create(Options.debug_level, "dwaddington", Options.addr,
-                           Options.device);
+                            Options.device);
   ASSERT_TRUE(dawn3);
 
-  basic_test(dawn2,0);
-  basic_test(dawn3,1);
-  
+  basic_test(dawn2, 0);
+  basic_test(dawn3, 1);
+
   dawn2->release_ref();
   dawn3->release_ref();
-  
+
   fact->release_ref();
 }
-  
+
 #else
-  
+
 TEST_F(Dawn_client_test, Instantiate) {
   /* create object instance through factory */
   Component::IBase *comp = Component::load_component(
@@ -145,7 +157,7 @@ TEST_F(Dawn_client_test, Instantiate) {
   fact->release_ref();
 }
 #endif
-  
+
 #ifdef TEST_BASIC_PUT_AND_GET
 TEST_F(Dawn_client_test, BasicPutAndGet) {
   ASSERT_TRUE(_dawn);
@@ -161,7 +173,7 @@ TEST_F(Dawn_client_test, BasicPutAndGet) {
     PINF("put response:%d", rc);
     ASSERT_TRUE(rc == S_OK || rc == -2);
 
-    pv = nullptr;
+    pv            = nullptr;
     size_t pv_len = 0;
     PINF("performing 'get' to retrieve what was put..");
     rc = _dawn->get(pool, "key0", pv, pv_len);
@@ -190,7 +202,7 @@ class IOPS_task : public Core::Tasklet {
  public:
   static constexpr unsigned long ITERATIONS = 1000000;
   static constexpr unsigned long VALUE_SIZE = 32;
-  static constexpr unsigned long KEY_SIZE = 8;
+  static constexpr unsigned long KEY_SIZE   = 8;
 
   IOPS_task(unsigned arg) {}
 
@@ -210,7 +222,7 @@ class IOPS_task : public Core::Tasklet {
 
     /* set up data */
     for (unsigned long i = 0; i < ITERATIONS; i++) {
-      auto val = Common::random_string(VALUE_SIZE);
+      auto val     = Common::random_string(VALUE_SIZE);
       _data[i].key = Common::random_string(KEY_SIZE);
       memcpy(_data[i].value, val.c_str(), VALUE_SIZE);
     }
@@ -257,7 +269,7 @@ class IOPS_task : public Core::Tasklet {
 
  private:
   std::chrono::high_resolution_clock::time_point _start_time, _end_time;
-  bool _ready_flag = false;
+  bool _ready_flag          = false;
   unsigned long _iterations = 0;
   Component::IKVStore *_store;
   record_t *_data;
@@ -286,7 +298,7 @@ TEST_F(Dawn_client_test, PerfSmallPut) {
 
   static constexpr unsigned long ITERATIONS = 1000000;
   static constexpr unsigned long VALUE_SIZE = 32;
-  static constexpr unsigned long KEY_SIZE = 8;
+  static constexpr unsigned long KEY_SIZE   = 8;
 
   struct record_t {
     std::string key;
@@ -298,7 +310,7 @@ TEST_F(Dawn_client_test, PerfSmallPut) {
 
   /* set up data */
   for (unsigned long i = 0; i < ITERATIONS; i++) {
-    auto val = Common::random_string(VALUE_SIZE);
+    auto val    = Common::random_string(VALUE_SIZE);
     data[i].key = Common::random_string(KEY_SIZE);
     memcpy(data[i].value, val.c_str(), VALUE_SIZE);
   }
@@ -310,7 +322,7 @@ TEST_F(Dawn_client_test, PerfSmallPut) {
     ASSERT_TRUE(rc == S_OK || rc == -2);
   }
 
-  auto end = std::chrono::high_resolution_clock::now();
+  auto end  = std::chrono::high_resolution_clock::now();
   auto secs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
                   .count() /
               1000.0;
@@ -338,7 +350,7 @@ TEST_F(Dawn_client_test, PerfSmallPutDirect) {
 
   static constexpr unsigned long ITERATIONS = 1000000;
   static constexpr unsigned long VALUE_SIZE = 32;
-  static constexpr unsigned long KEY_SIZE = 8;
+  static constexpr unsigned long KEY_SIZE   = 8;
 
   struct record_t {
     std::string key;
@@ -346,7 +358,7 @@ TEST_F(Dawn_client_test, PerfSmallPutDirect) {
   };
 
   size_t data_size = sizeof(record_t) * ITERATIONS;
-  record_t *data = (record_t *) aligned_alloc(MiB(2), data_size);
+  record_t *data   = (record_t *) aligned_alloc(MiB(2), data_size);
   madvise(data, data_size, MADV_HUGEPAGE);
 
   ASSERT_FALSE(data == nullptr);
@@ -355,7 +367,7 @@ TEST_F(Dawn_client_test, PerfSmallPutDirect) {
 
   /* set up data */
   for (unsigned long i = 0; i < ITERATIONS; i++) {
-    auto val = Common::random_string(VALUE_SIZE);
+    auto val    = Common::random_string(VALUE_SIZE);
     data[i].key = Common::random_string(KEY_SIZE);
     memcpy(data[i].value, val.c_str(), VALUE_SIZE);
   }
@@ -369,7 +381,7 @@ TEST_F(Dawn_client_test, PerfSmallPutDirect) {
     ASSERT_TRUE(rc == S_OK || rc == -6);
   }
 
-  auto end = std::chrono::high_resolution_clock::now();
+  auto end  = std::chrono::high_resolution_clock::now();
   auto secs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
                   .count() /
               1000.0;
@@ -402,9 +414,9 @@ TEST_F(Dawn_client_test, PerfLargePutDirect) {
   }
 
   static constexpr unsigned long PER_ITERATION = 4;
-  static constexpr unsigned long ITERATIONS = 100;
-  static constexpr unsigned long VALUE_SIZE = MB(512);
-  static constexpr unsigned long KEY_SIZE = 16;
+  static constexpr unsigned long ITERATIONS    = 100;
+  static constexpr unsigned long VALUE_SIZE    = MB(512);
+  static constexpr unsigned long KEY_SIZE      = 16;
 
   struct record_t {
     std::string key;
@@ -413,7 +425,7 @@ TEST_F(Dawn_client_test, PerfLargePutDirect) {
 
   PLOG("Allocating buffer with test data ...");
   size_t data_size = sizeof(record_t) * PER_ITERATION;
-  record_t *data = (record_t *) aligned_alloc(MiB(2), data_size);
+  record_t *data   = (record_t *) aligned_alloc(MiB(2), data_size);
   madvise(data, data_size, MADV_HUGEPAGE);
 
   ASSERT_FALSE(data == nullptr);
@@ -423,7 +435,7 @@ TEST_F(Dawn_client_test, PerfLargePutDirect) {
   PLOG("Filling data...");
   /* set up data */
   for (unsigned long i = 0; i < PER_ITERATION; i++) {
-    auto val = Common::random_string(VALUE_SIZE);
+    auto val    = Common::random_string(VALUE_SIZE);
     data[i].key = Common::random_string(KEY_SIZE);
     memcpy(data[i].value, val.c_str(), VALUE_SIZE);
   }
@@ -439,7 +451,7 @@ TEST_F(Dawn_client_test, PerfLargePutDirect) {
     ASSERT_TRUE(rc == S_OK || rc == -6);
   }
 
-  auto end = std::chrono::high_resolution_clock::now();
+  auto end  = std::chrono::high_resolution_clock::now();
   auto secs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
                   .count() /
               1000.0;
@@ -460,9 +472,9 @@ TEST_F(Dawn_client_test, PerfLargeGettDirect) {
       _dawn->create_pool("/mnt/pmem0/dawn", Options.pool.c_str(), GB(8));
 
   static constexpr unsigned long PER_ITERATION = 8;
-  static constexpr unsigned long ITERATIONS = 20;
-  static constexpr unsigned long VALUE_SIZE = MB(64);
-  static constexpr unsigned long KEY_SIZE = 16;
+  static constexpr unsigned long ITERATIONS    = 20;
+  static constexpr unsigned long VALUE_SIZE    = MB(64);
+  static constexpr unsigned long KEY_SIZE      = 16;
 
   struct record_t {
     std::string key;
@@ -471,7 +483,7 @@ TEST_F(Dawn_client_test, PerfLargeGettDirect) {
 
   PLOG("Allocating buffer with test data ...");
   size_t data_size = sizeof(record_t) * PER_ITERATION;
-  record_t *data = (record_t *) aligned_alloc(MiB(2), data_size);
+  record_t *data   = (record_t *) aligned_alloc(MiB(2), data_size);
   madvise(data, data_size, MADV_HUGEPAGE);
 
   ASSERT_FALSE(data == nullptr);
@@ -481,7 +493,7 @@ TEST_F(Dawn_client_test, PerfLargeGettDirect) {
   PLOG("Filling data...");
   /* set up data */
   for (unsigned long i = 0; i < PER_ITERATION; i++) {
-    auto val = Common::random_string(VALUE_SIZE);
+    auto val    = Common::random_string(VALUE_SIZE);
     data[i].key = Common::random_string(KEY_SIZE);
     memcpy(data[i].value, val.c_str(), VALUE_SIZE);
   }
@@ -497,7 +509,7 @@ TEST_F(Dawn_client_test, PerfLargeGettDirect) {
     ASSERT_TRUE(rc == S_OK || rc == -6);
   }
 
-  auto end = std::chrono::high_resolution_clock::now();
+  auto end  = std::chrono::high_resolution_clock::now();
   auto secs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
                   .count() /
               1000.0;
@@ -511,12 +523,12 @@ TEST_F(Dawn_client_test, PerfLargeGettDirect) {
   /* perform get phase */
   for (unsigned long i = 0; i < (ITERATIONS * PER_ITERATION); i++) {
     size_t value_len = VALUE_SIZE;
-    rc = _dawn->get_direct(pool, data[i % PER_ITERATION].key,
+    rc               = _dawn->get_direct(pool, data[i % PER_ITERATION].key,
                            data[i % PER_ITERATION].value, value_len, handle);
     ASSERT_TRUE(rc == S_OK);  // || rc == -6);
   }
 
-  end = std::chrono::high_resolution_clock::now();
+  end  = std::chrono::high_resolution_clock::now();
   secs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
              .count() /
          1000.0;
@@ -537,9 +549,9 @@ TEST_F(Dawn_client_test, PerfSmallGetDirect) {
       _dawn->create_pool("/mnt/pmem0/dawn", Options.pool.c_str(), GB(8));
 
   static constexpr unsigned long PER_ITERATION = 8;
-  static constexpr unsigned long ITERATIONS = 100000;
-  static constexpr unsigned long VALUE_SIZE = 32;
-  static constexpr unsigned long KEY_SIZE = 8;
+  static constexpr unsigned long ITERATIONS    = 100000;
+  static constexpr unsigned long VALUE_SIZE    = 32;
+  static constexpr unsigned long KEY_SIZE      = 8;
 
   struct record_t {
     std::string key;
@@ -548,7 +560,7 @@ TEST_F(Dawn_client_test, PerfSmallGetDirect) {
 
   PLOG("Allocating buffer with test data ...");
   size_t data_size = sizeof(record_t) * PER_ITERATION;
-  record_t *data = (record_t *) aligned_alloc(MiB(2), data_size);
+  record_t *data   = (record_t *) aligned_alloc(MiB(2), data_size);
   madvise(data, data_size, MADV_HUGEPAGE);
 
   ASSERT_FALSE(data == nullptr);
@@ -558,7 +570,7 @@ TEST_F(Dawn_client_test, PerfSmallGetDirect) {
   PLOG("Filling data...");
   /* set up data */
   for (unsigned long i = 0; i < PER_ITERATION; i++) {
-    auto val = Common::random_string(VALUE_SIZE);
+    auto val    = Common::random_string(VALUE_SIZE);
     data[i].key = Common::random_string(KEY_SIZE);
     memcpy(data[i].value, val.c_str(), VALUE_SIZE);
   }
@@ -574,7 +586,7 @@ TEST_F(Dawn_client_test, PerfSmallGetDirect) {
     ASSERT_TRUE(rc == S_OK || rc == -2);
   }
 
-  auto end = std::chrono::high_resolution_clock::now();
+  auto end  = std::chrono::high_resolution_clock::now();
   auto secs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
                   .count() /
               1000.0;
@@ -588,12 +600,12 @@ TEST_F(Dawn_client_test, PerfSmallGetDirect) {
   /* perform get phase */
   for (unsigned long i = 0; i < (ITERATIONS * PER_ITERATION); i++) {
     size_t value_len = VALUE_SIZE;
-    rc = _dawn->get_direct(pool, data[i % PER_ITERATION].key,
+    rc               = _dawn->get_direct(pool, data[i % PER_ITERATION].key,
                            data[i % PER_ITERATION].value, value_len, handle);
     ASSERT_TRUE(rc == S_OK);  // || rc == -6);
   }
 
-  end = std::chrono::high_resolution_clock::now();
+  end  = std::chrono::high_resolution_clock::now();
   secs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
              .count() /
          1000.0;
@@ -612,9 +624,9 @@ TEST_F(Dawn_client_test, PutDirect0) {
 
   ASSERT_TRUE(pool > 0);
 
-  std::string key = "PUT_DIRECT0_key";
+  std::string key  = "PUT_DIRECT0_key";
   size_t value_len = 32;
-  void *value = aligned_alloc(4096, value_len);
+  void *value      = aligned_alloc(4096, value_len);
   ASSERT_TRUE(value);
 
   memset(value, 'x', value_len);
@@ -637,9 +649,9 @@ TEST_F(Dawn_client_test, PutDirect0) {
 TEST_F(Dawn_client_test, PutDirectLarge) {
   auto pool = _dawn->create_pool("/mnt/pmem0/dawn", "bigPool4G", GB(4));
 
-  std::string key = "PUT_DIRECT1_key";
+  std::string key  = "PUT_DIRECT1_key";
   size_t value_len = MB(256);
-  void *value = aligned_alloc(4096, value_len);
+  void *value      = aligned_alloc(4096, value_len);
   ASSERT_TRUE(value);
 
   memset(value, 'x', value_len);
@@ -692,15 +704,16 @@ int main(int argc, char **argv) {
       return -1;
     }
 
-    Options.addr = vm["server-addr"].as<std::string>();
+    Options.addr        = vm["server-addr"].as<std::string>();
     Options.debug_level = vm["debug"].as<unsigned>();
-    Options.pool = vm["pool"].as<std::string>();
-    Options.device = vm["device"].as<std::string>();
-    Options.base_core = vm["base"].as<unsigned>();
+    Options.pool        = vm["pool"].as<std::string>();
+    Options.device      = vm["device"].as<std::string>();
+    Options.base_core   = vm["base"].as<unsigned>();
 
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
-  } catch (...) {
+  }
+  catch (...) {
     PLOG("bad command line option configuration");
     return -1;
   }
