@@ -58,29 +58,33 @@ static constexpr auto thread_model = IKVStore::THREAD_MODEL_SINGLE_PER_POOL;
 
 using open_pool_handle = std::unique_ptr<PMEMobjpool, void(*)(PMEMobjpool *)>;
 
+template<typename T>
+  struct type_number;
+
+template<> struct type_number<char> { static constexpr uint64_t value = 2; };
+
 namespace
 {
   constexpr bool option_DEBUG = false;
   namespace type_num
   {
     constexpr uint64_t persist = 1U;
-    constexpr uint64_t table = 2U;
-    constexpr uint64_t key = 3U;
-    constexpr uint64_t mapped = 4U;
-    constexpr uint64_t area = 5U;
   }
+}
 
 #if USE_CC_HEAP
-  using ALLOC_T = Core::CC_allocator<char, persister_pmem>;
-  using KEY_T = persist_fixed_string<char, ALLOC_T>;
-  using MAPPED_T = persist_fixed_string<char, ALLOC_T>;
+using ALLOC_T = Core::CC_allocator<char, persister_pmem>;
+using KEY_T = persist_fixed_string<char, ALLOC_T>;
+using MAPPED_T = persist_fixed_string<char, ALLOC_T>;
 #else /* USE_CC_HEAP */
-  using ALLOC_T = allocator_pobj_cache_aligned<char>;
-  using DEALLOC_T = typename ALLOC_T::deallocator_type;
-  using KEY_T = persist_fixed_string<char, DEALLOC_T>;
-  using MAPPED_T = persist_fixed_string<char, DEALLOC_T>;
+using ALLOC_T = allocator_pobj_cache_aligned<char>;
+using DEALLOC_T = typename ALLOC_T::deallocator_type;
+using KEY_T = persist_fixed_string<char, DEALLOC_T>;
+using MAPPED_T = persist_fixed_string<char, DEALLOC_T>;
 #endif /* USE_CC_HEAP */
 
+namespace
+{
   struct pstr_hash
   {
     using argument_type = KEY_T;
@@ -92,33 +96,40 @@ namespace
   };
 
   using HASHER_T = pstr_hash;
+}
 
 #if USE_CC_HEAP
-  using allocator_segment_t =
-    Core::CC_allocator<std::pair<const KEY_T, MAPPED_T>, persister_pmem>;
+using allocator_segment_t =
+  Core::CC_allocator<std::pair<const KEY_T, MAPPED_T>, persister_pmem>;
 
-  using allocator_atomic_t =
-    Core::CC_allocator<impl::mod_control, persister_pmem>;
+using allocator_atomic_t =
+  Core::CC_allocator<impl::mod_control, persister_pmem>;
 #else
-  using allocator_segment_t =
-    allocator_pobj_cache_aligned<std::pair<const KEY_T, MAPPED_T>>;
+using allocator_segment_t =
+  allocator_pobj_cache_aligned<std::pair<const KEY_T, MAPPED_T>>;
 
-  using allocator_atomic_t =
-    allocator_pobj_cache_aligned <impl::mod_control>;
+using allocator_atomic_t =
+  allocator_pobj_cache_aligned <impl::mod_control>;
+template<> struct type_number<impl::mod_control> { static constexpr std::uint64_t value = 4; };
 #endif /* USE_CC_HEAP */
 
-  using table_t =
-    table<
-    KEY_T
-    , MAPPED_T
-    , HASHER_T
-    , std::equal_to<KEY_T>
-    , allocator_segment_t
-    , hstore_shared_mutex
-    >;
+using table_t =
+  table<
+  KEY_T
+  , MAPPED_T
+  , HASHER_T
+  , std::equal_to<KEY_T>
+  , allocator_segment_t
+  , hstore_shared_mutex
+  >;
 
-  using persist_data_t = typename impl::persist_data<allocator_segment_t, table_t::value_type>;
+template<> struct type_number<table_t::value_type> { static constexpr std::uint64_t value = 5; };
+template<> struct type_number<table_t::base::persist_data_t::bucket_aligned_t> { static constexpr uint64_t value = 6; };
 
+using persist_data_t = typename impl::persist_data<allocator_segment_t, table_t::value_type>;
+
+namespace
+{
   struct pc_al
   {
     persist_data_t _pc;
@@ -232,8 +243,9 @@ namespace
   void map_create(
     PMEMobjpool *pop_
     , TOID(struct store_root_t) &root
+    , std::size_t
 #if USE_CC_HEAP
-    , std::size_t size_
+        size_
 #endif /* USE_CC_HEAP */
     , std::size_t expected_obj_count
     , bool verbose
@@ -276,8 +288,8 @@ namespace
     );
     ::pmem_persist(p, sizeof *p);
 #else /* USE_CC_HEAP */
-    new (&p->_pc) persist_data_t(expected_obj_count, table_t::allocator_type{pop_, type_num::table});
-    table_t::allocator_type{pop_, type_num::table}
+    new (&p->_pc) persist_data_t(expected_obj_count, table_t::allocator_type{pop_});
+    table_t::allocator_type{pop_}
       .persist(p, sizeof *p, "persist_data");
 #endif /* USE_CC_HEAP */
 
@@ -291,10 +303,7 @@ namespace
   pc_al *map_create_if_null(
                          PMEMobjpool *pop_
                          , TOID(struct store_root_t) &root
-                         , std::size_t
-#if USE_CC_HEAP
-                             size_
-#endif /* USE_CC_HEAP */
+                         , std::size_t size_
                          , std::size_t expected_obj_count
                          , bool verbose
                          )
@@ -305,11 +314,7 @@ namespace
 #pragma GCC diagnostic pop
     if ( ! initialized )
     {
-      map_create(pop_, root
-#if USE_CC_HEAP
-        , size_
-#endif
-        , expected_obj_count, verbose
+      map_create(pop_, root, size_, expected_obj_count, verbose
       );
     }
     return map_open(root);
@@ -332,7 +337,6 @@ namespace
   struct tls_cache_t {
     session *recent_session;
   };
-
 }
 
 class session
@@ -341,9 +345,7 @@ class session
   std::string               _dir;
   std::string               _name;
   open_pool_handle          _pop;
-#if USE_CC_HEAP
   ALLOC_T                   _heap;
-#endif /* USE_CC_HEAP */
   table_t                   _map;
   impl::atomic_controller<table_t> _atomic_state;
 public:
@@ -360,26 +362,17 @@ public:
     , _pop(std::move(pop_))
 #if USE_CC_HEAP
     , _heap(pc_al_->get_alloc())
+#else /* USE_CC_HEAP */
+    , _heap(ALLOC_T(pmem_pool()))
+#endif /* USE_CC_HEAP */
     , _map(&pc_al_->_pc, _heap)
     , _atomic_state(pc_al_->_pc, _map)
-#else /* USE_CC_HEAP */
-    , _map(&pc_al_->_pc, table_t::allocator_type(_pop.get(), type_num::table))
-    , _atomic_state(pc_al_->_pc, _map)
-#endif /* USE_CC_HEAP */
   {}
 
   session(const session &) = delete;
   session& operator=(const session &) = delete;
-#if USE_CC_HEAP
-  auto allocator(std::uint64_t) const { return _heap; }
-#else /* USE_CC_HEAP */
-  auto allocator(std::uint64_t t) const { return ALLOC_T(pmem_pool(), t); }
-#endif /* USE_CC_HEAP */
+  auto allocator() const { return _heap; }
   PMEMobjpool *pmem_pool() const { return _pop.get(); }
-#if 1
-  /* debugging only */
-  std::string path() const noexcept { return make_full_path(dir(), name()); }
-#endif
 #if 1
   /* delete_pool only */
   const std::string &dir() const noexcept { return _dir; }
@@ -390,12 +383,11 @@ public:
 
   auto enter(
              KEY_T &key
-             , std::uint64_t type_num_data
              , std::vector<Component::IKVStore::Operation *>::const_iterator first
              , std::vector<Component::IKVStore::Operation *>::const_iterator last
              ) -> Component::status_t
   {
-    return _atomic_state.enter(allocator(type_num_data), key, first, last);
+    return _atomic_state.enter(allocator(), key, first, last);
   }
 };
 
@@ -721,8 +713,8 @@ auto hstore::put(const pool_t pool,
   const auto i =
     session.map().emplace(
                           std::piecewise_construct
-                          , std::forward_as_tuple(key.begin(), key.end(), session.allocator(type_num::key))
-                          , std::forward_as_tuple(cvalue, cvalue + value_len, session.allocator(type_num::mapped))
+                          , std::forward_as_tuple(key.begin(), key.end(), session.allocator())
+                          , std::forward_as_tuple(cvalue, cvalue + value_len, session.allocator())
                           );
   return i.second ? S_OK : update_by_issue_41(pool, key, value, value_len,  i.first->second.data(), i.first->second.size());
 }
@@ -802,7 +794,7 @@ auto hstore::get(const pool_t pool,
   try
     {
       const auto &session = locate_session(pool);
-      auto p_key = KEY_T(key.begin(), key.end(), session.allocator(type_num::key));
+      auto p_key = KEY_T(key.begin(), key.end(), session.allocator());
       auto &v = session.map().at(p_key);
       out_value_len = v.size();
       out_value = malloc(out_value_len);
@@ -829,7 +821,7 @@ auto hstore::get_direct(const pool_t pool,
                         Component::IKVStore::memory_handle_t) -> status_t
   try {
     const auto &session = locate_session(pool);
-    auto p_key = KEY_T(key.begin(), key.end(), session.allocator(type_num::key));
+    auto p_key = KEY_T(key.begin(), key.end(), session.allocator());
 
     auto &v = session.map().at(p_key);
 
@@ -903,7 +895,7 @@ auto hstore::lock(const pool_t pool,
                   std::size_t & out_value_len) -> key_t
 {
   auto &session = locate_session(pool);
-  const auto p_key = KEY_T(key.begin(), key.end(), session.allocator(type_num::key));
+  const auto p_key = KEY_T(key.begin(), key.end(), session.allocator());
 
   try
     {
@@ -930,7 +922,7 @@ auto hstore::lock(const pool_t pool,
         session.map().emplace(
                               std::piecewise_construct
                               , std::forward_as_tuple(p_key)
-                              , std::forward_as_tuple(out_value_len, session.allocator(type_num::mapped))
+                              , std::forward_as_tuple(out_value_len, session.allocator())
                               );
 
       if ( ! r.second )
@@ -954,7 +946,7 @@ auto hstore::unlock(const pool_t pool,
     {
       try {
         auto &session = locate_session(pool);
-        auto p_key = KEY_T(key->begin(), key->end(), session.allocator(type_num::key));
+        auto p_key = KEY_T(key->begin(), key->end(), session.allocator());
 
         session.map().unlock(p_key);
       }
@@ -1010,7 +1002,7 @@ auto hstore::apply(
 {
   auto &session = locate_session(pool);
   MAPPED_T *val;
-  auto p_key = KEY_T(key.begin(), key.end(), session.allocator(type_num::key));
+  auto p_key = KEY_T(key.begin(), key.end(), session.allocator());
   try
     {
       val = &session.map().at(p_key);
@@ -1030,7 +1022,7 @@ auto hstore::apply(
         session.map().emplace(
                               std::piecewise_construct
                               , std::forward_as_tuple(p_key)
-                              , std::forward_as_tuple(object_size, session.allocator(type_num::mapped))
+                              , std::forward_as_tuple(object_size, session.allocator())
                               );
       if ( ! r.second )
         {
@@ -1055,7 +1047,7 @@ auto hstore::erase(const pool_t pool,
 {
   try {
     auto &session = locate_session(pool);
-    auto p_key = KEY_T(key.begin(), key.end(), session.allocator(type_num::key));
+    auto p_key = KEY_T(key.begin(), key.end(), session.allocator());
     return
       session.map().erase(p_key) == 0
       ? E_KEY_NOT_FOUND
@@ -1162,11 +1154,11 @@ auto hstore::atomic_update(
     {
       auto &session = locate_session(pool);
 
-      auto p_key = KEY_T(key.begin(), key.end(), session.allocator(type_num::key));
+      auto p_key = KEY_T(key.begin(), key.end(), session.allocator());
 
       maybe_lock m(session.map(), p_key, take_lock);
 
-      return session.enter(p_key, type_num::mapped, op_vector.begin(), op_vector.end());
+      return session.enter(p_key, op_vector.begin(), op_vector.end());
     }
   catch ( std::exception & )
     {
