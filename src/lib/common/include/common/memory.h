@@ -115,7 +115,8 @@ class Base_memory_allocator {
    *
    * @return Pointer to allocated memory
    */
-  virtual void *alloc(size_t size, int numa_node = -1,
+  virtual void *alloc(size_t size,
+                      int numa_node = -1,
                       size_t alignment = 0) = 0;
 
   /**
@@ -125,6 +126,18 @@ class Base_memory_allocator {
    */
   virtual size_t free(void *ptr) = 0;
 };
+
+
+/**
+ * Memory allocator that can be reconstituted
+ *
+ */
+class Reconstituting_allocator : public Base_memory_allocator {
+  public:
+
+  virtual void inject_allocation(size_t size, int numa_node, size_t alignment) = 0;
+};
+  
 
 /**
  * Generic heap allocator interface
