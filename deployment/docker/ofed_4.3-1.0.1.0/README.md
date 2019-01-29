@@ -13,9 +13,11 @@ This exists to check RDMA functionality inside a container.
 2. Add/edit file: /etc/docker/daemon.json based on info below, changing values as appropriate:
 
 ```json
+{
 "bip": "10.0.0.55/24",
 "mtu": 9000,
 "dns": ["9.1.44.254", "9.1.32.254"]
+}
 ```
 
 Explanation:
@@ -26,7 +28,7 @@ Explanation:
 3. Save and restart Docker (`$ sudo /etc/init.d/docker restart`)
 
 
-# Build the image
+## Build the image
 Try this first: `$ sudo docker build -tag="ofed4.3-1.0.1.0"`
 
 If you see DNS errors like "Temporary failure resolving 'deb.debian.org'", run with `-network=host' input option: `$ sudo docker build -network=host -tag="ofed4.3-1.0.1.0`
