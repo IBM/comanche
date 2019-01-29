@@ -13,6 +13,7 @@
 #include <sys/stat.h>
 #include <tbb/scalable_allocator.h>
 
+#define SINGLE_THREADED
 #include "map_store.h"
 
 using namespace Component;
@@ -34,7 +35,9 @@ private:
 public:
   std::string                       key;
   std::map<std::string, Value_pair> map; /*< rb-tree based map */
+
   Common::RWLock                    map_lock; /*< read write lock */
+
   unsigned int                      flags;
 
   status_t put(const std::string& key,
@@ -93,8 +96,10 @@ status_t Pool_handle::put(const std::string& key,
   if(!value || !value_len)
     throw API_exception("invalid parameters");
 
+#ifndef SINGLE_THREADED
   RWLock_guard guard(map_lock, RWLock_guard::WRITE);
-
+#endif
+  
   auto i = map.find(key);
   if(i != map.end()) {
     auto& p = i->second;
@@ -124,9 +129,11 @@ status_t Pool_handle::get(const std::string& key,
 {
   if(option_DEBUG)
     PLOG("map_store: get(%s,%p,%lu)", key.c_str(), out_value, out_value_len);
-  
-  RWLock_guard guard(map_lock);
 
+#ifndef SINGLE_THREADED
+  RWLock_guard guard(map_lock);
+#endif
+  
   auto i = map.find(key);
 
   if(i == map.end())
@@ -149,7 +156,9 @@ status_t Pool_handle::get_direct(const std::string& key,
   if(out_value == nullptr || out_value_len == 0)
     throw API_exception("invalid parameter");
 
+#ifndef SINGLE_THREADED
   RWLock_guard guard(map_lock);
+#endif
   auto i = map.find(key);
 
   if(i == map.end()) {
@@ -230,8 +239,9 @@ void Pool_handle::unlock()
 
 status_t Pool_handle::erase(const std::string& key)
 {
+#ifndef SINGLE_THREADED
   RWLock_guard guard(map_lock, RWLock_guard::WRITE);
-
+#endif
   auto i = map.find(key);
 
   if(i == map.end())
@@ -244,7 +254,9 @@ status_t Pool_handle::erase(const std::string& key)
 }
 
 size_t Pool_handle::count() {
+#ifndef SINGLE_THREADED
   RWLock_guard guard(map_lock);
+#endif
   return map.size();
 }
 

@@ -4,6 +4,6 @@
 #include <api/fabric_itf.h>
 
 using memory_region_t = Component::IFabric_connection::memory_region_t;
-using Connection = Component::IFabric_server;
+using Connection      = Component::IFabric_server;
 
 #endif

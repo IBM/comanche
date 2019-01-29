@@ -13,11 +13,13 @@ int main(int argc, char* argv[]) {
   try {
     po::options_description desc("Options");
 
-    desc.add_options()("help", "Show help")                                                        //
-        ("config", po::value<std::string>(), "Configuration file")                                 //
-        ("debug", po::value<unsigned>()->default_value(0), "Debug level 0-3")                      //
-        ("forced-exit", "Forced exit") //
-        ("device", po::value<std::string>()->default_value("mlx5_0"),"Network device (e.g., mlx5_0)") //
+    desc.add_options()("help", "Show help")                         //
+        ("config", po::value<std::string>(), "Configuration file")  //
+        ("debug", po::value<unsigned>()->default_value(0),
+         "Debug level 0-3")             //
+        ("forced-exit", "Forced exit")  //
+        ("device", po::value<std::string>()->default_value("mlx5_0"),
+         "Network device (e.g., mlx5_0)")  //
         ;
 
     po::variables_map vm;
@@ -34,7 +36,7 @@ int main(int argc, char* argv[]) {
     }
 
     g_options.config_file = vm["config"].as<std::string>();
-    g_options.device = vm["device"].as<std::string>();
+    g_options.device      = vm["device"].as<std::string>();
     g_options.forced_exit = vm.count("forced-exit");
 
     Dawn::Global::debug_level = g_options.debug_level =
