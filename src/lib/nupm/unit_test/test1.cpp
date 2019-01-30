@@ -46,6 +46,11 @@ class Libnupm_test : public ::testing::Test {
   //#define RUN_RPALLOCATOR_TESTS
 //#define RUN_VMEM_ALLOCATOR_TESTS
 
+TEST_F(Libnupm_test, DaxMap)
+{
+}
+
+#if 0
 TEST_F(Libnupm_test, RcAllocatorAVL)
 {
   nupm::Rca_AVL rca;
@@ -63,6 +68,8 @@ TEST_F(Libnupm_test, RcAllocatorAVL)
   }
   
 }
+#endif
+
 #if 0
 TEST_F(Libnupm_test, NdControl)
 {

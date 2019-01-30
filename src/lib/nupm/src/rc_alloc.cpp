@@ -38,10 +38,6 @@ class Rca_AVL_internal
     _allocators.reserve(Rca::max_numa_node + 1);
     for(int i=0;i<=Rca::max_numa_node; i++)
       _allocators[i] = 0;
-
-#ifdef RCA_USE_MEMKIND
-    
-#endif
   }
   
   ~Rca_AVL_internal() {
@@ -54,13 +50,14 @@ class Rca_AVL_internal
   {
 #ifndef RCA_USE_MEMKIND
     throw API_exception("add_managed_region pmem_file not supported");
-#endif
+#else
     PLOG("adding memkind (%s,%d)", pmem_file.c_str(), numa_node);
     
     if(_allocators[numa_node])
       throw API_exception("add_managed_region can only be called once per numa node with memkind");
 
     _allocators[numa_node] = new Memkind_allocator(pmem_file);
+#endif
   }
   
   void add_managed_region(void * region_base, size_t region_length, int numa_node)
@@ -91,17 +88,25 @@ class Rca_AVL_internal
   void * alloc(size_t size,
                int numa_node,
                size_t alignment)
-  {
+  {    
     void * p = nullptr;
+#ifdef RCA_USE_MEMKIND
     if(_allocators[numa_node]->posix_memalign(&p, size, alignment))
       throw General_exception("alloc failed");
+#else
+    _allocators[numa_node]->alloc(size, alignment);
+#endif
     return p;    
   }
 
   void free(void * ptr,
             int numa_node)
   {
+#ifdef RCA_USE_MEMKIND
     _allocators[numa_node]->free(ptr);
+#else
+    _allocators[numa_node]->free(reinterpret_cast<addr_t>(ptr));
+#endif
   }
   
 
@@ -147,7 +152,6 @@ void Rca_AVL::inject_allocation(void * ptr, size_t size, int numa_node)
   if(numa_node > Rca::max_numa_node)
     throw std::invalid_argument("numa node out of range");
 
-  // TODO ? space for size  ?
   return _rca->inject_allocation(ptr, size, numa_node);
 }
 
