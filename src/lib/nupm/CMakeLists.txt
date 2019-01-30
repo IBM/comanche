@@ -22,7 +22,7 @@ file(GLOB SOURCES src/*.c*)
 
 add_library(nupm SHARED ${SOURCES} src/tx_cache.cpp src/rc_alloc.cpp src/dax_map.cpp)
 
-target_link_libraries(${PROJECT_NAME} stdc++fs common numa ${LIB_NDCTL} pmem vmem dl)
+target_link_libraries(${PROJECT_NAME} stdc++fs common numa ${LIB_NDCTL} pmem vmem dl memkind)
 
 add_subdirectory(unit_test)
 
