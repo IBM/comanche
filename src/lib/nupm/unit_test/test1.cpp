@@ -9,6 +9,7 @@
 #include "vmem_numa.h"
 #include "arena_alloc.h"
 #include "rp_alloc.h"
+#include "rc_alloc.h"
 
 namespace {
 
@@ -45,12 +46,32 @@ class Libnupm_test : public ::testing::Test {
   //#define RUN_RPALLOCATOR_TESTS
 //#define RUN_VMEM_ALLOCATOR_TESTS
 
+TEST_F(Libnupm_test, RcAllocatorAVL)
+{
+  nupm::Rca_AVL rca;
+
+  rca.add_managed_region("/mnt/pmem0",0);
+  rca.add_managed_region("/mnt/pmem0",1);
+
+  std::vector<iovec> allocations;
+  for(unsigned i=0;i<100;i++) {
+    allocations.push_back({rca.alloc((i+1)*32, 0, 16), i*32});
+  }
+
+  for(auto& i: allocations) {
+    rca.free(i.iov_base, 0);
+  }
+  
+}
+#if 0
 TEST_F(Libnupm_test, NdControl)
 {
   nupm::ND_control ctrl;
   PLOG("ND_control init complete!");
 }
+#endif
 
+#if 0
 TEST_F(Libnupm_test, TxCache)
 {
   size_t NUM_PAGES = 2048;
@@ -81,8 +102,7 @@ TEST_F(Libnupm_test, TxCache)
   
   nupm::free_virtual_pages(p);
 }
-
-
+#endif
 
 #ifdef RUN_RPALLOCATOR_TESTS
 TEST_F(Libnupm_test, RpAllocatorPerf)
