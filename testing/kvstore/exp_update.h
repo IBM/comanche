@@ -46,7 +46,7 @@ public:
 
     // end experiment if we've reached the total number of components
     if (_i == _pool_num_objects) {
-      PINF("[%u] put: reached total number of components. Exiting.", core);
+      PINF("[%u] update: reached total number of components. Exiting.", core);
       return false;
     }
 
@@ -62,7 +62,7 @@ public:
         rc = _store->put(_pool, g_data->key(_i), new_val, g_data->value_len());
     }
     catch(...) {
-      PERR("put call failed! Returned %d. Ending experiment.", rc);
+      PERR("put (update) call failed! Returned %d. Ending experiment.", rc);
       throw std::exception();
     }
 
