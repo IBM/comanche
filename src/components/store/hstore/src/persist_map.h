@@ -97,11 +97,13 @@ namespace impl
 		class persist_map
 		{
 			using value_type = typename Allocator::value_type;
+	public:
 			using bucket_aligned_t = bucket_aligned<hash_bucket<value_type>>;
+	private:
 			using bucket_allocator_t =
 				typename Allocator::template rebind<bucket_aligned_t>::other;
 			using bucket_ptr = typename bucket_allocator_t::pointer;
-private:
+	private:
 			/* bucket indexes */
 			using bix_t = segment_layout::bix_t;
 			/* segment indexes */
@@ -145,6 +147,8 @@ private:
 			friend class persist_controller<Allocator>;
 		};
 }
+
+// template<> struct type_number<typename persist_map<Allocator>::bucket_aligned_t> { static constexpr uint64_t value = 5; };
 
 #include "persist_map.tcc"
 

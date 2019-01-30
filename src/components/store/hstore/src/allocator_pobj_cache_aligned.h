@@ -25,6 +25,9 @@
 #include <iostream> /* cerr */
 #endif
 
+template <typename T>
+	struct type_number;
+
 template <typename T, typename Deallocator = deallocator_pobj_cache_aligned<T>>
 	class allocator_pobj_cache_aligned;
 
@@ -66,30 +69,26 @@ template <typename T, typename Deallocator>
 		using typename deallocator_type::value_type;
 		using deallocator_type::address;
 		using deallocator_type::persist;
+		static constexpr std::uint64_t type_num() { return type_number<T>::value; }
 
 		template <typename U>
 			struct rebind
 			{
 				using other = allocator_pobj_cache_aligned<U>;
 			};
-		allocator_pobj_cache_aligned(
-			PMEMobjpool * pool_
-			, std::uint64_t type_num_
-		) noexcept
-			: pool_pobj(pool_, type_num_)
+		allocator_pobj_cache_aligned(PMEMobjpool * pool_) noexcept
+			: pool_pobj(pool_)
 		{}
 
-		allocator_pobj_cache_aligned(
-			const allocator_pobj_cache_aligned &a_
-		) noexcept
-			: allocator_pobj_cache_aligned(a_.pool(), a_.type_num())
+		allocator_pobj_cache_aligned(const allocator_pobj_cache_aligned &a_) noexcept
+			: allocator_pobj_cache_aligned(a_.pool())
 		{}
 
 		template <typename U>
 			allocator_pobj_cache_aligned(
 				const allocator_pobj_cache_aligned<U> &a_
 			) noexcept
-				: allocator_pobj_cache_aligned(a_.pool(), a_.type_num())
+				: allocator_pobj_cache_aligned(a_.pool())
 			{}
 
 		allocator_pobj_cache_aligned &operator=(
