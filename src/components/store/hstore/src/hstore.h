@@ -18,6 +18,7 @@
 #include <memory>
 #include <string>
 
+class open_pool;
 class session;
 
 class hstore : public Component::IKVStore
@@ -30,11 +31,12 @@ public:
 #endif
 
 private:
-  std::mutex sessions_mutex;
-  using session_map = std::map<session *, std::unique_ptr<session>>;
-  session_map g_sessions;
+  std::mutex _pools_mutex;
+  using pools_map = std::map<::open_pool *, std::unique_ptr<::open_pool>>;
+  pools_map _pools; /* would map sessions, but delete_pool also requires an "open" pool */
+  auto locate_open_pool(const IKVStore::pool_t pid) -> ::open_pool &;
   auto locate_session(const IKVStore::pool_t pid) -> session &;
-  auto move_session(const IKVStore::pool_t pid) -> std::unique_ptr<session>;
+  auto move_pool(const IKVStore::pool_t pid) -> std::unique_ptr<::open_pool>;
 
   void delete_pool(const std::string &path, const std::string &name);
 public:
