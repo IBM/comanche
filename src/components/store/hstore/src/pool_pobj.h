@@ -14,25 +14,15 @@
 class pool_pobj
 {
 	PMEMobjpool * _pool;
-	std::uint64_t _type_num;
-public:
 
-	explicit pool_pobj(PMEMobjpool * pool_, std::uint64_t type_num_)
+public:
+	explicit pool_pobj(PMEMobjpool * pool_)
 		: _pool(pool_)
-		, _type_num(type_num_)
 	{}
 
 	PMEMobjpool *pool() const
 	{
 		return _pool;
-	}
-
-	/* Note the type num is a function of the type,
-	 * and should be tracked by the allocator, not here.
-	 */
-	std::uint64_t type_num() const
-	{
-		return _type_num;
 	}
 };
 

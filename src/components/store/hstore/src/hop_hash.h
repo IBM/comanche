@@ -598,8 +598,8 @@ template <
 	class table
 		: private impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>
 	{
-		using base = impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>;
 	public:
+		using base = impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>;
 		using size_type      = std::size_t;
 		using key_type       = Key;
 		using mapped_type    = T;
