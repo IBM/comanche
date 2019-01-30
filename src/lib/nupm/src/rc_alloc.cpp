@@ -10,7 +10,7 @@
 
 
 /*< enabling use memkind allocator without reconstitution */
-#define RCA_USE_MEMKIND 
+//#define RCA_USE_MEMKIND 
 
 namespace nupm
 {

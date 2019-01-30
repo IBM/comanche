@@ -8,10 +8,12 @@
 #include "tx_cache.h"
 #include "vmem_numa.h"
 #include "arena_alloc.h"
-#include "rp_alloc.h"
 #include "rc_alloc.h"
 
-namespace {
+struct
+{
+  uint64_t uuid;
+} Options;
 
 // The fixture for testing class Foo.
 class Libnupm_test : public ::testing::Test {
@@ -34,6 +36,7 @@ class Libnupm_test : public ::testing::Test {
   // Objects declared here can be used by all tests in the test case
 };
 
+
 // static bool memcheck(void * p, char val, size_t len)
 // {
 //   for(size_t i=0; i<len; i++) {
@@ -45,9 +48,38 @@ class Libnupm_test : public ::testing::Test {
 
   //#define RUN_RPALLOCATOR_TESTS
 //#define RUN_VMEM_ALLOCATOR_TESTS
-
-TEST_F(Libnupm_test, DaxMap)
+#include "dax_map.h"
+  
+TEST_F(Libnupm_test, DevdaxManager)
 {
+  nupm::Devdax_manager ddm;
+
+  size_t p_len = 0;
+  uint64_t uuid = Options.uuid;
+  size_t size = (rdtsc() % GB(3)) + 1;
+  ddm.debug_dump(0);
+  
+  void * p = ddm.open_region(uuid, 0, &p_len);
+  if(p) {
+    PLOG("opened region %p OK", p);
+    PLOG("now erasing it...");
+    ddm.erase_region(uuid, 0);
+    ddm.debug_dump(0);    
+  }
+  else {
+    p = ddm.create_region(uuid, 0, size);
+    if(p)
+      PLOG("created region %p ", p);
+    ASSERT_TRUE(p);
+    memset(p, 0, 4096);
+    ddm.debug_dump(0);
+  }
+  
+  
+  // size_t len = 0;
+  // void * p = ddm.get_devdax_region("/dev/dax0.44", &len);
+  // PLOG("region p=%p len=%lu", p, len);
+  // memset(p, 0, len);
 }
 
 #if 0
@@ -274,11 +306,14 @@ TEST_F(Libnupm_test, VmemSingleThreadAlloc)
 
 #endif
 
-} // namespace
 
 int main(int argc, char **argv) {
   
   ::testing::InitGoogleTest(&argc, argv);
+
+  if(argc > 1) {
+    Options.uuid = atol(argv[1]);
+  }
   auto r = RUN_ALL_TESTS();
 
   return r;
