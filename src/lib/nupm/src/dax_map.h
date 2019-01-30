@@ -8,26 +8,68 @@ namespace nupm
 {
 
 class DM_region_header;
-  
-struct device_t
-{
-  const char * path;
-  addr_t       addr;
-  int          numa_node;
-};
 
+/** 
+ * Lowest level persisent manager for devdax devices. See dax_map.cc for static configuration.
+ * 
+ */
 class Devdax_manager
 {
 private:
   static constexpr unsigned _debug_level = 3;
   
 public:
+  /** 
+   * Constructor
+   * 
+   * @param force_reset If true, contents will be re-initialized. If false, re-initialization occurs on bad version/magic detection.
+   */
   Devdax_manager(bool force_reset = false);
   ~Devdax_manager();
 
+  /** 
+   * Open a region of memory
+   * 
+   * @param uuid Unique identifier
+   * @param numa_node NUMA node
+   * @param out_length Out length of region in bytes
+   * 
+   * @return Pointer to mapped memory or nullptr on not found
+   */
   void * open_region(uint64_t uuid, int numa_node, size_t * out_length);
+
+  /** 
+   * Create a new region of memory
+   * 
+   * @param uuid Unique identifier
+   * @param numa_node NUMA node
+   * @param size Size of the region requested in bytes
+   * 
+   * @return Pointer to mapped memory
+   */
   void * create_region(uint64_t uuid, int numa_node, size_t size);
+
+  /** 
+   * Erase a previously allocated region
+   * 
+   * @param uuid Unique region identifier
+   * @param numa_node NUMA node
+   */
   void erase_region(uint64_t uuid, int numa_node);
+
+  /** 
+   * Get the maximum "hole" size.
+   * 
+   * 
+   * @return Size in bytes of max hole
+   */
+  size_t get_max_available(int numa_node);
+  
+  /** 
+   * Debugging information
+   * 
+   * @param numa_node 
+   */
   void debug_dump(int numa_node);
   
 private:

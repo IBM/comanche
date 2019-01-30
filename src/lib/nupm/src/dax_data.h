@@ -155,7 +155,18 @@ public:
     throw General_exception("no spare slots");
   }
 
-  inline uint64_t GB_to_bytes(unsigned GB) {
+  size_t get_max_available() {
+    size_t max_size = 0;
+    for(uint16_t r=0;r<_region_count;r++) {
+      DM_region * reg = &_regions[r];
+      if(reg->length_GB > max_size)
+        max_size = reg->length_GB;
+    }
+    return GB_to_bytes(max_size);
+  }
+    
+
+  inline uint64_t GB_to_bytes(unsigned GB) const {
     return ((uint64_t)GB) << 30;
   }
   
@@ -163,7 +174,7 @@ public:
     nupm::mem_flush(this, sizeof(DM_region_header) + (sizeof(DM_region) * _region_count));
   }
   
-  bool check_magic() {
+  bool check_magic() const {
     return (_magic == DM_REGION_MAGIC) && (_version == DM_REGION_VERSION);
   }
 
