@@ -31,7 +31,7 @@ Explanation:
 ## Build the image
 Try this first: `$ sudo docker build -tag="ofed4.3-1.0.1.0"`
 
-If you see DNS errors like "Temporary failure resolving 'deb.debian.org'", run with `-network=host' input option: `$ sudo docker build -network=host -tag="ofed4.3-1.0.1.0`
+If you see DNS errors like "Temporary failure resolving 'deb.debian.org'", run with `-network=host` input option: `$ sudo docker build -network=host -tag="ofed4.3-1.0.1.0`
 
 This will build an image called ofed4.3-1.0.1.0. Verify it exists with `$ sudo docker images`
 
