@@ -1404,23 +1404,21 @@ public:
 
     int rc;
 
-    try
-      {
-        for (int i = start; i < finish; i++)
-          {
-            rc = _store->erase(_pool, g_data->key(i));
+    try {
+      for (int i = start; i < finish; i++)
+        {
+          rc = _store->erase(_pool, g_data->key(i));
 
-            if (rc != S_OK)
-              {
-                throw std::exception();
-              }
+          if (rc != S_OK) {
+            PERR("erase returned %d", rc);
+            throw std::exception();
           }
-      }
-    catch(...)
-      {
-        PERR("erase step failed");
-        throw std::exception();
-      }
+        }
+    }
+    catch(...) {
+      PERR("erase step failed");
+      throw std::exception();
+    }
   }
 
   static size_t get_difference_to_next_power_of_two(size_t value)

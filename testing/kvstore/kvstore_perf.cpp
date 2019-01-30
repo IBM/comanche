@@ -23,6 +23,7 @@
 #include "exp_get_direct.h"
 #include "exp_put_direct.h"
 #include "exp_throughput.h"
+#include "exp_update.h"
 #include "kvstore_perf.h"
 
 using namespace Component;
@@ -131,6 +132,14 @@ int main(int argc, char * argv[])
     exp.wait_for_all();
     auto first_exp = exp.tasklet(cpus.first_core());
     first_exp->summarize(); /* print aggregate IOPS */
+  }
+
+  if (Options.test == "all" || Options.test == "update") {
+    Core::Per_core_tasking<ExperimentUpdate, ProgramOptions> exp(cpus, Options, Options.pin);
+    exp.wait_for_all();
+
+    auto first_exp = exp.tasklet(cpus.first_core());
+    first_exp->summarize();
   }
 
 #ifdef PROFILE
