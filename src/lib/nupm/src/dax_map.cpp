@@ -33,9 +33,17 @@
 namespace nupm
 {
 
+struct device_t
+{
+  const char * path;
+  addr_t       addr;
+  int          numa_node;
+};
+
+
 /* currently one dax device per numa node */
-static constexpr device_t dax_config[] = {{"/dev/dax0.44", 0x900000000, 0},
-                                          {"/dev/dax0.45", 0xa00000000, 1},
+static constexpr device_t dax_config[] = {{"/dev/dax0.0", 0x9000000000, 0},
+                                          {"/dev/dax1.0", 0xa000000000, 1},
                                           {"", 0, 0}
 };
 
@@ -104,6 +112,16 @@ void Devdax_manager::erase_region(uint64_t uuid, int numa_node)
     throw General_exception("no region header for device (%s)", device);
 
   hdr->erase_region(uuid);
+}
+
+size_t Devdax_manager::get_max_available(int numa_node)
+{
+  const char * device = lookup_dax_device(numa_node);
+  DM_region_header * hdr = _region_hdrs[device];
+  if(hdr == nullptr)
+    throw General_exception("no region header for device (%s)", device);
+
+  return hdr->get_max_available();
 }
   
 void Devdax_manager::recover_metadata(const char * device_path,
