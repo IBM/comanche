@@ -335,31 +335,55 @@ namespace
   }
 
   struct tls_cache_t {
-    session *recent_session;
+    ::open_pool *recent_pool;
   };
 }
 
-class session
+class open_pool
 {
   TOID(struct store_root_t) _root;
   std::string               _dir;
   std::string               _name;
   open_pool_handle          _pop;
+public:
+  explicit open_pool(
+    TOID(struct store_root_t) &root_
+    , const std::string &dir_
+    , const std::string &name_
+    , open_pool_handle &&pop_
+  )
+    : _root(root_)
+    , _dir(dir_)
+    , _name(name_)
+    , _pop(std::move(pop_))
+  {}
+  open_pool(const open_pool &) = delete;
+  open_pool& operator=(const open_pool &) = delete;
+  virtual ~open_pool() {}
+
+  PMEMobjpool *pmem_pool() const { return _pop.get(); }
+#if 1
+  /* delete_pool only */
+  const std::string &dir() const noexcept { return _dir; }
+  const std::string &name() const noexcept { return _name; }
+#endif
+};
+
+class session
+  : public open_pool
+{
   ALLOC_T                   _heap;
   table_t                   _map;
   impl::atomic_controller<table_t> _atomic_state;
 public:
   explicit session(
                         TOID(struct store_root_t) &root_
-                        , open_pool_handle &&pop_
                         , const std::string &dir_
                         , const std::string &name_
+                        , open_pool_handle &&pop_
                         , pc_al *pc_al_
                         )
-    : _root(root_)
-    , _dir(dir_)
-    , _name(name_)
-    , _pop(std::move(pop_))
+    : open_pool(root_, dir_, name_, std::move(pop_))
 #if USE_CC_HEAP
     , _heap(pc_al_->get_alloc())
 #else /* USE_CC_HEAP */
@@ -372,12 +396,6 @@ public:
   session(const session &) = delete;
   session& operator=(const session &) = delete;
   auto allocator() const { return _heap; }
-  PMEMobjpool *pmem_pool() const { return _pop.get(); }
-#if 1
-  /* delete_pool only */
-  const std::string &dir() const noexcept { return _dir; }
-  const std::string &name() const noexcept { return _name; }
-#endif
   table_t &map() noexcept { return _map; }
   const table_t &map() const noexcept { return _map; }
 
@@ -396,40 +414,45 @@ thread_local tls_cache_t tls_cache = { nullptr };
 
 auto hstore::locate_session(const IKVStore::pool_t pid) -> session &
 {
-  auto *const s = reinterpret_cast<struct session *>(pid);
-  if ( s == nullptr || s != tls_cache.recent_session )
-    {
-      std::unique_lock<std::mutex> sessions_lk(sessions_mutex);
-      auto ps = g_sessions.find(s);
-      if ( ps == g_sessions.end() )
-        {
-          throw API_exception(PREFIX "invalid pool identifier %p", __func__, s);
-        }
-      tls_cache.recent_session = ps->second.get();
-    }
-  return *tls_cache.recent_session;
+  return dynamic_cast<session &>(locate_open_pool(pid));
 }
 
-auto hstore::move_session(const IKVStore::pool_t pid) -> std::unique_ptr<session>
+auto hstore::locate_open_pool(const IKVStore::pool_t pid) -> ::open_pool &
 {
-  auto *const s = reinterpret_cast<struct session *>(pid);
+  auto *const s = reinterpret_cast<::open_pool *>(pid);
+  if ( s == nullptr || s != tls_cache.recent_pool )
+  {
+    std::unique_lock<std::mutex> sessions_lk(_pools_mutex);
+    auto ps = _pools.find(s);
+    if ( ps == _pools.end() )
+    {
+      throw API_exception(PREFIX "invalid pool identifier %p", __func__, s);
+    }
+    tls_cache.recent_pool = ps->second.get();
+  }
+  return *tls_cache.recent_pool;
+}
 
-  std::unique_lock<std::mutex> sessions_lk(sessions_mutex);
-  auto ps = g_sessions.find(s);
-  if ( ps == g_sessions.end() )
+auto hstore::move_pool(const IKVStore::pool_t pid) -> std::unique_ptr<::open_pool>
+{
+  auto *const s = reinterpret_cast<::open_pool *>(pid);
+
+  std::unique_lock<std::mutex> sessions_lk(_pools_mutex);
+  auto ps = _pools.find(s);
+  if ( ps == _pools.end() )
     {
       throw API_exception(PREFIX "invalid pool identifier %p", __func__, s);
     }
 
-  if ( s == tls_cache.recent_session ) { tls_cache.recent_session = nullptr; }
+  if ( s == tls_cache.recent_pool ) { tls_cache.recent_pool = nullptr; }
   auto s2 = std::move(ps->second);
-  g_sessions.erase(ps);
+  _pools.erase(ps);
   return s2;
 }
 
 hstore::hstore(const std::string & /* owner */, const std::string & /* name */)
-  : sessions_mutex{}
-  , g_sessions{}
+  : _pools_mutex{}
+  , _pools{}
 {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wold-style-cast"
@@ -541,10 +564,10 @@ auto hstore::create_pool(
     map_create_if_null(
       pop.get(), root, size_, expected_obj_count, option_DEBUG
     );
-  auto s = std::make_unique<session>(root, std::move(pop), path, name, pc);
+  auto s = std::make_unique<session>(root, path, name, std::move(pop), pc);
   auto p = s.get();
-  std::unique_lock<std::mutex> sessions_lk(sessions_mutex);
-  g_sessions.emplace(p, std::move(s));
+  std::unique_lock<std::mutex> sessions_lk(_pools_mutex);
+  _pools.emplace(p, std::move(s));
 
   return reinterpret_cast<IKVStore::pool_t>(p);
 }
@@ -579,45 +602,59 @@ auto hstore::open_pool(const std::string &path,
                        unsigned int /* flags */) -> pool_t
 {
   if (access(path.c_str(), F_OK) != 0)
-    {
-      throw API_exception("Pool %s:%s does not exist", path.c_str(), name.c_str());
-    }
+  {
+    throw API_exception("Pool %s:%s does not exist", path.c_str(), name.c_str());
+  }
 
   std::string fullpath = make_full_path(path, name);
 
   /* check integrity first */
   if (check_pool(fullpath.c_str()) != 0)
-    {
-      throw General_exception("pool check failed");
-    }
+  {
+    throw General_exception("pool check failed");
+  }
 
   if (
       auto pop =
         open_pool_handle(pmemobj_open_guarded(fullpath.c_str(), REGION_NAME), pmemobj_close_guarded)
       )
-    {
+  {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wold-style-cast"
-      TOID(struct store_root_t) root = POBJ_ROOT(pop.get(), struct store_root_t);
+    TOID(struct store_root_t) root = POBJ_ROOT(pop.get(), struct store_root_t);
 #pragma GCC diagnostic pop
-      if (TOID_IS_NULL(root))
-        {
-          throw General_exception("Root is NULL!");
-        }
+    if (TOID_IS_NULL(root))
+    {
+      throw General_exception("Root is NULL!");
+    }
 
-      auto pc = map_open(root);
-      if ( ! pc )
-      {
-        throw General_exception("failed to re-open pool (not initialized)");
-      }
+    auto pc = map_open(root);
+    if ( ! pc )
+    {
+      throw General_exception("failed to re-open pool (not initialized)");
+    }
 
-      auto s = std::make_unique<session>(root, std::move(pop), path, name, pc);
-      auto p = s.get();
-      std::unique_lock<std::mutex> sessions_lk(sessions_mutex);
-      g_sessions.emplace(p, std::move(s));
-
+    /* open_pool returns either a ::open_pool (usable for delete_pool) or a ::session
+     * usable for delete_pool and everything else), depending on whether the pool
+     * data is usuable for all operations or just for deletion.
+     */
+    try
+    {
+      auto s = std::make_unique<session>(root, path, name, std::move(pop), pc);
+      auto p = static_cast<::open_pool *>(s.get());
+      std::unique_lock<std::mutex> sessions_lk(_pools_mutex);
+      _pools.emplace(p, std::move(s));
       return reinterpret_cast<IKVStore::pool_t>(p);
     }
+    catch ( ... )
+    {
+      auto s = std::make_unique<::open_pool>(root, path, name, std::move(pop));
+      auto p = s.get();
+      std::unique_lock<std::mutex> sessions_lk(_pools_mutex);
+      _pools.emplace(p, std::move(s));
+      return reinterpret_cast<IKVStore::pool_t>(p);
+    }
+  }
   throw General_exception("failed to re-open pool - %s", pmemobj_errormsg());
 }
 
@@ -625,18 +662,18 @@ void hstore::close_pool(const pool_t pid)
 {
   std::string path;
   try
+  {
+    auto pool = move_pool(pid);
+    if ( option_DEBUG )
     {
-
-      auto session = move_session(pid);
-      if ( option_DEBUG )
-        {
-          PLOG(PREFIX "closed pool (%lx)", __func__, pid);
-        }
+      PLOG(PREFIX "closed pool (%lx)", __func__, pid);
     }
+  }
   catch ( const API_exception &e )
-    {
-      throw API_exception("%s in %s", e.cause(), __func__);
-    }
+  {
+    throw API_exception("%s in %s", e.cause(), __func__);
+  }
+  /* ERROR: path always null string because never modified */
   if ( path != "" ) {
     if ( check_pool(path.c_str()) != 0 )
     {
@@ -668,24 +705,24 @@ void hstore::delete_pool(const std::string &dir, const std::string &name)
 }
 
 void hstore::delete_pool(const pool_t pid)
-  try
-    {
-      /* Not sure why a session would have to be open in order to erase a pool,
-       * but the kvstore interface requires it.
-       */
-      std::string dir;
-      std::string name;
-      {
-        auto session = move_session(pid);
-        dir = session->dir();
-        name = session->name();
-      }
-      delete_pool(dir, name);
-    }
-  catch ( const API_exception &e )
-    {
-      throw API_exception("%s in %s", e.cause(), __func__);
-    }
+try
+{
+  /* Not sure why a session would have to be open in order to erase a pool,
+   * but the kvstore interface requires it.
+   */
+  std::string dir;
+  std::string name;
+  {
+    auto pool = move_pool(pid);
+    dir = pool->dir();
+    name = pool->name();
+  }
+  delete_pool(dir, name);
+}
+catch ( const API_exception &e )
+{
+  throw API_exception("%s in %s", e.cause(), __func__);
+}
 
 auto hstore::put(const pool_t pool,
                  const std::string &key,
