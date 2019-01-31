@@ -8,14 +8,14 @@
 #include <stdio.h>
 #include <api/kvstore_itf.h>
 #include <city.h>
-#include <common/rwlock.h>
 #include <common/exceptions.h>
+#include <common/rand.h>
 #include <common/utils.h>
 #include <sys/stat.h>
 #include <tbb/scalable_allocator.h>
 #include <nupm/nupm.h>
+#include <libpmem.h>
 
-#define SINGLE_THREADED
 #include "dummy_store.h"
 
 using namespace Component;
@@ -98,9 +98,16 @@ status_t Dummy_store::put(IKVStore::pool_t pid,
 
   if(_debug_level > 1)
     PLOG("Dummy_store::put value_len=%lu", value_len);
+
+  /* select some random location in the region */
+  uint64_t offset = genrand64_int64() % (GB(1) - value_len);
+  void * p = (void*) (((uint64_t)i->second) + offset);
+
+
+  //  memcpy(p, value, value_len);
+  pmem_memcpy_persist(p, value, value_len);
   
-  memcpy(i->second, value, value_len);
-  nupm::mem_flush(i->second, value_len);
+  nupm::mem_flush(p, value_len);
 
   return S_OK;
 }

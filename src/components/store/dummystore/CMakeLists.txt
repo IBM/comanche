@@ -2,7 +2,7 @@ cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
 project(comanche-dummystore CXX)
 
-add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
+add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -O3 -mavx2 -DCONFIG_DEBUG)
 
 include_directories(${CMAKE_INSTALL_PREFIX}/include)
 link_directories(${CMAKE_INSTALL_PREFIX}/lib)
