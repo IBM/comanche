@@ -200,7 +200,6 @@ fid_mr * Fabric_memory_control::make_fid_mr_reg_ptr(
   , uint64_t key
   , uint64_t flags
 ) const
-try
 {
   ::fid_mr *f;
   auto constexpr offset = 0U; /* "reserved and must be zero" */
@@ -208,13 +207,16 @@ try
    * (in which case the domain has been bound to an event queue with FI_REG_MR)
    */
   auto constexpr context = nullptr;
-  CHECK_FI_ERR(::fi_mr_reg(&*_domain, buf, len, access, offset, key, flags, &f, context));
+  try
+  {
+    CHECK_FI_ERR(::fi_mr_reg(&*_domain, buf, len, access, offset, key, flags, &f, context));
+  }
+  catch ( const fabric_runtime_error &e )
+  {
+    std::ostringstream s;
+    s << " in " << __func__ << "calling ::fi_mr_reg(domain " << &*_domain << " buf " << buf << ", len " << len << ", access " << access << ", offset " << offset << ", key " << key << ", flags " << flags << ", fid_mr " << &f << ", context " << static_cast<void *>(context) << ")";
+    throw e.add(s.str());
+  }
   FABRIC_TRACE_FID(f);
   return f;
-}
-catch ( const fabric_runtime_error &e )
-{
-  std::ostringstream s;
-  s << " in " << __func__ << "(buf " << buf << ", len " << len << ", key " << key << ")";
-  throw e.add(s.str());
 }
