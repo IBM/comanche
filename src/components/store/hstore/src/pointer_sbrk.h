@@ -1,5 +1,5 @@
-#ifndef _COMANCHE_POINTER_POBJ_H
-#define _COMANCHE_POINTER_POBJ_H
+#ifndef _COMANCHE_POINTER_SBRK_H
+#define _COMANCHE_POINTER_SBRK_H
 
 #pragma GCC diagnostic push
 #if defined __clang__
@@ -11,51 +11,48 @@
 
 #include <cstdlib> /* ptrdiff_t */
 
+class sbrk_addr
+{
+  char *location;
+  std::uint64_t offset;
+};
+
+template <typename T, unsigned Offset>
+	class pointer_sbrk;
+
 template <unsigned Offset>
-	struct check_offset
+	class pointer_sbrk<void, Offset>
+		: public PMEMoid
 	{
-		static_assert(true, "unexpected offset");
+	public:
+		explicit pointer_sbrk() noexcept
+			: PMEMoid()
+		{}
+		explicit pointer_sbrk(const PMEMoid &oid) noexcept
+			: PMEMoid(oid)
+		{}
+		pointer_sbrk(const pointer_sbrk &) = default;
+		pointer_sbrk &operator=(const pointer_sbrk &) = default;
+	};
+
+template <unsigned Offset>
+	class pointer_sbrk<const void, Offset>
+		: public PMEMoid
+	{
+	public:
+		explicit pointer_sbrk() noexcept
+			: PMEMoid()
+		{}
+		explicit pointer_sbrk(const PMEMoid &oid) noexcept
+			: PMEMoid(oid)
+		{}
+		pointer_sbrk(const pointer_sbrk &) = default;
+		pointer_sbrk &operator=(const pointer_sbrk &) = default;
 	};
 
 template <typename T, unsigned Offset>
-	class pointer_pobj;
-
-template <unsigned Offset>
-	class pointer_pobj<void, Offset>
+	class pointer_sbrk
 		: public PMEMoid
-		, public check_offset<Offset>
-	{
-	public:
-		explicit pointer_pobj() noexcept
-			: PMEMoid()
-		{}
-		explicit pointer_pobj(const PMEMoid &oid) noexcept
-			: PMEMoid(oid)
-		{}
-		pointer_pobj(const pointer_pobj &) = default;
-		pointer_pobj &operator=(const pointer_pobj &) = default;
-	};
-
-template <unsigned Offset>
-	class pointer_pobj<const void, Offset>
-		: public PMEMoid
-		, public check_offset<Offset>
-	{
-	public:
-		explicit pointer_pobj() noexcept
-			: PMEMoid()
-		{}
-		explicit pointer_pobj(const PMEMoid &oid) noexcept
-			: PMEMoid(oid)
-		{}
-		pointer_pobj(const pointer_pobj &) = default;
-		pointer_pobj &operator=(const pointer_pobj &) = default;
-	};
-
-template <typename T, unsigned Offset>
-	class pointer_pobj
-		: public PMEMoid
-		, public check_offset<Offset>
 	{
 		const void *offset_address() const noexcept
 		{
@@ -67,17 +64,17 @@ template <typename T, unsigned Offset>
 		template <typename U>
 			struct rebind
 			{
-				using other = pointer_pobj<U, Offset>;
+				using other = pointer_sbrk<U, Offset>;
 			};
 
-		explicit pointer_pobj() noexcept
+		explicit pointer_sbrk() noexcept
 			: PMEMoid()
 		{}
-		explicit pointer_pobj(const PMEMoid &oid) noexcept
+		explicit pointer_sbrk(const PMEMoid &oid) noexcept
 			: PMEMoid(oid)
 		{}
-		pointer_pobj(const pointer_pobj &) = default;
-		pointer_pobj &operator=(const pointer_pobj &) = default;
+		pointer_sbrk(const pointer_sbrk &) = default;
+		pointer_sbrk &operator=(const pointer_sbrk &) = default;
 		T &operator*() const noexcept
 		{
 			return *const_cast<T *>(

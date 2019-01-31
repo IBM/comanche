@@ -141,7 +141,7 @@ TEST_F(KVStore_test, RemoveOldPool)
 TEST_F(KVStore_test, CreatePool)
 {
   ASSERT_TRUE(_kvstore);
-  pool = _kvstore->create_pool(PMEM_PATH, "test-" + store_map::impl->name + ".pool", many_count_target * 4U * 64U + 3 * single_value_size, 0, estimated_object_count);
+  pool = _kvstore->create_pool(PMEM_PATH, "test-" + store_map::impl->name + ".pool", many_count_target * 4U * 64U + 4 * single_value_size, 0, estimated_object_count);
   ASSERT_LT(0, int64_t(pool));
 }
 
