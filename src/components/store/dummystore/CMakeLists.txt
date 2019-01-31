@@ -13,13 +13,12 @@ file(GLOB SOURCES src/*.c*)
 add_library(${PROJECT_NAME} SHARED ${SOURCES})
 
 set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--no-undefined")
+
 target_link_libraries(${PROJECT_NAME} common comanche-core nupm numa dl rt boost_system pthread cityhash)
 
 # set the linkage in the install/lib
 set_target_properties(${PROJECT_NAME} PROPERTIES
   INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib)
 
-install (TARGETS ${PROJECT_NAME}
-    LIBRARY
-    DESTINATION lib)
+install (TARGETS ${PROJECT_NAME} LIBRARY DESTINATION lib)
 
