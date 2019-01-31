@@ -60,7 +60,7 @@ class ND_control
 {
 private:
   static constexpr unsigned MAX_NUMA_ZONES = 4;
-  static constexpr bool option_DEBUG = true;
+  static constexpr bool option_DEBUG = false;
   static constexpr unsigned long ZONE_BASE   = 0x90000000000ULL; // could use ASLR 
   static constexpr unsigned long ZONE_DELTA  = 0x50000000000ULL;
 public:
@@ -84,14 +84,14 @@ public:
    * 
    * @return Copy of a vector of region base, size pairs
    */
-  std::vector<std::pair<void*,size_t>> get_regions(int numa_zone);
+  std::vector<std::pair<void*,size_t>> get_regions(int numa_zone) __attribute__((deprecated));
 
   /** 
    * Map regions with device DAX
    * 
    * @param Hint for base address
    */
-  void map_regions(unsigned long base_addr = 0);
+  void map_regions(unsigned long base_addr = 0) __attribute__((deprecated));
   
 private:
 
@@ -105,6 +105,9 @@ protected:
   struct libndctl::ndctl_bus *                        _bus;
   std::map<std::string, int>                          _ns_to_socket;
   std::map<std::string, std::string>                  _ns_to_dax;
+  std::map<std::string, std::string>                  _dax_to_ns;
+
+  
   std::map<int, std::vector<std::pair<void*,size_t>>> _mappings;
   
 };
