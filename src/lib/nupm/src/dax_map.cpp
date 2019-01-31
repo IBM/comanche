@@ -79,12 +79,14 @@ Devdax_manager::~Devdax_manager() {
 }
 
 void Devdax_manager::debug_dump(int numa_node) {
+  guard_t g(_reentrant_lock);
   _region_hdrs[lookup_dax_device(numa_node)]->debug_dump();
 }
   
 
 void * Devdax_manager::open_region(uint64_t uuid, int numa_node, size_t * out_length)
 {
+  guard_t g(_reentrant_lock);
   const char * device = lookup_dax_device(numa_node);
   DM_region_header * hdr = _region_hdrs[device];
   if(hdr == nullptr)
@@ -96,6 +98,7 @@ void * Devdax_manager::open_region(uint64_t uuid, int numa_node, size_t * out_le
   
 void * Devdax_manager::create_region(uint64_t uuid, int numa_node, size_t size)
 {
+  guard_t g(_reentrant_lock);
   const char * device = lookup_dax_device(numa_node);
   DM_region_header * hdr = _region_hdrs[device];
   if(hdr == nullptr)
@@ -106,6 +109,7 @@ void * Devdax_manager::create_region(uint64_t uuid, int numa_node, size_t size)
 
 void Devdax_manager::erase_region(uint64_t uuid, int numa_node)
 {
+  guard_t g(_reentrant_lock);
   const char * device = lookup_dax_device(numa_node);
   DM_region_header * hdr = _region_hdrs[device];
   if(hdr == nullptr)
@@ -116,6 +120,7 @@ void Devdax_manager::erase_region(uint64_t uuid, int numa_node)
 
 size_t Devdax_manager::get_max_available(int numa_node)
 {
+  guard_t g(_reentrant_lock);
   const char * device = lookup_dax_device(numa_node);
   DM_region_header * hdr = _region_hdrs[device];
   if(hdr == nullptr)
