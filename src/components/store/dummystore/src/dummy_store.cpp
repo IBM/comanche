@@ -3,6 +3,7 @@
 #include <iostream>
 #include <set>
 #include <map>
+#include <unordered_map>
 #include <string>
 #include <stdio.h>
 #include <api/kvstore_itf.h>
@@ -12,6 +13,7 @@
 #include <common/utils.h>
 #include <sys/stat.h>
 #include <tbb/scalable_allocator.h>
+#include <nupm/nupm.h>
 
 #define SINGLE_THREADED
 #include "dummy_store.h"
@@ -19,6 +21,7 @@
 using namespace Component;
 using namespace Common;
 
+static nupm::Devdax_manager ddm(true); /* true forces rebuild for testing */
 
 Dummy_store::Dummy_store(const std::string& owner, const std::string& name)
 {
@@ -27,7 +30,8 @@ Dummy_store::Dummy_store(const std::string& owner, const std::string& name)
 Dummy_store::~Dummy_store()
 {
 }
-  
+
+std::unordered_map<uint64_t, void *> sessions;
 
 IKVStore::pool_t Dummy_store::create_pool(const std::string& path,
                                           const std::string& name,
@@ -37,34 +41,70 @@ IKVStore::pool_t Dummy_store::create_pool(const std::string& path,
 {
   std::string fullpath = path;
   fullpath += name;
-  return CityHash64(fullpath.c_str(), fullpath.length());
+  PLOG("Dummy_store::create_pool (%s)", fullpath.c_str());
+    
+  auto uuid = CityHash64(fullpath.c_str(), fullpath.length());
+  void * p = ddm.create_region(uuid, 0, GB(1)/* or size */);
+  ddm.debug_dump(0);
+  sessions[uuid] = p;
+  return uuid;
 }
 
 IKVStore::pool_t Dummy_store::open_pool(const std::string& path,
-                                      const std::string& name,
-                                      unsigned int flags)
+                                        const std::string& name,
+                                        unsigned int flags)
 {
   std::string fullpath = path;
   fullpath += name;
-  return CityHash64(fullpath.c_str(), fullpath.length());
+  PLOG("Dummy_store::open_pool (%s)", fullpath.c_str());
+  
+  auto uuid = CityHash64(fullpath.c_str(), fullpath.length());
+  size_t len = 0;
+  void * p = ddm.open_region(uuid, 0, &len);
+  ddm.debug_dump(0);
+  sessions[uuid] = p;
+  return uuid;  
 }
 
 void Dummy_store::close_pool(const pool_t pid)
 {
+  auto i = sessions.find(pid);
+  if(i == sessions.end())
+    throw API_exception("close_pool bad pool for Dummy_store");
+  sessions.erase(i);
+  
 }
 
 void Dummy_store::delete_pool(const pool_t pid)
 {
+  auto i = sessions.find(pid);
+  if(i == sessions.end())
+    throw API_exception("delete_pool bad pool for Dummy_store");
+
+  ddm.erase_region(pid, 0);
+  
+  sessions.erase(i);
 }
 
 
 status_t Dummy_store::put(IKVStore::pool_t pid,
-                        const std::string& key,
-                        const void * value,
-                        size_t value_len)
+                          const std::string& key,
+                          const void * value,
+                          size_t value_len)
 {
+  auto i = sessions.find(pid);
+  if(i == sessions.end())
+    throw API_exception("delete_pool bad pool for Dummy_store");
+
+  if(_debug_level > 1)
+    PLOG("Dummy_store::put value_len=%lu", value_len);
+  
+  memcpy(i->second, value, value_len);
+  nupm::mem_flush(i->second, value_len);
+
   return S_OK;
 }
+
 
 status_t Dummy_store::get(const pool_t pid,
                           const std::string& key,
