@@ -1,12 +1,32 @@
 #include "hstore.h"
 
+#define USE_CC_HEAP 0
+
+template <unsigned Offse>
+	struct check_offset;
+#if USE_CC_HEAP == 1
+#elif USE_CC_HEAP == 2
+template <>
+    struct check_offset<0U>
+    {
+    };
+#else /* USE_CC_HEAP */
+template <>
+    struct check_offset<48U>
+    {
+    };
+#endif /* USE_CC_HEAP */
+
+#include "allocator_pobj_cache_aligned.h"
+#include "allocator_co.h"
 #include "atomic_controller.h"
+#include "heap_co.h"
 #include "hop_hash.h"
 #include "palloc.h"
 #include "perishable.h"
 #include "persist_fixed_string.h"
 #include "persister_pmem.h"
-#include "allocator_pobj_cache_aligned.h"
+#include "store_root.h"
 
 #include <stdexcept>
 #include <city.h>
@@ -40,8 +60,6 @@
 
 #define REGION_NAME "hstore-data"
 
-#define USE_CC_HEAP 0
-
 using IKVStore = Component::IKVStore;
 
 #if 0
@@ -69,19 +87,20 @@ namespace
   namespace type_num
   {
     constexpr uint64_t persist = 1U;
+    constexpr uint64_t heap = 2U;
   }
 }
 
-#if USE_CC_HEAP
+#if USE_CC_HEAP == 1
 using ALLOC_T = Core::CC_allocator<char, persister_pmem>;
-using KEY_T = persist_fixed_string<char, ALLOC_T>;
-using MAPPED_T = persist_fixed_string<char, ALLOC_T>;
+#elif USE_CC_HEAP == 2
+using ALLOC_T = Core::allocator_co<char, persister_pmem>;
 #else /* USE_CC_HEAP */
 using ALLOC_T = allocator_pobj_cache_aligned<char>;
+#endif /* USE_CC_HEAP */
 using DEALLOC_T = typename ALLOC_T::deallocator_type;
 using KEY_T = persist_fixed_string<char, DEALLOC_T>;
 using MAPPED_T = persist_fixed_string<char, DEALLOC_T>;
-#endif /* USE_CC_HEAP */
 
 namespace
 {
@@ -98,18 +117,15 @@ namespace
   using HASHER_T = pstr_hash;
 }
 
-#if USE_CC_HEAP
-using allocator_segment_t =
-  Core::CC_allocator<std::pair<const KEY_T, MAPPED_T>, persister_pmem>;
-
-using allocator_atomic_t =
-  Core::CC_allocator<impl::mod_control, persister_pmem>;
+#if USE_CC_HEAP == 1
+using allocator_segment_t = Core::CC_allocator<std::pair<const KEY_T, MAPPED_T>, persister_pmem>;
+using allocator_atomic_t = Core::CC_allocator<impl::mod_control, persister_pmem>;
+#elif USE_CC_HEAP == 2
+using allocator_segment_t = Core::allocator_co<std::pair<const KEY_T, MAPPED_T>, persister_pmem>;
+using allocator_atomic_t = Core::allocator_co<impl::mod_control, persister_pmem>;
 #else
-using allocator_segment_t =
-  allocator_pobj_cache_aligned<std::pair<const KEY_T, MAPPED_T>>;
-
-using allocator_atomic_t =
-  allocator_pobj_cache_aligned <impl::mod_control>;
+using allocator_segment_t = allocator_pobj_cache_aligned<std::pair<const KEY_T, MAPPED_T>>;
+using allocator_atomic_t = allocator_pobj_cache_aligned<impl::mod_control>;
 template<> struct type_number<impl::mod_control> { static constexpr std::uint64_t value = 4; };
 #endif /* USE_CC_HEAP */
 
@@ -130,27 +146,6 @@ using persist_data_t = typename impl::persist_data<allocator_segment_t, table_t:
 
 namespace
 {
-  struct pc_al
-  {
-    persist_data_t _pc;
-#if USE_CC_HEAP
-    /* If using CC_allocator, area following _pc is a Core::cc_sbrk::state, which can be used to construct a CC_allocator */
-    ALLOC_T get_alloc() { return ALLOC_T(static_cast<void *>(&_pc + 1)); }
-#endif
-  };
-
-  struct store_root_t
-  {
-    /* A pointer so that null value can indicate no allocation.
-     * Locates a pc_al_t.
-     * - all allocated space can be accessed through pc
-     * If using a CC_allocator:
-     *   - space controlled by the allocator immediately follows the pc.
-     *   - all free space can be accessed through allocator
-     */
-    PMEMoid pc;
-  };
-
   TOID_DECLARE_ROOT(struct store_root_t);
 
   std::string make_full_path(const std::string &prefix, const std::string &suffix)
@@ -227,17 +222,41 @@ namespace
     return -1;
   }
 
-  pc_al *map_open(TOID(struct store_root_t) &root)
+  struct root_anchors
+  {
+    persist_data_t *persist_data_ptr;
+    void *heap_ptr;
+  };
+
+  store_root_t *read_root(TOID(struct store_root_t) &root)
   {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wold-style-cast"
 #pragma GCC diagnostic ignored "-Wpedantic"
-    auto rt = D_RW(root);
+    store_root_t *rt = D_RW(root);
 #pragma GCC diagnostic pop
+    return rt;
+  }
+
+  const store_root_t *read_const_root(TOID(struct store_root_t) &root)
+  {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+#pragma GCC diagnostic ignored "-Wpedantic"
+    const store_root_t *rt = D_RO(root);
+#pragma GCC diagnostic pop
+    return rt;
+  }
+
+  root_anchors map_open(TOID(struct store_root_t) &root)
+  {
+    auto rt = read_const_root(root);
     PLOG(PREFIX "persist root addr %p", __func__, static_cast<const void *>(rt));
-    auto apc = pmemobj_direct(rt->pc);
-    PLOG(PREFIX "persist pc_al addr %p", __func__, static_cast<const void *>(apc));
-    return static_cast<pc_al *>(apc);
+    auto apc = pmemobj_direct(rt->persist_oid);
+    auto heap = pmemobj_direct(rt->heap_oid);
+    PLOG(PREFIX "persist data addr %p", __func__, static_cast<const void *>(apc));
+    PLOG(PREFIX "persist heap addr %p", __func__, static_cast<const void *>(heap));
+    return root_anchors{static_cast<persist_data_t *>(apc), static_cast<void *>(heap)};
   }
 
   void map_create(
@@ -259,48 +278,78 @@ namespace
            , expected_obj_count
            );
     }
-  auto oid_and_size =
+  auto persist_oid =
     palloc(
            pop_
-#if USE_CC_HEAP
-           , sizeof(pc_al) + 64U /* least acceptable size */
-           , size_ /* preferred size */
-#else /* USE_CC_HEAP */
            , sizeof(persist_data_t)
-           , sizeof(persist_data_t)
-#endif /* USE_CC_HEAP */
            , type_num::persist
            , "persist"
            );
+    auto *p = static_cast<persist_data_t *>(pmemobj_direct(persist_oid));
+    PLOG(PREFIX "created persist_data ptr at addr %p", __func__, static_cast<const void *>(p));
 
-    auto oid = std::get<0>(oid_and_size);
-    pc_al *p = static_cast<pc_al *>(pmemobj_direct(oid));
-#if USE_CC_HEAP
-    auto actual_size = std::get<1>(oid_and_size);
-    PLOG(PREFIX "createed pc_al at addr %p preferred size %zu size %zu", __func__, static_cast<const void *>(p), size_, actual_size);
+#if USE_CC_HEAP == 1
+  auto heap_oid_and_size =
+    palloc(
+           pop_
+           , 64U /* least acceptable size */
+           , size_ /* preferred size */
+           , type_num::heap
+           , "heap"
+           );
+
+    auto heap_oid = std::get<0>(heap_oid_and_size);
+    auto *a = static_cast<void *>(pmemobj_direct(heap_oid));
+    auto actual_size = std::get<1>(heap_oid_and_size);
+    PLOG(PREFIX "created heap at addr %p preferred size %zu actual size %zu", __func__, static_cast<const void *>(a), size_, actual_size);
     /* arguments to cc_malloc are the start of the free space (which cc_sbrk uses
      * for the "state" structure) and the size of the free space
      */
-    ALLOC_T al(&p->_pc + 1, actual_size - sizeof(pc_al));
-    new (&p->_pc) persist_data_t(
+    auto al = new (a) Core::cc_alloc(static_cast<char *>(a) + sizeof(Core::cc_alloc), actual_size - sizeof(Core::cc_alloc));
+    new (p) persist_data_t(
       expected_obj_count
-      , table_t::allocator_type(al)
+      , table_t::allocator_type(*al)
+    );
+    ::pmem_persist(p, sizeof *p);
+#elif USE_CC_HEAP == 2
+  auto heap_oid_and_size =
+    palloc(
+           pop_
+           , 64U /* least acceptable size */
+           , size_ /* preferred size */
+           , type_num::heap
+           , "heap"
+           );
+
+    auto heap_oid = std::get<0>(heap_oid_and_size);
+    auto *a = static_cast<void *>(pmemobj_direct(heap_oid));
+    auto actual_size = std::get<1>(heap_oid_and_size);
+    PLOG(PREFIX "createed heap at addr %p preferred size %zu actual size %zu", __func__, static_cast<const void *>(a), size_, actual_size);
+    /* arguments to cc_malloc are the start of the free space (which cc_sbrk uses
+     * for the "state" structure) and the size of the free space
+     */
+    auto al = new (a) Core::heap_co(heap_oid, actual_size, sizeof(Core::heap_co));
+    new (p) persist_data_t(
+      expected_obj_count
+      , table_t::allocator_type(*al)
     );
     ::pmem_persist(p, sizeof *p);
 #else /* USE_CC_HEAP */
-    new (&p->_pc) persist_data_t(expected_obj_count, table_t::allocator_type{pop_});
+    new (p) persist_data_t(expected_obj_count, table_t::allocator_type{pop_});
     table_t::allocator_type{pop_}
       .persist(p, sizeof *p, "persist_data");
 #endif /* USE_CC_HEAP */
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wold-style-cast"
-#pragma GCC diagnostic ignored "-Wpedantic"
-    D_RW(root)->pc = oid;
-#pragma GCC diagnostic pop
+#if USE_CC_HEAP == 1
+    read_root(root)->heap_oid = heap_oid;
+#elif USE_CC_HEAP == 2
+    read_root(root)->heap_oid = heap_oid;
+#else /* USE_CC_HEAP */
+#endif /* USE_CC_HEAP */
+    read_root(root)->persist_oid = persist_oid;
   }
 
-  pc_al *map_create_if_null(
+  root_anchors map_create_if_null(
                          PMEMobjpool *pop_
                          , TOID(struct store_root_t) &root
                          , std::size_t size_
@@ -308,14 +357,10 @@ namespace
                          , bool verbose
                          )
   {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wold-style-cast"
-    const bool initialized = ! OID_IS_NULL(D_RO(root)->pc);
-#pragma GCC diagnostic pop
+    const bool initialized = ! OID_IS_NULL(read_const_root(root)->persist_oid);
     if ( ! initialized )
     {
-      map_create(pop_, root, size_, expected_obj_count, verbose
-      );
+      map_create(pop_, root, size_, expected_obj_count, verbose);
     }
     return map_open(root);
   }
@@ -381,16 +426,30 @@ public:
                         , const std::string &dir_
                         , const std::string &name_
                         , open_pool_handle &&pop_
-                        , pc_al *pc_al_
+                        , persist_data_t *persist_data_
                         )
     : open_pool(root_, dir_, name_, std::move(pop_))
-#if USE_CC_HEAP
-    , _heap(pc_al_->get_alloc())
+#if USE_CC_HEAP == 1
+    , _heap(
+		ALLOC_T(
+			*new
+				(pmemobj_direct(read_const_root(root_)->heap_oid))
+				Core::cc_alloc(static_cast<char *>(pmemobj_direct(read_const_root(root_)->heap_oid)) + sizeof(Core::cc_alloc))
+		)
+	)
+#elif USE_CC_HEAP == 2
+    , _heap(
+		ALLOC_T(
+			*new
+				(pmemobj_direct(read_const_root(root_)->heap_oid))
+				Core::heap_co(read_const_root(root_)->heap_oid)
+		)
+	)
 #else /* USE_CC_HEAP */
     , _heap(ALLOC_T(pmem_pool()))
 #endif /* USE_CC_HEAP */
-    , _map(&pc_al_->_pc, _heap)
-    , _atomic_state(pc_al_->_pc, _map)
+    , _map(persist_data_, _heap)
+    , _atomic_state(*persist_data_, _map)
   {}
 
   session(const session &) = delete;
@@ -564,7 +623,7 @@ auto hstore::create_pool(
     map_create_if_null(
       pop.get(), root, size_, expected_obj_count, option_DEBUG
     );
-  auto s = std::make_unique<session>(root, path, name, std::move(pop), pc);
+  auto s = std::make_unique<session>(root, path, name, std::move(pop), pc.persist_data_ptr);
   auto p = s.get();
   std::unique_lock<std::mutex> sessions_lk(_pools_mutex);
   _pools.emplace(p, std::move(s));
@@ -628,8 +687,9 @@ auto hstore::open_pool(const std::string &path,
       throw General_exception("Root is NULL!");
     }
 
-    auto pc = map_open(root);
-    if ( ! pc )
+    auto anchors = map_open(root);
+
+    if ( ! anchors.persist_data_ptr )
     {
       throw General_exception("failed to re-open pool (not initialized)");
     }
@@ -640,7 +700,7 @@ auto hstore::open_pool(const std::string &path,
      */
     try
     {
-      auto s = std::make_unique<session>(root, path, name, std::move(pop), pc);
+      auto s = std::make_unique<session>(root, path, name, std::move(pop), anchors.persist_data_ptr);
       auto p = static_cast<::open_pool *>(s.get());
       std::unique_lock<std::mutex> sessions_lk(_pools_mutex);
       _pools.emplace(p, std::move(s));
@@ -1142,7 +1202,7 @@ void hstore::debug(const pool_t pool, const unsigned cmd, const uint64_t arg)
   auto& root = session.root;
   auto& pop = session.pmem_pool();
 
-  HM_CMD(pop, D_RO(root)->map(), cmd, arg);
+  HM_CMD(pop, read_const_root(root)->map(), cmd, arg);
 #endif
 }
 
