@@ -2,6 +2,7 @@
 #define __NUPM_DAX_MAP_H__
 
 #include <string>
+#include <mutex>
 #include "nd_utils.h"
 
 namespace nupm
@@ -25,6 +26,11 @@ public:
    * @param force_reset If true, contents will be re-initialized. If false, re-initialization occurs on bad version/magic detection.
    */
   Devdax_manager(bool force_reset = false);
+
+  /** 
+   * Destructor will not unmap memory/nor invalidate pointers?
+   * 
+   */
   ~Devdax_manager();
 
   /** 
@@ -78,9 +84,13 @@ private:
   void recover_metadata(const char * device_path, void * p, size_t p_len, bool force_rebuild = false);
   
 private:
+  using guard_t = std::lock_guard<std::mutex>;
+
   ND_control                                _nd;
   std::map<std::string, iovec>              _mapped_regions;
   std::map<std::string, DM_region_header *> _region_hdrs;
+  std::mutex                                _reentrant_lock;
+
 };
 
 

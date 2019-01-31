@@ -22,6 +22,7 @@ public:
 public:
   /* re-zeroing constructor */
   DM_region() : length_GB(0), region_id(0) {
+    assert(check_aligned(this, 8));
   }
   
   void initialize(size_t space_size) {
@@ -36,11 +37,18 @@ class DM_region_header
 {  
 private:
   static constexpr uint16_t DEFAULT_MAX_REGIONS = 1024;
+
+  struct Undo_t {
+    uint64_t valid;
+    DM_region * p_region;
+    DM_region region;
+  } __attribute__((packed));
   
   uint32_t  _magic;
   uint32_t  _version;
   uint64_t  _device_size;
-  uint16_t  _region_count;  
+  uint16_t  _region_count;
+  Undo_t    _undo_copies[2];
   DM_region _regions[];
   
 public:
@@ -104,7 +112,7 @@ public:
     for(uint16_t r=0;r<_region_count;r++) {
       DM_region * reg = &_regions[r];
       if(reg->region_id == region_id) {
-        reg->region_id = 0;
+        reg->region_id = 0; /* power-fail atomic */
         mem_flush(&reg->region_id, sizeof(reg->region_id));
         return;
       }
@@ -126,39 +134,38 @@ public:
       if(reg->region_id == 0  && reg->length_GB >= size_in_GB) {
         if(reg->length_GB == size_in_GB) {
           /* exact match */
-          reg->region_id = region_id;
-          mem_flush(&reg->region_id, sizeof(reg->region_id));
+          tx_atomic_write(reg, region_id);
           return (void*) ((((uint64_t)reg->offset_GB) << 30) + arena_base());
         }
         else {
           /* cut out */
-          reg->length_GB -= size_in_GB;
           new_offset = reg->offset_GB;
-          reg->offset_GB += size_in_GB;
-          found = true;
+          
+          uint16_t changed_length = reg->length_GB - size_in_GB;
+          uint16_t changed_offset = reg->offset_GB + size_in_GB;
+
+          for(uint16_t r=0;r<_region_count;r++) {
+            DM_region * reg_n = &_regions[r];
+            if(reg_n->region_id == 0 && reg_n->length_GB == 0) {
+              tx_atomic_write(reg, changed_offset, changed_length, 
+                              reg_n, new_offset, size_in_GB, region_id);
+              return (void*) ((((uint64_t)new_offset) << 30) + arena_base());
+            }      
+          }
+
         }
       }
     }
     if(!found)
       throw General_exception("no more regions (size in GB=%u)", size_in_GB);
     
-    for(uint16_t r=0;r<_region_count;r++) {
-      DM_region * reg = &_regions[r];
-      if(reg->region_id == 0 && reg->length_GB == 0) {
-        reg->region_id = region_id;
-        reg->offset_GB = new_offset;
-        reg->length_GB = size_in_GB;
-        major_flush();
-        return (void*) ((((uint64_t)new_offset) << 30) + arena_base());
-      }      
-    }
     throw General_exception("no spare slots");
   }
 
-  size_t get_max_available() {
+  size_t get_max_available() const {
     size_t max_size = 0;
     for(uint16_t r=0;r<_region_count;r++) {
-      DM_region * reg = &_regions[r];
+      const DM_region * reg = &_regions[r];
       if(reg->length_GB > max_size)
         max_size = reg->length_GB;
     }
@@ -179,6 +186,25 @@ public:
   }
 
 private:
+  void tx_atomic_write(DM_region * dst, uint64_t region_id) {
+    dst->region_id = region_id;
+    mem_flush(&dst->region_id, sizeof(region_id));
+  }
+
+  void tx_atomic_write(DM_region * dst0, uint32_t offset0, uint32_t size0,
+                       DM_region * dst1, uint32_t offset1, uint32_t size1, uint64_t region_id1) {
+    /* TODO; */
+    dst0->offset_GB = offset0;
+    dst0->length_GB = size0;
+    mem_flush(dst0, sizeof(DM_region));
+    
+    dst1->region_id = region_id1;
+    dst1->offset_GB = offset1;
+    dst1->length_GB = size1;
+    mem_flush(dst1, sizeof(DM_region));
+
+  }
+
   inline unsigned char * arena_base() { return (((unsigned char *)this) + GB(1)); }
 
   inline DM_region * region_table_base() { return _regions; }
