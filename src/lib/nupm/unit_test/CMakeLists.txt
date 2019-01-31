@@ -16,5 +16,5 @@ link_directories(/usr/local/lib64)
 add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 
 add_executable(libnupm-test test1.cpp)
-target_link_libraries(libnupm-test ${ASAN_LIB} common numa ndctl gtest pthread dl nupm pmemobj z)
+target_link_libraries(libnupm-test ${ASAN_LIB} common numa ndctl gtest pthread dl nupm pmemobj pmempool z memkind)
 

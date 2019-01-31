@@ -2,6 +2,7 @@
    eXokernel Development Kit (XDK)
 
    Samsung Research America Copyright (C) 2013
+   IBM Research Copyright (C) 2019
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -132,10 +133,38 @@ class Base_memory_allocator {
  * Memory allocator that can be reconstituted
  *
  */
-class Reconstituting_allocator : public Base_memory_allocator {
-  public:
+class Reconstituting_allocator {
+ public:
 
-  virtual void inject_allocation(size_t size, int numa_node, size_t alignment) = 0;
+  /** 
+   * Allocate region of memory
+   * 
+   * @param size 
+   * @param numa_node 
+   * @param alignment 
+   * 
+   * @return 
+   */
+  virtual void *alloc(size_t size,
+                      int numa_node = -1,
+                      size_t alignment = 0) = 0;
+
+  /** 
+   * Free region of memory
+   * 
+   * @param p 
+   * @param numa_node 
+   */
+  virtual void free(void * p, int numa_node = -1) = 0;
+  
+  /** 
+   * Inject previous allocation (for rebuild)
+   * 
+   * @param size Size of allocation in bytes
+   * @param numa_node NUMA node
+   * @param alignment Alignment
+   */
+  virtual void inject_allocation(void * ptr, size_t size, int numa_node) = 0;
 };
   
 
