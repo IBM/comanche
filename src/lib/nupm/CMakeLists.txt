@@ -28,3 +28,13 @@ add_subdirectory(unit_test)
 
 install(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION lib)
 install(DIRECTORY "src/" DESTINATION "include/nupm" FILES_MATCHING PATTERN "*.h")
+
+# this seems a hack? help?
+
+add_custom_command(
+  TARGET ${PROJECT_NAME} POST_BUILD
+  COMMAND mkdir -p ${CMAKE_INSTALL_PREFIX}/include/nupm
+  COMMAND cp ${CMAKE_SOURCE_DIR}/src/lib/nupm/src/*.h ${CMAKE_INSTALL_PREFIX}/include/nupm
+  COMMAND cp -r ${CMAKE_SOURCE_DIR}/src/lib/nupm/src/x86_64 ${CMAKE_INSTALL_PREFIX}/include/nupm
+  )
+

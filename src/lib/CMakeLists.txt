@@ -15,7 +15,7 @@ if(BOOTSTRAP_DEPS)
   add_subdirectory(memkind)
   add_subdirectory(tbb)
   add_subdirectory(rapidjson)
-
+  
   find_package(GTest)
   if( NOT GTEST_FOUND) # libgtest-dev in ubuntu 1604 only installs headers
     add_subdirectory(/usr/src/gtest ${CMAKE_CURRENT_BINARY_DIR}/gtest)
@@ -45,11 +45,11 @@ if(BOOTSTRAP_DEPS)
 
 else(BOOTSTRAP_DEPS)
 
+  add_subdirectory(nupm)
   add_subdirectory(common)
   add_subdirectory(core)
-  add_subdirectory(nupm)
   add_subdirectory(tds)
-
+  
 endif(BOOTSTRAP_DEPS)
 
 
