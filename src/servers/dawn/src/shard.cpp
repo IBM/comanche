@@ -39,6 +39,8 @@ void Shard::initialize_components(const std::string& backend,
       comp = load_component("libcomanche-nvmestore.so", nvmestore_factory);
     else if (backend == "filestore")
       comp = load_component("libcomanche-storefile.so", filestore_factory);
+    else if (backend == "dummystore")
+      comp = load_component("libcomanche-dummystore.so", dummystore_factory);
     else
       throw General_exception("invalid backend (%s)", backend.c_str());
 
@@ -46,8 +48,7 @@ void Shard::initialize_components(const std::string& backend,
       PLOG("Shard: using store backend (%s)", backend.c_str());
 
     if (!comp)
-      throw General_exception(
-          "unable to initialize PMSTORE comanche component");
+      throw General_exception("unable to initialize Dawn backend component");
 
     IKVStore_factory* fact =
         (IKVStore_factory*) comp->query_interface(IKVStore_factory::iid());
