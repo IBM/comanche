@@ -100,13 +100,15 @@ status_t Dummy_store::put(IKVStore::pool_t pid,
     PLOG("Dummy_store::put value_len=%lu", value_len);
 
   /* select some random location in the region */
-  uint64_t offset = genrand64_int64() % (GB(1) - value_len);
+  /* note:alignement make a huge difference */
+  uint64_t offset = round_down(genrand64_int64() % (GB(1) - value_len), 64);
   void * p = (void*) (((uint64_t)i->second) + offset);
 
   /* copy and flush */
-  memcpy(p, value, value_len);
-  nupm::mem_flush(p, value_len);
-  //pmem_memcpy_persist(p, value, value_len);  
+  //  memcpy(p, value, value_len);
+  //  nupm::mem_flush(p, value_len);
+  pmem_memcpy(p, value, value_len,
+              PMEM_F_MEM_NONTEMPORAL | PMEM_F_MEM_WC );  
 
   return S_OK;
 }
