@@ -6,7 +6,7 @@
 
 #define DM_REGION_MAGIC 0xC0070000
 #define DM_REGION_NAME_MAX_LEN 1024
-#define DM_REGION_VERSION 1
+#define DM_REGION_VERSION 2
 
 namespace nupm
 {
@@ -47,8 +47,8 @@ private:
   uint32_t  _magic;
   uint32_t  _version;
   uint64_t  _device_size;
-  uint16_t  _region_count;
-  Undo_t    _undo_copies[2];
+  uint32_t  _region_count;
+  uint32_t  _resvd;
   DM_region _regions[];
   
 public:
