@@ -103,11 +103,10 @@ status_t Dummy_store::put(IKVStore::pool_t pid,
   uint64_t offset = genrand64_int64() % (GB(1) - value_len);
   void * p = (void*) (((uint64_t)i->second) + offset);
 
-
-  //  memcpy(p, value, value_len);
-  pmem_memcpy_persist(p, value, value_len);
-  
+  /* copy and flush */
+  memcpy(p, value, value_len);
   nupm::mem_flush(p, value_len);
+  //pmem_memcpy_persist(p, value, value_len);  
 
   return S_OK;
 }
