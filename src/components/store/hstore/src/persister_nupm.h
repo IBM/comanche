@@ -1,22 +1,22 @@
-#ifndef _COMANCHE_HSTORE_PERSISTER_PMEM_H
-#define _COMANCHE_HSTORE_PERSISTER_PMEM_H
+#ifndef _COMANCHE_HSTORE_PERSISTER_NUPM_H
+#define _COMANCHE_HSTORE_PERSISTER_NUPM_H
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wold-style-cast"
 #if defined __clang__
 #pragma GCC diagnostic ignored "-Wnested-anon-types"
 #endif
-#include <libpmem.h>
+#include <nupm/pm_lowlevel.h>
 #pragma GCC diagnostic pop
 
 #include <cstddef>
 
-class persister_pmem
+class persister_nupm
 {
 public:
 	static void persist(const void *a, std::size_t sz)
 	{
-		::pmem_persist(a, sz);
+		nupm::mem_flush(a, sz);
 	}
 };
 
