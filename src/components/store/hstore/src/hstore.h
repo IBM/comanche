@@ -20,17 +20,16 @@
 
 class open_pool;
 class session;
+namespace nupm
+{
+  class Devdax_manager;
+}
 
 class hstore : public Component::IKVStore
 {
-#if 0
-public:
-  struct tls_cache_t {
-    session *recent_session;
-  };
-#endif
-
 private:
+  unsigned _numa_node;
+  std::shared_ptr<nupm::Devdax_manager> _dax_mgr;
   std::mutex _pools_mutex;
   using pools_map = std::map<::open_pool *, std::unique_ptr<::open_pool>>;
   pools_map _pools; /* would map sessions, but delete_pool also requires an "open" pool */
