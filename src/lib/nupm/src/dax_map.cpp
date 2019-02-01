@@ -33,6 +33,13 @@
 namespace nupm
 {
 
+/* static members */
+ND_control Devdax_manager::_nd;
+std::map<std::string, iovec> Devdax_manager::_mapped_regions;
+std::map<std::string, DM_region_header *> Devdax_manager::_region_hdrs;
+std::mutex Devdax_manager::_reentrant_lock;
+
+  
 struct device_t
 {
   const char * path;
