@@ -86,10 +86,11 @@ private:
 private:
   using guard_t = std::lock_guard<std::mutex>;
 
-  ND_control                                _nd;
-  std::map<std::string, iovec>              _mapped_regions;
-  std::map<std::string, DM_region_header *> _region_hdrs;
-  std::mutex                                _reentrant_lock;
+  /* singleton pattern */
+  static ND_control                                _nd;
+  static std::map<std::string, iovec>              _mapped_regions;
+  static std::map<std::string, DM_region_header *> _region_hdrs;
+  static std::mutex                                _reentrant_lock;
 
 };
 
