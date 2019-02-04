@@ -79,7 +79,4 @@ public:
   }
 };
 
-// #include "hstore_session_nupm.tcc"
-// #include "hstore_session_pmem.tcc"
-
 #endif
