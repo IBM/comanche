@@ -2,17 +2,7 @@
 
 #include <common/utils.h>
 
-#include <algorithm>
-#include <cassert>
-#include <cerrno>
-#include <memory> /* unique_ptr */
-#include <new>
-#include <map> /* session set */
-#include <mutex> /* thread safe use of libpmempool/obj */
-
-#define PREFIX "HSTORE : %s: "
-
-#define REGION_NAME "hstore-data"
+#include <string>
 
 using IKVStore = Component::IKVStore;
 

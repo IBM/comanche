@@ -18,24 +18,19 @@
 #include <memory>
 #include <string>
 
-class open_pool;
-class session;
-namespace nupm
-{
-  class Devdax_manager;
-}
+class tracked_pool;
+class pool_manager;
 
 class hstore : public Component::IKVStore
 {
 private:
-  unsigned _numa_node;
-  std::shared_ptr<nupm::Devdax_manager> _dax_mgr;
+  std::shared_ptr<pool_manager> _pool_manager;
   std::mutex _pools_mutex;
-  using pools_map = std::map<::open_pool *, std::unique_ptr<::open_pool>>;
+  using pools_map = std::map<tracked_pool *, std::unique_ptr<tracked_pool>>;
   pools_map _pools; /* would map sessions, but delete_pool also requires an "open" pool */
-  auto locate_open_pool(const IKVStore::pool_t pid) -> ::open_pool &;
-  auto locate_session(const IKVStore::pool_t pid) -> session &;
-  auto move_pool(const IKVStore::pool_t pid) -> std::unique_ptr<::open_pool>;
+  auto locate_open_pool(const IKVStore::pool_t pid) -> tracked_pool &;
+  auto locate_session(const IKVStore::pool_t pid) -> tracked_pool &;
+  auto move_pool(const IKVStore::pool_t pid) -> std::unique_ptr<tracked_pool>;
 
   void delete_pool(const std::string &path, const std::string &name);
 public:

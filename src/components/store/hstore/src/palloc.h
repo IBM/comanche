@@ -1,5 +1,5 @@
-#ifndef _DAWN_HSTORE_PALLOC_H_
-#define _DAWN_HSTORE_PALLOC_H_
+#ifndef _COMANCHE_HSTORE_PALLOC_H_
+#define _COMANCHE_HSTORE_PALLOC_H_
 
 #include "trace_flags.h"
 

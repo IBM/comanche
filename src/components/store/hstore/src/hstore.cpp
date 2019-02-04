@@ -23,10 +23,10 @@
 #include <core/cc_heap.h>
 
 #if USE_PMEM
-#include "hstore_pmem.h"
+#include "hstore_pmem_types.h"
 #include "persister_pmem.h"
 #else
-#include "hstore_nupm.h"
+#include "hstore_nupm_types.h"
 #include "persister_nupm.h"
 #endif
 
@@ -45,12 +45,12 @@
 /* thread-safe hash */
 #include <mutex>
 using hstore_shared_mutex = std::shared_timed_mutex;
-static constexpr auto thread_model = IKVStore::THREAD_MODEL_MULTI_PER_POOL;
+static constexpr auto thread_model = Component::IKVStore::THREAD_MODEL_MULTI_PER_POOL;
 #else
 /* not a thread-safe hash */
 #include "dummy_shared_mutex.h"
 using hstore_shared_mutex = dummy::shared_mutex;
-static constexpr auto thread_model = IKVStore::THREAD_MODEL_SINGLE_PER_POOL;
+static constexpr auto thread_model = Component::IKVStore::THREAD_MODEL_SINGLE_PER_POOL;
 #endif
 
 template<typename T>
@@ -116,16 +116,20 @@ template<> struct type_number<table_t::base::persist_data_t::bucket_aligned_t> {
 
 using persist_data_t = typename impl::persist_data<allocator_segment_t, table_t::value_type>;
 
+template <typename Handle, typename Allocator, typename Table>
+  class session;
 #if USE_PMEM
-#include "hstore_pmem2.h"
+#include "hstore_pmem.h"
+using session_t = session<hstore_pmem::open_pool_handle, ALLOC_T, table_t>;
 #else
-#include "hstore_nupm2.h"
+#include "hstore_nupm.h"
+using session_t = session<hstore_nupm::open_pool_handle, ALLOC_T, table_t>;
 #endif
 
 namespace
 {
   struct tls_cache_t {
-    ::open_pool *recent_pool;
+    tracked_pool *recent_pool;
   };
 }
 
@@ -133,14 +137,14 @@ namespace
 
 thread_local tls_cache_t tls_cache = { nullptr };
 
-auto hstore::locate_session(const IKVStore::pool_t pid) -> session &
+auto hstore::locate_session(const Component::IKVStore::pool_t pid) -> tracked_pool &
 {
-  return dynamic_cast<session &>(locate_open_pool(pid));
+  return dynamic_cast<tracked_pool &>(this->locate_open_pool(pid));
 }
 
-auto hstore::locate_open_pool(const IKVStore::pool_t pid) -> ::open_pool &
+auto hstore::locate_open_pool(const Component::IKVStore::pool_t pid) -> tracked_pool &
 {
-  auto *const s = reinterpret_cast<::open_pool *>(pid);
+  auto *const s = reinterpret_cast<tracked_pool *>(pid);
   if ( s == nullptr || s != tls_cache.recent_pool )
   {
     std::unique_lock<std::mutex> sessions_lk(_pools_mutex);
@@ -154,9 +158,9 @@ auto hstore::locate_open_pool(const IKVStore::pool_t pid) -> ::open_pool &
   return *tls_cache.recent_pool;
 }
 
-auto hstore::move_pool(const IKVStore::pool_t pid) -> std::unique_ptr<::open_pool>
+auto hstore::move_pool(const Component::IKVStore::pool_t pid) -> std::unique_ptr<tracked_pool>
 {
-  auto *const s = reinterpret_cast<::open_pool *>(pid);
+  auto *const s = reinterpret_cast<tracked_pool *>(pid);
 
   std::unique_lock<std::mutex> sessions_lk(_pools_mutex);
   auto ps = _pools.find(s);
@@ -172,11 +176,10 @@ auto hstore::move_pool(const IKVStore::pool_t pid) -> std::unique_ptr<::open_poo
 }
 
 hstore::hstore(const std::string & /* owner */, const std::string & /* name */)
-  : _numa_node{0}
 #if USE_PMEM
-  , _dax_mgr{Pmem_make_devdax_manager()}
+  : _pool_manager(std::make_shared<hstore_pmem>(option_DEBUG))
 #else
-  , _dax_mgr{Nupm_make_devdax_manager()}
+  : _pool_manager(std::make_shared<hstore_nupm>(0, option_DEBUG))
 #endif
   , _pools_mutex{}
   , _pools{}
@@ -193,27 +196,26 @@ auto hstore::thread_safety() const -> status_t
 }
 
 auto hstore::create_pool(
-                         const std::string &dir_,
-                         const std::string &name_,
+                         const std::string & dir_,
+                         const std::string & name_,
                          const std::size_t size_,
                          unsigned int /* flags */,
-                         const uint64_t expected_obj_count_) -> pool_t
+                         const uint64_t  expected_obj_count_) -> pool_t
 {
   if ( option_DEBUG )
   {
     PLOG(PREFIX "dir=%s pool_name=%s", __func__, dir_.c_str(), name_.c_str());
   }
 #if USE_PMEM
-  auto c = Pmem_create_pool_check(size_);
+  auto c = _pool_manager->pool_create_check(size_);
   if ( c != S_OK )  { return c; }
 #else
 #endif
 
-#if USE_PMEM
-  auto s = Pmem_create_pool(                      dir_, name_, size_, expected_obj_count_, option_DEBUG);
-#else /* USE_PMEM */
-  auto s = Nupm_create_pool(_dax_mgr, _numa_node, dir_, name_, size_, expected_obj_count_, option_DEBUG);
-#endif /* USE_PMEM */
+  auto path = pool_path(dir_, name_);
+
+  auto s = std::unique_ptr<session_t>(static_cast<session_t *>(_pool_manager->pool_create(path, size_, expected_obj_count_).release()));
+
   auto p = s.get();
   std::unique_lock<std::mutex> sessions_lk(_pools_mutex);
   _pools.emplace(p, std::move(s));
@@ -225,13 +227,9 @@ auto hstore::open_pool(const std::string &dir,
                        const std::string &name,
                        unsigned int /* flags */) -> pool_t
 {
-  std::string fullpath = make_full_path(dir, name);
-#if USE_PMEM
-  auto s = Pmem_open_pool(dir, name);
-#else
-  auto s = Nupm_open_pool(_dax_mgr, _numa_node, dir, name);
-#endif
-  auto p = static_cast<::open_pool *>(s.get());
+  auto path = pool_path(dir, name);
+  auto s = _pool_manager->pool_open(path);
+  auto p = static_cast<tracked_pool *>(s.get());
   std::unique_lock<std::mutex> sessions_lk(_pools_mutex);
   _pools.emplace(p, std::move(s));
   return reinterpret_cast<IKVStore::pool_t>(p);
@@ -252,22 +250,14 @@ void hstore::close_pool(const pool_t pid)
   {
     throw API_exception("%s in %s", e.cause(), __func__);
   }
-#if USE_PMEM
-  Pmem_close_pool_check_pool(path);
-#else
-  Nupm_close_pool_check_pool(path);
-#endif
+  _pool_manager->pool_close_check(path);
 }
 
 void hstore::delete_pool(const std::string &dir, const std::string &name)
 {
-  auto path = make_full_path(dir, name);
+  auto path = pool_path(dir, name);
 
-#if USE_PMEM
-  Pmem_delete_pool(path);
-#else
-  Nupm_delete_pool(*_dax_mgr, _numa_node, path);
-#endif
+  _pool_manager->pool_delete(path);
   if ( option_DEBUG )
   {
     PLOG("pool deleted: %s/%s", dir.c_str(), name.c_str());
@@ -280,14 +270,12 @@ try
   /* Not sure why a session would have to be open in order to erase a pool,
    * but the kvstore interface requires it.
    */
-  std::string dir;
-  std::string name;
+  pool_path pp;
   {
     auto pool = move_pool(pid);
-    dir = pool->dir();
-    name = pool->name();
+    pp = pool->path();
   }
-  delete_pool(dir, name);
+  delete_pool(pp.dir(), pp.name());
 }
 catch ( const API_exception &e )
 {
@@ -313,7 +301,7 @@ auto hstore::put(const pool_t pool,
   if(value == nullptr)
     throw std::invalid_argument("value argument is null");
 
-  auto &session = locate_session(pool);
+  auto &session = dynamic_cast<session_t &>(locate_session(pool));
 
   auto cvalue = static_cast<const char *>(value);
 
@@ -358,14 +346,10 @@ auto hstore::update_by_issue_41(const pool_t pool,
   }
 }
 
-status_t hstore::get_pool_regions(const pool_t pool, std::vector<::iovec>& out_regions)
+auto hstore::get_pool_regions(const pool_t pool, std::vector<::iovec>& out_regions) -> status_t
 {
-  auto &session = locate_session(pool);
-#if USE_PMEM
-  return Pmem_get_pool_regions(session.pool(), out_regions);
-#else
-  return Nupm_get_pool_regions(session.pool(), out_regions);
-#endif
+  auto &session = dynamic_cast<session_t &>(locate_session(pool));
+  return _pool_manager->pool_get_regions(session.pool(), out_regions);
 }
 
 auto hstore::put_direct(const pool_t pool,
@@ -387,7 +371,7 @@ auto hstore::get(const pool_t pool,
 #endif
   try
     {
-      const auto &session = locate_session(pool);
+      const auto &session = dynamic_cast<const session_t &>(locate_session(pool));
       auto p_key = KEY_T(key.begin(), key.end(), session.allocator());
       auto &v = session.map().at(p_key);
 
@@ -415,7 +399,7 @@ auto hstore::get_direct(const pool_t pool,
                         std::size_t& out_value_len,
                         Component::IKVStore::memory_handle_t) -> status_t
   try {
-    const auto &session = locate_session(pool);
+    const auto &session = dynamic_cast<const session_t &>(locate_session(pool));
     auto p_key = KEY_T(key.begin(), key.end(), session.allocator());
 
     auto &v = session.map().at(p_key);
@@ -459,13 +443,13 @@ auto hstore::get_direct(const pool_t pool,
 namespace
 {
 class lock
-  : public IKVStore::Opaque_key
+  : public Component::IKVStore::Opaque_key
   , public std::string
 {
 public:
   lock(const std::string &)
     : std::string(s)
-    , IKVStore::Opaque_key{}
+    , Component::IKVStore::Opaque_key{}
   {}
 };
 }
@@ -476,7 +460,7 @@ namespace
 bool try_lock(table_t &map, hstore::lock_type_t type, const KEY_T &p_key)
 {
   return
-    type == IKVStore::STORE_LOCK_READ
+    type == Component::IKVStore::STORE_LOCK_READ
     ? map.lock_shared(p_key)
     : map.lock_unique(p_key)
     ;
@@ -489,7 +473,7 @@ auto hstore::lock(const pool_t pool,
                   void *& out_value,
                   std::size_t & out_value_len) -> key_t
 {
-  auto &session = locate_session(pool);
+  auto &session = dynamic_cast<session_t &>(locate_session(pool));
   const auto p_key = KEY_T(key.begin(), key.end(), session.allocator());
 
   try
@@ -540,7 +524,7 @@ auto hstore::unlock(const pool_t pool,
   if ( key )
     {
       try {
-        auto &session = locate_session(pool);
+        auto &session = dynamic_cast<session_t &>(locate_session(pool));
         auto p_key = KEY_T(key->begin(), key->end(), session.allocator());
 
         session.map().unlock(p_key);
@@ -595,7 +579,7 @@ auto hstore::apply(
                    bool take_lock
                    ) -> status_t
 {
-  auto &session = locate_session(pool);
+  auto &session = dynamic_cast<session_t &>(locate_session(pool));
   MAPPED_T *val;
   auto p_key = KEY_T(key.begin(), key.end(), session.allocator());
   try
@@ -641,7 +625,7 @@ auto hstore::erase(const pool_t pool,
                    ) -> status_t
 {
   try {
-    auto &session = locate_session(pool);
+    auto &session = dynamic_cast<session_t &>(locate_session(pool));
     auto p_key = KEY_T(key.begin(), key.end(), session.allocator());
     return
       session.map().erase(p_key) == 0
@@ -656,7 +640,7 @@ auto hstore::erase(const pool_t pool,
 
 std::size_t hstore::count(const pool_t pool)
 {
-  const auto &session = locate_session(pool);
+  const auto &session = dynamic_cast<const session_t &>(locate_session(pool));
   return session.map().size();
 }
 
@@ -672,7 +656,7 @@ void hstore::debug(const pool_t pool, const unsigned cmd, const uint64_t arg)
       break;
     case 2:
       {
-        const auto &session = locate_session(pool);
+        const auto &session = dynamic_cast<const session_t &>(locate_session(pool));
         table_t::size_type count = 0;
         /* bucket counter */
         for (
@@ -728,7 +712,7 @@ auto hstore::map(
                  > function
                  ) -> status_t
 {
-  auto &session = locate_session(pool);
+  auto &session = dynamic_cast<session_t &>(locate_session(pool));
 
   for ( auto &mt : session.map() )
     {
@@ -747,7 +731,7 @@ auto hstore::atomic_update(
                            , const bool take_lock) -> status_t
   try
     {
-      auto &session = locate_session(pool);
+      auto &session = dynamic_cast<session_t &>(locate_session(pool));
 
       auto p_key = KEY_T(key.begin(), key.end(), session.allocator());
 
