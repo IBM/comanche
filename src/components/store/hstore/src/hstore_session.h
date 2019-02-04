@@ -41,7 +41,7 @@ public:
         )
       )
 #else /* USE_CC_HEAP */
-      , _heap(ALLOC_T(static_cast<open_pool<Handle> *>(this)->pool()))
+      , _heap(ALLOC_T(this->pool()))
 #endif /* USE_CC_HEAP */
       , _map(persist_data_, _heap)
       , _atomic_state(*persist_data_, _map)
@@ -55,12 +55,12 @@ public:
 		, _heap(
 			ALLOC_T(
 				*new
-					(&pop_->heap)
-					Core::cc_alloc(pop_.get() + 1)
+					(&this->pool()->heap)
+					Core::cc_alloc(this->pool() + 1)
 			)
 		)
-		, _map(&pop_->persist_data, _heap)
-		, _atomic_state(pop_->persist_data, _map)
+		, _map(&this->pool()->persist_data, _heap)
+		, _atomic_state(this->pool()->persist_data, _map)
 	{}
 
   session(const session &) = delete;

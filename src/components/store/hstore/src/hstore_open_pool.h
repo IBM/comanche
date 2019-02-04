@@ -60,7 +60,7 @@ template <typename Handle>
 		open_pool(const open_pool &) = delete;
 		open_pool& operator=(const open_pool &) = delete;
 #if 1
-		/* get_pool_regions only */
+		/* session constructor and get_pool_regions only */
 		auto *pool() const { return _pop.get(); }
 #endif
 	};
