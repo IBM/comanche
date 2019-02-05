@@ -1,6 +1,7 @@
 #ifndef __NUPM_DAX_DATA_H__
 #define __NUPM_DAX_DATA_H__
 
+#include <libpmem.h>
 #include <common/utils.h>
 #include "pm_lowlevel.h"
 
@@ -97,9 +98,13 @@ public:
   }
 
   void * get_region(uint64_t region_id, size_t * out_size) {
+    if(region_id == 0)
+      throw API_exception("invalid region_id");
+    
     for(uint16_t r=0;r<_region_count;r++) {
       auto reg = _regions[r];
       if(reg.region_id == region_id) {
+        PLOG("found matching region (%lx)", region_id);
         if(out_size)
           *out_size = (reg.length_GB << 30);
         return (reg.offset_GB  << 30) + arena_base();
@@ -109,6 +114,9 @@ public:
   }
 
   void erase_region(uint64_t region_id) {
+    if(region_id == 0)
+      throw API_exception("invalid region_id");
+    
     for(uint16_t r=0;r<_region_count;r++) {
       DM_region * reg = &_regions[r];
       if(reg->region_id == region_id) {
@@ -121,6 +129,9 @@ public:
   }
 
   void * allocate_region(uint64_t region_id, unsigned size_in_GB) {
+    if(region_id == 0)
+      throw API_exception("invalid region_id");
+    
     for(uint16_t r=0;r<_region_count;r++) {
       auto reg = _regions[r];
       if(reg.region_id == region_id)
@@ -134,8 +145,10 @@ public:
       if(reg->region_id == 0  && reg->length_GB >= size_in_GB) {
         if(reg->length_GB == size_in_GB) {
           /* exact match */
+          void * rp = (void*) ((((uint64_t)reg->offset_GB) << 30) + arena_base());
+          pmem_memset_persist(rp, 0, GB(((uint64_t)size_in_GB)));
           tx_atomic_write(reg, region_id);
-          return (void*) ((((uint64_t)reg->offset_GB) << 30) + arena_base());
+          return rp;
         }
         else {
           /* cut out */
@@ -147,9 +160,12 @@ public:
           for(uint16_t r=0;r<_region_count;r++) {
             DM_region * reg_n = &_regions[r];
             if(reg_n->region_id == 0 && reg_n->length_GB == 0) {
-              tx_atomic_write(reg, changed_offset, changed_length, 
-                              reg_n, new_offset, size_in_GB, region_id);
-              return (void*) ((((uint64_t)new_offset) << 30) + arena_base());
+              void * rp = (void*) ((((uint64_t)new_offset) << 30) + arena_base());
+              pmem_memset_persist(rp, 0, GB(((uint64_t)size_in_GB)));
+              tx_atomic_write(reg_n, changed_offset, changed_length,
+                              reg, new_offset, size_in_GB,                              
+                              region_id);
+              return rp;
             }      
           }
 
