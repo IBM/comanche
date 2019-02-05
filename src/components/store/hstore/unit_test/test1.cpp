@@ -13,6 +13,8 @@
 
 using namespace Component;
 
+#define USE_PMEMOBJ 1
+
 namespace {
 
 // The fixture for testing class Foo.
@@ -70,6 +72,24 @@ class KVStore_test : public ::testing::Test {
   static const std::size_t lock_count;
 
   static std::size_t extant_count; /* Number of PutMany keys not placed because they already existed */
+
+  std::string pool_dir() const
+  {
+#if USE_PMEMOBJ
+    return "/mnt/pmem0/pool/0/";
+#else
+    return "/dev";
+#endif
+  }
+
+  std::string pool_name()
+  {
+#if USE_PMEMOBJ
+    return "test-" + store_map::impl->name + ".pool";
+#else
+    return "dax0.0";
+#endif
+  }
 };
 
 constexpr std::size_t KVStore_test::estimated_object_count_small;
@@ -102,9 +122,6 @@ std::vector<KVStore_test::kv_t> KVStore_test::kvv;
 
 const std::size_t KVStore_test::lock_count = 60;
 
-#define PMEM_PATH "/mnt/pmem0/pool/0/"
-//#define PMEM_PATH "/dev/pmem0"
-
 TEST_F(KVStore_test, Instantiate)
 {
   /* create object instance through factory */
@@ -126,7 +143,7 @@ TEST_F(KVStore_test, RemoveOldPool)
   {
     try
     {
-      pool = _kvstore->open_pool(PMEM_PATH, "test-" + store_map::impl->name + ".pool", 0);
+      pool = _kvstore->open_pool(pool_dir(), pool_name(), 0);
       if ( 0 < int64_t(pool) )
       {
         _kvstore->delete_pool(pool);
@@ -141,7 +158,7 @@ TEST_F(KVStore_test, RemoveOldPool)
 TEST_F(KVStore_test, CreatePool)
 {
   ASSERT_TRUE(_kvstore);
-  pool = _kvstore->create_pool(PMEM_PATH, "test-" + store_map::impl->name + ".pool", many_count_target * 4U * 64U + 4 * single_value_size, 0, estimated_object_count);
+  pool = _kvstore->create_pool(pool_dir(), pool_name(), many_count_target * 4U * 64U + 4 * single_value_size, 0, estimated_object_count);
   ASSERT_LT(0, int64_t(pool));
 }
 
@@ -296,7 +313,7 @@ TEST_F(KVStore_test, OpenPool)
   ASSERT_TRUE(_kvstore);
   if ( pmem_effective )
   {
-    pool = _kvstore->open_pool(PMEM_PATH, "test-hstore.pool", 0);
+    pool = _kvstore->open_pool(pool_dir(), pool_name(), 0);
   }
   ASSERT_LT(0, int64_t(pool));
 }
