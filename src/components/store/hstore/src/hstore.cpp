@@ -206,11 +206,10 @@ auto hstore::create_pool(
   {
     PLOG(PREFIX "dir=%s pool_name=%s", __func__, dir_.c_str(), name_.c_str());
   }
-#if USE_PMEM
-  auto c = _pool_manager->pool_create_check(size_);
-  if ( c != S_OK )  { return c; }
-#else
-#endif
+  {
+    auto c = _pool_manager->pool_create_check(size_);
+    if ( c != S_OK )  { return c; }
+  }
 
   auto path = pool_path(dir_, name_);
 

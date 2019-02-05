@@ -215,7 +215,7 @@ private:
     auto heap_oid = std::get<0>(heap_oid_and_size);
     auto *a = static_cast<void *>(pmemobj_direct(heap_oid));
     auto actual_size = std::get<1>(heap_oid_and_size);
-    PLOG(PREFIX "created heap at addr %p preferred size %zu actual size %zu", __func__, static_cast<const void *>(a), size_, actual_size);
+    PLOG(PREFIX "created heap at addr %p preferred size 0x%zx actual size 0x%zx", __func__, static_cast<const void *>(a), size_, actual_size);
     /* arguments to cc_malloc are the start of the free space (which cc_sbrk uses
      * for the "state" structure) and the size of the free space
      */
