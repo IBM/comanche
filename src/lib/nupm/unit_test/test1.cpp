@@ -52,28 +52,42 @@ class Libnupm_test : public ::testing::Test {
   
 TEST_F(Libnupm_test, DevdaxManager)
 {
-  nupm::Devdax_manager ddm;
+  nupm::Devdax_manager ddm(true);
 
   size_t p_len = 0;
   uint64_t uuid = Options.uuid;
-  size_t size = (rdtsc() % GB(3)) + 1;
+  assert(uuid > 0);
+  size_t size = GB(2);
   ddm.debug_dump(0);
-  
+
+  PLOG("Opening existing region..");
   void * p = ddm.open_region(uuid, 0, &p_len);
   if(p) {
-    PLOG("opened region %p OK", p);
-    PLOG("now erasing it...");
+    PLOG("Opened existing region %p OK", p);
+    ddm.debug_dump(0);
+    PLOG("Now erasing it...");
     ddm.erase_region(uuid, 0);
-    ddm.debug_dump(0);    
-  }
-  else {
-    p = ddm.create_region(uuid, 0, size);
-    if(p)
-      PLOG("created region %p ", p);
-    ASSERT_TRUE(p);
-    memset(p, 0, 4096);
     ddm.debug_dump(0);
   }
+
+  p = ddm.create_region(uuid, 0, size);
+  if(p)
+    PLOG("created region %p ", p);
+  ASSERT_TRUE(p);
+  memset(p, 0, 4096);
+  ddm.debug_dump(0);
+
+  PLOG("Erase...");
+  ddm.erase_region(uuid, 0);
+  ddm.debug_dump(0);
+
+  PLOG("Re-create...");
+  void * q = ddm.create_region(uuid, 0, size);
+  ASSERT_TRUE(q == p);
+
+  ddm.debug_dump(0);
+  ddm.erase_region(uuid, 0);
+  
   
   
   // size_t len = 0;
