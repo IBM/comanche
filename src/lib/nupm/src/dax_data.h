@@ -177,8 +177,8 @@ public:
       if(reg.region_id == region_id) {
         PLOG("found matching region (%lx)", region_id);
         if(out_size)
-          *out_size = (reg.length_GB << 30);
-        return (reg.offset_GB  << 30) + arena_base();
+          *out_size = (((uintptr_t)reg.length_GB) << 30);
+        return (((uintptr_t)reg.offset_GB)  << 30) + arena_base();
       }
     }
     return nullptr; /* not found */
@@ -216,8 +216,9 @@ public:
       if(reg->region_id == 0  && reg->length_GB >= size_in_GB) {
         if(reg->length_GB == size_in_GB) {
           /* exact match */
-          void * rp = (void*) ((((uint64_t)reg->offset_GB) << 30) + arena_base());
-          pmem_memset_persist(rp, 0, GB(((uint64_t)size_in_GB)));
+          void * rp = (void*) ((((uintptr_t)reg->offset_GB) << 30) + arena_base());
+          // zero region
+          // pmem_memset_persist(rp, 0, GB(((uintptr_t)size_in_GB)));
           tx_atomic_write(reg, region_id);
           return rp;
         }
@@ -231,8 +232,8 @@ public:
           for(uint16_t r=0;r<_region_count;r++) {
             DM_region * reg_n = &_regions[r];
             if(reg_n->region_id == 0 && reg_n->length_GB == 0) {
-              void * rp = (void*) ((((uint64_t)new_offset) << 30) + arena_base());
-              pmem_memset_persist(rp, 0, GB(((uint64_t)size_in_GB)));
+              void * rp = (void*) ((((uintptr_t)new_offset) << 30) + arena_base());
+              pmem_memset_persist(rp, 0, GB(((uintptr_t)size_in_GB)));
               tx_atomic_write(reg_n, changed_offset, changed_length,
                               reg, new_offset, size_in_GB,                              
                               region_id);
@@ -260,8 +261,8 @@ public:
   }
     
 
-  inline uint64_t GB_to_bytes(unsigned GB) const {
-    return ((uint64_t)GB) << 30;
+  inline size_t GB_to_bytes(unsigned GB) const {
+    return ((size_t)GB) << 30;
   }
   
   inline void major_flush() {
