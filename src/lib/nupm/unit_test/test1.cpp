@@ -46,10 +46,14 @@ class Libnupm_test : public ::testing::Test {
 //   return true;
 // }
 
-  //#define RUN_RPALLOCATOR_TESTS
+//#define RUN_RPALLOCATOR_TESTS
 //#define RUN_VMEM_ALLOCATOR_TESTS
+//#define RUN_DEVDAX_TEST
+#define RUN_AVL_RCA_TEST
+
 #include "dax_map.h"
 
+#ifdef RUN_DEVDAX_TEST
 TEST_F(Libnupm_test, DevdaxManager)
 {
   {
@@ -90,32 +94,61 @@ TEST_F(Libnupm_test, DevdaxManager)
 
   ddm.debug_dump(0);
   ddm.erase_region(uuid, 0);
-  
-  
-  
-  // size_t len = 0;
-  // void * p = ddm.get_devdax_region("/dev/dax0.44", &len);
-  // PLOG("region p=%p len=%lu", p, len);
-  // memset(p, 0, len);
 }
+#endif
 
-#if 0
+#ifdef RUN_AVL_RCA_TEST
 TEST_F(Libnupm_test, RcAllocatorAVL)
 {
-  nupm::Rca_AVL rca;
+  
 
-  rca.add_managed_region("/mnt/pmem0",0);
-  rca.add_managed_region("/mnt/pmem0",1);
+  void * p = aligned_alloc(GB(1),GB(8));
+  ASSERT_TRUE(p);
+  void * q = aligned_alloc(GB(1),GB(8));
+  ASSERT_TRUE(q);
+
+  PLOG("p=%p", p);
+  PLOG("q=%p", q);
 
   std::vector<iovec> allocations;
-  for(unsigned i=0;i<100;i++) {
-    allocations.push_back({rca.alloc((i+1)*32, 0, 16), i*32});
+
+  std::string state_A, state_B;
+  { /* create allocator */
+    nupm::Rca_AVL rca;
+    rca.add_managed_region(p, GB(8), 0);
+    rca.add_managed_region(q, GB(8), 1);
+
+    for(unsigned i=0;i<10;i++) {
+      void * a = rca.alloc((i+1)*32, 0, 16);
+      allocations.push_back({a, (i+1)*32});
+    }
+
+    /* logical power-fail */
+    rca.debug_dump(&state_A);// TODO get string version 
   }
 
-  for(auto& i: allocations) {
-    rca.free(i.iov_base, 0);
+  {
+    nupm::Rca_AVL rca;
+    rca.add_managed_region(p, GB(8), 0);
+    rca.add_managed_region(q, GB(8), 1);
+
+    for(auto& i: allocations) {
+      rca.inject_allocation(i.iov_base, i.iov_len, 0);
+    }
+    
+    rca.debug_dump(&state_B);
+
+    /* state A and B should be the same */
+    ASSERT_TRUE(state_A == state_B);
+    
+    /* now we should be able to free */
+    for(auto& i: allocations) {
+      rca.free(i.iov_base, 0);
+    }
   }
-  
+
+  free(p);
+  free(q);
 }
 #endif
 
