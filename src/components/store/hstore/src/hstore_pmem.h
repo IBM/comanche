@@ -331,7 +331,7 @@ private:
   }
 public:
 
-  hstore_pmem(bool debug_)
+  hstore_pmem(const std::string &, const std::string &, bool debug_)
     : pool_manager(debug_)
   {}
 

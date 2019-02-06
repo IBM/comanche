@@ -24,6 +24,27 @@
 
 using Persister = persister_nupm;
 
+namespace
+{
+  unsigned name_to_numa_node(const std::string &name)
+  {
+    if ( 0 == name.size() )
+    {
+      throw std::domain_error("cannot determine numa node from null string");
+    }
+    auto c = name[name.size()-1];
+    if ( ! std::isprint(c) )
+    {
+      throw std::domain_error("last character of name (unprintable) does not look like a numa node ID");
+    }
+    if ( c < '0' || '8' < c )
+    {
+      throw std::domain_error(std::string("last character of name, '") + c + "', does not look like a numa node ID");
+    }
+    return c - '0';
+  }
+}
+
 /* open_pool_handle, ALLOC_T, table_t */
 template <typename Handle, typename Allocator, typename Table>
   class session;
@@ -94,10 +115,10 @@ private:
 
   bool debug() { return false; }
 public:
-  hstore_nupm(unsigned numa_mode_, bool debug_)
+  hstore_nupm(const std::string &, const std::string &name_, bool debug_)
     : pool_manager(debug_)
     , _devdax_manager{bool(std::getenv("DAX_RESET"))}
-    , _numa_node(numa_mode_)
+    , _numa_node(name_to_numa_node(name_))
   {}
 
   virtual ~hstore_nupm() {}
