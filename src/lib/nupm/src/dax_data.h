@@ -3,6 +3,7 @@
 
 #include <libpmem.h>
 #include <common/utils.h>
+#include <common/types.h>
 #include "pm_lowlevel.h"
 
 #define DM_REGION_MAGIC 0xC0070000
@@ -11,21 +12,72 @@
 
 namespace nupm
 {
+
+struct DM_undo_log
+{
+  static constexpr unsigned MAX_LOG_COUNT = 4;
+  static constexpr unsigned MAX_LOG_SIZE = 64;
+  struct log_entry_t {
+    byte   log[MAX_LOG_SIZE];
+    void * ptr;
+    size_t length; /* zero indicates log freed */
+  };
   
 
+public:
+  void log(void * ptr, size_t length) {
+    assert(length > 0);
+    assert(ptr);
+
+    if(length > MAX_LOG_SIZE)
+      throw API_exception("log length exceeds max. space");
+    
+    for(unsigned i=0;i<MAX_LOG_COUNT; i++) {
+      if(_log[i].length == 0) {
+        _log[i].length = length;
+        _log[i].ptr = ptr;
+        pmem_memcpy_nodrain(_log[i].log, ptr, length);
+        pmem_flush(&_log[i], sizeof(log_entry_t));
+        return;
+      }
+    }
+    throw API_exception("undo log full");
+  }
+
+  void clear_log() {
+    for(unsigned i=0;i<MAX_LOG_COUNT; i++)
+      _log[i].length = 0;
+  }
+
+  void check_and_undo() {
+    for(unsigned i=0;i<MAX_LOG_COUNT; i++) {
+      if(_log[i].length > 0) {
+        PLOG("undo log being applied (ptr=%p, len=%lu).", _log[i].ptr, _log[i].length);
+        pmem_memcpy_persist(_log[i].ptr, _log[i].log, _log[i].length);
+        _log[i].length = 0;
+      }
+    }
+  }
+  
+private:
+  
+  log_entry_t _log[MAX_LOG_COUNT];
+} __attribute__((packed));
+
+  
 struct DM_region
 {
 public:
-  uint32_t offset_GB;
-  uint32_t length_GB;
-  uint64_t region_id;
-  
+  uint32_t    offset_GB;
+  uint32_t    length_GB;
+  uint64_t    region_id;
+
 public:
   /* re-zeroing constructor */
   DM_region() : length_GB(0), region_id(0) {
     assert(check_aligned(this, 8));
   }
-  
+
   void initialize(size_t space_size) {
     offset_GB =  0;
     length_GB = space_size / GB(1);
@@ -33,23 +85,21 @@ public:
   }
 } __attribute__((packed));
 
+  
 
+  
 class DM_region_header
-{  
+{
 private:
   static constexpr uint16_t DEFAULT_MAX_REGIONS = 1024;
-
-  struct Undo_t {
-    uint64_t valid;
-    DM_region * p_region;
-    DM_region region;
-  } __attribute__((packed));
   
-  uint32_t  _magic;
-  uint32_t  _version;
-  uint64_t  _device_size;
-  uint32_t  _region_count;
-  uint32_t  _resvd;
+  uint32_t  _magic;  // 4
+  uint32_t  _version; // 8
+  uint64_t  _device_size; // 16
+  uint32_t  _region_count; // 20
+  uint32_t  _resvd; // 24
+  uint8_t   _padding[40]; // 64
+  DM_undo_log _undo_log;
   DM_region _regions[];
   
 public:
@@ -60,19 +110,24 @@ public:
 
     _region_count = DEFAULT_MAX_REGIONS;
     DM_region * region_p = region_table_base();
-
+    /* initialize first region with all capacity */
     region_p->initialize(device_size - GB(1));
+    _undo_log.clear_log();
     region_p ++;
+    
     for(uint16_t r=1;r < _region_count; r++) {
       new (region_p) DM_region();
+      _undo_log.clear_log();
       region_p ++;
     }
     major_flush();
   }
 
-  DM_region_header() {
+  void check_undo_logs() {
+    PLOG("Checking undo logs..");
+    _undo_log.check_and_undo();
   }
-
+  
   void debug_dump() {
     PINF("DM_region_header:");
     PINF(" magic [0x%8x]\n version [%u]\n device_size [%lu]\n region_count [%u]",
@@ -203,13 +258,18 @@ public:
 
 private:
   void tx_atomic_write(DM_region * dst, uint64_t region_id) {
+    _undo_log.log(&dst->region_id, sizeof(region_id));
     dst->region_id = region_id;
     mem_flush(&dst->region_id, sizeof(region_id));
+    _undo_log.clear_log();
   }
 
   void tx_atomic_write(DM_region * dst0, uint32_t offset0, uint32_t size0,
                        DM_region * dst1, uint32_t offset1, uint32_t size1, uint64_t region_id1) {
-    /* TODO; */
+
+    _undo_log.log(dst0, sizeof(DM_region));
+    _undo_log.log(dst1, sizeof(DM_region));
+    
     dst0->offset_GB = offset0;
     dst0->length_GB = size0;
     mem_flush(dst0, sizeof(DM_region));
@@ -219,6 +279,7 @@ private:
     dst1->length_GB = size1;
     mem_flush(dst1, sizeof(DM_region));
 
+    _undo_log.clear_log();
   }
 
   inline unsigned char * arena_base() { return (((unsigned char *)this) + GB(1)); }

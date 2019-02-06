@@ -148,9 +148,14 @@ void Devdax_manager::recover_metadata(const char * device_path,
   if(!rh->check_magic()) rebuild = true;
   
   if(rebuild) {
-    rh = new (p) DM_region_header(p_len);
     PMAJOR("need to rebuild!");
+    rh = new (p) DM_region_header(p_len);
   }
+  else {
+    PMAJOR("no need to rebuild!");
+    rh->check_undo_logs();
+  }
+  
   _region_hdrs[device_path] = rh;
 }
 
