@@ -24,10 +24,6 @@ struct {
 extern "C" void run_cuda_basic_test(Component::IKVStore * store);
 extern "C" void run_cuda_perf(Component::IKVStore * store);
 
-DECLARE_STATIC_COMPONENT_UUID(dawn_client, 0x2f666078,0xcb8a,0x4724,0xa454,0xd1,0xd8,0x8d,0xe2,0xdb,0x87);
-DECLARE_STATIC_COMPONENT_UUID(dawn_client_factory, 0xfac66078,0xcb8a,0x4724,0xa454,0xd1,0xd8,0x8d,0xe2,0xdb,0x87);
-
-
 Component::IKVStore * create_store(const std::string& addr,
                                    const std::string& device,
                                    const unsigned debug_level) {
