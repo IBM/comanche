@@ -22,11 +22,19 @@ template <typename Allocator>
 	)
 		: Allocator(av_)
 		, _persist(persist_)
+		, _bucket_count_cached(bucket_count_uncached())
 	{
 		assert(_persist->_segment_count._target <= _segment_capacity);
+		assert(1U <= _persist->_segment_count._target);
 		assert(
 			_persist->_segment_count._actual <= _persist->_segment_count._target
 		);
+
+		/* Persisted data needs at least one segment. */
+		if ( _persist->_segment_count._actual == 0 )
+		{
+			_persist->do_initial_allocation(av_);
+		}
 	}
 
 template <typename Allocator>
@@ -59,10 +67,15 @@ template <typename Allocator>
 
 template <typename Allocator>
 	void impl::persist_controller<Allocator>::persist_internal(
-		const void *first_, const void *last_, const char *what_
+		const void *first_
+		, const void *last_
+		, const char *
+#if 0
+			what_
+#endif
 	)
 	{
-		persist_switch_t::persist(*this, first_, last_, what_);
+		this->Allocator::persist(first_, static_cast<const char *>(last_) - static_cast<const char *>(first_));
 	}
 
 template <typename Allocator>
@@ -121,44 +134,27 @@ template <typename Allocator>
 template <typename Allocator>
 	bool impl::persist_controller<Allocator>::is_size_unstable() const
 	{
-		return _persist->_size_control.unstable != 0;
+		return ! _persist->_size_control.is_stable();
 	}
 
 template <typename Allocator>
 	void impl::persist_controller<Allocator>::size_set(std::size_t n)
 	{
-		_persist->_size_control.size = n;
-		persist_size();
-		_persist->_size_control.unstable = 0U;
+		_persist->_size_control.size_set_stable(n);
 		persist_size();
 	}
 
 template <typename Allocator>
 	void impl::persist_controller<Allocator>::size_destabilize()
 	{
-		++_persist->_size_control.unstable;
+		_persist->_size_control.destabilize();
 		persist_size();
-	}
-
-template <typename Allocator>
-	void impl::persist_controller<Allocator>::size_incr()
-	{
-		++_persist->_size_control.size;
-		size_stabilize();
-	}
-
-template <typename Allocator>
-	void impl::persist_controller<Allocator>::size_decr()
-	{
-		--_persist->_size_control.size;
-		size_stabilize();
 	}
 
 template <typename Allocator>
 	void impl::persist_controller<Allocator>::size_stabilize()
 	{
-		persist_size();
-		--_persist->_size_control.unstable;
+		_persist->_size_control.stabilize();
 		persist_size();
 	}
 
@@ -171,18 +167,16 @@ template <typename Allocator>
 
 		using void_allocator_t =
 			typename bucket_allocator_t::template rebind<void>::other;
-		_persist->_sc[_persist->_segment_count._actual].bp =
-			bucket_allocator_t(*this).address(
-				*new
-					(
-						&*bucket_allocator_t(*this).allocate(
-							bucket_count()
-							, typename void_allocator_t::const_pointer()
-							, "resize"
-						)
-					)
-					typename persist_data_t::bucket_aligned_t[bucket_count()]
+
+		auto ptr =
+			bucket_allocator_t(*this).allocate(
+				bucket_count()
+				, typename void_allocator_t::const_pointer()
+				, "resize"
 			);
+		new (&*ptr) typename persist_data_t::bucket_aligned_t[bucket_count()];
+		_persist->_sc[_persist->_segment_count._actual].bp = ptr;
+
 		persist_segment_table();
 
 		auto sc = &*_persist->_sc;
@@ -193,5 +187,6 @@ template <typename Allocator>
 	void impl::persist_controller<Allocator>::resize_epilog()
 	{
 		_persist->_segment_count._actual = _persist->_segment_count._target;
+		_bucket_count_cached = bucket_count_uncached();
 		persist_segment_count();
 	}

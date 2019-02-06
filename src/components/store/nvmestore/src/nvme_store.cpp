@@ -1,11 +1,13 @@
 /*
- * (C) Copyright IBM Corporation 2017. All rights reserved.
+ * (C) Copyright IBM Corporation 2017-2019. All rights reserved.
  *
  */
 
 /*
  * Author: Feng Li
  * e-mail: fengggli@yahoo.com
+ * Author: Daniel Waddington
+ * e-mail: daniel.waddington@ibm.com
  */
 #include "nvme_store.h"
 
@@ -128,17 +130,16 @@ static int check_pool(const char * path)
   return 1;
 }
 
-
 NVME_store::NVME_store(const std::string& owner,
                        const std::string& name,
-                       const std::string& pci)
+                       const std::string& pci,
+                       const std::string& pm_path) : _pm_path(pm_path)
 {
-  status_t ret;
   PLOG("NVMESTORE: chunk size in blocks: %lu", CHUNK_SIZE_IN_BLOCKS);
   PLOG("PMEMOBJ_MAX_ALLOC_SIZE: %lu MB", REDUCE_MB(PMEMOBJ_MAX_ALLOC_SIZE));
 
   /* Note: see note in open_block_device for failure info */
-  ret = open_block_device(pci, _blk_dev);
+  status_t ret = open_block_device(pci, _blk_dev);
   if(S_OK != ret){
     throw General_exception("failed (%d) to open block device at pci %s\n", ret, pci.c_str());
   }
@@ -146,7 +147,7 @@ NVME_store::NVME_store(const std::string& owner,
   ret = open_block_allocator(_blk_dev, _blk_alloc);
 
   if(S_OK != ret){
-    throw General_exception("failed to open block block allocator for device at pci %s\n", pci.c_str());
+    throw General_exception("failed (%d) to open block block allocator for device at pci %s\n", ret, pci.c_str());
   }
 
   PDBG("NVME_store: using block device %p with allocator %p", _blk_dev, _blk_alloc);
@@ -171,19 +172,19 @@ IKVStore::pool_t NVME_store::create_pool(const std::string& path,
   PMEMobjpool *pop = nullptr; //pool to allocate all mapping
   int ret =0;
 
-  PINF("NVME_store::create_pool path=%s name=%s", path.c_str(), name.c_str());
-
   size_t max_sz_hxmap = MB(500); // this can fit 1M objects (block_range_t)
 
   // TODO: need to check size
-
-  std::string fullpath;
-
+  // TODO: pass prefix (pm_path) into nvmestore component config
+  std::string fullpath = "/mnt/pmem0/";
+  
   if(path[path.length()-1]!='/')
-    fullpath = path + "/" + name;
+    fullpath += path + "/" + name;
   else
-    fullpath = path + name;
+    fullpath += path + name;
 
+  PINF("NVME_store::create_pool fullpath=%s name=%s", fullpath.c_str(), name.c_str());
+  
   /* open existing pool */
   pop = pmemobj_open(fullpath.c_str(), POBJ_LAYOUT_NAME(nvme_store));
 
@@ -515,7 +516,7 @@ status_t NVME_store::get_direct(const pool_t pool,
 
     cpu_time_t cycles_for_hm = rdtsc() - start;
 
-    PDBG("checked hxmap read latency took %ld cycles (%f usec) per hm access", cycles_for_hm,  cycles_for_hm / 2400.0f);
+    PLOG("checked hxmap read latency took %ld cycles (%f usec) per hm access", cycles_for_hm,  cycles_for_hm / 2400.0f);
 
 #ifdef USE_ASYNC
     uint64_t tag = D_RO(blk_info)->last_tag;
@@ -630,7 +631,10 @@ IKVStore::memory_handle_t NVME_store::register_direct_memory(void * vaddr, size_
 
 /* For nvmestore, data is not necessarily in main memory.
  * Lock will allocate iomem and load data from nvme first.
- * Unlock will will free it*/
+ * Unlock will will free it
+ *
+ * Note: nvmestore does not support multiple read locks on the same key by the same thread.
+ */
 IKVStore::key_t NVME_store::lock(const pool_t pool,
                                  const std::string& key,
                                  lock_type_t type,
@@ -828,4 +832,39 @@ extern "C" void * factory_createInstance(Component::uuid_t& component_id)
     return reinterpret_cast<void*>(new NVME_store_factory());
   }
   else return NULL;
+}
+
+void * NVME_store_factory::query_interface(Component::uuid_t& itf_uuid) {
+  if(itf_uuid == Component::IKVStore_factory::iid()) {
+    return this;
+  }
+  else return NULL; // we don't support this interface
+}
+
+
+void NVME_store_factory::unload() {
+  delete this;
+}
+
+auto NVME_store_factory::create(const std::string& owner,
+                                const std::string& name,
+                                const std::string& pci) -> Component::IKVStore *
+{
+  if ( pci.size() != 7 || pci[2] != ':' || pci[5] != '.' )
+  {
+    PWRN("Parameter '%s' does not look like a PCI address", pci.c_str());
+  }
+  /* TODO, 3rd parameter to create should be a JSON string including pci address and pmem path */
+
+  Component::IKVStore * obj = static_cast<Component::IKVStore*>(new NVME_store(owner, name, pci, "/mnt/pmem0"));
+  obj->add_ref();
+  return obj;
+}
+
+auto NVME_store_factory::create(unsigned,
+                                const std::string& owner,
+                                const std::string& name,
+                                const std::string& pci) -> Component::IKVStore *
+{
+  return create(owner, name, pci);
 }

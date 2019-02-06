@@ -99,6 +99,7 @@ public:
         double run_time = timer.get_time_in_seconds();
         double iops = _i / run_time;
         PINF("[%u] put_direct: IOPS: %2g in %2g seconds", core, iops, run_time);
+        _update_aggregate_iops(iops);
 
         double throughput = _calculate_current_throughput();
         PINF("[%u] put_direct: THROUGHPUT: %.2f MB/s (%ld bytes over %.3f seconds)", core, throughput, _total_data_processed, run_time);
@@ -113,6 +114,11 @@ public:
        // compute _start_time_stats pre-lock
        BinStatistics start_time_stats = _compute_bin_statistics_from_vectors(_latencies, _start_time, _bin_count, _start_time.front(), _start_time.at(_i-1), _i);
        _debug_print(core, "time_stats created"); 
+
+      if (_skip_json_reporting)
+      {
+        return;
+      }
 
        pthread_mutex_lock(&g_write_lock);
        _debug_print(core, "cleanup_custom mutex locked");

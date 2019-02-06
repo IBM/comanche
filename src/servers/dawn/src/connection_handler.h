@@ -27,20 +27,22 @@ namespace Dawn
 {
 using Connection_base = Fabric_connection_base;
 
-class Connection_handler : public Connection_base,
-                           public Region_manager,
-                           public Pool_manager {
+class Connection_handler
+    : public Connection_base
+    , public Region_manager
+    , public Pool_manager {
  private:
   bool option_DEBUG = Dawn::Global::debug_level > 1;
 
   /* Adaptor point for different transports */
   using Connection = Component::IFabric_server;
-  using Factory = Component::IFabric_server_factory;
+  using Factory    = Component::IFabric_server_factory;
 
  public:
   enum {
-    TICK_RESPONSE_CONTINUE = 0,
-    TICK_RESPONSE_CLOSE = 0xFF,
+    TICK_RESPONSE_CONTINUE        = 0,
+    TICK_RESPONSE_BOOTSTRAP_SPAWN = 1,
+    TICK_RESPONSE_CLOSE           = 0xFF,
   };
 
   enum {
@@ -67,15 +69,11 @@ class Connection_handler : public Connection_base,
  public:
   Connection_handler(Factory* factory, Connection* connection)
       : Connection_base(factory, connection), Region_manager(connection) {
-    PLOG("Connection_handler: %p", this);
     _pending_actions.reserve(Buffer_manager<Connection>::DEFAULT_BUFFER_COUNT);
     _pending_msgs.reserve(Buffer_manager<Connection>::DEFAULT_BUFFER_COUNT);
   }
 
-  ~Connection_handler() {
-    PLOG("Connection_handler dtor: %p", this);
-    dump_stats();
-  }
+  ~Connection_handler() { dump_stats(); }
 
   /**
    * State machine transition tick.  It is really important that this tick
@@ -160,7 +158,8 @@ class Connection_handler : public Connection_base,
    * @param target_len
    * @param region
    */
-  void set_pending_value(void* target, size_t target_len,
+  void set_pending_value(void* target,
+                         size_t target_len,
                          Component::IFabric_connection::memory_region_t region);
 
   inline uint64_t auth_id() const { return (uint64_t) this; /* temp */ }
@@ -169,10 +168,10 @@ class Connection_handler : public Connection_base,
 
  private:
   struct {
-    unsigned long response_count = 0;
-    unsigned long recv_msg_count = 0;
-    unsigned long wait_recv_value_misses = 0;
-    unsigned long wait_msg_recv_misses = 0;
+    unsigned long response_count               = 0;
+    unsigned long recv_msg_count               = 0;
+    unsigned long wait_recv_value_misses       = 0;
+    unsigned long wait_msg_recv_misses         = 0;
     unsigned long wait_respond_complete_misses = 0;
   } _stats __attribute__((aligned(8)));
 

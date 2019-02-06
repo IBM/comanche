@@ -22,9 +22,23 @@ file(GLOB SOURCES src/*.c*)
 
 add_library(nupm SHARED ${SOURCES})
 
-target_link_libraries(${PROJECT_NAME} stdc++fs common numa ${LIB_NDCTL} pmem vmem dl)
+target_link_libraries(${PROJECT_NAME} stdc++fs common numa ${LIB_NDCTL} pmem vmem dl memkind)
 
 add_subdirectory(unit_test)
 
 install(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION lib)
 install(DIRECTORY "src/" DESTINATION "include/nupm" FILES_MATCHING PATTERN "*.h")
+
+
+# force early install because others depend on this.  this seems a hack. is there
+# a better way?
+#
+add_custom_command(
+  TARGET ${PROJECT_NAME} POST_BUILD
+  COMMAND mkdir -p ${CMAKE_INSTALL_PREFIX}/include/nupm
+  COMMAND mkdir -p ${CMAKE_INSTALL_PREFIX}/lib
+  COMMAND cp ${CMAKE_SOURCE_DIR}/src/lib/nupm/src/*.h ${CMAKE_INSTALL_PREFIX}/include/nupm
+  COMMAND cp -r ${CMAKE_SOURCE_DIR}/src/lib/nupm/src/x86_64 ${CMAKE_INSTALL_PREFIX}/include/nupm
+  COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/libnupm.so ${CMAKE_INSTALL_PREFIX}/lib
+  )
+

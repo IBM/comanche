@@ -5,7 +5,7 @@
 
 template <typename Table>
 	impl::atomic_controller<Table>::atomic_controller(
-			persist_atomic<allocator_type> &persist_
+			persist_atomic<typename Table::value_type> &persist_
 			, table_t &map_
 		)
 			: allocator_type(map_.get_allocator())
@@ -57,14 +57,13 @@ template <typename Table>
 		, const char *what_
 	)
 	{
-		persist_switch_t::persist(*this, first_, last_, what_);
+		this->persist(first_, static_cast<const char *>(last_) - static_cast<const char *>(first_), what_);
 	}
 
 template <typename Table>
 	auto impl::atomic_controller<Table>::enter(
-		PMEMobjpool *pop
-		, persist_fixed_string<char> &key
-		, uint64_t type_num_data
+		typename Table::allocator_type al_
+		, typename Table::key_type &key
 		, std::vector<Component::IKVStore::Operation *>::const_iterator first
 		, std::vector<Component::IKVStore::Operation *>::const_iterator last
 	) -> typename Component::status_t
@@ -96,27 +95,24 @@ template <typename Table>
 		}
 		_persist->mod_key = key;
 		_persist->mod_mapped =
-			persist_fixed_string<char>(
+			typename Table::mapped_type(
 				src.begin()
 				, src.end()
-				, pop
-				, type_num_data
-				, "atomic data"
+				, al_
 			); /* PERSISTED? */
 		using void_allocator_t =
 			typename allocator_type::template rebind<void>::other;
-		_persist->mod_ctl =
-			allocator_type(*this).address(
-				*new
-					(
-						&*allocator_type(*this).allocate(
-							mods.size()
-							, typename void_allocator_t::const_pointer()
-							, "mod_ctl"
-						)
-					)
-					mod_control[mods.size()]
-		);
+
+		{
+			auto ptr =
+				allocator_type(*this).allocate(
+					mods.size()
+					, typename void_allocator_t::const_pointer()
+					, "mod_ctl"
+				);
+			new (&*ptr) mod_control[mods.size()];
+			_persist->mod_ctl = ptr;
+		}
 
 		std::copy(mods.begin(), mods.end(), &*_persist->mod_ctl);
 		/* 8-byte atomic write */

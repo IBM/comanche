@@ -3,11 +3,17 @@
 #include <gtest/gtest.h>
 #include <common/utils.h>
 #include <common/rand.h>
+#include <common/cycles.h>
+#include <core/heap_allocator.h>
+#include "tx_cache.h"
 #include "vmem_numa.h"
 #include "arena_alloc.h"
-#include "rp_alloc.h"
+#include "rc_alloc.h"
 
-namespace {
+struct
+{
+  uint64_t uuid;
+} Options;
 
 // The fixture for testing class Foo.
 class Libnupm_test : public ::testing::Test {
@@ -30,23 +36,162 @@ class Libnupm_test : public ::testing::Test {
   // Objects declared here can be used by all tests in the test case
 };
 
-static bool memcheck(void * p, char val, size_t len)
-{
-  for(size_t i=0; i<len; i++) {
-    if(((char *)p)[i] != val)
-      return false;
-  }
-  return true;
-}
 
-  //#define RUN_RPALLOCATOR_TESTS
+// static bool memcheck(void * p, char val, size_t len)
+// {
+//   for(size_t i=0; i<len; i++) {
+//     if(((char *)p)[i] != val)
+//       return false;
+//   }
+//   return true;
+// }
+
+//#define RUN_RPALLOCATOR_TESTS
 //#define RUN_VMEM_ALLOCATOR_TESTS
+//#define RUN_DEVDAX_TEST
+#define RUN_AVL_RCA_TEST
 
+#include "dax_map.h"
+
+#ifdef RUN_DEVDAX_TEST
+TEST_F(Libnupm_test, DevdaxManager)
+{
+  {
+    nupm::Devdax_manager ddm(true);
+  }
+  nupm::Devdax_manager ddm; // rebuild
+
+  size_t p_len = 0;
+  uint64_t uuid = Options.uuid;
+  assert(uuid > 0);
+  size_t size = GB(2);
+  ddm.debug_dump(0);
+
+  PLOG("Opening existing region..");
+  void * p = ddm.open_region(uuid, 0, &p_len);
+  if(p) {
+    PLOG("Opened existing region %p OK", p);
+    ddm.debug_dump(0);
+    PLOG("Now erasing it...");
+    ddm.erase_region(uuid, 0);
+    ddm.debug_dump(0);
+  }
+
+  p = ddm.create_region(uuid, 0, size);
+  if(p)
+    PLOG("created region %p ", p);
+  ASSERT_TRUE(p);
+  memset(p, 0, 4096);
+  ddm.debug_dump(0);
+
+  PLOG("Erase...");
+  ddm.erase_region(uuid, 0);
+  ddm.debug_dump(0);
+
+  PLOG("Re-create...");
+  void * q = ddm.create_region(uuid, 0, size);
+  ASSERT_TRUE(q == p);
+
+  ddm.debug_dump(0);
+  ddm.erase_region(uuid, 0);
+}
+#endif
+
+#ifdef RUN_AVL_RCA_TEST
+TEST_F(Libnupm_test, RcAllocatorAVL)
+{
+  
+
+  void * p = aligned_alloc(GB(1),GB(8));
+  ASSERT_TRUE(p);
+  void * q = aligned_alloc(GB(1),GB(8));
+  ASSERT_TRUE(q);
+
+  PLOG("p=%p", p);
+  PLOG("q=%p", q);
+
+  std::vector<iovec> allocations;
+
+  std::string state_A, state_B;
+  { /* create allocator */
+    nupm::Rca_AVL rca;
+    rca.add_managed_region(p, GB(8), 0);
+    rca.add_managed_region(q, GB(8), 1);
+
+    for(unsigned i=0;i<10;i++) {
+      void * a = rca.alloc((i+1)*32, 0, 16);
+      allocations.push_back({a, (i+1)*32});
+    }
+
+    /* logical power-fail */
+    rca.debug_dump(&state_A);// TODO get string version 
+  }
+
+  {
+    nupm::Rca_AVL rca;
+    rca.add_managed_region(p, GB(8), 0);
+    rca.add_managed_region(q, GB(8), 1);
+
+    for(auto& i: allocations) {
+      rca.inject_allocation(i.iov_base, i.iov_len, 0);
+    }
+    
+    rca.debug_dump(&state_B);
+
+    /* state A and B should be the same */
+    ASSERT_TRUE(state_A == state_B);
+    
+    /* now we should be able to free */
+    for(auto& i: allocations) {
+      rca.free(i.iov_base, 0);
+    }
+  }
+
+  free(p);
+  free(q);
+}
+#endif
+
+#if 0
 TEST_F(Libnupm_test, NdControl)
 {
   nupm::ND_control ctrl;
-  PLOG("ND_control init complete.");
+  PLOG("ND_control init complete!");
 }
+#endif
+
+#if 0
+TEST_F(Libnupm_test, TxCache)
+{
+  size_t NUM_PAGES = 2048;
+  size_t p_size = NUM_PAGES * MB(2);
+  void * p = nupm::allocate_virtual_pages(p_size/MB(2), MB(2), 0x900000000ULL);
+
+  cpu_time_t start = rdtsc();
+  for(size_t i=0;i<NUM_PAGES;i++) {
+    ((char*)p)[i*MB(2)]='a';
+  }
+  cpu_time_t delta = (rdtsc() - start)/NUM_PAGES;
+  PLOG("Mean PF cost: (%f usec) %lu", Common::cycles_to_usec(delta), delta);  
+  // { // important
+  //   Core::Heap_allocator<char> heap(p, p_size, "heapA");
+
+  //   char * q = heap.allocate(128);
+  //   memset(q, 0, 128);
+  // }
+
+#if 0
+  char * c = (char*) p;
+  cpu_time_t start = rdtsc();
+  c[0] = 'a';
+  cpu_time_t delta = rdtsc() - start;
+  c[4096] = 'a';
+  PLOG("touched! in %ld cycles (%f usec)", delta, Common::cycles_to_usec(delta));
+#endif
+  
+  nupm::free_virtual_pages(p);
+}
+#endif
 
 #ifdef RUN_RPALLOCATOR_TESTS
 TEST_F(Libnupm_test, RpAllocatorPerf)
@@ -211,11 +356,14 @@ TEST_F(Libnupm_test, VmemSingleThreadAlloc)
 
 #endif
 
-} // namespace
 
 int main(int argc, char **argv) {
   
   ::testing::InitGoogleTest(&argc, argv);
+
+  if(argc > 1) {
+    Options.uuid = atol(argv[1]);
+  }
   auto r = RUN_ALL_TESTS();
 
   return r;

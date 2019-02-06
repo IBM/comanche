@@ -246,7 +246,7 @@ public:
    * 
    * @param pool Pool handle
    * @param key Object key
-   * @param out_value Value data
+   * @param out_value Value data (if null, component will allocate memory)
    * @param out_value_len Size of value in bytes
    * 
    * @return S_OK or error code
