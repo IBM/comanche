@@ -10,6 +10,7 @@
 #define USE_CC_HEAP 1
 #endif
 
+#include "allocator_cc.h"
 #include "atomic_controller.h"
 #include "hop_hash.h"
 #include "perishable.h"
@@ -20,7 +21,6 @@
 #include <common/exceptions.h>
 #include <common/logging.h>
 #include <common/utils.h>
-#include <core/cc_heap.h>
 
 #if USE_PMEM
 #include "hstore_pmem_types.h"
@@ -69,9 +69,9 @@ namespace
 }
 
 #if USE_CC_HEAP == 1
-using ALLOC_T = Core::CC_allocator<char, Persister>;
+using ALLOC_T = allocator_cc<char, Persister>;
 #elif USE_CC_HEAP == 2
-using ALLOC_T = Core::allocator_co<char, Persister>;
+using ALLOC_T = allocator_co<char, Persister>;
 #else /* USE_CC_HEAP */
 using ALLOC_T = allocator_pobj_cache_aligned<char>;
 #endif /* USE_CC_HEAP */

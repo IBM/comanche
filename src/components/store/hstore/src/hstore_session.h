@@ -29,7 +29,7 @@ public:
         Allocator(
           *new
              (pmemobj_direct(heap_oid_))
-             Core::cc_alloc(static_cast<char *>(pmemobj_direct(heap_oid_) + sizeof(Core::cc_alloc)))
+             heap_cc(static_cast<char *>(pmemobj_direct(heap_oid_) + sizeof(heap_cc)))
         )
       )
 #elif USE_CC_HEAP == 2
@@ -37,7 +37,7 @@ public:
         Allocator(
           *new
             (pmemobj_direct(heap_oid_))
-            Core::heap_co(heap_oid_)
+            heap_co(heap_oid_)
         )
       )
 #else /* USE_CC_HEAP */
@@ -56,7 +56,7 @@ public:
 			ALLOC_T(
 				*new
 					(&this->pool()->heap)
-					Core::cc_alloc(this->pool() + 1)
+					heap_cc(this->pool() + 1)
 			)
 		)
 		, _map(&this->pool()->persist_data, _heap)

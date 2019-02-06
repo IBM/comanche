@@ -57,12 +57,7 @@ template <typename Table>
 		, const char *what_
 	)
 	{
-		using persist_switch_t =
-			persist_switch<
-				allocator_type
-				, std::is_base_of<persister, allocator_type>::value
-			>;
-		persist_switch_t::persist(*this, first_, last_, what_);
+		this->persist(first_, static_cast<const char *>(last_) - static_cast<const char *>(first_), what_);
 	}
 
 template <typename Table>
