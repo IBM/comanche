@@ -41,7 +41,6 @@ template <
 		, _locate_key_match(0)
 		, _locate_key_mismatch(0)
 	{
-
 		const auto bp_src = persist_controller_t::bp_src();
 		const auto bc_dst =
 			boost::make_transform_iterator(_bc, std::mem_fn(&bucket_control_t::_buckets));
@@ -57,12 +56,12 @@ template <
 			}
 		);
 
-
 		_bc[0]._index = 0;
 		_bc[0]._next = &_bc[0];
 		_bc[0]._prev = &_bc[0];
 		_bc[0]._bucket_mutexes = new bucket_mutexes_t[base_segment_size];
 		_bc[0]._buckets_end = _bc[0]._buckets + base_segment_size;
+
 		for ( auto ix = 1U; ix != persist_controller_t::segment_count_actual(); ++ix )
 		{
 			_bc[ix-1]._next = &_bc[ix];
@@ -79,10 +78,9 @@ template <
 		std::cerr << __func__ << " count " << persist_controller_t::segment_count_actual()
 			<< " count_target " << persist_controller_t::segment_count_target() << "\n";
 #endif
-		/* If in the middle of a resize op, rerun the resize. */
-		if ( persist_controller_t::segment_count_actual() != persist_controller_t::segment_count_target() )
+		/* If table allocation incomplete (perhaps in the middle of a resize op), resize until large enough. */
+		while ( persist_controller_t::segment_count_actual() != persist_controller_t::segment_count_target() )
 		{
-			assert( persist_controller_t::segment_count_actual() + 1U == persist_controller_t::segment_count_target() );
 			resize();
 		}
 

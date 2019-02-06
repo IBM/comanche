@@ -144,6 +144,7 @@ namespace impl
 
 		public:
 			persist_map(std::size_t n, Allocator av);
+			void do_initial_allocation(Allocator av);
 			friend class persist_controller<Allocator>;
 		};
 }

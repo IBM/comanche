@@ -25,9 +25,16 @@ template <typename Allocator>
 		, _bucket_count_cached(bucket_count_uncached())
 	{
 		assert(_persist->_segment_count._target <= _segment_capacity);
+		assert(1U <= _persist->_segment_count._target);
 		assert(
 			_persist->_segment_count._actual <= _persist->_segment_count._target
 		);
+
+		/* Persisted data needs at least one segment. */
+		if ( _persist->_segment_count._actual == 0 )
+		{
+			_persist->do_initial_allocation(av_);
+		}
 	}
 
 template <typename Allocator>
