@@ -49,10 +49,13 @@ class Libnupm_test : public ::testing::Test {
   //#define RUN_RPALLOCATOR_TESTS
 //#define RUN_VMEM_ALLOCATOR_TESTS
 #include "dax_map.h"
-  
+
 TEST_F(Libnupm_test, DevdaxManager)
 {
-  nupm::Devdax_manager ddm(true);
+  {
+    nupm::Devdax_manager ddm(true);
+  }
+  nupm::Devdax_manager ddm; // rebuild
 
   size_t p_len = 0;
   uint64_t uuid = Options.uuid;
