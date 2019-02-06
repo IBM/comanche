@@ -38,6 +38,7 @@
 #include <new>
 #include <map> /* session set */
 #include <mutex> /* thread safe use of libpmempool/obj */
+#include <stdexcept> /* domain_error */
 
 #define PREFIX "HSTORE : %s: "
 
@@ -175,11 +176,11 @@ auto hstore::move_pool(const Component::IKVStore::pool_t pid) -> std::unique_ptr
   return s2;
 }
 
-hstore::hstore(const std::string & /* owner */, const std::string & /* name */)
+hstore::hstore(const std::string &owner, const std::string &name)
 #if USE_PMEM
-  : _pool_manager(std::make_shared<hstore_pmem>(option_DEBUG))
+  : _pool_manager(std::make_shared<hstore_pmem>(owner, name, option_DEBUG))
 #else
-  : _pool_manager(std::make_shared<hstore_nupm>(0, option_DEBUG))
+  : _pool_manager(std::make_shared<hstore_nupm>(owner, name, option_DEBUG))
 #endif
   , _pools_mutex{}
   , _pools{}
