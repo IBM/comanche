@@ -9,11 +9,11 @@ class region
   std::uint64_t magic;
 public:
   persist_data_t persist_data;
-  Core::cc_alloc heap;
+  heap_cc heap;
 
   void initialize() { magic = magic_value; }
   bool is_initialized() const noexcept { return magic == magic_value; }
-  /* region used by cc_alloc follows */
+  /* region used by heap_cc follows */
 };
 
 #endif

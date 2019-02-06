@@ -3,8 +3,6 @@
 
 #include "persist_atomic.h"
 #include "persist_fixed_string.h"
-#include "persist_switch.h"
-#include "persister.h"
 
 #include <type_traits> /* is_base_of */
 #include <vector>

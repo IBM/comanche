@@ -83,7 +83,7 @@ private:
     /* arguments to cc_malloc are the start of the free space (which cc_sbrk uses
      * for the "state" structure) and the size of the free space
      */
-    auto al = new (a) Core::cc_alloc(static_cast<char *>(a) + sizeof(Core::cc_alloc), actual_size);
+    auto al = new (a) heap_cc(static_cast<char *>(a) + sizeof(heap_cc), actual_size);
     new (p) persist_data_t(
       expected_obj_count
       , table_t::allocator_type(*al)
