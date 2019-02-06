@@ -1,7 +1,7 @@
 #ifndef COMANCHE_HSTORE_OFFSET_ALLOCATOR
 #define COMANCHE_HSTORE_OFFSET_ALLOCATOR
 
-#include <core/cc_persister.h>
+#include "persister_cc.h"
 
 #include <libpmemobj.h> /* PMEMoid */
 
