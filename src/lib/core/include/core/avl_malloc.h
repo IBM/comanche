@@ -1,5 +1,5 @@
 /*
-   Copyright [2017] [IBM Corporation]
+   Copyright [2017, 2019] [IBM Corporation]
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -402,7 +402,7 @@ class AVL_range_allocator {
    */
   virtual ~AVL_range_allocator() {
     /* delete node memory */
-    _tree->apply_topdown([=](void* p) {
+    _tree->apply_topdown([=](void* p, size_t) {
       Memory_region* mr = static_cast<Memory_region*>(p);
       _slab.free(mr);
     });
@@ -653,9 +653,19 @@ class AVL_range_allocator {
    * Dump the tree for debugging purposes
    *
    */
-  void dump_info() {
+  void dump_info(std::string * out_str = nullptr) {
     assert(_tree->root());
+    PINF("+ AVL_tree: ");
     AVL_tree<Memory_region>::dump(*(_tree->root()));
+
+    if(out_str) {
+      apply([&](addr_t addr, size_t s, bool state)
+            {
+              std::stringstream ss;
+              ss << "(" << std::hex << addr << "," << s << "," << state << ")";
+              out_str->append(ss.str());
+            });
+    }
   }
 
   /**
@@ -664,11 +674,13 @@ class AVL_range_allocator {
    * @param functor
    */
   void apply(std::function<void(addr_t, size_t, bool)> functor) {
-    _tree->apply_topdown([functor](void* p) {
+    _tree->apply_topdown([functor](void* p, size_t) {
       Memory_region* mr = static_cast<Memory_region*>(p);
       functor(mr->addr(), mr->size(), mr->is_free());
     });
   }
+
+
 
   // inline addr_t base()
   // {
@@ -794,7 +806,9 @@ class Arena_allocator : public Common::Base_memory_allocator {
    * Output debugging information
    *
    */
-  void dump_info() { _range_allocator.dump_info(); }
+  void dump_info(std::string * out_str = nullptr) {
+    _range_allocator.dump_info(out_str);
+  }
 
   /**
    * Apply functor to elements of the tree

@@ -1,3 +1,19 @@
+/*
+   Copyright [2019] [IBM Corporation]
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
+
 #include <numa.h>
 #include <stdexcept>
 #include <common/logging.h>
@@ -29,7 +45,9 @@ static void init_Rca()
 
 class Rca_AVL_internal
 {
- public:
+  static constexpr unsigned _debug_level = 2;
+
+public:
   Rca_AVL_internal()
 #ifndef RCA_USE_MEMKIND 
       : _slab()
@@ -62,6 +80,9 @@ class Rca_AVL_internal
   
   void add_managed_region(void * region_base, size_t region_length, int numa_node)
   {
+    assert(region_base);
+    assert(region_length > 0);
+    
 #ifdef RCA_USE_MEMKIND
     throw API_exception("add_managed_region with base,length, node not supported for memkind");
 #else
@@ -89,24 +110,36 @@ class Rca_AVL_internal
                int numa_node,
                size_t alignment)
   {    
-    void * p = nullptr;
 #ifdef RCA_USE_MEMKIND
     if(_allocators[numa_node]->posix_memalign(&p, size, alignment))
       throw General_exception("alloc failed");
 #else
-    _allocators[numa_node]->alloc(size, alignment);
+    auto mr = _allocators[numa_node]->alloc(size, alignment);
 #endif
-    return p;    
+    if(_debug_level > 1)
+      PLOG("allocated: 0x%lx size=%lu", mr->addr(), size);
+
+    assert(mr);
+    return reinterpret_cast<void*>(mr->addr());
   }
 
   void free(void * ptr,
             int numa_node)
   {
+    if(ptr == nullptr)
+      throw API_exception("pointer argument to free cannot be null");
+    
 #ifdef RCA_USE_MEMKIND
     _allocators[numa_node]->free(ptr);
 #else
     _allocators[numa_node]->free(reinterpret_cast<addr_t>(ptr));
 #endif
+  }
+
+  void debug_dump(std::string * out_str)
+  {
+    _allocators[0]->dump_info(out_str);
+    _allocators[1]->dump_info(out_str);
   }
   
 
@@ -117,7 +150,7 @@ class Rca_AVL_internal
   Core::Slab::CRuntime<Core::Memory_region> _slab; /* use C runtime for slab? */
   std::vector<Core::AVL_range_allocator *>  _allocators;
 #else
-  std::vector<nupm::Memkind_allocator *>  _allocators;
+  std::vector<nupm::Memkind_allocator *>    _allocators;
 #endif
 
   
@@ -171,6 +204,11 @@ void * Rca_AVL::alloc(size_t size,
 void Rca_AVL::free(void *ptr, int numa_node)
 {
   _rca->free(ptr, numa_node);
+}
+
+void Rca_AVL::debug_dump(std::string * out_log)
+{
+  _rca->debug_dump(out_log);
 }
 
 
