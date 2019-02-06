@@ -83,6 +83,12 @@ public:
     return _data[i].key.c_str();
   }
   
+  const std::string & key_as_string(size_t i) const
+  {
+    if(i >= _num_elements) throw General_exception("index out of bounds");
+    return _data[i].key;
+  }
+
   const char * value(size_t i) const 
   {
     if(i >= _num_elements) throw General_exception("index out of bounds");

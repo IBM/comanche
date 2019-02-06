@@ -2,14 +2,21 @@
 Language: Cpp
 BasedOnStyle: Google
 IndentWidth: 2
+ColumnLimit: 128
 SpaceAfterCStyleCast: true
+AlignAfterOpenBracket: Align
 AlwaysBreakBeforeMultilineStrings: false
+AllowAllParametersOfDeclarationOnNextLine: true
+AlignConsecutiveAssignments: true
 BreakBeforeBraces: Custom
-MaxEmptylinestokeep: 4
 BraceWrapping:
   AfterNamespace: true
   BeforeElse:     true
-  ColumnLimit:    128
+  BeforeCatch:    true
+BinPackParameters: false
+ConstructorInitializerAllOnOneLineOrOnePerLine: false
+BreakBeforeInheritanceComma: true
+ColumnLimit: 80
 ...
 
 #------------------------------------------

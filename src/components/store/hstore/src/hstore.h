@@ -1,5 +1,5 @@
 /*
- * (C) Copyright IBM Corporation 2018. All rights reserved.
+ * (C) Copyright IBM Corporation 2018i, 2019. All rights reserved.
  *
  */
 
@@ -14,9 +14,24 @@
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 #include <api/kvstore_itf.h>
 #pragma GCC diagnostic pop
+#include <map>
+#include <memory>
+#include <string>
+
+class tracked_pool;
+class pool_manager;
 
 class hstore : public Component::IKVStore
 {
+private:
+  std::shared_ptr<pool_manager> _pool_manager;
+  std::mutex _pools_mutex;
+  using pools_map = std::map<tracked_pool *, std::unique_ptr<tracked_pool>>;
+  pools_map _pools; /* would map sessions, but delete_pool also requires an "open" pool */
+  auto locate_open_pool(const IKVStore::pool_t pid) -> tracked_pool &;
+  auto locate_session(const IKVStore::pool_t pid) -> tracked_pool &;
+  auto move_pool(const IKVStore::pool_t pid) -> std::unique_ptr<tracked_pool>;
+
   void delete_pool(const std::string &path, const std::string &name);
 public:
   /** 

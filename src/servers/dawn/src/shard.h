@@ -16,7 +16,6 @@
 #include "dawn_config.h"
 #include "fabric_transport.h"
 #include "pool_manager.h"
-#include "program_options.h"
 #include "types.h"
 
 namespace Dawn
@@ -24,25 +23,30 @@ namespace Dawn
 class Connection_handler;
 
 /* Adapter point */
-
 using Shard_transport = Fabric_transport;
 
 class Shard : public Shard_transport {
  private:
   using buffer_t = Shard_transport::buffer_t;
-  using pool_t = Component::IKVStore::pool_t;
+  using pool_t   = Component::IKVStore::pool_t;
 
-  bool option_DEBUG;
+  unsigned option_DEBUG;
 
  public:
-  Shard(Program_options& po, bool forced_exit)
-      : Shard_transport(po.fabric_provider, po.device, po.port),
-        _po(po),
-        _core(po.core),
-        _thread(&Shard::thread_entry, this, po),
-        _forced_exit(forced_exit) {
-    Dawn::Global::debug_level = po.debug_level;
-    option_DEBUG = Dawn::Global::debug_level > 1;
+  Shard(int core,
+        unsigned int port,
+        const std::string provider,
+        const std::string device,
+        const std::string net,
+        const std::string backend,
+        const std::string pci_addr,
+        const std::string pm_path,
+        unsigned debug_level,
+        bool forced_exit)
+      : Shard_transport(provider, net, port), _core(core),
+        _forced_exit(forced_exit),
+        _thread(&Shard::thread_entry, this, backend, pci_addr, debug_level) {
+    option_DEBUG = Dawn::Global::debug_level = debug_level;
   }
 
   ~Shard() {
@@ -50,28 +54,30 @@ class Shard : public Shard_transport {
     /* TODO: unblock */
     _thread.join();
     _i_kvstore->release_ref();
-    //    delete _i_fabric_factory;
   }
 
   bool exited() const { return _thread_exit; }
 
  private:
-  void thread_entry(const Program_options& po) {
-    if (option_DEBUG) PLOG("shard:%u worker thread entered.", _core);
+  void thread_entry(const std::string& backend,
+                    const std::string& pci_addr,
+                    unsigned debug_level) {
+    if (option_DEBUG > 2) PLOG("shard:%u worker thread entered.", _core);
 
     if (set_cpu_affinity(1UL << _core) != 0)
       throw General_exception("unable to set cpu affinity (%lu)", _core);
 
-    initialize_components(po);
+    initialize_components(backend, pci_addr, debug_level);
 
     main_loop();
 
-    if (option_DEBUG) PLOG("shard:%u worker thread exited.", _core);
+    if (option_DEBUG > 2) PLOG("shard:%u worker thread exited.", _core);
   }
 
-  void add_locked_value(const pool_t pool_id, Component::IKVStore::key_t key,
+  void add_locked_value(const pool_t pool_id,
+                        Component::IKVStore::key_t key,
                         void* target) {
-    if (option_DEBUG) PLOG("shard: locked value (target=%p)", target);
+    if (option_DEBUG > 2) PLOG("shard: locked value (target=%p)", target);
     _locked_values[target] = std::make_pair(pool_id, key);
   }
 
@@ -82,14 +88,17 @@ class Shard : public Shard_transport {
 
     _i_kvstore->unlock(i->second.first, i->second.second);
 
-    if (option_DEBUG) PLOG("unlocked value: %p", target);
+    if (option_DEBUG > 2) PLOG("unlocked value: %p", target);
 
     _locked_values.erase(i);
   }
 
-  void initialize_components(const Program_options& po);
+  void initialize_components(const std::string& backend,
+                             const std::string& pci_addr,
+                             unsigned debug_level);
 
   void check_for_new_connections();
+
   void main_loop();
 
   void process_message_pool_request(Connection_handler* handler,
@@ -99,7 +108,6 @@ class Shard : public Shard_transport {
                                   Protocol::Message_IO_request* msg);
 
  private:
-  const Program_options& _po;
   bool _thread_exit = false;
   bool _forced_exit;
   unsigned _core;

@@ -4,6 +4,7 @@
 /* things to report */
 #define TRACE_MANY 0
 #define TRACE_PALLOC 0
+#define TRACE_PERSIST 0
 #define TRACE_LOCK 0
 #define TRACE_PERISHABLE_EXPIRY 0
 

@@ -9,7 +9,7 @@
 namespace Dawn
 {
 class Region_manager {
-  static constexpr bool option_DEBUG = true;
+  static constexpr bool option_DEBUG = false;
 
  public:
   Region_manager(Connection* conn) : _conn(conn) { assert(conn); }
@@ -32,7 +32,7 @@ class Region_manager {
       return region;
     }
     else {
-      region = _conn->register_memory(target, target_len, 0, 0);
+      region       = _conn->register_memory(target, target_len, 0, 0);
       _reg[target] = region;
       if (option_DEBUG)
         PLOG("registering memory with fabric transport %p len=%lu", target,

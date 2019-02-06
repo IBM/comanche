@@ -5,7 +5,6 @@
 #include "perishable.h"
 #include "perishable_expiry.h"
 #include "persistent.h"
-#include "pobj_allocator.h"
 
 #include <boost/iterator/transform_iterator.hpp>
 
@@ -45,17 +44,24 @@ template <
 		const auto bp_src = persist_controller_t::bp_src();
 		const auto bc_dst =
 			boost::make_transform_iterator(_bc, std::mem_fn(&bucket_control_t::_buckets));
+		/*
+		 * Copy bucket pointers from pmem to DRAM.
+		 */
 		std::transform(
 			bp_src
 			, bp_src + _segment_capacity
 			, bc_dst
-			, [] (const auto &c) { return &*c; }
+			, [] (const auto &c) {
+				return c ? &*c : nullptr;
+			}
 		);
+
 		_bc[0]._index = 0;
 		_bc[0]._next = &_bc[0];
 		_bc[0]._prev = &_bc[0];
 		_bc[0]._bucket_mutexes = new bucket_mutexes_t[base_segment_size];
 		_bc[0]._buckets_end = _bc[0]._buckets + base_segment_size;
+
 		for ( auto ix = 1U; ix != persist_controller_t::segment_count_actual(); ++ix )
 		{
 			_bc[ix-1]._next = &_bc[ix];
@@ -72,10 +78,9 @@ template <
 		std::cerr << __func__ << " count " << persist_controller_t::segment_count_actual()
 			<< " count_target " << persist_controller_t::segment_count_target() << "\n";
 #endif
-		/* If in the middle of a resize op, rerun the resize. */
-		if ( persist_controller_t::segment_count_actual() != persist_controller_t::segment_count_target() )
+		/* If table allocation incomplete (perhaps in the middle of a resize op), resize until large enough. */
+		while ( persist_controller_t::segment_count_actual() != persist_controller_t::segment_count_target() )
 		{
-			assert( persist_controller_t::segment_count_actual() + 1U == persist_controller_t::segment_count_target() );
 			resize();
 		}
 
@@ -454,6 +459,7 @@ template <
 				<< __func__ << " END LIST\n";
 #endif
 		RETRY:
+			/* convert the args to a value_type */
 			auto v = value_type(std::forward<Args>(args)...);
 			/* The bucket in which to place the new entry */
 			auto sbw = make_segment_and_bucket(bucket(v.first));
@@ -493,22 +499,23 @@ template <
 				 */
 				b_dst.ref().state_set(bucket_t::ENTERING);
 				persist_controller_t::persist_content(b_dst.ref(), "content entering");
-				persist_controller_t::size_destabilize();
-				owner_lk.ref().insert(
-					owner_lk.index()
-					, distance_wrapped(owner_lk.index(), b_dst.index())
-					, owner_lk
-				);
-				persist_controller_t::persist_owner(owner_lk.ref(), "owner emplace");
-				b_dst.ref().state_set(bucket_t::IN_USE);
-				persist_controller_t::persist_content(b_dst.ref(), "content in_use");
+				{
+					persist_size_change<Allocator, size_incr> s(*this);
+					owner_lk.ref().insert(
+						owner_lk.index()
+						, distance_wrapped(owner_lk.index(), b_dst.index())
+						, owner_lk
+					);
+					persist_controller_t::persist_owner(owner_lk.ref(), "owner emplace");
+					b_dst.ref().state_set(bucket_t::IN_USE);
+					persist_controller_t::persist_content(b_dst.ref(), "content in_use");
 #if TRACE_MANY
-				std::cerr << __func__ << " bucket " << owner_lk.index()
-					<< " store at " << b_dst.index() << " "
-					<< make_owner_print(*this, owner_lk)
-					<< " " << b_dst.ref() << "\n";
+					std::cerr << __func__ << " bucket " << owner_lk.index()
+						<< " store at " << b_dst.index() << " "
+						<< make_owner_print(*this, owner_lk)
+						<< " " << b_dst.ref() << "\n";
 #endif
-				persist_controller_t::size_incr();
+				}
 				return {iterator{b_dst.sb()}, true};
 			}
 			catch ( const no_near_empty_bucket &e )
@@ -592,22 +599,23 @@ template <
 			 */
 			b_dst.ref().state_set(bucket_t::ENTERING);
 			persist_controller_t::persist_content(b_dst.ref(), "content entering");
-			persist_controller_t::size_destabilize();
-			owner_lk.ref().insert(
-				owner_lk.index()
-				, distance_wrapped(owner_lk.index(), b_dst.index())
-				, owner_lk
-			);
-			persist_controller_t::persist_owner(owner_lk.ref(), "owner insert");
-			b_dst.ref().state_set(bucket_t::IN_USE);
-			persist_controller_t::persist_content(b_dst.ref(), "content in_use");
+			{
+				persist_size_change<Allocator, size_incr> s(*this);
+				owner_lk.ref().insert(
+					owner_lk.index()
+					, distance_wrapped(owner_lk.index(), b_dst.index())
+					, owner_lk
+				);
+				persist_controller_t::persist_owner(owner_lk.ref(), "owner insert");
+				b_dst.ref().state_set(bucket_t::IN_USE);
+				persist_controller_t::persist_content(b_dst.ref(), "content in_use");
 #if TRACE_MANY
-			std::cerr << __func__ << " bucket " << owner_lk.index()
-				<< " store at " << b_dst.index() << " "
-				<< make_owner_print(*this, owner_lk)
-				<< " " << b_dst.ref() << "\n";
+				std::cerr << __func__ << " bucket " << owner_lk.index()
+					<< " store at " << b_dst.index() << " "
+					<< make_owner_print(*this, owner_lk)
+					<< " " << b_dst.ref() << "\n";
 #endif
-			persist_controller_t::size_incr();
+			}
 			return {iterator{b_dst.sb()}, true};
 		}
 		catch ( const no_near_empty_bucket &e )
@@ -921,7 +929,27 @@ template <
 	) const -> segment_and_bucket_t
 	{
 		assert( ix_ < bucket_count() );
+		/* Same as in make_segment_and_bucket_for_iterator, but with the knowledge that ix_ != bucket_count() */
+#if 0
 		return make_segment_and_bucket_for_iterator(ix_);
+#else
+		auto si =
+			__builtin_expect((segment_layout::ix_high(ix_) == 0),false)
+			? 0
+			: segment_layout::log2(ix_high(ix_))
+			;
+		auto bi =
+			(
+				__builtin_expect((segment_layout::ix_high(ix_) == 0),false)
+				? 0
+				: ix_high(ix_) % (1U << (si-1))
+			)
+			*
+			segment_layout::base_segment_size + segment_layout::ix_low(ix_)
+			;
+
+		return segment_and_bucket_t(&_bc[si], bi);
+#endif
 	}
 
 template <
@@ -946,31 +974,34 @@ template <
 	auto impl::table_base<
 		Key, T, Hash, Pred, Allocator, SharedMutex
 	>::make_segment_and_bucket_for_iterator(
-		bix_t ix
+		bix_t ix_
 	) const -> segment_and_bucket_t
 	{
-		assert( ix <= bucket_count() );
+		assert( ix_ <= bucket_count() );
 
 		auto si =
-			__builtin_expect((segment_layout::ix_high(ix) == 0),false)
+			__builtin_expect((segment_layout::ix_high(ix_) == 0),false)
 			? 0
-			: segment_layout::log2(ix_high(ix))
+			: segment_layout::log2(ix_high(ix_))
 			;
 		auto bi =
 			(
-				__builtin_expect((segment_layout::ix_high(ix) == 0),false)
+				__builtin_expect((segment_layout::ix_high(ix_) == 0),false)
 				? 0
-				: ix_high(ix) % (1U << (si-1))
+				: ix_high(ix_) % (1U << (si-1))
 			)
 			*
-			segment_layout::base_segment_size + segment_layout::ix_low(ix)
+			segment_layout::base_segment_size + segment_layout::ix_low(ix_)
 			;
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
 		return
 			si == segment_count()
 			? segment_and_bucket_t(&_bc[si-1], _bc[si-1].segment_size() ) /* end iterator */
 			: segment_and_bucket_t(&_bc[si], bi)
 			;
+#pragma GCC diagnostic pop
 	}
 
 template <
@@ -1185,15 +1216,16 @@ template <
 			 */
 			erase_src.ref().state_set(bucket_t::EXITING);
 			persist_controller_t::persist_content(erase_src.ref(), "content erase exiting");
-			persist_controller_t::size_destabilize();
-			owner_lk.ref().erase(
-				static_cast<unsigned>(erase_src.index()-owner_lk.index())
-				, owner_lk
-			);
-			persist_controller_t::persist_owner(owner_lk.ref(), "owner erase");
-			erase_src.ref().erase();
-			persist_controller_t::persist_content(erase_src.ref(), "content erase free");
-			persist_controller_t::size_decr();
+			{
+				persist_size_change<Allocator, size_decr> s(*this);
+				owner_lk.ref().erase(
+					static_cast<unsigned>(erase_src.index()-owner_lk.index())
+					, owner_lk
+				);
+				persist_controller_t::persist_owner(owner_lk.ref(), "owner erase");
+				erase_src.ref().erase();
+				persist_controller_t::persist_content(erase_src.ref(), "content erase free");
+			}
 			return 1U;
 		}
 	}

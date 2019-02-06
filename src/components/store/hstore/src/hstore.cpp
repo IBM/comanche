@@ -1,75 +1,91 @@
 #include "hstore.h"
 
+#define USE_PMEM 1
+
+#if USE_PMEM
+/* with PMEM, choose the CC_HEAP version: 0, 1, or 2 */
+#define USE_CC_HEAP 0
+#else
+/* without PMEM, only heap version 1 works */
+#define USE_CC_HEAP 1
+#endif
+
+#include "allocator_cc.h"
 #include "atomic_controller.h"
 #include "hop_hash.h"
-#include "palloc.h"
 #include "perishable.h"
 #include "persist_fixed_string.h"
-#include "pobj_allocator.h"
 
+#include <stdexcept>
 #include <city.h>
 #include <common/exceptions.h>
 #include <common/logging.h>
 #include <common/utils.h>
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wold-style-cast"
-#if defined __clang__
-#pragma GCC diagnostic ignored "-Wnested-anon-types"
+#if USE_PMEM
+#include "hstore_pmem_types.h"
+#include "persister_pmem.h"
+#else
+#include "hstore_nupm_types.h"
+#include "persister_nupm.h"
 #endif
-#include <libpmemobj.h>
-#include <libpmempool.h>
-#include <libpmemobj/base.h>
-#include <libpmem.h> /* pmem_persist */
-#pragma GCC diagnostic pop
-
-#include <boost/filesystem.hpp>
 
 #include <algorithm>
 #include <cassert>
 #include <cerrno>
+#include <cstring> /* strerror, memcpy */
 #include <memory> /* unique_ptr */
 #include <new>
 #include <map> /* session set */
+#include <mutex> /* thread safe use of libpmempool/obj */
+#include <stdexcept> /* domain_error */
 
 #define PREFIX "HSTORE : %s: "
-
-#define REGION_NAME "hstore-data"
-
-using IKVStore = Component::IKVStore;
 
 #if 0
 /* thread-safe hash */
 #include <mutex>
 using hstore_shared_mutex = std::shared_timed_mutex;
-static constexpr auto thread_model = IKVStore::THREAD_MODEL_MULTI_PER_POOL;
+static constexpr auto thread_model = Component::IKVStore::THREAD_MODEL_MULTI_PER_POOL;
 #else
 /* not a thread-safe hash */
 #include "dummy_shared_mutex.h"
 using hstore_shared_mutex = dummy::shared_mutex;
-static constexpr auto thread_model = IKVStore::THREAD_MODEL_SINGLE_PER_POOL;
+static constexpr auto thread_model = Component::IKVStore::THREAD_MODEL_SINGLE_PER_POOL;
 #endif
 
-using open_pool_handle = std::unique_ptr<PMEMobjpool, void(*)(PMEMobjpool *)>;
+template<typename T>
+  struct type_number;
+
+template<> struct type_number<char> { static constexpr uint64_t value = 2; };
 
 namespace
 {
-constexpr bool option_DEBUG = false;
-namespace type_num
-{
-constexpr uint64_t persist = 1U;
-constexpr uint64_t table = 2U;
-constexpr uint64_t key = 3U;
-constexpr uint64_t mapped = 4U;
+  constexpr bool option_DEBUG = false;
+  namespace type_num
+  {
+    constexpr uint64_t persist = 1U;
+    constexpr uint64_t heap = 2U;
+  }
 }
 
-using KEY_T = persist_fixed_string<char>;
+#if USE_CC_HEAP == 1
+using ALLOC_T = allocator_cc<char, Persister>;
+#elif USE_CC_HEAP == 2
+using ALLOC_T = allocator_co<char, Persister>;
+#else /* USE_CC_HEAP */
+using ALLOC_T = allocator_pobj_cache_aligned<char>;
+#endif /* USE_CC_HEAP */
+
+using DEALLOC_T = typename ALLOC_T::deallocator_type;
+using KEY_T = persist_fixed_string<char, DEALLOC_T>;
+using MAPPED_T = persist_fixed_string<char, DEALLOC_T>;
 
 struct pstr_hash
 {
   using argument_type = KEY_T;
   using result_type = std::uint64_t;
-  result_type hf(argument_type s) const
+  static result_type hf(const argument_type &s)
   {
     return CityHash64(s.data(), s.size());
   }
@@ -77,178 +93,98 @@ struct pstr_hash
 
 using HASHER_T = pstr_hash;
 
-using allocator_segment_t =
-  pobj_cache_aligned_allocator
-  <
-  std::pair<const KEY_T, persist_fixed_string<char>>
-  >;
+using allocator_segment_t = ALLOC_T::rebind<std::pair<const KEY_T, MAPPED_T>>::other;
+using allocator_atomic_t = ALLOC_T::rebind<impl::mod_control>::other;
 
-using allocator_atomic_t =
-  pobj_cache_aligned_allocator<impl::mod_control>;
+#if USE_CC_HEAP == 1
+#elif USE_CC_HEAP == 2
+#else
+template<> struct type_number<impl::mod_control> { static constexpr std::uint64_t value = 4; };
+#endif /* USE_CC_HEAP */
 
 using table_t =
   table<
   KEY_T
-  , persist_fixed_string<char>
+  , MAPPED_T
   , HASHER_T
   , std::equal_to<KEY_T>
   , allocator_segment_t
   , hstore_shared_mutex
   >;
 
-using pc_t = typename impl::persist_data<allocator_segment_t, allocator_atomic_t>;
+template<> struct type_number<table_t::value_type> { static constexpr std::uint64_t value = 5; };
+template<> struct type_number<table_t::base::persist_data_t::bucket_aligned_t> { static constexpr uint64_t value = 6; };
 
-struct store_root_t
-{
-  /* A pointer so that null value can indicate no allocation. */
-  PMEMoid pc;
-};
+using persist_data_t = typename impl::persist_data<allocator_segment_t, table_t::value_type>;
 
-TOID_DECLARE_ROOT(struct store_root_t);
-
-class open_session
-{
-  TOID(struct store_root_t) _root;
-  open_pool_handle          _pop;
-  table_t                   _map;
-  impl::atomic_controller<table_t> _atomic_state;
-  std::string               _dir;
-  std::string               _name;
-public:
-  explicit open_session(
-                        TOID(struct store_root_t) &root_
-                        , open_pool_handle &&pop_
-                        , const std::string &dir_
-                        , const std::string &name_
-                        , pc_t *pc
-                        )
-    : _root(root_)
-    , _pop(std::move(pop_))
-    , _map(pc, table_t::allocator_type(_pop.get(), type_num::table))
-    , _atomic_state(*pc, _map)
-    , _dir(dir_)
-    , _name(name_)
-  {}
-  open_session(const open_session &) = delete;
-  open_session& operator=(const open_session &) = delete;
-  PMEMobjpool *pool() const { return _pop.get(); }
-#if 0
-  const std::string &path() const noexcept { return _path; }
+template <typename Handle, typename Allocator, typename Table>
+  class session;
+#if USE_PMEM
+#include "hstore_pmem.h"
+using session_t = session<hstore_pmem::open_pool_handle, ALLOC_T, table_t>;
+#else
+#include "hstore_nupm.h"
+using session_t = session<hstore_nupm::open_pool_handle, ALLOC_T, table_t>;
 #endif
-  const std::string &dir() const noexcept { return _dir; }
-  const std::string &name() const noexcept { return _name; }
-  table_t &map() noexcept { return _map; }
-  const table_t &map() const noexcept { return _map; }
 
-  auto enter(
-             persist_fixed_string<char> &key
-             , std::uint64_t type_num_data
-             , std::vector<Component::IKVStore::Operation *>::const_iterator first
-             , std::vector<Component::IKVStore::Operation *>::const_iterator last
-             ) -> Component::status_t
-  {
-    return _atomic_state.enter(_pop.get(), key, type_num_data, first, last);
-  }
-                            };
-
-struct tls_cache_t {
-  open_session *session;
-};
+namespace
+{
+  struct tls_cache_t {
+    tracked_pool *recent_pool;
+  };
+}
 
 /* globals */
+
 thread_local tls_cache_t tls_cache = { nullptr };
 
-std::mutex sessions_mutex;
-using session_map = std::map<open_session *, std::unique_ptr<open_session>>;
-session_map g_sessions;
-
-auto locate_session(const IKVStore::pool_t pid) -> open_session &
+auto hstore::locate_session(const Component::IKVStore::pool_t pid) -> tracked_pool &
 {
-  auto *const session = reinterpret_cast<struct open_session *>(pid);
-  if ( session != tls_cache.session )
-    {
-      std::unique_lock<std::mutex> sessions_lk(sessions_mutex);
-      auto ps = g_sessions.find(session);
-      if ( ps == g_sessions.end() )
-        {
-          throw API_exception(PREFIX "invalid pool identifier %p", __func__, session);
-        }
-      tls_cache.session = ps->second.get();
-    }
-  return *tls_cache.session;
+  return dynamic_cast<tracked_pool &>(this->locate_open_pool(pid));
 }
 
-auto move_session(const IKVStore::pool_t pid) -> std::unique_ptr<open_session>
+auto hstore::locate_open_pool(const Component::IKVStore::pool_t pid) -> tracked_pool &
 {
-  auto *const session = reinterpret_cast<struct open_session *>(pid);
-
-  std::unique_lock<std::mutex> sessions_lk(sessions_mutex);
-  auto ps = g_sessions.find(session);
-  if ( ps == g_sessions.end() )
+  auto *const s = reinterpret_cast<tracked_pool *>(pid);
+  if ( s == nullptr || s != tls_cache.recent_pool )
+  {
+    std::unique_lock<std::mutex> sessions_lk(_pools_mutex);
+    auto ps = _pools.find(s);
+    if ( ps == _pools.end() )
     {
-      throw API_exception(PREFIX "invalid pool identifier %p", __func__, session);
+      throw API_exception(PREFIX "invalid pool identifier %p", __func__, s);
     }
-
-  if ( session == tls_cache.session ) { tls_cache.session = nullptr; }
-  auto s = std::move(ps->second);
-  g_sessions.erase(ps);
-  return s;
+    tls_cache.recent_pool = ps->second.get();
+  }
+  return *tls_cache.recent_pool;
 }
 
-int check_pool(const char * path)
+auto hstore::move_pool(const Component::IKVStore::pool_t pid) -> std::unique_ptr<tracked_pool>
 {
-  struct pmempool_check_args args;
-  args.path = path;
-  args.backup_path = NULL;
-  args.pool_type = PMEMPOOL_POOL_TYPE_DETECT;
-  args.flags =
-    PMEMPOOL_CHECK_FORMAT_STR |
-    PMEMPOOL_CHECK_REPAIR |
-    PMEMPOOL_CHECK_VERBOSE;
+  auto *const s = reinterpret_cast<tracked_pool *>(pid);
 
-  if (auto ppc = pmempool_check_init(&args, sizeof(args)))
+  std::unique_lock<std::mutex> sessions_lk(_pools_mutex);
+  auto ps = _pools.find(s);
+  if ( ps == _pools.end() )
     {
-      /* perform check and repair, answer 'yes' for each question */
-      while ( auto status = pmempool_check(ppc) ) {
-        switch (status->type) {
-        case PMEMPOOL_CHECK_MSG_TYPE_ERROR:
-          printf("%s\n", status->str.msg);
-          break;
-        case PMEMPOOL_CHECK_MSG_TYPE_INFO:
-          printf("%s\n", status->str.msg);
-          break;
-        case PMEMPOOL_CHECK_MSG_TYPE_QUESTION:
-          printf("%s\n", status->str.msg);
-          status->str.answer = "yes";
-          break;
-        default:
-          pmempool_check_end(ppc);
-          throw General_exception("pmempool_check failed");
-        }
-      }
-
-      /* finalize the check and get the result */
-      int ret = pmempool_check_end(ppc);
-      switch (ret) {
-      case PMEMPOOL_CHECK_RESULT_CONSISTENT:
-      case PMEMPOOL_CHECK_RESULT_REPAIRED:
-        return 0;
-      }
-
-      return 1;
+      throw API_exception(PREFIX "invalid pool identifier %p", __func__, s);
     }
 
-  perror("pmempool_check_init");
-  return -1;
-}
+  if ( s == tls_cache.recent_pool ) { tls_cache.recent_pool = nullptr; }
+  auto s2 = std::move(ps->second);
+  _pools.erase(ps);
+  return s2;
 }
 
-hstore::hstore(const std::string & /* owner */, const std::string & /* name */)
+hstore::hstore(const std::string &owner, const std::string &name)
+#if USE_PMEM
+  : _pool_manager(std::make_shared<hstore_pmem>(owner, name, option_DEBUG))
+#else
+  : _pool_manager(std::make_shared<hstore_nupm>(owner, name, option_DEBUG))
+#endif
+  , _pools_mutex{}
+  , _pools{}
 {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wold-style-cast"
-  PLOG("PMEMOBJ_MAX_ALLOC_SIZE: %lu MB", REDUCE_MB(PMEMOBJ_MAX_ALLOC_SIZE));
-#pragma GCC diagnostic pop
 }
 
 hstore::~hstore()
@@ -260,287 +196,91 @@ auto hstore::thread_safety() const -> status_t
   return thread_model;
 }
 
-namespace
-{
-pc_t *map_create_if_null(
-                         PMEMobjpool *pop_
-                         , TOID(struct store_root_t) &root
-                         , std::size_t expected_obj_count
-                         , bool verbose
-                         )
-{
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wold-style-cast"
-#pragma GCC diagnostic ignored "-Wpedantic"
-  if ( OID_IS_NULL(D_RO(root)->pc) )
-    {
-      if ( verbose )
-        {
-          PLOG(
-               PREFIX "root is empty: new hash required object count %zu"
-               , __func__
-               , expected_obj_count
-               );
-        }
-      auto oid =
-        palloc(
-               pop_
-               , sizeof(pc_t)
-               , type_num::persist
-               , "persist"
-               );
-      pc_t *p = static_cast<pc_t *>(pmemobj_direct(oid));
-      new (p) pc_t(expected_obj_count, table_t::allocator_type{pop_, type_num::table});
-      table_t::allocator_type{pop_, type_num::table}
-      .persist(p, sizeof *p, "persist_data");
-      D_RW(root)->pc = oid;
-    }
-  auto rt = D_RW(root);
-#pragma GCC diagnostic pop
-  auto pc = pmemobj_direct(rt->pc);
-  PLOG(PREFIX "persist root addr %p", __func__, static_cast<const void *>(rt));
-  return static_cast<pc_t *>(pc);
-}
-}
-
-namespace
-{
-std::string make_full_path(const std::string &prefix, const std::string &suffix)
-{
-  return prefix + ( prefix[prefix.length()-1] != '/' ? "/" : "") + suffix;
-}
-}
-
 auto hstore::create_pool(
-                         const std::string &path,
-                         const std::string &name,
-                         const std::size_t size,
+                         const std::string & dir_,
+                         const std::string & name_,
+                         const std::size_t size_,
                          unsigned int /* flags */,
-                         uint64_t expected_obj_count /* args */) -> pool_t
+                         const uint64_t  expected_obj_count_) -> pool_t
 {
   if ( option_DEBUG )
-    {
-      PLOG(PREFIX "path=%s pool_name=%s", __func__, path.c_str(), name.c_str());
-    }
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wold-style-cast"
-  if (PMEMOBJ_MAX_ALLOC_SIZE < size)
-    {
-      PWRN(
-           PREFIX "object too large (max %zu, size %zu)"
-           , __func__
-           , PMEMOBJ_MAX_ALLOC_SIZE
-           , size
-           );
-#pragma GCC diagnostic pop
-      /* NOTE: E_TOO_LARGE may be negative, but pool_t is uint64_t */
-      return uint64_t(E_TOO_LARGE);
-    }
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wold-style-cast"
-  if (size < PMEMOBJ_MIN_POOL) {
-#pragma GCC diagnostic pop
-    PWRN(PREFIX "object too small", __func__);
-    /* NOTE: E_BAD_PARAM may be negative, but pool_t is uint64_t */
-    return uint64_t(E_BAD_PARAM);
+  {
+    PLOG(PREFIX "dir=%s pool_name=%s", __func__, dir_.c_str(), name_.c_str());
+  }
+  {
+    auto c = _pool_manager->pool_create_check(size_);
+    if ( c != S_OK )  { return c; }
   }
 
-  std::string fullpath = make_full_path(path, name);
+  auto path = pool_path(dir_, name_);
 
-  open_pool_handle pop(nullptr, pmemobj_close);
+  auto s = std::unique_ptr<session_t>(static_cast<session_t *>(_pool_manager->pool_create(path, size_, expected_obj_count_).release()));
 
-  /* NOTE: conditions can change between the access call and the create/open call.
-   * This code makes no prevision for such a change.
-   */
-  if (access(fullpath.c_str(), F_OK) != 0) {
-    if ( option_DEBUG )
-      {
-        PLOG(PREFIX "creating new pool: %s (%s) size=%lu"
-             , __func__
-             , name.c_str()
-             , fullpath.c_str()
-             , size
-             );
-      }
-
-    boost::filesystem::path p(fullpath);
-    boost::filesystem::create_directories(p.parent_path());
-
-    pop.reset(pmemobj_create(fullpath.c_str(), REGION_NAME, size, 0666));
-    if (not pop)
-      {
-        throw General_exception("failed to create new pool (%s)\n", pmemobj_errormsg());
-      }
-  }
-  else {
-    if ( option_DEBUG )
-      {
-        PLOG(PREFIX "opening existing Pool: %s", __func__, fullpath.c_str());
-      }
-
-    if (check_pool(fullpath.c_str()) != 0)
-      {
-        if(pmempool_rm(fullpath.c_str(), PMEMPOOL_RM_FORCE | PMEMPOOL_RM_POOLSET_LOCAL))
-          throw General_exception("pmempool_rm on (%s) failed", fullpath.c_str());
-
-        pop.reset(pmemobj_create(fullpath.c_str(), REGION_NAME, size, 0666));
-        if (not pop) {
-          pop.reset(pmemobj_create(fullpath.c_str(), REGION_NAME, 0, 0666)); /* size = 0 for devdax */
-          if (not pop)
-            throw General_exception("failed to create new pool (%s)", fullpath.c_str());
-        }
-      }
-    else {
-      /* open existing */
-      pop.reset(pmemobj_open(fullpath.c_str(), REGION_NAME));
-      if (not pop)
-        {
-          PWRN(PREFIX "erasing memory pool/partition: %s", __func__, fullpath.c_str());
-          /* try to delete pool and recreate */
-          if(pmempool_rm(fullpath.c_str(), PMEMPOOL_RM_FORCE | PMEMPOOL_RM_POOLSET_LOCAL))
-            throw General_exception("pmempool_rm on (%s) failed", fullpath.c_str());
-	  
-          pop.reset(pmemobj_create(fullpath.c_str(), REGION_NAME, size, 0666));
-          if (not pop)
-            throw General_exception("failed to re-open or create new pool");
-        }
-    }
-  }
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wold-style-cast"
-  TOID(struct store_root_t) root = POBJ_ROOT(pop.get(), struct store_root_t);
-#pragma GCC diagnostic pop
-  assert(!TOID_IS_NULL(root));
-
-  auto pc = map_create_if_null(pop.get(), root, expected_obj_count, option_DEBUG);
-  auto session = std::make_unique<open_session>(root, std::move(pop), path, name, pc);
-  auto p = session.get();
-  std::unique_lock<std::mutex> sessions_lk(sessions_mutex);
-  g_sessions.emplace(p, std::move(session));
+  auto p = s.get();
+  std::unique_lock<std::mutex> sessions_lk(_pools_mutex);
+  _pools.emplace(p, std::move(s));
 
   return reinterpret_cast<IKVStore::pool_t>(p);
 }
 
-bool is_header_compact(PMEMobjpool *pop, unsigned class_id)
-{
-  struct pobj_alloc_class_desc desc;
-  auto r =
-    pmemobj_ctl_get(
-                    pop
-                    , ("heap.alloc_class." + std::to_string(class_id) + ".desc").c_str()
-                    , &desc
-                    );
-  if ( r != 0 )
-    {
-      throw General_exception("class header test failed");
-    }
-#if 0
-  std::cerr << "class:"
-            << " unit size " << desc.unit_size
-            << " alignment " << desc.alignment
-            << " units_per_block " << desc.units_per_block
-            << " header_type " << desc.header_type
-            << " class_id " << desc.class_id
-            << "\n";
-#endif
-  return desc.header_type == POBJ_HEADER_COMPACT;
-}
-
-auto hstore::open_pool(const std::string &path,
+auto hstore::open_pool(const std::string &dir,
                        const std::string &name,
                        unsigned int /* flags */) -> pool_t
 {
-  if (access(path.c_str(), F_OK) != 0)
-    {
-      throw API_exception("Pool %s:%s does not exist", path.c_str(), name.c_str());
-    }
-
-  std::string fullpath = make_full_path(path, name);
-
-  /* check integrity first */
-  if (check_pool(fullpath.c_str()) != 0)
-    {
-      throw General_exception("pool check failed");
-    }
-
-  if (
-      auto pop =
-      open_pool_handle(pmemobj_open(fullpath.c_str(), REGION_NAME), pmemobj_close)
-      )
-    {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wold-style-cast"
-      TOID(struct store_root_t) root = POBJ_ROOT(pop.get(), struct store_root_t);
-#pragma GCC diagnostic pop
-      if (TOID_IS_NULL(root))
-        {
-          throw General_exception("Root is NULL!");
-        }
-
-      auto pc = map_create_if_null(pop.get(), root, 1U, option_DEBUG);
-      auto session = std::make_unique<open_session>(root, std::move(pop), path, name, pc);
-      auto p = session.get();
-      std::unique_lock<std::mutex> sessions_lk(sessions_mutex);
-      g_sessions.emplace(p, std::move(session));
-
-      return reinterpret_cast<IKVStore::pool_t>(p);
-    }
-  throw General_exception("failed to re-open pool - %s\n", pmemobj_errormsg());
+  auto path = pool_path(dir, name);
+  auto s = _pool_manager->pool_open(path);
+  auto p = static_cast<tracked_pool *>(s.get());
+  std::unique_lock<std::mutex> sessions_lk(_pools_mutex);
+  _pools.emplace(p, std::move(s));
+  return reinterpret_cast<IKVStore::pool_t>(p);
 }
 
 void hstore::close_pool(const pool_t pid)
+{
+  std::string path;
   try
+  {
+    auto pool = move_pool(pid);
+    if ( option_DEBUG )
     {
-      auto session = move_session(pid);
-      if ( option_DEBUG )
-        {
-          PLOG(PREFIX "closed pool (%lx)", __func__, pid);
-        }
+      PLOG(PREFIX "closed pool (%lx)", __func__, pid);
     }
+  }
   catch ( const API_exception &e )
-    {
-      throw API_exception("%s in %s", e.cause(), __func__);
-    }
+  {
+    throw API_exception("%s in %s", e.cause(), __func__);
+  }
+  _pool_manager->pool_close_check(path);
+}
 
 void hstore::delete_pool(const std::string &dir, const std::string &name)
 {
-  const int flags = 0;
-  if ( auto e = pmempool_rm(make_full_path(dir, name).c_str(), flags) ) {
-    throw
-      General_exception(
-                        "unable to delete pool (%s/%s) error %d"
-                        , dir.c_str()
-                        , name.c_str()
-                        , e
-                        );
-  }
+  auto path = pool_path(dir, name);
 
+  _pool_manager->pool_delete(path);
   if ( option_DEBUG )
-    {
-      PLOG("pool deleted: %s/%s", dir.c_str(), name.c_str());
-    }
+  {
+    PLOG("pool deleted: %s/%s", dir.c_str(), name.c_str());
+  }
 }
 
 void hstore::delete_pool(const pool_t pid)
-  try
-    {
-      /* Not sure why a session would have to be open in order to erase a pool,
-       * but the kvstore interface requires it.
-       */
-      std::string dir;
-      std::string name;
-      {
-        auto session = move_session(pid);
-        dir = session->dir();
-        name = session->name();
-      }
-      delete_pool(dir, name);
-    }
-  catch ( const API_exception &e )
-    {
-      throw API_exception("%s in %s", e.cause(), __func__);
-    }
+try
+{
+  /* Not sure why a session would have to be open in order to erase a pool,
+   * but the kvstore interface requires it.
+   */
+  pool_path pp;
+  {
+    auto pool = move_pool(pid);
+    pp = pool->path();
+  }
+  delete_pool(pp.dir(), pp.name());
+}
+catch ( const API_exception &e )
+{
+  throw API_exception("%s in %s", e.cause(), __func__);
+}
 
 auto hstore::put(const pool_t pool,
                  const std::string &key,
@@ -558,15 +298,18 @@ auto hstore::put(const pool_t pool,
     assert(0 < value_len);
   }
 
-  auto &session = locate_session(pool);
-  auto *const pop = session.pool();
+  if(value == nullptr)
+    throw std::invalid_argument("value argument is null");
+
+  auto &session = dynamic_cast<session_t &>(locate_session(pool));
+
   auto cvalue = static_cast<const char *>(value);
 
   const auto i =
     session.map().emplace(
                           std::piecewise_construct
-                          , std::forward_as_tuple(key.begin(), key.end(), pop, type_num::key, "key")
-                          , std::forward_as_tuple(cvalue, cvalue + value_len, pop, type_num::mapped, "value")
+                          , std::forward_as_tuple(key.begin(), key.end(), session.allocator())
+                          , std::forward_as_tuple(cvalue, cvalue + value_len, session.allocator())
                           );
   return i.second ? S_OK : update_by_issue_41(pool, key, value, value_len,  i.first->second.data(), i.first->second.size());
 }
@@ -603,27 +346,10 @@ auto hstore::update_by_issue_41(const pool_t pool,
   }
 }
 
-
-status_t hstore::get_pool_regions(const pool_t pool, std::vector<::iovec>& out_regions)
+auto hstore::get_pool_regions(const pool_t pool, std::vector<::iovec>& out_regions) -> status_t
 {
-  auto &session = locate_session(pool);
-  const auto& pop = session.pool();
-
-  /* calls pmemobj extensions in modified version of PMDK */
-  unsigned idx = 0;
-  void * base = nullptr;
-  size_t len = 0;
-
-  while(pmemobj_ex_pool_get_region(pop, idx, &base, &len) == 0) {
-    assert(base);
-    assert(len);
-    out_regions.push_back(::iovec{base,len});
-    base = nullptr;
-    len = 0;
-    idx++;
-  }
-
-  return S_OK;
+  auto &session = dynamic_cast<session_t &>(locate_session(pool));
+  return _pool_manager->pool_get_regions(session.pool(), out_regions);
 }
 
 auto hstore::put_direct(const pool_t pool,
@@ -645,23 +371,21 @@ auto hstore::get(const pool_t pool,
 #endif
   try
     {
-      const auto &session = locate_session(pool);
-      auto *const pop = session.pool();
-      auto p_key = KEY_T(key.begin(), key.end(), pop, type_num::key, "key");
-
+      const auto &session = dynamic_cast<const session_t &>(locate_session(pool));
+      auto p_key = KEY_T(key.begin(), key.end(), session.allocator());
       auto &v = session.map().at(p_key);
-      out_value_len = v.size();
-      out_value = malloc(out_value_len);
-      if ( ! out_value )
-        {
+
+      if(out_value == nullptr || out_value_len == 0) {
+        out_value_len = v.size();
+        out_value = malloc(out_value_len);
+        if ( ! out_value )
           throw std::bad_alloc();
-        }
+      }
       memcpy(out_value, v.data(), out_value_len);
       return S_OK;
     }
   catch ( std::out_of_range & )
     {
-      PWRN("key:%s not found", key.c_str());
       return E_KEY_NOT_FOUND;
     }
   catch (...) {
@@ -675,9 +399,8 @@ auto hstore::get_direct(const pool_t pool,
                         std::size_t& out_value_len,
                         Component::IKVStore::memory_handle_t) -> status_t
   try {
-    const auto &session = locate_session(pool);
-    auto *const pop = session.pool();
-    auto p_key = KEY_T(key.begin(), key.end(), pop, type_num::key, "key");
+    const auto &session = dynamic_cast<const session_t &>(locate_session(pool));
+    auto p_key = KEY_T(key.begin(), key.end(), session.allocator());
 
     auto &v = session.map().at(p_key);
 
@@ -720,13 +443,13 @@ auto hstore::get_direct(const pool_t pool,
 namespace
 {
 class lock
-  : public IKVStore::Opaque_key
+  : public Component::IKVStore::Opaque_key
   , public std::string
 {
 public:
   lock(const std::string &)
     : std::string(s)
-    , IKVStore::Opaque_key{}
+    , Component::IKVStore::Opaque_key{}
   {}
 };
 }
@@ -736,19 +459,11 @@ namespace
 {
 bool try_lock(table_t &map, hstore::lock_type_t type, const KEY_T &p_key)
 {
-  if ( type == IKVStore::STORE_LOCK_READ ) {
-    if ( ! map.lock_shared(p_key) )
-      {
-        return false;
-      }
-  }
-  else {
-    if ( ! map.lock_unique(p_key) )
-      {
-        return false;
-      }
-  }
-  return true;
+  return
+    type == Component::IKVStore::STORE_LOCK_READ
+    ? map.lock_shared(p_key)
+    : map.lock_unique(p_key)
+    ;
 }
 }
 
@@ -758,13 +473,12 @@ auto hstore::lock(const pool_t pool,
                   void *& out_value,
                   std::size_t & out_value_len) -> key_t
 {
-  auto &session = locate_session(pool);
-  auto *const pop = session.pool();
-  const auto p_key = KEY_T(key.begin(), key.end(), pop, type_num::key, "key");
+  auto &session = dynamic_cast<session_t &>(locate_session(pool));
+  const auto p_key = KEY_T(key.begin(), key.end(), session.allocator());
 
   try
     {
-      persist_fixed_string<char> &val = session.map().at(p_key);
+      MAPPED_T &val = session.map().at(p_key);
       if ( ! try_lock(session.map(), type, p_key) )
         {
           return KEY_NONE;
@@ -787,7 +501,7 @@ auto hstore::lock(const pool_t pool,
         session.map().emplace(
                               std::piecewise_construct
                               , std::forward_as_tuple(p_key)
-                              , std::forward_as_tuple(out_value_len, pop, type_num::mapped)
+                              , std::forward_as_tuple(out_value_len, session.allocator())
                               );
 
       if ( ! r.second )
@@ -810,9 +524,8 @@ auto hstore::unlock(const pool_t pool,
   if ( key )
     {
       try {
-        auto &session = locate_session(pool);
-        auto *const pop = session.pool();
-        auto p_key = KEY_T(key->begin(), key->end(), pop, type_num::key, "key");
+        auto &session = dynamic_cast<session_t &>(locate_session(pool));
+        auto p_key = KEY_T(key->begin(), key->end(), session.allocator());
 
         session.map().unlock(p_key);
       }
@@ -866,10 +579,9 @@ auto hstore::apply(
                    bool take_lock
                    ) -> status_t
 {
-  auto &session = locate_session(pool);
-  auto *const pop = session.pool();
-  persist_fixed_string<char> *val;
-  auto p_key = KEY_T(key.begin(), key.end(), pop, type_num::key, "key");
+  auto &session = dynamic_cast<session_t &>(locate_session(pool));
+  MAPPED_T *val;
+  auto p_key = KEY_T(key.begin(), key.end(), session.allocator());
   try
     {
       val = &session.map().at(p_key);
@@ -889,7 +601,7 @@ auto hstore::apply(
         session.map().emplace(
                               std::piecewise_construct
                               , std::forward_as_tuple(p_key)
-                              , std::forward_as_tuple(object_size, pop, type_num::mapped)
+                              , std::forward_as_tuple(object_size, session.allocator())
                               );
       if ( ! r.second )
         {
@@ -913,9 +625,8 @@ auto hstore::erase(const pool_t pool,
                    ) -> status_t
 {
   try {
-    auto &session = locate_session(pool);
-    auto *const pop = session.pool();
-    auto p_key = KEY_T(key.begin(), key.end(), pop, type_num::key, "key");
+    auto &session = dynamic_cast<session_t &>(locate_session(pool));
+    auto p_key = KEY_T(key.begin(), key.end(), session.allocator());
     return
       session.map().erase(p_key) == 0
       ? E_KEY_NOT_FOUND
@@ -929,7 +640,7 @@ auto hstore::erase(const pool_t pool,
 
 std::size_t hstore::count(const pool_t pool)
 {
-  const auto &session = locate_session(pool);
+  const auto &session = dynamic_cast<const session_t &>(locate_session(pool));
   return session.map().size();
 }
 
@@ -945,7 +656,7 @@ void hstore::debug(const pool_t pool, const unsigned cmd, const uint64_t arg)
       break;
     case 2:
       {
-        const auto &session = locate_session(pool);
+        const auto &session = dynamic_cast<const session_t &>(locate_session(pool));
         table_t::size_type count = 0;
         /* bucket counter */
         for (
@@ -972,7 +683,7 @@ void hstore::debug(const pool_t pool, const unsigned cmd, const uint64_t arg)
   auto& root = session.root;
   auto& pop = session.pool();
 
-  HM_CMD(pop, D_RO(root)->map(), cmd, arg);
+  HM_CMD(pop, read_const_root(root)->map(), cmd, arg);
 #endif
 }
 
@@ -981,7 +692,7 @@ namespace
 /* Return value not set. Ignored?? */
 int _functor(
              const std::string &key
-             , persist_fixed_string<char> &m
+             , MAPPED_T &m
              , std::function
              <
              int(const std::string &key, const void *val, std::size_t val_len)
@@ -1001,7 +712,7 @@ auto hstore::map(
                  > function
                  ) -> status_t
 {
-  auto &session = locate_session(pool);
+  auto &session = dynamic_cast<session_t &>(locate_session(pool));
 
   for ( auto &mt : session.map() )
     {
@@ -1020,70 +731,15 @@ auto hstore::atomic_update(
                            , const bool take_lock) -> status_t
   try
     {
-      auto &session = locate_session(pool);
+      auto &session = dynamic_cast<session_t &>(locate_session(pool));
 
-      auto p_key = KEY_T(key.begin(), key.end(), session.pool(), type_num::key, "key");
+      auto p_key = KEY_T(key.begin(), key.end(), session.allocator());
 
       maybe_lock m(session.map(), p_key, take_lock);
 
-      return session.enter(p_key, type_num::mapped, op_vector.begin(), op_vector.end());
+      return session.enter(p_key, op_vector.begin(), op_vector.end());
     }
   catch ( std::exception & )
     {
       return E_FAIL;
     }
-
-/**
- * Factory entry point
- *
- */
-extern "C" void * factory_createInstance(Component::uuid_t& component_id)
-{
-  return
-    component_id == hstore_factory::component_id()
-    ? new ::hstore_factory()
-    : nullptr
-    ;
-}
-
-void * hstore_factory::query_interface(Component::uuid_t& itf_uuid)
-{
-  return itf_uuid == Component::IKVStore_factory::iid()
-     ? static_cast<Component::IKVStore_factory *>(this)
-     : nullptr
-     ;
-}
-
-void hstore_factory::unload()
-{
-  delete this;
-}
-
-auto hstore_factory::create(
-  const std::string &owner
-  , const std::string &name
-) -> Component::IKVStore *
-{
-  Component::IKVStore *obj = new hstore(owner, name);
-  obj->add_ref();
-  return obj;
-}
-
-auto hstore_factory::create(
-  const std::string &owner
-  , const std::string &name
-  , const std::string &
-) -> Component::IKVStore *
-{
-  return create(owner, name);
-}
-
-auto hstore_factory::create(
-  unsigned
-  , const std::string &owner
-  , const std::string &name
-  , const std::string &param2
-) -> Component::IKVStore *
-{
-  return create(owner, name, param2);
-}

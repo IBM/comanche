@@ -32,6 +32,7 @@
 #include <numa.h>
 #include <sched.h>
 #include <unistd.h>
+#include <exception>
 #include <mutex>
 #include <thread>
 #include <vector>
@@ -83,25 +84,27 @@ class Per_core_tasking {
 
   virtual ~Per_core_tasking() {
     _exit_flag = true;
-    for (unsigned c = 0; c < sysconf(_SC_NPROCESSORS_ONLN); c++) {
-      if (_threads[c]) {
-        _threads[c]->join();
-        delete _threads[c];
-        delete _tasklet[c];
-      }
-    }
+    wait_for_all();
     if (option_DEBUG) PLOG("Per_core_tasking: threads joined");
   }
 
   void wait_for_all() {
-    for (unsigned c = 0; c < sysconf(_SC_NPROCESSORS_ONLN); c++) {
-      if (_threads[c]) {
-        _threads[c]->join();
-        delete _threads[c];
-        _threads[c] = nullptr;
-        delete _tasklet[c];
-      }
-    }
+    unsigned remaining;
+    do {
+      remaining = 0;
+      
+      for (unsigned c = 0; c < sysconf(_SC_NPROCESSORS_ONLN); c++) {
+        if (_threads[c]) {
+          void * rv;
+          if(pthread_tryjoin_np(_threads[c]->native_handle(),&rv) == 0) {
+            // delete _threads[c]; /* cannot delete after tryjoin? */
+            _threads[c] = nullptr;
+            delete _tasklet[c];
+          }
+          else remaining ++;
+        }
+      }      
+    } while(remaining > 0);
   }
 
   __Tasklet_t* tasklet(unsigned core) {
@@ -122,6 +125,12 @@ class Per_core_tasking {
       try {
         if (!(_tasklet[core]->do_work(core)))
           break; /* if do_work return false, we exit the thread */
+      } catch ( const Exception &e ) {
+        PERR("do_work threw exception: %s", e.cause());
+        break;
+      } catch ( const std::exception &e ) {
+        PERR("do_work threw exception %s", e.what());
+        break;
       } catch (...) {
         PERR("do_work threw exception");
         break;

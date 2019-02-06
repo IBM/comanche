@@ -1,34 +1,25 @@
 #ifndef DAWN_HSTORE_PERSIST_FIXED_STRING_H
 #define DAWN_HSTORE_PERSIST_FIXED_STRING_H
 
-#include "palloc.h"
 #include "persistent.h"
-#include "pobj_pointer.h"
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wold-style-cast"
-#if defined __clang__
-#pragma GCC diagnostic ignored "-Wnested-anon-types"
-#endif
-#include <libpmemobj.h> /* pmemobj_direct */
-#pragma GCC diagnostic pop
 
 #include <algorithm>
 #include <cstddef> /* size_t */
 #include <tuple>
 
-template <typename T>
+template <typename T, typename Allocator>
 	class persist_fixed_string;
 
-template <typename T>
+template <typename T, typename Allocator>
 	union rep;
 
-template <typename T>
-	class fixed_string_access
-	{
-		fixed_string_access() {}
- public:
-		friend rep<T>;
-	};
+class fixed_string_access
+{
+	fixed_string_access() {}
+public:
+	template <typename T, typename Allocator>
+		friend union rep;
+};
 
 /*
  * - fixed_string
@@ -41,7 +32,7 @@ template <typename T>
 		unsigned _ref_count;
 		uint64_t _size;
 	public:
-		using access = fixed_string_access<T>;
+		using access = fixed_string_access;
 		template <typename IT>
 			fixed_string(IT first_, IT last_, access a_)
 				: fixed_string(static_cast<std::size_t>(last_-first_), a_)
@@ -59,39 +50,15 @@ template <typename T>
 		unsigned dec_ref(access) noexcept { return --_ref_count; }
 	};
 
-template <typename T>
+template <typename T, typename Allocator>
 	union rep
 	{
 		using element_type = fixed_string<T>;
-		using ptr_t = persistent_t<pobj_pointer<element_type>>;
-		using access = fixed_string_access<T>;
-
-		template <typename IT>
-			using new_pfs_arg = std::tuple<IT, IT>;
-
-		template <typename IT>
-			static int new_pfs(PMEMobjpool *, void *ptr_, void *arg_)
-			{
-				const auto ptr = static_cast<element_type *>(ptr_);
-				const auto arg = static_cast<new_pfs_arg<IT> *>(arg_);
-				new
-					(ptr)
-					element_type(std::get<0>(*arg), std::get<1>(*arg), access{})
-					;
-				/* return value is undocumented, but might be an error code */
-				return 0;
-			}
-
-		using new_pfs_arg_1 = std::tuple<std::size_t>;
-
-		static int new_pfs_1(PMEMobjpool *, void *ptr_, void *arg_)
-		{
-			const auto ptr = static_cast<element_type *>(ptr_);
-			const auto arg = static_cast<new_pfs_arg_1 *>(arg_);
-			new (ptr) element_type(std::get<0>(*arg), access{});
-			/* return value is undocumented, but might be an error code */
-			return 0;
-		}
+		using allocator_type = typename Allocator::template rebind<element_type>::other;
+		using allocator_char_type = typename allocator_type::template rebind<char>::other;
+		using allocator_void_type = typename allocator_type::template rebind<void>::other;
+		using ptr_t = persistent_t<typename allocator_type::pointer>;
+		using access = fixed_string_access;
 
 		struct small_t
 		{
@@ -104,23 +71,28 @@ template <typename T>
 			{}
 		} small;
 
-		ptr_t ptr;
+		struct large_t
+			: public allocator_char_type
+		{
+			allocator_char_type &al() { return static_cast<allocator_char_type &>(*this); }
+			const allocator_char_type &al() const { return static_cast<const allocator_char_type &>(*this); }
+			ptr_t ptr;
+		} large;
+
 		static_assert(
-			sizeof ptr <= sizeof small.value
-			, "_ptr conflicts with small.size"
+			sizeof large <= sizeof small.value
+			, "large_t overlays with small.size"
 		);
 		rep()
 			: small(0)
 		{
 		}
 
-		template <typename IT>
+		template <typename IT, typename AL>
 			rep(
 				IT first_
 				, IT last_
-				, PMEMobjpool *pop_
-				, uint64_t type_num
-				, const char *use_
+				, AL al_
 			)
 				: small(static_cast<std::size_t>(last_ - first_) * sizeof(T))
 			{
@@ -136,49 +108,45 @@ template <typename T>
 				{
 					auto data_size =
 						static_cast<std::size_t>(last_ - first_) * sizeof(T);
-					new (&ptr)
+					new (&large.al()) allocator_char_type(al_);
+					new (&large.ptr)
 						ptr_t(
-							pobj_pointer<element_type>(
-								palloc(
-									pop_
-									, sizeof(element_type) + data_size
-									, type_num
-									, new_pfs<IT>
-									, new_pfs_arg<IT>(first_, last_)
-									, use_
+							static_cast<typename allocator_type::pointer>(
+								typename allocator_void_type::pointer(
+									al_.allocate(sizeof(element_type) + data_size)
 								)
 							)
-						)
-					;
+						);
+					new (&*large.ptr) element_type(first_, last_, access{});
 				}
 			}
 
-		rep(std::size_t data_len_, PMEMobjpool *pop_, uint64_t type_num)
-			: small(data_len_ * sizeof(T))
-		{
-			/* large data sizes: data not copied, but space is reserved for RDMA */
-			if ( is_small() )
+		template <typename AL>
+			rep(
+				std::size_t data_len_
+				, AL al_
+			)
+				: small(data_len_ * sizeof(T))
 			{
-			}
-			else
-			{
-				auto data_size = data_len_ * sizeof(T);
-				new (&ptr)
-					ptr_t(
-						pobj_pointer<element_type>(
-							palloc(
-								pop_
-								, sizeof(element_type) + data_size
-								, type_num
-								, new_pfs_1
-								, new_pfs_arg_1(data_len_)
-								, "value-space"
+				/* large data sizes: data not copied, but space is reserved for RDMA */
+				if ( is_small() )
+				{
+				}
+				else
+				{
+					auto data_size = data_len_ * sizeof(T);
+					new (&large.al()) allocator_char_type(al_);
+					new (&large.ptr)
+						ptr_t(
+								static_cast<typename allocator_type::pointer>(
+								typename allocator_void_type::pointer(
+									al_.allocate(sizeof(element_type) + data_size)
+								)
 							)
-						)
-					)
-				;
+						);
+					new (&*large.ptr) element_type(data_size, access{});
+				}
 			}
-		}
 
 		rep(const rep &other)
 			: small(other.small._size)
@@ -190,10 +158,11 @@ template <typename T>
 			else
 			{
 				small = other.small;
-				new (&ptr) ptr_t(other.ptr);
-				if ( ptr )
+				new (&large.al()) allocator_char_type(other.large.al());
+				new (&large.ptr) ptr_t(other.large.ptr);
+				if ( large.ptr )
 				{
-					ptr->inc_ref(access{});
+					large.ptr->inc_ref(access{});
 				}
 			}
 		}
@@ -208,37 +177,53 @@ template <typename T>
 			else
 			{
 				small = other.small;
-				new (&ptr) ptr_t(other.ptr);
-				other.ptr = pobj_pointer<element_type>{};
+				large.al = other.large.al;
+				new (&large.ptr) ptr_t(other.large.ptr);
+				other.large.ptr = typename allocator_type::pointer{};
 			}
 		}
 
 		rep &operator=(const rep &other)
 		{
-			if ( other.is_small() )
+			if ( is_small() )
 			{
-				small = other.small;
+				if ( other.is_small() )
+				{
+					/* small <- small */
+					small = other.small;
+				}
+				else
+				{
+					/* small <- large */
+					small = other.small; /* for "large" flag */
+					new (&large.al()) allocator_type(other.large.al());
+					new (&large.ptr) ptr_t(other.large.ptr);
+					large.ptr->inc_ref(access{});
+				}
 			}
 			else
 			{
-				auto p = ptr;
-				small = other.small;
-				ptr = other.ptr;
-				if ( ptr )
+				/* large <- ? */
+				if ( large.ptr && large.ptr->dec_ref(access{}) == 0 )
 				{
-					ptr->inc_ref(access{});
+					auto sz = sizeof *large.ptr + large.ptr->size(access());
+					large.ptr->~element_type();
+					large.al().deallocate(static_cast<typename allocator_char_type::pointer>(static_cast<typename allocator_void_type::pointer>(large.ptr)), sz);
 				}
+				large.al().~allocator_char_type();
 
-				if ( p )
+				small = other.small; /* for "large" flag */
+
+				if ( other.is_small() )
 				{
-					if ( p->dec_ref(access{}) == 0 )
-					{
-						/* Note: in this application (hashed key-value) we never
-						 * expect to delete a value through operator=, but only
-						 * through ~persist_fixed_string
-						 */
-						zfree(p, "data operator=");
-					}
+					/* large <- small */
+				}
+				else
+				{
+					/* large <- large */
+					large.ptr = other.large.ptr;
+					large.ptr->inc_ref(access{});
+					new (&large.al()) allocator_type(other.large.al());
 				}
 			}
 			return *this;
@@ -246,41 +231,72 @@ template <typename T>
 
 		rep &operator=(rep &&other)
 		{
-			if ( other.is_small() )
+			if ( is_small() )
 			{
-				small = other.small;
+				if ( other.is_small() )
+				{
+					/* small <- small */
+					small = std::move(other.small);
+				}
+				else
+				{
+					/* small <- large */
+					small = std::move(other.small); /* for "large" flag */
+					new (&large.al()) allocator_type(std::move(other.large.al()));
+					new (&large.ptr) ptr_t(std::move(other.large.ptr));
+					other.large.ptr = ptr_t();
+				}
 			}
 			else
 			{
-				small = other.small;
-				ptr = other.ptr;
-				other.ptr = ptr_t();
+				if ( large.ptr && large.ptr->dec_ref(access{}) == 0 )
+				{
+					auto sz = sizeof *large.ptr + large.ptr->size(access());
+					large.ptr->~element_type();
+					large.al().deallocate(static_cast<typename allocator_char_type::pointer>(static_cast<typename allocator_void_type::pointer>(large.ptr)), sz);
+				}
+				large.al().~allocator_char_type();
+
+				small = std::move(other.small); /* for "large" flag */
+
+				if ( other.is_small() )
+				{
+					/* large <- small */
+				}
+				else
+				{
+					/* large <- large */
+					large.ptr = other.large.ptr;
+					other.large.ptr = ptr_t();
+					new (&large.al()) allocator_type(other.large.al());
+				}
 			}
 			return *this;
 		}
 
 		~rep()
 		{
-			if ( ! is_small() && ptr )
+			if ( ! is_small() && large.ptr )
 			{
-				if ( ptr->dec_ref(access{}) == 0 )
+				if ( large.ptr->dec_ref(access{}) == 0 )
 				{
-					ptr->~element_type();
-					zfree(ptr, "data dtor");
+					auto sz = sizeof *large.ptr + large.ptr->size(access());
+					large.ptr->~element_type();
+					large.al().deallocate(static_cast<typename allocator_char_type::pointer>(static_cast<typename allocator_void_type::pointer>(large.ptr)), sz);
 				}
 			}
 		}
 
 		static constexpr uint8_t large_kind = sizeof small.value + 1;
 		bool is_small() const
-	{
-		assert(small._size <= large_kind);
-		return small._size < large_kind;
-	}
+		{
+			assert(small._size <= large_kind);
+			return small._size < large_kind;
+		}
 
 		std::size_t size() const
 		{
-			return is_small() ? small._size : ptr->size(access{});
+			return is_small() ? small._size : large.ptr->size(access{});
 		}
 
 		const T *data() const
@@ -289,7 +305,7 @@ template <typename T>
 			{
 				return static_cast<const T *>(&small.value[0]);
 			}
-			auto pt = static_cast<element_type *>(pmemobj_direct(ptr));
+			auto pt = static_cast<element_type *>(&*large.ptr);
 			return static_cast<const T *>(static_cast<void *>(pt+1));
 		}
 
@@ -299,53 +315,53 @@ template <typename T>
 			{
 				return static_cast<T *>(&small.value[0]);
 			}
-			auto pt = static_cast<element_type *>(pmemobj_direct(ptr));
+			auto pt = static_cast<element_type *>(&*large.ptr);
 			return static_cast<T *>(static_cast<void *>(pt+1));
 		}
 
 	};
 
-template <typename T>
+template <typename T, typename Allocator>
 	class persist_fixed_string
 	{
-		using access = fixed_string_access<T>;
+		using access = fixed_string_access;
 		using element_type = fixed_string<T>;
-		using ptr_t = persistent_t<pobj_pointer<element_type>>;
+		using EA = typename Allocator::template rebind<element_type>::other;
+		using ptr_t = persistent_t<typename EA::pointer>;
 		/* "rep" is most of persist_fixed_string; it is conceptually its base class
 		 * It does not directly replace persist_fixed_string only to preserve the
 		 * declaration of persist_fixed_string as a class, not a union
 		 */
-		rep<T> _rep;
+		rep<T, Allocator> _rep;
 		/* NOTE: allocating the data string adjacent to the header of a fixed_string
 		 * precludes use of a standard allocator
 		 */
 
 	public:
+		using allocator_type = Allocator;
 		persist_fixed_string()
 			: _rep()
 		{
 		}
 
-		template <typename IT>
+		template <typename IT, typename AL>
 			persist_fixed_string(
 				IT first_
 				, IT last_
-				, PMEMobjpool *pop_
-				, uint64_t type_num
-				, const char *use_
+				, AL al_
 			)
-				: _rep(first_, last_, pop_, type_num, use_)
+				: _rep(first_, last_, al_)
 		{
 		}
 
-		persist_fixed_string(
-			std::size_t data_len_
-			, PMEMobjpool *pop_
-			, uint64_t type_num
-		)
-			: _rep(data_len_, pop_, type_num)
-		{
-		}
+		template <typename AL>
+			persist_fixed_string(
+				std::size_t data_len_
+				, AL al_
+			)
+				: _rep(data_len_, al_)
+			{
+			}
 
 		persist_fixed_string(const persist_fixed_string &other)
 			: _rep(other._rep)
@@ -371,10 +387,10 @@ template <typename T>
 		T *data() { return _rep.data(); }
 	};
 
-template <typename T>
+template <typename T, typename Allocator>
 	bool operator==(
-		const persist_fixed_string<T> &a
-		, const persist_fixed_string<T> &b
+		const persist_fixed_string<T, Allocator> &a
+		, const persist_fixed_string<T, Allocator> &b
 	)
 	{
 		return

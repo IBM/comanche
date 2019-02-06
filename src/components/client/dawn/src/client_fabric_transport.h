@@ -16,8 +16,8 @@ class Fabric_transport {
   const bool option_DEBUG = Dawn::Global::debug_level > 1;
 
  public:
-  using Transport = Component::IFabric_client;
-  using buffer_t = Buffer_manager<Transport>::buffer_t;
+  using Transport       = Component::IFabric_client;
+  using buffer_t        = Buffer_manager<Transport>::buffer_t;
   using memory_region_t = Component::IFabric_memory_region *;
 
   Fabric_transport(Component::IFabric_client *fabric_connection)
@@ -26,8 +26,12 @@ class Fabric_transport {
   ~Fabric_transport() {}
 
   static Component::IFabric_op_completer::cb_acceptance completion_callback(
-      void *context, status_t st, std::uint64_t completion_flags,
-      std::size_t len, void *error_data, void *param) {
+      void *context,
+      status_t st,
+      std::uint64_t completion_flags,
+      std::size_t len,
+      void *error_data,
+      void *param) {
     if (unlikely(st != S_OK))
       throw Program_exception(
           "poll_completions failed unexpectedly (st=%d) (cf=%lx)", st,
@@ -70,13 +74,17 @@ class Fabric_transport {
     _transport->deregister_memory(region);
   }
 
-  inline void post_send(const ::iovec *first, const ::iovec *last,
-                        void **descriptors, void *context) {
+  inline void post_send(const ::iovec *first,
+                        const ::iovec *last,
+                        void **descriptors,
+                        void *context) {
     _transport->post_send(first, last, descriptors, context);
   }
 
-  inline void post_recv(const ::iovec *first, const ::iovec *last,
-                        void **descriptors, void *context) {
+  inline void post_recv(const ::iovec *first,
+                        const ::iovec *last,
+                        void **descriptors,
+                        void *context) {
     _transport->post_recv(first, last, descriptors, context);
   }
 
@@ -88,7 +96,7 @@ class Fabric_transport {
    */
   void sync_send(buffer_t *iob, buffer_t *iob_extra = nullptr) {
     if (iob_extra) {
-      iovec v[2] = {*iob->iov, *iob_extra->iov};
+      iovec v[2]   = {*iob->iov, *iob_extra->iov};
       void *desc[] = {iob->desc, iob_extra->desc};
 
       post_send(&v[0], &v[2], desc, iob);
@@ -121,7 +129,7 @@ class Fabric_transport {
    */
   void post_send(buffer_t *iob, buffer_t *iob_extra = nullptr) {
     if (iob_extra) {
-      iovec v[2] = {*iob->iov, *iob_extra->iov};
+      iovec v[2]   = {*iob->iov, *iob_extra->iov};
       void *desc[] = {iob->desc, iob_extra->desc};
 
       post_send(&v[0], &v[2], desc, iob);
@@ -160,12 +168,12 @@ class Fabric_transport {
     if (!check_aligned(region, 64))
       throw API_exception("register_direct_memory: region should be aligned");
 
-    auto mr = register_memory(region, region_len);
-    auto desc = get_memory_descriptor(mr);
-    auto buffer = new buffer_t(region_len);
-    buffer->iov = new iovec{(void *) region, region_len};
+    auto mr        = register_memory(region, region_len);
+    auto desc      = get_memory_descriptor(mr);
+    auto buffer    = new buffer_t(region_len);
+    buffer->iov    = new iovec{(void *) region, region_len};
     buffer->region = mr;
-    buffer->desc = desc;
+    buffer->desc   = desc;
 
     if (option_DEBUG)
       PLOG("register_direct_memory (%p, %lu, mr=%p, desc=%p)", region,

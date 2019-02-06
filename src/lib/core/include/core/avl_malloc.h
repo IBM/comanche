@@ -1,5 +1,5 @@
 /*
-   Copyright [2017] [IBM Corporation]
+   Copyright [2017, 2019] [IBM Corporation]
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -28,7 +28,6 @@
 #error This is a C++ header
 #endif
 
-#include <common/chksum.h>
 #include <common/stack.h>
 #include <common/types.h>
 #include <core/slab.h>
@@ -403,7 +402,7 @@ class AVL_range_allocator {
    */
   virtual ~AVL_range_allocator() {
     /* delete node memory */
-    _tree->apply_topdown([=](void* p) {
+    _tree->apply_topdown([=](void* p, size_t) {
       Memory_region* mr = static_cast<Memory_region*>(p);
       _slab.free(mr);
     });
@@ -459,12 +458,6 @@ class AVL_range_allocator {
       _tree->insert_node(left_over);
     }
 
-    if (region->_addr == 0x5dc0000) {
-      PNOTICE("allocated at 5dc0000!!");
-    }
-    else {
-      PLOG("allocated at:%lx", region->_addr);
-    }
     return region;
   }
 
@@ -660,9 +653,19 @@ class AVL_range_allocator {
    * Dump the tree for debugging purposes
    *
    */
-  void dump_info() {
+  void dump_info(std::string * out_str = nullptr) {
     assert(_tree->root());
+    PINF("+ AVL_tree: ");
     AVL_tree<Memory_region>::dump(*(_tree->root()));
+
+    if(out_str) {
+      apply([&](addr_t addr, size_t s, bool state)
+            {
+              std::stringstream ss;
+              ss << "(" << std::hex << addr << "," << s << "," << state << ")";
+              out_str->append(ss.str());
+            });
+    }
   }
 
   /**
@@ -671,11 +674,13 @@ class AVL_range_allocator {
    * @param functor
    */
   void apply(std::function<void(addr_t, size_t, bool)> functor) {
-    _tree->apply_topdown([functor](void* p) {
+    _tree->apply_topdown([functor](void* p, size_t) {
       Memory_region* mr = static_cast<Memory_region*>(p);
       functor(mr->addr(), mr->size(), mr->is_free());
     });
   }
+
+
 
   // inline addr_t base()
   // {
@@ -688,8 +693,7 @@ class AVL_range_allocator {
  private:
   /* NOTE: specifically no members that will be on the stack */
 
-  Common::Base_slab_allocator&
-      _slab; /**< volatile slab allocator for metadata */
+  Common::Base_slab_allocator&_slab; /**< volatile slab allocator for metadata */
   //  addr_t _base;
 };
 
@@ -710,7 +714,7 @@ class Arena_allocator : public Common::Base_memory_allocator {
    * @param region_size Size of memory region
    *
    */
-  Arena_allocator(Common::Base_slab_allocator& metadata_slab, void* region,
+  Arena_allocator(Common::Base_slab_allocator& metadata_slab, const void* region,
                   size_t region_size)
       : _range_allocator(metadata_slab, (addr_t) region, region_size) {
     if (!region)
@@ -802,7 +806,9 @@ class Arena_allocator : public Common::Base_memory_allocator {
    * Output debugging information
    *
    */
-  void dump_info() { _range_allocator.dump_info(); }
+  void dump_info(std::string * out_str = nullptr) {
+    _range_allocator.dump_info(out_str);
+  }
 
   /**
    * Apply functor to elements of the tree

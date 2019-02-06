@@ -10,22 +10,12 @@ if(BOOTSTRAP_DEPS)
   add_subdirectory(ndctl)
   add_subdirectory(libfabric)
   add_subdirectory(pmdk)
-  # (alternate specification to build pmdk)
-  # ExternalProject_Add(pmdk
-  #   DEPENDS libfabric
-  #   PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/pmdk
-  #   GIT_REPOSITORY https://github.com/dwaddington/pmdk.git
-  #   GIT_TAG stable-1.4
-  #   CONFIGURE_COMMAND ""
-  #   BUILD_COMMAND $(MAKE)
-  #   BUILD_IN_SOURCE 1
-  #   INSTALL_COMMAND $(MAKE) install prefix=${CMAKE_INSTALL_PREFIX}
-  # )
   add_subdirectory(flatbuffers)
   add_subdirectory(cityhash)
   add_subdirectory(memkind)
   add_subdirectory(tbb)
-
+  add_subdirectory(rapidjson)
+  
   find_package(GTest)
   if( NOT GTEST_FOUND) # libgtest-dev in ubuntu 1604 only installs headers
     add_subdirectory(/usr/src/gtest ${CMAKE_CURRENT_BINARY_DIR}/gtest)
@@ -55,10 +45,11 @@ if(BOOTSTRAP_DEPS)
 
 else(BOOTSTRAP_DEPS)
 
+  add_subdirectory(nupm)
   add_subdirectory(common)
   add_subdirectory(core)
-  add_subdirectory(nupm)
-
+  add_subdirectory(tds)
+  
 endif(BOOTSTRAP_DEPS)
 
 

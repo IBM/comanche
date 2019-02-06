@@ -2,7 +2,6 @@
 #define _DAWN_PERSIST_CONTROLLER_H
 
 #include "persist_data.h"
-#include "persist_switch.h"
 
 #include <boost/iterator/transform_iterator.hpp>
 
@@ -16,8 +15,29 @@
  * goes through this class. Ideally this should also get writes to persist_data::_sc.
  */
 
+#include <iostream>
 namespace impl
 {
+	template <typename Allocator, typename SizeChange>
+		class persist_size_change
+			: public SizeChange
+		{
+			persist_controller<Allocator> *_pc;
+		public:
+			persist_size_change(persist_controller<Allocator> &pc_)
+				: SizeChange(pc_.get_size_control())
+				, _pc(&pc_)
+			{
+				_pc->size_destabilize();
+			}
+			persist_size_change(const persist_size_change &) = delete;
+			persist_size_change& operator=(const persist_size_change &) = delete;
+			~persist_size_change()
+			{
+				_pc->size_stabilize();
+			}
+		};
+
 	template <typename Allocator>
 		class persist_controller
 			: public Allocator
@@ -36,9 +56,7 @@ namespace impl
 		private:
 			using bucket_allocator_t = typename persist_data_t::bucket_allocator_t;
 			persist_data_t *_persist;
-			/* enable persist call if Allocator supports persist */
-			using persist_switch_t =
-				persist_switch<Allocator, std::is_base_of<persister, Allocator>::value>;
+			std::size_t _bucket_count_cached;
 
 			void persist_segment_table(); /* Flush the bucket pointers (*_b) */
 			void persist_internal(
@@ -46,7 +64,10 @@ namespace impl
 				, const void *last
 				, const char *what
 			);
-			void size_stabilize();
+			auto bucket_count_uncached() -> size_type
+			{
+				return base_segment_size << (segment_count_actual() - 1U);
+			}
 
 		public:
 			explicit persist_controller(const Allocator &av, persist_data_t *persist);
@@ -59,9 +80,8 @@ namespace impl
 			auto resize_prolog() -> bucket_aligned_t *;
 			void resize_epilog();
 
+			void size_stabilize();
 			void size_destabilize();
-			void size_incr();
-			void size_decr();
 
 			void persist_owner(
 				const owner &b
@@ -86,7 +106,11 @@ namespace impl
 			}
 			std::size_t size() const
 			{
-				return _persist->_size_control.size;
+				return _persist->_size_control.size();
+			}
+			size_control &get_size_control()
+			{
+				return _persist->_size_control;
 			}
 
 			/* NOTE: this function returns an non-const iterator over _persist data,
@@ -96,8 +120,13 @@ namespace impl
 			auto bp_src()
 			{
 				return boost::make_transform_iterator(
+					/* original iterator */
 					_persist->_sc
-					, std::mem_fn(&persist_data_t::segment_control::bp)
+					/* transform function applied to that each item returned from the original iterator */
+					, [] ( const typename persist_data_t::segment_control &sc ) -> auto
+					{
+						return sc.bp;
+					}
 				);
 			}
 			bool is_size_unstable() const;
@@ -105,7 +134,7 @@ namespace impl
 
 			auto bucket_count() const -> size_type
 			{
-				return base_segment_size << (segment_count_actual() - 1U);
+				return _bucket_count_cached;
 			}
 
 			auto max_bucket_count() const -> size_type
