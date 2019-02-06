@@ -399,7 +399,7 @@ class AVL_tree {
    *
    * @param func Function to apply; param is pointer to value
    */
-  void apply_topdown(std::function<void(void *)> func) {
+  void apply_topdown(std::function<void(void *, size_t)> func) {
 #ifdef USE_RECURSION  // recursion breaks the stack for large trees
     __apply_topdown(*_root, 0, func);
 #else
@@ -410,7 +410,7 @@ class AVL_tree {
       AVL_node<T> *node = stack.back();
       stack.pop_back();
 
-      func(node);
+      func(node, sizeof(AVL_node<T>));
 
       AVL_node<T> *l = node->subtree[LEFT];
       if (l) stack.push_back(l);
@@ -418,16 +418,6 @@ class AVL_tree {
       AVL_node<T> *r = node->subtree[RIGHT];
       if (r) stack.push_back(r);
     }
-
-    // TODO
-    //    assert(0);
-    //     func(node);
-    // if (node->subtree[RIGHT] != nullptr) {
-    //   __apply_topdown(node->subtree[RIGHT], level + 1, func);
-    // }
-    // if (node->subtree[LEFT] != nullptr) {
-    //   __apply_topdown(node->subtree[LEFT], level + 1, func);
-    // }
 
 #endif
   }
@@ -532,12 +522,12 @@ class AVL_tree {
   }
 
   static void __apply_topdown(AVL_node<T> *node, int level,
-                              std::function<void(void *)> func) {
+                              std::function<void(void *, size_t)> func) {
     if (node == nullptr) {
       return;
     }
     else {
-      func(node);
+      func(node, sizeof(AVL_node<T>));
       if (node->subtree[RIGHT] != nullptr) {
         __apply_topdown(node->subtree[RIGHT], level + 1, func);
       }
