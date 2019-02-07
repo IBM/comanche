@@ -318,20 +318,19 @@ auto hstore::update_by_issue_41(const pool_t pool,
                  const std::string &key,
                  const void * value,
                  const std::size_t value_len,
-                 void * old_value,
+                 void * /* old_value */,
                  const std::size_t old_value_len
 ) -> status_t
+try
 {
   /* hstore issue 41: "a put should replace any existing k,v pairs that match. If the new put is a different size, then the object should be reallocated. If the new put is the same size, then it should be updated in place." */
   if ( value_len != old_value_len )
   {
-    this->erase(pool, key);
-    return put(pool, key, value, value_len);
+    auto &session = dynamic_cast<session_t &>(locate_session(pool));
+    auto p_key = KEY_T(key.begin(), key.end(), session.allocator());
+    return session.enter_replace(p_key, value, value_len);
   }
   else {
-    std::memcpy(old_value, value, value_len);
-    return S_OK;
-#if 0
     std::vector<std::unique_ptr<IKVStore::Operation>> v;
     v.emplace_back(std::make_unique<IKVStore::Operation_write>(0, value_len, value));
     std::vector<IKVStore::Operation *> v2;
@@ -342,9 +341,13 @@ auto hstore::update_by_issue_41(const pool_t pool,
       , v2
       , false
     );
-#endif
   }
 }
+catch ( std::exception & )
+{
+  return E_FAIL;
+}
+
 
 auto hstore::get_pool_regions(const pool_t pool, std::vector<::iovec>& out_regions) -> status_t
 {
@@ -737,9 +740,10 @@ auto hstore::atomic_update(
 
       maybe_lock m(session.map(), p_key, take_lock);
 
-      return session.enter(p_key, op_vector.begin(), op_vector.end());
+      return session.enter_update(p_key, op_vector.begin(), op_vector.end());
     }
   catch ( std::exception & )
     {
       return E_FAIL;
     }
+
