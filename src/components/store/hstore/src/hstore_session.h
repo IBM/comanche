@@ -69,13 +69,21 @@ public:
   table_t &map() noexcept { return _map; }
   const table_t &map() const noexcept { return _map; }
 
-  auto enter(
+  auto enter_update(
     typename Table::key_type &key
     , std::vector<Component::IKVStore::Operation *>::const_iterator first
     , std::vector<Component::IKVStore::Operation *>::const_iterator last
   ) -> Component::status_t
   {
-    return _atomic_state.enter(allocator(), key, first, last);
+    return _atomic_state.enter_update(allocator(), key, first, last);
+  }
+  auto enter_replace(
+    typename Table::key_type &key
+    , const void *data
+    , std::size_t data_len
+  ) -> Component::status_t
+  {
+    return _atomic_state.enter_replace(allocator(), key, static_cast<const char *>(data), data_len);
   }
 };
 

@@ -20,34 +20,60 @@ template <typename Table>
 	{
 		if ( _persist->mod_size != 0 )
 		{
-			try
+			if ( 0 < _persist->mod_size )
 			{
-				char *src = _persist->mod_mapped.data();
-				char *dst = _map->at(_persist->mod_key).data();
-				auto mod_ctl = &*(_persist->mod_ctl);
-				for ( auto i = mod_ctl; i != &mod_ctl[_persist->mod_size]; ++i )
-				{
-					std::size_t o_s = i->offset_src;
-					auto src_first = &src[o_s];
-					std::size_t sz = i->size;
-					auto src_last = src_first + sz;
-					std::size_t o_d = i->offset_dst;
-					auto dst_first = &dst[o_d];
-					/* NOTE: could be replaced with a pmem persistent memcpy */
-					persist_range(
-						dst_first
-						, std::copy(src_first, src_last, dst_first)
-						, "atomic ctl"
-					);
-				}
+				redo_update();
 			}
-			catch ( std::out_of_range & )
+			else /* Issue 41-style replacement */
 			{
-				/* no such key */
+				redo_replace();
 			}
 		}
 		_persist->mod_size = 0;
 		persist_range(&_persist->mod_size, &_persist->mod_size + 1, "atomic size");
+	}
+
+template <typename Table>
+	auto impl::atomic_controller<Table>::redo_replace() -> void
+	{
+		_map->erase(_persist->mod_key);
+		const auto *data_begin = _persist->mod_mapped.data();
+		const auto *data_end = data_begin + _persist->mod_mapped.size();
+                _map->emplace(
+			std::piecewise_construct
+			, std::forward_as_tuple(std::move(_persist->mod_key))
+			, std::forward_as_tuple(data_begin, data_end, allocator_type(*this))
+		);
+	}
+
+template <typename Table>
+	auto impl::atomic_controller<Table>::redo_update() -> void
+	{
+		try
+		{
+			char *src = _persist->mod_mapped.data();
+			char *dst = _map->at(_persist->mod_key).data();
+			auto mod_ctl = &*(_persist->mod_ctl);
+			for ( auto i = mod_ctl; i != &mod_ctl[_persist->mod_size]; ++i )
+			{
+				std::size_t o_s = i->offset_src;
+				auto src_first = &src[o_s];
+				std::size_t sz = i->size;
+				auto src_last = src_first + sz;
+				std::size_t o_d = i->offset_dst;
+			auto dst_first = &dst[o_d];
+				/* NOTE: could be replaced with a pmem persistent memcpy */
+				persist_range(
+					dst_first
+					, std::copy(src_first, src_last, dst_first)
+					, "atomic ctl"
+				);
+			}
+		}
+		catch ( std::out_of_range & )
+		{
+			/* no such key */
+		}
 	}
 
 template <typename Table>
@@ -61,7 +87,24 @@ template <typename Table>
 	}
 
 template <typename Table>
-	auto impl::atomic_controller<Table>::enter(
+	auto impl::atomic_controller<Table>::enter_replace(
+		typename Table::allocator_type al_
+		, typename Table::key_type &key
+		, const char *data_
+		, std::size_t data_len_
+	) -> typename Component::status_t
+	{
+		_persist->mod_key = key;
+		_persist->mod_mapped = typename Table::mapped_type(data_, data_ + data_len_, al_);
+		/* 8-byte atomic write */
+		_persist->mod_size = -1;
+		this->persist(&_persist->mod_size, sizeof _persist->mod_size);
+		redo();
+		return S_OK;
+	}
+
+template <typename Table>
+	auto impl::atomic_controller<Table>::enter_update(
 		typename Table::allocator_type al_
 		, typename Table::key_type &key
 		, std::vector<Component::IKVStore::Operation *>::const_iterator first
@@ -99,7 +142,7 @@ template <typename Table>
 				src.begin()
 				, src.end()
 				, al_
-			); /* PERSISTED? */
+			);
 		using void_allocator_t =
 			typename allocator_type::template rebind<void>::other;
 
@@ -115,13 +158,14 @@ template <typename Table>
 		}
 
 		std::copy(mods.begin(), mods.end(), &*_persist->mod_ctl);
-		/* 8-byte atomic write */
-		_persist->mod_size = mods.size();
 		persist_range(
 			&*_persist->mod_ctl
 			, &*_persist->mod_ctl + mods.size()
 			, "mod control"
 		);
+		/* 8-byte atomic write */
+		_persist->mod_size = mods.size();
+		this->persist(&_persist->mod_size, sizeof _persist->mod_size);
 		redo();
 		return S_OK;
 	}

@@ -21,6 +21,8 @@ namespace impl
 			using mod_key_t = typename persist_t::mod_key_t;
 			persist_t *_persist; /* persist_atomic is a bad name. Should be a noun. */
 			table_t *_map;
+			void redo_update();
+			void redo_replace();
 		public:
 			atomic_controller(
 				persist_atomic<typename Table::value_type> &persist_
@@ -33,11 +35,17 @@ namespace impl
 
 			void persist_range(const void *first_, const void *last_, const char *what_);
 
-			auto enter(
+			auto enter_update(
 				typename Table::allocator_type al_
 				, typename Table::key_type &key
 				, std::vector<Component::IKVStore::Operation *>::const_iterator first
 				, std::vector<Component::IKVStore::Operation *>::const_iterator last
+			) -> Component::status_t;
+			auto enter_replace(
+				typename Table::allocator_type al_
+				, typename Table::key_type &key
+				, const char *data_
+				, std::size_t data_len_
 			) -> Component::status_t;
 	};
 }

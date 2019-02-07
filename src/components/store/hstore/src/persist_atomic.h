@@ -50,8 +50,8 @@ namespace impl
 			persist_fixed_string<char, typename Value::second_type::allocator_type> mod_mapped;
 			/* control of modification datai */
 			persistent_t<mod_ctl_ptr_t> mod_ctl;
-			/* size of control located by mod_ctl (0 if no outstanding modification) */
-			persistent_atomic_t<std::size_t> mod_size;
+			/* size of control located by mod_ctl (0 if no outstanding modification, negative if the modfication is a replace by erase/emplace */
+			persistent_atomic_t<std::ptrdiff_t> mod_size;
 		public:
 			persist_atomic()
 				: mod_key()
