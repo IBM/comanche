@@ -30,20 +30,10 @@ namespace Component
  */
 class IKVIndex : public Component::IBase
 {
-private:
-  class Iterator {
-  public:
-    virtual std::string next() = 0;
-    virtual std::string skip(size_t n) = 0;
-  };
-  
-  struct iterator_t {
-    virtual iterator_t() {}
-  };
-
 public:
   DECLARE_INTERFACE_UUID(0xadb5c747,0x0f5b,0x44a6,0x982b,0x36,0x54,0x1a,0x62,0x64,0xfc);
 
+  using offset_t = uint64_t;
   /** 
    * Insert a key into the index
    * 
