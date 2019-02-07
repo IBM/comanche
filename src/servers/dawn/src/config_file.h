@@ -46,7 +46,12 @@ class Config_file {
     free(buffer);
     fclose(fp);
 
-    _shards = _doc["shards"];
+    try {
+      _shards = _doc["shards"];
+    }
+    catch(...) {
+      throw General_exception("bad JSON in configuration file");
+    }
 
     PLOG("shards type:%s", k_typenames[_shards.GetType()]);
     if (!_shards.IsArray())
