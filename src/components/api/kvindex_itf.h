@@ -52,6 +52,19 @@ public:
   virtual void insert(const std::string& key) = 0;
 
   /** 
+   * Remove a key into the index
+   * 
+   * @param key Key
+   */
+  virtual void erase(const std::string& key) = 0;
+
+  /** 
+   * Clear index
+   * 
+   */
+  virtual void clear() = 0;
+  
+  /** 
    * Get next item.  Throw std::out_of_range for out of bounds
    * 
    * @param position Position counting from zero

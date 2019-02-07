@@ -1,5 +1,5 @@
 /*
-   Copyright [2017,2018] [IBM Corporation]
+   Copyright [2017,2018,2019] [IBM Corporation]
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -41,14 +41,18 @@ public:
   DECLARE_INTERFACE_UUID(0x62f4829f,0x0405,0x4c19,0x9898,0xa3,0xae,0x21,0x5a,0x3e,0xe8);
 
 private:
-  struct Opaque_memory_region;
+  struct Opaque_memory_region {
+    virtual ~Opaque_memory_region() {}
+  };
 
 public:
   using pool_t          = uint64_t;
   using memory_handle_t = Opaque_memory_region *;
+  
   struct Opaque_key { /* base for implementation lock/key container */
     virtual ~Opaque_key() {} /* destruction invokes derived destructor */
   };
+  
   using key_t           = Opaque_key *;
 
   static constexpr memory_handle_t HANDLE_NONE = nullptr;
