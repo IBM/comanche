@@ -78,6 +78,8 @@ template <typename T, typename Persister = persister>
 
 		allocator_co &operator=(const allocator_co &a_) = delete;
 
+#if 0
+		/* deprecated in C++20 */
 		pointer address(reference x) const noexcept
 		{
 			return pointer(&x);
@@ -86,6 +88,7 @@ template <typename T, typename Persister = persister>
 		{
 			return pointer(&x);
 		}
+#endif
 
 		auto allocate(
 			size_type s

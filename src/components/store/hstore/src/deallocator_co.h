@@ -29,8 +29,6 @@ template <>
 		: public persister_pmem
 	{
 	public:
-		using size_type = std::size_t;
-		using difference_type = std::ptrdiff_t;
 		using pointer = pointer_pobj<void, 0U>;
 		using const_pointer = pointer_pobj<const void, 0U>;
 		using value_type = void;
@@ -46,8 +44,6 @@ template <class Persister>
 		: public Persister
 	{
 	public:
-		using size_type = std::size_t;
-		using difference_type = std::ptrdiff_t;
 		using pointer = pointer_pobj<void, 0U>;
 		using const_pointer = pointer_pobj<const void, 0U>;
 		using value_type = void;
