@@ -184,6 +184,7 @@ class Connection_handler : public Connection_base {
   bool _exit               = false;
   uint64_t _request_id     = 0;
   size_t _max_message_size = 0;
+  size_t _max_inject_size = 0;
 
   struct {
     bool short_circuit_backend = false;

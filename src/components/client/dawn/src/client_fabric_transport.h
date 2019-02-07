@@ -21,7 +21,9 @@ class Fabric_transport {
   using memory_region_t = Component::IFabric_memory_region *;
 
   Fabric_transport(Component::IFabric_client *fabric_connection)
-      : _transport(fabric_connection), _bm(fabric_connection) {}
+      : _transport(fabric_connection), _bm(fabric_connection) {
+    _max_inject_size = _transport->max_inject_size();
+  }
 
   ~Fabric_transport() {}
 
@@ -115,9 +117,18 @@ class Fabric_transport {
    * @param iob Buffer to send
    */
   void sync_inject_send(buffer_t *iob) {
-    /* when this returns, iob is ready for immediate reuse */
-    _transport->inject_send(iob->base(), iob->length());
 
+    auto len = iob->length();
+    if(len <= _max_inject_size) {
+      /* when this returns, iob is ready for immediate reuse */
+      _transport->inject_send(iob->base(), iob->length());
+    }
+    else {
+      /* too big for inject, do plain send */
+      post_send(iob->iov, iob->iov + 1, &iob->desc, iob);
+      wait_for_completion(iob);
+    }
+      
     iob->reset_length();
   }
 
@@ -163,8 +174,7 @@ class Fabric_transport {
     post_recv(iob->iov, iob->iov + 1, &iob->desc, iob);
   }
 
-  Component::IKVStore::memory_handle_t register_direct_memory(
-      void *region, size_t region_len) {
+  Component::IKVStore::memory_handle_t register_direct_memory(void *region, size_t region_len) {
     if (!check_aligned(region, 64))
       throw API_exception("register_direct_memory: region should be aligned");
 
@@ -196,6 +206,7 @@ class Fabric_transport {
 
  protected:
   Transport *_transport;
+  size_t                    _max_inject_size;
   Buffer_manager<Transport> _bm; /*< IO buffer manager */
 };
 
