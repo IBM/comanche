@@ -31,6 +31,7 @@ template <typename T>
 	{
 		unsigned _ref_count;
 		uint64_t _size;
+		uint64_t size() const { return _size; }
 	public:
 		using access = fixed_string_access;
 		template <typename IT>
@@ -45,7 +46,12 @@ template <typename T>
 			, _size(data_len_)
 		{
 		}
-		uint64_t size(access) const noexcept { return _size; }
+		template <typename Allocator>
+			void persist(Allocator al_)
+			{
+				al_.persist(this, sizeof *this + size());
+			}
+		uint64_t size(access) const noexcept { return size(); }
 		unsigned inc_ref(access) noexcept { return _ref_count++; }
 		unsigned dec_ref(access) noexcept { return --_ref_count; }
 	};
@@ -83,6 +89,8 @@ template <typename T, typename Allocator>
 			sizeof large <= sizeof small.value
 			, "large_t overlays with small.size"
 		);
+
+		/* ERROR: need to persist */
 		rep()
 			: small(0)
 		{
@@ -118,6 +126,7 @@ template <typename T, typename Allocator>
 							)
 						);
 					new (&*large.ptr) element_type(first_, last_, access{});
+					large.ptr->persist(al_);
 				}
 			}
 
