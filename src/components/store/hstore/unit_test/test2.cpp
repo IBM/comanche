@@ -55,6 +55,16 @@ class KVStore_test : public ::testing::Test {
   static std::vector<kv_t> kvv;
   static const std::size_t many_count_target;
   static std::size_t many_count_actual;
+
+  std::string pool_dir() const
+  {
+    return "/mnt/pmem0/pool/0/";
+  }
+
+  std::string pool_name()
+  {
+    return "test-" + store_map::impl->name + ".pool";
+  }
 };
 
 constexpr std::size_t KVStore_test::estimated_object_count_small;
@@ -74,9 +84,6 @@ constexpr unsigned KVStore_test::many_value_length;
 const std::size_t KVStore_test::many_count_target = pmem_simulated ? many_count_target_small : many_count_target_large;
 std::size_t KVStore_test::many_count_actual;
 std::vector<KVStore_test::kv_t> KVStore_test::kvv;
-
-#define PMEM_PATH "/mnt/pmem0/pool/0/"
-//#define PMEM_PATH "/dev/pmem0"
 
 TEST_F(KVStore_test, Instantiate)
 {
@@ -142,11 +149,7 @@ TEST_F(KVStore_test, RemoveOldPool)
   {
     try
     {
-      auto pool = _kvstore->open_pool(PMEM_PATH, "test-" + store_map::impl->name + ".pool");
-      if ( 0 < int64_t(pool) )
-      {
-        _kvstore->delete_pool(pool);
-      }
+      _kvstore->delete_pool(pool_dir(), pool_name());
     }
     catch ( Exception & )
     {
@@ -157,7 +160,7 @@ TEST_F(KVStore_test, RemoveOldPool)
 TEST_F(KVStore_test, CreatePool)
 {
   ASSERT_TRUE(_kvstore);
-  pool_open p(_kvstore, PMEM_PATH, "test-" + store_map::impl->name + ".pool", MB(128UL), 0, estimated_object_count);
+  pool_open p(_kvstore, pool_dir(), pool_name(), MB(128UL), 0, estimated_object_count);
   ASSERT_LT(0, int64_t(p.pool()));
 }
 
@@ -205,7 +208,7 @@ TEST_F(KVStore_test, PutMany)
     _kvstore->debug(0, 0 /* enable */, true);
     try
     {
-      pool_open p(_kvstore, PMEM_PATH, "test-hstore.pool");
+      pool_open p(_kvstore, pool_dir(), pool_name());
 
       std::mt19937_64 r0{};
 
@@ -243,7 +246,7 @@ TEST_F(KVStore_test, GetMany)
   ASSERT_TRUE(_kvstore);
   if ( pmem_effective )
   {
-    pool_open p(_kvstore, PMEM_PATH, "test-hstore.pool");
+    pool_open p(_kvstore, pool_dir(), pool_name());
     ASSERT_LT(0, int64_t(p.pool()));
     {
       auto count = _kvstore->count(p.pool());
@@ -291,7 +294,7 @@ TEST_F(KVStore_test, DeletePool)
 {
   if ( pmem_effective )
   {
-    auto pool = _kvstore->open_pool(PMEM_PATH, "test-hstore.pool");
+    auto pool = _kvstore->open_pool(pool_dir(), pool_name());
     ASSERT_LT(0, int64_t(pool));
     _kvstore->delete_pool(pool);
   }
