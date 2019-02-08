@@ -65,8 +65,8 @@ struct device_t
 
 
 /* currently one dax device per numa node */
-static constexpr device_t dax_config[] = {{"/dev/dax0.1", 0x9000000000, 0},
-                                          {"/dev/dax1.1", 0xa000000000, 1},
+static constexpr device_t dax_config[] = {{"/dev/dax0.3", 0x9000000000, 0},
+                                          {"/dev/dax1.3", 0xa000000000, 1},
                                           {"", 0, 0}
 };
 

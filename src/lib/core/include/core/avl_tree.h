@@ -283,7 +283,6 @@ class AVL_node {
         root->subtree[LEFT] = ret->subtree[LEFT];
         root->subtree[RIGHT] = ret->subtree[RIGHT];
         root->bf = ret->bf;
-        // printf("successor is at %p\n", root);
       }
     }
     root->bf -= decrease;
