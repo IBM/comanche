@@ -14,7 +14,7 @@ public:
     return get_log2_bin(object_size);
   }
 
-  void * base(void * addr, size_t size) {
+  void * base(void * addr) {
     return round_down(addr,GB(1));
   }
 
