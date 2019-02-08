@@ -1,7 +1,10 @@
 #ifndef COMANCHE_HSTORE_NUPM_TYPES_H
 #define COMANCHE_HSTORE_NUPM_TYPES_H
 
-#define USE_CC_HEAP 1
+#if USE_CC_HEAP == 1 || USE_CC_HEAP == 3
+#else
+#error USE_CC_HEAP type incompatible with nupm 
+#endif
 
 #include "hstore_common.h"
 #include "persister_nupm.h"
