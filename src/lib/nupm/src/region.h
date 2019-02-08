@@ -17,13 +17,11 @@ class Region
 
   static constexpr unsigned _debug_level = 3;
   
-  struct ptr_t {
-    void * ptr;
-  } __attribute__((aligned(8)));
+  //  using list_t = std::forward_list<void*,tbb::cache_aligned_allocator<void*>>;
+  using list_t = std::forward_list<void*,tbb::scalable_allocator<void*>>;
+  //using list_t = std::forward_list<void*>;
+
   
-  //  using list_t = std::forward_list<ptr_t,tbb::cache_aligned_allocator<ptr_t>>;
-  using list_t = std::forward_list<ptr_t,tbb::scalable_allocator<ptr_t>>;
-  //using list_t = std::forward_list<ptr_t>;
 protected:
   Region(void * region_ptr,
          const size_t region_size,
@@ -45,12 +43,12 @@ protected:
     byte * rp = static_cast<byte*>(region_ptr);
     const auto count = region_size / object_size;
     for(size_t i=0;i<count; i++) {
-      _free.push_front({rp});
+      _free.push_front(rp);
       rp+=object_size;
     }
   }
 
-  bool in_range(void * p) {
+  inline bool in_range(void * p) {
     auto addr = reinterpret_cast<addr_t>(p);
     return (addr >= _base && addr < _top);
   }
@@ -58,23 +56,23 @@ protected:
   void * allocate() {
     if(_free.empty())
       return nullptr;
-    void * p = _free.front().ptr;
+    void * p = _free.front();
     _free.pop_front();
-    _used.push_front({p});
+    _used.push_front(p);
     return p;
   }
 
   bool free(void * p) {
     auto i = _used.begin();
-    if(i->ptr == p)
+    if(*i == p)
       _used.pop_front();
 
     auto last = i;
     i++;
     while(i != _used.end()) {
-      if(i->ptr == p) {
+      if(*i == p) {
         _used.erase_after(last);
-        _free.push_front({p});
+        _free.push_front(p);
         /* TODO: we could check for total free region */
         return true;
       }
@@ -86,16 +84,17 @@ protected:
 
   bool allocate_at(void * ptr) {
     auto i = _free.begin();
-    if(i->ptr == ptr) {
+    if(*i == ptr) {
       _free.pop_front();
-      _used.push_front({ptr});
+      _used.push_front(ptr);
+      return true;
     }
     auto last = i;
     i++;
     while(i != _free.end()) {
-      if(i->ptr == ptr) {
+      if(*i == ptr) {
         _free.erase_after(last);  
-        _used.push_front({ptr});        
+        _used.push_front(ptr);        
         return true;
       }
     }
@@ -182,7 +181,7 @@ public:
   void inject_allocation(void * ptr, size_t size, int numa_node) {
     assert(ptr);
     assert(size > 0);
-    if(numa_node < 0 || numa_node >= MAX_NUMA_ZONES)
+    if(unlikely(numa_node < 0 || numa_node >= MAX_NUMA_ZONES))
       throw std::invalid_argument("numa node outside max range");
     
     auto bucket = _mapper.bucket(size);
@@ -213,7 +212,7 @@ private:
       throw std::out_of_range("object size beyond available buckets");
     for(auto& region : _buckets[numa_node][bucket]) {
       void * p = region->allocate();
-      if(p)
+      if(p != nullptr)
         return p;
     }
     return nullptr;
