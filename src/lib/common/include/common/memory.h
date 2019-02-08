@@ -152,10 +152,11 @@ class Reconstituting_allocator {
   /** 
    * Free region of memory
    * 
-   * @param p 
-   * @param numa_node 
+   * @param p Pointer to memory to free
+   * @param numa_node NUMA node memory is associated with
+   * @param size Size of region to free (providing this improves performance)
    */
-  virtual void free(void * p, int numa_node = -1) = 0;
+  virtual void free(void *ptr, int numa_node, size_t size = 0) = 0;
   
   /** 
    * Inject previous allocation (for rebuild)

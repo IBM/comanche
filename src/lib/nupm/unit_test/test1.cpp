@@ -9,6 +9,7 @@
 #include "vmem_numa.h"
 #include "arena_alloc.h"
 #include "rc_alloc_avl.h"
+#include "rc_alloc_lb.h"
 
 struct
 {
@@ -50,10 +51,103 @@ class Libnupm_test : public ::testing::Test {
 //#define RUN_VMEM_ALLOCATOR_TESTS
 //#define RUN_DEVDAX_TEST
 //#define RUN_AVL_RCA_TEST
-#define RUN_AVL_STRESS_TEST
-#define RUN_MALLOC_STRESS_TEST
+//#define RUN_AVL_STRESS_TEST
+//#define RUN_MALLOC_STRESS_TEST
+//#define RUN_LB_TEST
+#define RUN_LB_STRESS_TEST
 
 #include "dax_map.h"
+
+#ifdef RUN_LB_STRESS_TEST
+TEST_F(Libnupm_test, RcAllocatorLBStress)
+{
+  const size_t ARENA_SIZE = GB(32);
+  void * p = aligned_alloc(GB(1), ARENA_SIZE);
+  ASSERT_TRUE(p);
+
+  nupm::Rca_LB rca;
+  rca.add_managed_region(p, ARENA_SIZE, 0);
+  
+  __sync_synchronize();
+  auto start_time = std::chrono::high_resolution_clock::now();
+  /* populate with 1M entries */
+  const size_t COUNT = 10000000;
+  for(size_t i=0; i<COUNT; i++) {
+    size_t s = (genrand64_int64() % 256) + 8;
+    rca.alloc(s, 0 /* numa */, 0 /* alignment */);
+  }
+  __sync_synchronize();
+  auto end_time = std::chrono::high_resolution_clock::now();
+  double secs = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count() / 1000.0;
+  double per_sec = (((double)COUNT)/secs);
+  PINF("Non-aligned, 64 byte size, insertion rate: %.0fK /sec (mean latency:%.0f usec)", per_sec/1000.0, 1000000.0/per_sec);
+
+  free(p);
+}
+#endif
+
+#ifdef RUN_LB_TEST
+TEST_F(Libnupm_test, RcAllocatorLB)
+{
+  void * p = aligned_alloc(GB(1),GB(8));
+  ASSERT_TRUE(p);
+  void * q = aligned_alloc(GB(1),GB(8));
+  ASSERT_TRUE(q);
+
+  PLOG("p=%p", p);
+  PLOG("q=%p", q);
+
+  std::vector<iovec> allocations;
+
+  std::string state_A, state_B;
+  { /* create allocator */
+    nupm::Rca_LB rca;
+    rca.add_managed_region(p, GB(8), 0);
+    rca.add_managed_region(q, GB(8), 1);
+
+    for(unsigned i=0;i<10;i++) {
+      void * a = rca.alloc(64, 0, 16);
+      ASSERT_TRUE(a != nullptr);
+      PLOG("Allocated: %p", a);
+      allocations.push_back({a, (i+1)*32});
+    }
+
+    /* logical power-fail */
+    rca.debug_dump(&state_A);// TODO get string version
+
+    /* now we should be able to free */
+    for(auto& i: allocations) {
+      rca.free(i.iov_base, 0);
+      PLOG("Freed: %p", i.iov_base);
+    }
+
+  }
+
+  // {
+  //   nupm::Rca_LB rca;
+  //   rca.add_managed_region(p, GB(8), 0);
+  //   rca.add_managed_region(q, GB(8), 1);
+
+  //   for(auto& i: allocations) {
+  //     rca.inject_allocation(i.iov_base, i.iov_len, 0);
+  //   }
+    
+  //   rca.debug_dump(&state_B);
+
+  //   /* state A and B should be the same */
+  //   ASSERT_TRUE(state_A == state_B);
+    
+  //   /* now we should be able to free */
+  //   for(auto& i: allocations) {
+  //     rca.free(i.iov_base, 0);
+  //   }
+  // }
+
+  free(p);
+  free(q);
+}
+#endif
+
 
 #ifdef RUN_DEVDAX_TEST
 TEST_F(Libnupm_test, DevdaxManager)
@@ -163,8 +257,6 @@ TEST_F(Libnupm_test, RcAllocatorStress)
   nupm::Rca_AVL rca;
   rca.add_managed_region(p, ARENA_SIZE, 0);
   
-  //  std::vector<iovec> allocations;
-  //  allocations.push_back({a, s});
   __sync_synchronize();
   auto start_time = std::chrono::high_resolution_clock::now();
   /* populate with 1M entries */
