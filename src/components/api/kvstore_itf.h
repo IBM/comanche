@@ -195,6 +195,16 @@ public:
   virtual void delete_pool(const pool_t pool)  = 0;
 
   /** 
+   * Close and delete an existing pool
+   * 
+   * @param path Path of persistent memory (e.g., /mnt/pmem0/ )
+   * @param name Name of object pool
+   */
+  virtual void delete_pool(const std::string &path, const std::string &name) {
+    delete_pool(open_pool(path, name));
+  }
+
+  /** 
    * Get mapped memory regions for pool
    * 
    * @param pool Pool handle
