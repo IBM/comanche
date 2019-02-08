@@ -23,30 +23,38 @@ class Region
   
   //  using list_t = std::forward_list<ptr_t,tbb::cache_aligned_allocator<ptr_t>>;
   using list_t = std::forward_list<ptr_t,tbb::scalable_allocator<ptr_t>>;
-  //  using list_t = std::forward_list<ptr_t>;
+  //using list_t = std::forward_list<ptr_t>;
 protected:
   Region(void * region_ptr,
          const size_t region_size,
-         const size_t obj_size)
+         const size_t object_size)
   {
     if(_debug_level > 1)
       PLOG("Region ctor: region_base=%p region_size=%lu objsize=%lu objcap=%lu",
-           region_ptr, region_size, obj_size, region_size / obj_size);
+           region_ptr, region_size, object_size, region_size / object_size);    
     
-    if(region_size % obj_size)
+    if(region_size % object_size)
       throw std::invalid_argument("Region: objects must fit exactly into region size");
 
-    if(obj_size < 8)
+    if(object_size < 8)
       throw std::invalid_argument("Region: minimum object size is 8 bytes");
+
+    _base = reinterpret_cast<addr_t>(region_ptr);
+    _top = _base + region_size;
     
-    char * rp = static_cast<char*>(region_ptr);
-    const auto count = region_size / obj_size;
+    byte * rp = static_cast<byte*>(region_ptr);
+    const auto count = region_size / object_size;
     for(size_t i=0;i<count; i++) {
       _free.push_front({rp});
-      rp+=obj_size;
+      rp+=object_size;
     }
   }
 
+  bool in_range(void * p) {
+    auto addr = reinterpret_cast<addr_t>(p);
+    return (addr >= _base && addr < _top);
+  }
+  
   void * allocate() {
     if(_free.empty())
       return nullptr;
@@ -75,12 +83,36 @@ protected:
     }
     return false;
   }
+
+  bool allocate_at(void * ptr) {
+    auto i = _free.begin();
+    if(i->ptr == ptr) {
+      _free.pop_front();
+      _used.push_front({ptr});
+    }
+    auto last = i;
+    i++;
+    while(i != _free.end()) {
+      if(i->ptr == ptr) {
+        _free.erase_after(last);  
+        _used.push_front({ptr});        
+        return true;
+      }
+    }
+    return false;
+  }
     
+private:
+  addr_t _base, _top;
   list_t _free;
   list_t _used; /* we could do with this, but it guards against misuse */
 };
 
   
+
+/**
+ * @brief      Region-based heap allocator.  Uses 2^n sized bucket strategy.
+ */
 class Region_map
 {
   static constexpr unsigned NUM_BUCKETS = 64;
@@ -90,37 +122,40 @@ class Region_map
 public:
   Region_map() {
   }
-
-  virtual ~Region_map() {
-  }
   
+  ~Region_map() {
+  }
+
   void add_arena(void * arena_base, size_t arena_length, int numa_node) {
-    if(numa_node >= MAX_NUMA_ZONES)
+    if(numa_node < 0 || numa_node >= MAX_NUMA_ZONES)
       throw std::invalid_argument("numa node outside max range");
     
     _arena_allocator.add_managed_region(arena_base, arena_length, numa_node);
   }
 
   void * allocate(size_t size, int numa_node) {
+    if(unlikely(numa_node < 0 || numa_node >= MAX_NUMA_ZONES))
+      throw std::invalid_argument("numa node outside max range");
+
     void * p = allocate_from_existing_region(size, numa_node);
     if(!p)
       p = allocate_from_new_region(size, numa_node);
     if(!p)
       throw std::bad_alloc();
     return p;
-  }
+  }  
 
-  void free(void * p, int numa_node, size_t obj_size) {
-    if(numa_node >= MAX_NUMA_ZONES)
+  void free(void * p, int numa_node, size_t object_size) {
+    if(unlikely(numa_node < 0 || numa_node >= MAX_NUMA_ZONES))
       throw std::invalid_argument("numa node outside max range");
 
-    if(obj_size > 0) {
-      auto bucket = _mapper.bucket(obj_size);
+    if(object_size > 0) {
+      auto bucket = _mapper.bucket(object_size);
       if(bucket >= NUM_BUCKETS)
         throw std::out_of_range("object size beyond available buckets");
       /* search regions */
       for(auto& region : _buckets[numa_node][bucket]) {
-        if(region->free(p))
+        if(region->in_range(p) && region->free(p))
           return;
       }
     }
@@ -128,8 +163,8 @@ public:
       /* search all the buckets */
       for(unsigned i=0;i<NUM_BUCKETS;i++) {
         /* search regions */
-        for(auto& region : _buckets[numa_node][i]) {
-          if(region->free(p))
+        for(auto& region : _buckets[numa_node][i]) {          
+          if(region->in_range(p) && region->free(p))
             return;
         }
       }
@@ -137,11 +172,43 @@ public:
     throw std::invalid_argument("bad pointer to free");
   }
 
+  /**
+   * @brief      Inject a prior allocation.  Marks the memory as allocated.
+   *
+   * @param      ptr        The pointer
+   * @param[in]  size       The size
+   * @param[in]  numa_node  The numa node
+   */
+  void inject_allocation(void * ptr, size_t size, int numa_node) {
+    assert(ptr);
+    assert(size > 0);
+    if(numa_node < 0 || numa_node >= MAX_NUMA_ZONES)
+      throw std::invalid_argument("numa node outside max range");
+    
+    auto bucket = _mapper.bucket(size);
+    
+    /* check existing regions */
+    for(auto& region : _buckets[numa_node][bucket]) {
+      if(region->in_range(ptr) && region->allocate_at(ptr))
+        return;
+    }
+    /* otherwise we have to create the region at the correct position  */
+    auto region_size = _mapper.region_size(size);
+    assert(region_size > 0);
+    auto region_base = _mapper.base(ptr);
+    assert(region_base);
+    _arena_allocator.inject_allocation(region_base, region_size, numa_node);
+    auto region_object_size = _mapper.rounded_up_object_size(size);
+    Region * new_region = new Region(region_base, region_size, region_object_size);
+    attach_region(new_region, region_object_size, numa_node);
+    new_region->allocate_at(ptr);
+  }
+
 private:
 
   
-  void * allocate_from_existing_region(size_t obj_size, int numa_node) {
-    auto bucket = _mapper.bucket(obj_size);
+  void * allocate_from_existing_region(size_t object_size, int numa_node) {
+    auto bucket = _mapper.bucket(object_size);
     if(bucket >= NUM_BUCKETS)
       throw std::out_of_range("object size beyond available buckets");
     for(auto& region : _buckets[numa_node][bucket]) {
@@ -152,23 +219,23 @@ private:
     return nullptr;
   }
 
-  void * allocate_from_new_region(size_t obj_size, int numa_node) {
-    auto bucket = _mapper.bucket(obj_size);
+  void * allocate_from_new_region(size_t object_size, int numa_node) {
+    auto bucket = _mapper.bucket(object_size);
     if(bucket >= NUM_BUCKETS)
       throw std::out_of_range("object size beyond available buckets");
-    auto region_size = _mapper.region_size(obj_size);
+    auto region_size = _mapper.region_size(object_size);
     assert(region_size > 0);
-    auto region_base = _arena_allocator.alloc(region_size, numa_node, obj_size); /* align by object size */
+    auto region_base = _arena_allocator.alloc(region_size, numa_node, object_size); /* align by object size */
     assert(region_base);
-    auto region_object_size = _mapper.rounded_up_object_size(obj_size);
+    auto region_object_size = _mapper.rounded_up_object_size(object_size);
     Region * new_region = new Region(region_base, region_size, region_object_size);
     void * rp = new_region->allocate();
-    attach_region(new_region, obj_size, numa_node);
+    attach_region(new_region, object_size, numa_node);
     return rp;
   }
 
-  void attach_region(Region * region, size_t obj_size, int numa_node) {
-    auto bucket = _mapper.bucket(obj_size);
+  void attach_region(Region * region, size_t object_size, int numa_node) {
+    auto bucket = _mapper.bucket(object_size);
     if(bucket >= NUM_BUCKETS)
       throw std::out_of_range("object size beyond available buckets");
     _buckets[numa_node][bucket].push_front(region);

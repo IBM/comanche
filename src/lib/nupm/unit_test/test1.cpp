@@ -11,6 +11,12 @@
 #include "rc_alloc_avl.h"
 #include "rc_alloc_lb.h"
 
+//#define GPERF_TOOLS
+
+#ifdef GPERF_TOOLS
+#include <gperftools/profiler.h>
+#endif
+
 struct
 {
   uint64_t uuid;
@@ -67,16 +73,26 @@ TEST_F(Libnupm_test, RcAllocatorLBStress)
 
   nupm::Rca_LB rca;
   rca.add_managed_region(p, ARENA_SIZE, 0);
-  
+
+#ifdef GPERF_TOOLS
+  ProfilerStart("cpu_profile");
+#endif
+
+ 
   __sync_synchronize();
   auto start_time = std::chrono::high_resolution_clock::now();
   /* populate with 1M entries */
   const size_t COUNT = 10000000;
   for(size_t i=0; i<COUNT; i++) {
-    size_t s = (genrand64_int64() % 256) + 8;
+    size_t s = 8; // (genrand64_int64() % 256) + 8;
     rca.alloc(s, 0 /* numa */, 0 /* alignment */);
   }
   __sync_synchronize();
+
+#ifdef GPERF_TOOLS
+  ProfilerStop();
+#endif
+
   auto end_time = std::chrono::high_resolution_clock::now();
   double secs = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count() / 1000.0;
   double per_sec = (((double)COUNT)/secs);

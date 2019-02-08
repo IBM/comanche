@@ -41,7 +41,7 @@ void Rca_LB::add_managed_region(void * region_base, size_t region_length, int nu
 
 void Rca_LB::inject_allocation(void * ptr, size_t size, int numa_node)
 {
-  throw API_exception("inject_allocation not implemented");
+  _rmap->inject_allocation(ptr, size, numa_node);
 }
 
 void * Rca_LB::alloc(size_t size,
