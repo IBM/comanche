@@ -9,7 +9,11 @@ class region
   std::uint64_t magic;
 public:
   persist_data_t persist_data;
+#if USE_CC_HEAP == 3
+  heap_rc heap;
+#else
   heap_cc heap;
+#endif
 
   void initialize() { magic = magic_value; }
   bool is_initialized() const noexcept { return magic == magic_value; }

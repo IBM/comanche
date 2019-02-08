@@ -133,11 +133,7 @@ TEST_F(KVStore_test, RemoveOldPool)
   {
     try
     {
-      pool = _kvstore->open_pool(pool_dir(), pool_name(), 0);
-      if ( 0 < int64_t(pool) )
-      {
-        _kvstore->delete_pool(pool);
-      }
+      _kvstore->delete_pool(pool_dir(), pool_name());
     }
     catch ( Exception & )
     {
