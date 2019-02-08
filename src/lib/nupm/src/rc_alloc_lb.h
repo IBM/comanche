@@ -21,27 +21,26 @@
  *
  */
 
-#ifndef __NUPM_RC_ALLOC__
-#define __NUPM_RC_ALLOC__
+#ifndef __NUPM_RC_ALLOC_LB__
+#define __NUPM_RC_ALLOC_LB__
 
 #include <string>
 #include <common/memory.h>
 
-
 namespace nupm
 {
-class Rca_AVL_internal;
-
+class Region_map;
+  
 /** 
  * Reconstituting allocator.  Metadata is held in DRAM (C runtime allocator).
- * 
+ * NOTE: This class is NOT thread safe.
  * 
  */
-class Rca_AVL : public Common::Reconstituting_allocator
+class Rca_LB : public Common::Reconstituting_allocator
 {
  public:
-  Rca_AVL();
-  ~Rca_AVL();
+  Rca_LB();
+  ~Rca_LB();
 
   /** 
    * Add region of memory to be managed
@@ -51,14 +50,6 @@ class Rca_AVL : public Common::Reconstituting_allocator
    * @param numa_node NUMA node
    */
   void add_managed_region(void * region_base, size_t region_length, int numa_node);
-
-  /** 
-   * EXPERIMENTAL: for memkind testing only
-   * 
-   * @param pmem_file Persistent memory filename (e.g., /mnt/pmem0)
-   * @param numa_node NUMA node
-   */
-  void add_managed_region(const std::string& pmem_file, int numa_node);
 
   /** 
    * Allocate region of memory
@@ -99,7 +90,7 @@ class Rca_AVL : public Common::Reconstituting_allocator
   void debug_dump(std::string* out_log = nullptr);
   
  private:
-  Rca_AVL_internal * _rca;
+  Region_map * _rmap;
 
 };
 

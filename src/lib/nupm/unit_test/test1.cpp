@@ -8,7 +8,7 @@
 #include "tx_cache.h"
 #include "vmem_numa.h"
 #include "arena_alloc.h"
-#include "rc_alloc.h"
+#include "rc_alloc_avl.h"
 
 struct
 {
@@ -49,7 +49,9 @@ class Libnupm_test : public ::testing::Test {
 //#define RUN_RPALLOCATOR_TESTS
 //#define RUN_VMEM_ALLOCATOR_TESTS
 //#define RUN_DEVDAX_TEST
-#define RUN_AVL_RCA_TEST
+//#define RUN_AVL_RCA_TEST
+#define RUN_AVL_STRESS_TEST
+#define RUN_MALLOC_STRESS_TEST
 
 #include "dax_map.h"
 
@@ -100,8 +102,6 @@ TEST_F(Libnupm_test, DevdaxManager)
 #ifdef RUN_AVL_RCA_TEST
 TEST_F(Libnupm_test, RcAllocatorAVL)
 {
-  
-
   void * p = aligned_alloc(GB(1),GB(8));
   ASSERT_TRUE(p);
   void * q = aligned_alloc(GB(1),GB(8));
@@ -151,6 +151,91 @@ TEST_F(Libnupm_test, RcAllocatorAVL)
   free(q);
 }
 #endif
+
+
+#ifdef RUN_AVL_STRESS_TEST
+TEST_F(Libnupm_test, RcAllocatorStress)
+{
+  const size_t ARENA_SIZE = GB(32);
+  void * p = aligned_alloc(GB(1), ARENA_SIZE);
+  ASSERT_TRUE(p);
+
+  nupm::Rca_AVL rca;
+  rca.add_managed_region(p, ARENA_SIZE, 0);
+  
+  //  std::vector<iovec> allocations;
+  //  allocations.push_back({a, s});
+  __sync_synchronize();
+  auto start_time = std::chrono::high_resolution_clock::now();
+  /* populate with 1M entries */
+  const size_t COUNT = 10000000;
+  for(size_t i=0; i<COUNT; i++) {
+    size_t s = 32; //(genrand64_int64() % 32) + 1;
+    rca.alloc(s, 0 /* numa */, 0 /* alignment */);
+  }
+  __sync_synchronize();
+  auto end_time = std::chrono::high_resolution_clock::now();
+  double secs = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count() / 1000.0;
+  double per_sec = (((double)COUNT)/secs);
+  PINF("Non-aligned, 32 byte size, insertion rate: %.0fK /sec (mean latency:%.0f usec)", per_sec/1000.0, 1000000.0/per_sec);
+
+  free(p);
+}
+#endif
+
+#ifdef RUN_AVL_STRESS_TEST_MEMKIND
+TEST_F(Libnupm_test, RcAllocatorStressMemkind)
+{
+  const size_t ARENA_SIZE = GB(32);
+  void * p = aligned_alloc(GB(1), ARENA_SIZE);
+  ASSERT_TRUE(p);
+
+  nupm::Rca_AVL rca;
+  rca.add_managed_region("/dev/dax0.3",0);
+  
+  //  std::vector<iovec> allocations;
+  //  allocations.push_back({a, s});
+  __sync_synchronize();
+  auto start_time = std::chrono::high_resolution_clock::now();
+  /* populate with 1M entries */
+  const size_t COUNT = 10000000;
+  for(size_t i=0; i<COUNT; i++) {
+    size_t s = 32; //(genrand64_int64() % 32) + 1;
+    rca.alloc(s, 0 /* numa */, 0 /* alignment */);
+  }
+  __sync_synchronize();
+  auto end_time = std::chrono::high_resolution_clock::now();
+  double secs = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count() / 1000.0;
+  double per_sec = (((double)COUNT)/secs);
+  PINF("Non-aligned, 32 byte size, insertion rate: %.0fK /sec (mean latency:%.0f usec)", per_sec/1000.0, 1000000.0/per_sec);
+
+  free(p);
+}
+#endif
+
+#ifdef RUN_MALLOC_STRESS_TEST
+TEST_F(Libnupm_test, MallocStress)
+{
+  //  std::vector<iovec> allocations;
+  //  allocations.push_back({a, s});
+  __sync_synchronize();
+  auto start_time = std::chrono::high_resolution_clock::now();
+  /* populate with 1M entries */
+  const size_t COUNT = 10000000;
+  for(size_t i=0; i<COUNT; i++) {
+    size_t s = 32; //(genrand64_int64() % 32) + 1;
+    void * p = ::malloc(s);
+    assert(p);
+  }
+  __sync_synchronize();
+  auto end_time = std::chrono::high_resolution_clock::now();
+  double secs = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count() / 1000.0;
+  PLOG("malloc: secs %.2f", secs);
+  double per_sec = (((double)COUNT)/secs);
+  PINF("malloc: Non-aligned, 32 byte size, insertion rate: %.2fM /sec", per_sec/1000000.0);
+}
+#endif
+
 
 #if 0
 TEST_F(Libnupm_test, NdControl)
