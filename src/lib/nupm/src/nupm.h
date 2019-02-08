@@ -8,7 +8,7 @@
 #include "pm_lowlevel.h"
 #include "nd_utils.h"
 #include "dax_map.h"
-#include "rc_alloc.h"
+#include "rc_alloc_lb.h"
 #include "x86_64/cpu.h"
 
 #endif
