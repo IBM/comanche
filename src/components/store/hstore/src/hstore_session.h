@@ -5,47 +5,45 @@
 
 /* open_pool_handle, ALLOC_T, table_t */
 template <typename Handle, typename Allocator, typename Table>
-  class session
-    : public open_pool<Handle>
+	class session
+		: public open_pool<Handle>
 {
-  Allocator _heap;
-  Table _map;
-  impl::atomic_controller<Table> _atomic_state;
+	Allocator _heap;
+	Table _map;
+	impl::atomic_controller<Table> _atomic_state;
 public:
-  /* PMEMoid, persist_data_t */
-  template <typename OID, typename Persist>
-    explicit session(
-      OID
+	/* PMEMoid, persist_data_t */
+	template <typename OID, typename Persist>
+		explicit session(
+			OID
 #if USE_CC_HEAP == 1 || USE_CC_HEAP == 2
-        heap_oid_
+				heap_oid_
 #endif
-      , const pool_path &path_
-      , open_pool_handle &&pop_
-      , Persist *persist_data_
-    )
-      : open_pool<Handle>(path_, std::move(pop_))
-#if USE_CC_HEAP == 1
-      , _heap(
-        Allocator(
-          *new
-             (pmemobj_direct(heap_oid_))
-             heap_cc(static_cast<char *>(pmemobj_direct(heap_oid_) + sizeof(heap_cc)))
-        )
-      )
+			, const pool_path &path_
+			, open_pool_handle &&pop_
+			, Persist *persist_data_
+		)
+		: open_pool<Handle>(path_, std::move(pop_))
+		, _heap(
+			Allocator(
+#if USE_CC_HEAP == 0
+				this->pool()
+#elif USE_CC_HEAP == 1
+				*new
+					(pmemobj_direct(heap_oid_))
+					heap_cc(static_cast<char *>(pmemobj_direct(heap_oid_) + sizeof(heap_cc)))
 #elif USE_CC_HEAP == 2
-      , _heap(
-        Allocator(
-          *new
-            (pmemobj_direct(heap_oid_))
-            heap_co(heap_oid_)
-        )
-      )
+				*new
+					(pmemobj_direct(heap_oid_))
+					heap_co(heap_oid_)
 #else /* USE_CC_HEAP */
-      , _heap(ALLOC_T(this->pool()))
+				this->pool() /* not used */
 #endif /* USE_CC_HEAP */
-      , _map(persist_data_, _heap)
-      , _atomic_state(*persist_data_, _map)
-    {}
+			)
+		)
+		, _map(persist_data_, _heap)
+		, _atomic_state(*persist_data_, _map)
+	{}
 
 	explicit session(
 		const pool_path &path_
@@ -53,10 +51,20 @@ public:
 	)
 		: open_pool<Handle>(path_, std::move(pop_))
 		, _heap(
-			ALLOC_T(
+			Allocator(
+#if USE_CC_HEAP == 0
+				this->pool()
+#elif USE_CC_HEAP == 1
 				*new
 					(&this->pool()->heap)
 					heap_cc(this->pool() + 1)
+#elif USE_CC_HEAP == 2
+				this->pool() /* not used */
+#else
+				*new
+					(&this->pool()->heap)
+					heap_rc(this->pool() + 1)
+#endif
 			)
 		)
 		, _map(&this->pool()->persist_data, _heap)

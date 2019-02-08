@@ -104,7 +104,11 @@ private:
     /* arguments to cc_malloc are the start of the free space (which cc_sbrk uses
      * for the "state" structure) and the size of the free space
      */
+#if USE_CC_HEAP == 3
+    auto al = new (a) heap_rc(static_cast<char *>(a) + sizeof(heap_rc), actual_size, _numa_node);
+#else
     auto al = new (a) heap_cc(static_cast<char *>(a) + sizeof(heap_cc), actual_size);
+#endif
     new (p) persist_data_t(
       expected_obj_count
       , table_t::allocator_type(*al)

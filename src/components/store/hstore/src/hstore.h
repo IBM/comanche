@@ -32,7 +32,6 @@ private:
   auto locate_session(const IKVStore::pool_t pid) -> tracked_pool &;
   auto move_pool(const IKVStore::pool_t pid) -> std::unique_ptr<tracked_pool>;
 
-  void delete_pool(const std::string &path, const std::string &name);
 public:
   /** 
    * Constructor
@@ -91,6 +90,10 @@ public:
                    unsigned int flags) override;
 
   void delete_pool(pool_t pid) override;
+
+  void delete_pool(const std::string &path
+		  , const std::string &name
+		  ) override;
 
   void close_pool(pool_t pid) override;
 

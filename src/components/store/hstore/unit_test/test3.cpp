@@ -120,6 +120,16 @@ class KVStore_test
   static void populate_many(kvv_t &kvv, char tag, std::size_t key_length, std::size_t value_length);
   static long unsigned put_many(const kvv_t &kvv, const std::string &descr);
   static void get_many(const kvv_t &kvv, const std::string &descr);
+
+  std::string pool_dir() const
+  {
+    return "/mnt/pmem0/pool/0/";
+  }
+
+  std::string pool_name()
+  {
+    return "test-" + store_map::impl->name + ".pool";
+  }
 };
 
 constexpr std::size_t KVStore_test::estimated_object_count_large;
@@ -143,9 +153,6 @@ std::size_t KVStore_test::multi_count_actual = 0;
 std::size_t KVStore_test::estimated_object_count = KVStore_test::pmem_simulated ? estimated_object_count_small : estimated_object_count_large;
 std::size_t KVStore_test::many_count_target = KVStore_test::pmem_simulated ? many_count_target_small : many_count_target_large;
 
-#define PMEM_PATH "/mnt/pmem0/pool/0/"
-//#define PMEM_PATH "/dev/pmem0"
-
 TEST_F(KVStore_test, Instantiate)
 {
   /* create object instance through factory */
@@ -167,11 +174,7 @@ TEST_F(KVStore_test, RemoveOldPool)
   {
     try
     {
-      pool = _kvstore->open_pool(PMEM_PATH, "test-" + store_map::impl->name + ".pool", 0);
-      if ( 0 < int64_t(pool) )
-      {
-        _kvstore->delete_pool(pool);
-      }
+      _kvstore->delete_pool(pool_dir(), pool_name());
     }
     catch ( Exception & )
     {
@@ -182,7 +185,7 @@ TEST_F(KVStore_test, RemoveOldPool)
 TEST_F(KVStore_test, CreatePool)
 {
   ASSERT_TRUE(_kvstore);
-  pool = _kvstore->create_pool(PMEM_PATH, "test-" + store_map::impl->name + ".pool", MB(16381UL), 0, estimated_object_count);
+  pool = _kvstore->create_pool(pool_dir(), pool_name(), MB(16381UL), 0, estimated_object_count);
   ASSERT_LT(0, int64_t(pool));
 }
 

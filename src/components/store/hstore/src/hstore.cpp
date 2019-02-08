@@ -2,15 +2,33 @@
 
 #define USE_PMEM 1
 
+/*
+ * USE_PMEM 1
+ *   USE_CC_HEAP 0: allocation from pmemobj pool
+ *   USE_CC_HEAP 1: simple allocation using actual addresses from a large region obtained from pmemobj 
+ *   USE_CC_HEAP 2: simple allocation using offsets from a large region obtained from pmemobj 
+ *   USE_CC_HEAP 3: AVL-based allocation using actual addresses from a large region obtained from pmemobj 
+ * USE_PMEM 0
+ *   USE_CC_HEAP 1: simple allocation using actual addresses from a large region obtained from dax_map 
+ *   USE_CC_HEAP 2: simple allocation using offsets from a large region obtained from dax_map (NOT TESTED)
+ *   USE_CC_HEAP 3: AVL-based allocation using actual addresses from a large region obtained from dax_map 
+ *
+ */
 #if USE_PMEM
-/* with PMEM, choose the CC_HEAP version: 0, 1, or 2 */
+/* with PMEM, choose the CC_HEAP version: 0, 1, 2, 3 */
 #define USE_CC_HEAP 0
 #else
-/* without PMEM, only heap version 1 works */
-#define USE_CC_HEAP 1
+/* without PMEM, only heap version 1 or 3 works */
+#define USE_CC_HEAP 3
 #endif
 
+#if USE_CC_HEAP == 1
 #include "allocator_cc.h"
+#elif USE_CC_HEAP == 2
+#include "allocator_co.h"
+#elif CC_HEAP == 3
+#include "allocator_rc.h"
+#endif
 #include "atomic_controller.h"
 #include "hop_hash.h"
 #include "perishable.h"
@@ -73,6 +91,8 @@ namespace
 using ALLOC_T = allocator_cc<char, Persister>;
 #elif USE_CC_HEAP == 2
 using ALLOC_T = allocator_co<char, Persister>;
+#elif USE_CC_HEAP == 3
+using ALLOC_T = allocator_rc<char, Persister>;
 #else /* USE_CC_HEAP */
 using ALLOC_T = allocator_pobj_cache_aligned<char>;
 #endif /* USE_CC_HEAP */
