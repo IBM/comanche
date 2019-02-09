@@ -62,6 +62,7 @@ class Libnupm_test : public ::testing::Test {
 //#define RUN_LB_TEST
 #define RUN_LB_STRESS_TEST
 
+
 #include "dax_map.h"
 
 #ifdef RUN_LB_STRESS_TEST
