@@ -3,18 +3,17 @@
 
 namespace nupm
 {
-  
 
- 
 class Log2_bucket_mapper
 {
-  static constexpr size_t REGION_SIZE = MB(64); //GB(1);
+  static constexpr size_t REGION_SIZE = GB(1);
+  
 public:  
   unsigned bucket(size_t object_size) {
     return get_log2_bin(object_size);
   }
 
-  void * base(void * addr) {
+  void * base(void * addr, size_t size) {
     return round_down(addr,GB(1));
   }
 
@@ -42,6 +41,11 @@ private:
  
 };
 
+
+using Bucket_mapper = Log2_bucket_mapper;
+  
+
+  
 } // nupm
 
 #endif

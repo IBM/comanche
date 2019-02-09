@@ -194,7 +194,7 @@ public:
     /* otherwise we have to create the region at the correct position  */
     auto region_size = _mapper.region_size(size);
     assert(region_size > 0);
-    auto region_base = _mapper.base(ptr);
+    auto region_base = _mapper.base(ptr, size);
     assert(region_base);
     _arena_allocator.inject_allocation(region_base, region_size, numa_node);
     auto region_object_size = _mapper.rounded_up_object_size(size);
@@ -210,6 +210,7 @@ private:
     auto bucket = _mapper.bucket(object_size);
     if(bucket >= NUM_BUCKETS)
       throw std::out_of_range("object size beyond available buckets");
+
     for(auto& region : _buckets[numa_node][bucket]) {
       void * p = region->allocate();
       if(p != nullptr)
@@ -258,7 +259,7 @@ private:
   }
 
 private:
-  Log2_bucket_mapper  _mapper;
+  Bucket_mapper       _mapper;
   nupm::Rca_AVL       _arena_allocator;
   std::list<Region *> _buckets[MAX_NUMA_ZONES][NUM_BUCKETS];
 };
