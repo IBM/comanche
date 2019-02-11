@@ -30,6 +30,7 @@
 
 #include <common/stack.h>
 #include <common/types.h>
+#include <common/utils.h>
 #include <core/slab.h>
 #include <vector>
 #include "avl_tree.h"
@@ -211,7 +212,7 @@ class Memory_region : public Core::AVL_node<Memory_region> {
 
     if (node->_size >= size && node->_free) {
       if (alignment > 0) {
-        if ((!(node->_addr & (alignment - 1UL)))) {
+        if(check_aligned(node->_addr, alignment)) {
           return node;
         }
       }
@@ -227,7 +228,7 @@ class Memory_region : public Core::AVL_node<Memory_region> {
       return result;
 
 #else
-    // std::vector<Memory_region *> stack;
+    //std::vector<Memory_region *> stack;
     Common::Fixed_stack<Memory_region*> stack;  // good for debugging
     stack.push(node);
 
@@ -236,7 +237,7 @@ class Memory_region : public Core::AVL_node<Memory_region> {
 
       if (node->_size >= size && node->_free) {
         if (alignment > 0) {
-          if ((!(node->_addr & (alignment - 1UL)))) {
+          if(check_aligned(node->_addr, alignment)) {
             return node;
           }
         }
@@ -424,10 +425,65 @@ class AVL_range_allocator {
     Memory_region* region = root->find_free_region(root, size, alignment);
 
     if (region == nullptr) {
-      dump_info();
-      throw General_exception(
-          "AVL_range_allocator: line %d failed to allocate %ld units", __LINE__,
-          size);
+
+      /* OK, maybe there is space, but alignment isn't there.  Now we need
+         to split a large enough block */
+
+      Memory_region* region = root->find_free_region(root, size + alignment, 0);
+      if (region == nullptr)
+        throw General_exception("AVL_range_allocator: failed to allocate (size=%ld alignment=%lu)",
+                                size, alignment);
+
+      
+      PLOG("Region to split: %lx %lu (alignment = %lx, free=%d)",
+           region->_addr, region->_size, alignment, region->_free);
+
+      assert(!check_aligned(region->_addr, alignment));
+      PLOG("%lx rounded up %lx", region->_addr, round_up(region->_addr, alignment));
+      assert(region->_addr % alignment);
+
+      /* left split */
+      size_t left_split_size = round_up(region->_addr, alignment) - region->_addr;
+      PLOG("Left split:   base=%lx size=%lu", region->_addr, left_split_size);
+
+      /* center split */
+      addr_t center_split_base = region->_addr + left_split_size;
+      size_t center_split_size = size;
+      PLOG("Center split: %lx %lu (remaining=%lu)", center_split_base, center_split_size, center_split_base % alignment);
+      assert(center_split_base % alignment == 0);
+
+      /* right split */
+      addr_t right_split_base = center_split_base + center_split_size;
+      size_t right_split_size = region->_size - left_split_size - center_split_size;
+      PLOG("Right split:  %lx %lu", right_split_base, right_split_size);
+
+      /* allocate and adjust nodes */
+      void* p = _slab.alloc();
+      if (!p) throw General_exception("AVL_range_allocator: failed to allocate %ld", size);
+      Memory_region* center_node =
+        new (p) Memory_region(center_split_base, center_split_size);
+
+      void* q = _slab.alloc();
+      if (!q) throw General_exception("AVL_range_allocator: failed to allocate %ld", size);
+      Memory_region* right_node =
+        new (q) Memory_region(right_split_base, right_split_size);
+
+      auto adjacent_right = region->_next;
+      
+      region->_size = left_split_size;
+      region->_next = center_node;
+      center_node->_prev = region;
+      center_node->_free = false;
+      center_node->_next = right_node;
+      right_node->_prev = center_node;
+      right_node->_next = adjacent_right;
+      if(adjacent_right)
+        adjacent_right->_prev = right_node;
+
+      _tree->insert_node(center_node);
+      _tree->insert_node(right_node);
+
+      return center_node;
     }
 
     assert(region->_size >= size);
@@ -439,9 +495,7 @@ class AVL_range_allocator {
     else {
       void* p = _slab.alloc();
       if (!p)
-        throw General_exception(
-            "AVL_range_allocator: line %d failed to allocate %ld units",
-            __LINE__, size);
+        throw General_exception("AVL_range_allocator: failed to allocate %ld units", size);
 
       Memory_region* left_over =
           new (p) Memory_region(region->_addr + size, region->_size - size);

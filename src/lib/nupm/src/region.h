@@ -28,7 +28,7 @@ protected:
          const size_t object_size)
   {
     if(_debug_level > 1)
-      PLOG("Region ctor: region_base=%p region_size=%lu objsize=%lu objcap=%lu",
+      PLOG("Region ctor: region_base=%p region_size=%lu objsize=%lu capacity=%lu",
            region_ptr, region_size, object_size, region_size / object_size);    
     
     if(region_size % object_size)
@@ -225,9 +225,10 @@ private:
       throw std::out_of_range("object size beyond available buckets");
     auto region_size = _mapper.region_size(object_size);
     assert(region_size > 0);
-    auto region_base = _arena_allocator.alloc(region_size, numa_node, object_size); /* align by object size */
-    assert(region_base);
+    PLOG("object size=%lu", object_size);
     auto region_object_size = _mapper.rounded_up_object_size(object_size);
+    auto region_base = _arena_allocator.alloc(region_size, numa_node, region_object_size); /* align by object size */
+    assert(region_base);
     Region * new_region = new Region(region_base, region_size, region_object_size);
     void * rp = new_region->allocate();
     attach_region(new_region, object_size, numa_node);
