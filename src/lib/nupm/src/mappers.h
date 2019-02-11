@@ -1,10 +1,18 @@
 #ifndef __NUPM_MAPPERS_H__
 #define __NUPM_MAPPERS_H__
 
+inline static unsigned get_log2_bin(size_t a) {
+  unsigned fsmsb = unsigned(((sizeof(size_t) * 8) - __builtin_clzl(a)));
+  if ((addr_t(1) << (fsmsb - 1)) == a) fsmsb--;
+  return fsmsb;
+}
+  
+
+
 namespace nupm
 {
 
-class Single_threshold_bucket_mapper
+class Large_and_small_bucket_mapper
 {
 private:
 
@@ -12,20 +20,21 @@ private:
   static constexpr size_t L0_REGION_SIZE = MiB(1);
   
 public:
-  Single_threshold_bucket_mapper() :
-    _other_bucket_index(get_log2_bin(KB(4))) {
+  Large_and_small_bucket_mapper() :
+    _other_bucket_index(get_log2_bin(L0_MAX_SMALL_OBJECT_SIZE) + 1) {
   }
   
   unsigned bucket(size_t object_size) {    
     if(object_size <= L0_MAX_SMALL_OBJECT_SIZE)
       return get_log2_bin(object_size);
-    else
+    else {
       return _other_bucket_index;
+    }
   }
 
   void * base(void * addr, size_t object_size) {
     if(object_size <= L0_MAX_SMALL_OBJECT_SIZE )
-      return round_down(addr, KB(4));
+      return round_down(addr, L0_REGION_SIZE);
     else
       return addr;
   }
@@ -47,19 +56,6 @@ public:
 private:
 
   const size_t _other_bucket_index;
-  
-  inline static unsigned get_log2_bin(size_t a) {
-    unsigned fsmsb = unsigned(((sizeof(size_t) * 8) - __builtin_clzl(a)));
-    if ((addr_t(1) << (fsmsb - 1)) == a) fsmsb--;
-    return fsmsb;
-  }
-
-  inline static void *round_down(void *p, unsigned long alignment) {
-    if (mword_t(p) % alignment == 0) return p;
-    return reinterpret_cast<void *>(mword_t(p) & ~(mword_t(alignment) - 1UL));
-  }
-
-  
 };
   
 class Log2_bucket_mapper
@@ -84,24 +80,12 @@ public:
     assert(rup >= size);
     return rup;
   }
-
-private:
-  inline static unsigned get_log2_bin(size_t a) {
-    unsigned fsmsb = unsigned(((sizeof(size_t) * 8) - __builtin_clzl(a)));
-    if ((addr_t(1) << (fsmsb - 1)) == a) fsmsb--;
-    return fsmsb;
-  }
-
-  inline static void *round_down(void *p, unsigned long alignment) {
-    if (mword_t(p) % alignment == 0) return p;
-    return reinterpret_cast<void *>(mword_t(p) & ~(mword_t(alignment) - 1UL));
-  }
  
 };
 
 
-//using Bucket_mapper = Log2_bucket_mapper;
-using Bucket_mapper = Single_threshold_bucket_mapper;
+  //using Bucket_mapper = Log2_bucket_mapper;
+using Bucket_mapper = Large_and_small_bucket_mapper;
   
 
   

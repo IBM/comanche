@@ -15,7 +15,7 @@ class Region
 {
   friend class Region_map;
 
-  static constexpr unsigned _debug_level = 3;
+  static constexpr unsigned _debug_level = 0;
   
   //  using list_t = std::forward_list<void*,tbb::cache_aligned_allocator<void*>>;
   using list_t = std::forward_list<void*,tbb::scalable_allocator<void*>>;
@@ -132,7 +132,11 @@ public:
     _arena_allocator.add_managed_region(arena_base, arena_length, numa_node);
   }
 
-  void * allocate(size_t size, int numa_node) {
+  void * allocate(size_t size, int numa_node, size_t alignment) {
+
+    if(unlikely(alignment > size || size % alignment))
+      throw std::invalid_argument("alignment should be integral of size and less than size");
+
     if(unlikely(numa_node < 0 || numa_node >= MAX_NUMA_ZONES))
       throw std::invalid_argument("numa node outside max range");
 
@@ -225,7 +229,6 @@ private:
       throw std::out_of_range("object size beyond available buckets");
     auto region_size = _mapper.region_size(object_size);
     assert(region_size > 0);
-    PLOG("object size=%lu", object_size);
     auto region_object_size = _mapper.rounded_up_object_size(object_size);
     auto region_base = _arena_allocator.alloc(region_size, numa_node, region_object_size); /* align by object size */
     assert(region_base);
