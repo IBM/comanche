@@ -76,17 +76,43 @@ TEST_F(Libnupm_test, RcAllocatorLBIntegrity)
   nupm::Rca_LB rca;
   rca.add_managed_region(p, ARENA_SIZE, 0);
 
-  std::vector<iovec> log;
+  struct info_t {
+    void * p;
+    size_t size;
+    uint64_t tag;
+  };
+      
+  std::vector<info_t> log;
  
   /* populate with 1M entries */
-  const size_t COUNT = 10;
+  uint64_t tag = 1;
+  const size_t COUNT = 1000000;
   for(size_t i=1; i<COUNT; i++) {
-    size_t s = MiB(2)*i; //1024; // ((genrand64_int64() % 1024) + 1) * 8;
+    size_t s = round_up(((genrand64_int64() % 4096) + 8),8);
     assert(s % 8 == 0);
     void * p = rca.alloc(s, 0 /* numa */, 8 /* alignment */);
-    log.push_back({p,s});
+    ASSERT_TRUE(check_aligned(p, 8));
+    uint64_t* iptr = (uint64_t *) p;
+    for(size_t i = 0;i < s/8 ; i++) {
+      iptr[i] = tag;
+    }
+    log.push_back({p,s,tag});
+    tag++;
   }
-
+  /* check data */
+  tag = 1;
+  unsigned alloc_num=0;
+  for(auto& e: log) {    
+    uint64_t* iptr = (uint64_t *) e.p;
+    for(size_t i = 0;i < e.size/8 ; i++) {
+      if(iptr[i] != e.tag)
+        PLOG("iptr[%lu] = %lu", iptr[i], e.tag);
+      ASSERT_TRUE(iptr[i] == e.tag);
+    }
+    //    PLOG("OK (%u)", alloc_num);
+    alloc_num++;
+    tag++;
+  }
 
 
   free(p);

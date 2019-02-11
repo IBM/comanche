@@ -199,13 +199,16 @@ class Memory_region : public Core::AVL_node<Memory_region> {
    * currently does a top-down, left-to-right, first-fit traversal. This
    * might not be the best traversal but it will do for now.
    *
-   * @param node
-   * @param size
+   * @param node Memory region
+   * @param size Size in bytes
+   * @param alignment Alignment in bytes
    *
    * @return
    */
-  Memory_region* find_free_region(Memory_region* node, size_t size,
-                                  size_t alignment = 0) {
+  Memory_region* find_free_region(Memory_region* node,
+                                  size_t size,
+                                  size_t alignment = 0)
+  {
     if (node == nullptr) return nullptr;
 
 #ifdef USE_RECURSION
@@ -228,7 +231,6 @@ class Memory_region : public Core::AVL_node<Memory_region> {
       return result;
 
 #else
-    //std::vector<Memory_region *> stack;
     Common::Fixed_stack<Memory_region*> stack;  // good for debugging
     stack.push(node);
 
@@ -236,14 +238,10 @@ class Memory_region : public Core::AVL_node<Memory_region> {
       Memory_region* node = stack.pop();
 
       if (node->_size >= size && node->_free) {
-        if (alignment > 0) {
-          if(check_aligned(node->_addr, alignment)) {
-            return node;
-          }
-        }
-        else {
+        if (alignment > 0 && check_aligned(node->_addr, alignment))
           return node;
-        }
+        else
+          return node;
       }
       else {
         Memory_region* l = node->left();
@@ -426,10 +424,12 @@ class AVL_range_allocator {
 
     if (region == nullptr) {
 
+      assert(root->find_free_region(root, size, alignment) == nullptr);
+      assert(alignment > 0);
       /* OK, maybe there is space, but alignment isn't there.  Now we need
-         to split a large enough block */
+         to three-way split a large enough block */
 
-      Memory_region* region = root->find_free_region(root, size + alignment, 0);
+      Memory_region* region = root->find_free_region(root, size + alignment, 8);
       if (region == nullptr)
         throw General_exception("AVL_range_allocator: failed to allocate (size=%ld alignment=%lu)",
                                 size, alignment);
@@ -438,11 +438,14 @@ class AVL_range_allocator {
       if (option_DEBUG) {
         PLOG("Region to split: %lx %lu (alignment = %lx, free=%d)",
              region->_addr, region->_size, alignment, region->_free);
-        assert(!check_aligned(region->_addr, alignment));
+        //        assert(!check_aligned(region->_addr, alignment));
+        assert(region->_addr % alignment);
         PLOG("%lx rounded up %lx", region->_addr, round_up(region->_addr, alignment));
         assert(region->_addr % alignment);
       }
 
+      assert(region->_addr % alignment);
+      
       /* left split */
       size_t left_split_size = round_up(region->_addr, alignment) - region->_addr;
       if (option_DEBUG) {
@@ -465,6 +468,9 @@ class AVL_range_allocator {
       if (option_DEBUG) {
         PLOG("Right split:  %lx %lu", right_split_base, right_split_size);
       }
+      assert(right_split_size > 0);
+      assert(left_split_size > 0);
+      assert(center_split_size > 0);
 
       /* allocate and adjust nodes */
       void* p = _slab.alloc();
@@ -509,8 +515,7 @@ class AVL_range_allocator {
       Memory_region* left_over =
           new (p) Memory_region(region->_addr + size, region->_size - size);
 
-      region->_size =
-          size;  // this fitting block will become the new allocation
+      region->_size = size;  // this fitting block will become the new allocation
       region->_free = false;
       auto tmp = region->_next;
       region->_next = left_over;
