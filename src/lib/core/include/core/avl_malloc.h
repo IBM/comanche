@@ -434,28 +434,37 @@ class AVL_range_allocator {
         throw General_exception("AVL_range_allocator: failed to allocate (size=%ld alignment=%lu)",
                                 size, alignment);
 
-      
-      PLOG("Region to split: %lx %lu (alignment = %lx, free=%d)",
-           region->_addr, region->_size, alignment, region->_free);
 
-      assert(!check_aligned(region->_addr, alignment));
-      PLOG("%lx rounded up %lx", region->_addr, round_up(region->_addr, alignment));
-      assert(region->_addr % alignment);
+      if (option_DEBUG) {
+        PLOG("Region to split: %lx %lu (alignment = %lx, free=%d)",
+             region->_addr, region->_size, alignment, region->_free);
+        assert(!check_aligned(region->_addr, alignment));
+        PLOG("%lx rounded up %lx", region->_addr, round_up(region->_addr, alignment));
+        assert(region->_addr % alignment);
+      }
 
       /* left split */
       size_t left_split_size = round_up(region->_addr, alignment) - region->_addr;
-      PLOG("Left split:   base=%lx size=%lu", region->_addr, left_split_size);
+      if (option_DEBUG) {
+        PLOG("Left split:   base=%lx size=%lu", region->_addr, left_split_size);
+      }
 
       /* center split */
       addr_t center_split_base = region->_addr + left_split_size;
       size_t center_split_size = size;
-      PLOG("Center split: %lx %lu (remaining=%lu)", center_split_base, center_split_size, center_split_base % alignment);
-      assert(center_split_base % alignment == 0);
+
+      if (option_DEBUG) {
+        PLOG("Center split: %lx %lu (remaining=%lu)", center_split_base, center_split_size, center_split_base % alignment);
+        assert(center_split_base % alignment == 0);
+      }
 
       /* right split */
       addr_t right_split_base = center_split_base + center_split_size;
       size_t right_split_size = region->_size - left_split_size - center_split_size;
-      PLOG("Right split:  %lx %lu", right_split_base, right_split_size);
+
+      if (option_DEBUG) {
+        PLOG("Right split:  %lx %lu", right_split_base, right_split_size);
+      }
 
       /* allocate and adjust nodes */
       void* p = _slab.alloc();
