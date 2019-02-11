@@ -128,20 +128,6 @@ extern "C"
 #define PAGE_SHIFT_2MB 21
 
 /**
- * Forward align a pointer
- *
- * @param p Pointer to check
- * @param alignment Alignment in bytes
- *
- * @return Aligned pointer
- */
-INLINE static void *align_pointer(void *p, unsigned long alignment) {
-  if (addr_t(p) % alignment == 0) return p;
-  return reinterpret_cast<void *>((mword_t(p) & ~(mword_t(alignment) - 1UL)) +
-                                  alignment);
-}
-
-/**
  * Align (upward) address
  *
  * @param p Address to align
@@ -150,8 +136,9 @@ INLINE static void *align_pointer(void *p, unsigned long alignment) {
  * @return Aligned address
  */
 INLINE static addr_t round_up(addr_t p, unsigned long alignment) {
-  if (p % alignment == 0) return p;
-  return addr_t((mword_t(p) & ~(mword_t(alignment) - 1UL)) + alignment);
+  addr_t rdown = p / alignment * alignment;
+  if(rdown == p) return p;
+  return rdown + alignment;
 }
 
 /**
@@ -163,8 +150,7 @@ INLINE static addr_t round_up(addr_t p, unsigned long alignment) {
  * @return Aligned address
  */
 INLINE static void *round_up(void *p, unsigned long alignment) {
-  if (((addr_t) p) % alignment == 0) return p;
-  return (void *) ((mword_t(p) & ~(mword_t(alignment) - 1UL)) + alignment);
+  return reinterpret_cast<void*>(round_up(reinterpret_cast<addr_t>(p),alignment));
 }
 
 /**
@@ -176,8 +162,7 @@ INLINE static void *round_up(void *p, unsigned long alignment) {
  * @return Aligned address
  */
 INLINE static addr_t round_down(addr_t p, unsigned long alignment) {
-  if (p % alignment == 0) return p;
-  return addr_t((mword_t(p) & ~(mword_t(alignment) - 1UL)));
+  return p / alignment * alignment;
 }
 
 /**
@@ -189,8 +174,19 @@ INLINE static addr_t round_down(addr_t p, unsigned long alignment) {
  * @return Aligned address
  */
 INLINE static void *round_down(void *p, unsigned long alignment) {
-  if (mword_t(p) % alignment == 0) return p;
-  return reinterpret_cast<void *>(mword_t(p) & ~(mword_t(alignment) - 1UL));
+  return reinterpret_cast<void*>(round_down(reinterpret_cast<addr_t>(p), alignment));
+}
+
+/**
+ * Forward align a pointer
+ *
+ * @param p Pointer to check
+ * @param alignment Alignment in bytes
+ *
+ * @return Aligned pointer
+ */
+INLINE static void *forward_align_pointer(void *p, unsigned long alignment) {
+  return round_up(p, alignment);
 }
 
 /**
@@ -201,12 +197,20 @@ INLINE static void *round_down(void *p, unsigned long alignment) {
  *
  * @return
  */
-INLINE static bool check_aligned(void *p, unsigned alignment) {
-  return (!(reinterpret_cast<unsigned long>(p) & (alignment - 1UL)));
+INLINE static bool check_aligned(void *p, unsigned long alignment) {
+  return (reinterpret_cast<unsigned long>(p) % alignment == 0);
 }
 
-INLINE static bool check_aligned(unsigned long p, unsigned alignment) {
-  return (!(static_cast<unsigned long>(p) & (alignment - 1UL)));
+/**
+ * Check alignment
+ *
+ * @param p Unsigned long to check
+ * @param alignment Alignment in bytes
+ *
+ * @return
+ */
+INLINE static bool check_aligned(unsigned long p, unsigned long alignment) {
+  return (p % alignment == 0);
 }
 
 /**
@@ -279,7 +283,7 @@ INLINE addr_t round_down_by_shift(addr_t a, unsigned shift) {
  * @return Aligned address
  */
 INLINE void *round_down_cacheline(void *a) {
-  return reinterpret_cast<void *>(addr_t(a) & ~(CACHE_LINE_SHIFT - 1));
+  return round_down(a, CACHE_LINE_SHIFT);
 }
 
 /**

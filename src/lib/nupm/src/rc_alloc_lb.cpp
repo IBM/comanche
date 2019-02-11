@@ -49,7 +49,7 @@ void * Rca_LB::alloc(size_t size,
                       size_t alignment)
 {
   if(size == 0 || numa_node < 0)
-    throw std::invalid_argument("Rca_LB::alloc");
+    throw std::invalid_argument("Rca_LB::alloc invalid size or numa node");
 
   if(alignment > size)
     throw std::invalid_argument("Rca_LB::alloc alignment cannot be supported");

@@ -10,6 +10,7 @@
 #include "arena_alloc.h"
 #include "rc_alloc_avl.h"
 #include "rc_alloc_lb.h"
+#include "dax_map.h"
 
 //#define GPERF_TOOLS
 
@@ -60,10 +61,39 @@ class Libnupm_test : public ::testing::Test {
 //#define RUN_AVL_STRESS_TEST
 //#define RUN_MALLOC_STRESS_TEST
 //#define RUN_LB_TEST
-#define RUN_LB_STRESS_TEST
+//#define RUN_LB_STRESS_TEST
+#define RUN_LB_INTEGRITY_TEST
 
 
-#include "dax_map.h"
+
+#ifdef RUN_LB_INTEGRITY_TEST
+TEST_F(Libnupm_test, RcAllocatorLBIntegrity)
+{
+  const size_t ARENA_SIZE = GB(32);
+  void * p = aligned_alloc(GB(1), ARENA_SIZE);
+  ASSERT_TRUE(p);
+
+  nupm::Rca_LB rca;
+  rca.add_managed_region(p, ARENA_SIZE, 0);
+
+  std::vector<iovec> log;
+ 
+  /* populate with 1M entries */
+  const size_t COUNT = 10;
+  for(size_t i=1; i<COUNT; i++) {
+    size_t s = MiB(2)*i; //1024; // ((genrand64_int64() % 1024) + 1) * 8;
+    assert(s % 8 == 0);
+    void * p = rca.alloc(s, 0 /* numa */, 8 /* alignment */);
+    log.push_back({p,s});
+  }
+
+
+
+  free(p);
+}
+#endif
+
+
 
 #ifdef RUN_LB_STRESS_TEST
 TEST_F(Libnupm_test, RcAllocatorLBStress)
@@ -78,7 +108,6 @@ TEST_F(Libnupm_test, RcAllocatorLBStress)
 #ifdef GPERF_TOOLS
   ProfilerStart("cpu_profile");
 #endif
-
  
   __sync_synchronize();
   auto start_time = std::chrono::high_resolution_clock::now();

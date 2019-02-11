@@ -8,9 +8,8 @@ class Single_threshold_bucket_mapper
 {
 private:
 
-  const size_t _other_bucket_index;
   static constexpr size_t L0_MAX_SMALL_OBJECT_SIZE = KiB(4);
-  static constexpr size_t L0_REGION_SIZE = MiB(2);
+  static constexpr size_t L0_REGION_SIZE = MiB(1);
   
 public:
   Single_threshold_bucket_mapper() :
@@ -46,6 +45,9 @@ public:
   }
   
 private:
+
+  const size_t _other_bucket_index;
+  
   inline static unsigned get_log2_bin(size_t a) {
     unsigned fsmsb = unsigned(((sizeof(size_t) * 8) - __builtin_clzl(a)));
     if ((addr_t(1) << (fsmsb - 1)) == a) fsmsb--;
