@@ -10,3 +10,6 @@ apt-get install -y build-essential libnuma-dev libelf-dev libpcap-dev uuid-dev \
         libboost-python-dev libkmod-dev libjson-c-dev libbz2-dev \
         linux-headers-`uname -r` libelf-dev libsnappy-dev liblz4-dev \
         asciidoc xmlto libtool libgtest-dev
+        
+cd /usr/src/gtest ; cmake . ; make ; make install
+
