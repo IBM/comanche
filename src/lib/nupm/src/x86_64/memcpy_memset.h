@@ -37,23 +37,21 @@
 #include <xmmintrin.h>
 #include "pmem.h"
 
-static inline void
-barrier_after_ntstores(void)
+static inline void barrier_after_ntstores(void)
 {
-	/*
-	 * In this configuration pmem_drain does not contain sfence, so we have
-	 * to serialize non-temporal store instructions.
-	 */
-	_mm_sfence();
+  /*
+   * In this configuration pmem_drain does not contain sfence, so we have
+   * to serialize non-temporal store instructions.
+   */
+  _mm_sfence();
 }
 
-static inline void
-no_barrier_after_ntstores(void)
+static inline void no_barrier_after_ntstores(void)
 {
-	/*
-	 * In this configuration pmem_drain contains sfence, so we don't have
-	 * to serialize non-temporal store instructions
-	 */
+  /*
+   * In this configuration pmem_drain contains sfence, so we don't have
+   * to serialize non-temporal store instructions
+   */
 }
 
 #ifndef AVX512F_AVAILABLE

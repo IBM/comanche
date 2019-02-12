@@ -11,7 +11,7 @@ file(GLOB_RECURSE ALL_SOURCE_FILES *.c *.cc *.h *.cpp)
 # This will search the tree upwards for .clang-format
 add_custom_target(
   ${PROJECT_NAME}-format
-  COMMAND clang-format
+  COMMAND clang-format-7
   -style=file
   -i
   ${ALL_SOURCE_FILES}
