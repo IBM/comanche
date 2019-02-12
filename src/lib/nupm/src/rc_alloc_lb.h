@@ -70,8 +70,8 @@ class Rca_LB : public Common::Reconstituting_allocator
    * @param numa_node NUMA node
    */
   void free(void *ptr, 
-  			int numa_node, 
-  			size_t size = 0) override;
+            int numa_node, 
+            size_t size = 0) override;
 
   /** 
    * Reconstitute a previous allocation.  Mark memory as allocated.

@@ -85,6 +85,7 @@ TEST_F(Libnupm_test, RcAllocatorLBIntegrity)
   std::vector<info_t> log;
  
   /* populate with 1M entries */
+  PLOG("Populating ...");
   uint64_t tag = 1;
   const size_t COUNT = 1000000;
   for(size_t i=1; i<COUNT; i++) {
@@ -99,7 +100,9 @@ TEST_F(Libnupm_test, RcAllocatorLBIntegrity)
     log.push_back({p,s,tag});
     tag++;
   }
+  
   /* check data */
+  PLOG("Checking integrity...");
   tag = 1;
   unsigned alloc_num=0;
   for(auto& e: log) {    
@@ -114,7 +117,36 @@ TEST_F(Libnupm_test, RcAllocatorLBIntegrity)
     tag++;
   }
 
+  /* free some */
+  PLOG("Freeing half....");
+  for(size_t i=1; i<COUNT/2;i++) {
+    auto e = log.back();
+    log.pop_back();
+    rca.free(e.p, 0, e.size);
+  }
 
+  PLOG("Re-checking integrity...");
+  tag = 1;
+  alloc_num=0;
+  for(auto& e: log) {    
+    uint64_t* iptr = (uint64_t *) e.p;
+    for(size_t i = 0;i < e.size/8 ; i++) {
+      if(iptr[i] != e.tag)
+        PLOG("iptr[%lu] = %lu", iptr[i], e.tag);
+      ASSERT_TRUE(iptr[i] == e.tag);
+    }
+    //    PLOG("OK (%u)", alloc_num);
+    alloc_num++;
+    tag++;
+  }
+
+  PLOG("Freeing rest...");
+  while(!log.empty()) {
+    auto e = log.back();
+    log.pop_back();
+    rca.free(e.p, 0, e.size);
+  }
+  
   free(p);
 }
 #endif

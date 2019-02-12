@@ -64,8 +64,11 @@ protected:
 
   bool free(void * p) {
     auto i = _used.begin();
-    if(*i == p)
+    if(*i == p) {
       _used.pop_front();
+      _free.push_front(p);
+      return true;
+    }
 
     auto last = i;
     i++;
@@ -158,8 +161,11 @@ public:
         throw std::out_of_range("object size beyond available buckets");
       /* search regions */
       for(auto& region : _buckets[numa_node][bucket]) {
-        if(region->in_range(p) && region->free(p))
-          return;
+        if(region->in_range(p)) {
+          if(region->free(p))
+            return;
+          else throw Logic_exception("region in range, but not free");
+        }
       }
     }
     else {
@@ -167,12 +173,15 @@ public:
       for(unsigned i=0;i<NUM_BUCKETS;i++) {
         /* search regions */
         for(auto& region : _buckets[numa_node][i]) {          
-          if(region->in_range(p) && region->free(p))
-            return;
+          if(region->in_range(p)) {
+            if(region->free(p))
+              return;
+            else throw Logic_exception("region in range, but not free");
+          }
         }
       }
     }
-    throw std::invalid_argument("bad pointer to free");
+    throw API_exception("invalid pointer to free (ptr=%p,numa=%d,size=%lu)", p, numa_node, object_size);
   }
 
   /**

@@ -45,8 +45,8 @@ void Rca_LB::inject_allocation(void * ptr, size_t size, int numa_node)
 }
 
 void * Rca_LB::alloc(size_t size,
-                      int numa_node,
-                      size_t alignment)
+                     int numa_node,
+                     size_t alignment)
 {
   if(size == 0 || numa_node < 0)
     throw std::invalid_argument("Rca_LB::alloc invalid size or numa node");
