@@ -157,9 +157,10 @@ class Region_map {
 
   void *allocate(size_t size, int numa_node, size_t alignment)
   {
-    if (unlikely(alignment > size || size % alignment))
-      throw std::invalid_argument(
-          "alignment should be integral of size and less than size");
+    if(alignment > 0) {
+      if (alignment > size || size % alignment)
+        throw std::invalid_argument("alignment should be integral of size and less than size");
+    }
 
     if (unlikely(numa_node < 0 || numa_node >= MAX_NUMA_ZONES))
       throw std::invalid_argument("numa node outside max range");
