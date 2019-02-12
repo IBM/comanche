@@ -24,16 +24,8 @@ class RamRBTree : public Component::IKVIndex {
   virtual ~RamRBTree();
 
   DECLARE_VERSION(0.1);
-  DECLARE_COMPONENT_UUID(0x8a120985,
-                         0x1253,
-                         0x404d,
-                         0x94d7,
-                         0x77,
-                         0x92,
-                         0x75,
-                         0x21,
-                         0xa1,
-                         0x29);
+  DECLARE_COMPONENT_UUID(0x8a120985, 0x1253, 0x404d, 0x94d7, 0x77, 0x92, 0x75, 0x21, 0xa1, 0x29); //
+  
   void* query_interface(Component::uuid_t& itf_uuid) override
   {
     if (itf_uuid == Component::IKVIndex::iid()) {
@@ -56,16 +48,7 @@ class RamRBTree : public Component::IKVIndex {
 class RamRBTree_factory : public Component::IKVIndex_factory {
  public:
   DECLARE_VERSION(0.1);
-  DECLARE_COMPONENT_UUID(0xfac20985,
-                         0x1253,
-                         0x404d,
-                         0x94d7,
-                         0x77,
-                         0x92,
-                         0x75,
-                         0x21,
-                         0xa1,
-                         0x29);
+  DECLARE_COMPONENT_UUID(0xfac20985, 0x1253, 0x404d, 0x94d7, 0x77, 0x92, 0x75, 0x21, 0xa1, 0x29); //
 
   void* query_interface(Component::uuid_t& itf_uuid) override
   {
