@@ -33,7 +33,7 @@ namespace Component
 {
 
 /** 
- * Key-value Index
+ * Key-value index.  Index is ordered.
  */
 class IKVIndex : public Component::IBase
 {
@@ -78,6 +78,19 @@ public:
    * @return Index count
    */
   virtual size_t count() const = 0;
+
+  /** 
+   * Perform a regular expression search.
+   * 
+   * @param regex Regular expression to match
+   * @param regex Position from which to start from
+   * @param regex [out] Position of the match
+   * 
+   * @return Matched key
+   */  
+  virtual std::string find(const std::string& regex,
+                           offset_t begin_position,
+                           offset_t& out_position) const { return std::string(""); }
 };
 
 
