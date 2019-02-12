@@ -5,12 +5,15 @@ IndentWidth: 2
 ColumnLimit: 128
 SpaceAfterCStyleCast: true
 AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: true
+AlignConsecutiveDeclarations: true
 AlwaysBreakBeforeMultilineStrings: false
-AllowAllParametersOfDeclarationOnNextLine: true
+AllowAllParametersOfDeclarationOnNextLine: false
 AlignConsecutiveAssignments: true
 BreakBeforeBraces: Custom
 BraceWrapping:
   AfterNamespace: true
+  AfterFunction:  true
   BeforeElse:     true
   BeforeCatch:    true
 BinPackParameters: false

@@ -37,11 +37,12 @@
 
 #include "memset_avx.h"
 
-static force_inline void
-memset_small_avx512f(char *dest, __m256i ymm, size_t len)
+static force_inline void memset_small_avx512f(char *  dest,
+                                              __m256i ymm,
+                                              size_t  len)
 {
-	/* We can't do better than AVX here. */
-	memset_small_avx(dest, ymm, len);
+  /* We can't do better than AVX here. */
+  memset_small_avx(dest, ymm, len);
 }
 
 #endif
