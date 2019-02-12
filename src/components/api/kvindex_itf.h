@@ -18,8 +18,16 @@
 #ifndef __API_KVINDEX_ITF__
 #define __API_KVINDEX_ITF__
 
-#include <stdexcept>
+#include <sys/uio.h> /* iovec */
+
+#include <cstdlib>
+#include <functional>
+#include <vector>
+#include <assert.h>
+
 #include <api/components.h>
+#include <api/block_itf.h>
+#include <api/block_allocator_itf.h>
 
 namespace Component
 {
