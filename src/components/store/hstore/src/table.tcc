@@ -30,10 +30,11 @@ template <
 >
 	impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::table_base(
 		persist_data_t *pc_
+		, construction_mode mode_
 		, const Allocator &av_
 	)
 		: table_allocator<Allocator>{av_}
-		, persist_controller_t(av_, pc_)
+		, persist_controller_t(av_, pc_, mode_)
 		, _hasher{}
 		, _locate_key_call(0)
 		, _locate_key_owned(0)
@@ -78,9 +79,22 @@ template <
 		std::cerr << __func__ << " count " << persist_controller_t::segment_count_actual()
 			<< " count_target " << persist_controller_t::segment_count_target() << "\n";
 #endif
+
+		{
+			/* ERROR: will this work if size is unstable? (Yes, because iterator no longer depends on size */
+			for ( iterator it = begin(); it != end(); ++it )
+			{
+				/* reconsititute key and value */
+				it->first.reconstitute(av_);
+				it->second.reconstitute(av_);
+			}
+		}
+
 		/* If table allocation incomplete (perhaps in the middle of a resize op), resize until large enough. */
 		while ( persist_controller_t::segment_count_actual() != persist_controller_t::segment_count_target() )
 		{
+			/* ERROR: reconstruction code for resize state not written. */
+			/* ERROR: reconstruction code for update/replace state not written. */
 			resize();
 		}
 

@@ -3,6 +3,6 @@
 
 #pragma GCC system_header
 
-#include <nupm/rc_alloc.h>
+#include <nupm/rc_alloc_lb.h>
 
 #endif

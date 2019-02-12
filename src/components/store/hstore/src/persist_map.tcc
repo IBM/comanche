@@ -22,28 +22,14 @@ template <typename Allocator>
 		)
 		, _sc{}
 	{
-#if 0
-		std::cerr << "persist_map expected count " << n << ", scaled to " << (n*3U)
-			<< ", requesting " << (3U * n)/base_segment_size
-			<< " buckets requiring " << _segment_count._target << " segments" << "\n";
-#endif
 		do_initial_allocation(av_);
 	}
 
 template <typename Allocator>
 	void impl::persist_map<Allocator>::do_initial_allocation(Allocator av_)
 	{
-#if 0
-		std::cerr << "persist_map expected count " << n << ", scaled to " << (n*3U)
-			<< ", requesting " << (3U * n)/base_segment_size
-			<< " buckets requiring " << _segment_count._target << " segments" << "\n";
-#endif
 		using void_allocator_t = typename Allocator::template rebind<void>::other;
 
-#if 0
-		std::cerr << "persist_map::do_initial_allocation ENTER actual "
-			<< _segment_count._actual << " target " << _segment_count._target << "\n";
-#endif
 		if ( _segment_count._actual == 0 )
 		{
 			{
@@ -78,8 +64,21 @@ template <typename Allocator>
 
 			av_.persist(&_size_control, sizeof _size_control);
 		}
-#if 0
-		std::cerr << "persist_map::do_initial_allocation EXIT actual "
-			<< _segment_count._actual << " target " << _segment_count._target << "\n";
-#endif
+	}
+
+template <typename Allocator>
+	void impl::persist_map<Allocator>::reconstitute(Allocator av_)
+	{
+		auto av = bucket_allocator_t(av_);
+		if ( _segment_count._actual != 0 )
+		{
+			av.reconstitute(base_segment_size, _sc[0].bp);
+
+			/* restore segments beyond the first */
+			for ( auto ix = 1U; ix != _segment_count._actual; ++ix )
+			{
+				auto segment_size = base_segment_size<<(ix-1U);
+				av.reconstitute(segment_size, _sc[ix].bp);
+			}
+		}
 	}

@@ -4,6 +4,7 @@
 #include "segment_layout.h"
 
 #include "bucket_control_unlocked.h"
+#include "construction_mode.h"
 #include "trace_flags.h"
 #include "persist_controller.h"
 #include "segment_and_bucket.h"
@@ -411,6 +412,7 @@ namespace impl
 		public:
 			explicit table_base(
 				persist_data_t *pc
+				, construction_mode mode
 				, const Allocator &av = Allocator()
 			);
 		protected:
@@ -612,10 +614,11 @@ template <
 
 		/* contruct/destroy/copy */
 		explicit table(
-			persist_data_t *pc
-			, const Allocator &av = Allocator()
+			persist_data_t *pc_
+			, construction_mode mode_
+			, const Allocator &av_ = Allocator()
 		)
-			: base(pc, av)
+			: base(pc_, mode_, av_)
 		{}
 
 		using base::get_allocator;
