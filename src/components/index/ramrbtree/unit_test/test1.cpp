@@ -10,7 +10,7 @@
 #define LENGTH 16
 
 using namespace Component;
-//using namespace Common;
+using namespace Common;
 using namespace std;
 
 namespace
