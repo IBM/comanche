@@ -37,11 +37,12 @@
 
 #include "memcpy_avx.h"
 
-static force_inline void
-memmove_small_avx512f(char *dest, const char *src, size_t len)
+static force_inline void memmove_small_avx512f(char *      dest,
+                                               const char *src,
+                                               size_t      len)
 {
-	/* We can't do better than AVX here. */
-	memmove_small_avx(dest, src, len);
+  /* We can't do better than AVX here. */
+  memmove_small_avx(dest, src, len);
 }
 
 #endif

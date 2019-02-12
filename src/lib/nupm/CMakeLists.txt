@@ -1,7 +1,8 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
 project(nupm CXX C)
-
+enable_language(CXX C)
+include(../../../mk/clang-dev-tools.cmake)
 
 find_library(LIB_JEMALLOC libjemalloc.so HINTS ${CMAKE_INSTALL_PREFIX}/lib)
 find_library(LIB_NDCTL libndctl.so HINTS ${CMAKE_INSTALL_PREFIX}/lib)
