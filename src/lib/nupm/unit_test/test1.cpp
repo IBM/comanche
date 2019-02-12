@@ -66,7 +66,8 @@ class Libnupm_test : public ::testing::Test {
 TEST_F(Libnupm_test, RcAllocatorLBIntegrity)
 {
   const size_t ARENA_SIZE = GB(32);
-  void *       p          = aligned_alloc(GB(1), ARENA_SIZE);
+  void *       p          = (void*) 0x9800000000;
+  //  void * p = aligned_alloc(GB(1), ARENA_SIZE);
   uint64_t     tag   = 1;
   ASSERT_TRUE(p);
 
@@ -80,30 +81,6 @@ TEST_F(Libnupm_test, RcAllocatorLBIntegrity)
   };
 
   std::vector<info_t> log;
-
-  /* Clem's scenario */
-  {
-    size_t s = 8192;
-    void * p;
-    p = rca.alloc(s,0,8);
-    PLOG("allocate: %p %lu", p, s);
-    log.push_back({p, s, tag});
-
-    for(unsigned i=0;i<15;i++) {
-      p = rca.alloc(s,0,64);
-      PLOG("allocate: %p %lu", p, s);
-      log.push_back({p, s, tag});
-      s*=2;
-    }
-    s = 64;
-    p = rca.alloc(s, 0, 64);
-    PLOG("allocate: %p %lu", p, s);
-  }
-  
-
-  log.clear();
-  return;
-
 
   /* populate with 1M entries */
   PLOG("Populating ...");
