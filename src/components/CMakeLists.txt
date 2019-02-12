@@ -12,5 +12,6 @@ add_subdirectory (metadata)
 add_subdirectory (net)
 add_subdirectory (examples)
 add_subdirectory (client)
+add_subdirectory (index)
 #add_subdirectory (cluster)
 
