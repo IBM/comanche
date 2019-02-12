@@ -25,6 +25,10 @@ private:
 public:
   static const impl_spec *const impl;
   static const std::string location;
+  static std::string numa_zone()
+  {
+    return "0";
+  }
 };
 
 #endif
