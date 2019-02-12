@@ -1,13 +1,14 @@
 /* note: we do not include component source, only the API definition */
 #include <gtest/gtest.h>
 #include <common/utils.h>
+#include <common/str_utils.h>
 #include <api/components.h>
 #include <api/kvindex_itf.h>
 
 #define COUNT 1000000
 
 using namespace Component;
-using namespace Common;
+//using namespace Common;
 using namespace std;
 
 namespace {
@@ -52,10 +53,10 @@ TEST_F(KVIndex_test, Instantiate)
 
 TEST_F(KVIndex_test, Insert)
 {
-    string keys[COUNT];
-    for(int i=0; i<COUNT; i++){
-        _kvindex->insert(key);
-    }
+  string keys[COUNT];
+  for(int i=0; i<COUNT; i++){
+    _kvindex->insert(Common::random_string(32));
+  }
   PINF("Size: %d", _kvindex->count());
 }
 

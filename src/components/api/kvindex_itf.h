@@ -24,10 +24,8 @@
 #include <functional>
 #include <vector>
 #include <assert.h>
-
+#include <common/exceptions.h>
 #include <api/components.h>
-#include <api/block_itf.h>
-#include <api/block_allocator_itf.h>
 
 namespace Component
 {
@@ -101,20 +99,20 @@ public:
 
   virtual IKVIndex * create(const std::string& owner,
                             const std::string& param){
-    throw(API_exception("factory::create(owner,param) not implemented"));
+    throw API_exception("factory::create(owner,param) not implemented");
   };
 
   virtual IKVIndex * create(const std::string& owner,
                             const std::string& param,
                             const std::string& param2){
-    throw(API_exception("factory::create(owner,param,param2) not implemented"));
+    throw API_exception("factory::create(owner,param,param2) not implemented");
   }
 
   virtual IKVIndex * create(unsigned debug_level,
                             const std::string& owner,
                             const std::string& param,
                             const std::string& param2){
-    throw(API_exception("factory::create(debug_level,owner,param,param2) not implemented"));
+    throw API_exception("factory::create(debug_level,owner,param,param2) not implemented");
   }
 
 
