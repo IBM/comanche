@@ -126,9 +126,9 @@ class KVStore_test
     return "/mnt/pmem0/pool/0/";
   }
 
-  std::string pool_name()
+  std::string pool_name() const
   {
-    return "test-" + store_map::impl->name + ".pool";
+    return "test-" + store_map::impl->name + store_map::numa_zone() + ".pool";
   }
 };
 

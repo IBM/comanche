@@ -76,9 +76,9 @@ class KVStore_test : public ::testing::Test {
     return "/mnt/pmem0/pool/0/";
   }
 
-  std::string pool_name()
+  std::string pool_name() const
   {
-    return "test-" + store_map::impl->name + ".pool";
+    return "test-" + store_map::impl->name + store_map::numa_zone() + ".pool";
   }
 };
 
@@ -148,8 +148,10 @@ TEST_F(KVStore_test, CreatePool)
    *  - by 64 for bucket size,
    *  - by 3U to account for 40% table density at expansion (typical),
    *  - by 2U to account for worst-case due to doubling strategy for increasing bucket array size
+   * requires size multiplied
+   *  - by 8U to account for current AVL_LB allocator alignment requirements
    */
-  pool = _kvstore->create_pool(pool_dir(), pool_name(), many_count_target * 64U * 3U * 2U + 4 * single_value_size, 0, estimated_object_count);
+  pool = _kvstore->create_pool(pool_dir(), pool_name(), ( many_count_target * 64U * 3U * 2U + 4 * single_value_size ) * 8U, 0, estimated_object_count);
   ASSERT_LT(0, int64_t(pool));
 }
 
