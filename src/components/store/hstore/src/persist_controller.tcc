@@ -19,6 +19,7 @@ template <typename Allocator>
 	impl::persist_controller<Allocator>::persist_controller(
 		const Allocator &av_
 		, persist_data_t *persist_
+		, construction_mode mode_
 	)
 		: Allocator(av_)
 		, _persist(persist_)
@@ -34,6 +35,10 @@ template <typename Allocator>
 		if ( _persist->_segment_count._actual == 0 )
 		{
 			_persist->do_initial_allocation(av_);
+		}
+		if ( mode_ == construction_mode::reconstitute )
+		{
+			_persist->reconstitute(av_);
 		}
 	}
 

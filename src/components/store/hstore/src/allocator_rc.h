@@ -110,6 +110,15 @@ template <typename T, typename Persister = persister>
 			}
 			return static_cast<pointer>(ptr);
 		}
+
+		void reconstitute(
+			size_type s
+			, typename allocator_rc<void, Persister>::const_pointer location
+			, const char * = nullptr
+		)
+		{
+			this->pool().inject_allocation(location, s * sizeof(T));
+		}
 	};
 
 #endif

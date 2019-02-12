@@ -39,7 +39,12 @@ namespace
     }
     if ( c < '0' || '8' < c )
     {
-      throw std::domain_error(std::string("last character of name, '") + c + "', does not look like a numa node ID");
+#if 0
+      throw std::domain_error(std::string("last character of name '") + name + "' does not look like a numa node ID");
+#else
+      /* current test cases do not always supply a node number - default to 0 */
+      c = '0';
+#endif
     }
     return c - '0';
   }
@@ -149,7 +154,7 @@ public:
     PLOG(PREFIX "in %s: created region ID %" PRIx64 " at %p:0x%zx", __func__, path_.str().c_str(), uuid, static_cast<const void *>(pop.get()), size_);
 
     map_create(pop.get(), size_, expected_obj_count_);
-    return std::make_unique<session<open_pool_handle, ALLOC_T, table_t>>(path_, std::move(pop));
+    return std::make_unique<session<open_pool_handle, ALLOC_T, table_t>>(path_, std::move(pop), construction_mode::create);
   }
 
   auto pool_open(
@@ -162,6 +167,16 @@ public:
       auto e = errno;
       throw General_exception("failed to re-open region %s: %s", path_.str().c_str(), std::strerror(e));
     }
+
+    void *a = &pop->heap;
+
+#if USE_CC_HEAP == 3
+    /* reconstituted heap */
+    new (a) heap_rc(static_cast<char *>(a) + sizeof(heap_rc));
+#else
+    new (a) heap_cc(static_cast<char *>(a) + sizeof(heap_cc));
+#endif
+
     PLOG(PREFIX "in %s: opened region ID %" PRIx64 " at %p", __func__, path_.str().c_str(), uuid, static_cast<const void *>(pop.get()));
     /* open_pool returns either a ::open_pool (usable for delete_pool) or a ::session
      * (usable for delete_pool and everything else), depending on whether the region
@@ -169,7 +184,9 @@ public:
      */
     try
     {
-      return std::make_unique<session<open_pool_handle, ALLOC_T, table_t>>(path_, std::move(pop));
+      /* open_pool_handle is a managed region *, and pop is a region. */
+      auto s = std::make_unique<session<open_pool_handle, ALLOC_T, table_t>>(path_, std::move(pop), construction_mode::reconstitute);
+      return s;
     }
     catch ( ... )
     {

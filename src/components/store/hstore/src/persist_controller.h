@@ -1,6 +1,7 @@
 #ifndef _DAWN_PERSIST_CONTROLLER_H
 #define _DAWN_PERSIST_CONTROLLER_H
 
+#include "construction_mode.h"
 #include "persist_data.h"
 
 #include <boost/iterator/transform_iterator.hpp>
@@ -70,7 +71,7 @@ namespace impl
 			}
 
 		public:
-			explicit persist_controller(const Allocator &av, persist_data_t *persist);
+			explicit persist_controller(const Allocator &av, persist_data_t *persist, construction_mode mode);
 
 			persist_controller(const persist_controller &) = delete;
 			auto operator=(

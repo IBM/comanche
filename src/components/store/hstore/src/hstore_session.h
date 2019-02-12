@@ -3,6 +3,8 @@
 
 #include "hstore_open_pool.h"
 
+#include "construction_mode.h"
+
 /* open_pool_handle, ALLOC_T, table_t */
 template <typename Handle, typename Allocator, typename Table>
 	class session
@@ -48,26 +50,15 @@ public:
 	explicit session(
 		const pool_path &path_
 		, Handle &&pop_
+		, construction_mode mode_
 	)
 		: open_pool<Handle>(path_, std::move(pop_))
 		, _heap(
 			Allocator(
-#if USE_CC_HEAP == 0
-				this->pool()
-#elif USE_CC_HEAP == 1
-				*new
-					(&this->pool()->heap)
-					heap_cc(this->pool() + 1)
-#elif USE_CC_HEAP == 2
-				this->pool() /* not used */
-#else
-				*new
-					(&this->pool()->heap)
-					heap_rc(this->pool() + 1)
-#endif
+				this->pool()->heap
 			)
 		)
-		, _map(&this->pool()->persist_data, _heap)
+		, _map(&this->pool()->persist_data, mode_, _heap)
 		, _atomic_state(this->pool()->persist_data, _map)
 	{}
 

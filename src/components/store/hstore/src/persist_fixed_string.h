@@ -297,6 +297,17 @@ template <typename T, typename Allocator>
 		}
 
 		static constexpr uint8_t large_kind = sizeof small.value + 1;
+
+		template <typename AL>
+			void reconstitute(AL al_) const
+			{
+				using reallocator_char_type = typename AL::template rebind<char>::other;
+				if ( ! is_small() )
+				{
+					reallocator_char_type(al_).reconstitute(sizeof *large.ptr + size(), large.ptr);
+				}
+			}
+
 		bool is_small() const
 		{
 			assert(small._size <= large_kind);
@@ -394,6 +405,9 @@ template <typename T, typename Allocator>
 		const T *data() const { return _rep.data(); }
 
 		T *data() { return _rep.data(); }
+
+		template <typename AL>
+			void reconstitute(AL al_) const { return _rep.reconstitute(al_); }
 	};
 
 template <typename T, typename Allocator>

@@ -1,6 +1,6 @@
 #include "hstore.h"
 
-#define USE_PMEM 1
+#define USE_PMEM 0
 
 /*
  * USE_PMEM 1
@@ -26,7 +26,7 @@
 #include "allocator_cc.h"
 #elif USE_CC_HEAP == 2
 #include "allocator_co.h"
-#elif CC_HEAP == 3
+#elif USE_CC_HEAP == 3
 #include "allocator_rc.h"
 #endif
 #include "atomic_controller.h"
