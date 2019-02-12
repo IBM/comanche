@@ -38,6 +38,11 @@ class IKVIndex : public Component::IBase
 public:
   DECLARE_INTERFACE_UUID(0xadb5c747,0x0f5b,0x44a6,0x982b,0x36,0x54,0x1a,0x62,0x64,0xfc);
 
+  enum {
+    FIND_TYPE_EXACT = 0x1,
+    FIND_TYPE_REGEX = 0x2,
+  };
+
   using offset_t = uint64_t;
   
   /** 
@@ -88,6 +93,7 @@ public:
    */  
   virtual std::string find(const std::string& regex,
                            offset_t begin_position,
+                           int find_type,
                            offset_t& out_end_position) const { return std::string(""); }
 };
 
