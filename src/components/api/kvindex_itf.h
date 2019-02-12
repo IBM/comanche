@@ -24,10 +24,8 @@
 #include <functional>
 #include <vector>
 #include <assert.h>
-
+#include <common/exceptions.h>
 #include <api/components.h>
-#include <api/block_itf.h>
-#include <api/block_allocator_itf.h>
 
 namespace Component
 {
@@ -83,14 +81,14 @@ public:
    * Perform a regular expression search.
    * 
    * @param regex Regular expression to match
-   * @param regex Position from which to start from
-   * @param regex [out] Position of the match
+   * @param begin_position Position from which to start from. Counting from 0.
+   * @param out_end_position [out] Position of the match
    * 
    * @return Matched key
    */  
   virtual std::string find(const std::string& regex,
                            offset_t begin_position,
-                           offset_t& out_position) const { return std::string(""); }
+                           offset_t& out_end_position) const { return std::string(""); }
 };
 
 
@@ -101,20 +99,20 @@ public:
 
   virtual IKVIndex * create(const std::string& owner,
                             const std::string& param){
-    throw(API_exception("factory::create(owner,param) not implemented"));
+    throw API_exception("factory::create(owner,param) not implemented");
   };
 
   virtual IKVIndex * create(const std::string& owner,
                             const std::string& param,
                             const std::string& param2){
-    throw(API_exception("factory::create(owner,param,param2) not implemented"));
+    throw API_exception("factory::create(owner,param,param2) not implemented");
   }
 
   virtual IKVIndex * create(unsigned debug_level,
                             const std::string& owner,
                             const std::string& param,
                             const std::string& param2){
-    throw(API_exception("factory::create(debug_level,owner,param,param2) not implemented"));
+    throw API_exception("factory::create(debug_level,owner,param,param2) not implemented");
   }
 
 
