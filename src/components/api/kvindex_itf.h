@@ -32,7 +32,6 @@
 namespace Component
 {
 
-
 /** 
  * Key-value Index
  */
@@ -42,6 +41,7 @@ public:
   DECLARE_INTERFACE_UUID(0xadb5c747,0x0f5b,0x44a6,0x982b,0x36,0x54,0x1a,0x62,0x64,0xfc);
 
   using offset_t = uint64_t;
+  
   /** 
    * Insert a key into the index
    * 

@@ -13,63 +13,54 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 */
-#include <stdexcept>
+#include <common/exceptions.h>
+#include <common/logging.h>
+#include <common/utils.h>
+#include <core/avl_malloc.h>
+#include <core/slab.h>
 #include <numa.h>
 #include <stdexcept>
-#include <common/logging.h>
-#include <common/exceptions.h>
-#include <common/utils.h>
-#include <core/slab.h>
-#include <core/avl_malloc.h>
 
 #include "rc_alloc_lb.h"
 #include "region.h"
+
 namespace nupm
-{  
-
-Rca_LB::Rca_LB() : _rmap(new Region_map())
 {
-}
+Rca_LB::Rca_LB() : _rmap(new Region_map()) {}
 
-void Rca_LB::add_managed_region(void * region_base, size_t region_length, int numa_node)
+void Rca_LB::add_managed_region(void * region_base,
+                                size_t region_length,
+                                int    numa_node)
 {
-  if(!region_base || region_length == 0 || numa_node < 0)
+  if (!region_base || region_length == 0 || numa_node < 0)
     throw std::invalid_argument("add_managed_region");
-  
+
   _rmap->add_arena(region_base, region_length, numa_node);
 }
 
-void Rca_LB::inject_allocation(void * ptr, size_t size, int numa_node)
+void Rca_LB::inject_allocation(void *ptr, size_t size, int numa_node)
 {
   _rmap->inject_allocation(ptr, size, numa_node);
 }
 
-void * Rca_LB::alloc(size_t size,
-                      int numa_node,
-                      size_t alignment)
+void *Rca_LB::alloc(size_t size, int numa_node, size_t alignment)
 {
-  if(size == 0 || numa_node < 0)
-    throw std::invalid_argument("Rca_LB::alloc");
+  if (size == 0 || numa_node < 0)
+    throw std::invalid_argument("Rca_LB::alloc invalid size or numa node");
 
-  if(alignment > size)
+  if (alignment > size)
     throw std::invalid_argument("Rca_LB::alloc alignment cannot be supported");
-  
-  return _rmap->allocate(size, numa_node);
+
+  return _rmap->allocate(size, numa_node, alignment);
 }
-  
+
 void Rca_LB::free(void *ptr, int numa_node, size_t size)
 {
-  if(numa_node < 0)
-    throw std::invalid_argument("invalid numa_node");
-  if(!ptr)
-    throw std::invalid_argument("ptr argument is null");
+  if (numa_node < 0) throw std::invalid_argument("invalid numa_node");
+  if (!ptr) throw std::invalid_argument("ptr argument is null");
   _rmap->free(ptr, numa_node, size);
 }
 
-void Rca_LB::debug_dump(std::string * out_log)
-{
-  *out_log = "TODO";
-}
+void Rca_LB::debug_dump(std::string *out_log) { *out_log = "TODO"; }
 
-
-} // nupm
+}  // namespace nupm
