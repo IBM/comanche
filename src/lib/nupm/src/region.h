@@ -124,6 +124,7 @@ class Region {
         _used.push_front(ptr);
         return true;
       }
+      i++;
     }
     return false;
   }
