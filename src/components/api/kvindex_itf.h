@@ -83,14 +83,14 @@ public:
    * Perform a regular expression search.
    * 
    * @param regex Regular expression to match
-   * @param regex Position from which to start from
-   * @param regex [out] Position of the match
+   * @param begin_position Position from which to start from. Counting from 0.
+   * @param out_end_position [out] Position of the match
    * 
    * @return Matched key
    */  
   virtual std::string find(const std::string& regex,
                            offset_t begin_position,
-                           offset_t& out_position) const { return std::string(""); }
+                           offset_t& out_end_position) const { return std::string(""); }
 };
 
 
