@@ -157,7 +157,7 @@ public:
    * 
    * @param path Path of the persistent memory (e.g., /mnt/pmem0/ )
    * @param name Name of object pool
-   * @param size Size of object in bytes
+   * @param size Size of object pool in bytes
    * @param flags Creation flags
    * @param
    * 
