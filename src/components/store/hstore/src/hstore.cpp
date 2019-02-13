@@ -1,3 +1,8 @@
+/*
+ * (C) Copyright IBM Corporation 2018, 2019. All rights reserved.
+ * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
+ */
+
 #include "hstore.h"
 
 #define USE_PMEM 0
@@ -196,11 +201,11 @@ auto hstore::move_pool(const Component::IKVStore::pool_t pid) -> std::unique_ptr
   return s2;
 }
 
-hstore::hstore(const std::string &owner, const std::string &name)
+hstore::hstore(const std::string &owner, const std::string &name, std::unique_ptr<Devdax_manager> mgr_)
 #if USE_PMEM
   : _pool_manager(std::make_shared<hstore_pmem>(owner, name, option_DEBUG))
 #else
-  : _pool_manager(std::make_shared<hstore_nupm>(owner, name, option_DEBUG))
+  : _pool_manager(std::make_shared<hstore_nupm>(owner, name, std::move(mgr_), option_DEBUG))
 #endif
   , _pools_mutex{}
   , _pools{}
