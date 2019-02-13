@@ -79,7 +79,10 @@ string RamRBTree::find(const std::string& key_expression,
         }
       }
       break;
-      // TODO:case FIND_TYPE_NEXT:
+    case FIND_TYPE_NEXT:
+      string key = get(begin_position + 1);
+      return key;
+      break;
   }
 
   return "";
