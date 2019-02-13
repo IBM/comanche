@@ -40,12 +40,12 @@ string RamRBTree::get(offset_t position) const
 
 size_t RamRBTree::count() const { return m_index.size(); }
 
-string RamRBTree::find(const std::string& regex,
+string RamRBTree::find(const std::string& key_expression,
                        offset_t           begin_position,
-                       int                find_type,
-                       offset_t&          out_end_position) const
+                       find_t             find_type,
+                       offset_t&          out_end_position)
 {
-  std::regex r(regex);
+  std::regex r(key_expression);
   if (begin_position >= m_index.size()) {
     throw out_of_range("Position out of range");
   }
@@ -66,7 +66,7 @@ string RamRBTree::find(const std::string& regex,
     case FIND_TYPE_EXACT:
       for (int i = begin_position; i <= out_end_position; i++) {
         string key = RamRBTree::get(i);
-        if (key.compare(regex) == 0) {
+        if (key.compare(key_expression) == 0) {
           return key;
         }
       }
@@ -74,11 +74,12 @@ string RamRBTree::find(const std::string& regex,
     case FIND_TYPE_PREFIX:
       for (int i = begin_position; i <= out_end_position; i++) {
         string key = RamRBTree::get(i);
-        if (key.find(regex) != string::npos) {
+        if (key.find(key_expression) != string::npos) {
           return key;
         }
       }
       break;
+      // TODO:case FIND_TYPE_NEXT:
   }
 
   return "";
