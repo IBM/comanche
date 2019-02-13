@@ -19,77 +19,22 @@
 
 
 #include <api/components.h>
-
+#include <api/kvstore_itf.h>
 namespace Component
 {
 
 /** 
  * Dawn client interface (this will include both KV and AS capabilities)
  */
-class IDawn : public Component::IBase
+class IDawn
 {
 public:
   // clang-format off
   DECLARE_INTERFACE_UUID(0x33af1b99,0xbc51,0x49ff,0xa27b,0xd4,0xe8,0x19,0x03,0xbb,0x02);
   // clang-format on
   
-private:
-  struct Opaque_memory_region {
-    virtual ~Opaque_memory_region() {}
-  };
-
 public:
-  using pool_t          = uint64_t;
-  using memory_handle_t = Opaque_memory_region *;
   
-  struct Opaque_key { /* base for implementation lock/key container */
-    virtual ~Opaque_key() {} /* destruction invokes derived destructor */
-  };
-  
-  using key_t           = Opaque_key *;
-
-  static constexpr memory_handle_t HANDLE_NONE = nullptr;
-  static constexpr key_t KEY_NONE = nullptr;
-
-  enum {
-    THREAD_MODEL_UNSAFE,
-    THREAD_MODEL_SINGLE_PER_POOL,
-    THREAD_MODEL_RWLOCK_PER_POOL,
-    THREAD_MODEL_MULTI_PER_POOL,
-  };
-
-  enum {
-    FLAGS_READ_ONLY = 1,
-    FLAGS_SET_SIZE = 2,
-    FLAGS_CREATE_ONLY = 3,
-  };
-
-  enum {
-    POOL_ERROR = 0,
-  };
-
-  enum {
-    S_OK = 0,
-    S_MORE = 1,
-    E_FAIL = -1,
-    E_KEY_EXISTS = -2,
-    E_KEY_NOT_FOUND = -3,
-    E_POOL_NOT_FOUND = -4,
-    E_NOT_SUPPORTED = -5,
-    E_ALREADY_EXISTS = -6,
-    E_TOO_LARGE = -7,
-    E_BAD_PARAM = -8,
-    E_BAD_ALIGNMENT = -9,
-    E_INSUFFICIENT_BUFFER = -10,
-    E_BAD_OFFSET = -11,
-  };
-
-  typedef enum {
-    FIND_TYPE_NEXT   = 0x1, /*< just get the next key in order */
-    FIND_TYPE_EXACT  = 0x2, /*< perform exact match comparison on key */
-    FIND_TYPE_REGEX  = 0x3, /*< apply as regular expression */
-    FIND_TYPE_PREFIX = 0x4, /*< match prefix only */
-  } find_t;
 
   /** 
    * Determine thread safety of the component
@@ -110,7 +55,7 @@ public:
    * 
    * @return Pool handle
    */
-  virtual pool_t create_pool(const std::string& pool_name,
+  virtual IKVStore::pool_t create_pool(const std::string& pool_name,
                              const size_t size,
                              unsigned int flags = 0,
                              uint64_t expected_obj_count = 0) = 0;
@@ -123,7 +68,7 @@ public:
    * 
    * @return Pool handle
    */
-  virtual pool_t open_pool(const std::string& pool_name,
+  virtual IKVStore::pool_t open_pool(const std::string& pool_name,
                            unsigned int flags = 0) = 0;
 
   /** 
@@ -131,14 +76,14 @@ public:
    * 
    * @param pool Pool handle
    */
-  virtual void close_pool(const pool_t pool) = 0;
+  virtual void close_pool(const IKVStore::pool_t pool) = 0;
 
   /** 
    * Close and delete an existing pool
    * 
    * @param pool Pool handle
    */
-  virtual void delete_pool(const pool_t pool) = 0;
+  virtual void delete_pool(const IKVStore::pool_t pool) = 0;
 
   /** 
    * Close and delete an existing pool
@@ -162,7 +107,7 @@ public:
    * 
    * @return S_OK or error code
    */
-  virtual status_t put(const pool_t pool,
+  virtual status_t put(const IKVStore::pool_t pool,
                        const std::string& key,
                        const void * value,
                        const size_t value_len) = 0;
@@ -180,11 +125,11 @@ public:
    *
    * @return S_OK or error code
    */
-  virtual status_t put_direct(const pool_t pool,
+  virtual status_t put_direct(const IKVStore::pool_t pool,
                               const std::string& key,
                               const void * value,
                               const size_t value_len,
-                              memory_handle_t handle = HANDLE_NONE) = 0;
+                              IKVStore::IKVStore::memory_handle_t handle = IKVStore::HANDLE_NONE) = 0;
 
   /** 
    * Read an object value
@@ -196,7 +141,7 @@ public:
    * 
    * @return S_OK or error code
    */
-  virtual status_t get(const pool_t pool,
+  virtual status_t get(const IKVStore::pool_t pool,
                        const std::string& key,
                        void*& out_value, /* release with free_memory() API */
                        size_t& out_value_len) = 0;
@@ -213,11 +158,11 @@ public:
    * 
    * @return S_OK, S_MORE if only a portion of value is read, E_BAD_ALIGNMENT on invalid alignment, or other error code
    */
-  virtual status_t get_direct(const pool_t pool,
+  virtual status_t get_direct(const IKVStore::pool_t pool,
                               const std::string& key,
                               void* out_value,
                               size_t& out_value_len,
-                              memory_handle_t handle = HANDLE_NONE) = 0;
+                              IKVStore::memory_handle_t handle = IKVStore::HANDLE_NONE) = 0;
   
   /** 
    * Perform a key search
@@ -229,9 +174,9 @@ public:
    * @return Matched key
    */  
   virtual std::string find(const std::string& key_expression,
-                           offset_t begin_position,
-                           find_t find_type,
-                           offset_t& out_end_position) = 0;
+                           IKVIndex::offset_t begin_position,
+                           IKVIndex::find_t find_type,
+                           IKVIndex::offset_t& out_end_position) = 0;
 
   /** 
    * Erase an object
@@ -241,7 +186,7 @@ public:
    * 
    * @return S_OK or error code
    */
-  virtual status_t erase(const pool_t pool,
+  virtual status_t erase(const IKVStore::pool_t pool,
                          const std::string& key)= 0;
 
   /** 
@@ -251,7 +196,7 @@ public:
    * 
    * @return Number of objects
    */
-  virtual size_t count(const pool_t pool) = 0;
+  virtual size_t count(const IKVStore::pool_t pool) = 0;
 
   /** 
    * Register memory for zero copy DMA
@@ -261,7 +206,7 @@ public:
    * 
    * @return Memory handle or NULL on not supported.
    */
-  virtual memory_handle_t register_direct_memory(void * vaddr, size_t len) = 0;
+  virtual IKVStore::memory_handle_t register_direct_memory(void * vaddr, size_t len) = 0;
 
   /** 
    * Durict memory regions should be unregistered before the memory is released on the client side.
@@ -270,7 +215,7 @@ public:
    * 
    * @return S_OK on success
    */
-  virtual status_t unregister_direct_memory(memory_handle_t handle) = 0;
+  virtual status_t unregister_direct_memory(IKVStore::memory_handle_t handle) = 0;
 
   /**
    * Free API allocated memory
@@ -286,7 +231,7 @@ public:
    * @param cmd Debug command
    * @param arg Parameter for debug operation
    */
-  virtual void debug(const pool_t pool, unsigned cmd, uint64_t arg) = 0;
+  virtual void debug(const IKVStore::pool_t pool, unsigned cmd, uint64_t arg) = 0;
 };
 
 
