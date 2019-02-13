@@ -2,9 +2,10 @@
 #define __TEST_COMPONENT_H__
 
 #include <api/components.h>
+#include <api/kvindex_itf.h>
 #include <api/kvstore_itf.h>
-#include <boost/program_options.hpp>
 #include <sys/mman.h>
+#include <boost/program_options.hpp>
 
 class ComponentInfo
 {
@@ -22,11 +23,14 @@ public:
     int debug_level = 0;
     bool verbose = true;
     bool component_initialized = false;
+    bool              isIndex               = false;
     Component::IKVStore::memory_handle_t memory_handle = Component::IKVStore::HANDLE_NONE;
 
     // handles for use
     Component::IKVStore * store;
     Component::IKVStore_factory* factory;
+    Component::IKVIndex*         index;
+    Component::IKVIndex_factory* index_factory;
     bool uses_direct_memory = false;
 
     ComponentInfo()
@@ -107,6 +111,11 @@ public:
                     component_object = "libcomanche-storemap.so";
                     pool_path = "/mnt/pmem0";
                 }
+                else if (component_name.compare("ramrbtreeindex") == 0) {
+                  component_object = "libcomanche-storeindex.so";
+                  component_uuid   = Component::ramrbtree_factory;
+                  isIndex          = true;
+                }
                 else
                 {
                     printf("UNHANDLED COMPONENT\n");
@@ -139,7 +148,13 @@ public:
     {        
         Component::IBase* comp = Component::load_component(component_object, component_uuid);
 
-        factory = (Component::IKVStore_factory*)comp->query_interface(Component::IKVStore_factory::iid());
+        if (!isIndex)
+          factory = (Component::IKVStore_factory*) comp->query_interface(
+              Component::IKVStore_factory::iid());
+        else {
+          index_factory = (Component::IKVIndex_factory*) comp->query_interface(
+              Component::IKVIndex_factory::iid());
+        }
 
         if (component_name.compare("nvmestore") == 0)
         {
@@ -149,9 +164,12 @@ public:
         {
             store = factory->create(debug_level, owner, server_address, device_name);
         }
-        else
-        {
-            store = factory->create(owner, owner_param);
+        else if (!isIndex) {
+          store = factory->create(owner, owner_param);
+        }
+        else {
+          store = NULL;
+          index = index_factory->create(owner, owner_param);
         }
     } 
 
