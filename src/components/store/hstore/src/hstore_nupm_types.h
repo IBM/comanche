@@ -1,3 +1,8 @@
+/*
+ * (C) Copyright IBM Corporation 2018, 2019. All rights reserved.
+ * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
+ */
+
 #ifndef COMANCHE_HSTORE_NUPM_TYPES_H
 #define COMANCHE_HSTORE_NUPM_TYPES_H
 
@@ -8,11 +13,6 @@
 
 #include "hstore_common.h"
 #include "persister_nupm.h"
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wredundant-decls"
-#pragma GCC diagnostic ignored "-Weffc++"
-#include <nupm/dax_map.h>
-#pragma GCC diagnostic pop
 
 #include <cstring> /* strerror */
 
@@ -27,11 +27,7 @@ public:
 	region_closer(std::shared_ptr<hstore_nupm> mgr_)
 		: _mgr(mgr_)
 	{}
-#if 1
-	region_closer()
-		: _mgr()
-	{}
-#endif
+
 	void operator()(region *) noexcept
 	{
 #if 0
