@@ -112,8 +112,6 @@ public:
   
   virtual void debug(const pool_t pool, unsigned cmd, uint64_t arg) override;
 
-private:
-  
 };
 
 
