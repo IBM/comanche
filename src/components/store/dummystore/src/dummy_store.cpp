@@ -23,6 +23,8 @@ using namespace Common;
 
 static unsigned Dummy_store_instances = 0;
 
+/* TODO: really should be unique per instance of Dummy_store */
+
 static nupm::Devdax_manager ddm({{"/dev/dax0.3", 0x9000000000, 0},{"/dev/dax1.3", 0xa000000000, 1}},
                                 true); /* true forces rebuild for testing */
 
