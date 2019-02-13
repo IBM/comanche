@@ -1,5 +1,6 @@
 #include "ramrbtree.h"
 #include <stdlib.h>
+#include <regex>
 #include <set>
 
 #define SINGLE_THREADED
@@ -26,13 +27,6 @@ void RamRBTree::erase(const std::string& key) { m_index.erase(key); }
 
 void RamRBTree::clear() { m_index.clear(); }
 
-/**
- * Get next item.  Throw std::out_of_range for out of bounds
- *
- * @param position Position counting from zero
- *
- * @return Key
- */
 string RamRBTree::get(offset_t position) const
 {
   if (position >= m_index.size()) {
@@ -45,6 +39,50 @@ string RamRBTree::get(offset_t position) const
 }
 
 size_t RamRBTree::count() const { return m_index.size(); }
+
+string RamRBTree::find(const std::string& regex,
+                       offset_t           begin_position,
+                       int                find_type,
+                       offset_t&          out_end_position) const
+{
+  std::regex r(regex);
+  if (begin_position >= m_index.size()) {
+    throw out_of_range("Position out of range");
+  }
+
+  if (out_end_position >= m_index.size()) {
+    throw out_of_range("Position out of range");
+  }
+
+  switch (find_type) {
+    case FIND_TYPE_REGEX:
+      for (int i = begin_position; i <= out_end_position; i++) {
+        string key = RamRBTree::get(i);
+        if (regex_match(key, r)) {
+          return key;
+        }
+      }
+      break;
+    case FIND_TYPE_EXACT:
+      for (int i = begin_position; i <= out_end_position; i++) {
+        string key = RamRBTree::get(i);
+        if (key.compare(regex) == 0) {
+          return key;
+        }
+      }
+      break;
+    case FIND_TYPE_PREFIX:
+      for (int i = begin_position; i <= out_end_position; i++) {
+        string key = RamRBTree::get(i);
+        if (key.find(regex) != string::npos) {
+          return key;
+        }
+      }
+      break;
+  }
+
+  return "";
+}
 
 /**
  * Factory entry point
