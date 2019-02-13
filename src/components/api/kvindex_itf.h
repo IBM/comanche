@@ -36,7 +36,10 @@ namespace Component
 class IKVIndex : public Component::IBase
 {
 public:
+
+  // clang-format off
   DECLARE_INTERFACE_UUID(0xadb5c747,0x0f5b,0x44a6,0x982b,0x36,0x54,0x1a,0x62,0x64,0xfc);
+  // clang-format on
 
   typedef enum {
     FIND_TYPE_NEXT   = 0x1, /*< just get the next key in order */
@@ -103,23 +106,26 @@ public:
 class IKVIndex_factory : public Component::IBase
 {
 public:
+
+  // clang-format off
   DECLARE_INTERFACE_UUID(0xfac5c747,0x0f5b,0x44a6,0x982b,0x36,0x54,0x1a,0x62,0x64,0xfc);
+  // clang-format on
 
   virtual IKVIndex * create(const std::string& owner,
-                            const std::string& param){
+                            const std::string& param) {
     throw API_exception("factory::create(owner,param) not implemented");
   };
 
   virtual IKVIndex * create(const std::string& owner,
                             const std::string& param,
-                            const std::string& param2){
+                            const std::string& param2) {
     throw API_exception("factory::create(owner,param,param2) not implemented");
   }
 
   virtual IKVIndex * create(unsigned debug_level,
                             const std::string& owner,
                             const std::string& param,
-                            const std::string& param2){
+                            const std::string& param2) {
     throw API_exception("factory::create(debug_level,owner,param,param2) not implemented");
   }
 
