@@ -47,42 +47,47 @@
 namespace nupm
 {
 /* static members */
-ND_control                                Devdax_manager::_nd;
-std::map<std::string, iovec>              Devdax_manager::_mapped_regions;
-std::map<std::string, DM_region_header *> Devdax_manager::_region_hdrs;
-std::mutex                                Devdax_manager::_reentrant_lock;
+// ND_control                                Devdax_manager::_nd;
+// std::map<std::string, iovec>              Devdax_manager::_mapped_regions;
+// std::map<std::string, DM_region_header *> Devdax_manager::_region_hdrs;
+// std::mutex                                Devdax_manager::_reentrant_lock;
 
-struct device_t {
-  const char *path;
-  addr_t      addr;
-  int         numa_node;
-};
+// struct device_t {
+//   const char *path;
+//   addr_t      addr;
+//   int         numa_node;
+// };
 
-/* currently one dax device per numa node */
-static constexpr device_t dax_config[] = {{"/dev/dax0.1", 0x9000000000, 0},
-                                          {"/dev/dax1.1", 0xa000000000, 1},
-                                          {"", 0, 0}};
+// /* currently one dax device per numa node */
+// static constexpr device_t dax_config[] = {{"/dev/dax0.1", 0x9000000000, 0},
+//                                           {"/dev/dax1.1", 0xa000000000, 1},
+//                                           {"", 0, 0}};
 
-static const char *lookup_dax_device(int numa_node)
+// {
+//   unsigned idx = 0;
+//   while (dax_config[idx].addr > 0) {
+//     if (dax_config[idx].numa_node == numa_node) return dax_config[idx].path;
+//   }
+//   return nullptr;
+// }
+
+Devdax_manager::Devdax_manager(const std::vector<config_t>& dax_configs,
+                               bool force_reset) : _dax_configs(dax_configs)
 {
   unsigned idx = 0;
-  while (dax_config[idx].addr > 0) {
-    if (dax_config[idx].numa_node == numa_node) return dax_config[idx].path;
-  }
-  return nullptr;
-}
 
-Devdax_manager::Devdax_manager(bool force_reset)
-{
-  unsigned idx = 0;
-  while (dax_config[idx].addr) {
+  for(auto& config: dax_configs) {
+
     if (_debug_level > 0)
-      PLOG(DEBUG_PREFIX "region (%s,%lx)", dax_config[idx].path,
-           dax_config[idx].addr);
+      PLOG(DEBUG_PREFIX "region (%s,%lx)",
+           config.path.c_str(),
+           config.addr);
 
-    void *p = map_region(dax_config[idx].path, dax_config[idx].addr);
-    recover_metadata(dax_config[idx].path, p,
-                     _mapped_regions[dax_config[idx].path].iov_len,
+    auto pathstr = config.path.c_str();
+    void *p = map_region(pathstr,config.addr);
+    recover_metadata(pathstr,
+                     p,
+                     _mapped_regions[pathstr].iov_len,
                      force_reset);
 
     idx++;
@@ -95,6 +100,17 @@ Devdax_manager::~Devdax_manager()
     munmap(i.second.iov_base, i.second.iov_len);
   }
 }
+
+const char * Devdax_manager::lookup_dax_device(int numa_node)
+{
+  for(auto& config: _dax_configs) {
+    if(config.numa_node == numa_node) return config.path.c_str();
+  }
+  throw Logic_exception("lookup_dax_device could not find path for numa (%d)",
+                        numa_node);
+  return nullptr;
+}
+
 
 void Devdax_manager::debug_dump(int numa_node)
 {
