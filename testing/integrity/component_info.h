@@ -112,7 +112,7 @@ public:
                     pool_path = "/mnt/pmem0";
                 }
                 else if (component_name.compare("ramrbtreeindex") == 0) {
-                  component_object = "libcomanche-storeindex";
+                  component_object = "libcomanche-storeindex.so";
                   component_uuid   = Component::ramrbtree_factory;
                   isIndex          = true;
                 }
