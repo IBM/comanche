@@ -43,10 +43,10 @@ class RamRBTree : public Component::IKVIndex {
   virtual void        clear() override;
   virtual std::string get(offset_t position) const override;
   virtual size_t      count() const override;
-  virtual std::string find(const std::string& regex,
+  virtual std::string find(const std::string& key_expression,
                            offset_t           begin_position,
-                           int                find_type,
-                           offset_t&          out_end_position) const override;
+                           find_t             find_type,
+                           offset_t&          out_end_position) override;
 };
 
 class RamRBTree_factory : public Component::IKVIndex_factory {
