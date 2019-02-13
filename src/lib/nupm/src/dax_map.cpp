@@ -44,38 +44,19 @@
 #define MAP_SHARED_VALIDATE 0x03
 #endif
 
+
 namespace nupm
 {
-/* static members */
-// ND_control                                Devdax_manager::_nd;
-// std::map<std::string, iovec>              Devdax_manager::_mapped_regions;
-// std::map<std::string, DM_region_header *> Devdax_manager::_region_hdrs;
-// std::mutex                                Devdax_manager::_reentrant_lock;
-
-// struct device_t {
-//   const char *path;
-//   addr_t      addr;
-//   int         numa_node;
-// };
-
-// /* currently one dax device per numa node */
-// static constexpr device_t dax_config[] = {{"/dev/dax0.1", 0x9000000000, 0},
-//                                           {"/dev/dax1.1", 0xa000000000, 1},
-//                                           {"", 0, 0}};
-
-// {
-//   unsigned idx = 0;
-//   while (dax_config[idx].addr > 0) {
-//     if (dax_config[idx].numa_node == numa_node) return dax_config[idx].path;
-//   }
-//   return nullptr;
-// }
 
 Devdax_manager::Devdax_manager(const std::vector<config_t>& dax_configs,
                                bool force_reset) : _dax_configs(dax_configs)
 {
   unsigned idx = 0;
+  /* TODO add check to ensure against multiple instances
+     of Devdax_manager trying to manage the same or 
+     overlapping regions */
 
+  /* set up each configuration */
   for(auto& config: dax_configs) {
 
     if (_debug_level > 0)
