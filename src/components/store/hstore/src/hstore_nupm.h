@@ -1,3 +1,8 @@
+/*
+ * (C) Copyright IBM Corporation 2018, 2019. All rights reserved.
+ * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
+ */
+
 #ifndef COMANCHE_HSTORE_NUPM_H
 #define COMANCHE_HSTORE_NUPM_H
 
@@ -5,11 +10,7 @@
 
 #include "hstore_common.h"
 #include "persister_nupm.h"
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wredundant-decls"
-#pragma GCC diagnostic ignored "-Weffc++"
-#include <nupm/dax_map.h>
-#pragma GCC diagnostic pop
+#include "dax_map.h"
 
 #include <cstring> /* strerror */
 
@@ -63,7 +64,7 @@ class hstore_nupm
 public:
   using open_pool_handle = std::unique_ptr<region, region_closer>;
 private:
-  nupm::Devdax_manager _devdax_manager;
+  std::unique_ptr<Devdax_manager> _devdax_manager;
   unsigned _numa_node;
 
   static std::uint64_t dax_uuid_hash(const pool_path &p)
@@ -75,9 +76,9 @@ private:
   void *delete_and_recreate_pool(const pool_path &path_, std::size_t size_)
   {
     auto uuid = dax_uuid_hash(path_);
-    _devdax_manager.erase_region(uuid, _numa_node);
+    _devdax_manager->erase_region(uuid, _numa_node);
 
-    auto pop = _devdax_manager.create_region(uuid, _numa_node, size_);
+    auto pop = _devdax_manager->create_region(uuid, _numa_node, size_);
     if (not pop) {
       auto e = errno;
       throw General_exception("failed to create region (%s) %s", path_, std::strerror(e));
@@ -124,9 +125,9 @@ private:
 
   bool debug() { return false; }
 public:
-  hstore_nupm(const std::string &, const std::string &name_, bool debug_)
+  hstore_nupm(const std::string &, const std::string &name_, std::unique_ptr<Devdax_manager> mgr_, bool debug_)
     : pool_manager(debug_)
-    , _devdax_manager{bool(std::getenv("DAX_RESET"))}
+    , _devdax_manager(std::move(mgr_))
     , _numa_node(name_to_numa_node(name_))
   {}
 
@@ -145,11 +146,11 @@ public:
   {
     auto uuid = dax_uuid_hash(path_);
     /* Attempt to create a new pool. */
-    auto pop = open_pool_handle(static_cast<region *>(_devdax_manager.create_region(uuid, _numa_node, size_)), region_closer(shared_from_this()));
+    auto pop = open_pool_handle(static_cast<region *>(_devdax_manager->create_region(uuid, _numa_node, size_)), region_closer(shared_from_this()));
     /* Guess that nullptr indicate a failure */
     if ( ! pop )
     {
-      throw std::runtime_error("Failed to create region " + path_.str());
+      throw General_exception("failed to re-open region %s", path_.str().c_str());
     }
     PLOG(PREFIX "in %s: created region ID %" PRIx64 " at %p:0x%zx", __func__, path_.str().c_str(), uuid, static_cast<const void *>(pop.get()), size_);
 
@@ -161,11 +162,10 @@ public:
     const pool_path &path_) -> std::unique_ptr<tracked_pool> override
   {
     auto uuid = dax_uuid_hash(path_);
-    auto pop = open_pool_handle(static_cast<region *>(_devdax_manager.open_region(uuid, _numa_node, nullptr)), region_closer(shared_from_this()));
+    auto pop = open_pool_handle(static_cast<region *>(_devdax_manager->open_region(uuid, _numa_node, nullptr)), region_closer(shared_from_this()));
     if ( ! pop )
     {
-      auto e = errno;
-      throw General_exception("failed to re-open region %s: %s", path_.str().c_str(), std::strerror(e));
+      throw General_exception("failed to re-open region %s", path_.str().c_str());
     }
 
     void *a = &pop->heap;
@@ -201,7 +201,7 @@ public:
   void pool_delete(const pool_path &path_) override
   {
     auto uuid = dax_uuid_hash(path_);
-    _devdax_manager.erase_region(uuid, _numa_node);
+    _devdax_manager->erase_region(uuid, _numa_node);
   }
 
   /* ERROR: want get_pool_regions(<proper type>, std::vector<::iovec>&) */
