@@ -23,6 +23,7 @@
 #include <unistd.h>
 #include <fstream>
 #include <mutex>
+#include <set>
 // #include <libpmemobj.h>
 // #include <libpmempool.h>
 // #include <libpmemobj/base.h>
@@ -45,6 +46,27 @@
 #endif
 
 
+static std::set<std::string> nupm_devdax_manager_mapped;
+static std::mutex nupm_devdax_manager_mapped_lock;
+
+static bool register_instance(const std::string& path)
+{
+  std::lock_guard<std::mutex> g(nupm_devdax_manager_mapped_lock);
+  if(nupm_devdax_manager_mapped.find(path) != nupm_devdax_manager_mapped.end())
+    return false;
+  
+  nupm_devdax_manager_mapped.insert(path);
+  PLOG("Registered dax mgr instance: %s", path.c_str());
+  return true;
+}
+
+static void unregister_instance(const std::string& path)
+{
+  std::lock_guard<std::mutex> g(nupm_devdax_manager_mapped_lock);
+  nupm_devdax_manager_mapped.erase(path);
+  PLOG("Unregistered dax mgr instance: %s", path.c_str());
+}
+
 namespace nupm
 {
 
@@ -52,10 +74,7 @@ Devdax_manager::Devdax_manager(const std::vector<config_t>& dax_configs,
                                bool force_reset) : _dax_configs(dax_configs)
 {
   unsigned idx = 0;
-  /* TODO add check to ensure against multiple instances
-     of Devdax_manager trying to manage the same or 
-     overlapping regions */
-
+  
   /* set up each configuration */
   for(auto& config: dax_configs) {
 
@@ -65,6 +84,10 @@ Devdax_manager::Devdax_manager(const std::vector<config_t>& dax_configs,
            config.addr);
 
     auto pathstr = config.path.c_str();
+
+    if(register_instance(config.path) == false) /*< only one instance of this class per dax path */
+      throw Constructor_exception("Devdax_manager instance already managing path (%s)", pathstr);
+
     void *p = map_region(pathstr,config.addr);
     recover_metadata(pathstr,
                      p,
@@ -79,6 +102,7 @@ Devdax_manager::~Devdax_manager()
 {
   for (auto &i : _mapped_regions) {
     munmap(i.second.iov_base, i.second.iov_len);
+    unregister_instance(i.first);
   }
 }
 
