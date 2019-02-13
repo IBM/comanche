@@ -1,6 +1,6 @@
 /*
- * (C) Copyright IBM Corporation 2018i, 2019. All rights reserved.
- *
+ * (C) Copyright IBM Corporation 2018, 2019. All rights reserved.
+ * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
  */
 
 #ifndef _DAWN_HSTORE_H_
@@ -20,6 +20,7 @@
 
 class tracked_pool;
 class pool_manager;
+class Devdax_manager;
 
 class hstore : public Component::IKVStore
 {
@@ -37,7 +38,7 @@ public:
    * Constructor
    * 
    */
-  hstore(const std::string &owner, const std::string &name);
+  hstore(const std::string &owner, const std::string &name, std::unique_ptr<Devdax_manager> mgr);
 
   /** 
    * Destructor
@@ -186,12 +187,12 @@ public:
 
   Component::IKVStore * create(const std::string &owner,
                                const std::string &name,
-                               const std::string &) override;
+                               const std::string &dax_map) override;
 
   Component::IKVStore * create(unsigned debug_level,
                                const std::string &owner,
                                const std::string &name,
-                               const std::string &param2) override;
+                               const std::string &dax_map) override;
 };
 
 #endif
