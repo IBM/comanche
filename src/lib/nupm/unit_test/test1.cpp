@@ -54,13 +54,13 @@ class Libnupm_test : public ::testing::Test {
 
 //#define RUN_RPALLOCATOR_TESTS
 //#define RUN_VMEM_ALLOCATOR_TESTS
-//#define RUN_DEVDAX_TEST
+#define RUN_DEVDAX_TEST
 //#define RUN_AVL_RCA_TEST
 //#define RUN_AVL_STRESS_TEST
 //#define RUN_MALLOC_STRESS_TEST
 //#define RUN_LB_TEST
 //#define RUN_LB_STRESS_TEST
-#define RUN_LB_INTEGRITY_TEST
+//#define RUN_LB_INTEGRITY_TEST
 
 #ifdef RUN_LB_INTEGRITY_TEST
 TEST_F(Libnupm_test, RcAllocatorLBIntegrity)
@@ -254,9 +254,9 @@ TEST_F(Libnupm_test, RcAllocatorLB)
 TEST_F(Libnupm_test, DevdaxManager)
 {
   {
-    nupm::Devdax_manager ddm(true);
+    nupm::Devdax_manager ddm({{"/dev/dax0.3", 0x9000000000, 0}},true);
   }
-  nupm::Devdax_manager ddm;  // rebuild
+  nupm::Devdax_manager ddm({{"/dev/dax0.3", 0x9000000000, 0}});  // rebuild
 
   size_t   p_len = 0;
   uint64_t uuid  = Options.uuid;

@@ -21,7 +21,10 @@
 using namespace Component;
 using namespace Common;
 
-static nupm::Devdax_manager ddm(true); /* true forces rebuild for testing */
+static unsigned Dummy_store_instances = 0;
+
+static nupm::Devdax_manager ddm({{"/dev/dax0.3", 0x9000000000, 0},{"/dev/dax1.3", 0xa000000000, 1}},
+                                true); /* true forces rebuild for testing */
 
 Dummy_store::Dummy_store(const std::string& owner, const std::string& name)
 {
