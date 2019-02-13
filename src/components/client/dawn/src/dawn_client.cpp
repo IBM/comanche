@@ -18,10 +18,11 @@ unsigned debug_level = 0;
 }
 }  // namespace Dawn
 
-Dawn_client::Dawn_client(unsigned debug_level,
+Dawn_client::Dawn_client(unsigned           debug_level,
                          const std::string& owner,
                          const std::string& addr_port_str,
-                         const std::string& device) {
+                         const std::string& device)
+{
   using namespace std;
 
   Dawn::Global::debug_level = debug_level;
@@ -41,8 +42,8 @@ Dawn_client::Dawn_client(unsigned debug_level,
   }
 
   const std::string ip_addr = m[1].str();
-  char* end;
-  const int port = (int) strtoul(m[2].str().c_str(), &end, 10);
+  char*             end;
+  const int         port = (int) strtoul(m[2].str().c_str(), &end, 10);
   const std::string provider =
       m[3].matched ? m[3].str() : "verbs"; /* default provider */
 
@@ -56,8 +57,9 @@ Dawn_client::~Dawn_client() { close_transport(); }
 
 void Dawn_client::open_transport(const std::string& device,
                                  const std::string& ip_addr,
-                                 const int port,
-                                 const std::string& provider) {
+                                 const int          port,
+                                 const std::string& provider)
+{
   {
     IBase* comp = load_component("libcomanche-fabric.so", net_fabric_factory);
     assert(comp);
@@ -95,7 +97,8 @@ void Dawn_client::open_transport(const std::string& device,
   _connection->bootstrap();
 }
 
-void Dawn_client::close_transport() {
+void Dawn_client::close_transport()
+{
   PLOG("Dawn_client: closing fabric transport (%p)", this);
 
   if (_connection) {
@@ -109,90 +112,102 @@ void Dawn_client::close_transport() {
   PLOG("Dawn_client: closed fabric transport.");
 }
 
-int Dawn_client::thread_safety() const {
+int Dawn_client::thread_safety() const
+{
   return IKVStore::THREAD_MODEL_SINGLE_PER_POOL;
 }
 
 IKVStore::pool_t Dawn_client::create_pool(const std::string& path,
                                           const std::string& name,
-                                          const size_t size,
-                                          unsigned int flags,
-                                          uint64_t expected_obj_count) {
+                                          const size_t       size,
+                                          unsigned int       flags,
+                                          uint64_t           expected_obj_count)
+{
   return _connection->create_pool(path, name, size, flags, expected_obj_count);
 }
 
 IKVStore::pool_t Dawn_client::open_pool(const std::string& path,
                                         const std::string& name,
-                                        unsigned int flags) {
+                                        unsigned int       flags)
+{
   return _connection->open_pool(path, name, flags);
 }
 
-void Dawn_client::close_pool(const IKVStore::pool_t pool) {
+void Dawn_client::close_pool(const IKVStore::pool_t pool)
+{
   assert(pool);
   _connection->close_pool(pool);
 }
 
-void Dawn_client::delete_pool(const IKVStore::pool_t pool) {
+void Dawn_client::delete_pool(const IKVStore::pool_t pool)
+{
   assert(pool);
   _connection->delete_pool(pool);
 }
 
 status_t Dawn_client::put(const IKVStore::pool_t pool,
-                          const std::string& key,
-                          const void* value,
-                          const size_t value_len) {
+                          const std::string&     key,
+                          const void*            value,
+                          const size_t           value_len)
+{
   return _connection->put(pool, key, value, value_len);
 }
 
-status_t Dawn_client::put_direct(const pool_t pool,
+status_t Dawn_client::put_direct(const pool_t       pool,
                                  const std::string& key,
-                                 const void* value,
-                                 const size_t value_len,
-                                 memory_handle_t handle) {
+                                 const void*        value,
+                                 const size_t       value_len,
+                                 memory_handle_t    handle)
+{
   return _connection->put_direct(pool, key, value, value_len, handle);
 }
 
 status_t Dawn_client::get(const IKVStore::pool_t pool,
-                          const std::string& key,
-                          void*& out_value, /* release with free() */
-                          size_t& out_value_len) {
+                          const std::string&     key,
+                          void*&  out_value, /* release with free() */
+                          size_t& out_value_len)
+{
   return _connection->get(pool, key, out_value, out_value_len);
 }
 
-status_t Dawn_client::get_direct(const pool_t pool,
+status_t Dawn_client::get_direct(const pool_t       pool,
                                  const std::string& key,
-                                 void* out_value,
-                                 size_t& out_value_len,
-                                 memory_handle_t handle) {
+                                 void*              out_value,
+                                 size_t&            out_value_len,
+                                 memory_handle_t    handle)
+{
   return _connection->get_direct(pool, key, out_value, out_value_len, handle);
 }
 
 Component::IKVStore::memory_handle_t Dawn_client::register_direct_memory(
-    void* vaddr, size_t len) {
+    void*  vaddr,
+    size_t len)
+{
   return _connection->register_direct_memory(vaddr, len);
 }
 
-status_t Dawn_client::unregister_direct_memory(
-    IKVStore::memory_handle_t handle) {
+status_t Dawn_client::unregister_direct_memory(IKVStore::memory_handle_t handle)
+{
   return _connection->unregister_direct_memory(handle);
 }
 
-status_t Dawn_client::erase(const IKVStore::pool_t pool,
-                            const std::string& key) {
+status_t Dawn_client::erase(const IKVStore::pool_t pool, const std::string& key)
+{
   return 0;
 }
 
 size_t Dawn_client::count(const IKVStore::pool_t pool) { return 0; }
 
-void Dawn_client::debug(const IKVStore::pool_t pool,
-                        unsigned cmd,
-                        uint64_t arg) {}
+void Dawn_client::debug(const IKVStore::pool_t pool, unsigned cmd, uint64_t arg)
+{
+}
 
 /**
  * Factory entry point
  *
  */
-extern "C" void* factory_createInstance(Component::uuid_t& component_id) {
+extern "C" void* factory_createInstance(Component::uuid_t& component_id)
+{
   if (component_id == Dawn_client_factory::component_id()) {
     auto fact = new Dawn_client_factory();
     fact->add_ref();

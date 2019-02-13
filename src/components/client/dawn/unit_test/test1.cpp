@@ -28,8 +28,8 @@ struct {
   std::string addr;
   std::string pool;
   std::string device;
-  unsigned debug_level;
-  unsigned base_core;
+  unsigned    debug_level;
+  unsigned    base_core;
 } Options;
 
 Component::IKVStore_factory *fact;
@@ -44,12 +44,14 @@ class Dawn_client_test : public ::testing::Test {
   // If the constructor and destructor are not enough for setting up
   // and cleaning up each test, you can define the following methods:
 
-  virtual void SetUp() {
+  virtual void SetUp()
+  {
     // Code here will be called immediately after the constructor (right
     // before each test).
   }
 
-  virtual void TearDown() {
+  virtual void TearDown()
+  {
     // Code here will be called immediately after each test (right
     // before the destructor).
   }
@@ -83,8 +85,9 @@ DECLARE_STATIC_COMPONENT_UUID(dawn_client_factory,
                               0xdb,
                               0x87);
 
-void basic_test(IKVStore *kv, unsigned shard) {
-  int rc;
+void basic_test(IKVStore *kv, unsigned shard)
+{
+  int  rc;
   char poolname[32];
   sprintf(poolname, "%u", shard);
 
@@ -111,7 +114,8 @@ void basic_test(IKVStore *kv, unsigned shard) {
 
 #ifdef TEST_SESSION_CONTROL
 
-TEST_F(Dawn_client_test, SessionControl) {
+TEST_F(Dawn_client_test, SessionControl)
+{
   /* create object instance through factory */
   Component::IBase *comp = Component::load_component(
       "libcomanche-dawn-client.so", dawn_client_factory);
@@ -142,7 +146,8 @@ TEST_F(Dawn_client_test, SessionControl) {
 
 #else
 
-TEST_F(Dawn_client_test, Instantiate) {
+TEST_F(Dawn_client_test, Instantiate)
+{
   /* create object instance through factory */
   Component::IBase *comp = Component::load_component(
       "libcomanche-dawn-client.so", dawn_client_factory);
@@ -159,7 +164,8 @@ TEST_F(Dawn_client_test, Instantiate) {
 #endif
 
 #ifdef TEST_BASIC_PUT_AND_GET
-TEST_F(Dawn_client_test, BasicPutAndGet) {
+TEST_F(Dawn_client_test, BasicPutAndGet)
+{
   ASSERT_TRUE(_dawn);
   int rc;
 
@@ -167,7 +173,7 @@ TEST_F(Dawn_client_test, BasicPutAndGet) {
       _dawn->create_pool("/mnt/pmem0/dawn", Options.pool.c_str(), MB(8));
 
   std::string value = "Hello! Value";  // 12 chars
-  void *pv;
+  void *      pv;
   for (unsigned i = 0; i < 10; i++) {
     rc = _dawn->put(pool, "key0", value.c_str(), value.length());
     PINF("put response:%d", rc);
@@ -192,10 +198,10 @@ TEST_F(Dawn_client_test, BasicPutAndGet) {
 
 struct record_t {
   std::string key;
-  char value[32];
+  char        value[32];
 };
 
-std::mutex _iops_lock;
+std::mutex    _iops_lock;
 static double _iops = 0.0;
 
 class IOPS_task : public Core::Tasklet {
@@ -206,7 +212,8 @@ class IOPS_task : public Core::Tasklet {
 
   IOPS_task(unsigned arg) {}
 
-  virtual void initialize(unsigned core) override {
+  virtual void initialize(unsigned core) override
+  {
     _store = fact->create(Options.debug_level, "dwaddington", Options.addr,
                           Options.device);
 
@@ -231,7 +238,8 @@ class IOPS_task : public Core::Tasklet {
     _start_time = std::chrono::high_resolution_clock::now();
   }
 
-  virtual bool do_work(unsigned core) override {
+  virtual bool do_work(unsigned core) override
+  {
     if (_iterations == 0) PLOG("Starting worker: %u", core);
 
     _iterations++;
@@ -250,7 +258,8 @@ class IOPS_task : public Core::Tasklet {
     return true;
   }
 
-  virtual void cleanup(unsigned core) override {
+  virtual void cleanup(unsigned core) override
+  {
     PLOG("Cleanup %u", core);
     double secs = std::chrono::duration_cast<std::chrono::milliseconds>(
                       _end_time - _start_time)
@@ -269,16 +278,17 @@ class IOPS_task : public Core::Tasklet {
 
  private:
   std::chrono::high_resolution_clock::time_point _start_time, _end_time;
-  bool _ready_flag          = false;
-  unsigned long _iterations = 0;
-  Component::IKVStore *_store;
-  record_t *_data;
-  Component::IKVStore::pool_t _pool;
+  bool                                           _ready_flag = false;
+  unsigned long                                  _iterations = 0;
+  Component::IKVStore *                          _store;
+  record_t *                                     _data;
+  Component::IKVStore::pool_t                    _pool;
 };
 
-TEST_F(Dawn_client_test, PerfScaleIops) {
+TEST_F(Dawn_client_test, PerfScaleIops)
+{
   static constexpr unsigned NUM_CORES = 8;
-  cpu_mask_t mask;
+  cpu_mask_t                mask;
   for (unsigned c = 0; c < NUM_CORES; c++) mask.add_core(c + Options.base_core);
   {
     Core::Per_core_tasking<IOPS_task, unsigned> t(mask, 11911);
@@ -289,7 +299,8 @@ TEST_F(Dawn_client_test, PerfScaleIops) {
 #endif
 
 #ifdef TEST_PERF_SMALL_PUT
-TEST_F(Dawn_client_test, PerfSmallPut) {
+TEST_F(Dawn_client_test, PerfSmallPut)
+{
   ASSERT_TRUE(_dawn);
   int rc;
 
@@ -302,7 +313,7 @@ TEST_F(Dawn_client_test, PerfSmallPut) {
 
   struct record_t {
     std::string key;
-    char value[VALUE_SIZE];
+    char        value[VALUE_SIZE];
   };
 
   record_t *data = (record_t *) malloc(sizeof(record_t) * ITERATIONS);
@@ -336,7 +347,8 @@ TEST_F(Dawn_client_test, PerfSmallPut) {
 #endif
 
 #ifdef TEST_PERF_SMALL_PUT_DIRECT
-TEST_F(Dawn_client_test, PerfSmallPutDirect) {
+TEST_F(Dawn_client_test, PerfSmallPutDirect)
+{
   int rc;
 
   /* open or create pool */
@@ -354,11 +366,11 @@ TEST_F(Dawn_client_test, PerfSmallPutDirect) {
 
   struct record_t {
     std::string key;
-    char value[VALUE_SIZE];
+    char        value[VALUE_SIZE];
   };
 
-  size_t data_size = sizeof(record_t) * ITERATIONS;
-  record_t *data   = (record_t *) aligned_alloc(MiB(2), data_size);
+  size_t    data_size = sizeof(record_t) * ITERATIONS;
+  record_t *data      = (record_t *) aligned_alloc(MiB(2), data_size);
   madvise(data, data_size, MADV_HUGEPAGE);
 
   ASSERT_FALSE(data == nullptr);
@@ -395,7 +407,8 @@ TEST_F(Dawn_client_test, PerfSmallPutDirect) {
 #endif
 
 #ifdef TEST_PERF_LARGE_PUT_DIRECT
-TEST_F(Dawn_client_test, PerfLargePutDirect) {
+TEST_F(Dawn_client_test, PerfLargePutDirect)
+{
   int rc;
 
   /* open or create pool */
@@ -420,12 +433,12 @@ TEST_F(Dawn_client_test, PerfLargePutDirect) {
 
   struct record_t {
     std::string key;
-    char value[VALUE_SIZE];
+    char        value[VALUE_SIZE];
   };
 
   PLOG("Allocating buffer with test data ...");
-  size_t data_size = sizeof(record_t) * PER_ITERATION;
-  record_t *data   = (record_t *) aligned_alloc(MiB(2), data_size);
+  size_t    data_size = sizeof(record_t) * PER_ITERATION;
+  record_t *data      = (record_t *) aligned_alloc(MiB(2), data_size);
   madvise(data, data_size, MADV_HUGEPAGE);
 
   ASSERT_FALSE(data == nullptr);
@@ -465,7 +478,8 @@ TEST_F(Dawn_client_test, PerfLargePutDirect) {
 #endif
 
 #ifdef TEST_PERF_LARGE_GET_DIRECT
-TEST_F(Dawn_client_test, PerfLargeGettDirect) {
+TEST_F(Dawn_client_test, PerfLargeGettDirect)
+{
   int rc;
 
   auto pool =
@@ -478,12 +492,12 @@ TEST_F(Dawn_client_test, PerfLargeGettDirect) {
 
   struct record_t {
     std::string key;
-    char value[VALUE_SIZE];
+    char        value[VALUE_SIZE];
   };
 
   PLOG("Allocating buffer with test data ...");
-  size_t data_size = sizeof(record_t) * PER_ITERATION;
-  record_t *data   = (record_t *) aligned_alloc(MiB(2), data_size);
+  size_t    data_size = sizeof(record_t) * PER_ITERATION;
+  record_t *data      = (record_t *) aligned_alloc(MiB(2), data_size);
   madvise(data, data_size, MADV_HUGEPAGE);
 
   ASSERT_FALSE(data == nullptr);
@@ -542,7 +556,8 @@ TEST_F(Dawn_client_test, PerfLargeGettDirect) {
 #endif
 
 #ifdef TEST_PERF_SMALL_GET
-TEST_F(Dawn_client_test, PerfSmallGetDirect) {
+TEST_F(Dawn_client_test, PerfSmallGetDirect)
+{
   int rc;
 
   auto pool =
@@ -555,12 +570,12 @@ TEST_F(Dawn_client_test, PerfSmallGetDirect) {
 
   struct record_t {
     std::string key;
-    char value[VALUE_SIZE];
+    char        value[VALUE_SIZE];
   };
 
   PLOG("Allocating buffer with test data ...");
-  size_t data_size = sizeof(record_t) * PER_ITERATION;
-  record_t *data   = (record_t *) aligned_alloc(MiB(2), data_size);
+  size_t    data_size = sizeof(record_t) * PER_ITERATION;
+  record_t *data      = (record_t *) aligned_alloc(MiB(2), data_size);
   madvise(data, data_size, MADV_HUGEPAGE);
 
   ASSERT_FALSE(data == nullptr);
@@ -619,14 +634,15 @@ TEST_F(Dawn_client_test, PerfSmallGetDirect) {
 #endif
 
 #ifdef TEST_PUT_DIRECT_0
-TEST_F(Dawn_client_test, PutDirect0) {
+TEST_F(Dawn_client_test, PutDirect0)
+{
   auto pool = _dawn->create_pool("/mnt/pmem0/dawn", "test_pd_8MB", MB(8));
 
   ASSERT_TRUE(pool > 0);
 
-  std::string key  = "PUT_DIRECT0_key";
-  size_t value_len = 32;
-  void *value      = aligned_alloc(4096, value_len);
+  std::string key       = "PUT_DIRECT0_key";
+  size_t      value_len = 32;
+  void *      value     = aligned_alloc(4096, value_len);
   ASSERT_TRUE(value);
 
   memset(value, 'x', value_len);
@@ -646,12 +662,13 @@ TEST_F(Dawn_client_test, PutDirect0) {
 #endif
 
 #ifdef TEST_PUT_DIRECT_1
-TEST_F(Dawn_client_test, PutDirectLarge) {
+TEST_F(Dawn_client_test, PutDirectLarge)
+{
   auto pool = _dawn->create_pool("/mnt/pmem0/dawn", "bigPool4G", GB(4));
 
-  std::string key  = "PUT_DIRECT1_key";
-  size_t value_len = MB(256);
-  void *value      = aligned_alloc(4096, value_len);
+  std::string key       = "PUT_DIRECT1_key";
+  size_t      value_len = MB(256);
+  void *      value     = aligned_alloc(4096, value_len);
   ASSERT_TRUE(value);
 
   memset(value, 'x', value_len);
@@ -670,7 +687,8 @@ TEST_F(Dawn_client_test, PutDirectLarge) {
 #endif
 
 #ifndef TEST_SESSION_CONTROL
-TEST_F(Dawn_client_test, Release) {
+TEST_F(Dawn_client_test, Release)
+{
   PLOG("Releasing instance...");
 
   /* release instance */
@@ -680,7 +698,8 @@ TEST_F(Dawn_client_test, Release) {
 
 }  // namespace
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv)
+{
   //#  option_addr = (argc > 1) ? argv[1] : "10.0.0.41:11911";
 
   try {
