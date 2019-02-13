@@ -38,11 +38,12 @@ class IKVIndex : public Component::IBase
 public:
   DECLARE_INTERFACE_UUID(0xadb5c747,0x0f5b,0x44a6,0x982b,0x36,0x54,0x1a,0x62,0x64,0xfc);
 
-  enum {
-    FIND_TYPE_EXACT  = 0x1,
-    FIND_TYPE_REGEX  = 0x2,
-    FIND_TYPE_PREFIX = 0x3,
-  };
+  typedef enum {
+    FIND_TYPE_NEXT   = 0x1, /*< just get the next key in order */
+    FIND_TYPE_EXACT  = 0x2, /*< perform exact match comparison on key */
+    FIND_TYPE_REGEX  = 0x3, /*< apply as regular expression */
+    FIND_TYPE_PREFIX = 0x4, /*< match prefix only */
+  } find_t;
 
   using offset_t = uint64_t;
   
@@ -84,18 +85,18 @@ public:
   virtual size_t count() const = 0;
 
   /** 
-   * Perform a regular expression search.
+   * Perform a key search
    * 
-   * @param regex Regular expression to match
+   * @param key_expression Key expression to match on
    * @param begin_position Position from which to start from. Counting from 0.
    * @param out_end_position [out] Position of the match
    * 
    * @return Matched key
    */  
-  virtual std::string find(const std::string& regex,
+  virtual std::string find(const std::string& key_expression,
                            offset_t begin_position,
-                           int find_type,
-                           offset_t& out_end_position) const { return std::string(""); }
+                           find_t find_type,
+                           offset_t& out_end_position) = 0;
 };
 
 

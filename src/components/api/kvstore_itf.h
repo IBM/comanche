@@ -38,8 +38,10 @@ namespace Component
 class IKVStore : public Component::IBase
 {
 public:
+  // clang-format off
   DECLARE_INTERFACE_UUID(0x62f4829f,0x0405,0x4c19,0x9898,0xa3,0xae,0x21,0x5a,0x3e,0xe8);
-
+  // clang-format on
+  
 private:
   struct Opaque_memory_region {
     virtual ~Opaque_memory_region() {}
@@ -289,6 +291,7 @@ public:
                               memory_handle_t handle = HANDLE_NONE) {
     return E_NOT_SUPPORTED;
   }
+  
 
   /** 
    * Register memory for zero copy DMA
@@ -445,24 +448,26 @@ public:
 class IKVStore_factory : public Component::IBase
 {
 public:
+  // clang-format off
   DECLARE_INTERFACE_UUID(0xface829f,0x0405,0x4c19,0x9898,0xa3,0xae,0x21,0x5a,0x3e,0xe8);
-
+  // clang-format on
+  
   virtual IKVStore * create(const std::string& owner,
                             const std::string& param){
-    throw(API_exception("factory::create(owner,param) not implemented"));
+    throw API_exception("factory::create(owner,param) not implemented");
   };
 
   virtual IKVStore * create(const std::string& owner,
                             const std::string& param,
                             const std::string& param2){
-    throw(API_exception("factory::create(owner,param,param2) not implemented"));
+    throw API_exception("factory::create(owner,param,param2) not implemented");
   }
 
   virtual IKVStore * create(unsigned debug_level,
                             const std::string& owner,
                             const std::string& param,
                             const std::string& param2){
-    throw(API_exception("factory::create(debug_level,owner,param,param2) not implemented"));
+    throw API_exception("factory::create(debug_level,owner,param,param2) not implemented");
   }
 
 
