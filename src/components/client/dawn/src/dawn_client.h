@@ -16,15 +16,21 @@
 #include <api/components.h>
 #include <api/fabric_itf.h>
 #include <api/kvstore_itf.h>
-#include <api/rdma_itf.h>
+#include <api/kvindex_itf.h>
+#include <api/dawn_itf.h>
+
 #include "connection.h"
 #include "dawn_client_config.h"
 
-class Dawn_client : public Component::IKVStore {
+class Dawn_client : public Component::IKVStore,
+                    public Component::IDawn
+{
+  friend class Dawn_client_factory;
+
  private:
   static constexpr bool option_DEBUG = true;
 
- public:
+ protected:
   /**
    * Constructor
    *
@@ -35,6 +41,7 @@ class Dawn_client : public Component::IKVStore {
               const std::string& addr_port_str,
               const std::string& device);
 
+ public:
   /**
    * Destructor
    *
@@ -56,8 +63,12 @@ class Dawn_client : public Component::IKVStore {
     if (itf_uuid == Component::IKVStore::iid()) {
       return (void*) static_cast<Component::IKVStore*>(this);
     }
-    else
+    else if (itf_uuid == Component::IDawn::iid()) {
+      return (void*) static_cast<Component::IDawn*>(this);
+    }
+    else {
       return NULL;  // we don't support this interface
+    }
   }
 
   void unload() override { delete this; }
@@ -108,13 +119,30 @@ class Dawn_client : public Component::IKVStore {
 
   virtual void debug(const pool_t pool, unsigned cmd, uint64_t arg) override;
 
-  virtual Component::IKVStore::memory_handle_t register_direct_memory(
-      void*  vaddr,
-      size_t len) override;
+  virtual Component::IKVStore::memory_handle_t register_direct_memory(void*  vaddr,
+                                                                      size_t len) override;
 
   virtual status_t unregister_direct_memory(memory_handle_t handle) override;
 
+  virtual void free_memory(void * p) override;
+
+  /* IDawn specific methods */
+  virtual pool_t create_pool(const std::string& pool_name,
+                             const size_t size,
+                             unsigned int flags = 0,
+                             uint64_t expected_obj_count = 0) override;
+
+  virtual pool_t open_pool(const std::string& pool_name,
+                           unsigned int flags = 0) override;
+
+  virtual std::string find(const std::string& key_expression,
+                           Component::IKVIndex::offset_t begin_position,
+                           Component::IKVIndex::find_t find_type,
+                           Component::IKVIndex::offset_t& out_end_position) override;
+
+  
  private:
+
   Component::IFabric_factory* _factory;
   Component::IFabric*         _fabric;
   Component::IFabric_client*  _transport;
@@ -130,6 +158,7 @@ class Dawn_client : public Component::IKVStore {
   void close_transport();
 };
 
+
 class Dawn_client_factory : public Component::IKVStore_factory {
  public:
   /**
@@ -137,6 +166,7 @@ class Dawn_client_factory : public Component::IKVStore_factory {
    *
    */
   DECLARE_VERSION(0.1);
+
   // clang-format off
   DECLARE_COMPONENT_UUID(0xfac66078, 0xcb8a, 0x4724, 0xa454, 0xd1, 0xd8, 0x8d, 0xe2, 0xdb, 0x87);
   // clang-format on
@@ -157,8 +187,7 @@ class Dawn_client_factory : public Component::IKVStore_factory {
                                       const std::string& addr,
                                       const std::string& param2) override
   {
-    Component::IKVStore* obj = static_cast<Component::IKVStore*>(
-        new Dawn_client(debug_level, owner, addr, param2));
+    Component::IKVStore* obj = static_cast<Component::IKVStore*>(new Dawn_client(debug_level, owner, addr, param2));
     obj->add_ref();
     return obj;
   }
