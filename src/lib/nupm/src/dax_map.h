@@ -26,6 +26,7 @@
 
 #include <mutex>
 #include <string>
+#include <tuple>
 #include "nd_utils.h"
 
 namespace nupm
@@ -42,13 +43,24 @@ class Devdax_manager {
   static constexpr unsigned _debug_level = 3;
 
  public:
-  /**
-   * Constructor
-   *
-   * @param force_reset If true, contents will be re-initialized. If false,
-   * re-initialization occurs on bad version/magic detection.
+
+  typedef struct {
+    std::string path;
+    addr_t addr;
+    int numa_node;
+  } config_t;
+  
+  /** 
+   * Constructor e.g.  
+     nupm::Devdax_manager ddm({{"/dev/dax0.3", 0x9000000000, 0},
+                               {"/dev/dax1.3", 0xa000000000, 1}},
+                                true); 
+   * 
+   * @param dax_config Vector of dax-path, address, numa-zone tuples.
+   * @param force_reset 
    */
-  Devdax_manager(bool force_reset = false);
+  Devdax_manager(const std::vector<config_t>& dax_config,
+                 bool force_reset = false);
 
   /**
    * Destructor will not unmap memory/nor invalidate pointers?
@@ -108,15 +120,16 @@ class Devdax_manager {
                          void *      p,
                          size_t      p_len,
                          bool        force_rebuild = false);
+  const char * lookup_dax_device(int numa_node);
 
  private:
   using guard_t = std::lock_guard<std::mutex>;
 
-  /* singleton pattern */
-  static ND_control                                _nd;
-  static std::map<std::string, iovec>              _mapped_regions;
-  static std::map<std::string, DM_region_header *> _region_hdrs;
-  static std::mutex                                _reentrant_lock;
+  const std::vector<config_t>               _dax_configs;
+  ND_control                                _nd;
+  std::map<std::string, iovec>              _mapped_regions;
+  std::map<std::string, DM_region_header *> _region_hdrs;
+  std::mutex                                _reentrant_lock;
 };
 }  // namespace nupm
 
