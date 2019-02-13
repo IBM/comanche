@@ -54,7 +54,7 @@ TEST_F(KVIndex_test, Instantiate)
   fact->release_ref();
 }
 
-TEST_F(KVIndex_test, Insert)
+TEST_F(KVIndex_test, InsertPerf)
 {
   string *keys = new string[COUNT];
   for (int i = 0; i < COUNT; i++) {
@@ -70,17 +70,41 @@ TEST_F(KVIndex_test, Insert)
   PINF("Size: %ld", _kvindex->count());
 }
 
+TEST_F(KVIndex_test, Clean) { _kvindex->clear(); }
+
+TEST_F(KVIndex_test, Insert)
+{
+  string key = "MyKey1";
+  _kvindex->insert(key);
+  key = "MyKey2";
+  _kvindex->insert(key);
+  key = "abc";
+  _kvindex->insert(key);
+  PINF("Size: %ld", _kvindex->count());
+}
+
 TEST_F(KVIndex_test, Get)
 {
   std::string a = _kvindex->get(0);
   PINF("Key= %s", a.c_str());
   a = _kvindex->get(1);
   PINF("Key= %s", a.c_str());
+  a = _kvindex->get(2);
+  PINF("Key= %s", a.c_str());
+}
+
+TEST_F(KVIndex_test, FIND)
+{
+  string   regex = "abc";
+  uint64_t end   = _kvindex->count() - 1;
+  string   key   = _kvindex->find(regex, 0, IKVIndex::FIND_TYPE_EXACT, end);
+  PINF("Key= %s", key.c_str());
 }
 
 TEST_F(KVIndex_test, Erase) { _kvindex->erase("MyKey"); }
 
 TEST_F(KVIndex_test, Count) { PINF("Size: %d", _kvindex->count()); }
+
 
 }  // namespace
 
