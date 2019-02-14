@@ -3,6 +3,7 @@
 
 #include <common/logging.h>
 #include <string>
+#include <sstream>
 
 #include "config_file.h"
 #include "program_options.h"
@@ -20,15 +21,21 @@ class Shard_launcher : public Config_file {
              get_shard_port(i), get_shard("net", i).c_str());
 
       auto dax_config = get_shard_dax_config(i);
-      for(auto c: dax_config) {
-        PLOG("DAX config path:(%s) addr:(%s)", c.first.c_str(), c.second.c_str());
-      }
+      assert(dax_config.size() == 1);
+      std::stringstream ss;
+      ss << "[{\"region_id\":0,\"path\":\"" << dax_config[0].first << "\",\"addr\":\"" << dax_config[0].second << "\"}]";
+      PLOG("DAX config %s", ss.str().c_str());
+      const std::string dax_config_json = ss.str();
 
       _shards.push_back(new Dawn::Shard(
           get_shard_core(i), get_shard_port(i), DEFAULT_PROVIDER,
           get_shard("device", i), get_shard("net", i),
           get_shard("default_backend", i), get_shard("nvme_device", i),
-          get_shard("pm_path", i), options.debug_level, options.forced_exit));
+          get_shard("pm_path", i),
+          dax_config_json,
+          options.debug_level, 
+          options.forced_exit));
+          
     }
   }
 

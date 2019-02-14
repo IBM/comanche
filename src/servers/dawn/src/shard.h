@@ -41,11 +41,12 @@ class Shard : public Shard_transport {
         const std::string backend,
         const std::string pci_addr,
         const std::string pm_path,
+        const std::string dax_config,
         unsigned debug_level,
         bool forced_exit)
       : Shard_transport(provider, net, port), _core(core),
         _forced_exit(forced_exit),
-        _thread(&Shard::thread_entry, this, backend, pci_addr, debug_level) {
+        _thread(&Shard::thread_entry, this, backend, pci_addr, dax_config, debug_level) {
     option_DEBUG = Dawn::Global::debug_level = debug_level;
   }
 
@@ -61,13 +62,14 @@ class Shard : public Shard_transport {
  private:
   void thread_entry(const std::string& backend,
                     const std::string& pci_addr,
+                    const std::string& dax_config,
                     unsigned debug_level) {
     if (option_DEBUG > 2) PLOG("shard:%u worker thread entered.", _core);
 
     if (set_cpu_affinity(1UL << _core) != 0)
       throw General_exception("unable to set cpu affinity (%lu)", _core);
 
-    initialize_components(backend, pci_addr, debug_level);
+    initialize_components(backend, pci_addr, dax_config, debug_level);
 
     main_loop();
 
@@ -95,6 +97,7 @@ class Shard : public Shard_transport {
 
   void initialize_components(const std::string& backend,
                              const std::string& pci_addr,
+                             const std::string& dax_config,
                              unsigned debug_level);
 
   void check_for_new_connections();
