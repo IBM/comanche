@@ -25,6 +25,7 @@ struct ProgramOptions {
   std::string test;
   std::string component = DEFAULT_COMPONENT;
   std::string cores;
+  std::string devices;
   unsigned time_secs;
   std::string path;
   std::string pool_name;

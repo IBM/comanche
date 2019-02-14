@@ -19,13 +19,15 @@
 #include "statistics.h"
 #include "stopwatch.h"
 
+#include <algorithm> /* transform - should follow local includes */
+#include <stdexcept> /* logic_error, domain_error */
+#include <map> /* map - should follow local includes */
+
 #define HT_SIZE_FACTOR 3
 
 extern Data * g_data;
-extern int g_argc;
-extern char** g_argv;
+extern boost::program_options::variables_map g_vm;
 extern pthread_mutex_t g_write_lock;
-extern boost::program_options::options_description g_desc;
 
 extern uint64_t g_iops;
 
@@ -38,7 +40,8 @@ public:
   unsigned long long int _pool_size = MB(100);
   int _pool_flags = Component::IKVStore::FLAGS_SET_SIZE;
   int _pool_num_objects = 100000;
-  std::string _cores = "0";
+  std::string _cores;
+  std::string _devices;
   std::vector<int> _core_list = std::vector<int>();
   int _execution_time;
   int _debug_level = 0;
@@ -79,9 +82,43 @@ public:
 
   float _cycles_per_second = Common::get_rdtsc_frequency_mhz() * 1000000;
 
-  Experiment(struct ProgramOptions options)
+  using core_to_device_map_t = std::map<int, int>;
+  core_to_device_map_t _core_to_device_map;
+
+  static core_to_device_map_t make_core_to_device_map(const std::string &cores, const std::string &devices)
   {
-    _report_filename = options.report_file_name;
+     auto core_v = get_int_vector_from_string(cores);
+     auto device_v = get_int_vector_from_string(devices);
+     if ( core_v.size() != device_v.size() )
+     {
+       throw
+         std::domain_error(
+           "core list '" + cores
+           + "' length " + std::to_string(core_v.size())
+           + " is longer than device list '" + devices
+           + "' length " + std::to_string(device_v.size())
+         );
+     }
+
+     core_to_device_map_t core_to_device_map;
+     std::transform(
+        core_v.begin()
+        , core_v.end()
+        , device_v.begin()
+        , std::inserter(
+          core_to_device_map
+          , core_to_device_map.end())
+        , [] (int c, int d) { return std::make_pair(c, d); }
+     );
+     return core_to_device_map;
+  }
+
+  Experiment(struct ProgramOptions options)
+    : _cores((g_vm.count("cores") > 0) ? g_vm["cores"].as<std::string>() : "0")
+    , _devices((g_vm.count("devices") > 0) ? g_vm["devices"].as<std::string>() : _cores)
+    , _report_filename(options.report_file_name)
+    , _core_to_device_map(make_core_to_device_map(_cores, _devices))
+  {
   }
 
   ~Experiment() {
@@ -264,13 +301,22 @@ public:
     return quote(key) + ": " + value;
   }
 
+  int core_to_device(int core)
+  {
+     auto core_it = _core_to_device_map.find(core);
+     if ( core_it == _core_to_device_map.end() )
+     {
+       throw std::logic_error("no core " + std::to_string(core_it->first) + " in map");
+     }
+     return core_it->second;
+  }
 
   int initialize_store(unsigned core)
   {
     using namespace Component;
     
     IBase * comp;
-  
+
     try
       { 
         if(_component == "pmstore") {
@@ -337,17 +383,18 @@ public:
           PMAJOR("dawn component instance: %p", _store);
         }
         else if (_component == "hstore") {
+          auto device = core_to_device(core);
           unsigned long dax_size = 0x8000000000;
           unsigned region_id = 0;
           std::ostringstream addr;
-          addr << std::showbase << std::hex << 0x7000000000 + dax_size * core;
+          addr << std::showbase << std::hex << 0x7000000000 + dax_size * device;
           std::ostringstream device_map;
           device_map <<
             "[ "
               " { "
                 + json_map("region_id", std::to_string(region_id))
-                /* actual device name is <idevice_name>.<core>, e.g. /dev/dax0.2 */
-                + ", " + json_map("path", quote(_device_name + "." + std::to_string(core)))
+                /* actual device name is <idevice_name>.<device>, e.g. /dev/dax0.2 */
+                + ", " + json_map("path", quote(_device_name + "." + std::to_string(device)))
                 + ", " + json_map("addr", quote(addr.str()))
                 + " }"
             " ]";
@@ -541,74 +588,67 @@ public:
 
     try 
       {
-        po::variables_map vm; 
-        po::store(po::parse_command_line(g_argc, g_argv, g_desc),  vm);
-
-        if (vm.count("component") > 0) {
-          _component = vm["component"].as<std::string>();
+        if (g_vm.count("component") > 0) {
+          _component = g_vm["component"].as<std::string>();
         }
        
-        if ((_component == "pmstore" || _component == "hstore") && vm.count("path") == 0)
+        if ((_component == "pmstore" || _component == "hstore") && g_vm.count("path") == 0)
           {
             PERR("component '%s' requires --path input argument for persistent memory store. Aborting!", _component.c_str());
             throw std::exception();
           }
 
-        if(vm.count("path") > 0) {
-          _pool_path = vm["path"].as<std::string>();
+        if(g_vm.count("path") > 0) {
+          _pool_path = g_vm["path"].as<std::string>();
         }
 
-        if (vm.count("pool_name") > 0) {
-          _pool_name = vm["pool_name"].as<std::string>();
+        if (g_vm.count("pool_name") > 0) {
+          _pool_name = g_vm["pool_name"].as<std::string>();
         }
 
-        if(vm.count("size") > 0) {
-          _pool_size = vm["size"].as<unsigned long long int>();
+        if(g_vm.count("size") > 0) {
+          _pool_size = g_vm["size"].as<unsigned long long int>();
         }
 
-        if (vm.count("elements") > 0) {
-          _pool_num_objects = vm["elements"].as<int>();
+        if (g_vm.count("elements") > 0) {
+          _pool_num_objects = g_vm["elements"].as<int>();
         }
 
-        if (vm.count("flags") > 0) {
-          _pool_flags = vm["flags"].as<int>();
+        if (g_vm.count("flags") > 0) {
+          _pool_flags = g_vm["flags"].as<int>();
         }
 
-        if (vm.count("cores") > 0)  {
-          _cores = vm["cores"].as<std::string>();
+        if (g_vm.count("owner") > 0) {
+          _owner = g_vm["owner"].as<std::string>();
         }
 
-        if (vm.count("owner") > 0) {
-          _owner = vm["owner"].as<std::string>();
+        if (g_vm.count("bins") > 0) {
+          _bin_count = g_vm["bins"].as<int>();
         }
 
-        if (vm.count("bins") > 0) {
-          _bin_count = vm["bins"].as<int>();
+        if (g_vm.count("latency_range_min") > 0) {
+          _bin_threshold_min = g_vm["latency_range_min"].as<double>();
         }
 
-        if (vm.count("latency_range_min") > 0) {
-          _bin_threshold_min = vm["latency_range_min"].as<double>();
+        if (g_vm.count("latency_range_max") > 0) {
+          _bin_threshold_max = g_vm["latency_range_max"].as<double>();
         }
 
-        if (vm.count("latency_range_max") > 0) {
-          _bin_threshold_max = vm["latency_range_max"].as<double>();
-        }
+        _verbose = g_vm.count("verbose");
+        _summary = g_vm.count("summary");
+        _skip_json_reporting = g_vm.count("skip_json_reporting");
 
-        _verbose = vm.count("verbose");
-        _summary = vm.count("summary");
-        _skip_json_reporting = vm.count("skip_json_reporting");
+        _debug_level = g_vm.count("debug_level") > 0 ? g_vm["debug_level"].as<int>() : 0;
+        _server_address = g_vm.count("server_address") ? g_vm["server_address"].as<std::string>() : "127.0.0.1";
+        _device_name = g_vm.count("device_name") ? g_vm["device_name"].as<std::string>() : "unused";
 
-        _debug_level = vm.count("debug_level") > 0 ? vm["debug_level"].as<int>() : 0;
-        _server_address = vm.count("server_address") ? vm["server_address"].as<std::string>() : "127.0.0.1";
-        _device_name = vm.count("device_name") ? vm["device_name"].as<std::string>() : "unused";
-
-        if (_component == "nvmestore" && vm.count("pci_addr") == 0)
+        if (_component == "nvmestore" && g_vm.count("pci_addr") == 0)
           {
             PERR("nvmestore requires pci_addr as an input. Aborting!");
             throw std::exception();
           }
 
-        _pci_address = vm.count("pci_addr") ? vm["pci_addr"].as<std::string>() : "no_pci_addr";
+        _pci_address = g_vm.count("pci_addr") ? g_vm["pci_addr"].as<std::string>() : "no_pci_addr";
       } 
     catch (const po::error &ex)
       {
@@ -616,7 +656,8 @@ public:
       }
   }
 
-  static std::vector<int> get_cpu_vector_from_string(std::string core_string)
+  /* was get_cpu_vector_from_string, but now also used for devices */
+  static std::vector<int> get_int_vector_from_string(std::string core_string)
   {
     std::vector<int> cores;
 
@@ -697,7 +738,7 @@ public:
 
   static cpu_mask_t get_cpu_mask_from_string(std::string core_string)
   {
-    std::vector<int> cores = get_cpu_vector_from_string(core_string);
+    std::vector<int> cores = get_int_vector_from_string(core_string);
     cpu_mask_t mask;
     int hardware_total_cores = std::thread::hardware_concurrency();
 
@@ -763,7 +804,7 @@ public:
     if (_core_list.empty())
       {
         // construct list
-        _core_list = get_cpu_vector_from_string(_cores);
+        _core_list = get_int_vector_from_string(_cores);
       }
 
     // this is inefficient, but number of cores should be relatively small (hundreds at most)

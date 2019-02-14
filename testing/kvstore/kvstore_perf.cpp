@@ -30,9 +30,8 @@ using namespace Component;
 
 ProgramOptions Options;
 Data * g_data;
-int g_argc;
-char ** g_argv;
 uint64_t g_iops;
+boost::program_options::variables_map g_vm; 
 
 pthread_mutex_t g_write_lock = PTHREAD_MUTEX_INITIALIZER;
 boost::program_options::options_description g_desc("Options");
@@ -42,31 +41,27 @@ int main(int argc, char * argv[])
 #ifdef PROFILE
   ProfilerDisable();
 #endif
-  
-  g_argc = argc;
-  g_argv = argv;
 
   namespace po = boost::program_options; 
 
   try {
     show_program_options();
 
-    po::variables_map vm; 
-    po::store(po::parse_command_line(argc, argv, g_desc),  vm);
+    po::store(po::parse_command_line(argc, argv, g_desc), g_vm);
 
-    if(vm.count("help")) {
+    if(g_vm.count("help")) {
       std::cout << g_desc;
       return 0;
     }
 
-    Options.component = vm.count("component") > 0 ? vm["component"].as<std::string>() : DEFAULT_COMPONENT;
-    Options.test = vm.count("test") > 0 ? vm["test"].as<std::string>() : "all";
-    Options.cores  = vm.count("cores") > 0 ? vm["cores"].as<std::string>() : "0";
-    Options.elements = vm.count("elements") > 0 ? vm["elements"].as<int>() : 100000;
-    Options.key_length = vm.count("key_length") > 0 ? vm["key_length"].as<unsigned int>() : 8;
-    Options.value_length = vm.count("value_length") > 0 ? vm["value_length"].as<unsigned int>() : 32;
-    Options.skip_json_reporting = vm.count("skip_json_reporting");
-    Options.pin = !(vm.count("nopin") > 0);
+    Options.component = g_vm.count("component") > 0 ? g_vm["component"].as<std::string>() : DEFAULT_COMPONENT;
+    Options.test = g_vm.count("test") > 0 ? g_vm["test"].as<std::string>() : "all";
+    Options.cores  = g_vm.count("cores") > 0 ? g_vm["cores"].as<std::string>() : "0";
+    Options.elements = g_vm.count("elements") > 0 ? g_vm["elements"].as<int>() : 100000;
+    Options.key_length = g_vm.count("key_length") > 0 ? g_vm["key_length"].as<unsigned int>() : 8;
+    Options.value_length = g_vm.count("value_length") > 0 ? g_vm["value_length"].as<unsigned int>() : 32;
+    Options.skip_json_reporting = g_vm.count("skip_json_reporting");
+    Options.pin = !(g_vm.count("nopin") > 0);
   }
   catch (const po::error &ex) {
     std::cerr << ex.what() << '\n';
@@ -159,6 +154,7 @@ void show_program_options()
     ("test", po::value<std::string>(), "Test name <all|put|get|put_direct|get_direct>. Default: all.")
     ("component", po::value<std::string>()->default_value(DEFAULT_COMPONENT), "Implementation selection <filestore|pmstore|dawn|nvmestore|mapstore|hstore>. Default: filestore.")
     ("cores", po::value<std::string>(), "Cores to run tasks on. Supports singles and ranges. Example: a,b,c-d. Default: Core 0.")
+    ("devices", po::value<std::string>(), "Device file numeric suffixes to assign to cores. Supports singles and ranges. Example: a,b,c-d. Default: a copy of \"cores\".")
     ("path", po::value<std::string>(), "Path of directory for pool. Default: current directory.")
     ("pool_name", po::value<std::string>(), "Prefix name of pool; will append core number. Default: Exp.pool")
     ("size", po::value<unsigned long long int>(), "Size of pool. Default: 100MB.")
