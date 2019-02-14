@@ -287,4 +287,23 @@ void ND_control::map_regions(unsigned long base_addr)
   }
 }
 
+
+size_t get_dax_device_size(const std::string& dax_path)
+{
+  size_t size = 0;
+  struct stat statbuf;
+
+  int fd = open(dax_path.c_str(), O_RDWR, 0666);  
+  if (fd == -1) throw General_exception("inaccessible devdax path (%s)", dax_path.c_str());
+
+  int rc = fstat(fd, &statbuf);
+  if (rc == -1) throw ND_control_exception("fstat call failed");
+  char spath[PATH_MAX];
+  snprintf(spath, PATH_MAX, "/sys/dev/char/%u:%u/size",
+           major(statbuf.st_rdev), minor(statbuf.st_rdev));
+  std::ifstream sizestr(spath);
+  sizestr >> size;
+  return size;
+}
+  
 }  // namespace nupm

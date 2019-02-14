@@ -78,8 +78,7 @@ class ND_control {
  private:
   static constexpr unsigned      MAX_NUMA_ZONES = 4;
   static constexpr bool          option_DEBUG   = false;
-  static constexpr unsigned long ZONE_BASE =
-      0x90000000000ULL;  // could use ASLR
+  static constexpr unsigned long ZONE_BASE = 0x90000000000ULL;  // could use ASLR
   static constexpr unsigned long ZONE_DELTA = 0x50000000000ULL;
 
  public:
@@ -126,6 +125,11 @@ class ND_control {
 
   std::map<int, std::vector<std::pair<void *, size_t>>> _mappings;
 };
+
+/**
+ * Get size of a dax device 
+ */
+size_t get_dax_device_size(const std::string& dax_path);
 
 }  // namespace nupm
 
