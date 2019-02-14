@@ -254,6 +254,12 @@ TEST_F(Libnupm_test, RcAllocatorLB)
 TEST_F(Libnupm_test, DevdaxManager)
 {
   {
+    size_t s = nupm::get_dax_device_size("/dev/dax0.0");
+    PLOG("sizeof device /dev/dax0.0 is %ld bytes", s);
+    ASSERT_TRUE(s > 0);
+  }
+  
+  {
     nupm::Devdax_manager ddm({{"/dev/dax0.3", 0x9000000000, 0}},true);
   }
   nupm::Devdax_manager ddm({{"/dev/dax0.3", 0x9000000000, 0}});  // rebuild
