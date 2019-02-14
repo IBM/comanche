@@ -14,18 +14,19 @@
 
 /*
  * The schema for the JSON "dax_map" parameter, in Draft 7 form as
- * described at https://json-schema.org:
+ * described at https://json-schema.org. Sorry about the addr form.
+ * It was a requirement.
  *
  * {
  *   "type": "array",
  *   "items": {
  *     "type": "object",
  *     "properties": {
- *       "numa_node": { "type": "integer", "minimum": 0 },
+ *       "region_id": { "type": "integer", "minimum": 0 },
  *       "path": { "type": "string" },
- *       "addr": { "type": "integer", "minimum": 0 },
+ *       "addr": { "type": "string" },
  *     },
- *     "required" : [ "numa_node", "path", "addr" ]
+ *     "required" : [ "region_id", "path", "addr" ]
  *   }
  * }
  *
@@ -45,11 +46,11 @@ namespace
 				"\"items\": {\n"
 					"\"type\": \"object\",\n"
 					"\"properties\": {\n"
-						"\"numa_node\": { \"type\": \"integer\", \"minimum\": 0 },\n"
+						"\"region_id\": { \"type\": \"integer\", \"minimum\": 0 },\n"
 						"\"path\": { \"type\": \"string\" },\n"
-						"\"addr\": { \"type\": \"integer\", \"minimum\": 0 }\n"
+						"\"addr\": { \"type\": \"string\" }\n"
 					"},\n"
-					"\"required\" : [ \"numa_node\", \"path\", \"addr\" ]\n"
+					"\"required\" : [ \"region_id\", \"path\", \"addr\" ]\n"
 				"}\n"
 			"}\n"
 			;
@@ -80,13 +81,13 @@ namespace
 		V parse_scalar(json_value &v);
 
 	template <>
-		int parse_scalar<int>(json_value &v)
+		unsigned parse_scalar<unsigned>(json_value &v)
 		{
-			if ( ! v.IsInt() )
+			if ( ! v.IsUint() )
 			{
-				throw std::domain_error("not an int");
+				throw std::domain_error("not an unsigned int");
 			}
-			return v.GetInt();
+			return v.GetUint();
 		}
 
 	template <>
@@ -94,7 +95,11 @@ namespace
 		{
 			if ( ! v.IsUint64() )
 			{
-				throw std::domain_error("not a uint64");
+				if ( ! v.IsString() )
+				{
+					throw std::domain_error("not a uint64 or a string");
+				}
+				return std::stoull(v.GetString(), nullptr, 0);
 			}
 			return v.GetUint64();
 		}
@@ -126,8 +131,8 @@ namespace
 
 	parse_map<nupm::Devdax_manager::config_t> config_t_attr
 	{
-		{ "numa_node", SET_SCALAR(nupm::Devdax_manager::config_t,numa_node) },
-		{ "path", SET_SCALAR(nupm::Devdax_manager::config_t,path) },
+		{ "region_id", SET_SCALAR(nupm::Devdax_manager::config_t, region_id) },
+		{ "path", SET_SCALAR(nupm::Devdax_manager::config_t, path) },
 		{ "addr", SET_SCALAR(nupm::Devdax_manager::config_t, addr) },
 	};
 
