@@ -47,7 +47,7 @@ class Devdax_manager {
   typedef struct {
     std::string path;
     addr_t addr;
-    int numa_node;
+    unsigned region_id;
   } config_t;
   
   /** 
@@ -56,7 +56,7 @@ class Devdax_manager {
                                {"/dev/dax1.3", 0xa000000000, 1}},
                                 true); 
    * 
-   * @param dax_config Vector of dax-path, address, numa-zone tuples.
+   * @param dax_config Vector of dax-path, address, region_id tuples.
    * @param force_reset 
    */
   Devdax_manager(const std::vector<config_t>& dax_config,
@@ -72,31 +72,31 @@ class Devdax_manager {
    * Open a region of memory
    *
    * @param uuid Unique identifier
-   * @param numa_node NUMA node
+   * @param region_id Region identifier (normally 0)
    * @param out_length Out length of region in bytes
    *
    * @return Pointer to mapped memory or nullptr on not found
    */
-  void *open_region(uint64_t uuid, int numa_node, size_t *out_length);
+  void *open_region(uint64_t uuid, unsigned region_id, size_t *out_length);
 
   /**
    * Create a new region of memory
    *
    * @param uuid Unique identifier
-   * @param numa_node NUMA node
+   * @param region_id Region identifier (normally 0)
    * @param size Size of the region requested in bytes
    *
    * @return Pointer to mapped memory
    */
-  void *create_region(uint64_t uuid, int numa_node, size_t size);
+  void *create_region(uint64_t uuid, unsigned region_id, size_t size);
 
   /**
    * Erase a previously allocated region
    *
    * @param uuid Unique region identifier
-   * @param numa_node NUMA node
+   * @param region_id Region identifier (normally 0)
    */
-  void erase_region(uint64_t uuid, int numa_node);
+  void erase_region(uint64_t uuid, unsigned region_id);
 
   /**
    * Get the maximum "hole" size.
@@ -104,14 +104,14 @@ class Devdax_manager {
    *
    * @return Size in bytes of max hole
    */
-  size_t get_max_available(int numa_node);
+  size_t get_max_available(unsigned region_id);
 
   /**
    * Debugging information
    *
-   * @param numa_node
+   * @param region_id Region identifier
    */
-  void debug_dump(int numa_node);
+  void debug_dump(unsigned region_id);
 
  private:
   void *get_devdax_region(const char *device_path, size_t *out_length);
@@ -120,7 +120,7 @@ class Devdax_manager {
                          void *      p,
                          size_t      p_len,
                          bool        force_rebuild = false);
-  const char * lookup_dax_device(int numa_node);
+  const char * lookup_dax_device(unsigned region_id);
 
  private:
   using guard_t = std::lock_guard<std::mutex>;
