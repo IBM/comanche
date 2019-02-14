@@ -254,6 +254,17 @@ public:
     _ready = true;
   };
 
+  static std::string quote(const std::string &s)
+  {
+    return "\"" + s + "\"";
+  }
+
+  static std::string json_map(const std::string &key, const std::string &value)
+  {
+    return quote(key) + ": " + value;
+  }
+
+
   int initialize_store(unsigned core)
   {
     using namespace Component;
@@ -324,6 +335,23 @@ public:
         else if (_component == "dawn") {
           _store = fact->create(_debug_level, _owner, _server_address, _device_name);
           PMAJOR("dawn component instance: %p", _store);
+        }
+        else if (_component == "hstore") {
+          unsigned long dax_size = 0x8000000000;
+          unsigned region_id = 0;
+          std::ostringstream addr;
+          addr << std::showbase << std::hex << 0x7000000000 + dax_size * core;
+          std::ostringstream device_map;
+          device_map <<
+            "[ "
+              " { "
+                + json_map("region_id", std::to_string(region_id))
+                /* actual device name is <idevice_name>.<core>, e.g. /dev/dax0.2 */
+                + ", " + json_map("path", quote(_device_name + "." + std::to_string(core)))
+                + ", " + json_map("addr", quote(addr.str()))
+                + " }"
+            " ]";
+          _store = fact->create(_debug_level, "name", _owner, device_map.str());
         }
         else {
           _store = fact->create("owner", _owner);
