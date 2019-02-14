@@ -200,7 +200,7 @@ size_t Dawn_client::count(const IKVStore::pool_t pool) { return 0; }
 
 void Dawn_client::free_memory(void * p)
 {
-  throw API_exception("not implemented");
+  ::free(p);
 } 
 
 void Dawn_client::debug(const IKVStore::pool_t pool, unsigned cmd, uint64_t arg)
@@ -209,14 +209,16 @@ void Dawn_client::debug(const IKVStore::pool_t pool, unsigned cmd, uint64_t arg)
 
 /* IDawn specific methods */
 IKVStore::pool_t Dawn_client::create_pool(const std::string& pool_name,
-                                const size_t size,
-                                unsigned int flags,
-                                uint64_t expected_obj_count) {
+                                          const size_t size,
+                                          unsigned int flags,
+                                          uint64_t expected_obj_count) 
+{
   return 0;
 }
 
 IKVStore::pool_t Dawn_client::open_pool(const std::string& pool_name,
-                                       unsigned int flags) {
+                                       unsigned int flags) 
+{
   return 0;
 }
 
