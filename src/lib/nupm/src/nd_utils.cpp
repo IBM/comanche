@@ -290,37 +290,20 @@ void ND_control::map_regions(unsigned long base_addr)
 
 size_t get_dax_device_size(const std::string& dax_path)
 {
-  struct libndctl::ndctl_ctx * ctx;
+  size_t size = 0;
+  struct stat statbuf;
 
-  /* initialize context */
-  if (ndctl_new(&ctx) != 0)
-    throw ND_control_exception("get_dax_device_size: ndctl_new failed unexpectedly");
+  int fd = open(dax_path.c_str(), O_RDWR, 0666);  
+  if (fd == -1) throw General_exception("inaccessible devdax path (%s)", dax_path.c_str());
 
-  /* get hold of NFIT bus, there should only be one */
-  struct ndctl_bus *bus;
-  ndctl_bus_foreach(ctx, bus)
-  {
-    if (strcmp(ndctl_bus_get_provider(bus), "ACPI.NFIT") != 0 &&
-        strcmp(ndctl_bus_get_provider(bus), "e820") != 0)
-      throw ND_control_exception("unexpected bus (%s)",
-                                 ndctl_bus_get_provider(bus));
-  }
-
-  if(bus == nullptr)
-    throw ND_control_exception("unable to find persistent memory");
-
-  /* iterate regions */
-  struct ndctl_region *region;
-  ndctl_region_foreach(bus, region)
-  {
-    if (strcmp(ndctl_region_get_type_name(region), "pmem") == 0) {
-      if (dax_path == ndctl_region_get_devname(region)) {
-        return ndctl_region_get_size(region);
-      }
-    }
-  }
-  throw ND_control_exception("unable to find dax device (%s)", dax_path.c_str());
-  return 0;
+  int rc = fstat(fd, &statbuf);
+  if (rc == -1) throw ND_control_exception("fstat call failed");
+  char spath[PATH_MAX];
+  snprintf(spath, PATH_MAX, "/sys/dev/char/%u:%u/size",
+           major(statbuf.st_rdev), minor(statbuf.st_rdev));
+  std::ifstream sizestr(spath);
+  sizestr >> size;
+  return size;
 }
   
 }  // namespace nupm
