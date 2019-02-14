@@ -26,5 +26,5 @@ const store_map::impl_spec *const store_map::impl =
 const std::string store_map::location =
   store_loc
   ? store_loc
-  : "[ { \"numa_node\": 0, \"path\" : \"/dev/dax0.1\", \"addr\" : " + std::to_string(0x9000000000) + " } ]"
+  : "[ { \"region_id\": 0, \"path\" : \"/dev/dax0.1\", \"addr\" : \"0x9000000000\" } ]"
   ;
