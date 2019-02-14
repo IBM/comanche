@@ -22,6 +22,7 @@ unsigned debug_level = 0;
 
 void Shard::initialize_components(const std::string& backend,
                                   const std::string& pci_addr,
+                                  const std::string& dax_config,
                                   unsigned debug_level) {
   using namespace Component;
 
@@ -54,9 +55,15 @@ void Shard::initialize_components(const std::string& backend,
         (IKVStore_factory*) comp->query_interface(IKVStore_factory::iid());
     assert(fact);
 
-    if (backend == "nvmestore") {
+    if (backend == "hstore") {
+      if(dax_config.empty())
+        throw General_exception("hstore backend requires dax configuration");
+      
+      _i_kvstore = fact->create("owner", "name", dax_config);
+    }
+    else if (backend == "nvmestore") {
       if (pci_addr.empty())
-        throw General_exception("nvmestore backend needs --pci-addr option");
+        throw General_exception("nvmestore backend needs pci device configuration");
 
       _i_kvstore = fact->create("owner", "name", pci_addr);
     }
