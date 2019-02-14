@@ -106,29 +106,29 @@ Devdax_manager::~Devdax_manager()
   }
 }
 
-const char * Devdax_manager::lookup_dax_device(int numa_node)
+const char * Devdax_manager::lookup_dax_device(unsigned region_id)
 {
   for(auto& config: _dax_configs) {
-    if(config.numa_node == numa_node) return config.path.c_str();
+    if(config.region_id == region_id) return config.path.c_str();
   }
-  throw Logic_exception("lookup_dax_device could not find path for numa (%d)",
-                        numa_node);
+  throw Logic_exception("lookup_dax_device could not find path for region (%d)",
+                        region_id);
   return nullptr;
 }
 
 
-void Devdax_manager::debug_dump(int numa_node)
+void Devdax_manager::debug_dump(unsigned region_id)
 {
   guard_t g(_reentrant_lock);
-  _region_hdrs[lookup_dax_device(numa_node)]->debug_dump();
+  _region_hdrs[lookup_dax_device(region_id)]->debug_dump();
 }
 
 void *Devdax_manager::open_region(uint64_t uuid,
-                                  int      numa_node,
+                                  unsigned region_id,
                                   size_t * out_length)
 {
   guard_t           g(_reentrant_lock);
-  const char *      device = lookup_dax_device(numa_node);
+  const char *      device = lookup_dax_device(region_id);
   DM_region_header *hdr    = _region_hdrs[device];
   if (hdr == nullptr)
     throw General_exception("no region header for device (%s)", device);
@@ -137,10 +137,10 @@ void *Devdax_manager::open_region(uint64_t uuid,
   return hdr->get_region(uuid, &region_length);
 }
 
-void *Devdax_manager::create_region(uint64_t uuid, int numa_node, size_t size)
+void *Devdax_manager::create_region(uint64_t uuid, unsigned region_id, size_t size)
 {
   guard_t           g(_reentrant_lock);
-  const char *      device = lookup_dax_device(numa_node);
+  const char *      device = lookup_dax_device(region_id);
   DM_region_header *hdr    = _region_hdrs[device];
   if (hdr == nullptr)
     throw General_exception("no region header for device (%s)", device);
@@ -148,10 +148,10 @@ void *Devdax_manager::create_region(uint64_t uuid, int numa_node, size_t size)
   return hdr->allocate_region(uuid, (size / GB(1) + 1));
 }
 
-void Devdax_manager::erase_region(uint64_t uuid, int numa_node)
+void Devdax_manager::erase_region(uint64_t uuid, unsigned region_id)
 {
   guard_t           g(_reentrant_lock);
-  const char *      device = lookup_dax_device(numa_node);
+  const char *      device = lookup_dax_device(region_id);
   DM_region_header *hdr    = _region_hdrs[device];
   if (hdr == nullptr)
     throw General_exception("no region header for device (%s)", device);
@@ -159,10 +159,10 @@ void Devdax_manager::erase_region(uint64_t uuid, int numa_node)
   hdr->erase_region(uuid);
 }
 
-size_t Devdax_manager::get_max_available(int numa_node)
+size_t Devdax_manager::get_max_available(unsigned region_id)
 {
   guard_t           g(_reentrant_lock);
-  const char *      device = lookup_dax_device(numa_node);
+  const char *      device = lookup_dax_device(region_id);
   DM_region_header *hdr    = _region_hdrs[device];
   if (hdr == nullptr)
     throw General_exception("no region header for device (%s)", device);
