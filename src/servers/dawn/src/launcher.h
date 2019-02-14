@@ -19,6 +19,11 @@ class Shard_launcher : public Config_file {
       PMAJOR("launching shard: core(%d) port(%d) net(%s)", get_shard_core(i),
              get_shard_port(i), get_shard("net", i).c_str());
 
+      auto dax_config = get_shard_dax_config(i);
+      for(auto c: dax_config) {
+        PLOG("DAX config path:(%s) addr:(%s)", c.first.c_str(), c.second.c_str());
+      }
+
       _shards.push_back(new Dawn::Shard(
           get_shard_core(i), get_shard_port(i), DEFAULT_PROVIDER,
           get_shard("device", i), get_shard("net", i),
