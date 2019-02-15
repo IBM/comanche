@@ -2,7 +2,7 @@
 #include <fcntl.h>
 #include <iostream>
 #include <set>
-#include <map>
+#include <unordered_map>
 #include <string>
 #include <stdio.h>
 #include <api/kvstore_itf.h>
@@ -13,13 +13,16 @@
 #include <sys/stat.h>
 #include <tbb/scalable_allocator.h>
 
+#define OBJECT_ALIGNMENT 8
 #define SINGLE_THREADED
 #include "map_store.h"
 
 using namespace Component;
 using namespace Common;
 
-static constexpr size_t OBJECT_ALIGNMENT = 4096;
+template<typename X, typename Y>
+using map_t = std::unordered_map<X,Y>;
+
 
 struct Value_pair
 {
@@ -34,10 +37,8 @@ private:
 
 public:
   std::string                       key;
-  std::map<std::string, Value_pair> map; /*< rb-tree based map */
-
+  map_t<std::string, Value_pair>    map; /*< rb-tree based map */
   Common::RWLock                    map_lock; /*< read write lock */
-
   unsigned int                      flags;
 
   status_t put(const std::string& key,
@@ -74,7 +75,7 @@ struct Pool_session
 
 std::mutex                            _pool_sessions_lock;
 std::set<Pool_session *>              _pool_sessions;
-std::map<std::string, Pool_handle *>  _pools; /*< existing pools */
+std::unordered_map<std::string, Pool_handle *>  _pools; /*< existing pools */
 
 using Std_lock_guard = std::lock_guard<std::mutex>;
 
