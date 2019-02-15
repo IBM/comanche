@@ -21,7 +21,8 @@ class Config_file {
   static constexpr bool option_DEBUG = true;
 
  public:
-  Config_file(const std::string& filename) {
+  Config_file(const std::string& filename)
+  {
     if (option_DEBUG) PLOG("config_file: (%s)", filename.c_str());
 
     using namespace rapidjson;
@@ -49,7 +50,7 @@ class Config_file {
     try {
       _shards = _doc["shards"];
     }
-    catch(...) {
+    catch (...) {
       throw General_exception("bad JSON in configuration file");
     }
 
@@ -78,27 +79,31 @@ class Config_file {
 
   rapidjson::SizeType shard_count() const { return _shards.Size(); }
 
-  auto get_shard(rapidjson::SizeType i) const {
+  auto get_shard(rapidjson::SizeType i) const
+  {
     if (i > shard_count()) throw General_exception("get_shard out of bounds");
     assert(_shards[i].IsObject());
     return _shards[i].GetObject();
   }
 
-  unsigned int get_shard_core(rapidjson::SizeType i) const {
+  unsigned int get_shard_core(rapidjson::SizeType i) const
+  {
     if (i > shard_count()) throw General_exception("get_shard out of bounds");
     assert(_shards[i].IsObject());
     auto shard = _shards[i].GetObject();
     return shard["core"].GetUint();
   }
 
-  unsigned int get_shard_port(rapidjson::SizeType i) const {
+  unsigned int get_shard_port(rapidjson::SizeType i) const
+  {
     if (i > shard_count()) throw General_exception("get_shard out of bounds");
     assert(_shards[i].IsObject());
     auto shard = _shards[i].GetObject();
     return shard["port"].GetUint();
   }
 
-  std::string get_shard(std::string name, rapidjson::SizeType i) const {
+  std::string get_shard(std::string name, rapidjson::SizeType i) const
+  {
     if (i > shard_count()) throw General_exception("get_shard out of bounds");
     if (name.empty()) throw General_exception("get_shard invalid name");
     auto shard = get_shard(i);
@@ -106,44 +111,53 @@ class Config_file {
     return std::string(shard[name.c_str()].GetString());
   }
 
-  auto get_shard_object(std::string name, rapidjson::SizeType i) const {
-    if (i > shard_count()) throw General_exception("get_shard_object out of bounds");
+  auto get_shard_object(std::string name, rapidjson::SizeType i) const
+  {
+    if (i > shard_count())
+      throw General_exception("get_shard_object out of bounds");
     if (name.empty()) throw General_exception("get_shard_object invalid name");
     auto shard = get_shard(i);
     if (!shard.HasMember(name.c_str()))
-      throw General_exception("get_shard_object: object (%s) does not exist", name.c_str());
+      throw General_exception("get_shard_object: object (%s) does not exist",
+                              name.c_str());
     return shard[name.c_str()].GetObject();
   }
 
-  std::vector<std::pair<std::string, std::string>> get_shard_dax_config(rapidjson::SizeType i) const {
-    if (i > shard_count()) throw General_exception("get_shard_dax_config out of bounds");
-    
+  std::vector<std::pair<std::string, std::string>> get_shard_dax_config(
+      rapidjson::SizeType i) const
+  {
+    if (i > shard_count())
+      throw General_exception("get_shard_dax_config out of bounds");
+
     auto shard = get_shard(i);
     if (!shard.HasMember("dax_config"))
-      throw General_exception("get_shard_dax_config: dax_config does not exist");
+      throw General_exception(
+          "get_shard_dax_config: dax_config does not exist");
 
     std::vector<std::pair<std::string, std::string>> result;
-    if(k_typenames[shard["dax_config"].GetType()] != "Array")
+    if (k_typenames[shard["dax_config"].GetType()] != "Array")
       throw General_exception("dax_config attribute should be an array");
 
-    for(auto& config: shard["dax_config"].GetArray()) {
-      if(!config.HasMember("path") || !config.HasMember("addr") || 
-        !config["path"].IsString() || !config["addr"].IsString()) 
+    for (auto& config : shard["dax_config"].GetArray()) {
+      if (!config.HasMember("path") || !config.HasMember("addr") ||
+          !config["path"].IsString() || !config["addr"].IsString())
         throw General_exception("badly formed JSON: dax_config");
-      auto new_pair = std::make_pair(config["path"].GetString(),config["addr"].GetString());
+      auto new_pair = std::make_pair(config["path"].GetString(),
+                                     config["addr"].GetString());
       result.push_back(new_pair);
     }
     return result;
   }
 
-  unsigned int debug_level() const {
+  unsigned int debug_level() const
+  {
     if (_doc["debug_level"].IsNull()) return 0;
     return _doc["debug_level"].GetUint();
   }
 
  private:
   rapidjson::Document _doc;
-  rapidjson::Value _shards;
+  rapidjson::Value    _shards;
 };
-}
+}  // namespace Dawn
 #endif  // __DAWN_CONFIG_FILE_H__

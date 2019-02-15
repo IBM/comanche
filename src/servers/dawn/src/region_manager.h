@@ -22,9 +22,10 @@ class Region_manager {
    *
    * @return Memory region handle
    */
-  auto ondemand_register(const void* target, size_t target_len) {
+  auto ondemand_register(const void* target, size_t target_len)
+  {
     memory_region_t region;
-    auto entry = _reg.find(target);
+    auto            entry = _reg.find(target);
     if (entry != _reg.end()) {
       region = entry->second;
       if (option_DEBUG)
@@ -52,7 +53,7 @@ class Region_manager {
   // }
 
  private:
-  Connection* _conn;
+  Connection*                            _conn;
   std::map<const void*, memory_region_t> _reg;
 };
 }  // namespace Dawn

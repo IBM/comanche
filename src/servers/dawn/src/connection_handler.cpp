@@ -2,7 +2,8 @@
 
 namespace Dawn
 {
-int Connection_handler::tick() {
+int Connection_handler::tick()
+{
   using namespace Dawn::Protocol;
 
   _response = TICK_RESPONSE_CONTINUE;
@@ -39,7 +40,7 @@ int Connection_handler::tick() {
       // }
     case NEW_MSG_RECV: {
       if (check_for_posted_recv_complete()) {
-        const auto iob     = posted_recv();
+        const auto     iob = posted_recv();
         const Message *msg = static_cast<Message *>(iob->base());
         assert(msg);
 
@@ -166,9 +167,10 @@ int Connection_handler::tick() {
   return _response;
 }
 
-void Connection_handler::set_pending_value(void *target,
-                                           size_t target_len,
-                                           memory_region_t region) {
+void Connection_handler::set_pending_value(void *          target,
+                                           size_t          target_len,
+                                           memory_region_t region)
+{
   assert(target);
   assert(target_len);
 
