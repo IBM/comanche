@@ -431,8 +431,8 @@ class AVL_range_allocator {
 
       Memory_region* region = root->find_free_region(root, size + alignment, 8);
       if (region == nullptr)
-        throw General_exception("AVL_range_allocator: failed to allocate (size=%ld alignment=%lu)",
-                                size, alignment);
+        throw General_exception("AVL_range_allocator: failed to allocate (size=%ld alignment=%lu free=%lu)",
+                                size, alignment, get_free());
 
 
       if (option_DEBUG) {
@@ -749,6 +749,18 @@ class AVL_range_allocator {
   }
 
 
+  /**
+   * Get total number of free bytes
+   */
+  size_t get_free() {
+    size_t total = 0;
+    _tree->apply_topdown([&total](void* p, size_t) {
+      Memory_region* mr = static_cast<Memory_region*>(p);
+      if (mr->is_free())
+        total += mr->size();
+    });
+    return total;
+  }
 
   // inline addr_t base()
   // {
