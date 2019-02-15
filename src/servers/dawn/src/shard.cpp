@@ -89,8 +89,8 @@ void Shard::main_loop()
   ProfilerStart("shard_main_loop");
 #endif
 
-  uint64_t                  tick                      = 0;
-  static constexpr uint64_t CHECK_CONNECTION_INTERVAL = 10000;
+  uint64_t                  tick __attribute__((aligned(8))) = 0;
+  static constexpr uint64_t CHECK_CONNECTION_INTERVAL        = 1000000;
 
   Connection_handler::action_t                            action;
   std::vector<std::vector<Connection_handler*>::iterator> pending_close;
@@ -106,7 +106,7 @@ void Shard::main_loop()
       const auto handler = *handler_iter;
 
       /* issue tick */
-      auto tick_response = handler->tick();
+      const auto tick_response = handler->tick();
 
       /* close session */
       if (tick_response == Dawn::Connection_handler::TICK_RESPONSE_CLOSE) {
@@ -398,13 +398,12 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
       PLOG("PUT: (%p) key=(%.*s) value=(%.*s)", this, (int) msg->key_len,
            msg->key(), (int) msg->val_len, msg->value());
 
-    if (msg->resvd & Dawn::Protocol::MSG_RESVD_SCBE) {
+    if (unlikely(msg->resvd & Dawn::Protocol::MSG_RESVD_SCBE)) {
       status = S_OK;  // short-circuit backend
       if (option_DEBUG > 2) PLOG("PUT: short-circuited backend");
     }
     else {
-      std::string k;
-      k.assign(msg->key(), msg->key_len);
+      const std::string k(msg->key(), msg->key_len);
       status = _i_kvstore->put(msg->pool_id, k, msg->value(), msg->val_len);
 
       if (option_DEBUG > 2) {
