@@ -91,6 +91,8 @@ class KVStore_test
     // before the destructor).
   }
 
+  using poolv_t = std::array<Component::IKVStore::pool_t, 2>;
+
   // Objects declared here can be used by all tests in the test case
 
   /* persistent memory if enabled at all, is simulated and not real */
@@ -119,7 +121,9 @@ class KVStore_test
   static std::size_t many_count_target;
   static auto populate_many(char tag, std::size_t key_length, std::size_t value_length) -> kvv_t;
   static long unsigned put_many(Component::IKVStore::pool_t pool, const kvv_t &kvv, const std::string &descr);
+  static long unsigned put_many_threaded(const kvv_t &kvv, const std::string &descr);
   static void get_many(Component::IKVStore::pool_t pool, const kvv_t &kvv, const std::string &descr);
+  static void get_many_threaded(const kvv_t &kvv, const std::string &descr);
 
   std::string pool_dir() const
   {
@@ -130,7 +134,7 @@ class KVStore_test
   {
     return "test-" + store_map::impl->name + store_map::numa_zone() + "-" + std::to_string(i) + ".pool";
   }
-  static std::array<Component::IKVStore::pool_t, 2> pool;
+  static poolv_t pool;
 };
 
 constexpr std::size_t KVStore_test::estimated_object_count_large;
@@ -140,7 +144,7 @@ constexpr std::size_t KVStore_test::many_count_target_small;
 
 bool KVStore_test::pmem_simulated = getenv("PMEM_IS_PMEM_FORCE");
 Component::IKVStore *KVStore_test::_kvstore;
-std::array<Component::IKVStore::pool_t, 2> KVStore_test::pool;
+KVStore_test::poolv_t KVStore_test::pool;
 
 constexpr unsigned KVStore_test::many_key_length_short;
 constexpr unsigned KVStore_test::many_key_length_long;
@@ -232,9 +236,6 @@ TEST_F(KVStore_test, PopulateManyLargeLarge)
 long unsigned KVStore_test::put_many(Component::IKVStore::pool_t pool, const kvv_t &kvv, const std::string &descr)
 {
   long unsigned count = 0;
-#if 0
-  ProfilerStart(("test3-put-" + descr + "-cpu-" + store_map::impl->name + ".profile").c_str());
-#endif
   {
     timer t(
       [&count, &descr] (timer::duration_t d) {
@@ -257,25 +258,31 @@ long unsigned KVStore_test::put_many(Component::IKVStore::pool_t pool, const kvv
       }
     }
   }
-#if 0
-  ProfilerStop();
-#endif
   return count;
 }
 
-TEST_F(KVStore_test, PutManyShortShort)
+long unsigned KVStore_test::put_many_threaded(const kvv_t &kvv, const std::string &descr)
 {
-  ASSERT_NE(_kvstore, nullptr);
 
   std::vector<std::future<long unsigned>> v;
+  ProfilerStart(("test4-put-" + descr + "-cpu-" + store_map::impl->name + ".profile").c_str());
   for ( auto p : pool )
   {
-    ASSERT_LT(0, int64_t(p));
-    v.emplace_back(std::async(std::launch::async, put_many, p, kvv_short_short, "short_short"));
+    v.emplace_back(std::async(std::launch::async, put_many, p, kvv, descr));
   }
 
   long unsigned count_actual = 0;
   for ( auto &e : v ) { count_actual += e.get(); }
+  ProfilerStop();
+  return count_actual;
+}
+
+TEST_F(KVStore_test, PutManyShortShort)
+{
+  ASSERT_NE(nullptr, _kvstore);
+  for ( auto p : pool ) { ASSERT_LT(0, int64_t(p)); }
+
+  auto count_actual = put_many_threaded(kvv_short_short, "short_short");
 
   EXPECT_LE(count_actual, many_count_target*pool.size());
   EXPECT_LE(many_count_target*pool.size() * 0.99, double(count_actual));
@@ -285,17 +292,10 @@ TEST_F(KVStore_test, PutManyShortShort)
 
 TEST_F(KVStore_test, PutManyShortLong)
 {
-  ASSERT_NE(_kvstore, nullptr);
+  ASSERT_NE(nullptr, _kvstore);
+  for ( auto p : pool ) { ASSERT_LT(0, int64_t(p)); }
 
-  std::vector<std::future<long unsigned>> v;
-  for ( auto p : pool )
-  {
-    ASSERT_LT(0, int64_t(p));
-    v.emplace_back(std::async(std::launch::async, put_many, pool[0], kvv_short_long, "short_long"));
-  }
-
-  long unsigned count_actual = 0;
-  for ( auto &e : v ) { count_actual += e.get(); }
+  auto count_actual = put_many_threaded(kvv_short_long, "short_long");
 
   EXPECT_LE(count_actual, many_count_target*pool.size());
   EXPECT_LE(many_count_target*pool.size() * 0.99, double(count_actual));
@@ -305,17 +305,10 @@ TEST_F(KVStore_test, PutManyShortLong)
 
 TEST_F(KVStore_test, PutManyLongLong)
 {
-  ASSERT_NE(_kvstore, nullptr);
+  ASSERT_NE(nullptr, _kvstore);
+  for ( auto p : pool ) { ASSERT_LT(0, int64_t(p)); }
 
-  std::vector<std::future<long unsigned>> v;
-  for ( auto p : pool )
-  {
-    ASSERT_LT(0, int64_t(p));
-    v.emplace_back(std::async(std::launch::async, put_many, pool[0], kvv_long_long, "long_long"));
-  }
-
-  long unsigned count_actual = 0;
-  for ( auto &e : v ) { count_actual += e.get(); }
+  auto count_actual = put_many_threaded(kvv_long_long, "long_long");
 
   EXPECT_LE(count_actual, many_count_target*pool.size());
   EXPECT_LE(many_count_target*pool.size() * 0.99, double(count_actual));
@@ -325,7 +318,7 @@ TEST_F(KVStore_test, PutManyLongLong)
 
 TEST_F(KVStore_test, Size1)
 {
-  ASSERT_NE(_kvstore, nullptr);
+  ASSERT_NE(nullptr, _kvstore);
   for ( auto i = 0; i != pool.size(); ++i ) { ASSERT_LT(0, int64_t(pool[i])); }
 
   auto count = _kvstore->count(pool[0]) + _kvstore->count(pool[1]);
@@ -335,9 +328,6 @@ TEST_F(KVStore_test, Size1)
 
 void KVStore_test::get_many(Component::IKVStore::pool_t pool, const kvv_t &kvv, const std::string &descr)
 {
-#if 0
-  ProfilerStart(("test3-get-" + descr + "-cpu-" + store_map::impl->name + ".profile").c_str());
-#endif
   /* get is quick; run 10 for better profiling */
   {
     unsigned amplification = 10;
@@ -362,48 +352,42 @@ void KVStore_test::get_many(Component::IKVStore::pool_t pool, const kvv_t &kvv, 
       }
     }
   }
-#if 0
+}
+
+void KVStore_test::get_many_threaded(const kvv_t &kvv, const std::string &descr)
+{
+  std::vector<std::future<void>> v;
+  ProfilerStart(("test4-get-" + descr + "-cpu-" + store_map::impl->name + ".profile").c_str());
+  for ( auto p : pool )
+  {
+    v.emplace_back(std::async(std::launch::async, get_many, pool[0], kvv_short_short, "short_short"));
+  }
+  for ( auto &e : v ) { e.get(); }
   ProfilerStop();
-#endif
 }
 
 TEST_F(KVStore_test, GetManyShortShort)
 {
-  ASSERT_NE(_kvstore, nullptr);
+  ASSERT_NE(nullptr, _kvstore);
+  for ( auto p : pool ) { ASSERT_LT(0, int64_t(p)); }
 
-  std::vector<std::future<void>> v;
-  for ( auto p : pool )
-  {
-    ASSERT_LT(0, int64_t(p));
-    v.emplace_back(std::async(std::launch::async, get_many, pool[0], kvv_short_short, "short_short"));
-  }
-  for ( auto &e : v ) { e.get(); }
+  get_many_threaded(kvv_short_short, "short_short");
 }
 
 TEST_F(KVStore_test, GetManyShortLong)
 {
-  ASSERT_NE(_kvstore, nullptr);
+  ASSERT_NE(nullptr, _kvstore);
+  for ( auto p : pool ) { ASSERT_LT(0, int64_t(p)); }
 
-  std::vector<std::future<void>> v;
-  for ( auto p : pool )
-  {
-    ASSERT_LT(0, int64_t(p));
-    v.emplace_back(std::async(std::launch::async, get_many, pool[0], kvv_short_long, "short_long_0"));
-  }
-  for ( auto &e : v ) { e.get(); }
+  get_many_threaded(kvv_short_long, "short_long");
 }
 
 TEST_F(KVStore_test, GetManyLongLong)
 {
-  ASSERT_NE(_kvstore, nullptr);
+  ASSERT_NE(nullptr, _kvstore);
+  for ( auto p : pool ) { ASSERT_LT(0, int64_t(p)); }
 
-  std::vector<std::future<void>> v;
-  for ( auto p : pool )
-  {
-    ASSERT_LT(0, int64_t(p));
-    v.emplace_back(std::async(std::launch::async, get_many, pool[0], kvv_long_long, "long_long_0"));
-  }
-  for ( auto &e : v ) { e.get(); }
+  get_many_threaded(kvv_long_long, "long_long");
 }
 
 TEST_F(KVStore_test, ClosePool)
