@@ -13,6 +13,7 @@
 #include <common/cycles.h>
 #include <core/task.h>
 #include <api/kvstore_itf.h>
+#include <sys/sysmacros.h> /* major, minor */
 
 #include "data.h"
 #include "kvstore_perf.h"
@@ -32,7 +33,7 @@ extern pthread_mutex_t g_write_lock;
 extern uint64_t g_iops;
 
 class Experiment : public Core::Tasklet
-{ 
+{
 public:
   std::string _pool_path = "./data";
   std::string _pool_name = "Exp.pool";
@@ -123,9 +124,9 @@ public:
 
   ~Experiment() {
     _store->release_ref();
-  } 
-    
-  void initialize(unsigned core) override 
+  }
+
+  void initialize(unsigned core) override
   {
     handle_program_options();
 
@@ -247,7 +248,7 @@ public:
         PERR("create_pool failed! Aborting experiment.");
         throw;
       }
-      
+
     PLOG("Created pool for worker %u...OK!", core);
 
     if (!_skip_json_reporting)
@@ -258,7 +259,7 @@ public:
         rapidjson::Document document = _get_report_document();
         if (!document.HasMember("experiment"))
           {
-            _initialize_experiment_report(document); 
+            _initialize_experiment_report(document);
           }
       }
 
@@ -301,6 +302,54 @@ public:
     return quote(key) + ": " + value;
   }
 
+  /* copied from nd_utils.h, which is not accessible to the build */
+  std::size_t get_dax_device_size(const std::string& dax_path)
+  {
+    int fd = ::open(dax_path.c_str(), O_RDWR, 0666);
+    if (fd == -1)
+    {
+      auto e = errno;
+      throw General_exception("inaccessible devdax path (%s): %s", dax_path.c_str(), strerror(e));
+    }
+
+    struct stat statbuf;
+    if ( ::fstat(fd, &statbuf) == -1 )
+    {
+      auto e = errno;
+      throw General_exception("fstat(%s) failed:  %s", dax_path.c_str(), strerror(e));
+    }
+
+    char spath[PATH_MAX];
+    snprintf(spath, PATH_MAX, "/sys/dev/char/%u:%u/size",
+             major(statbuf.st_rdev), minor(statbuf.st_rdev));
+    std::ifstream sizestr(spath);
+    size_t size = 0;
+    sizestr >> size;
+    return size;
+  }
+
+  std::size_t round_up_to_pow2(std::size_t n)
+  {
+    /* while more than one bit is set in n ... */
+    while ( ( n & (n-1) ) != 0 )
+    {
+      /* increment by the rightmost 1 bit */
+      n += ( n & (-n) );
+    }
+    /* at most one bit is set in the result */
+    return n;
+  }
+
+  std::size_t dev_dax_max_size(const std::string & dev_dax_prefix_)
+  {
+    std::size_t size = 0;
+    for ( auto & it : _core_to_device_map )
+    {
+      size = std::max(size, get_dax_device_size(dev_dax_prefix_ + "." + std::to_string(it.second)));
+    }
+    return size;
+  }
+
   int core_to_device(int core)
   {
      auto core_it = _core_to_device_map.find(core);
@@ -314,11 +363,11 @@ public:
   int initialize_store(unsigned core)
   {
     using namespace Component;
-    
+
     IBase * comp;
 
     try
-      { 
+      {
         if(_component == "pmstore") {
           comp = load_component(PMSTORE_PATH, pmstore_factory);
         }
@@ -332,7 +381,7 @@ public:
           comp = load_component(ROCKSTORE_PATH, rocksdb_factory);
         }
         else if(_component == "dawn") {
-      
+
           DECLARE_STATIC_COMPONENT_UUID(dawn_factory, 0xfac66078,0xcb8a,0x4724,0xa454,0xd1,0xd8,0x8d,0xe2,0xdb,0x87);  // TODO: find a better way to register arbitrary components to promote modular use
           comp = load_component(DAWN_PATH, dawn_factory);
         }
@@ -384,10 +433,13 @@ public:
         }
         else if (_component == "hstore") {
           auto device = core_to_device(core);
-          unsigned long dax_size = 0x8000000000;
+          std::size_t dax_base = 0x7000000000;
+          /* at least the dax size, rounded for alignment */
+          std::size_t dax_stride = round_up_to_pow2(dev_dax_max_size(_device_name));
+
           unsigned region_id = 0;
           std::ostringstream addr;
-          addr << std::showbase << std::hex << 0x7000000000 + dax_size * device;
+          addr << std::showbase << std::hex << dax_base + dax_stride * device;
           std::ostringstream device_map;
           device_map <<
             "[ "
@@ -435,7 +487,7 @@ public:
     printf("no initialize_custom function used\n");
   }
 
-  bool ready() override 
+  bool ready() override
   {
     return _ready;
   }
@@ -446,7 +498,7 @@ public:
     assert(false && "Experiment.do_work needs to use override!");
     return false;
   }
-   
+
   virtual void cleanup_custom(unsigned core)
   {
     // does nothing by itself; put per-experiment cleanup functions in its place
@@ -584,14 +636,14 @@ public:
   void handle_program_options()
   {
     namespace po = boost::program_options;
-    ProgramOptions Options; 
+    ProgramOptions Options;
 
-    try 
+    try
       {
         if (g_vm.count("component") > 0) {
           _component = g_vm["component"].as<std::string>();
         }
-       
+
         if ((_component == "pmstore" || _component == "hstore") && g_vm.count("path") == 0)
           {
             PERR("component '%s' requires --path input argument for persistent memory store. Aborting!", _component.c_str());
@@ -649,7 +701,7 @@ public:
           }
 
         _pci_address = g_vm.count("pci_addr") ? g_vm["pci_addr"].as<std::string>() : "no_pci_addr";
-      } 
+      }
     catch (const po::error &ex)
       {
         std::cerr << ex.what() << '\n';
@@ -785,7 +837,7 @@ public:
         throw std::exception();
       }
   }
-  
+
   void _debug_print(unsigned core, std::string text, bool limit_to_core0=false)
   {
     if (_verbose)
@@ -946,7 +998,7 @@ public:
         PERR("failed while writing to ofstream");
         throw std::exception();
       }
-  } 
+  }
 
   // returns file size in bytes
   long GetFileSize(std::string filename)
@@ -1070,10 +1122,10 @@ public:
     temp_value.SetDouble(stats.getIncrement());
     bin_info.AddMember("increment", temp_value, document.GetAllocator());
 
-    for (int i = 0; i < stats.getBinCount(); i++)  
+    for (int i = 0; i < stats.getBinCount(); i++)
       {
         // PushBack requires unique object
-        rapidjson::Value temp_object(rapidjson::kObjectType); 
+        rapidjson::Value temp_object(rapidjson::kObjectType);
 
         temp_value.SetDouble(stats.getBin(i).getCount());
         temp_object.AddMember("count", temp_value, document.GetAllocator());
@@ -1095,7 +1147,7 @@ public:
 
     // add new info to report
     rapidjson::Value bin_object(rapidjson::kObjectType);
-      
+
     bin_object.AddMember("info", bin_info, document.GetAllocator());
     bin_object.AddMember("bins", temp_array, document.GetAllocator());
 
@@ -1106,7 +1158,7 @@ public:
   {
     time_t rawtime;
     struct tm *timeinfo;
-    time(&rawtime); 
+    time(&rawtime);
     timeinfo = localtime(&rawtime);
     char buffer[80];
 
@@ -1147,10 +1199,10 @@ public:
   }
 
   /* create_report: output a report in JSON format with experiment data
-   * Report format: 
-   *      experiment object - contains experiment parameters 
+   * Report format:
+   *      experiment object - contains experiment parameters
    *      data object - actual results
-   */ 
+   */
   static std::string create_report(ProgramOptions options)
   {
     if (options.skip_json_reporting)
@@ -1184,9 +1236,9 @@ public:
 
     rapidjson::StringBuffer sb;
     rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(sb);
-    document.Accept(writer); 
+    document.Accept(writer);
 
-    std::string output_file_name = specific_results_path + "/results_" + timestring + ".json"; 
+    std::string output_file_name = specific_results_path + "/results_" + timestring + ".json";
     std::ofstream outf(output_file_name);
 
     if (!outf)
@@ -1286,9 +1338,9 @@ public:
     long current = _pool_element_end + 1;  // first run: should be 0 (start index)
     long maximum_elements = -1;
     _pool_element_start = current;
-      
+
     if (_verbose)
-      { 
+      {
         std::stringstream debug_start;
         debug_start << "current = " << current << ", end = " << _pool_element_end;
         _debug_print(core, debug_start.str());
@@ -1326,7 +1378,7 @@ public:
           {
             std::cerr << "current = " << current << std::endl;
             perror("rc didn't return S_OK");
-            throw std::exception(); 
+            throw std::exception();
           }
 
         // calculate maximum number of elements we can put in pool at one time
@@ -1433,7 +1485,7 @@ public:
                     error_string.append(std::to_string(rc));
                     error_string.append(", i = " + std::to_string(i) + ", _i = " + std::to_string(_i));
                     perror(error_string.c_str());
-                  }                 
+                  }
               }
           }
         catch(...)
