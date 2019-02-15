@@ -21,7 +21,7 @@ class Fabric_connection_base {
 
   /* deferred actions */
   typedef struct {
-    int op;
+    int   op;
     void *parm;
   } action_t;
 
@@ -32,9 +32,9 @@ class Fabric_connection_base {
    * @param fabric_connection
    */
   Fabric_connection_base(Component::IFabric_server_factory *factory,
-                         Component::IFabric_server *fabric_connection)
-      : _factory(factory), _transport(fabric_connection),
-        _bm(fabric_connection) {
+                         Component::IFabric_server *        fabric_connection)
+      : _factory(factory), _transport(fabric_connection), _bm(fabric_connection)
+  {
     assert(_transport);
     _max_message_size = _transport->max_message_size();
   }
@@ -43,7 +43,8 @@ class Fabric_connection_base {
    * Dtor
    *
    */
-  ~Fabric_connection_base() {
+  ~Fabric_connection_base()
+  {
     for (auto r : _registered_regions) {
       _transport->deregister_memory(r);
     }
@@ -57,12 +58,13 @@ class Fabric_connection_base {
     _factory->close_connection(_transport);
   }
 
-  static void completion_callback(void *context,
-                                  status_t st,
+  static void completion_callback(void *        context,
+                                  status_t      st,
                                   std::uint64_t completion_flags,
-                                  std::size_t len,
-                                  void *error_data,
-                                  void *param) {
+                                  std::size_t   len,
+                                  void *        error_data,
+                                  void *        param)
+  {
     Fabric_connection_base *pThis =
         static_cast<Fabric_connection_base *>(param);
     /* set callback debugging here */
@@ -101,7 +103,8 @@ class Fabric_connection_base {
     }
   }
 
-  bool check_for_posted_send_complete() {
+  bool check_for_posted_send_complete()
+  {
     if (_posted_send_buffer_outstanding) return false;
 
     if (_posted_send_buffer) {
@@ -112,12 +115,14 @@ class Fabric_connection_base {
     return true;
   }
 
-  bool check_for_posted_recv_complete() {
+  bool check_for_posted_recv_complete()
+  {
     /* don't free buffer (such as above); it will be used for response */
     return _posted_recv_buffer_outstanding == false;
   }
 
-  bool check_for_posted_value_complete(bool *added_deferred_unlock = nullptr) {
+  bool check_for_posted_value_complete(bool *added_deferred_unlock = nullptr)
+  {
     if (_posted_value_buffer_outstanding) return false;
 
     if (_posted_value_buffer) { /* release 'value buffer' from get_direct */
@@ -130,7 +135,8 @@ class Fabric_connection_base {
     return true;
   }
 
-  void free_recv_buffer() {
+  void free_recv_buffer()
+  {
     assert(_posted_recv_buffer_outstanding == false);
     assert(_posted_recv_buffer);
 
@@ -138,7 +144,8 @@ class Fabric_connection_base {
     _posted_recv_buffer = nullptr;
   }
 
-  void post_recv_buffer(buffer_t *buffer) {
+  void post_recv_buffer(buffer_t *buffer)
+  {
     assert(buffer);
     assert(_posted_recv_buffer_outstanding == false);
     _posted_recv_buffer             = buffer;
@@ -148,7 +155,8 @@ class Fabric_connection_base {
                           &_posted_recv_buffer->desc, _posted_recv_buffer);
   }
 
-  void post_send_buffer(buffer_t *buffer, buffer_t *val_buffer = nullptr) {
+  void post_send_buffer(buffer_t *buffer, buffer_t *val_buffer = nullptr)
+  {
     assert(buffer);
     assert(_posted_send_buffer_outstanding == false);
     const auto iov = buffer->iov;
@@ -184,7 +192,8 @@ class Fabric_connection_base {
     }
   }
 
-  void post_send_value_buffer(buffer_t *buffer) {
+  void post_send_value_buffer(buffer_t *buffer)
+  {
     if (buffer) {
       assert(!_posted_value_buffer);
       _posted_value_buffer = buffer;
@@ -196,7 +205,8 @@ class Fabric_connection_base {
                           &_posted_value_buffer->desc, _posted_value_buffer);
   }
 
-  void post_recv_value_buffer(buffer_t *buffer = nullptr) {
+  void post_recv_value_buffer(buffer_t *buffer = nullptr)
+  {
     if (buffer) {
       _posted_value_buffer = buffer;
       /* PLOG("posting recv value buffer (%p)(base=%p,len=%lu)", */
@@ -214,7 +224,8 @@ class Fabric_connection_base {
   inline buffer_t *posted_recv() const { return _posted_recv_buffer; }
   inline buffer_t *posted_send() const { return _posted_send_buffer; }
 
-  bool poll_completions() {
+  bool poll_completions()
+  {
     bool added_deferred_unlock = false;
     try {
       _transport->poll_completions(completion_callback, this);
@@ -232,16 +243,19 @@ class Fabric_connection_base {
    * Forwarders that allow us to avoid exposing _transport and _bm
    *
    */
-  inline auto register_memory(const void *base, size_t len) {
+  inline auto register_memory(const void *base, size_t len)
+  {
     return _transport->register_memory(base, len, 0,
                                        0); /* flags not supported for verbs */
   }
 
-  inline void deregister_memory(memory_region_t region) {
+  inline void deregister_memory(memory_region_t region)
+  {
     return _transport->deregister_memory(region);
   }
 
-  inline void *get_memory_descriptor(memory_region_t region) {
+  inline void *get_memory_descriptor(memory_region_t region)
+  {
     return _transport->get_memory_descriptor(region);
   }
 
@@ -249,7 +263,8 @@ class Fabric_connection_base {
 
   inline void free_buffer(buffer_t *buffer) { _bm.free(buffer); }
 
-  inline size_t IO_buffer_size() const {
+  inline size_t IO_buffer_size() const
+  {
     return Buffer_manager<Component::IFabric_server>::BUFFER_LEN;
   }
 
@@ -257,26 +272,26 @@ class Fabric_connection_base {
   Buffer_manager<Component::IFabric_server> _bm;
 
  protected:
-  size_t _max_message_size;
+  size_t                             _max_message_size;
   Component::IFabric_server_factory *_factory;
-  Component::IFabric_server *_transport;
-  std::vector<memory_region_t> _registered_regions;
-  void *_deferred_unlock = nullptr;
+  Component::IFabric_server *        _transport;
+  std::vector<memory_region_t>       _registered_regions;
+  void *                             _deferred_unlock = nullptr;
 
   /* xx_buffer_outstanding is the signal for completion,
      xx_buffer is the buffer pointer that needs to be freed (and set to null)
   */
-  buffer_t *_posted_recv_buffer        = nullptr;
-  bool _posted_recv_buffer_outstanding = false;
+  buffer_t *_posted_recv_buffer             = nullptr;
+  bool      _posted_recv_buffer_outstanding = false;
 
-  buffer_t *_posted_send_buffer        = nullptr;
-  bool _posted_send_buffer_outstanding = false;
+  buffer_t *_posted_send_buffer             = nullptr;
+  bool      _posted_send_buffer_outstanding = false;
 
   /* value for two-phase get & put - assumes get and put don't happen
      at the same time for the same FSM
    */
-  buffer_t *_posted_value_buffer        = nullptr;
-  bool _posted_value_buffer_outstanding = false;
+  buffer_t *_posted_value_buffer             = nullptr;
+  bool      _posted_value_buffer_outstanding = false;
 };
 
 }  // namespace Dawn

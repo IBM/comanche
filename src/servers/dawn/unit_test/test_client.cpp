@@ -5,8 +5,9 @@
 #include <stdlib.h>
 #include <boost/program_options.hpp>
 
-int main(int argc, char* argv[]) {
-  int port;
+int main(int argc, char* argv[])
+{
+  int         port;
   std::string server_addr;
 
   try {

@@ -23,7 +23,8 @@ unsigned debug_level = 0;
 void Shard::initialize_components(const std::string& backend,
                                   const std::string& pci_addr,
                                   const std::string& dax_config,
-                                  unsigned debug_level) {
+                                  unsigned           debug_level)
+{
   using namespace Component;
 
   /* STORE */
@@ -56,14 +57,15 @@ void Shard::initialize_components(const std::string& backend,
     assert(fact);
 
     if (backend == "hstore") {
-      if(dax_config.empty())
+      if (dax_config.empty())
         throw General_exception("hstore backend requires dax configuration");
-      
+
       _i_kvstore = fact->create("owner", "name", dax_config);
     }
     else if (backend == "nvmestore") {
       if (pci_addr.empty())
-        throw General_exception("nvmestore backend needs pci device configuration");
+        throw General_exception(
+            "nvmestore backend needs pci device configuration");
 
       _i_kvstore = fact->create("owner", "name", pci_addr);
     }
@@ -77,7 +79,8 @@ void Shard::initialize_components(const std::string& backend,
   }
 }
 
-void Shard::main_loop() {
+void Shard::main_loop()
+{
   using namespace Dawn::Protocol;
 
   assert(_i_kvstore);
@@ -86,10 +89,10 @@ void Shard::main_loop() {
   ProfilerStart("shard_main_loop");
 #endif
 
-  uint64_t tick                                       = 0;
-  static constexpr uint64_t CHECK_CONNECTION_INTERVAL = 10000;
+  uint64_t                  tick __attribute__((aligned(8))) = 0;
+  static constexpr uint64_t CHECK_CONNECTION_INTERVAL        = 1000000;
 
-  Connection_handler::action_t action;
+  Connection_handler::action_t                            action;
   std::vector<std::vector<Connection_handler*>::iterator> pending_close;
 
   while (_thread_exit == false) {
@@ -103,7 +106,7 @@ void Shard::main_loop() {
       const auto handler = *handler_iter;
 
       /* issue tick */
-      auto tick_response = handler->tick();
+      const auto tick_response = handler->tick();
 
       /* close session */
       if (tick_response == Dawn::Connection_handler::TICK_RESPONSE_CLOSE) {
@@ -126,7 +129,7 @@ void Shard::main_loop() {
       }
 
       /* collect ALL available messages */
-      buffer_t* iob;
+      buffer_t*          iob;
       Protocol::Message* p_msg = nullptr;
       while ((iob = handler->get_pending_msg(p_msg)) != nullptr) {
         assert(p_msg);
@@ -171,7 +174,8 @@ void Shard::main_loop() {
 }
 
 void Shard::process_message_pool_request(Connection_handler* handler,
-                                         Protocol::Message_pool_request* msg) {
+                                         Protocol::Message_pool_request* msg)
+{
   // validate auth id
   assert(msg->op);
 
@@ -213,7 +217,7 @@ void Shard::process_message_pool_request(Connection_handler* handler,
       if (option_DEBUG > 2) PLOG("OP_CREATE: new pool id: %lx", pool);
 
       std::vector<::iovec> regions;
-      status_t rc = _i_kvstore->get_pool_regions(pool, regions);
+      status_t             rc = _i_kvstore->get_pool_regions(pool, regions);
       if (rc == S_OK) {
       }
 
@@ -316,8 +320,9 @@ void Shard::process_message_pool_request(Connection_handler* handler,
   handler->post_response(response_iob);
 }
 
-void Shard::process_message_IO_request(Connection_handler* handler,
-                                       Protocol::Message_IO_request* msg) {
+void Shard::process_message_IO_request(Connection_handler*           handler,
+                                       Protocol::Message_IO_request* msg)
+{
   using namespace Component;
 
   // if(!_pm->is_pool_open(msg->pool_id))
@@ -334,7 +339,7 @@ void Shard::process_message_IO_request(Connection_handler* handler,
     const auto val_len = msg->val_len;
 
     /* open memory */
-    void* target      = nullptr;
+    void*  target     = nullptr;
     size_t target_len = msg->val_len;
     assert(target_len > 0);
 
@@ -393,13 +398,12 @@ void Shard::process_message_IO_request(Connection_handler* handler,
       PLOG("PUT: (%p) key=(%.*s) value=(%.*s)", this, (int) msg->key_len,
            msg->key(), (int) msg->val_len, msg->value());
 
-    if (msg->resvd & Dawn::Protocol::MSG_RESVD_SCBE) {
+    if (unlikely(msg->resvd & Dawn::Protocol::MSG_RESVD_SCBE)) {
       status = S_OK;  // short-circuit backend
       if (option_DEBUG > 2) PLOG("PUT: short-circuited backend");
     }
     else {
-      std::string k;
-      k.assign(msg->key(), msg->key_len);
+      const std::string k(msg->key(), msg->key_len);
       status = _i_kvstore->put(msg->pool_id, k, msg->value(), msg->val_len);
 
       if (option_DEBUG > 2) {
@@ -427,7 +431,7 @@ void Shard::process_message_IO_request(Connection_handler* handler,
       handler->post_response(iob);
     }
     else {
-      void* value_out      = nullptr;
+      void*  value_out     = nullptr;
       size_t value_out_len = 0;
 
       std::string k;
@@ -527,7 +531,8 @@ void Shard::process_message_IO_request(Connection_handler* handler,
   handler->post_response(iob);  // issue IO request response
 }
 
-void Shard::check_for_new_connections() {
+void Shard::check_for_new_connections()
+{
   /* new connections are transferred from the connection handler
      to the shard thread */
   Connection_handler* handler;

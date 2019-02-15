@@ -68,7 +68,8 @@ class Connection_handler
 
  public:
   Connection_handler(Factory* factory, Connection* connection)
-      : Connection_base(factory, connection), Region_manager(connection) {
+      : Connection_base(factory, connection), Region_manager(connection)
+  {
     _pending_actions.reserve(Buffer_manager<Connection>::DEFAULT_BUFFER_COUNT);
     _pending_msgs.reserve(Buffer_manager<Connection>::DEFAULT_BUFFER_COUNT);
   }
@@ -88,7 +89,8 @@ class Connection_handler
    *
    * @param s
    */
-  inline void set_state(State s) {
+  inline void set_state(State s)
+  {
     _tick_count++;
     _state = s; /* we could add transition checking later */
   }
@@ -100,7 +102,8 @@ class Connection_handler
    *
    * @return Pointer to buffer holding the message or null if there are none
    */
-  buffer_t* get_pending_msg(Dawn::Protocol::Message*& msg) {
+  buffer_t* get_pending_msg(Dawn::Protocol::Message*& msg)
+  {
     if (_pending_msgs.empty()) return nullptr;
     auto iob = _pending_msgs.back();
     assert(iob);
@@ -116,7 +119,8 @@ class Connection_handler
    *
    * @return True if action
    */
-  inline bool get_pending_action(action_t& action) {
+  inline bool get_pending_action(action_t& action)
+  {
     if (_pending_actions.empty()) return false;
     action = _pending_actions.back();
     _pending_actions.pop_back();
@@ -128,7 +132,8 @@ class Connection_handler
    *
    * @param action Action to add
    */
-  inline void add_pending_action(const action_t action) {
+  inline void add_pending_action(const action_t action)
+  {
     _pending_actions.push_back(action);
   }
 
@@ -137,7 +142,8 @@ class Connection_handler
    *
    * @param iob IO buffer to post
    */
-  void post_response(buffer_t* iob, buffer_t* val_iob = nullptr) {
+  void post_response(buffer_t* iob, buffer_t* val_iob = nullptr)
+  {
     assert(iob);
 
     post_send_buffer(iob, val_iob);
@@ -158,7 +164,7 @@ class Connection_handler
    * @param target_len
    * @param region
    */
-  void set_pending_value(void* target,
+  void set_pending_value(void*  target,
                          size_t target_len,
                          Component::IFabric_connection::memory_region_t region);
 
@@ -175,7 +181,8 @@ class Connection_handler
     unsigned long wait_respond_complete_misses = 0;
   } _stats __attribute__((aligned(8)));
 
-  void dump_stats() {
+  void dump_stats()
+  {
     PINF("-----------------------------------------");
     PINF("| Connection Handler Statistics         |");
     PINF("-----------------------------------------");
@@ -190,10 +197,10 @@ class Connection_handler
   }
 
  private:
-  unsigned long _tick_count = 0;
+  unsigned long          _tick_count = 0;
   std::vector<buffer_t*> _pending_msgs;
-  std::vector<action_t> _pending_actions;
-  int _response;
+  std::vector<action_t>  _pending_actions;
+  int                    _response;
 };
 
 }  // namespace Dawn

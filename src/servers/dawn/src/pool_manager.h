@@ -23,7 +23,8 @@ class Pool_manager {
    *
    * @param pool Pool path
    */
-  bool check_for_open_pool(const std::string& path, pool_t& out_pool) {
+  bool check_for_open_pool(const std::string& path, pool_t& out_pool)
+  {
     auto i = _name_map.find(path);
     if (i == _name_map.end()) {
       PLOG("check_for_open_pool (%s) false", path.c_str());
@@ -39,7 +40,8 @@ class Pool_manager {
    *
    * @param pool Pool identifier
    */
-  void register_pool(const std::string& path, pool_t pool) {
+  void register_pool(const std::string& path, pool_t pool)
+  {
     assert(pool);
     if (_open_pools.find(pool) != _open_pools.end())
       throw General_exception("pool already registered");
@@ -48,7 +50,8 @@ class Pool_manager {
     _name_map[path]   = pool;
   }
 
-  void add_reference(pool_t pool) {
+  void add_reference(pool_t pool)
+  {
     if (_open_pools.find(pool) == _open_pools.end())
       throw Logic_exception("add reference to un-open pool");
     else
@@ -62,7 +65,8 @@ class Pool_manager {
    *
    * @return Returns true if reference becomes 0
    */
-  bool release_pool_reference(pool_t pool) {
+  bool release_pool_reference(pool_t pool)
+  {
     std::map<pool_t, unsigned>::iterator i = _open_pools.find(pool);
     if (i == _open_pools.end())
       throw Logic_exception("release_pool_reference on invalid pool");
@@ -85,7 +89,8 @@ class Pool_manager {
    *
    * @param pool Pool identifier
    */
-  bool is_pool_open(pool_t pool) const {
+  bool is_pool_open(pool_t pool) const
+  {
     auto i = _open_pools.find(pool);
     if (i != _open_pools.end()) {
       return i->second > 0;
@@ -94,12 +99,13 @@ class Pool_manager {
       return false;
   }
 
-  inline const std::map<pool_t, unsigned>& open_pool_set() {
+  inline const std::map<pool_t, unsigned>& open_pool_set()
+  {
     return _open_pools;
   }
 
  private:
-  std::map<pool_t, unsigned> _open_pools;
+  std::map<pool_t, unsigned>    _open_pools;
   std::map<std::string, pool_t> _name_map;
   std::map<pool_t, std::vector<Connection_base::memory_region_t>>
       _memory_regions;
