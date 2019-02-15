@@ -25,24 +25,26 @@ class Buffer_manager {
   using memory_region_t = typename Transport::memory_region_t;
 
   struct buffer_t {
-    iovec *iov;
+    iovec *         iov;
     memory_region_t region;
-    void *desc;
-    const size_t original_length;
-    int flags;
-    const unsigned magic;
+    void *          desc;
+    const size_t    original_length;
+    int             flags;
+    const unsigned  magic;
 
-    buffer_t(size_t length)
-        : original_length(length), flags(0), magic(0xC0FFEE) {}
+    buffer_t(size_t length) : original_length(length), flags(0), magic(0xC0FFEE)
+    {
+    }
 
     ~buffer_t() { delete iov; }
 
-    inline void *base() { return iov->iov_base; }
+    inline void * base() { return iov->iov_base; }
     inline size_t length() { return iov->iov_len; }
-    inline void set_length(size_t s) { iov->iov_len = s; }
-    inline void set_external() { flags |= BUFFER_FLAGS_EXTERNAL; }
-    inline bool is_external() const { return flags & BUFFER_FLAGS_EXTERNAL; }
-    inline void reset_length() {
+    inline void   set_length(size_t s) { iov->iov_len = s; }
+    inline void   set_external() { flags |= BUFFER_FLAGS_EXTERNAL; }
+    inline bool   is_external() const { return flags & BUFFER_FLAGS_EXTERNAL; }
+    inline void   reset_length()
+    {
       assert(!is_external());
       assert(original_length > 1);
       iov->iov_len = original_length;
@@ -52,19 +54,22 @@ class Buffer_manager {
 
  public:
   Buffer_manager(Transport *transport,
-                 size_t buffer_count = DEFAULT_BUFFER_COUNT)
-      : _buffer_count(buffer_count), _transport(transport) {
+                 size_t     buffer_count = DEFAULT_BUFFER_COUNT)
+      : _buffer_count(buffer_count), _transport(transport)
+  {
     init();
   }
 
-  ~Buffer_manager() {
+  ~Buffer_manager()
+  {
     for (auto b : _buffers) {
       ::free(b->iov->iov_base);
       delete b;
     }
   }
 
-  buffer_t *allocate() {
+  buffer_t *allocate()
+  {
     if (_free.empty()) throw Program_exception("no buffers");
     auto iob = _free.back();
     assert(iob->flags == 0);
@@ -73,7 +78,8 @@ class Buffer_manager {
     return iob;
   }
 
-  void free(buffer_t *iob) {
+  void free(buffer_t *iob)
+  {
     assert(iob);
     assert(iob->flags == 0);
 
@@ -83,7 +89,8 @@ class Buffer_manager {
   }
 
  private:
-  void init() {
+  void init()
+  {
     auto alloc_iov = []() -> iovec * {
       iovec *iov    = new iovec;
       iov->iov_base = aligned_alloc(MiB(2), BUFFER_LEN);
@@ -114,8 +121,8 @@ class Buffer_manager {
   using pool_t = Component::IKVStore::pool_t;
   using key_t  = std::uint64_t;
 
-  Transport *_transport;
-  const size_t _buffer_count;
+  Transport *             _transport;
+  const size_t            _buffer_count;
   std::vector<buffer_t *> _buffers;
   std::vector<buffer_t *> _free;
 };

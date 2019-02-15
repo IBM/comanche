@@ -19,7 +19,8 @@ class Fabric_transport {
 
   Fabric_transport(const std::string provider,
                    const std::string device,
-                   unsigned port) {
+                   unsigned          port)
+  {
     option_DEBUG = Dawn::Global::debug_level > 1;
 
     if (option_DEBUG)
@@ -29,7 +30,8 @@ class Fabric_transport {
     init(provider, device, port);
   }
 
-  Connection_handler* get_new_connection() {
+  Connection_handler* get_new_connection()
+  {
     auto connection = _server_factory->get_new_connection();
     if (!connection) return nullptr;
     return new Connection_handler(_server_factory, connection);
@@ -38,7 +40,8 @@ class Fabric_transport {
  private:
   void init(const std::string& provider,
             const std::string& device,
-            unsigned port) {
+            unsigned           port)
+  {
     using namespace Component;
 
     if (option_DEBUG) PLOG("Fabric: bound to device (%s)", device.c_str());
@@ -82,7 +85,7 @@ class Fabric_transport {
     i_fabric_factory->release_ref();
   }
 
-  Component::IFabric* _fabric;
+  Component::IFabric*                _fabric;
   Component::IFabric_server_factory* _server_factory;
 };
 

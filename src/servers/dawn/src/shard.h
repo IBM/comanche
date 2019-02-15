@@ -33,8 +33,8 @@ class Shard : public Shard_transport {
   unsigned option_DEBUG;
 
  public:
-  Shard(int core,
-        unsigned int port,
+  Shard(int               core,
+        unsigned int      port,
         const std::string provider,
         const std::string device,
         const std::string net,
@@ -42,15 +42,21 @@ class Shard : public Shard_transport {
         const std::string pci_addr,
         const std::string pm_path,
         const std::string dax_config,
-        unsigned debug_level,
-        bool forced_exit)
+        unsigned          debug_level,
+        bool              forced_exit)
       : Shard_transport(provider, net, port), _core(core),
-        _forced_exit(forced_exit),
-        _thread(&Shard::thread_entry, this, backend, pci_addr, dax_config, debug_level) {
+        _forced_exit(forced_exit), _thread(&Shard::thread_entry,
+                                           this,
+                                           backend,
+                                           pci_addr,
+                                           dax_config,
+                                           debug_level)
+  {
     option_DEBUG = Dawn::Global::debug_level = debug_level;
   }
 
-  ~Shard() {
+  ~Shard()
+  {
     _thread_exit = true;
     /* TODO: unblock */
     _thread.join();
@@ -63,7 +69,8 @@ class Shard : public Shard_transport {
   void thread_entry(const std::string& backend,
                     const std::string& pci_addr,
                     const std::string& dax_config,
-                    unsigned debug_level) {
+                    unsigned           debug_level)
+  {
     if (option_DEBUG > 2) PLOG("shard:%u worker thread entered.", _core);
 
     if (set_cpu_affinity(1UL << _core) != 0)
@@ -76,14 +83,16 @@ class Shard : public Shard_transport {
     if (option_DEBUG > 2) PLOG("shard:%u worker thread exited.", _core);
   }
 
-  void add_locked_value(const pool_t pool_id,
+  void add_locked_value(const pool_t               pool_id,
                         Component::IKVStore::key_t key,
-                        void* target) {
+                        void*                      target)
+  {
     if (option_DEBUG > 2) PLOG("shard: locked value (target=%p)", target);
     _locked_values[target] = std::make_pair(pool_id, key);
   }
 
-  void release_locked_value(const void* target) {
+  void release_locked_value(const void* target)
+  {
     auto i = _locked_values.find(target);
     if (i == _locked_values.end())
       throw Logic_exception("bad target to unlock value");
@@ -98,25 +107,25 @@ class Shard : public Shard_transport {
   void initialize_components(const std::string& backend,
                              const std::string& pci_addr,
                              const std::string& dax_config,
-                             unsigned debug_level);
+                             unsigned           debug_level);
 
   void check_for_new_connections();
 
   void main_loop();
 
-  void process_message_pool_request(Connection_handler* handler,
+  void process_message_pool_request(Connection_handler*             handler,
                                     Protocol::Message_pool_request* msg);
 
-  void process_message_IO_request(Connection_handler* handler,
+  void process_message_IO_request(Connection_handler*           handler,
                                   Protocol::Message_IO_request* msg);
 
  private:
-  bool _thread_exit = false;
-  bool _forced_exit;
-  unsigned _core;
-  std::thread _thread;
-  size_t _max_message_size;
-  Component::IKVStore* _i_kvstore;
+  bool                             _thread_exit = false;
+  bool                             _forced_exit;
+  unsigned                         _core;
+  std::thread                      _thread;
+  size_t                           _max_message_size;
+  Component::IKVStore*             _i_kvstore;
   std::vector<Connection_handler*> _handlers;
 
   std::map<const void*, std::pair<pool_t, Component::IKVStore::key_t>>
