@@ -63,7 +63,8 @@ enum {
 
 struct Message {
   Message(uint64_t auth_id, uint8_t type_id, uint8_t op_param = OP_INVALID)
-      : auth_id(auth_id), type_id(type_id), version(PROTOCOL_VERSION) {
+      : auth_id(auth_id), type_id(type_id), version(PROTOCOL_VERSION)
+  {
     status = S_OK;
     assert(op_param);
     op = op_param;
@@ -72,18 +73,19 @@ struct Message {
 
   Message() {}
 
-  void print() {
+  void print()
+  {
     PLOG("Message:%p auth_id:%lu msg_len=%u type=%x", this, auth_id, msg_len,
          type_id);
   }
 
   uint64_t auth_id;  // authorization token
   uint32_t msg_len;
-  uint8_t version;
-  uint8_t type_id;  // message type id
+  uint8_t  version;
+  uint8_t  type_id;  // message type id
   union {
     uint8_t op;
-    int8_t status;
+    int8_t  status;
   };
   uint8_t resvd;
 } __attribute__((packed));
@@ -96,15 +98,16 @@ static_assert(sizeof(Message) == 16, "Unexpected Message data structure size");
 // POOL OPERATIONS - create, delete
 
 struct Message_pool_request : public Message {
-  Message_pool_request(size_t buffer_size,
-                       uint64_t auth_id,
-                       uint64_t request_id,
-                       size_t pool_size,
-                       uint8_t op,
+  Message_pool_request(size_t             buffer_size,
+                       uint64_t           auth_id,
+                       uint64_t           request_id,
+                       size_t             pool_size,
+                       uint8_t            op,
                        const std::string& path,
                        const std::string& pool_name)
       : Message(auth_id, MSG_TYPE_POOL_REQUEST, op), pool_size(pool_size),
-        expected_object_count(0) {
+        expected_object_count(0)
+  {
     assert(op);
     assert(this->op);
     assert(buffer_size > sizeof(Message_pool_request));
@@ -127,12 +130,13 @@ struct Message_pool_request : public Message {
     msg_len = sizeof(Message_pool_request) + len + 2;
   }
 
-  Message_pool_request(size_t buffer_size,
+  Message_pool_request(size_t   buffer_size,
                        uint64_t auth_id,
                        uint64_t request_id,
-                       uint8_t op)
+                       uint8_t  op)
       : Message(auth_id, MSG_TYPE_POOL_REQUEST, op), pool_size(0),
-        expected_object_count(0) {
+        expected_object_count(0)
+  {
     assert(op);
     assert(buffer_size > sizeof(Message_pool_request));
     data[0] = '\0';
@@ -145,7 +149,7 @@ struct Message_pool_request : public Message {
   size_t pool_size; /*< size of pool in bytes */
   size_t expected_object_count;
   union {
-    size_t pool_name_offset; /* offset in data[] for pool name */
+    size_t   pool_name_offset; /* offset in data[] for pool name */
     uint64_t pool_id;
   };
   char data[]; /*< unique name of pool (for this client) */
@@ -154,76 +158,82 @@ struct Message_pool_request : public Message {
 
 struct Message_pool_response : public Message {
   Message_pool_response(uint64_t auth_id)
-      : Message(auth_id, MSG_TYPE_POOL_RESPONSE) {
+      : Message(auth_id, MSG_TYPE_POOL_RESPONSE)
+  {
     msg_len = sizeof(Message_pool_response);
   }
   Message_pool_response() { assert(this->version == PROTOCOL_VERSION); }
   uint64_t pool_id;
-  char data[];
+  char     data[];
 } __attribute__((packed));
 
 ////////////////////////////////////////////////////////////////////////
 // IO OPERATIONS
 
 struct Message_IO_request : public Message {
-  Message_IO_request(size_t buffer_size,
-                     uint64_t auth_id,
-                     uint64_t request_id,
-                     uint64_t pool_id,
-                     uint8_t op,
+  Message_IO_request(size_t             buffer_size,
+                     uint64_t           auth_id,
+                     uint64_t           request_id,
+                     uint64_t           pool_id,
+                     uint8_t            op,
                      const std::string& key,
                      const std::string& value)
       : Message(auth_id, MSG_TYPE_IO_REQUEST, op), request_id(request_id),
-        pool_id(pool_id) {
+        pool_id(pool_id)
+  {
     set_key_and_value(buffer_size, key, value);
     msg_len = sizeof(Message_IO_request) + key_len + value.length();
   }
 
-  Message_IO_request(size_t buffer_size,
-                     uint64_t auth_id,
-                     uint64_t request_id,
-                     uint64_t pool_id,
-                     uint8_t op,
+  Message_IO_request(size_t      buffer_size,
+                     uint64_t    auth_id,
+                     uint64_t    request_id,
+                     uint64_t    pool_id,
+                     uint8_t     op,
                      const void* key,
-                     size_t key_len,
-                     size_t value_len)
+                     size_t      key_len,
+                     size_t      value_len)
       : Message(auth_id, MSG_TYPE_IO_REQUEST, op), request_id(request_id),
-        pool_id(pool_id) {
+        pool_id(pool_id)
+  {
     set_key_value_len(buffer_size, key, key_len, value_len);
     msg_len = sizeof(Message_IO_request) + key_len;
   }
 
-  Message_IO_request(size_t buffer_size,
-                     uint64_t auth_id,
-                     uint64_t request_id,
-                     uint64_t pool_id,
-                     uint8_t op,
+  Message_IO_request(size_t       buffer_size,
+                     uint64_t     auth_id,
+                     uint64_t     request_id,
+                     uint64_t     pool_id,
+                     uint8_t      op,
                      std::string& key,
-                     size_t value_len)
+                     size_t       value_len)
       : Message(auth_id, MSG_TYPE_IO_REQUEST, op), request_id(request_id),
-        pool_id(pool_id) {
+        pool_id(pool_id)
+  {
     set_key_value_len(buffer_size, key, value_len);
     msg_len = sizeof(Message_IO_request) + key_len;
   }
 
-  Message_IO_request(size_t buffer_size,
-                     uint64_t auth_id,
-                     uint64_t request_id,
-                     uint64_t pool_id,
-                     uint8_t op,
+  Message_IO_request(size_t      buffer_size,
+                     uint64_t    auth_id,
+                     uint64_t    request_id,
+                     uint64_t    pool_id,
+                     uint8_t     op,
                      const void* key,
-                     size_t key_len,
+                     size_t      key_len,
                      const void* value,
-                     size_t value_len)
+                     size_t      value_len)
       : Message(auth_id, MSG_TYPE_IO_REQUEST, op), request_id(request_id),
-        pool_id(pool_id) {
+        pool_id(pool_id)
+  {
     set_key_and_value(buffer_size, key, key_len, value, value_len);
     msg_len = sizeof(Message_IO_request) + key_len + value_len + 1;
   }
 
   Message_IO_request() { assert(version == PROTOCOL_VERSION); }
 
-  void dump() {
+  void dump()
+  {
     switch (op) {
       case OP_PUT:
         PINF("Message_IO_request: OP_PUT key_len:%lu val_len:%lu", key_len,
@@ -245,16 +255,18 @@ struct Message_IO_request : public Message {
   const size_t get_key_len() const { return key_len; }
   const size_t get_value_len() const { return val_len; }
 
-  inline void set_key_value_len(size_t buffer_size,
+  inline void set_key_value_len(size_t             buffer_size,
                                 const std::string& key,
-                                const size_t value_len) {
+                                const size_t       value_len)
+  {
     set_key_value_len(buffer_size, key.c_str(), key.length(), value_len);
   }
 
-  void set_key_value_len(size_t buffer_size,
-                         const void* key,
+  void set_key_value_len(size_t       buffer_size,
+                         const void*  key,
                          const size_t key_len,
-                         const size_t value_len) {
+                         const size_t value_len)
+  {
     if (unlikely((key_len + sizeof(Message_IO_request)) > buffer_size))
       throw API_exception(
           "Message_IO_request::set_key_value_len - insufficient buffer for "
@@ -267,18 +279,20 @@ struct Message_IO_request : public Message {
     this->key_len = key_len;
   }
 
-  inline void set_key_and_value(const size_t buffer_size,
+  inline void set_key_and_value(const size_t       buffer_size,
                                 const std::string& key,
-                                const std::string& value) {
+                                const std::string& value)
+  {
     set_key_and_value(buffer_size, key.c_str(), key.length(), value.c_str(),
                       value.length());
   }
 
   void set_key_and_value(const size_t buffer_size,
-                         const void* p_key,
+                         const void*  p_key,
                          const size_t p_key_len,
-                         const void* p_value,
-                         const size_t p_value_len) {
+                         const void*  p_value,
+                         const size_t p_value_len)
+  {
     assert(buffer_size > 0);
     if (unlikely((p_key_len + p_value_len + 2 + sizeof(Message_IO_request)) >
                  buffer_size))
@@ -299,7 +313,7 @@ struct Message_IO_request : public Message {
   uint64_t request_id; /*< id or sender timestamp counter */
   uint64_t key_len;
   uint64_t val_len;
-  char data[];
+  char     data[];
 
 } __attribute__((packed));
 
@@ -307,14 +321,16 @@ struct Message_IO_response : public Message {
   static constexpr uint64_t BIT_TWOSTAGE = 1ULL << 63;
 
   Message_IO_response(size_t buffer_size, uint64_t auth_id)
-      : Message(auth_id, MSG_TYPE_IO_RESPONSE) {
+      : Message(auth_id, MSG_TYPE_IO_RESPONSE)
+  {
     data_len = 0;
     msg_len  = sizeof(Message_IO_response);
   }
 
   Message_IO_response() {}
 
-  void copy_in_data(const void* in_data, size_t len) {
+  void copy_in_data(const void* in_data, size_t len)
+  {
     assert((len + sizeof(Message_IO_response)) < data_len);
     memcpy(data, in_data, len);
     data_len = len;
@@ -332,7 +348,7 @@ struct Message_IO_response : public Message {
   // fields
   uint64_t request_id; /*< id or sender time stamp counter */
   uint64_t data_len;   /* bit 63 is twostage flag */
-  char data[];
+  char     data[];
 } __attribute__((packed));
 
 ////////////////////////////////////////////////////////////////////////
@@ -341,14 +357,15 @@ struct Message_IO_response : public Message {
 struct Message_handshake : public Message {
   Message_handshake(uint64_t auth_id, uint64_t sequence)
       : Message(auth_id, MSG_TYPE_HANDSHAKE), seq(sequence),
-        protocol(PROTOCOL_KV) {
+        protocol(PROTOCOL_KV)
+  {
     msg_len = sizeof(Message_handshake);
   }
   Message_handshake() {}
 
   // fields
   uint64_t seq;
-  uint8_t protocol;
+  uint8_t  protocol;
 
   void set_as_protocol() { protocol = PROTOCOL_AS; }
 
@@ -361,9 +378,10 @@ struct Message_handshake_reply : public Message {
   Message_handshake_reply(uint64_t auth_id,
                           uint64_t sequence,
                           uint64_t session_id,
-                          size_t mms)
+                          size_t   mms)
       : Message(auth_id, MSG_TYPE_HANDSHAKE_REPLY), seq(sequence),
-        session_id(session_id), max_message_size(mms) {
+        session_id(session_id), max_message_size(mms)
+  {
     msg_len = sizeof(Message_handshake_reply);
   }
   Message_handshake_reply() {}
@@ -371,7 +389,7 @@ struct Message_handshake_reply : public Message {
   // fields
   uint64_t seq;
   uint64_t session_id;
-  size_t max_message_size;
+  size_t   max_message_size;
 
 } __attribute__((packed));
 
@@ -380,7 +398,8 @@ struct Message_handshake_reply : public Message {
 
 struct Message_close_session : public Message {
   Message_close_session(uint64_t auth_id)
-      : Message(auth_id, MSG_TYPE_CLOSE_SESSION) {
+      : Message(auth_id, MSG_TYPE_CLOSE_SESSION)
+  {
     msg_len = sizeof(Message_handshake_reply);
   }
   Message_close_session() { msg_len = sizeof(Message_handshake_reply); }
