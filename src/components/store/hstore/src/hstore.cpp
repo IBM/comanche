@@ -40,6 +40,8 @@
 #include "persist_fixed_string.h"
 
 #include <stdexcept>
+#include <set>
+
 #include <city.h>
 #include <common/exceptions.h>
 #include <common/logging.h>
@@ -152,16 +154,9 @@ using session_t = session<hstore_pmem::open_pool_handle, ALLOC_T, table_t>;
 using session_t = session<hstore_nupm::open_pool_handle, ALLOC_T, table_t>;
 #endif
 
-namespace
-{
-  struct tls_cache_t {
-    tracked_pool *recent_pool;
-  };
-}
-
 /* globals */
 
-thread_local tls_cache_t tls_cache = { nullptr };
+thread_local std::set<tracked_pool *> tls_cache = {};
 
 auto hstore::locate_session(const Component::IKVStore::pool_t pid) -> tracked_pool &
 {
@@ -171,7 +166,8 @@ auto hstore::locate_session(const Component::IKVStore::pool_t pid) -> tracked_po
 auto hstore::locate_open_pool(const Component::IKVStore::pool_t pid) -> tracked_pool &
 {
   auto *const s = reinterpret_cast<tracked_pool *>(pid);
-  if ( s == nullptr || s != tls_cache.recent_pool )
+  auto it = tls_cache.find(s);
+  if ( it == tls_cache.end() )
   {
     std::unique_lock<std::mutex> sessions_lk(_pools_mutex);
     auto ps = _pools.find(s);
@@ -179,9 +175,9 @@ auto hstore::locate_open_pool(const Component::IKVStore::pool_t pid) -> tracked_
     {
       throw API_exception(PREFIX "invalid pool identifier %p", __func__, s);
     }
-    tls_cache.recent_pool = ps->second.get();
+    it = tls_cache.insert(ps->second.get()).first;
   }
-  return *tls_cache.recent_pool;
+  return **it;
 }
 
 auto hstore::move_pool(const Component::IKVStore::pool_t pid) -> std::unique_ptr<tracked_pool>
@@ -195,7 +191,7 @@ auto hstore::move_pool(const Component::IKVStore::pool_t pid) -> std::unique_ptr
       throw API_exception(PREFIX "invalid pool identifier %p", __func__, s);
     }
 
-  if ( s == tls_cache.recent_pool ) { tls_cache.recent_pool = nullptr; }
+  tls_cache.erase(s);
   auto s2 = std::move(ps->second);
   _pools.erase(ps);
   return s2;
@@ -228,6 +224,7 @@ auto hstore::create_pool(
                          unsigned int /* flags */,
                          const uint64_t  expected_obj_count_) -> pool_t
 {
+  std::cerr << "create_pool " << dir_ << "/" << name_ << " size " << size_ << "\n";
   if ( option_DEBUG )
   {
     PLOG(PREFIX "dir=%s pool_name=%s", __func__, dir_.c_str(), name_.c_str());
