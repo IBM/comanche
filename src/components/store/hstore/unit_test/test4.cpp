@@ -68,7 +68,7 @@ namespace {
 class KVStore_test
   : public ::testing::Test
 {
-  static constexpr std::size_t estimated_object_count_large = 64000000;
+  static constexpr std::size_t estimated_object_count_large = 6000000;
   /* More testing of table splits, at a performance cost */
   static constexpr std::size_t estimated_object_count_small = 1;
 
@@ -91,7 +91,7 @@ class KVStore_test
     // before the destructor).
   }
 
-  using poolv_t = std::array<Component::IKVStore::pool_t, 2>;
+  using poolv_t = std::array<Component::IKVStore::pool_t, 4>;
 
   // Objects declared here can be used by all tests in the test case
 
@@ -195,8 +195,8 @@ TEST_F(KVStore_test, CreatePools)
   ASSERT_TRUE(_kvstore);
   for ( auto i = 0; i != pool.size(); ++i )
   {
-    pool[i] = _kvstore->create_pool(pool_dir(), pool_name(i), MB(16381UL), 0, estimated_object_count);
-    ASSERT_LT(0, int64_t(pool[0]));
+    pool[i] = _kvstore->create_pool(pool_dir(), pool_name(i), GB(12UL), 0, estimated_object_count);
+    ASSERT_LT(0, int64_t(pool[i]));
   }
 }
 
@@ -284,7 +284,7 @@ TEST_F(KVStore_test, PutManyShortShort)
 
   auto count_actual = put_many_threaded(kvv_short_short, "short_short");
 
-  EXPECT_LE(count_actual, many_count_target*pool.size());
+  EXPECT_GE(many_count_target*pool.size(), count_actual);
   EXPECT_LE(many_count_target*pool.size() * 0.99, double(count_actual));
 
   multi_count_actual += count_actual;
@@ -297,7 +297,7 @@ TEST_F(KVStore_test, PutManyShortLong)
 
   auto count_actual = put_many_threaded(kvv_short_long, "short_long");
 
-  EXPECT_LE(count_actual, many_count_target*pool.size());
+  EXPECT_GE(many_count_target*pool.size(), count_actual);
   EXPECT_LE(many_count_target*pool.size() * 0.99, double(count_actual));
 
   multi_count_actual += count_actual;
@@ -310,7 +310,7 @@ TEST_F(KVStore_test, PutManyLongLong)
 
   auto count_actual = put_many_threaded(kvv_long_long, "long_long");
 
-  EXPECT_LE(count_actual, many_count_target*pool.size());
+  EXPECT_GE(many_count_target*pool.size(), count_actual);
   EXPECT_LE(many_count_target*pool.size() * 0.99, double(count_actual));
 
   multi_count_actual += count_actual;
@@ -319,11 +319,16 @@ TEST_F(KVStore_test, PutManyLongLong)
 TEST_F(KVStore_test, Size1)
 {
   ASSERT_NE(nullptr, _kvstore);
-  for ( auto i = 0; i != pool.size(); ++i ) { ASSERT_LT(0, int64_t(pool[i])); }
+  for ( auto p : pool ) { ASSERT_LT(0, int64_t(p)); }
 
-  auto count = _kvstore->count(pool[0]) + _kvstore->count(pool[1]);
+  unsigned long count = 0;
+  for ( auto p : pool )
+  {
+    count += _kvstore->count(p);
+  }
+
   /* count should reflect PutMany */
-  EXPECT_EQ(count, multi_count_actual);
+  EXPECT_EQ(multi_count_actual, count);
 }
 
 void KVStore_test::get_many(Component::IKVStore::pool_t pool, const kvv_t &kvv, const std::string &descr)
@@ -346,8 +351,8 @@ void KVStore_test::get_many(Component::IKVStore::pool_t pool, const kvv_t &kvv, 
         void * value = nullptr;
         size_t value_len = 0;
         auto r = _kvstore->get(pool, key, value, value_len);
-        EXPECT_EQ(r, S_OK);
-        EXPECT_EQ(value_len, std::get<1>(kv).size());
+        EXPECT_EQ(S_OK, r);
+        EXPECT_EQ(std::get<1>(kv).size(), value_len);
         _kvstore->free_memory(value);
       }
     }
@@ -360,7 +365,7 @@ void KVStore_test::get_many_threaded(const kvv_t &kvv, const std::string &descr)
   ProfilerStart(("test4-get-" + descr + "-cpu-" + store_map::impl->name + ".profile").c_str());
   for ( auto p : pool )
   {
-    v.emplace_back(std::async(std::launch::async, get_many, pool[0], kvv_short_short, "short_short"));
+    v.emplace_back(std::async(std::launch::async, get_many, p, kvv, descr));
   }
   for ( auto &e : v ) { e.get(); }
   ProfilerStop();
