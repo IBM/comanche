@@ -67,7 +67,17 @@ template <typename Allocator>
 		, const char *why_
 	)
 	{
-		persist_internal(&c_, &c_ + 1U, why_);
+		/* content is offset from start of cache line;
+		 * hash_bucket is cache-aligned. Assuming that
+		 * a cache-aligned persist will not be worse, specify it.
+		 */
+		auto &hb = static_cast<const hash_bucket<value_type> &>(c_);
+		/* bucket_aligned_t is the full size of the cache line.
+		 * Assuming that full cache line-sized persist will not
+		 * be worse, specify it.
+		 */
+		auto &ba = static_cast<const bucket_aligned_t &>(hb);
+		persist_internal(&ba, &ba + 1U, why_);
 	}
 
 template <typename Allocator>
