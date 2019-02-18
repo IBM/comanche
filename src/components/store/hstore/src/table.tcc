@@ -494,6 +494,7 @@ template <
 					}
 				}
 			}
+
 			/* the nearest free bucket */
 			try
 			{
@@ -604,25 +605,27 @@ template <
 			b_dst.ref().content_move(v_, owner_lk.index());
 
 			/* 3-step change to owner:
-			 *  1. mark the content "ENTERING"
-			 *   flush
-			 *  2. atomically update the owner
-			 *   flush
-			 *  3. mark the content "IN_USE"
-			 *   flush
+			 *  1. mark the size "unstable"
+			 *   flush (8 bytes)
+			 *    (When size is unstable, content state must be reconstructed from
+			 *    the ownership: owned content is IN_USE; unowned content is FREE.)
+			 *  2. the new content (already entered)
+			 *   flush (56 bytes. Could be 64, as there is no harm in flushing the adjacent but unrelated owner field.)
+			 *  3. atomically update the owner
+			 *   flush (8 bytes)
+			 *  4. mark the size as "stable"
+			 *   flush (8 bytes)
 			 */
-			b_dst.ref().state_set(bucket_t::ENTERING);
-			persist_controller_t::persist_content(b_dst.ref(), "content entering");
+			b_dst.ref().state_set(bucket_t::IN_USE);
 			{
 				persist_size_change<Allocator, size_incr> s(*this);
+				persist_controller_t::persist_content(b_dst.ref(), "content in use");
 				owner_lk.ref().insert(
 					owner_lk.index()
 					, distance_wrapped(owner_lk.index(), b_dst.index())
 					, owner_lk
 				);
 				persist_controller_t::persist_owner(owner_lk.ref(), "owner insert");
-				b_dst.ref().state_set(bucket_t::IN_USE);
-				persist_controller_t::persist_content(b_dst.ref(), "content in_use");
 #if TRACE_MANY
 				std::cerr << __func__ << " bucket " << owner_lk.index()
 					<< " store at " << b_dst.index() << " "

@@ -1,38 +1,18 @@
+/*
+ * (C) Copyright IBM Corporation 2018, 2019. All rights reserved.
+ * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
+ */
+
 #ifndef COMANCHE_HSTORE_OPEN_POOL_H
 #define COMANCHE_HSTORE_OPEN_POOL_H
 
-#include <string>
+#include "pool_path.h"
 
-class pool_path
-{
-  std::string _dir;
-  std::string _name;
+#include <utility> /* move */
 
-public:
-  explicit pool_path(
-    const std::string &dir_
-    , const std::string &name_
-  )
-    : _dir(dir_)
-    , _name(name_)
-  {}
-
-  pool_path()
-    : pool_path("/", "")
-  {}
-
-  std::string str() const
-  {
-    /* ERROR: fails if _dir is the empty string */
-    return _dir + ( _dir[_dir.length()-1] != '/' ? "/" : "") + _name;
-  }
-#if 1
-  /* delete_pool only */
-  const std::string &dir() const noexcept { return _dir; }
-  const std::string &name() const noexcept { return _name; }
-#endif
-};
-
+/* Note: the distinction between tracked_pool and open_pool is needed only
+ * because the IKVStore interface allows an "opened" pool to be deleted.
+ */
 class tracked_pool
 	: protected pool_path
 	{
