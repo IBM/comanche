@@ -20,26 +20,16 @@ int Connection_handler::tick()
   }
 
   switch (_state) {
-    case POST_MSG_RECV: {
+
+    case POST_MSG_RECV: { /*< post buffer to receive new message */
       if (option_DEBUG > 2)
         PMAJOR("Shard State: %lu %p POST_MSG_RECV", _tick_count, this);
       post_recv_buffer(allocate());
-      set_state(NEW_MSG_RECV);
+      set_state(WAIT_NEW_MSG_RECV);
       break;
     }
-      // case WAIT_POST_RESPONSE: {
-      //   if(option_DEBUG > 2)
-      //     PMAJOR("Shard State: %u %p WAIT_POST_RESPONSE", _tick_count, this);
-
-      //   if(_posted_send_buffer_outstanding == false) {
-      //     set_state(POST_MSG_RECV);
-      //     if(option_DEBUG > 2)
-      //       PMAJOR("Shared State: transitioning to POST_MSG_RECV");
-      //   }
-      //   break;
-      // }
-    case NEW_MSG_RECV: {
-      if (check_for_posted_recv_complete()) {
+    case WAIT_NEW_MSG_RECV: {
+      if (check_for_posted_recv_complete()) { /*< check for recv completion */
         const auto     iob = posted_recv();
         const Message *msg = static_cast<Message *>(iob->base());
         assert(msg);
@@ -79,14 +69,14 @@ int Connection_handler::tick()
 
       break;
     }
-    case POST_RECV_VALUE: {
-      if (option_DEBUG > 2)
-        PMAJOR("Shard State: %lu %p POST_RECV_VALUE", _tick_count, this);
+    // case POST_RECV_VALUE: { /*< post buffer to receive a value (from two-part receive) */
+    //   if (option_DEBUG > 2)
+    //     PMAJOR("Shard State: %lu %p POST_RECV_VALUE", _tick_count, this);
 
-      post_recv_value_buffer();
-      set_state(WAIT_RECV_VALUE);
-      break;
-    }
+    //   post_recv_value_buffer();
+    //   set_state(WAIT_RECV_VALUE);
+    //   break;
+    // }
     case WAIT_RECV_VALUE: {
       if (check_for_posted_value_complete()) {
         if (option_DEBUG > 2) {

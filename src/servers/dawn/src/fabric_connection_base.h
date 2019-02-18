@@ -224,7 +224,7 @@ class Fabric_connection_base {
   inline buffer_t *posted_recv() const { return _posted_recv_buffer; }
   inline buffer_t *posted_send() const { return _posted_send_buffer; }
 
-  bool poll_completions()
+  inline bool poll_completions()
   {
     bool added_deferred_unlock = false;
     try {
