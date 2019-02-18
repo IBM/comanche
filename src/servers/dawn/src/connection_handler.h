@@ -58,9 +58,9 @@ class Connection_handler
     WAIT_HANDSHAKE_RESPONSE_COMPLETION,
     POST_MAX_RECVS,
     POST_MSG_RECV,
-    NEW_MSG_RECV,
-    POST_RECV_VALUE,
+    WAIT_NEW_MSG_RECV,
     WAIT_RECV_VALUE,
+    //    POST_RECV_VALUE,
     //    WAIT_POST_RESPONSE,
   };
 
@@ -74,7 +74,10 @@ class Connection_handler
     _pending_msgs.reserve(Buffer_manager<Connection>::DEFAULT_BUFFER_COUNT);
   }
 
-  ~Connection_handler() { dump_stats(); }
+  ~Connection_handler()
+  {
+    dump_stats();
+  }
 
   /**
    * State machine transition tick.  It is really important that this tick

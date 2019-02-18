@@ -90,7 +90,7 @@ void Shard::main_loop()
 #endif
 
   uint64_t                  tick __attribute__((aligned(8))) = 0;
-  static constexpr uint64_t CHECK_CONNECTION_INTERVAL        = 1000000;
+  static constexpr uint64_t CHECK_CONNECTION_INTERVAL        = 10000000;
 
   Connection_handler::action_t                            action;
   std::vector<std::vector<Connection_handler*>::iterator> pending_close;
