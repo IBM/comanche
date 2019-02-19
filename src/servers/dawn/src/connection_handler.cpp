@@ -15,8 +15,8 @@ int Connection_handler::tick()
         PLOG("adding action for deferred unlocking value @ %p",
              _deferred_unlock);
       add_pending_action(action_t{ACTION_RELEASE_VALUE_LOCK, _deferred_unlock});
+      _deferred_unlock = nullptr;
     }
-    _deferred_unlock = nullptr;
   }
 
   switch (_state) {
@@ -69,14 +69,6 @@ int Connection_handler::tick()
 
       break;
     }
-    // case POST_RECV_VALUE: { /*< post buffer to receive a value (from two-part receive) */
-    //   if (option_DEBUG > 2)
-    //     PMAJOR("Shard State: %lu %p POST_RECV_VALUE", _tick_count, this);
-
-    //   post_recv_value_buffer();
-    //   set_state(WAIT_RECV_VALUE);
-    //   break;
-    // }
     case WAIT_RECV_VALUE: {
       if (check_for_posted_value_complete()) {
         if (option_DEBUG > 2) {

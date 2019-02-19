@@ -95,7 +95,7 @@ void Shard::main_loop()
   Connection_handler::action_t                            action;
   std::vector<std::vector<Connection_handler*>::iterator> pending_close;
 
-  while (_thread_exit == false) {
+  while (unlikely(_thread_exit == false)) {
     /* check for new connections - but not too often */
     if (tick % CHECK_CONNECTION_INTERVAL == 0) check_for_new_connections();
 
@@ -109,7 +109,7 @@ void Shard::main_loop()
       const auto tick_response = handler->tick();
 
       /* close session */
-      if (tick_response == Dawn::Connection_handler::TICK_RESPONSE_CLOSE) {
+      if (unlikely(tick_response == Dawn::Connection_handler::TICK_RESPONSE_CLOSE)) {
         if (option_DEBUG > 1) PMAJOR("Shard: closing connection %p", handler);
 
         pending_close.push_back(handler_iter);
