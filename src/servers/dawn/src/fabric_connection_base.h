@@ -77,15 +77,13 @@ class Fabric_connection_base {
     if (context == pThis->_posted_recv_buffer) {
       assert(pThis->_posted_recv_buffer_outstanding);
       if (option_DEBUG) PLOG("Posted recv complete (%p).", context);
-      pThis->_posted_recv_buffer_outstanding =
-          false; /* signal recv completion */
+      pThis->_posted_recv_buffer_outstanding = false; /* signal recv completion */
       return;
     }
     else if (context == pThis->_posted_send_buffer) {
       assert(pThis->_posted_send_buffer_outstanding);
       if (option_DEBUG) PLOG("Posted send complete (%p).", context);
-      pThis->_posted_send_buffer_outstanding =
-          false; /* signal send completion */
+      pThis->_posted_send_buffer_outstanding = false; /* signal send completion */
       return;
     }
     else if (context == pThis->_posted_value_buffer) {
@@ -95,8 +93,7 @@ class Fabric_connection_base {
         PLOG("Posted value complete (%p) [%x %x %x...]", context,
              0xff & (int) p[0], 0xff & (int) p[1], 0xff & (int) p[2]);
       }
-      pThis->_posted_value_buffer_outstanding =
-          false; /* signal value completion */
+      pThis->_posted_value_buffer_outstanding = false; /* signal value completion */
     }
     else {
       throw Program_exception("unknown completion context (%p)", context);
@@ -226,17 +223,23 @@ class Fabric_connection_base {
 
   inline bool poll_completions()
   {
-    bool added_deferred_unlock = false;
-    try {
-      _transport->poll_completions(completion_callback, this);
-      check_for_posted_send_complete();
-      check_for_posted_value_complete(&added_deferred_unlock);
-    }
-    catch (std::logic_error e) {
-      throw General_exception("client disconnected");
-    }
+    if( _posted_recv_buffer_outstanding ||
+        _posted_send_buffer_outstanding ||
+        _posted_value_buffer_outstanding)
+      {       
+        bool added_deferred_unlock = false;
+        try {
+          _transport->poll_completions(completion_callback, this);
+          check_for_posted_send_complete();
+          check_for_posted_value_complete(&added_deferred_unlock);
+        }
+        catch (std::logic_error e) {
+          throw General_exception("client disconnected");
+        }
 
-    return added_deferred_unlock;
+        return added_deferred_unlock;
+      }
+    return false;
   }
 
   /**
@@ -297,3 +300,4 @@ class Fabric_connection_base {
 }  // namespace Dawn
 
 #endif  // __FABRIC_CONNECTION_BASE_H__
+

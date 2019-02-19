@@ -60,8 +60,6 @@ class Connection_handler
     POST_MSG_RECV,
     WAIT_NEW_MSG_RECV,
     WAIT_RECV_VALUE,
-    //    POST_RECV_VALUE,
-    //    WAIT_POST_RESPONSE,
   };
 
   State _state = State::INITIALIZE;
@@ -77,6 +75,7 @@ class Connection_handler
   ~Connection_handler()
   {
     dump_stats();
+    //    exit(0); /* for profiler */
   }
 
   /**
@@ -105,7 +104,7 @@ class Connection_handler
    *
    * @return Pointer to buffer holding the message or null if there are none
    */
-  buffer_t* get_pending_msg(Dawn::Protocol::Message*& msg)
+  inline buffer_t* get_pending_msg(Dawn::Protocol::Message*& msg)
   {
     if (_pending_msgs.empty()) return nullptr;
     auto iob = _pending_msgs.back();
@@ -145,7 +144,7 @@ class Connection_handler
    *
    * @param iob IO buffer to post
    */
-  void post_response(buffer_t* iob, buffer_t* val_iob = nullptr)
+  inline void post_response(buffer_t* iob, buffer_t* val_iob = nullptr)
   {
     assert(iob);
 
@@ -177,11 +176,11 @@ class Connection_handler
 
  private:
   struct {
-    unsigned long response_count               = 0;
-    unsigned long recv_msg_count               = 0;
-    unsigned long wait_recv_value_misses       = 0;
-    unsigned long wait_msg_recv_misses         = 0;
-    unsigned long wait_respond_complete_misses = 0;
+    uint64_t response_count               = 0;
+    uint64_t recv_msg_count               = 0;
+    uint64_t wait_recv_value_misses       = 0;
+    uint64_t wait_msg_recv_misses         = 0;
+    uint64_t wait_respond_complete_misses = 0;
   } _stats __attribute__((aligned(8)));
 
   void dump_stats()
@@ -189,10 +188,10 @@ class Connection_handler
     PINF("-----------------------------------------");
     PINF("| Connection Handler Statistics         |");
     PINF("-----------------------------------------");
+    PINF("Ticks                       : %lu", _tick_count);
     PINF("Recv message count          : %lu", _stats.recv_msg_count);
     PINF("Response count              : %lu", _stats.response_count);
-    PINF("NEW_MSG_RECV misses         : %lu K",
-         _stats.wait_msg_recv_misses / 1000);
+    PINF("NEW_MSG_RECV misses         : %lu K",_stats.wait_msg_recv_misses / 1000);
     PINF("WAIT_RECV_VALUE misses      : %lu", _stats.wait_recv_value_misses);
     PINF("WAIT_RESPOND_COMPLETE misses: %lu",
          _stats.wait_respond_complete_misses);
@@ -200,7 +199,7 @@ class Connection_handler
   }
 
  private:
-  unsigned long          _tick_count = 0;
+  uint64_t               _tick_count __attribute((aligned(8))) = 0;
   std::vector<buffer_t*> _pending_msgs;
   std::vector<action_t>  _pending_actions;
   int                    _response;
