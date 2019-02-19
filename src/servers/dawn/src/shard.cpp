@@ -90,12 +90,12 @@ void Shard::main_loop()
 #endif
 
   uint64_t                  tick __attribute__((aligned(8))) = 0;
-  static constexpr uint64_t CHECK_CONNECTION_INTERVAL        = 1000000;
+  static constexpr uint64_t CHECK_CONNECTION_INTERVAL        = 10000000;
 
   Connection_handler::action_t                            action;
   std::vector<std::vector<Connection_handler*>::iterator> pending_close;
 
-  while (_thread_exit == false) {
+  while (unlikely(_thread_exit == false)) {
     /* check for new connections - but not too often */
     if (tick % CHECK_CONNECTION_INTERVAL == 0) check_for_new_connections();
 
@@ -105,13 +105,15 @@ void Shard::main_loop()
          handler_iter != _handlers.end(); handler_iter++) {
       const auto handler = *handler_iter;
 
-      /* issue tick */
-      const auto tick_response = handler->tick();
-
+      /* issue tick, unless we are stalling */
+      uint64_t tick_response;
+      if(handler->stall_tick() == 0)
+        tick_response = handler->tick();
+      else continue;
+    
       /* close session */
       if (tick_response == Dawn::Connection_handler::TICK_RESPONSE_CLOSE) {
         if (option_DEBUG > 1) PMAJOR("Shard: closing connection %p", handler);
-
         pending_close.push_back(handler_iter);
       }
 

@@ -6,41 +6,42 @@ int Connection_handler::tick()
 {
   using namespace Dawn::Protocol;
 
-  _response = TICK_RESPONSE_CONTINUE;
-
-  if (poll_completions()) {
-    /* deferred unlocks */
-    if (_deferred_unlock) {
-      if (option_DEBUG > 2)
-        PLOG("adding action for deferred unlocking value @ %p",
-             _deferred_unlock);
-      add_pending_action(action_t{ACTION_RELEASE_VALUE_LOCK, _deferred_unlock});
-    }
-    _deferred_unlock = nullptr;
+  auto response = TICK_RESPONSE_CONTINUE;
+  _tick_count++;
+  
+#if 0
+  auto now = rdtsc();
+  
+  /* output IOPS */
+  if(_stats.next_stamp == 0) {
+    _stats.next_stamp = now + (_freq_mhz * 1000000.0);
+    _stats.last_count = _stats.response_count;
   }
+  if(now >= (_stats.next_stamp)) {
+    PMAJOR("(%p) IOPS: %lu /s", this, _stats.response_count - _stats.last_count);
+    _stats.next_stamp = now + (_freq_mhz * 1000000.0);
+    _stats.last_count = _stats.response_count;
+  }
+#endif
+
+  check_network_completions();
 
   switch (_state) {
-    case POST_MSG_RECV: {
+
+    case POST_MSG_RECV: { /*< post buffer to receive new message */
       if (option_DEBUG > 2)
         PMAJOR("Shard State: %lu %p POST_MSG_RECV", _tick_count, this);
       post_recv_buffer(allocate());
-      set_state(NEW_MSG_RECV);
+      set_state(WAIT_NEW_MSG_RECV);
+      stall(); /* we can stall because we know that there will be a little while before the next request */
       break;
-    }
-      // case WAIT_POST_RESPONSE: {
-      //   if(option_DEBUG > 2)
-      //     PMAJOR("Shard State: %u %p WAIT_POST_RESPONSE", _tick_count, this);
-
-      //   if(_posted_send_buffer_outstanding == false) {
-      //     set_state(POST_MSG_RECV);
-      //     if(option_DEBUG > 2)
-      //       PMAJOR("Shared State: transitioning to POST_MSG_RECV");
-      //   }
-      //   break;
-      // }
-    case NEW_MSG_RECV: {
-      if (check_for_posted_recv_complete()) {
+    }      
+    case WAIT_NEW_MSG_RECV: {
+      
+      if (check_for_posted_recv_complete()) { /*< check for recv completion */
+        
         const auto     iob = posted_recv();
+        assert(iob);
         const Message *msg = static_cast<Message *>(iob->base());
         assert(msg);
 
@@ -54,7 +55,7 @@ int Connection_handler::tick()
           case MSG_TYPE_CLOSE_SESSION: {
             if (option_DEBUG > 2) PMAJOR("Shard: CLOSE_SESSION!");
             free_recv_buffer();
-            _response = TICK_RESPONSE_CLOSE;
+            response = TICK_RESPONSE_CLOSE;
             break;
           }
           case MSG_TYPE_POOL_REQUEST: {
@@ -79,15 +80,8 @@ int Connection_handler::tick()
 
       break;
     }
-    case POST_RECV_VALUE: {
-      if (option_DEBUG > 2)
-        PMAJOR("Shard State: %lu %p POST_RECV_VALUE", _tick_count, this);
-
-      post_recv_value_buffer();
-      set_state(WAIT_RECV_VALUE);
-      break;
-    }
     case WAIT_RECV_VALUE: {
+
       if (check_for_posted_value_complete()) {
         if (option_DEBUG > 2) {
           PMAJOR("Shard State: %lu %p WAIT_RECV_VALUE ok", _tick_count, this);
@@ -120,11 +114,11 @@ int Connection_handler::tick()
         PMAJOR("Shard State: %lu %p POST_HANDSHAKE", _tick_count, this);
       auto iob = allocate();
       post_recv_buffer(iob);
-
       set_state(WAIT_HANDSHAKE);
       break;
     }
     case WAIT_HANDSHAKE: {
+        
       if (check_for_posted_recv_complete()) {
         if (option_DEBUG > 2)
           PMAJOR("Shard State: %lu %p WAIT_HANDSHAKE complete", _tick_count,
@@ -153,6 +147,7 @@ int Connection_handler::tick()
       break;
     }
     case WAIT_HANDSHAKE_RESPONSE_COMPLETION: {
+
       if (check_for_posted_send_complete()) {
         if (option_DEBUG > 2)
           PMAJOR("Shard State: %lu %p WAIT_HANDSHAKE_RESPONSE_COMPLETION "
@@ -164,7 +159,7 @@ int Connection_handler::tick()
     }
 
   }  // end switch
-  return _response;
+  return response;
 }
 
 void Connection_handler::set_pending_value(void *          target,

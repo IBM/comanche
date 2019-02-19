@@ -70,7 +70,7 @@ class Buffer_manager {
 
   buffer_t *allocate()
   {
-    if (_free.empty()) throw Program_exception("no buffers");
+    if (unlikely(_free.empty())) throw Program_exception("no buffers");
     auto iob = _free.back();
     assert(iob->flags == 0);
     _free.pop_back();
