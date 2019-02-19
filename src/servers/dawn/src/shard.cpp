@@ -105,13 +105,15 @@ void Shard::main_loop()
          handler_iter != _handlers.end(); handler_iter++) {
       const auto handler = *handler_iter;
 
-      /* issue tick */
-      const auto tick_response = handler->tick();
-
+      /* issue tick, unless we are stalling */
+      uint64_t tick_response;
+      if(handler->stall_tick() == 0)
+        tick_response = handler->tick();
+      else continue;
+    
       /* close session */
-      if (unlikely(tick_response == Dawn::Connection_handler::TICK_RESPONSE_CLOSE)) {
+      if (tick_response == Dawn::Connection_handler::TICK_RESPONSE_CLOSE) {
         if (option_DEBUG > 1) PMAJOR("Shard: closing connection %p", handler);
-
         pending_close.push_back(handler_iter);
       }
 
