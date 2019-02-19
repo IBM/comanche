@@ -51,7 +51,7 @@ public:
     }
 
     // generate a new random value with the same value length to use
-    auto new_val = Common::random_string(g_data->value_len()).c_str();
+    auto new_val = Common::random_string(g_data->value_len());
 
     // check time it takes to complete a single put operation
     int rc;
@@ -59,7 +59,7 @@ public:
     timer.start();
 
     try {
-        rc = _store->put(_pool, g_data->key(_i), new_val, g_data->value_len());
+        rc = _store->put(_pool, g_data->key(_i), new_val.c_str(), g_data->value_len());
     }
     catch(...) {
       PERR("put (update) call failed! Returned %d. Ending experiment.", rc);
