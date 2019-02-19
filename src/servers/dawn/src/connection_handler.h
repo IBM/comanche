@@ -8,6 +8,7 @@
 #include <common/cpu.h>
 #include <common/exceptions.h>
 #include <common/logging.h>
+#include <common/cycles.h>
 #include <sys/mman.h>
 #include <map>
 #include <queue>
@@ -32,8 +33,10 @@ class Connection_handler
     , public Region_manager
     , public Pool_manager {
  private:
-  bool option_DEBUG = Dawn::Global::debug_level > 1;
 
+  bool option_DEBUG = Dawn::Global::debug_level > 1;
+  static constexpr uint64_t STALL_TICKS = 20; /*< number of ticks to stall after post */
+  
   /* Adaptor point for different transports */
   using Connection = Component::IFabric_server;
   using Factory    = Component::IFabric_server_factory;
@@ -70,6 +73,7 @@ class Connection_handler
   {
     _pending_actions.reserve(Buffer_manager<Connection>::DEFAULT_BUFFER_COUNT);
     _pending_msgs.reserve(Buffer_manager<Connection>::DEFAULT_BUFFER_COUNT);
+    _freq_mhz = Common::get_rdtsc_frequency_mhz();
   }
 
   ~Connection_handler()
@@ -93,8 +97,26 @@ class Connection_handler
    */
   inline void set_state(State s)
   {
-    _tick_count++;
     _state = s; /* we could add transition checking later */
+  }
+
+
+  /**
+   * Check for network completions
+   *
+   */
+  inline void check_network_completions()
+  {
+    if (poll_completions()) {
+      /* deferred unlocks */
+      if (_deferred_unlock) {
+        if (option_DEBUG > 2)
+          PLOG("adding action for deferred unlocking value @ %p",
+               _deferred_unlock);
+        add_pending_action(action_t{ACTION_RELEASE_VALUE_LOCK, _deferred_unlock});
+        _deferred_unlock = nullptr;
+      }
+    }
   }
 
   /**
@@ -174,6 +196,16 @@ class Connection_handler
 
   inline size_t max_message_size() const { return _max_message_size; }
 
+  inline uint64_t stall_tick() {
+    if(_stall_tick == 0) return 0;
+    _stall_tick--;
+    return _stall_tick;
+  }
+
+  inline void stall() {
+    _stall_tick = STALL_TICKS;
+  }
+  
  private:
   struct {
     uint64_t response_count               = 0;
@@ -181,6 +213,8 @@ class Connection_handler
     uint64_t wait_recv_value_misses       = 0;
     uint64_t wait_msg_recv_misses         = 0;
     uint64_t wait_respond_complete_misses = 0;
+    uint64_t last_count                   = 0;
+    uint64_t next_stamp                   = 0;
   } _stats __attribute__((aligned(8)));
 
   void dump_stats()
@@ -189,12 +223,11 @@ class Connection_handler
     PINF("| Connection Handler Statistics         |");
     PINF("-----------------------------------------");
     PINF("Ticks                       : %lu", _tick_count);
+    PINF("NEW_MSG_RECV misses         : %lu", _stats.wait_msg_recv_misses);
     PINF("Recv message count          : %lu", _stats.recv_msg_count);
     PINF("Response count              : %lu", _stats.response_count);
-    PINF("NEW_MSG_RECV misses         : %lu K",_stats.wait_msg_recv_misses / 1000);
     PINF("WAIT_RECV_VALUE misses      : %lu", _stats.wait_recv_value_misses);
-    PINF("WAIT_RESPOND_COMPLETE misses: %lu",
-         _stats.wait_respond_complete_misses);
+    PINF("WAIT_RESPOND_COMPLETE misses: %lu", _stats.wait_respond_complete_misses);
     PINF("-----------------------------------------");
   }
 
@@ -202,7 +235,9 @@ class Connection_handler
   uint64_t               _tick_count __attribute((aligned(8))) = 0;
   std::vector<buffer_t*> _pending_msgs;
   std::vector<action_t>  _pending_actions;
-  int                    _response;
+  float                  _freq_mhz;
+  char _padding[64];
+  uint64_t               _stall_tick = 0;
 };
 
 }  // namespace Dawn

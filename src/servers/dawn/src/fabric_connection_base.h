@@ -100,7 +100,7 @@ class Fabric_connection_base {
     }
   }
 
-  bool check_for_posted_send_complete()
+  inline bool check_for_posted_send_complete()
   {
     if (_posted_send_buffer_outstanding) return false;
 
@@ -112,7 +112,7 @@ class Fabric_connection_base {
     return true;
   }
 
-  bool check_for_posted_recv_complete()
+  inline bool check_for_posted_recv_complete()
   {
     /* don't free buffer (such as above); it will be used for response */
     return _posted_recv_buffer_outstanding == false;
