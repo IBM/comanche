@@ -21,8 +21,9 @@
 #include "stopwatch.h"
 
 #include <algorithm> /* transform - should follow local includes */
-#include <stdexcept> /* logic_error, domain_error */
+#include <cctype> /* isdigit */
 #include <map> /* map - should follow local includes */
+#include <stdexcept> /* logic_error, domain_error */
 
 #define HT_SIZE_FACTOR 3
 
@@ -31,6 +32,81 @@ extern boost::program_options::variables_map g_vm;
 extern pthread_mutex_t g_write_lock;
 
 extern uint64_t g_iops;
+
+  template <typename T>
+    class dotted_pair
+    {
+    public:
+      T first;
+      T second;
+      explicit dotted_pair(T first_, T second_)
+        : first(first_)
+        , second(second_)
+      {}
+      dotted_pair() : dotted_pair(T(), T()) {}
+      dotted_pair &operator++() { ++second; return *this; }
+      dotted_pair &operator+=(T t_) { second += t_; return *this; }
+    };
+
+  /* read a "dotted pair." If no dot, the first element is 0 and the second element is the value read */
+  template <typename T>
+    std::istream &operator>>(std::istream &i_, dotted_pair<T> &p_)
+    {
+      i_ >> p_.first;
+      if ( ! i_.eof() && i_.peek() == '.' )
+      {
+        i_.get();
+        i_ >> p_.second;
+      }
+      else
+      {
+        p_.second = p_.first;
+        p_.first = T();
+      }
+      return i_;
+    }
+
+  /* write a "dotted pair." */
+  template <typename T>
+    std::ostream &operator<<(std::ostream &o_, const dotted_pair<T> &p_)
+    {
+      return o_ << p_.first << "." << p_.second;
+    }
+
+  /* compare "dotted pairs" */
+  template <typename T>
+    void check_comparable(const dotted_pair<T> &a_, const dotted_pair<T> &b_)
+    {
+      if ( a_.first != b_.first )
+      {
+        std::ostringstream o;
+        o << "dotted pair " << a_ << " is not comparable to dotted pair " << b_;
+        throw std::domain_error(o.str());	      
+      }
+    }
+  template <typename T>
+    bool operator==(const dotted_pair<T> &a_, const dotted_pair<T> &b_)
+    {
+      check_comparable(a_, b_);
+      return a_.second == b_.second;
+    }
+  template <typename T>
+    bool operator!=(const dotted_pair<T> &a_, const dotted_pair<T> &b_)
+    {
+      return ! ( a_ == b_ );
+    }
+  template <typename T>
+    bool operator<(const dotted_pair<T> &a_, const dotted_pair<T> &b_)
+    {
+      check_comparable(a_, b_);
+      return a_.second < b_.second;
+    }
+
+  template <typename T>
+    dotted_pair<T> operator+(dotted_pair<T> p_, T t_)
+    {
+       return p_ += t_;
+    }
 
 class Experiment : public Core::Tasklet
 {
@@ -83,14 +159,14 @@ public:
 
   float _cycles_per_second = Common::get_rdtsc_frequency_mhz() * 1000000;
 
-  using core_to_device_map_t = std::map<int, int>;
+  using core_to_device_map_t = std::map<unsigned, dotted_pair<unsigned>>;
   core_to_device_map_t _core_to_device_map;
 
   static core_to_device_map_t make_core_to_device_map(const std::string &cores, const std::string &devices)
   {
-     auto core_v = get_int_vector_from_string(cores);
-     auto device_v = get_int_vector_from_string(devices);
-     if ( core_v.size() != device_v.size() )
+     auto core_v = get_vector_from_string<unsigned>(cores);
+     auto device_v = get_vector_from_string<dotted_pair<unsigned>>(devices);
+     if ( device_v.size() < core_v.size() )
      {
        throw
          std::domain_error(
@@ -109,7 +185,7 @@ public:
         , std::inserter(
           core_to_device_map
           , core_to_device_map.end())
-        , [] (int c, int d) { return std::make_pair(c, d); }
+        , [] (unsigned c, dotted_pair<unsigned> d) { return std::make_pair(c, d); }
      );
      return core_to_device_map;
   }
@@ -340,17 +416,43 @@ public:
     return n;
   }
 
+  /* maximun size of any dax device. Limitation: considers only dax devices specified in the device string */
   std::size_t dev_dax_max_size(const std::string & dev_dax_prefix_)
   {
     std::size_t size = 0;
     for ( auto & it : _core_to_device_map )
     {
-      size = std::max(size, get_dax_device_size(dev_dax_prefix_ + "." + std::to_string(it.second)));
+      std::ostringstream s;
+      s << dev_dax_prefix_ << it.second;
+      size = std::max(size, get_dax_device_size(s.str()));
     }
     return size;
   }
 
-  int core_to_device(int core)
+  /* maximun number of dax devices in any numa node.
+   * Limitations:
+   *   Assumes /dev/dax<node>.<number> representation)
+   *   Considers only dax devices specified in the device string.
+   */
+  unsigned dev_dax_max_count_per_node(const std::string & dev_dax_prefix_)
+  {
+    std::map<unsigned, unsigned> dev_count {};
+    for ( auto & it : _core_to_device_map )
+    {
+      auto &c = dev_count[it.first];
+      c = std::max(c, it.second.second + 1);
+    }
+
+    unsigned size = 0;
+    for ( auto & it : dev_count )
+    {
+      size = std::max(size, it.second);
+    }
+
+    return size;
+  }
+
+  dotted_pair<unsigned> core_to_device(int core)
   {
      auto core_it = _core_to_device_map.find(core);
      if ( core_it == _core_to_device_map.end() )
@@ -436,17 +538,21 @@ public:
           std::size_t dax_base = 0x7000000000;
           /* at least the dax size, rounded for alignment */
           std::size_t dax_stride = round_up_to_pow2(dev_dax_max_size(_device_name));
+          std::size_t dax_node_stride = round_up_to_pow2(dev_dax_max_count_per_node(_device_name)) * dax_stride;
 
           unsigned region_id = 0;
           std::ostringstream addr;
-          addr << std::showbase << std::hex << dax_base + dax_stride * device;
+          /* stride ignores dax "major" number, so /dev/dax0.n and /dev/dax1.n map to the same memory */
+          addr << std::showbase << std::hex << dax_base + dax_node_stride * device.first + dax_stride * device.second;
+          std::ostringstream device_full_name;
+          device_full_name << _device_name << (std::isdigit(_device_name.back()) ? "." : "") << device;
           std::ostringstream device_map;
           device_map <<
             "[ "
               " { "
                 + json_map("region_id", std::to_string(region_id))
                 /* actual device name is <idevice_name>.<device>, e.g. /dev/dax0.2 */
-                + ", " + json_map("path", quote(_device_name + "." + std::to_string(device)))
+                + ", " + json_map("path", quote(device_full_name.str()))
                 + ", " + json_map("addr", quote(addr.str()))
                 + " }"
             " ]";
@@ -708,89 +814,64 @@ public:
       }
   }
 
-  /* was get_cpu_vector_from_string, but now also used for devices */
-  static std::vector<int> get_int_vector_from_string(std::string core_string)
-  {
-    std::vector<int> cores;
-
-    int start = 0;
-    int length = 0;
-    int current = 0;
-    std::string substring;
-    std::string range_start = "";
-    bool using_range = false;
-
-    unsigned cores_total = 0;
-    unsigned core_first, core_last, core_num;
-
-    while(true)
+  template <typename T>
+    static std::pair<T, T> range_read(std::istream &i_)
+    {
+      T first;
+      i_ >> first;
+      if ( ! i_ ) { throw std::domain_error("ill-formed element"); }
+      T last;
+      switch ( auto c = i_.peek() )
       {
-        if (core_string[current] == '-')
-          {
-            range_start = core_string.substr(start, length);
-
-            start = current + 1;
-            length = 0;
-
-            using_range = !using_range;  // toggle
-          }
-        else if (core_string[current] == ',' || core_string[current] == '\0')
-          {
-            substring = core_string.substr(start, length);
-
-            if (substring == "")
-              {
-                PERR("invalid core string. Tried to use '%s'. Exiting.", core_string.c_str());
-                throw std::exception();
-              }
-
-            // if we were using a range, substring becomes the end range value
-            core_last = (unsigned)std::stoi(substring);
-
-            if (using_range)
-              {
-                if (range_start == "")
-                  {
-                    PERR("no start core specified for range ending with %u", core_last);
-                    throw std::exception();
-                  }
-
-                core_first = (unsigned)std::stoi(range_start);
-                using_range = false;
-                range_start = "";
-              }
-            else // single core add
-              {
-                core_first = core_last;
-              }
-
-            for (core_num = core_first; core_num <= core_last; core_num++)
-              {
-                cores.push_back(core_num);
-              }
-
-            start = current + 1;
-            length = 0;
-
-            if (core_string[current] == '\0')
-              {
-                break;
-              }
-          }
-        else
-          {
-            length++;
-          }
-
-        current++;
+      case '-': /* inclusive range */
+        i_.get();
+        i_ >> last;
+        if ( ! i_ ) { throw std::domain_error("ill-formed range"); }
+        ++last;
+        break;
+      case ':': /* length */
+        i_.get();
+        {
+          unsigned length;
+          i_ >> length;
+          if ( ! i_ ) { throw std::domain_error("ill-formed length"); }
+          last = first + length;
+        }
+        break;
+      default:
+        last = first + 1U;
+        break;
       }
+      return std::pair<T, T>(first, last);
+    }
 
-    return cores;
-  }
+  /* was get_cpu_vector_from_string, but now also used for devices */
+  template <typename T>
+    static std::vector<T> get_vector_from_string(const std::string &core_string)
+    {
+      std::istringstream core_stream(core_string);
+      std::vector<T> cores;
+
+      do {
+        auto r = range_read<T>(core_stream);
+        for ( ; r.first != r.second; ++r.first )
+        {
+          cores.push_back(r.first);
+        }
+      } while ( core_stream.get() == ',' );
+
+      if ( core_stream )
+      {
+        std::string s;
+        core_stream >> s; 
+        throw std::domain_error("Unrecognized trailing characters '" + s + "' in list");
+      }
+      return cores;
+    }
 
   static cpu_mask_t get_cpu_mask_from_string(std::string core_string)
   {
-    std::vector<int> cores = get_int_vector_from_string(core_string);
+    auto cores = get_vector_from_string<int>(core_string);
     cpu_mask_t mask;
     int hardware_total_cores = std::thread::hardware_concurrency();
 
@@ -856,7 +937,7 @@ public:
     if (_core_list.empty())
       {
         // construct list
-        _core_list = get_int_vector_from_string(_cores);
+        _core_list = get_vector_from_string<int>(_cores);
       }
 
     // this is inefficient, but number of cores should be relatively small (hundreds at most)

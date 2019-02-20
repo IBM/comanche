@@ -106,15 +106,36 @@ status_t Dummy_store::put(IKVStore::pool_t pid,
 
   /* select some random location in the region */
   /* note:alignement make a huge difference */
-  uint64_t offset = round_down(genrand64_int64() % (GB(1) - value_len), 64);
+  uint64_t offset = round_down(genrand64_int64() % (GB(16) - value_len), 64);
   void * p = (void*) (((uint64_t)i->second) + offset);
 
+  uint64_t offset2 = round_down(genrand64_int64() % (GB(16) - value_len), 64);
+  void * p2 = (void*) (((uint64_t)i->second) + offset);
+
+
   /* copy and flush */
-  //  memcpy(p, value, value_len);
-  //  nupm::mem_flush(p, value_len);
+#if 1
+  char * pz = (char *) p;
+
+#if 0
+  nupm::mem_flush(&pz[8], 56);
+  nupm::mem_flush(p2, 8);
+  nupm::mem_flush(pz, 8);
+  nupm::mem_flush(&pz[8], 56);
+  nupm::mem_flush(p2, 8);
+#else
+  nupm::mem_flush(pz, 64);
+  nupm::mem_flush(p2, 8);
+  nupm::mem_flush(pz, 64);
+#endif
+  
+  /* simulate hstore */
+  //memcpy(p, value, value_len);
+  //nupm::mem_flush(p, value_len);
+#else
   pmem_memcpy(p, value, value_len,
               PMEM_F_MEM_NONTEMPORAL | PMEM_F_MEM_WC );  
-
+#endif
   return S_OK;
 }
 

@@ -29,10 +29,22 @@
 
 namespace nupm
 {
+
 inline static void mem_flush(const void *addr, size_t len)
 {
+  /* flushes cache aligned chunks, line is flushed from cache */
   flush_clflushopt_nolog(addr, len);
+  _mm_sfence();
 }
+
+inline static void mem_flush_nodrain(const void *addr, size_t len)
+{
+  /* flushes cache aligned chunks, line remains in cache */
+  flush_clwb_nolog(addr, len);
+  _mm_sfence();
+}
+
+  
 }  // namespace nupm
 
 #endif
