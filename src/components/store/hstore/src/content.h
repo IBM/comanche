@@ -44,9 +44,20 @@ namespace impl
 				u() {}
 				~u() {}
 			} _v;
-#if TRACK_OWNER
 			using owner_t = std::size_t; /* sufficient for all bucket indexes */
+			void set_owner(owner_t);
+			owner_t get_owner() const
+			{
+				return
+#if TRACK_OWNER
+					_owner
+#else
+					owner_t()
+#endif
+					;
+			}
 			static constexpr auto owner_undefined = std::numeric_limits<owner_t>::max();
+#if TRACK_OWNER
 			owner_t _owner; /* remember the bucket which owns this content */
 #endif
 #if TRACE_CONTENT
@@ -65,11 +76,6 @@ namespace impl
 					_v._value.~value_t();
 				}
 			}
-
-			auto content_move(
-				const Value &k
-				, std::size_t bi
-			) -> content &;
 
 			template <typename ... Args>
 				auto content_construct(
