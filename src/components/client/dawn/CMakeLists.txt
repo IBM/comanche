@@ -18,6 +18,7 @@ include_directories(${CMAKE_INSTALL_PREFIX}/include)
 link_directories(${CMAKE_INSTALL_PREFIX}/lib)
 
 include_directories(../../../servers/dawn/src/)
+include_directories(/usr/lib/jvm/java-11-openjdk-amd64/include/)
 
 add_library(${PROJECT_NAME} SHARED ${SOURCES})
 
