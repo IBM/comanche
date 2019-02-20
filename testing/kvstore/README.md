@@ -33,7 +33,8 @@ You can run with different command line options as input. Just add these to your
 
 * component: type of component you want to test (filestore, rocksdb, etc). Defaults to filestore since it has the least environmental dependencies.
 * test: isolated test to run. Defaults to 'all'.
-* cores: number of cores to use during test. Defaults to 1.
+* cores: comma separated ranges of indexes of cores to use during test. Defaults to 0. A range may be specified by a single index, and pair of indexes separated by a hyphen, or an index followed by a colon and a count of additional indexes. These examples all specify nodes 2 through 4 inclusive: "2,3,4", "2-4", "2:3".
+* devices: comma-separated ranges of devices to use during test. Defaults to the value of core. Each identifier is a dotted pair of numa zone and index, e.g. "1.2". For comaptibility with cores, a simple index number is accepted and implies numa node 0. These examples all specify device indexes 2 through 4 inclusive in numa node 0: "2,3,4", "0.2:3". These examples all specify devices 2 thourgh 4 inclusive on numa node 1: "1.2,1.3,1.4", "1.2-1.4", "1.2:3".  When using hstore, the actual dax device names are concatenations of the device_name option with <node>.<index> values specified by this option. In the node 0 example above, with device_name /dev/dax, the device paths are /dev/dax0.2 through /dev/dax0.4 inclusive.
 * time: time in seconds to run. This only effects certain types of tests. 
 * path: location where pool should be created. 
 * size: size of pool to create. This is in bytes, so it may be a large number.
