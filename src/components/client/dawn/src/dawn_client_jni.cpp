@@ -1,4 +1,5 @@
 #include "dawn_client_jni.h"
+#if defined JNIEXPORT
 #include <api/components.h>
 #include <api/kvstore_itf.h>
 #include <common/cpu.h>
@@ -139,3 +140,6 @@ JNIEXPORT jint JNICALL Java_DawnClient_clean(JNIEnv *env, jobject obj)
 {
   client->release_ref();
 }
+#else
+typedef int i; /* A C++ compiland needs at least one statement */
+#endif

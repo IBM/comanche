@@ -3,6 +3,7 @@
 
 #include <jni.h>
 
+#if defined JNIEXPORT
 JNIEXPORT void JNICALL
                Java_DawnClient_init(JNIEnv *, jobject, jint, jstring, jstring, jstring);
 
@@ -18,4 +19,5 @@ JNIEXPORT jint JNICALL Java_DawnClient_erase(JNIEnv *,
                                              jstring);
 
 JNIEXPORT jint JNICALL Java_DawnClient_clean(JNIEnv *, jobject);
+#endif
 #endif
