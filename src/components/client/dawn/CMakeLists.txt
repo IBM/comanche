@@ -19,6 +19,7 @@ link_directories(${CMAKE_INSTALL_PREFIX}/lib)
 
 include_directories(../../../servers/dawn/src/)
 include_directories(/usr/lib/jvm/java-11-openjdk-amd64/include/)
+include_directories(./src) # For <jni.h>, if not found in the jvm path
 
 add_library(${PROJECT_NAME} SHARED ${SOURCES})
 
@@ -26,7 +27,7 @@ set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--no-undefined")
 target_link_libraries(${PROJECT_NAME} common comanche-core pthread numa dl rt z profiler)
 
 # set the linkage in the install/lib
-set_target_properties(${PROJECT_NAME} PROPERTIES 
+set_target_properties(${PROJECT_NAME} PROPERTIES
   INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib)
 
 install (TARGETS ${PROJECT_NAME} LIBRARY DESTINATION lib)
