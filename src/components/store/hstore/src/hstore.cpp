@@ -328,11 +328,20 @@ auto hstore::put(const pool_t pool,
   auto cvalue = static_cast<const char *>(value);
 
   const auto i =
+#if 1
     session.map().emplace(
                           std::piecewise_construct
                           , std::forward_as_tuple(key.begin(), key.end(), session.allocator())
                           , std::forward_as_tuple(cvalue, cvalue + value_len, session.allocator())
                           );
+#else
+    session.map().insert(
+      table_t::value_type(
+        table_t::key_type(key.begin(), key.end(), session.allocator())
+	, table_t::mapped_type(cvalue, cvalue + value_len, session.allocator())
+      )
+    );
+#endif
   return i.second ? S_OK : update_by_issue_41(pool, key, value, value_len,  i.first->second.data(), i.first->second.size());
 }
 
