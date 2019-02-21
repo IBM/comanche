@@ -9,6 +9,7 @@
 #include "bucket_control_unlocked.h"
 #include "segment_layout.h"
 #include <cstddef> /* size_t */
+#include <ostream>
 
 namespace impl
 {
@@ -122,6 +123,15 @@ namespace impl
 				;
 			}
 		};
+	}
+
+template <typename Bucket>
+	auto operator<<(
+		std::ostream &o_
+		, const impl::segment_and_bucket<Bucket> &b_
+	) -> std::ostream &
+	{
+		return o_ << b_.si() << "." << b_.bi();
 	}
 
 template <typename Bucket>

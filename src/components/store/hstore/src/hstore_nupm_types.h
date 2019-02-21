@@ -8,7 +8,7 @@
 
 #if USE_CC_HEAP == 1 || USE_CC_HEAP == 3
 #else
-#error USE_CC_HEAP type incompatible with nupm 
+#error USE_CC_HEAP type incompatible with nupm
 #endif
 
 #include "hstore_common.h"

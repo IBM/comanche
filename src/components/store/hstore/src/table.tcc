@@ -10,6 +10,7 @@
 #include "perishable.h"
 #include "perishable_expiry.h"
 #include "persistent.h"
+#include "test_flags.h"
 
 #include <boost/iterator/transform_iterator.hpp>
 
@@ -23,6 +24,9 @@
 
 #if TRACE_MANY
 #include <sstream> /* ostringstream */
+#endif
+#if TEST_HSTORE_PERISHABLE
+#include <sstream> /* cerr */
 #endif
 
 /*
@@ -104,13 +108,12 @@ template <
 			resize();
 		}
 
-#if 0
-		std::cerr << "Table base constructor: raw size " << this->persist_controller_t::size_and_unstable() 
-			<< " destable count " << this->persist_controller_t::destable_count() << " "
-		       	<< (this->persist_controller_t::is_size_unstable() ? "unstable" : "stable") << "\n";
+#if TEST_HSTORE_PERISHABLE
+		std::cerr << "Table base constructor: "
+			<< (this->persist_controller_t::is_size_stable() ? "stable" : "unstable") << " size " << this->persist_controller_t::size_unstable() << "\n";
 #endif
 
-		if ( this->persist_controller_t::is_size_unstable() )
+		if ( ! this->persist_controller_t::is_size_stable() )
 		{
 			/* The size is unknown. Also, the content state (FREE or IN_USE) of each element is unknown.
 			 * Scan all elements to determine the size and the content state.
@@ -135,8 +138,8 @@ template <
 				/* conditional - to suppress unnecessary persists */
 				if ( content_lk.ref().state_get() != (in_use ? bucket_t::IN_USE : bucket_t::FREE) )
 				{
-#if 1
-					std::cerr << "Element " << sb.si() << "." << sb.bi() << " changed  to " << (in_use ? "in_use" : "free") << "\n";
+#if TEST_HSTORE_PERISHABLE
+					std::cerr << "Element " << sb << " changed to " << (in_use ? "in_use" : "free") << "\n";
 #endif
 					content_lk.ref().state_set(in_use ? bucket_t::IN_USE : bucket_t::FREE);
 
@@ -574,10 +577,10 @@ template <
 				 *  4. mark the size as "stable"
 				 *   flush (8 bytes)
 				 */
-				b_dst.ref().state_set(bucket_t::IN_USE);
-				this->persist_controller_t::persist_content(b_dst.ref(), "content in use");
 				{
 					persist_size_change<Allocator, size_incr> s(*this);
+					b_dst.ref().state_set(bucket_t::IN_USE);
+					this->persist_controller_t::persist_content(b_dst.ref(), "content in use");
 					owner_lk.ref().insert(
 						owner_lk.index()
 						, distance_wrapped(owner_lk.index(), b_dst.index())
