@@ -123,6 +123,7 @@ public:
       throw std::runtime_error("Failed to open pool code " + std::to_string(-_pool));
     }
   }
+
   explicit pool_open(
     Component::IKVStore *kvstore_
     , const std::string& path_
@@ -160,7 +161,7 @@ TEST_F(KVStore_test, RemoveOldPool)
 TEST_F(KVStore_test, CreatePool)
 {
   ASSERT_TRUE(_kvstore);
-  pool_open p(_kvstore, pool_dir(), pool_name(), MB(128UL), 0, estimated_object_count);
+  pool_open p(_kvstore, pool_dir(), pool_name(), GB(15UL), 0, estimated_object_count);
   ASSERT_LT(0, int64_t(p.pool()));
 }
 
@@ -202,6 +203,7 @@ TEST_F(KVStore_test, PutMany)
     ; perishable_count = p0 + p1, p0 = p1, p1 = perishable_count
     )
   {
+    unsigned extant_count = 0;
     unsigned fail_count = 0;
     unsigned succeed_count = 0;
     _kvstore->debug(0, 1 /* reset */, perishable_count);
@@ -216,27 +218,38 @@ TEST_F(KVStore_test, PutMany)
       {
         const auto &key = std::get<0>(kv);
         const auto &value = std::get<1>(kv);
-        auto r = _kvstore->put(p.pool(), key, value.c_str(), value.length());
-        if ( r == S_OK )
+        void * old_value = nullptr;
+        size_t old_value_len = 0;
+        if ( S_OK == _kvstore->get(p.pool(), key, old_value, old_value_len) )
         {
-          ++succeed_count;
+          _kvstore->free_memory(old_value);
+          ++extant_count;
         }
         else
         {
-          ++fail_count;
-        }
+          auto r = _kvstore->put(p.pool(), key, value.c_str(), value.length());
+          EXPECT_EQ(S_OK, r);
+          if ( r == S_OK )
+          {
+            ++succeed_count;
+          }
+          else
+          {
+            ++fail_count;
+          }
+	}
       }
-      EXPECT_EQ(succeed_count + fail_count, many_count_target);
-      many_count_actual = succeed_count + fail_count;
+      EXPECT_EQ(many_count_target, extant_count + succeed_count + fail_count);
+      many_count_actual = extant_count + succeed_count;
       finished = true;
       /* Done with forcing crashes */
       _kvstore->debug(0, 0 /* enable */, false);
-      std::cerr << __func__ << " Final put pass " << perishable_count << " exists " << fail_count << " inserts " << succeed_count << " total " << many_count_actual << "\n";
+      std::cerr << __func__ << " Final put pass " << perishable_count << " exists " << extant_count << " inserts " << succeed_count << " total " << many_count_actual << "\n";
     }
     catch ( const std::runtime_error &e )
     {
       if ( e.what() != std::string("perishable timer expired") ) { throw; }
-      std::cerr << __func__ << " Perishable pass " << perishable_count << " exists " << fail_count << " inserts " << succeed_count << " total " << many_count_actual << "\n";
+      std::cerr << __func__ << " Perishable pass " << perishable_count << " exists " << extant_count << " inserts " << succeed_count << " total " << many_count_actual << "\n";
     }
   }
 }
@@ -248,12 +261,13 @@ TEST_F(KVStore_test, GetMany)
   {
     pool_open p(_kvstore, pool_dir(), pool_name());
     ASSERT_LT(0, int64_t(p.pool()));
+    auto count = _kvstore->count(p.pool());
     {
-      auto count = _kvstore->count(p.pool());
-      /* count should reflect PutMany */
-      EXPECT_EQ(count, many_count_actual);
+      /* count should be close to PutMany many_count_actual; duplicate keys are the difference */
+      EXPECT_LE(many_count_actual * 0.99, double(count));
     }
     {
+      std::size_t mismatch_count = 0;
       for ( auto &kv : kvv )
       {
         const auto &key = std::get<0>(kv);
@@ -261,17 +275,19 @@ TEST_F(KVStore_test, GetMany)
         void * value = nullptr;
         size_t value_len = 0;
         auto r = _kvstore->get(p.pool(), key, value, value_len);
-        EXPECT_EQ(r, S_OK);
-        EXPECT_EQ(value_len, many_value_length);
-        EXPECT_EQ(0, memcmp(ev.data(), value, ev.size()));
+        EXPECT_EQ(S_OK, r);
+        EXPECT_EQ(ev.size(), value_len);
+        mismatch_count += ( ev.size() != value_len || 0 != memcmp(ev.data(), value, ev.size()) );
         _kvstore->free_memory(value);
       }
+      /* We do not know exactly now many mismatches (caused by duplicates) to expcect,
+       * because "extant_count" counts both extant items due to duplicate keys in the
+       * population arrays and extant items due to restarts.
+       * But it should be a small fraction of the total number of keys
+       */
+      EXPECT_GT(many_count_target * 0.01, double(mismatch_count));
     }
-    {
-      auto count = _kvstore->count(p.pool());
-      /* count should reflect PutMany, and Allocate */
-      EXPECT_EQ(count, many_count_actual);
-    }
+
     {
       auto erase_count = 0;
       for ( auto &kv : kvv )
@@ -283,9 +299,9 @@ TEST_F(KVStore_test, GetMany)
           ++erase_count;
         }
       }
-      EXPECT_LE(many_count_actual, erase_count);
+      EXPECT_EQ(count, erase_count);
       auto count = _kvstore->count(p.pool());
-      EXPECT_EQ(count, 0U);
+      EXPECT_EQ(0U, count);
     }
   }
 }
