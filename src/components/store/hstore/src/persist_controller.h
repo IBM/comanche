@@ -127,11 +127,13 @@ namespace impl
 			{
 				return _persist->_segment_count._target;
 			}
-#if 0
-			auto size_and_unstable() const /* debugging */
+#if TEST_HSTORE_PERISHABLE
+			auto size_unstable() const /* debugging */
 			{
-				return _persist->_size_control.size_and_unstable();
+				return _persist->_size_control.size_unstable();
 			}
+#endif
+#if 0
 			auto destable_count() const /* debugging */
 			{
 				return _persist->_size_control.destable_count();
@@ -163,7 +165,7 @@ namespace impl
 					}
 				);
 			}
-			bool is_size_unstable() const;
+			bool is_size_stable() const;
 			void size_set(std::size_t n);
 
 			auto bucket_count() const -> size_type
