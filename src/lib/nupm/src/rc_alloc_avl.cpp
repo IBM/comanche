@@ -72,11 +72,9 @@ class Rca_AVL_internal {
   void inject_allocation(void *ptr, size_t size, int numa_node)
   {
     assert(ptr);
-    auto mrp =
-        _allocators[numa_node]->alloc_at(reinterpret_cast<addr_t>(ptr), size);
+    auto mrp = _allocators[numa_node]->alloc_at(reinterpret_cast<addr_t>(ptr), size);
     if (mrp == nullptr)
-      throw General_exception(
-          "alloc_at on AVL range allocator failed unexpectedly");
+      throw General_exception("alloc_at on AVL range allocator failed unexpectedly");
   }
 
   void *alloc(size_t size, int numa_node, size_t alignment)
@@ -98,7 +96,10 @@ class Rca_AVL_internal {
 
   void debug_dump(std::string *out_str)
   {
-    _allocators[0]->dump_info(out_str);
+    if(_allocators[0])
+      _allocators[0]->dump_info(out_str);
+
+    if(_allocators[1])
     _allocators[1]->dump_info(out_str);
   }
 
@@ -144,6 +145,9 @@ void Rca_AVL::free(void *ptr, int numa_node, size_t size)
   _rca->free(ptr, numa_node);
 }
 
-void Rca_AVL::debug_dump(std::string *out_log) { _rca->debug_dump(out_log); }
+void Rca_AVL::debug_dump(std::string *out_log)
+{
+  _rca->debug_dump(out_log);
+}
 
 }  // namespace nupm

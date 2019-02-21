@@ -77,6 +77,11 @@ class Large_and_small_bucket_mapper {
       return object_size;
   }
 
+  bool could_exist_in_region(size_t object_size)
+  {
+    return object_size <= L0_MAX_SMALL_OBJECT_SIZE;
+  }
+
  private:
   const size_t _other_bucket_index;
 };
@@ -99,7 +104,7 @@ class Log2_bucket_mapper {
   }
 };
 
-// using Bucket_mapper = Log2_bucket_mapper;
+//using Bucket_mapper = Log2_bucket_mapper;
 using Bucket_mapper = Large_and_small_bucket_mapper;
 
 }  // namespace nupm
