@@ -33,6 +33,11 @@
 
 namespace nupm
 {
+
+/** 
+ * Class to manage individual regions on the heap
+ * 
+ */
 class Region {
   friend class Region_map;
 
@@ -46,9 +51,8 @@ class Region {
  protected:
   Region(void *region_ptr, const size_t region_size, const size_t object_size)
   {
-    if (_debug_level > 1)
-      PLOG("Region ctor: region_base=%p region_size=%lu objsize=%lu "
-           "capacity=%lu",
+    if (_debug_level > 1 || 1)
+      printf("new region: region_base=%p region_size=%lu objsize=%lu capacity=%lu\n",
            region_ptr, region_size, object_size, region_size / object_size);
 
     if (region_size % object_size)
@@ -129,6 +133,22 @@ class Region {
     return false;
   }
 
+  void debug_dump(std::string *out_log)
+  {
+    std::stringstream ss;
+
+    for(auto i: _used)
+      ss << "u(" << i << ")";
+
+    for(auto i: _free)
+      ss << "f(" << i << ")";
+    ss << "\n";
+    if(out_log)
+      out_log->append(ss.str());
+    else
+      std::cout << ss.str() << std::endl;  
+  }
+  
  private:
   addr_t _base, _top;
   list_t _free;
@@ -136,7 +156,7 @@ class Region {
 };
 
 /**
- * @brief      Region-based heap allocator.  Uses 2^n sized bucket strategy.
+ * Region-based heap allocator.  Uses 2^n sized bucket strategy.
  */
 class Region_map {
   static constexpr unsigned NUM_BUCKETS    = 64;
@@ -166,8 +186,14 @@ class Region_map {
     if (unlikely(numa_node < 0 || numa_node >= MAX_NUMA_ZONES))
       throw std::invalid_argument("numa node outside max range");
 
-    void *p = allocate_from_existing_region(size, numa_node);
-    if (!p) p = allocate_from_new_region(size, numa_node);
+    void *p = nullptr;
+
+    if(_mapper.could_exist_in_region(size))
+      p = allocate_from_existing_region(size, numa_node);
+    
+    if (!p) 
+      p = allocate_from_new_region(size, numa_node);
+
     if (!p) throw std::bad_alloc();
     return p;
   }
@@ -229,18 +255,41 @@ class Region_map {
     for (auto &region : _buckets[numa_node][bucket]) {
       if (region->in_range(ptr) && region->allocate_at(ptr)) return;
     }
+
     /* otherwise we have to create the region at the correct position  */
     auto region_size = _mapper.region_size(size);
     assert(region_size > 0);
     auto region_base = _mapper.base(ptr, size);
+
+    PLOG("derived (ptr=%p size=%lu) base=%p base_size=%lu\n",
+         ptr, size, region_base, region_size);
+
+    
     assert(region_base);
     _arena_allocator.inject_allocation(region_base, region_size, numa_node);
-    auto    region_object_size = _mapper.rounded_up_object_size(size);
+    
+    size_t region_object_size = region_size == size ?
+      region_size : _mapper.rounded_up_object_size(size);
+
     Region *new_region =
         new Region(region_base, region_size, region_object_size);
+    
     attach_region(new_region, region_object_size, numa_node);
     new_region->allocate_at(ptr);
   }
+
+  void debug_dump(std::string *out_log)
+  {
+    for (unsigned numa_node = 0; numa_node < MAX_NUMA_ZONES; numa_node++) {
+      for (unsigned i = 0; i < NUM_BUCKETS; i++) {
+        /* search regions */
+        for (auto &region : _buckets[numa_node][i]) {
+          region->debug_dump(out_log);
+        }
+      }
+    }
+  }
+
 
  private:
   void *allocate_from_existing_region(size_t object_size, int numa_node)
@@ -264,8 +313,8 @@ class Region_map {
     auto region_size = _mapper.region_size(object_size);
     assert(region_size > 0);
     auto region_object_size = _mapper.rounded_up_object_size(object_size);
-    auto region_base        = _arena_allocator.alloc(
-        region_size, numa_node, region_object_size); /* align by object size */
+    auto region_base        = _arena_allocator.alloc(region_size, numa_node, region_object_size);
+    assert(check_aligned(region_base, region_object_size));
     assert(region_base);
     Region *new_region =
         new Region(region_base, region_size, region_object_size);
