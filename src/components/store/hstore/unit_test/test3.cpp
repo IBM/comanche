@@ -228,7 +228,7 @@ long unsigned KVStore_test::put_many(const kvv_t &kvv, const std::string &descr)
     timer t(
       [&count, &descr] (timer::duration_t d) {
         double seconds = std::chrono::duration_cast<std::chrono::microseconds>(d).count() / 1e6;
-        std::cerr << descr << " " << count / seconds << " per second\n";
+        std::cerr << descr << " " << count << " in " << seconds << " seconds -> " << count / seconds << " per second\n";
       }
     );
     for ( auto &kv : kvv )
