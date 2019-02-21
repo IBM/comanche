@@ -39,6 +39,7 @@ class Shard_launcher : public Config_file {
           get_shard("device", i),
           get_shard("net", i),
           get_shard("default_backend", i),
+          get_shard("index", i),
           get_shard("nvme_device", i),
           get_shard("pm_path", i),
           dax_config_json,
