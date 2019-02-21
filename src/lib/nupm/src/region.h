@@ -50,9 +50,10 @@ class Region {
 
  protected:
   Region(void *region_ptr, const size_t region_size, const size_t object_size)
+    : _object_size(object_size)
   {
-    if (_debug_level > 1 || 1)
-      printf("new region: region_base=%p region_size=%lu objsize=%lu capacity=%lu\n",
+    if (_debug_level > 1)
+      PLOG("new region: region_base=%p region_size=%lu objsize=%lu capacity=%lu",
            region_ptr, region_size, object_size, region_size / object_size);
 
     if (region_size % object_size)
@@ -73,6 +74,11 @@ class Region {
     }
   }
 
+  size_t object_size() const
+  {
+    return _object_size;
+  }
+  
   inline bool in_range(void *p)
   {
     auto addr = reinterpret_cast<addr_t>(p);
@@ -85,6 +91,7 @@ class Region {
     void *p = _free.front();
     _free.pop_front();
     _used.push_front(p);
+    assert(check_aligned(p, _object_size));
     return p;
   }
 
@@ -106,8 +113,8 @@ class Region {
         /* TODO: we could check for total free region */
         return true;
       }
+      last = i;
       i++;
-      last++;
     }
     return false;
   }
@@ -128,20 +135,21 @@ class Region {
         _used.push_front(ptr);
         return true;
       }
+      last = i;
       i++;
     }
     return false;
   }
 
-  void debug_dump(std::string *out_log)
+  void debug_dump(std::string *out_log = nullptr)
   {
     std::stringstream ss;
 
     for(auto i: _used)
-      ss << "u(" << i << ")";
+      ss << "u(" << i << ")\n";
 
     for(auto i: _free)
-      ss << "f(" << i << ")";
+      ss << "f(" << i << ")\n";
     ss << "\n";
     if(out_log)
       out_log->append(ss.str());
@@ -150,6 +158,7 @@ class Region {
   }
   
  private:
+  const size_t _object_size;
   addr_t _base, _top;
   list_t _free;
   list_t _used; /* we could do with this, but it guards against misuse */
@@ -161,7 +170,7 @@ class Region {
 class Region_map {
   static constexpr unsigned NUM_BUCKETS    = 64;
   static constexpr int      MAX_NUMA_ZONES = 2;
-  static constexpr unsigned _debug_level   = 3;
+  static constexpr unsigned _debug_level   = 0;
 
  public:
   Region_map() {}
@@ -191,10 +200,18 @@ class Region_map {
     if(_mapper.could_exist_in_region(size))
       p = allocate_from_existing_region(size, numa_node);
     
-    if (!p) 
+    if (!p)
       p = allocate_from_new_region(size, numa_node);
 
     if (!p) throw std::bad_alloc();
+
+    /* debugging */
+    if(_debug_level > 2) {
+      if(size <= nupm::Large_and_small_bucket_mapper::L0_MAX_SMALL_OBJECT_SIZE) {
+        assert(((addr_t)p) % _mapper.rounded_up_object_size(size) == 0); /* small objects should be size-aligned */
+      }
+    }
+
     return p;
   }
 
@@ -236,7 +253,7 @@ class Region_map {
   }
 
   /**
-   * @brief      Inject a prior allocation.  Marks the memory as allocated.
+   * Inject a prior allocation.  Marks the memory as allocated.
    *
    * @param      ptr        The pointer
    * @param[in]  size       The size
@@ -249,11 +266,28 @@ class Region_map {
     if (unlikely(numa_node < 0 || numa_node >= MAX_NUMA_ZONES))
       throw std::invalid_argument("numa node outside max range");
 
+    /* debugging */
+    if(_debug_level > 2) {
+      if(size <= nupm::Large_and_small_bucket_mapper::L0_MAX_SMALL_OBJECT_SIZE) {
+        /* small objects should be aligned with bucket object size */
+        assert(((addr_t)ptr) % _mapper.rounded_up_object_size(size) == 0); 
+      }
+    }
+
     auto bucket = _mapper.bucket(size);
 
-    /* check existing regions */
+    /* check existing regions in the bucket */
     for (auto &region : _buckets[numa_node][bucket]) {
-      if (region->in_range(ptr) && region->allocate_at(ptr)) return;
+      if (region->in_range(ptr)) {
+        if(region->allocate_at(ptr)) return;
+        else {
+          region->debug_dump();
+          PLOG("rounded up object size: %lu", _mapper.rounded_up_object_size(size));
+          PLOG("region object size: %lu", region->object_size());
+          throw Logic_exception("inject allocation found region, but allocate_at failed (%p,%lu)",
+                                ptr, size);
+        }
+      }
     }
 
     /* otherwise we have to create the region at the correct position  */
@@ -261,11 +295,11 @@ class Region_map {
     assert(region_size > 0);
     auto region_base = _mapper.base(ptr, size);
 
-    PLOG("derived (ptr=%p size=%lu) base=%p base_size=%lu\n",
-         ptr, size, region_base, region_size);
-
-    
-    assert(region_base);
+    if(_debug_level > 2) {
+      PLOG("derived (ptr=%p size=%lu) region_base=%p region_size=%lu\n",
+           ptr, size, region_base, region_size);
+    }
+   
     _arena_allocator.inject_allocation(region_base, region_size, numa_node);
     
     size_t region_object_size = region_size == size ?
@@ -274,11 +308,11 @@ class Region_map {
     Region *new_region =
         new Region(region_base, region_size, region_object_size);
     
-    attach_region(new_region, region_object_size, numa_node);
+    _buckets[numa_node][bucket].push_front(new_region);
     new_region->allocate_at(ptr);
   }
 
-  void debug_dump(std::string *out_log)
+  void debug_dump(std::string *out_log = nullptr)
   {
     for (unsigned numa_node = 0; numa_node < MAX_NUMA_ZONES; numa_node++) {
       for (unsigned i = 0; i < NUM_BUCKETS; i++) {
@@ -312,24 +346,25 @@ class Region_map {
       throw std::out_of_range("object size beyond available buckets");
     auto region_size = _mapper.region_size(object_size);
     assert(region_size > 0);
+
+    /* allocate region */
     auto region_object_size = _mapper.rounded_up_object_size(object_size);
-    auto region_base        = _arena_allocator.alloc(region_size, numa_node, region_object_size);
-    assert(check_aligned(region_base, region_object_size));
+    auto region_base        = _arena_allocator.alloc(region_size, numa_node, region_size);
+    
     assert(region_base);
-    Region *new_region =
-        new Region(region_base, region_size, region_object_size);
+    assert(check_aligned(region_base, region_object_size));
+
+    Region *new_region = new Region(region_base, region_size, region_object_size);
     void *rp = new_region->allocate();
-    attach_region(new_region, object_size, numa_node);
+    
+    assert(rp);
+    // PLOG("allocate from new (object_size=%lu, region_object_size=%lu, allocation=%p)",
+    //      object_size, region_object_size, rp);
+    /* add region to bucket */
+    _buckets[numa_node][bucket].push_front(new_region);
+
     return rp;
   }
-
-  void attach_region(Region *region, size_t object_size, int numa_node)
-  {
-    auto bucket = _mapper.bucket(object_size);
-    if (bucket >= NUM_BUCKETS)
-      throw std::out_of_range("object size beyond available buckets");
-    _buckets[numa_node][bucket].push_front(region);
-  };
 
   void delete_region(Region *region)
   {
