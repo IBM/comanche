@@ -34,13 +34,15 @@ inline static unsigned get_log2_bin(size_t a)
 namespace nupm
 {
 class Large_and_small_bucket_mapper {
- private:
+  friend class Region_map;
+  
+protected:
   static constexpr size_t L0_MAX_SMALL_OBJECT_SIZE = KiB(4);
   static constexpr size_t L0_REGION_SIZE           = MiB(1);
 
  public:
   Large_and_small_bucket_mapper()
-      : _other_bucket_index(get_log2_bin(L0_MAX_SMALL_OBJECT_SIZE) + 1)
+      : _large_object_bucket_index(get_log2_bin(L0_MAX_SMALL_OBJECT_SIZE) + 1)
   {
   }
 
@@ -48,17 +50,17 @@ class Large_and_small_bucket_mapper {
   {
     if (object_size <= L0_MAX_SMALL_OBJECT_SIZE)
       return get_log2_bin(object_size);
-    else {
-      return _other_bucket_index;
-    }
+
+    
+    return _large_object_bucket_index;
   }
 
   void *base(void *addr, size_t object_size)
   {
     if (object_size <= L0_MAX_SMALL_OBJECT_SIZE)
       return round_down(addr, L0_REGION_SIZE);
-    else
-      return addr;
+
+    return addr;
   }
 
   size_t region_size(size_t object_size)
@@ -83,11 +85,15 @@ class Large_and_small_bucket_mapper {
   }
 
  private:
-  const size_t _other_bucket_index;
+  const size_t _large_object_bucket_index; /* index for bucket of large objects */
 };
 
+/** 
+ * Basic log2 mapper; mainly for testing
+ * 
+ */
 class Log2_bucket_mapper {
-  static constexpr size_t REGION_SIZE = GB(1);
+  static constexpr size_t REGION_SIZE = MB(1);
 
  public:
   unsigned bucket(size_t object_size) { return get_log2_bin(object_size); }
@@ -102,6 +108,8 @@ class Log2_bucket_mapper {
     assert(rup >= size);
     return rup;
   }
+
+  bool could_exist_in_region(size_t object_size) { return true; }
 };
 
 //using Bucket_mapper = Log2_bucket_mapper;

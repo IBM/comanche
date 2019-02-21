@@ -72,6 +72,8 @@ class Rca_AVL_internal {
   void inject_allocation(void *ptr, size_t size, int numa_node)
   {
     assert(ptr);
+    assert(_allocators[numa_node]);
+    
     auto mrp = _allocators[numa_node]->alloc_at(reinterpret_cast<addr_t>(ptr), size);
     if (mrp == nullptr)
       throw General_exception("alloc_at on AVL range allocator failed unexpectedly");
@@ -83,7 +85,7 @@ class Rca_AVL_internal {
     if (_debug_level > 1) PLOG("allocated: 0x%lx size=%lu", mr->addr(), size);
 
     assert(mr);
-    return reinterpret_cast<void *>(mr->addr());
+    return mr->paddr();
   }
 
   void free(void *ptr, int numa_node)
@@ -133,6 +135,7 @@ void Rca_AVL::inject_allocation(void *ptr, size_t size, int numa_node)
 void *Rca_AVL::alloc(size_t size, int numa_node, size_t alignment)
 {
   if (size == 0) throw std::invalid_argument("invalid size");
+  if (alignment == 0) alignment = 1;
 
   if (numa_node > Rca::max_numa_node)
     throw std::invalid_argument("numa node out of range");
