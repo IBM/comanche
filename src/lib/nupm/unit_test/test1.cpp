@@ -5,6 +5,7 @@
 #include <core/heap_allocator.h>
 #include <gtest/gtest.h>
 #include <chrono>
+#include <list>
 #include "arena_alloc.h"
 #include "dax_map.h"
 #include "rc_alloc_avl.h"
@@ -52,23 +53,201 @@ class Libnupm_test : public ::testing::Test {
 //   return true;
 // }
 
+#define RUN_AVL_RANGE_ALLOCATOR_TESTS
 //#define RUN_RPALLOCATOR_TESTS
 //#define RUN_VMEM_ALLOCATOR_TESTS
-#define RUN_DEVDAX_TEST
+//#define RUN_DEVDAX_TEST
 //#define RUN_AVL_RCA_TEST
 //#define RUN_AVL_STRESS_TEST
+//#define RUN_AVL_RECONST_TEST
 //#define RUN_MALLOC_STRESS_TEST
 //#define RUN_LB_TEST
 //#define RUN_LB_STRESS_TEST
 //#define RUN_LB_INTEGRITY_TEST
+//#define RUN_LB_RECONST_TEST
+
+#ifdef RUN_AVL_RANGE_ALLOCATOR_TESTS
+TEST_F(Libnupm_test, AVLRange)
+{
+  const size_t ARENA_SIZE = GB(32);
+  const size_t COUNT = 100;
+  init_genrand64(0xF00B);
+  
+  std::vector<iovec> log;
+
+  PLOG("Building AVL...");
+  std::string before, after;
+  {
+    Core::AVL_range_allocator avl(0x900000000, ARENA_SIZE);
+    for (size_t i = 1; i < COUNT; i++) {
+      size_t s = round_up(((genrand64_int64() % 4096) + 8), 8);
+      assert(s % 8 == 0);
+      void *p = avl.alloc(s, 8);
+      ASSERT_TRUE(check_aligned(p, 8));
+      log.push_back({p, s});    
+    }
+    avl.dump_info(&before);
+  }
+  
+  /* now do reconstitution */
+  PLOG("Reconstituting AVL...");
+  {  
+    Core::AVL_range_allocator avl(0x900000000, ARENA_SIZE);
+
+    for(auto a : log) {
+      avl.alloc_at((addr_t)a.iov_base, a.iov_len);
+    }
+    avl.dump_info(&after);
+  }
+  ASSERT_TRUE(before==after);
+
+  //    rca.debug_dump(&state_A);
+  
+
+}
+#endif
+
+#ifdef RUN_AVL_RECONST_TEST
+TEST_F(Libnupm_test, RcAllocatorAVLReconstitute)
+{
+  const size_t ARENA_SIZE = GB(32);
+  const size_t COUNT = 1000;
+  void * p = aligned_alloc(GB(1), ARENA_SIZE);
+  ASSERT_TRUE(p);
+  init_genrand64(0xF00B);
+  
+  std::vector<iovec> log;
+
+  /* set up AVL allocator */
+  std::string state_A, state_B;
+  { 
+    nupm::Rca_AVL rca;
+    rca.add_managed_region(p, ARENA_SIZE, 0);
+
+    for (size_t i = 1; i < COUNT; i++) {
+      size_t s = round_up(((genrand64_int64() % 4096) + 8), 8);
+      assert(s % 8 == 0);
+      void *p = rca.alloc(s, 0 /* numa */, 8 /* alignment */);
+      ASSERT_TRUE(check_aligned(p, 8));
+      log.push_back({p, s});    
+    }
+
+    rca.debug_dump(&state_A);
+  }
+
+  /* now do reconstitution */
+  {
+    nupm::Rca_LB rca;
+    rca.add_managed_region(p, ARENA_SIZE, 0);
+
+    for(auto a : log) {
+      rca.inject_allocation(a.iov_base, a.iov_len, 0 /* numa */);
+    }
+    rca.debug_dump(&state_B);
+  }
+  ASSERT_TRUE(state_A == state_B);
+
+}
+#endif
+
+#ifdef RUN_LB_RECONST_TEST
+TEST_F(Libnupm_test, RcAllocatorLBReconstitute)
+{
+  const size_t ARENA_SIZE = GB(32);
+  const size_t COUNT = 10000;
+  void * p = aligned_alloc(GB(1), ARENA_SIZE);
+  ASSERT_TRUE(p);
+
+  struct info_t {
+    void *   p;
+    size_t   size;
+
+    bool operator< (info_t cmp)  {
+      return ((addr_t)p) < ((addr_t)cmp.p);
+    }
+  };
+  
+  struct compare {
+    bool operator() (info_t a, info_t b)
+    {
+      return a.p == b.p && a.size == b.size;
+    }
+  };
+ 
+  
+  std::list<info_t> log;
+  std::string before;
+  
+  /* do 10K allocations */
+  {
+    nupm::Rca_LB rca;
+    rca.add_managed_region(p, ARENA_SIZE, 0);
+    init_genrand64(0xF00B);
+
+    for (size_t i = 1; i < COUNT; i++) {
+      size_t s = round_up(((genrand64_int64() % 4096) + 8), 8);
+      assert(s % 8 == 0);
+      void *p = rca.alloc(s, 0 /* numa */, 8 /* alignment */);
+      ASSERT_TRUE(check_aligned(p, 8));
+      log.push_back({p, s});    
+    }
+    /* capture state */
+    rca.debug_dump(&before);
+  }
+
+  std::string before_repeat;
+  /* do same again */
+  {
+    nupm::Rca_LB rca;
+    rca.add_managed_region(p, ARENA_SIZE, 0);
+    init_genrand64(0xF00B);
+    
+    for (size_t i = 1; i < COUNT; i++) {
+      size_t s = round_up(((genrand64_int64() % 4096) + 8), 8);
+      assert(s % 8 == 0);
+      void *p = rca.alloc(s, 0 /* numa */, 8 /* alignment */);
+      ASSERT_TRUE(check_aligned(p, 8));
+    }
+    /* capture state */
+    rca.debug_dump(&before_repeat);
+  }
+  ASSERT_TRUE(before == before_repeat);
+
+  /* check for duplicates */
+  {
+    std::list<info_t> tmplog = log;
+    tmplog.sort();
+    size_t before_uniq = tmplog.size();
+    tmplog.unique(compare());
+    ASSERT_TRUE(before_uniq == log.size());
+  }
+  
+  /* now do reconstitution */
+  std::string after;
+  {
+    nupm::Rca_LB rca;
+    rca.add_managed_region(p, ARENA_SIZE, 0);
+
+    for(auto a : log) {
+      ASSERT_TRUE(a.size <= 4104);
+      rca.inject_allocation(a.p, a.size, 0 /* numa */);
+    }
+    rca.debug_dump(&after);
+  }
+  PLOG("before state len=%lu / after state len = %lu",
+       before.length(), after.length());
+  ASSERT_TRUE(before == after);
+
+  
+}
+#endif
 
 #ifdef RUN_LB_INTEGRITY_TEST
 TEST_F(Libnupm_test, RcAllocatorLBIntegrity)
 {
   const size_t ARENA_SIZE = GB(32);
-  void *       p          = (void*) 0x9800000000;
-  //  void * p = aligned_alloc(GB(1), ARENA_SIZE);
-  uint64_t     tag   = 1;
+  void * p = aligned_alloc(GB(1), ARENA_SIZE);
+  uint64_t tag = 1;
   ASSERT_TRUE(p);
 
   nupm::Rca_LB rca;
@@ -216,7 +395,7 @@ TEST_F(Libnupm_test, RcAllocatorLB)
     }
 
     /* logical power-fail */
-    rca.debug_dump(&state_A);  // TODO get string version
+    rca.debug_dump(&state_A);  
 
     /* now we should be able to free */
     for (auto &i : allocations) {
@@ -324,7 +503,7 @@ TEST_F(Libnupm_test, RcAllocatorAVL)
     }
 
     /* logical power-fail */
-    rca.debug_dump(&state_A);  // TODO get string version
+    rca.debug_dump(&state_A);  
   }
 
   {

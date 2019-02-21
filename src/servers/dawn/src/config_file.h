@@ -123,18 +123,17 @@ class Config_file {
     return shard[name.c_str()].GetObject();
   }
 
-  std::vector<std::pair<std::string, std::string>> get_shard_dax_config(
-      rapidjson::SizeType i) const
+  std::vector<std::pair<std::string, std::string>> get_shard_dax_config(rapidjson::SizeType i) const
   {
     if (i > shard_count())
       throw General_exception("get_shard_dax_config out of bounds");
 
+    std::vector<std::pair<std::string, std::string>> result;
+        
     auto shard = get_shard(i);
     if (!shard.HasMember("dax_config"))
-      throw General_exception(
-          "get_shard_dax_config: dax_config does not exist");
+      return result;
 
-    std::vector<std::pair<std::string, std::string>> result;
     if (k_typenames[shard["dax_config"].GetType()] != "Array")
       throw General_exception("dax_config attribute should be an array");
 
