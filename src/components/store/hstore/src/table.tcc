@@ -135,7 +135,7 @@ template <
 				/* conditional - to suppress unnecessary persists */
 				if ( content_lk.ref().state_get() != (in_use ? bucket_t::IN_USE : bucket_t::FREE) )
 				{
-#if 0
+#if 1
 					std::cerr << "Element " << sb.si() << "." << sb.bi() << " changed  to " << (in_use ? "in_use" : "free") << "\n";
 #endif
 					content_lk.ref().state_set(in_use ? bucket_t::IN_USE : bucket_t::FREE);

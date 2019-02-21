@@ -652,6 +652,7 @@ template <
 			auto emplace(Args && ... args) -> std::pair<iterator, bool>
 			{
 				return base::emplace(std::forward<Args>(args)...);
+
 			}
 		auto insert(const value_type &value) -> std::pair<iterator, bool>
 		{
