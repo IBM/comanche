@@ -41,8 +41,6 @@ public:
 
 using open_pool_handle = std::unique_ptr<region, region_closer>;
 
-#include "hstore_open_pool.h"
-
 using Persister = persister_nupm;
 
 #endif

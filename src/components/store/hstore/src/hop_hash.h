@@ -1,5 +1,10 @@
-#ifndef _DAWN_HOP_HASH_H
-#define _DAWN_HOP_HASH_H
+/*
+ * (C) Copyright IBM Corporation 2018, 2019. All rights reserved.
+ * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
+ */
+
+#ifndef _COMANCHE_HOP_HASH_H
+#define _COMANCHE_HOP_HASH_H
 
 #include "segment_layout.h"
 
@@ -394,6 +399,7 @@ namespace impl
 			auto bucket(const key_type &) const -> size_type;
 			auto bucket_size(const size_type n) const -> size_type;
 
+			auto owned_by_owner_mask(const segment_and_bucket_t &a) const -> owner::value_type;
 			bool is_free_by_owner(const segment_and_bucket_t &a) const;
 			bool is_free(const segment_and_bucket_t &a);
 			bool is_free(const segment_and_bucket_t &a) const;
@@ -434,7 +440,7 @@ namespace impl
 			auto count(const key_type &k) const -> size_type;
 			auto begin() -> iterator
 			{
-				return iterator(make_segment_and_bucket(0U));
+				return iterator(make_segment_and_bucket_for_iterator(0U));
 			}
 			auto end() -> iterator
 			{
@@ -452,7 +458,7 @@ namespace impl
 			}
 			auto cbegin() const -> const_iterator
 			{
-				return const_iterator(*this, make_segment_and_bucket(0U));
+				return const_iterator(*this, make_segment_and_bucket_for_iterator(0U));
 			}
 			auto cend() const -> const_iterator
 			{
@@ -467,13 +473,13 @@ namespace impl
 
 			auto begin(size_type n) -> local_iterator
 			{
-				auto sb = make_segment_and_bucket(n);
+				auto sb = make_segment_and_bucket_for_iterator(n);
 				auto owner_lk = make_owner_shared_lock(sb);
 				return local_iterator(*this, sb, locate_owner(sb).value(owner_lk));
 			}
 			auto end(size_type n) -> local_iterator
 			{
-				auto sb = make_segment_and_bucket(n);
+				auto sb = make_segment_and_bucket_for_iterator(n);
 				return local_iterator(*this, sb, owner::value_type(0));
 			}
 			auto begin(size_type n) const -> const_local_iterator
@@ -486,13 +492,13 @@ namespace impl
 			}
 			auto cbegin(size_type n) const -> const_local_iterator
 			{
-				auto sb = make_segment_and_bucket(n);
+				auto sb = make_segment_and_bucket_for_iterator(n);
 				auto owner_lk = make_owner_shared_lock(sb);
 				return const_local_iterator(sb, locate_owner(sb).value(owner_lk));
 			}
 			auto cend(size_type n) const -> const_local_iterator
 			{
-				auto sb = make_segment_and_bucket(n);
+				auto sb = make_segment_and_bucket_for_iterator(n);
 				return const_local_iterator(sb, owner::value_type(0));
 			}
 
@@ -738,7 +744,7 @@ namespace impl
 				{
 					for ( ; ( _mask & 1U ) == 0; _mask >>= 1 )
 					{
-						_sb.incr();
+						_sb.incr_with_wrap();
 					}
 				}
 			}
@@ -754,7 +760,7 @@ namespace impl
 			}
 			void incr()
 			{
-				_sb.incr();
+				_sb.incr_with_wrap();
 				_mask >>= 1;
 				advance_to_in_use();
 			}
