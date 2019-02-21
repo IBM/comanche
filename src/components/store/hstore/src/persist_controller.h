@@ -43,6 +43,8 @@ namespace impl
 			{
 				try
 				{
+					/* Note: change and size_stabilize are separate calls which could be combined. */
+					this->SizeChange::change();
 					_pc->size_stabilize();
 				}
 				catch ( ... )
@@ -118,6 +120,7 @@ namespace impl
 			{
 				return _persist->_segment_count._target;
 			}
+#if 0
 			auto size_and_unstable() const /* debugging */
 			{
 				return _persist->_size_control.size_and_unstable();
@@ -126,10 +129,12 @@ namespace impl
 			{
 				return _persist->_size_control.destable_count();
 			}
+#endif
 			std::size_t size() const
 			{
 				return _persist->_size_control.size();
 			}
+
 			size_control &get_size_control()
 			{
 				return _persist->_size_control;
