@@ -22,7 +22,12 @@
  * goes through this class. Ideally this should also get writes to persist_data::_sc.
  */
 
+#if TEST_HSTORE_PERISHABLE
 #include <iostream>
+#endif
+
+class perishable_expiry;
+
 namespace impl
 {
 	template <typename Allocator, typename SizeChange>
@@ -47,9 +52,11 @@ namespace impl
 					this->SizeChange::change();
 					_pc->size_stabilize();
 				}
-				catch ( ... )
+				catch ( const perishable_expiry & )
 				{
-					std::cerr << "exception in " << __func__ << "\n";
+#if TEST_HSTORE_PERISHABLE
+					std::cerr << "perishable_expiry in " << __func__ << "\n";
+#endif
 				}
 			}
 		};
