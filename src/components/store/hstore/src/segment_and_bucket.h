@@ -1,3 +1,8 @@
+/*
+ * (C) Copyright IBM Corporation 2018, 2019. All rights reserved.
+ * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
+ */
+
 #ifndef _COMANCHE_SEGMENT_AND_BUCKET_H
 #define _COMANCHE_SEGMENT_AND_BUCKET_H
 
@@ -24,7 +29,7 @@ namespace impl
 			{
 			}
 			auto &deref() const { return _seg->deref(_bi); }
-			auto incr() -> segment_and_bucket &
+			auto incr_with_wrap() -> segment_and_bucket &
 			{
 				/* To develop (six_t, bix_t) pair:
 				 *  1. Increment the bix_t (low) part.
