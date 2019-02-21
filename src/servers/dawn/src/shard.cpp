@@ -21,6 +21,7 @@ unsigned debug_level = 0;
 }
 
 void Shard::initialize_components(const std::string& backend,
+                                  const std::string& index,
                                   const std::string& pci_addr,
                                   const std::string& dax_config,
                                   unsigned           debug_level)
@@ -76,6 +77,20 @@ void Shard::initialize_components(const std::string& backend,
       _i_kvstore = fact->create("owner", "name");
     }
     fact->release_ref();
+  }
+  /* INDEX */
+  {
+    IBase* comp;
+    if (index == "rbtree") {
+      comp = load_component("libcomanche-indexrbtree.so", rbtreeindex_factory);
+      if (!comp)
+        throw General_exception("unable to load libcomanche-indexrbtree.so");
+      IKVIndex_factory* fact =
+        (IKVIndex_factory*) comp->query_interface(IKVIndex_factory::iid());
+      assert(fact);
+      _i_kvindex = fact->create("owner", "name");
+      fact->release_ref();
+    }    
   }
 }
 
