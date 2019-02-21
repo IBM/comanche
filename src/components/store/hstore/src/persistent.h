@@ -1,7 +1,13 @@
-#ifndef _DAWN_HSTORE_PERISTENT_H
-#define _DAWN_HSTORE_PERISTENT_H
+/*
+ * (C) Copyright IBM Corporation 2018, 2019. All rights reserved.
+ * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
+ */
+
+#ifndef _COMANCHE_HSTORE_PERISTENT_H
+#define _COMANCHE_HSTORE_PERISTENT_H
 
 #include "perishable.h"
+#include "test_flags.h" /* TEST_HSTORE_PERISHABLE */
 #include <atomic>
 
 template <typename T>
@@ -107,6 +113,18 @@ template <typename T>
 		{
 			perishable::tick();
 			_v = t;
+			return *this;
+		};
+		persistent_atomic<T> &operator+=(const T &t)
+		{
+			perishable::tick();
+			_v += t;
+			return *this;
+		};
+		persistent_atomic<T> &operator-=(const T &t)
+		{
+			perishable::tick();
+			_v -= t;
 			return *this;
 		};
 		persistent_atomic<T> &operator&=(const T &t)

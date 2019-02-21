@@ -1,8 +1,14 @@
-#ifndef _DAWN_PERSIST_CONTROLLER_H
-#define _DAWN_PERSIST_CONTROLLER_H
+/*
+ * (C) Copyright IBM Corporation 2018, 2019. All rights reserved.
+ * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
+ */
+
+#ifndef _COMANCHE_PERSIST_CONTROLLER_H
+#define _COMANCHE_PERSIST_CONTROLLER_H
 
 #include "construction_mode.h"
 #include "persist_data.h"
+#include "test_flags.h" /* TEST_HSTORE_PERISHABLE */
 
 #include <boost/iterator/transform_iterator.hpp>
 
@@ -35,7 +41,14 @@ namespace impl
 			persist_size_change& operator=(const persist_size_change &) = delete;
 			~persist_size_change()
 			{
-				_pc->size_stabilize();
+				try
+				{
+					_pc->size_stabilize();
+				}
+				catch ( ... )
+				{
+					std::cerr << "exception in " << __func__ << "\n";
+				}
 			}
 		};
 
@@ -104,6 +117,14 @@ namespace impl
 			std::size_t segment_count_target() const
 			{
 				return _persist->_segment_count._target;
+			}
+			auto size_and_unstable() const /* debugging */
+			{
+				return _persist->_size_control.size_and_unstable();
+			}
+			auto destable_count() const /* debugging */
+			{
+				return _persist->_size_control.destable_count();
 			}
 			std::size_t size() const
 			{
