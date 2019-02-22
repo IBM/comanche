@@ -20,7 +20,7 @@
 //#define TEST_PERF_SMALL_PUT
 //#define TEST_PERF_SMALL_GET
 //#define TEST_PERF_SMALL_PUT_DIRECT
-//#define TEST_PERF_LARGE_PUT_DIRECT
+#define TEST_PERF_LARGE_PUT_DIRECT
 //#define TEST_PERF_LARGE_GET_DIRECT
 //#define TEST_SCALE_IOPS
 
@@ -144,7 +144,7 @@ TEST_F(Dawn_client_test, SessionControl)
   fact->release_ref();
 }
 
-#else
+#endif
 
 TEST_F(Dawn_client_test, Instantiate)
 {
@@ -155,13 +155,13 @@ TEST_F(Dawn_client_test, Instantiate)
   ASSERT_TRUE(comp);
   fact = (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
 
-  _dawn = fact->create(Options.debug_level, "dwaddington", Options.addr,
+  _dawn = fact->create(Options.debug_level, "dwaddington",
+                       Options.addr,
                        Options.device);
   ASSERT_TRUE(_dawn);
 
   fact->release_ref();
 }
-#endif
 
 #ifdef TEST_BASIC_PUT_AND_GET
 TEST_F(Dawn_client_test, BasicPutAndGet)
@@ -410,14 +410,15 @@ TEST_F(Dawn_client_test, PerfSmallPutDirect)
 TEST_F(Dawn_client_test, PerfLargePutDirect)
 {
   int rc;
-
+  ASSERT_TRUE(_dawn);
+  
   /* open or create pool */
   Component::IKVStore::pool_t pool =
-      _dawn->open_pool("/mnt/pmem0/dawn", Options.pool.c_str(), 0);
+      _dawn->open_pool("test/", Options.pool.c_str(), 0);
 
   if (pool == Component::IKVStore::POOL_ERROR) {
     /* ok, try to create pool instead */
-    pool = _dawn->create_pool("/mnt/pmem0/dawn", Options.pool.c_str(), GB(8));
+    pool = _dawn->create_pool("test/", Options.pool.c_str(), GB(8));
 
     //    virtual pool_t create_pool(const std::string& path,
     // const std::string& name,
@@ -425,9 +426,10 @@ TEST_F(Dawn_client_test, PerfLargePutDirect)
     // unsigned int flags = 0,
     // uint64_t expected_obj_count = 0) = 0;
   }
+  PLOG("Test pool created OK.");
 
   static constexpr unsigned long PER_ITERATION = 4;
-  static constexpr unsigned long ITERATIONS    = 100;
+  static constexpr unsigned long ITERATIONS    = 10;
   static constexpr unsigned long VALUE_SIZE    = MB(512);
   static constexpr unsigned long KEY_SIZE      = 16;
 
@@ -442,8 +444,7 @@ TEST_F(Dawn_client_test, PerfLargePutDirect)
   madvise(data, data_size, MADV_HUGEPAGE);
 
   ASSERT_FALSE(data == nullptr);
-  auto handle = _dawn->register_direct_memory(
-      data, data_size); /* register whole region */
+  auto handle = _dawn->register_direct_memory(data, data_size); /* register whole region */
 
   PLOG("Filling data...");
   /* set up data */
@@ -466,14 +467,15 @@ TEST_F(Dawn_client_test, PerfLargePutDirect)
 
   auto end  = std::chrono::high_resolution_clock::now();
   auto secs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
-                  .count() /
-              1000.0;
+                  .count() / 1000.0;
+  
   PINF("PerfLargePutDirect Throughput: %.2f MiB/sec",
        ((PER_ITERATION * ITERATIONS * VALUE_SIZE) / secs) / (1024.0 * 1024));
 
   _dawn->close_pool(pool);
-
+  PLOG("Pool closed");
   _dawn->unregister_direct_memory(handle);
+  PLOG("Unregistered memory");
 }
 #endif
 
@@ -686,7 +688,6 @@ TEST_F(Dawn_client_test, PutDirectLarge)
 }
 #endif
 
-#ifndef TEST_SESSION_CONTROL
 TEST_F(Dawn_client_test, Release)
 {
   PLOG("Releasing instance...");
@@ -694,7 +695,6 @@ TEST_F(Dawn_client_test, Release)
   /* release instance */
   _dawn->release_ref();
 }
-#endif
 
 }  // namespace
 
