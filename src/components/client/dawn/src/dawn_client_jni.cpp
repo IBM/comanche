@@ -25,12 +25,12 @@ string get_string(JNIEnv *env, jstring jstr)
   return str;
 }
 
-JNIEXPORT void JNICALL Java_DawnClient_init(JNIEnv *env,
-                                            jobject obj,
-                                            jint    debug,
-                                            jstring user,
-                                            jstring addr,
-                                            jstring device)
+JNIEXPORT void JNICALL Java_com_yahoo_ycsb_db_DawnClient_init(JNIEnv *env,
+                                                              jobject obj,
+                                                              jint    debug,
+                                                              jstring user,
+                                                              jstring addr,
+                                                              jstring device)
 {
   Component::IBase *comp = Component::load_component(
       "libcomanche-dawn-client.so", dawn_client_factory);
@@ -45,14 +45,18 @@ JNIEXPORT void JNICALL Java_DawnClient_init(JNIEnv *env,
   fact->release_ref();
 }
 
-JNIEXPORT jint JNICALL Java_DawnClient_put(JNIEnv *   env,
-                                           jobject    obj,
-                                           jstring    table,
-                                           jstring    key,
-                                           jbyteArray value,
-                                           jboolean   direct)
+JNIEXPORT jint JNICALL Java_com_yahoo_ycsb_db_DawnClient_put(JNIEnv *   env,
+                                                             jobject    obj,
+                                                             jstring    table,
+                                                             jstring    key,
+                                                             jbyteArray value,
+                                                             jboolean   direct)
 {
   string p = get_string(env, table);
+  string k      = get_string(env, key);
+  jbyte *buffer = env->GetByteArrayElements(value, NULL);
+
+  cout << p << " " << k << " " << *buffer << endl;
   /* open or create pool */
   Component::IKVStore::pool_t pool =
       client->open_pool("/mnt/pmem0/dawn", p.c_str(), 0);
@@ -61,8 +65,6 @@ JNIEXPORT jint JNICALL Java_DawnClient_put(JNIEnv *   env,
     /* ok, try to create pool instead */
     pool = client->create_pool("/mnt/pmem0/dawn", p.c_str(), GB(1));
   }
-  string k      = get_string(env, key);
-  jbyte *buffer = env->GetByteArrayElements(value, NULL);
   jsize  length = env->GetArrayLength(value);
   jint   ret    = 0;
   if (direct) {
@@ -78,12 +80,12 @@ JNIEXPORT jint JNICALL Java_DawnClient_put(JNIEnv *   env,
   return ret;
 }
 
-JNIEXPORT jint JNICALL Java_DawnClient_get(JNIEnv *   env,
-                                           jobject    obj,
-                                           jstring    table,
-                                           jstring    key,
-                                           jbyteArray value,
-                                           jboolean   direct)
+JNIEXPORT jint JNICALL Java_com_yahoo_ycsb_db_DawnClient_get(JNIEnv *   env,
+                                                             jobject    obj,
+                                                             jstring    table,
+                                                             jstring    key,
+                                                             jbyteArray value,
+                                                             jboolean   direct)
 {
   string p = get_string(env, table);
   /* open or create pool */
@@ -116,10 +118,10 @@ JNIEXPORT jint JNICALL Java_DawnClient_get(JNIEnv *   env,
   return ret;
 }
 
-JNIEXPORT jint JNICALL Java_DawnClient_erase(JNIEnv *env,
-                                             jobject obj,
-                                             jstring table,
-                                             jstring key)
+JNIEXPORT jint JNICALL Java_com_yahoo_ycsb_db_DawnClient_erase(JNIEnv *env,
+                                                               jobject obj,
+                                                               jstring table,
+                                                               jstring key)
 {
   string p = get_string(env, table);
   /* open or create pool */
@@ -136,7 +138,8 @@ JNIEXPORT jint JNICALL Java_DawnClient_erase(JNIEnv *env,
   return ret;
 }
 
-JNIEXPORT jint JNICALL Java_DawnClient_clean(JNIEnv *env, jobject obj)
+JNIEXPORT jint JNICALL Java_com_yahoo_ycsb_db_DawnClient_clean(JNIEnv *env,
+                                                               jobject obj)
 {
   client->release_ref();
 }
