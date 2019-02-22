@@ -257,7 +257,7 @@ auto hstore::open_pool(const std::string &dir,
   return reinterpret_cast<IKVStore::pool_t>(p);
 }
 
-void hstore::close_pool(const pool_t pid)
+status_t hstore::close_pool(const pool_t pid)
 {
   std::string path;
   try
@@ -270,9 +270,10 @@ void hstore::close_pool(const pool_t pid)
   }
   catch ( const API_exception &e )
   {
-    throw API_exception("%s in %s", e.cause(), __func__);
+    return E_INVAL;
   }
   _pool_manager->pool_close_check(path);
+  return S_OK;
 }
 
 void hstore::delete_pool(const std::string &dir, const std::string &name)

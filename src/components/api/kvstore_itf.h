@@ -187,14 +187,14 @@ public:
    * 
    * @param pool Pool handle or POOL_ERROR
    */
-  virtual void close_pool(const pool_t pool) = 0;
+  virtual status_t close_pool(const pool_t pool) = 0;
 
   /** 
    * Close and delete an existing pool
    * 
    * @param pool Pool handle
    */
-  virtual void delete_pool(const pool_t pool)  = 0;
+  virtual void delete_pool(const pool_t pool) = 0;
 
   /** 
    * Close and delete an existing pool

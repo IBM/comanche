@@ -223,16 +223,17 @@ IKVStore::pool_t FileStore::open_pool(const std::string& path,
   return reinterpret_cast<IKVStore::pool_t>(handle);
 }
 
-void FileStore::close_pool(pool_t pid)
+status_t FileStore::close_pool(pool_t pid)
 {
   auto handle = reinterpret_cast<Pool_handle*>(pid);
   if(_pool_sessions.count(handle) != 1)
-    throw API_exception("bad pool handle");
+    return E_INVAL;
 
   {
      lock_guard g(_pool_sessions_lock);
     _pool_sessions.erase(handle);
   }
+  return S_OK;
 }
 
 void FileStore::delete_pool(const pool_t pid)

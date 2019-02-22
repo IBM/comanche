@@ -100,7 +100,7 @@ Connection_handler::pool_t Connection_handler::create_pool(
   return pool_id;
 }
 
-void Connection_handler::close_or_delete_pool(pool_t pool, int op)
+status_t Connection_handler::close_or_delete_pool(pool_t pool, int op)
 {
   API_LOCK();
   /* send pool request message */
@@ -118,13 +118,14 @@ void Connection_handler::close_or_delete_pool(pool_t pool, int op)
   if (response_msg->type_id != Dawn::Protocol::MSG_TYPE_POOL_RESPONSE)
     throw Protocol_exception("expected POOL_RESPONSE message - got %x",
                              response_msg->type_id);
-
+  auto status = response_msg->status;
   free_buffer(iob);
+  return status;
 }
 
-void Connection_handler::close_pool(pool_t pool)
+status_t Connection_handler::close_pool(pool_t pool)
 {
-  close_or_delete_pool(pool, Dawn::Protocol::OP_CLOSE);
+  return close_or_delete_pool(pool, Dawn::Protocol::OP_CLOSE);
 }
 
 void Connection_handler::delete_pool(Connection_handler::pool_t pool)
@@ -155,6 +156,11 @@ status_t Connection_handler::put(const pool_t pool,
   if (option_DEBUG)
     PINF("put: %.*s (key_len=%lu) (value_len=%lu)", (int) key_len, (char*) key,
          key_len, value_len);
+
+  if ((key_len + value_len + sizeof(Dawn::Protocol::Message_IO_request)) >
+      Buffer_manager<Component::IFabric_client>::BUFFER_LEN) {
+    return IKVStore::E_TOO_LARGE;
+  }
 
   const auto iob = allocate();
 

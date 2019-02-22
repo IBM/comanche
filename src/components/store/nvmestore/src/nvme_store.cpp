@@ -299,13 +299,12 @@ IKVStore::pool_t NVME_store::open_pool(const std::string& path,
   return reinterpret_cast<uint64_t>(session);
 }
 
-void NVME_store::close_pool(pool_t pid)
+status_t NVME_store::close_pool(pool_t pid)
 {
   struct open_session_t * session = reinterpret_cast<struct open_session_t*>(pid);
 
   if(g_sessions.find(session) == g_sessions.end()){
-    PINF("%s: session not here", __func__);
-    return;
+    return E_INVAL;
   }
 
   io_buffer_t mem = session->io_mem;
@@ -316,6 +315,7 @@ void NVME_store::close_pool(pool_t pid)
 
   g_sessions.erase(session);
   PLOG("NVME_store::closed pool (%lx)", pid);
+  return S_OK;
 }
 
 void NVME_store::delete_pool(const pool_t pid)

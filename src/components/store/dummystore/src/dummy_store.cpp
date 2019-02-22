@@ -71,13 +71,14 @@ IKVStore::pool_t Dummy_store::open_pool(const std::string& path,
   return uuid;  
 }
 
-void Dummy_store::close_pool(const pool_t pid)
+status_t Dummy_store::close_pool(const pool_t pid)
 {
   auto i = sessions.find(pid);
   if(i == sessions.end())
-    throw API_exception("close_pool bad pool for Dummy_store");
+    return E_INVAL;
   sessions.erase(i);
-  
+
+  return S_OK;
 }
 
 void Dummy_store::delete_pool(const pool_t pid)
