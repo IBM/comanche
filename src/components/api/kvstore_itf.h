@@ -161,7 +161,7 @@ public:
    * @param flags Creation flags
    * @param
    * 
-   * @return Pool handle
+   * @return Pool handle or POOL_ERROR
    */
   virtual pool_t create_pool(const std::string& path,
                              const std::string& name,
@@ -176,7 +176,7 @@ public:
    * @param name Name of object pool
    * @param flags Open flags e.g., FLAGS_READ_ONLY
    * 
-   * @return Pool handle
+   * @return Pool handle or POOL_ERROR
    */
   virtual pool_t open_pool(const std::string& path,
                            const std::string& name,
@@ -185,7 +185,7 @@ public:
   /** 
    * Close pool handle
    * 
-   * @param pool Pool handle
+   * @param pool Pool handle or POOL_ERROR
    */
   virtual void close_pool(const pool_t pool) = 0;
 

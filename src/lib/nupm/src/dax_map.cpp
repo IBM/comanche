@@ -231,8 +231,9 @@ void *Devdax_manager::map_region(const char *path, addr_t base_addr)
   void *p = mmap((void *) base_addr, size, /* length = 0 means whole device */
                  PROT_READ | PROT_WRITE,
                  MAP_SHARED_VALIDATE | MAP_FIXED |
-                     MAP_SYNC,  // TODO check | MAP_HUGETLB | MAP_HUGE_2MB,
+                 MAP_SYNC,  // TODO check | MAP_HUGETLB | MAP_HUGE_2MB,
                  fd, 0 /* offset */);
+
 
   if (p != (void *) base_addr) {
     perror("");

@@ -45,6 +45,7 @@ enum {
   OP_PUT_ADVANCE = 6,  // allocate space for subsequence put or partial put
   OP_PUT_SEGMENT = 7,
   OP_DELETE      = 8,
+  OP_ERASE       = 8,
   OP_PREPARE     = 9,  // prepare for immediately following operation
   OP_INVALID     = 0xFE,
   OP_MAX         = 0xFF
@@ -55,7 +56,7 @@ enum { S_OK = 0, E_KEY_EXISTS = 1, STATUS_MAX = 0xFF };
 enum {
   IO_READ      = 0x1,
   IO_WRITE     = 0x2,
-  IO_OPEN_POOL = 0x4,
+  IO_ERASE = 0x4,
   IO_MAX       = 0xFF,
 };
 

@@ -265,7 +265,6 @@ void Shard::process_message_pool_request(Connection_handler* handler,
         /* pool does not exist yet */
         pool = _i_kvstore->open_pool(msg->path(), msg->pool_name());
 
-        PLOG("pool open for first time (%p)", (void*) pool);
         /* register pool handle */
         handler->register_pool(pool_name, pool);
       }
@@ -282,7 +281,7 @@ void Shard::process_message_pool_request(Connection_handler* handler,
     catch (...) {
       PLOG("OP_OPEN: error");
       response->pool_id = 0;
-      response->status  = E_FAIL;
+      response->status = E_FAIL;
     }
   }
   else if (msg->op == Dawn::Protocol::OP_CLOSE) {
@@ -451,8 +450,7 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
       void*  value_out     = nullptr;
       size_t value_out_len = 0;
 
-      std::string k;
-      k.assign(msg->key(), msg->key_len);
+      std::string k(msg->key(), msg->key_len);
 
       auto key_handle = _i_kvstore->lock(
           msg->pool_id, k, IKVStore::STORE_LOCK_READ, value_out, value_out_len);
@@ -538,8 +536,17 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
     }
     return;
   }
-  else
+  /////////////////////////////////////////////////////////////////////////////
+  //   ERASE         //
+  /////////////////////
+  else if (msg->op == Protocol::OP_ERASE) {
+    std::string k(msg->key(), msg->key_len);
+    
+    status = _i_kvstore->erase(msg->pool_id, k);
+  }
+  else {
     throw Protocol_exception("operation not implemented");
+  }
 
   response->request_id = msg->request_id;
   response->status     = status;
