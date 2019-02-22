@@ -133,10 +133,10 @@ IKVStore::pool_t Dawn_client::open_pool(const std::string& path,
   return _connection->open_pool(path, name, flags);
 }
 
-void Dawn_client::close_pool(const IKVStore::pool_t pool)
+status_t Dawn_client::close_pool(const IKVStore::pool_t pool)
 {
   assert(pool);
-  _connection->close_pool(pool);
+  return _connection->close_pool(pool);
 }
 
 void Dawn_client::delete_pool(const IKVStore::pool_t pool)

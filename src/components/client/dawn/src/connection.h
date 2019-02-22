@@ -95,7 +95,7 @@ class Connection_handler : public Connection_base {
                      unsigned int      flags,
                      uint64_t          expected_obj_count);
 
-  void close_pool(pool_t pool);
+  status_t close_pool(pool_t pool);
 
   void delete_pool(pool_t pool);
 
@@ -179,7 +179,7 @@ class Connection_handler : public Connection_base {
    * @param pool
    * @param op
    */
-  void close_or_delete_pool(pool_t pool, int op);
+  status_t close_or_delete_pool(pool_t pool, int op);
 
  private:
 #ifdef THREAD_SAFE_CLIENT

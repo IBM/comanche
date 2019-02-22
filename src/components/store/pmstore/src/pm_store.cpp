@@ -308,18 +308,20 @@ IKVStore::pool_t PM_store::open_pool(const std::string& path,
   return reinterpret_cast<uint64_t>(session);
 }
 
-void PM_store::close_pool(pool_t pid)
+status_t PM_store::close_pool(pool_t pid)
 {
   struct open_session_t * session = reinterpret_cast<struct open_session_t*>(pid);
 
   if(g_sessions.find(session) == g_sessions.end())
-    throw API_exception("PM_store::put invalid pool identifier");
+    return E_INVAL;
 
   g_sessions.erase(session);
 
   pmemobj_close(session->pop);
   if(option_DEBUG)
     PLOG("PM_store::closed pool (%lx)", pid);
+
+  return S_OK;
 }
 
 void PM_store::delete_pool(const pool_t pid)

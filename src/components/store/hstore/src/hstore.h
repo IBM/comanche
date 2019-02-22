@@ -96,7 +96,7 @@ public:
 		  , const std::string &name
 		  ) override;
 
-  void close_pool(pool_t pid) override;
+  status_t close_pool(pool_t pid) override;
 
   status_t put(pool_t pool,
                const std::string &key,

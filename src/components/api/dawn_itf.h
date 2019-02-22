@@ -75,7 +75,7 @@ public:
    * 
    * @param pool Pool handle
    */
-  virtual void close_pool(const IKVStore::pool_t pool) = 0;
+  virtual status_t close_pool(const IKVStore::pool_t pool) = 0;
 
   /** 
    * Close and delete an existing pool

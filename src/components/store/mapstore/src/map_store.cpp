@@ -338,7 +338,7 @@ IKVStore::pool_t Map_store::open_pool(const std::string& path,
   return reinterpret_cast<IKVStore::pool_t>(new_session);
 }
 
-void Map_store::close_pool(const pool_t pid)
+status_t Map_store::close_pool(const pool_t pid)
 {
   if(option_DEBUG)
     PLOG("close_pool(%p)", (void*) pid);
@@ -347,6 +347,8 @@ void Map_store::close_pool(const pool_t pid)
 
   Std_lock_guard g(_pool_sessions_lock);
   _pool_sessions.erase(session);
+
+  return S_OK;
 }
 
 void Map_store::delete_pool(const pool_t pid)
