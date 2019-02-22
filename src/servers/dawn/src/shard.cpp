@@ -85,11 +85,8 @@ void Shard::initialize_components(const std::string& backend,
       comp = load_component("libcomanche-indexrbtree.so", rbtreeindex_factory);
       if (!comp)
         throw General_exception("unable to load libcomanche-indexrbtree.so");
-      IKVIndex_factory* fact =
-        (IKVIndex_factory*) comp->query_interface(IKVIndex_factory::iid());
-      assert(fact);
-      _i_kvindex = fact->create("owner", "name");
-      fact->release_ref();
+      _index_factory = static_cast<IKVIndex_factory*>(comp->query_interface(IKVIndex_factory::iid()));
+      assert(_index_factory);
     }    
   }
 }
@@ -341,9 +338,6 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
 {
   using namespace Component;
 
-  // if(!_pm->is_pool_open(msg->pool_id))
-  //   throw Protocol_exception("invalid pool identifier");
-
   /////////////////////////////////////////////////////////////////////////////
   //   PUT ADVANCE   //
   /////////////////////
@@ -365,8 +359,7 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
                          target, target_len);
 
     if (key_handle == Component::IKVStore::KEY_NONE)
-      throw Program_exception(
-          "PUT_ADVANCE failed to lock value (lock() returned KEY_NONE) ");
+      throw Program_exception("PUT_ADVANCE failed to lock value (lock() returned KEY_NONE) ");
 
     if (target_len != msg->val_len)
       throw Logic_exception("locked value length mismatch");
