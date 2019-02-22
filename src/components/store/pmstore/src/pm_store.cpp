@@ -324,12 +324,12 @@ status_t PM_store::close_pool(pool_t pid)
   return S_OK;
 }
 
-void PM_store::delete_pool(const pool_t pid)
+status_t PM_store::delete_pool(const pool_t pid)
 {
   struct open_session_t * session = reinterpret_cast<struct open_session_t*>(pid);
 
   if(g_sessions.find(session) == g_sessions.end())
-    throw API_exception("PM_store::delete_pool invalid pool identifier");
+    return E_INVAL;
 
   g_sessions.erase(session);
   pmemobj_close(session->pop);
@@ -340,6 +340,8 @@ void PM_store::delete_pool(const pool_t pid)
 
   if(option_DEBUG)
     PLOG("pool deleted: %s", session->path.c_str());
+
+  return S_OK;
 }
 
 status_t PM_store::get_pool_regions(const pool_t pool, std::vector<::iovec>& out_regions)

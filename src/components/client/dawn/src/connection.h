@@ -97,7 +97,7 @@ class Connection_handler : public Connection_base {
 
   status_t close_pool(pool_t pool);
 
-  void delete_pool(pool_t pool);
+  status_t delete_pool(pool_t pool);
 
   status_t put(const pool_t      pool,
                const std::string key,

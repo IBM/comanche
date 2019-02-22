@@ -128,9 +128,9 @@ status_t Connection_handler::close_pool(pool_t pool)
   return close_or_delete_pool(pool, Dawn::Protocol::OP_CLOSE);
 }
 
-void Connection_handler::delete_pool(Connection_handler::pool_t pool)
+status_t Connection_handler::delete_pool(Connection_handler::pool_t pool)
 {
-  close_or_delete_pool(pool, Dawn::Protocol::OP_DELETE);
+  return close_or_delete_pool(pool, Dawn::Protocol::OP_DELETE);
 }
 
 /**

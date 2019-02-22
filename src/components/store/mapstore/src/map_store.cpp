@@ -351,7 +351,7 @@ status_t Map_store::close_pool(const pool_t pid)
   return S_OK;
 }
 
-void Map_store::delete_pool(const pool_t pid)
+status_t Map_store::delete_pool(const pool_t pid)
 {
   auto session = get_session(pid);
 
@@ -362,10 +362,10 @@ void Map_store::delete_pool(const pool_t pid)
   for(auto& p : _pools) {
     if(p.second == session->pool) {
       _pools.erase(p.first);
-      return;
+      return S_OK;
     }
   }
-  throw Logic_exception("unable to find pool to delete");
+  return E_INVAL;
 }
 
 
@@ -452,9 +452,10 @@ size_t Map_store::count(const pool_t pid)
   return session->pool->count();
 }
 
-void Map_store::free_memory(void * p)
+status_t Map_store::free_memory(void * p)
 {
   scalable_free(p);
+  return S_OK;
 }
 
 void Map_store::debug(const pool_t pool, unsigned cmd, uint64_t arg)
