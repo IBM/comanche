@@ -134,6 +134,8 @@ public:
   Component::IKVStore *                 _store;
   Component::IKVStore::pool_t           _pool;
   std::string                           _server_address;
+  unsigned                              _port;
+  unsigned                              _port_increment;
   std::string                           _device_name;
   std::string                           _pci_address;
   bool                                  _first_iter = true;
@@ -530,7 +532,14 @@ public:
           _store = fact->create("owner",_owner, _pci_address);
         }
         else if (_component == "dawn") {
-          _store = fact->create(_debug_level, _owner, _server_address, _device_name);
+          std::stringstream url;
+          auto port = _port;
+          if(_port_increment > 0) {
+            port += (_get_core_index(core) / _port_increment);
+          }
+          url << _server_address << ":" << port;
+          PLOG("(%d) server url: (%s)", _get_core_index(core), url.str().c_str());
+          _store = fact->create(_debug_level, _owner, url.str(), _device_name);
           PMAJOR("dawn component instance: %p", _store);
         }
         else if (_component == "hstore") {
@@ -797,7 +806,9 @@ public:
         _skip_json_reporting = g_vm.count("skip_json_reporting");
 
         _debug_level = g_vm.count("debug_level") > 0 ? g_vm["debug_level"].as<int>() : 0;
-        _server_address = g_vm.count("server_address") ? g_vm["server_address"].as<std::string>() : "127.0.0.1";
+        _server_address = g_vm.count("server") ? g_vm["server"].as<std::string>() : "127.0.0.1";
+        _port = g_vm.count("port") ? g_vm["port"].as<unsigned>() : 11911;
+        _port_increment = g_vm.count("port_increment") ? g_vm["port_increment"].as<unsigned>() : 0;
         _device_name = g_vm.count("device_name") ? g_vm["device_name"].as<std::string>() : "unused";
 
         if (_component == "nvmestore" && g_vm.count("pci_addr") == 0)

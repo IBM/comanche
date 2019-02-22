@@ -233,11 +233,10 @@ class Connection_handler
 
  private:
   uint64_t               _tick_count __attribute((aligned(8))) = 0;
+  uint64_t               _stall_tick __attribute((aligned(8))) = 0;  
   std::vector<buffer_t*> _pending_msgs;
   std::vector<action_t>  _pending_actions;
   float                  _freq_mhz;
-  char _padding[64];
-  uint64_t               _stall_tick = 0;
 };
 
 }  // namespace Dawn

@@ -47,19 +47,18 @@ public:
   /** 
    * Create an object pool
    * 
-   * @param path Path of the persistent memory (e.g., /mnt/pmem0/ )
-   * @param name Name of object pool
-   * @param size Size of object in bytes
+   * @param ppol_name Unique pool name
+   * @param size Size of pool in bytes
    * @param flags Creation flags
-   * @param
+   * @param expected_obj_count Expected maximum object count (optimization)
    * 
    * @return Pool handle
    */
   virtual IKVStore::pool_t create_pool(const std::string& pool_name,
-                             const size_t size,
-                             unsigned int flags = 0,
-                             uint64_t expected_obj_count = 0) = 0;
-
+                                       const size_t size,
+                                       unsigned int flags = 0,
+                                       uint64_t expected_obj_count = 0) = 0;
+  
   /** 
    * Open an existing pool
    * 
@@ -69,21 +68,21 @@ public:
    * @return Pool handle
    */
   virtual IKVStore::pool_t open_pool(const std::string& pool_name,
-                           unsigned int flags = 0) = 0;
+                                     unsigned int flags = 0) = 0;
 
   /** 
    * Close pool handle
    * 
    * @param pool Pool handle
    */
-  virtual void close_pool(const IKVStore::pool_t pool) = 0;
+  virtual status_t close_pool(const IKVStore::pool_t pool) = 0;
 
   /** 
    * Close and delete an existing pool
    * 
    * @param pool Pool handle
    */
-  virtual void delete_pool(const IKVStore::pool_t pool) = 0;
+  virtual status_t delete_pool(const IKVStore::pool_t pool) = 0;
 
   /** 
    * Close and delete an existing pool
@@ -91,8 +90,8 @@ public:
    * @param path Path of persistent memory (e.g., /mnt/pmem0/ )
    * @param name Name of object pool
    */
-  virtual void delete_pool(const std::string& pool_name) {
-    delete_pool(open_pool(pool_name));
+  virtual status_t delete_pool(const std::string& pool_name) {
+    return delete_pool(open_pool(pool_name));
   }
 
   /** 
@@ -221,8 +220,10 @@ public:
    * Free API allocated memory
    *
    * @param p Pointer to memory allocated through a get call
+   * 
+   * @return S_OK on success
    */
-  virtual void free_memory(void * p) = 0;
+  virtual status_t free_memory(void * p) = 0;
 
   /** 
    * Debug routine
