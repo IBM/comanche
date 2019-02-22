@@ -1,5 +1,5 @@
 /*
-   Copyright [2018] [IBM Corporation]
+   Copyright [2018, 2019] [IBM Corporation]
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -209,6 +209,7 @@ fid_mr * Fabric_memory_control::make_fid_mr_reg_ptr(
   auto constexpr context = nullptr;
   try
   {
+    /* Note: this was once observed to return "Cannot allocate memory" when called from JNI code. */
     CHECK_FI_ERR(::fi_mr_reg(&*_domain, buf, len, access, offset, key, flags, &f, context));
   }
   catch ( const fabric_runtime_error &e )
