@@ -186,6 +186,8 @@ public:
    * Close pool handle
    * 
    * @param pool Pool handle or POOL_ERROR
+   *
+   * @return S_OK on success
    */
   virtual status_t close_pool(const pool_t pool) = 0;
 

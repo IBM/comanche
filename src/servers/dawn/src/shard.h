@@ -67,8 +67,8 @@ class Shard : public Shard_transport {
     assert(_i_kvstore);
     _i_kvstore->release_ref();
 
-    if (_i_kvindex)
-      _i_kvindex->release_ref();
+    if (_index_factory)
+      _index_factory->release_ref();
   }
 
   bool exited() const { return _thread_exit; }
@@ -123,10 +123,10 @@ class Shard : public Shard_transport {
 
   void main_loop();
 
-  void process_message_pool_request(Connection_handler*             handler,
+  void process_message_pool_request(Connection_handler* handler,
                                     Protocol::Message_pool_request* msg);
 
-  void process_message_IO_request(Connection_handler*           handler,
+  void process_message_IO_request(Connection_handler* handler,
                                   Protocol::Message_IO_request* msg);
 
  private:
@@ -136,7 +136,7 @@ class Shard : public Shard_transport {
   std::thread                      _thread;
   size_t                           _max_message_size;
   Component::IKVStore*             _i_kvstore;
-  Component::IKVIndex*             _i_kvindex;
+  Component::IKVIndex_factory*     _index_factory;
   std::vector<Connection_handler*> _handlers;
 
   std::map<const void*, std::pair<pool_t, Component::IKVStore::key_t>>
