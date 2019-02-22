@@ -13,7 +13,7 @@
 #include <chrono> /* milliseconds */
 #include <thread> /* this_thread::sleep_for */
 
-#define TEST_SESSION_CONTROL
+//#define TEST_SESSION_CONTROL
 //#define TEST_BASIC_PUT_AND_GET
 //#define TEST_PUT_DIRECT_0
 //#define TEST_PUT_DIRECT_1
@@ -161,6 +161,40 @@ TEST_F(Dawn_client_test, Instantiate)
   ASSERT_TRUE(_dawn);
 
   fact->release_ref();
+}
+
+TEST_F(Dawn_client_test, PutGet)
+{
+  ASSERT_TRUE(_dawn);
+  int rc;
+
+  auto pool = _dawn->open_pool("/mnt/pmem0/dawn", Options.pool.c_str(), 0);
+
+  if (pool == Component::IKVStore::POOL_ERROR) {
+    /* ok, try to create pool instead */
+    pool = _dawn->create_pool("/mnt/pmem0/dawn", Options.pool.c_str(), GB(1));
+  }
+
+  std::string value = "Hello! Value";  // 12 chars
+  rc                = _dawn->put(pool, "key0", value.c_str(), value.length());
+  PINF("put response:%d", rc);
+  ASSERT_TRUE(rc == S_OK || rc == -2);
+  _dawn->close_pool(pool);
+
+  auto pool1 = _dawn->open_pool("/mnt/pmem0/dawn", Options.pool.c_str(), 0);
+  void *      pv;
+  size_t      pv_len = 0;
+  PINF("performing 'get' to retrieve what was put..");
+  rc = _dawn->get(pool1, "key0", pv, pv_len);
+  PINF("get response:%d (%s) len:%lu", rc, (char *) pv, pv_len);
+  ASSERT_TRUE(rc == S_OK);
+  _dawn->close_pool(pool1);
+  ASSERT_TRUE(strncmp((char *) pv, value.c_str(), value.length()) == 0);
+
+  _dawn->delete_pool(pool);
+  _dawn->delete_pool(pool1);
+  free(pv);
+  PLOG("PutGet OK!");
 }
 
 #ifdef TEST_BASIC_PUT_AND_GET
