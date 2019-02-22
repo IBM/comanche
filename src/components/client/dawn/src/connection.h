@@ -127,8 +127,10 @@ class Connection_handler : public Connection_base {
                       const std::string&                   key,
                       void*                                value,
                       size_t&                              out_value_len,
-                      Component::IKVStore::memory_handle_t handle =
-                          Component::IKVStore::HANDLE_NONE);
+                      Component::IKVStore::memory_handle_t handle = Component::IKVStore::HANDLE_NONE);
+
+  status_t erase(const pool_t pool,
+                 const std::string& key);
 
   uint64_t key_hash(const void* key, const size_t key_len);
 

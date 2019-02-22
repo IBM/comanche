@@ -193,7 +193,7 @@ status_t Dawn_client::unregister_direct_memory(IKVStore::memory_handle_t handle)
 
 status_t Dawn_client::erase(const IKVStore::pool_t pool, const std::string& key)
 {
-  return 0;
+  return _connection->erase(pool, key);
 }
 
 size_t Dawn_client::count(const IKVStore::pool_t pool) { return 0; }

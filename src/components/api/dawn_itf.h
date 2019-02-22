@@ -47,19 +47,18 @@ public:
   /** 
    * Create an object pool
    * 
-   * @param path Path of the persistent memory (e.g., /mnt/pmem0/ )
-   * @param name Name of object pool
-   * @param size Size of object in bytes
+   * @param ppol_name Unique pool name
+   * @param size Size of pool in bytes
    * @param flags Creation flags
-   * @param
+   * @param expected_obj_count Expected maximum object count (optimization)
    * 
    * @return Pool handle
    */
   virtual IKVStore::pool_t create_pool(const std::string& pool_name,
-                             const size_t size,
-                             unsigned int flags = 0,
-                             uint64_t expected_obj_count = 0) = 0;
-
+                                       const size_t size,
+                                       unsigned int flags = 0,
+                                       uint64_t expected_obj_count = 0) = 0;
+  
   /** 
    * Open an existing pool
    * 
@@ -69,7 +68,7 @@ public:
    * @return Pool handle
    */
   virtual IKVStore::pool_t open_pool(const std::string& pool_name,
-                           unsigned int flags = 0) = 0;
+                                     unsigned int flags = 0) = 0;
 
   /** 
    * Close pool handle
