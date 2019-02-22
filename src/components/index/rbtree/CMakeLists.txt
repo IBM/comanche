@@ -1,6 +1,6 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
-project(comanche-storeindex CXX)
+project(comanche-indexrbtree CXX)
 include(../../../../mk/clang-dev-tools.cmake)
 
 add_subdirectory(./unit_test)

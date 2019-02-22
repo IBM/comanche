@@ -7,6 +7,7 @@
 #include <api/components.h>
 #include <api/fabric_itf.h>
 #include <api/kvstore_itf.h>
+#include <api/kvindex_itf.h>
 #include <common/cpu.h>
 #include <common/exceptions.h>
 #include <common/logging.h>
@@ -39,6 +40,7 @@ class Shard : public Shard_transport {
         const std::string device,
         const std::string net,
         const std::string backend,
+        const std::string index,
         const std::string pci_addr,
         const std::string pm_path,
         const std::string dax_config,
@@ -48,6 +50,7 @@ class Shard : public Shard_transport {
         _forced_exit(forced_exit), _thread(&Shard::thread_entry,
                                            this,
                                            backend,
+                                           index,
                                            pci_addr,
                                            dax_config,
                                            debug_level)
@@ -60,13 +63,19 @@ class Shard : public Shard_transport {
     _thread_exit = true;
     /* TODO: unblock */
     _thread.join();
+
+    assert(_i_kvstore);
     _i_kvstore->release_ref();
+
+    if (_index_factory)
+      _index_factory->release_ref();
   }
 
   bool exited() const { return _thread_exit; }
 
  private:
   void thread_entry(const std::string& backend,
+                    const std::string& index,
                     const std::string& pci_addr,
                     const std::string& dax_config,
                     unsigned           debug_level)
@@ -76,7 +85,7 @@ class Shard : public Shard_transport {
     if (set_cpu_affinity(1UL << _core) != 0)
       throw General_exception("unable to set cpu affinity (%lu)", _core);
 
-    initialize_components(backend, pci_addr, dax_config, debug_level);
+    initialize_components(backend, index, pci_addr, dax_config, debug_level);
 
     main_loop();
 
@@ -105,6 +114,7 @@ class Shard : public Shard_transport {
   }
 
   void initialize_components(const std::string& backend,
+                             const std::string& index,
                              const std::string& pci_addr,
                              const std::string& dax_config,
                              unsigned           debug_level);
@@ -113,10 +123,10 @@ class Shard : public Shard_transport {
 
   void main_loop();
 
-  void process_message_pool_request(Connection_handler*             handler,
+  void process_message_pool_request(Connection_handler* handler,
                                     Protocol::Message_pool_request* msg);
 
-  void process_message_IO_request(Connection_handler*           handler,
+  void process_message_IO_request(Connection_handler* handler,
                                   Protocol::Message_IO_request* msg);
 
  private:
@@ -126,6 +136,7 @@ class Shard : public Shard_transport {
   std::thread                      _thread;
   size_t                           _max_message_size;
   Component::IKVStore*             _i_kvstore;
+  Component::IKVIndex_factory*     _index_factory;
   std::vector<Connection_handler*> _handlers;
 
   std::map<const void*, std::pair<pool_t, Component::IKVStore::key_t>>

@@ -111,9 +111,9 @@ public:
                     component_object = "libcomanche-storemap.so";
                     pool_path = "/mnt/pmem0";
                 }
-                else if (component_name.compare("ramrbtreeindex") == 0) {
-                  component_object = "libcomanche-storeindex.so";
-                  component_uuid   = Component::ramrbtree_factory;
+                else if (component_name.compare("rbtreeindex") == 0) {
+                  component_object = "libcomanche-indexrbtree.so";
+                  component_uuid   = Component::rbtreeindex_factory;
                   isIndex          = true;
                 }
                 else
