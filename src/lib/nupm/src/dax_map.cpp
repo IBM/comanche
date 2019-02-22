@@ -230,10 +230,11 @@ void *Devdax_manager::map_region(const char *path, addr_t base_addr)
   /* mmap it in */
   void *p = mmap((void *) base_addr, size, /* length = 0 means whole device */
                  PROT_READ | PROT_WRITE,
-                 MAP_SHARED_VALIDATE | MAP_FIXED |
-                 MAP_SYNC,  // TODO check | MAP_HUGETLB | MAP_HUGE_2MB,
+                 MAP_SHARED_VALIDATE | MAP_FIXED | MAP_SYNC | MAP_LOCKED,  // TODO check | MAP_HUGETLB | MAP_HUGE_2MB,
                  fd, 0 /* offset */);
 
+  if(madvise(p, size, MADV_DONTFORK) != 0)
+    throw General_exception("madvise don't fork failed unexpectedly (%p %lu)", base_addr, size);
 
   if (p != (void *) base_addr) {
     perror("");
