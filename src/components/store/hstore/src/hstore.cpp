@@ -276,7 +276,7 @@ status_t hstore::close_pool(const pool_t pid)
   return S_OK;
 }
 
-void hstore::delete_pool(const std::string &dir, const std::string &name)
+status_t hstore::delete_pool(const std::string &dir, const std::string &name)
 {
   auto path = pool_path(dir, name);
 
@@ -285,24 +285,28 @@ void hstore::delete_pool(const std::string &dir, const std::string &name)
   {
     PLOG("pool deleted: %s/%s", dir.c_str(), name.c_str());
   }
+  return S_OK;
 }
 
-void hstore::delete_pool(const pool_t pid)
-try
+status_t hstore::delete_pool(const pool_t pid)
 {
-  /* Not sure why a session would have to be open in order to erase a pool,
-   * but the kvstore interface requires it.
-   */
-  pool_path pp;
-  {
-    auto pool = move_pool(pid);
-    pp = pool->path();
-  }
-  delete_pool(pp.dir(), pp.name());
-}
-catch ( const API_exception &e )
-{
-  throw API_exception("%s in %s", e.cause(), __func__);
+  try
+    {
+      /* Not sure why a session would have to be open in order to erase a pool,
+       * but the kvstore interface requires it.
+       */
+      pool_path pp;
+      {
+        auto pool = move_pool(pid);
+        pp = pool->path();
+      }
+      delete_pool(pp.dir(), pp.name());
+    }
+  catch ( const API_exception &e )
+    {
+      return E_INVAL;
+    }
+  return S_OK;
 }
 
 auto hstore::put(const pool_t pool,

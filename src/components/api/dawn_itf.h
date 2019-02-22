@@ -82,7 +82,7 @@ public:
    * 
    * @param pool Pool handle
    */
-  virtual void delete_pool(const IKVStore::pool_t pool) = 0;
+  virtual status_t delete_pool(const IKVStore::pool_t pool) = 0;
 
   /** 
    * Close and delete an existing pool
@@ -90,8 +90,8 @@ public:
    * @param path Path of persistent memory (e.g., /mnt/pmem0/ )
    * @param name Name of object pool
    */
-  virtual void delete_pool(const std::string& pool_name) {
-    delete_pool(open_pool(pool_name));
+  virtual status_t delete_pool(const std::string& pool_name) {
+    return delete_pool(open_pool(pool_name));
   }
 
   /** 
@@ -220,8 +220,10 @@ public:
    * Free API allocated memory
    *
    * @param p Pointer to memory allocated through a get call
+   * 
+   * @return S_OK on success
    */
-  virtual void free_memory(void * p) = 0;
+  virtual status_t free_memory(void * p) = 0;
 
   /** 
    * Debug routine

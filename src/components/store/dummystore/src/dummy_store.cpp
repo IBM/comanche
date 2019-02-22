@@ -81,15 +81,16 @@ status_t Dummy_store::close_pool(const pool_t pid)
   return S_OK;
 }
 
-void Dummy_store::delete_pool(const pool_t pid)
+status_t Dummy_store::delete_pool(const pool_t pid)
 {
   auto i = sessions.find(pid);
   if(i == sessions.end())
-    throw API_exception("delete_pool bad pool for Dummy_store");
+    return E_INVAL;
 
   ddm.erase_region(pid, 0);
   
   sessions.erase(i);
+  return S_OK;
 }
 
 
@@ -197,12 +198,13 @@ status_t Dummy_store::erase(const pool_t pid,
 
 size_t Dummy_store::count(const pool_t pid)
 {
-  return 0;
+  return E_FAIL;
 }
 
-void Dummy_store::free_memory(void * p)
+status_t Dummy_store::free_memory(void * p)
 {
   ::free(p);
+  return S_OK;
 }
 
 void Dummy_store::debug(const pool_t pool, unsigned cmd, uint64_t arg)

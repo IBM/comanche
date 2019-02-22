@@ -135,14 +135,14 @@ IKVStore::pool_t Dawn_client::open_pool(const std::string& path,
 
 status_t Dawn_client::close_pool(const IKVStore::pool_t pool)
 {
-  assert(pool);
+  if(!pool) return E_INVAL;
   return _connection->close_pool(pool);
 }
 
-void Dawn_client::delete_pool(const IKVStore::pool_t pool)
+status_t Dawn_client::delete_pool(const IKVStore::pool_t pool)
 {
-  assert(pool);
-  _connection->delete_pool(pool);
+  if(!pool) return E_INVAL;
+  return _connection->delete_pool(pool);
 }
 
 status_t Dawn_client::put(const IKVStore::pool_t pool,
@@ -198,9 +198,10 @@ status_t Dawn_client::erase(const IKVStore::pool_t pool, const std::string& key)
 
 size_t Dawn_client::count(const IKVStore::pool_t pool) { return 0; }
 
-void Dawn_client::free_memory(void * p)
+status_t Dawn_client::free_memory(void * p)
 {
   ::free(p);
+  return S_OK;
 } 
 
 void Dawn_client::debug(const IKVStore::pool_t pool, unsigned cmd, uint64_t arg)

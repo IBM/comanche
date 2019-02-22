@@ -193,17 +193,21 @@ public:
    * Close and delete an existing pool
    * 
    * @param pool Pool handle
+   * 
+   * @return S_OK on success   
    */
-  virtual void delete_pool(const pool_t pool) = 0;
+  virtual status_t delete_pool(const pool_t pool) = 0;
 
   /** 
    * Close and delete an existing pool
    * 
    * @param path Path of persistent memory (e.g., /mnt/pmem0/ )
    * @param name Name of object pool
+   * 
+   * @return S_OK on success
    */
-  virtual void delete_pool(const std::string &path, const std::string &name) {
-    delete_pool(open_pool(path, name));
+  virtual status_t delete_pool(const std::string &path, const std::string &name) {
+    return delete_pool(open_pool(path, name));
   }
 
   /** 
@@ -420,8 +424,10 @@ public:
    * Free server-side allocated memory
    *
    * @param p Pointer to memory allocated through a get call
+   * 
+   * @return S_OK on success
    */
-  virtual void free_memory(void * p) { return ::free(p); }
+  virtual status_t free_memory(void * p) { ::free(p); return S_OK; }
 
 
   /** 
