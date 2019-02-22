@@ -533,7 +533,12 @@ public:
         }
         else if (_component == "dawn") {
           std::stringstream url;
-          url << _server_address << ":" << _port;
+          auto port = _port;
+          if(_port_increment > 0) {
+            port += (_get_core_index(core) / _port_increment);
+          }
+          url << _server_address << ":" << port;
+          PLOG("(%d) server url: (%s)", _get_core_index(core), url.str().c_str());
           _store = fact->create(_debug_level, _owner, url.str(), _device_name);
           PMAJOR("dawn component instance: %p", _store);
         }
