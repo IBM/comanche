@@ -133,12 +133,6 @@ namespace impl
 				return _persist->_size_control.size_unstable();
 			}
 #endif
-#if 0
-			auto destable_count() const /* debugging */
-			{
-				return _persist->_size_control.destable_count();
-			}
-#endif
 			std::size_t size() const
 			{
 				return _persist->_size_control.size();

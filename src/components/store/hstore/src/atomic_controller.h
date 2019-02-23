@@ -1,6 +1,12 @@
-#ifndef _DAWN_HSTORE_ATOMIC_CTL_H_
-#define _DAWN_HSTORE_ATOMIC_CTL_H_
+/*
+ * (C) Copyright IBM Corporation 2018, 2019. All rights reserved.
+ * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
+ */
 
+#ifndef _COMANCHE_HSTORE_ATOMIC_CTL_H_
+#define _COMANCHE_HSTORE_ATOMIC_CTL_H_
+
+#include "construction_mode.h"
 #include "persist_atomic.h"
 #include "persist_fixed_string.h"
 
@@ -27,6 +33,7 @@ namespace impl
 			atomic_controller(
 				persist_atomic<typename Table::value_type> &persist_
 				, table_t &map_
+				, construction_mode mode_
 			);
 			atomic_controller(const atomic_controller &) = delete;
 			atomic_controller& operator=(const atomic_controller &) = delete;

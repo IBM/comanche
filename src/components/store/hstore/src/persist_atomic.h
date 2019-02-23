@@ -1,5 +1,10 @@
-#ifndef _DAWN_PERSIST_ATOMIC_H
-#define _DAWN_PERSIST_ATOMIC_H
+/*
+ * (C) Copyright IBM Corporation 2018, 2019. All rights reserved.
+ * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
+ */
+
+#ifndef _COMANCHE_PERSIST_ATOMIC_H
+#define _COMANCHE_PERSIST_ATOMIC_H
 
 #include "persist_fixed_string.h"
 #include "persistent.h"
@@ -48,7 +53,7 @@ namespace impl
 			mod_key_t mod_key;
 			/* source of modification data */
 			persist_fixed_string<char, typename Value::second_type::allocator_type> mod_mapped;
-			/* control of modification datai */
+			/* control of modification data */
 			persistent_t<mod_ctl_ptr_t> mod_ctl;
 			/* size of control located by mod_ctl (0 if no outstanding modification, negative if the modfication is a replace by erase/emplace */
 			persistent_atomic_t<std::ptrdiff_t> mod_size;

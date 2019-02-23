@@ -82,6 +82,16 @@ namespace impl
 		{}
 		void change() const { get_size_control().decr(); }
 	};
+
+	class size_no_change
+		: public size_change
+	{
+	public:
+		size_no_change(size_control &ctl)
+			: size_change(ctl)
+		{}
+		void change() const { }
+	};
 }
 
 #endif

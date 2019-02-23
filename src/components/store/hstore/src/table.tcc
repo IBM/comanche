@@ -466,6 +466,9 @@ template <
 			const auto q = distance_wrapped(owner_lock.index(), b_dst_lock_.index());
 			/*
 			 * ownership is moving from bf to owner
+			 * Mark the size "unstable" to indicate that content state must be rebuilt
+			 * in case of a crash.
+			 *
 			 * 1. mark src EXITING and dst ENTERING
 			 *   flush
 			 * 2. update owner (atomic nove of in_use bit)
@@ -473,23 +476,22 @@ template <
 			 * 3. mark src FREE and dst IN_USE
 			 *   flush
 			 */
-			assert(!is_free(b_src_lock.sb()));
-			assert(is_free(b_dst_lock_.sb()));
-			b_src_lock.ref().state_set(bucket_t::EXITING);
-			this->persist_controller_t::persist_content(b_src_lock.ref(), "content exiting");
-			b_dst_lock_.ref().state_set(bucket_t::ENTERING);
-			this->persist_controller_t::persist_content(b_dst_lock_.ref(), "context entering");
+			{
+				persist_size_change<Allocator, size_no_change> s(*this);
+				assert(!is_free(b_src_lock.sb()));
+				assert(is_free(b_dst_lock_.sb()));
+				b_src_lock.ref().state_set(bucket_t::FREE);
+				this->persist_controller_t::persist_content(b_src_lock.ref(), "content free");
+				b_dst_lock_.ref().state_set(bucket_t::IN_USE);
+				this->persist_controller_t::persist_content(b_dst_lock_.ref(), "context in use");
 
-			owner_lock.ref().move(q, p, owner_lock);
-			this->persist_controller_t::persist_owner(owner_lock.ref(), "owner update");
+				owner_lock.ref().move(q, p, owner_lock);
+				this->persist_controller_t::persist_owner(owner_lock.ref(), "owner update");
 
-			b_src_lock.ref().erase();
-			b_src_lock.assert_clear(true, *this);
-			b_dst_lock_.assert_clear(false, *this);
-			b_src_lock.ref().state_set(bucket_t::FREE);
-			this->persist_controller_t::persist_content(b_src_lock.ref(), "content free");
-			b_dst_lock_.ref().state_set(bucket_t::IN_USE);
-			this->persist_controller_t::persist_content(b_dst_lock_.ref(), "context in_use");
+				b_src_lock.ref().erase();
+				b_src_lock.assert_clear(true, *this);
+				b_dst_lock_.assert_clear(false, *this);
+			}
 			/* New free location */
 #if TRACE_MANY
 			std::cerr << __func__
