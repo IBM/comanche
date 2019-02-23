@@ -104,7 +104,6 @@ template <
 		while ( this->persist_controller_t::segment_count_actual() != this->persist_controller_t::segment_count_target() )
 		{
 			/* ERROR: reconstruction code for resize state not written. */
-			/* ERROR: reconstruction code for update/replace state not written. */
 			resize();
 		}
 
@@ -660,6 +659,24 @@ template <
 		/* PASS 1: copy content */
 		resize_pass1();
 
+		/*
+		 * Crash-consistency notes.
+		 *
+		 * Until the start of pass 2, there is no need (for crash-consistency purposes)
+		 * to remember that we are in a resize operation. The need for resize can be
+		 * rediscovered and the operations through pass1 can be re-executed.
+		 *
+		 * Pass2 will update owners, so during that pass we must recognize that
+		 * a restart must not re-excute pass1.
+		 *
+		 * Starting with Pass2, the "junior content" (the allocated but not live segment)
+		 * must be scanned and its contents reconstituted by the allocator.
+		 *
+		 * Exactly when the "actual size" changes to encompass the junior content,
+		 * the junior content scan must no longer be performed. Therefore the "actual size"
+		 * and the "need to scan junior content bit" must be updated together.
+		 */
+
 		/* PASS 2: remove old content, update owners. Some old content mave have been
 		 * removed if pass 2 was restarted, so use the new (junior) content to drive
 		 * the operations.
@@ -735,8 +752,7 @@ template <
 				{
 					/* content must move */
 					junior_content.content_share(senior_content_lk.ref(), ix_owner);
-					senior_content_lk.ref().state_set(bucket_t::EXITING);
-					junior_content.state_set(bucket_t::ENTERING);
+					junior_content.state_set(bucket_t::IN_USE);
 #if TRACE_MANY
 					std::cerr << __func__
 						<< " " << ix_senior << " 1c relocate, owner " << bucket_ix(hash) << " -> " << ix_owner
@@ -753,8 +769,6 @@ template <
 			}
 		}
 
-		/* flush state_EXITING for old content */
-		this->persist_controller_t::persist_existing_segments("pass 1 owner+content seniors");
 		/* persist new content */
 		this->persist_controller_t::persist_new_segment("pass 1 copied content");
 	}
@@ -788,7 +802,7 @@ template <
 				);
 
 			auto senior_content_lk = make_content_unique_lock(sb_senior);
-			if ( junior_content_lk.ref().state_get() != bucket_t::FREE )
+			if ( junior_content_lk.ref().state_get() == bucket_t::IN_USE || senior_content_lk.ref().state_get() == bucket_t::IN_USE )
 			{
 				/* examine the key to locate old and new owners (owners) */
 				auto hash = _hasher.hf(junior_content_lk.ref().key());
@@ -819,89 +833,29 @@ template <
 					assert(owner_pos < owner::size);
 					junior_owner.insert(ix_junior_owner, owner_pos, junior_owner_lk);
 					senior_owner_lk.ref().erase(owner_pos, senior_owner_lk);
+					if ( junior_content_lk.ref().state_get() == bucket_t::FREE )
+					{
+						/* content not moved, but owner changed (because content
+						 * is near start of table and owner moved from near old end
+						 * to near new end)
+						 */
+						assert(ix_senior < base_segment_size);
+#if TRACK_OWNER
+						/* adjust the owner location (as kept in content) to reflect the
+						 * new owner location
+						 */
+						senior_content_lk.ref().owner_update(bucket_count());
+#endif
+					}
 					this->persist_controller_t::persist_owner(junior_owner_lk.ref(), "pass 2 junior owner");
 					this->persist_controller_t::persist_owner(senior_owner_lk.ref(), "pass 2 senior owner");
-				}
-				junior_content_lk.ref().state_set(bucket_t::IN_USE);
-				this->persist_controller_t::persist_content(junior_content_lk.ref());
-				senior_content_lk.ref().erase();
-				senior_content_lk.ref().state_set(bucket_t::FREE);
-			}
-			else if ( senior_content_lk.ref().state_get() != bucket_t::FREE )
-			{
-#if TRACK_OWNER
-				bool owner_update_owed = false;
-				if ( ix_senior < senior_content_lk.ref().owner() )
-				{
-					/* Wrap. Should only occur where owner is near end of table and
-					 * content is near beginning
-					 */
-					assert(ix_senior < base_segment_size);
-					/* adjust the owner location (as kept in content) to reflect the
-					 * new owner location
-					 */
-					owner_update_owed = true;
-				}
-#endif
-				/* examine the key to locate old and new owners (owners) */
-				auto hash = _hasher.hf(senior_content_lk.ref().key());
-				auto ix_senior_owner = bucket_ix(hash);
-				auto ix_junior_owner = bucket_expanded_ix(hash);
-				if ( ix_senior_owner != ix_junior_owner )
-				{
-					/* content not moved, but owner changes (because content
-					 * is near start of table and owner moves from near old end
-					 * to near new end)
-					 */
-					auto senior_owner_sb = make_segment_and_bucket(ix_senior_owner);
-					auto senior_owner_lk = make_owner_unique_lock(senior_owner_sb);
-					owner_unique_lock_t
-						junior_owner_lk(
-							_bc[segment_count()]._buckets[ix_senior_owner]
-							, segment_and_bucket_t(&_bc[segment_count()], ix_senior_owner)
-							, _bc[segment_count()]
-								._bucket_mutexes[ix_senior_owner]._m_owner
-						);
 
-					/* special locate, used before size has been updated
-					 * to pre-fill new buckets
-					 */
-					auto &junior_owner = _bc[segment_count()]._buckets[ix_senior_owner];
-					auto owner_pos = distance_wrapped(ix_senior_owner, ix_senior);
-					assert(owner_pos < owner::size);
-					junior_owner.insert(ix_junior_owner, owner_pos, junior_owner_lk);
-					senior_owner_lk.ref().erase(owner_pos, senior_owner_lk);
-					assert(ix_senior < base_segment_size);
-#if TRACK_OWNER
-					/* adjust the owner location (as kept in content) to reflect the
-					 * new owner location
-					 */
-					senior_content_lk.ref().owner_update(bucket_count());
-					owner_update_owed = false;
-#endif
-					this->persist_controller_t::persist_owner(junior_owner_lk.ref(), "pass 2 junior owner");
-					this->persist_controller_t::persist_owner(senior_owner_lk.ref(), "pass 2 senior owner");
+					if ( junior_content_lk.ref().state_get() == bucket_t::IN_USE )
+					{
+						senior_content_lk.ref().erase();
+					}
 				}
-#if TRACK_OWNER
-				assert(!owner_update_owed);
-#endif
 			}
-		}
-		for (
-			auto ix_senior_owner = 0U
-			; ix_senior_owner != bucket_count()
-			; ++ix_senior_owner
-		)
-		{
-			/* special locate, used before size has been updated
-			 * to pre-fill new buckets
-			 */
-			owner_unique_lock_t
-				junior_owner_lk(
-					_bc[segment_count()]._buckets[ix_senior_owner]
-					, segment_and_bucket_t(&_bc[segment_count()], ix_senior_owner)
-					, _bc[segment_count()]._bucket_mutexes[ix_senior_owner]._m_owner
-				);
 		}
 
 		/* flush for state_set bucket_t::FREE in loop above. */
