@@ -70,7 +70,7 @@ public:
 			)
 		)
 		, _map(&this->pool()->persist_data, mode_, _heap)
-		, _atomic_state(this->pool()->persist_data, _map)
+		, _atomic_state(this->pool()->persist_data, _map, mode_)
 	{}
 
   session(const session &) = delete;

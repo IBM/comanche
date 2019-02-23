@@ -119,6 +119,13 @@ template <typename T, typename Persister = persister>
 		{
 			this->pool().inject_allocation(location, s * sizeof(T));
 		}
+
+		bool is_reconstituted(
+			typename allocator_rc<void, Persister>::const_pointer location
+		)
+		{
+			return this->pool().is_reconstituted(location);
+		}
 	};
 
 #endif
