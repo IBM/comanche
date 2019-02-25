@@ -42,6 +42,8 @@ public:
         // seed the pool with elements from _data
         _populate_pool_to_capacity(core);
 
+        wait_for_delayed_start(core);
+
         PLOG("[%u] Starting Get experiment...", core);
 
         _first_iter = false;
