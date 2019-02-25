@@ -250,11 +250,16 @@ auto hstore::open_pool(const std::string &dir,
                        unsigned int /* flags */) -> pool_t
 {
   auto path = pool_path(dir, name);
-  auto s = _pool_manager->pool_open(path);
-  auto p = static_cast<tracked_pool *>(s.get());
-  std::unique_lock<std::mutex> sessions_lk(_pools_mutex);
-  _pools.emplace(p, std::move(s));
-  return reinterpret_cast<IKVStore::pool_t>(p);
+  try {
+    auto s = _pool_manager->pool_open(path);
+    auto p = static_cast<tracked_pool *>(s.get());
+    std::unique_lock<std::mutex> sessions_lk(_pools_mutex);
+    _pools.emplace(p, std::move(s));
+    return reinterpret_cast<IKVStore::pool_t>(p);
+  }
+  catch( std::invalid_argument &e ) {
+    return Component::IKVStore::POOL_ERROR;
+  }
 }
 
 status_t hstore::close_pool(const pool_t pid)
@@ -285,27 +290,6 @@ status_t hstore::delete_pool(const std::string &dir, const std::string &name)
   {
     PLOG("pool deleted: %s/%s", dir.c_str(), name.c_str());
   }
-  return S_OK;
-}
-
-status_t hstore::delete_pool(const pool_t pid)
-{
-  try
-    {
-      /* Not sure why a session would have to be open in order to erase a pool,
-       * but the kvstore interface requires it.
-       */
-      pool_path pp;
-      {
-        auto pool = move_pool(pid);
-        pp = pool->path();
-      }
-      delete_pool(pp.dir(), pp.name());
-    }
-  catch ( const API_exception &e )
-    {
-      return E_INVAL;
-    }
   return S_OK;
 }
 

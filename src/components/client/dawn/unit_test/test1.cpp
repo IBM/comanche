@@ -13,14 +13,14 @@
 #include <chrono> /* milliseconds */
 #include <thread> /* this_thread::sleep_for */
 
-//#define TEST_SESSION_CONTROL
-//#define TEST_BASIC_PUT_AND_GET
+#define TEST_SESSION_CONTROL
+#define TEST_BASIC_PUT_AND_GET
 //#define TEST_PUT_DIRECT_0
 //#define TEST_PUT_DIRECT_1
 //#define TEST_PERF_SMALL_PUT
 //#define TEST_PERF_SMALL_GET
 //#define TEST_PERF_SMALL_PUT_DIRECT
-#define TEST_PERF_LARGE_PUT_DIRECT
+//#define TEST_PERF_LARGE_PUT_DIRECT
 //#define TEST_PERF_LARGE_GET_DIRECT
 //#define TEST_SCALE_IOPS
 
@@ -108,7 +108,8 @@ void basic_test(IKVStore *kv, unsigned shard)
     ASSERT_TRUE(strncmp((char *) pv, value.c_str(), value.length()) == 0);
   }
 
-  kv->delete_pool(pool);
+  kv->close_pool(pool);
+  ASSERT_TRUE(kv->delete_pool("/dev/dax0.", poolname) == S_OK);
   free(pv);
 }
 
@@ -163,6 +164,40 @@ TEST_F(Dawn_client_test, Instantiate)
   fact->release_ref();
 }
 
+TEST_F(Dawn_client_test, OpenCloseDelete)
+{
+  using namespace Component;
+  IKVStore::pool_t pool, pool2, pool3;
+  ASSERT_TRUE((pool = _dawn->create_pool("X","Y", GB(1))) != IKVStore::POOL_ERROR);
+  ASSERT_FALSE(pool  == IKVStore::POOL_ERROR);
+  ASSERT_TRUE(_dawn->close_pool(pool) == S_OK);
+
+  /* pool already exists */
+  //ASSERT_TRUE(_dawn->create_pool("X","Y", GB(1)) == IKVStore::POOL_ERROR);
+
+  /* open two handles to the same pool */
+  ASSERT_TRUE((pool = _dawn->open_pool("X","Y")) != IKVStore::POOL_ERROR);
+  ASSERT_TRUE((pool2 = _dawn->open_pool("X","Y")) != IKVStore::POOL_ERROR);
+
+  /* try delete open pool */
+  ASSERT_TRUE(_dawn->delete_pool("X","Y") == IKVStore::E_ALREADY_OPEN);
+
+  /* open another */
+  ASSERT_TRUE((pool3 = _dawn->open_pool("X","Y")) != IKVStore::POOL_ERROR);
+
+  /* close two */
+  ASSERT_TRUE(_dawn->close_pool(pool) == S_OK);
+  ASSERT_TRUE(_dawn->close_pool(pool2) == S_OK);
+
+  /* try to delete open pool */
+  ASSERT_TRUE(_dawn->delete_pool("X","Y") == IKVStore::E_ALREADY_OPEN);
+  ASSERT_TRUE(_dawn->close_pool(pool3) == S_OK);
+
+  /* ok, now we can delete */
+  ASSERT_TRUE(_dawn->delete_pool("X","Y") == S_OK);
+  PLOG("OpenCloseDelete Test OK");
+}
+  
 TEST_F(Dawn_client_test, PutGet)
 {
   ASSERT_TRUE(_dawn);
@@ -191,8 +226,7 @@ TEST_F(Dawn_client_test, PutGet)
   _dawn->close_pool(pool1);
   ASSERT_TRUE(strncmp((char *) pv, value.c_str(), value.length()) == 0);
 
-  _dawn->delete_pool(pool);
-  _dawn->delete_pool(pool1);
+  _dawn->delete_pool("/mnt/pmem0/dawn", Options.pool.c_str());
   free(pv);
   PLOG("PutGet OK!");
 }
@@ -222,7 +256,7 @@ TEST_F(Dawn_client_test, BasicPutAndGet)
     ASSERT_TRUE(strncmp((char *) pv, value.c_str(), value.length()) == 0);
   }
 
-  _dawn->delete_pool(pool);
+  _dawn->delete_pool("/mnt/pmem0/dawn", Options.pool.c_str());
   free(pv);
   PLOG("BasicPutAndGet OK!");
 }
@@ -376,7 +410,8 @@ TEST_F(Dawn_client_test, PerfSmallPut)
 
   ::free(data);
 
-  _dawn->delete_pool(pool);
+  _dawn->close_pool(pool);
+  _dawn->delete_pool("/mnt/pmem0/dawn", Options.pool.c_str());
 }
 #endif
 
@@ -436,7 +471,8 @@ TEST_F(Dawn_client_test, PerfSmallPutDirect)
 
   _dawn->unregister_direct_memory(handle);
 
-  _dawn->delete_pool(pool);
+  _dawn->close_pool(pool);
+  _dawn->delete_pool("/mnt/pmem0/dawn", Options.pool.c_str());
 }
 #endif
 
@@ -692,6 +728,9 @@ TEST_F(Dawn_client_test, PutDirect0)
   ASSERT_FALSE(rc == Component::IKVStore::E_POOL_NOT_FOUND);
   ASSERT_TRUE(rc == S_OK);
 
+  ASSERT_TRUE(_dawn->close_pool(pool) != Component::IKVStore::POOL_ERROR);
+  ASSERT_TRUE(_dawn->delete_pool("/mnt/pmem0/dawn", "test_pd_8MB") == S_OK);
+
   ASSERT_NO_THROW(_dawn->delete_pool(pool));
   ASSERT_TRUE(_dawn->unregister_direct_memory(value) == S_OK);
 }
@@ -717,7 +756,8 @@ TEST_F(Dawn_client_test, PutDirectLarge)
                                 value_len) == S_OK);
 
   ASSERT_TRUE(pool > 0);
-  ASSERT_NO_THROW(_dawn->delete_pool(pool));
+  ASSERT_TRUE(_dawn->close_pool(pool) != Component::IKVStore::POOL_ERROR);
+  ASSERT_TRUE(_dawn->delete_pool("/mnt/pmem0/dawn", "bigPool4G") == S_OK);
   ASSERT_TRUE(_dawn->unregister_direct_memory(value) == S_OK);
 }
 #endif

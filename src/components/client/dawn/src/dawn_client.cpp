@@ -139,11 +139,12 @@ status_t Dawn_client::close_pool(const IKVStore::pool_t pool)
   return _connection->close_pool(pool);
 }
 
-status_t Dawn_client::delete_pool(const IKVStore::pool_t pool)
+status_t Dawn_client::delete_pool(const std::string& path,
+                                  const std::string& name)
 {
-  if(!pool) return E_INVAL;
-  return _connection->delete_pool(pool);
+  return _connection->delete_pool(path, name);
 }
+
 
 status_t Dawn_client::put(const IKVStore::pool_t pool,
                           const std::string&     key,
@@ -221,6 +222,11 @@ IKVStore::pool_t Dawn_client::open_pool(const std::string& pool_name,
                                        unsigned int flags) 
 {
   return 0;
+}
+
+status_t Dawn_client::delete_pool(const std::string& pool_name)
+{
+  return E_NOT_IMPL;
 }
 
 std::string Dawn_client::find(const std::string& key_expression,

@@ -324,22 +324,22 @@ status_t PM_store::close_pool(pool_t pid)
   return S_OK;
 }
 
-status_t PM_store::delete_pool(const pool_t pid)
+status_t PM_store::delete_pool(const std::string& path,
+                               const std::string& name)
 {
-  struct open_session_t * session = reinterpret_cast<struct open_session_t*>(pid);
+  std::string fullpath = path + name;
+  
+  for(auto& s: g_sessions) {
+    if(s->path == fullpath)
+      return Component::IKVStore::E_ALREADY_OPEN;
+  }
 
-  if(g_sessions.find(session) == g_sessions.end())
-    return E_INVAL;
-
-  g_sessions.erase(session);
-  pmemobj_close(session->pop);
-
-  if(safe_pmempool_rm(session->path.c_str(), 0)) {
-    throw General_exception("unable to delete pool (%s)", session->path.c_str());
+  if(safe_pmempool_rm(fullpath.c_str(), 0)) {
+    throw General_exception("unable to delete pool (%s)", fullpath.c_str());
   }
 
   if(option_DEBUG)
-    PLOG("pool deleted: %s", session->path.c_str());
+    PLOG("pool deleted: %s", fullpath.c_str());
 
   return S_OK;
 }

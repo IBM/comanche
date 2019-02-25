@@ -90,8 +90,6 @@ public:
                    const std::string &name,
                    unsigned int flags) override;
 
-  status_t delete_pool(pool_t pid) override;
-
   status_t delete_pool(const std::string &path,
                        const std::string &name) override;
 
