@@ -35,11 +35,14 @@ public:
   {
     // handle first time setup
     if(_first_iter) {
-      PLOG("[%u] Starting Update experiment...", core);
       _pool_element_end = -1;
 
       // seed the pool with elements from _data
       _populate_pool_to_capacity(core);
+
+      wait_for_delayed_start(core);
+
+      PLOG("[%u] Starting Update experiment...", core);
 
       _first_iter = false;
     }

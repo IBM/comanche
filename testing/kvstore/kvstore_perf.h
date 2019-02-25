@@ -42,6 +42,7 @@ struct ProgramOptions {
   bool summary;
   bool skip_json_reporting;
   bool pin;
+  std::string start_time;
   std::string owner;
   std::string server_address;
   std::string device_name;
