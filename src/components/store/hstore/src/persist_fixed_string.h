@@ -304,7 +304,22 @@ template <typename T, typename Allocator>
 				using reallocator_char_type = typename AL::template rebind<char>::other;
 				if ( ! is_small() )
 				{
-					reallocator_char_type(al_).reconstitute(sizeof *large.ptr + size(), large.ptr);
+					auto alr = reallocator_char_type(al_);
+					if ( alr.is_reconstituted(large.ptr) )
+					{
+						/* The data has already been reconstituted. Increase the reference count. */
+						large.ptr->inc_ref(access());
+					}
+					else
+					{
+						/* The data is not yet reconstituted. Reconstitute it.
+						 * Although the original may have had a refcount
+						 * greater than one, we have not yet seene the
+						 * second reference, so the recount must be set to one.
+						 */
+						alr.reconstitute(sizeof *large.ptr + size(), large.ptr);
+						new (large.ptr) element_type( size(), access{} );
+					}
 				}
 			}
 

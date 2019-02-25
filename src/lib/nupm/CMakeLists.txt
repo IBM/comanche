@@ -23,7 +23,7 @@ file(GLOB SOURCES src/*.c*)
 
 add_library(nupm SHARED ${SOURCES})
 
-target_link_libraries(${PROJECT_NAME} stdc++fs common numa ${LIB_NDCTL} pmem vmem tbb tbbmalloc dl memkind)
+target_link_libraries(${PROJECT_NAME} stdc++fs common numa ${LIB_NDCTL} pmem pmemobj vmem tbb tbbmalloc dl memkind)
 
 add_subdirectory(unit_test)
 

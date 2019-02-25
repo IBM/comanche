@@ -1,4 +1,9 @@
 /*
+ * (C) Copyright IBM Corporation 2018, 2019. All rights reserved.
+ * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
+ */
+
+/*
  * Hopscotch hash table - template Key, Value, and allocators
  */
 
@@ -147,9 +152,9 @@ template <typename Allocator>
 	}
 
 template <typename Allocator>
-	bool impl::persist_controller<Allocator>::is_size_unstable() const
+	bool impl::persist_controller<Allocator>::is_size_stable() const
 	{
-		return ! _persist->_size_control.is_stable();
+		return _persist->_size_control.is_stable();
 	}
 
 template <typename Allocator>

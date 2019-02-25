@@ -5,6 +5,8 @@
 #include "persist_map.h"
 
 /* Persistent data for hstore.
+ *  - persist_map: anchors for the unordered map
+ *  - persist_atomic: currently in-progress atomic operation, if any
  */
 
 namespace impl

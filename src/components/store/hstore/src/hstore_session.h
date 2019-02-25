@@ -1,15 +1,24 @@
+/*
+ * (C) Copyright IBM Corporation 2018, 2019. All rights reserved.
+ * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
+ */
+
 #ifndef COMANCHE_HSTORE_SESSION_H
 #define COMANCHE_HSTORE_SESSION_H
 
-#include "hstore_open_pool.h"
+#include "hstore_tracked_pool.h"
 
 #include "construction_mode.h"
+
+#include <utility> /* move */
+#include <vector>
 
 /* open_pool_handle, ALLOC_T, table_t */
 template <typename Handle, typename Allocator, typename Table>
 	class session
-		: public open_pool<Handle>
+		: public tracked_pool
 {
+	Handle _pop;
 	Allocator _heap;
 	Table _map;
 	impl::atomic_controller<Table> _atomic_state;
@@ -25,7 +34,8 @@ public:
 			, open_pool_handle &&pop_
 			, Persist *persist_data_
 		)
-		: open_pool<Handle>(path_, std::move(pop_))
+		: tracked_pool(path_)
+		, _pop(std::move(pop_))
 		, _heap(
 			Allocator(
 #if USE_CC_HEAP == 0
@@ -52,18 +62,21 @@ public:
 		, Handle &&pop_
 		, construction_mode mode_
 	)
-		: open_pool<Handle>(path_, std::move(pop_))
+		: tracked_pool(path_)
+		, _pop(std::move(pop_))
 		, _heap(
 			Allocator(
 				this->pool()->heap
 			)
 		)
 		, _map(&this->pool()->persist_data, mode_, _heap)
-		, _atomic_state(this->pool()->persist_data, _map)
+		, _atomic_state(this->pool()->persist_data, _map, mode_)
 	{}
 
   session(const session &) = delete;
   session& operator=(const session &) = delete;
+  /* session constructor and get_pool_regions only */
+  auto *pool() const { return _pop.get(); }
   auto allocator() const { return _heap; }
   table_t &map() noexcept { return _map; }
   const table_t &map() const noexcept { return _map; }

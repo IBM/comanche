@@ -10,6 +10,7 @@
 
 #include "rc_alloc_wrapper_lb.h"
 
+#include <boost/icl/interval_set.hpp>
 #include <memory>
 #include <cstddef> /* size_t, ptrdiff_t */
 
@@ -20,6 +21,12 @@ class heap_rc_shared
 	std::size_t _size;
 	unsigned _numa_node;
 	nupm::Rca_LB _heap;
+	/* The set of reconstituted addresses. Only needed during recovery.
+	 * Potentially large, so should be erased after recovery. But there
+	 * is no mechanism to erase it yet.
+	 */
+	using alloc_set_t = boost::icl::interval_set<const char *>; /* std::byte_t in C++17 */
+	alloc_set_t _reconstituted; /* std::byte_t in C++17 */
 	static void *best_aligned(void *a, std::size_t sz_)
 	{
 		auto begin = reinterpret_cast<uintptr_t>(a);
@@ -65,6 +72,7 @@ public:
 		, _size((static_cast<char *>(static_cast<void *>(this)) + sz_) - static_cast<char *>(_addr))
 		, _numa_node(numa_node_)
 		, _heap()
+		, _reconstituted()
 	{
 		/* cursor now locates the best-aligned region in  */
 		_heap.add_managed_region(_addr, _size, _numa_node);
@@ -77,10 +85,14 @@ public:
 		, _size(this->_size)
 		, _numa_node(this->_numa_node)
 		, _heap()
+		, _reconstituted()
 	{
 		_heap.add_managed_region(_addr, _size, _numa_node);
 	}
 #pragma GCC diagnostic pop
+
+	heap_rc_shared(const heap_rc_shared &) = delete;
+	heap_rc_shared &operator=(const heap_rc_shared &) = delete;
 
 	void *alloc(std::size_t sz_)
 	{
@@ -94,13 +106,23 @@ public:
 	{
 		auto sz = (sz_ + alignment - 1U)/alignment * alignment;
 		/* NOTE: inject_allocation should take a const void* */
-		return _heap.inject_allocation(const_cast<void *>(p_), sz, _numa_node);
+		_heap.inject_allocation(const_cast<void *>(p_), sz, _numa_node);
+		{
+			auto pc = static_cast<alloc_set_t::element_type>(p_);
+			_reconstituted.add(alloc_set_t::segment_type(pc, pc + sz));
+		}
 	}
 
 	void free(void *p_)
 	{
 		return _heap.free(p_, _numa_node);
 	}
+
+	bool is_reconstituted(const void * p_)
+	{
+		return contains(_reconstituted, static_cast<alloc_set_t::element_type>(p_));
+	}
+
 	/* debug */
 	unsigned numa_node() const
 	{
@@ -139,6 +161,11 @@ public:
 	void free(void *p_)
 	{
 		return _heap->free(p_);
+	}
+
+	bool is_reconstituted(const void *p_)
+	{
+		return _heap->is_reconstituted(p_);
 	}
 };
 

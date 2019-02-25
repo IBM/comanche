@@ -72,6 +72,19 @@ class Memory_region : public Core::AVL_node<Memory_region> {
    */
   virtual ~Memory_region() {}
 
+
+  /** 
+   * Check that region contains address
+   * 
+   * @param addr 
+   * 
+   * @return 
+   */
+  bool contains(addr_t addr) const
+  {
+    return (addr >= _addr) && (addr < (_addr + _size));
+  }
+  
   /**
    * Dump information about the region
    *
@@ -94,6 +107,15 @@ class Memory_region : public Core::AVL_node<Memory_region> {
    * @return Start address
    */
   addr_t addr() { return _addr; }
+
+  /**
+   * Get start pointer of the region
+   *
+   *
+   * @return Start address
+   */
+  void* paddr() { return reinterpret_cast<void*>(_addr); }
+
 
   /**
    * Get size of allocation
@@ -238,18 +260,22 @@ class Memory_region : public Core::AVL_node<Memory_region> {
       Memory_region* node = stack.pop();
 
       if (node->_size >= size && node->_free) {
-        if (alignment > 0 && check_aligned(node->_addr, alignment))
-          return node;
-        else
-          return node;
+        if (alignment > 0) {
+          if(check_aligned(node->_addr, alignment))
+            return node;
+        }
+        else {
+          return node; /* no alignment */
+        }
       }
-      else {
-        Memory_region* l = node->left();
-        if (l) stack.push(l);
 
-        Memory_region* r = node->right();
-        if (r) stack.push(r);
-      }
+      /* carry on search */
+      Memory_region* l = node->left();
+      if (l) stack.push(l);
+        
+      Memory_region* r = node->right();
+      if (r) stack.push(r);
+
     }
 #endif
 
@@ -338,7 +364,8 @@ class AVL_range_allocator {
    * @param size Size of memory slab in bytes
    *
    */
-  AVL_range_allocator(Common::Base_slab_allocator& slab, addr_t start,
+  AVL_range_allocator(Common::Base_slab_allocator& slab,
+                      addr_t start,
                       size_t size)
       : _slab(slab) {
     assert(size > 0);
@@ -380,9 +407,11 @@ class AVL_range_allocator {
 
       try {
         _tree->insert_node(new (p) Memory_region(start, size));
-      } catch (...) {
-        PERR("inserting memory region (0x%lx-0x%lx) conflict detected.", start,
-             start + size);
+      }
+      catch (...) {
+        throw Logic_exception("inserting memory region (0x%lx-0x%lx) conflict detected.",
+                              start,
+                              start + size);
       }
     }
   }
@@ -418,38 +447,38 @@ class AVL_range_allocator {
    * @return Pointer to
    */
   Memory_region* alloc(size_t size, size_t alignment = 0) {
-    // find fitting region
+
+    /* look for fitting region that is aligned */
     Memory_region* root = (Memory_region*) *(_tree->root());
     Memory_region* region = root->find_free_region(root, size, alignment);
 
     if (region == nullptr) {
+      
+      /* OK, maybe there is space, but alignment isn't there.  Now we need
+         to three-way split a large enough block */
 
       assert(root->find_free_region(root, size, alignment) == nullptr);
       assert(alignment > 0);
-      /* OK, maybe there is space, but alignment isn't there.  Now we need
-         to three-way split a large enough block */
 
       Memory_region* region = root->find_free_region(root, size + alignment, 8);
       if (region == nullptr)
         throw General_exception("AVL_range_allocator: failed to allocate (size=%ld alignment=%lu free=%lu)",
                                 size, alignment, get_free());
 
-
+      assert(region->_free == true);
       if (option_DEBUG) {
-        PLOG("Region to split: %lx %lu (alignment = %lx, free=%d)",
-             region->_addr, region->_size, alignment, region->_free);
+        PLOG("Region to split: %lx-%lx size=%lu (requested size=%lu, requested alignment = %lu, free=%d)",
+             region->_addr, region->_addr + region->_size, region->_size, size, alignment, region->_free);
         //        assert(!check_aligned(region->_addr, alignment));
         assert(region->_addr % alignment);
         PLOG("%lx rounded up %lx", region->_addr, round_up(region->_addr, alignment));
         assert(region->_addr % alignment);
       }
 
-      assert(region->_addr % alignment);
-      
       /* left split */
       size_t left_split_size = round_up(region->_addr, alignment) - region->_addr;
       if (option_DEBUG) {
-        PLOG("Left split:   base=%lx size=%lu", region->_addr, left_split_size);
+        PLOG("Left split:   %lx-%lx size=%lu", region->_addr, region->_addr+left_split_size, left_split_size);
       }
 
       /* center split */
@@ -457,7 +486,9 @@ class AVL_range_allocator {
       size_t center_split_size = size;
 
       if (option_DEBUG) {
-        PLOG("Center split: %lx %lu (remaining=%lu)", center_split_base, center_split_size, center_split_base % alignment);
+        PLOG("Center split: %lx-%lx size=%lu (remaining=%lu)",
+             center_split_base, center_split_base + center_split_size,
+             center_split_size, center_split_base % alignment);
         assert(center_split_base % alignment == 0);
       }
 
@@ -466,7 +497,7 @@ class AVL_range_allocator {
       size_t right_split_size = region->_size - left_split_size - center_split_size;
 
       if (option_DEBUG) {
-        PLOG("Right split:  %lx %lu", right_split_base, right_split_size);
+        PLOG("Right split:  %lx-%lx size=%lu", right_split_base, right_split_base + right_split_size, right_split_size);
       }
       assert(right_split_size > 0);
       assert(left_split_size > 0);
@@ -498,16 +529,22 @@ class AVL_range_allocator {
       _tree->insert_node(center_node);
       _tree->insert_node(right_node);
 
+      if(alignment > 0) {
+        assert(check_aligned(center_node->_addr, alignment));
+      }
+
       return center_node;
     }
 
     assert(region->_size >= size);
-
-    // exact fit
+    assert(check_aligned(region->_addr, alignment));
+    
+    /* we did find an aligned region */
     if (region->_size == size) {
-      region->_free = false;
+      region->_free = false;      
     }
     else {
+      /* but its not an exact fit, so we'll create a left over region  */
       void* p = _slab.alloc();
       if (!p)
         throw General_exception("AVL_range_allocator: failed to allocate %ld units", size);
@@ -521,8 +558,8 @@ class AVL_range_allocator {
       region->_next = left_over;
       left_over->_prev = region;
       left_over->_next = tmp;
+      left_over->_free = true;
       if (tmp) tmp->_prev = left_over;
-
       _tree->insert_node(left_over);
     }
 
@@ -569,43 +606,40 @@ class AVL_range_allocator {
   Memory_region* alloc_at(addr_t addr, size_t size) {
     // find fitting region
     Memory_region* root = (Memory_region*) *(_tree->root());
-    Memory_region* region = root->find_containing_region(root, addr);
+    Memory_region* region = root->find_containing_region(root, addr);  
 
-    if (region == nullptr) {
-      PWRN("alloc_at: cannot find containing region (addr=%lx, size=%ld)", addr,
-           size);
-      assert(0);
-      return nullptr;
-    }
+    if (region == nullptr)
+      throw API_exception("alloc_at: cannot find containing region (addr=%lx, size=%ld)",
+                          addr, size);
 
     if (option_DEBUG)
       PLOG("alloc_at (addr=0x%lx,size=%ld) found fitting region %lx-%lx:", addr,
            size, region->_addr, region->_addr + region->_size);
 
-    assert(region->_size >= size);
+    if(region->_size < size)
+      throw Logic_exception("alloc_at failed because region (%lx,%lu) "
+                            "is insufficient for requested size (%lu)",
+                            region->_addr, region->_size, size);
 
     Memory_region* middle = nullptr;
 
-    /* first split off front if needed and create middle chunk */
+    assert(region->_free);
+
+    /* first split off front if needed and create middle chunk
+       which will become the allocation
+     */
     if (region->_addr != addr) {
       assert(addr > region->_addr);
-      auto left_size = addr - region->_addr;
 
-      void* p = _slab.alloc();
-      if (!p)
-        throw General_exception(
-            "AVL_range_allocator: line %d failed to allocate %ld bytes",
-            __LINE__, size);
-
-      middle = new (p)
-          Memory_region(region->_addr + left_size, region->_size - left_size);
-      middle->_size = region->_size - left_size;
-      region->_size = left_size;  // make the containing region left chunk
+      middle = new (_slab.alloc()) Memory_region(addr, size);
+      
+      region->_size -= size;  // make the containing region left chunk
       middle->_next = region->_next;
       middle->_prev = region;
       region->_next = middle;
       // region previous stays the same
       _tree->insert_node(middle);
+
     }
     else {
       middle = region;  // containing node becomes middle chunk (inserted)
@@ -622,8 +656,8 @@ class AVL_range_allocator {
             "AVL_range_allocator: line %d failed to allocate %ld bytes",
             __LINE__, size);
 
-      Memory_region* right =
-          new (p) Memory_region(middle->_addr + size, right_size);
+      Memory_region* right = new (p) Memory_region(middle->_addr + size, right_size);
+
       right->_size = right_size;
       right->_next = middle->_next;
       right->_prev = middle;
@@ -723,8 +757,6 @@ class AVL_range_allocator {
    */
   void dump_info(std::string * out_str = nullptr) {
     assert(_tree->root());
-    PINF("+ AVL_tree: ");
-    AVL_tree<Memory_region>::dump(*(_tree->root()));
 
     if(out_str) {
       apply([&](addr_t addr, size_t s, bool state)
@@ -734,6 +766,11 @@ class AVL_range_allocator {
               out_str->append(ss.str());
             });
     }
+    else {
+      PINF("+ AVL_tree: ");
+      AVL_tree<Memory_region>::dump(*(_tree->root()));
+    }
+
   }
 
   /**

@@ -1,17 +1,35 @@
+/*
+ * (C) Copyright IBM Corporation 2018, 2019. All rights reserved.
+ * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
+ */
+
 #include <algorithm> /* copy, move */
 #include <stdexcept> /* out_of_range */
 #include <string>
 #include <vector>
 
+/* NOTE: assumes a valid map, so must be constructed *after* the map
+ */
 template <typename Table>
 	impl::atomic_controller<Table>::atomic_controller(
 			persist_atomic<typename Table::value_type> &persist_
 			, table_t &map_
+			, construction_mode mode_
 		)
 			: allocator_type(map_.get_allocator())
 			, _persist(&persist_)
 			, _map(&map_)
 		{
+			if ( mode_ == construction_mode::reconstitute )
+			{
+				/* reconstitute allocated memory */
+				_persist->mod_key.reconstitute(allocator_type(*this));
+				_persist->mod_mapped.reconstitute(allocator_type(*this));
+				if ( _persist->mod_size )
+				{
+					allocator_type(*this).reconstitute(_persist->mod_size * (sizeof *_persist->mod_ctl), _persist->mod_ctl);
+				}
+			}
 			redo();
 		}
 
@@ -143,6 +161,7 @@ template <typename Table>
 				, src.end()
 				, al_
 			);
+
 		using void_allocator_t =
 			typename allocator_type::template rebind<void>::other;
 

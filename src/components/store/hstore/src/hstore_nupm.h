@@ -16,8 +16,6 @@
 
 #include "region.h"
 
-#include "hstore_open_pool.h"
-
 #include "hstore_session.h"
 
 #include <cinttypes> /* PRIx64 */
@@ -178,20 +176,9 @@ public:
 #endif
 
     PLOG(PREFIX "in %s: opened region ID %" PRIx64 " at %p", __func__, path_.str().c_str(), uuid, static_cast<const void *>(pop.get()));
-    /* open_pool returns either a ::open_pool (usable for delete_pool) or a ::session
-     * (usable for delete_pool and everything else), depending on whether the region
-     * data is usuable for all operations or just for deletion.
-     */
-    try
-    {
-      /* open_pool_handle is a managed region *, and pop is a region. */
-      auto s = std::make_unique<session<open_pool_handle, ALLOC_T, table_t>>(path_, std::move(pop), construction_mode::reconstitute);
-      return s;
-    }
-    catch ( ... )
-    {
-      return std::make_unique<open_pool<open_pool_handle>>(path_, std::move(pop));
-    }
+    /* open_pool_handle is a managed region *, and pop is a region. */
+    auto s = std::make_unique<session<open_pool_handle, ALLOC_T, table_t>>(path_, std::move(pop), construction_mode::reconstitute);
+    return s;
   }
 
   void pool_close_check(const std::string &) override

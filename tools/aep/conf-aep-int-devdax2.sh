@@ -6,9 +6,9 @@ then
     echo "Creating namespaces... this will take a while!"
     for r in $REGIONS
     do
-	      for p in {0..3}
+	      for p in {0..56}
 	      do
-	          sudo ndctl create-namespace -m devdax --align 2M -r $r -s 480G
+	          sudo ndctl create-namespace -m devdax --align 2M -r $r -s 54G
 	      done
     done
     sudo chmod a+rwx /dev/dax*

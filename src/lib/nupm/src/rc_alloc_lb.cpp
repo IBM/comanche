@@ -61,6 +61,9 @@ void Rca_LB::free(void *ptr, int numa_node, size_t size)
   _rmap->free(ptr, numa_node, size);
 }
 
-void Rca_LB::debug_dump(std::string *out_log) { *out_log = "TODO"; }
+void Rca_LB::debug_dump(std::string *out_log)
+{
+  _rmap->debug_dump(out_log);
+}
 
 }  // namespace nupm

@@ -43,7 +43,7 @@ TEST_F(KVIndex_test, Instantiate)
 {
   /* create object instance through factory */
   Component::IBase *comp = Component::load_component(
-      "libcomanche-storeindex.so", Component::ramrbtree_factory);
+      "libcomanche-indexrbtree.so", Component::rbtreeindex_factory);
 
   ASSERT_TRUE(comp);
   IKVIndex_factory *fact =

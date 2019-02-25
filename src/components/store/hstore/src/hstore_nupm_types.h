@@ -8,7 +8,7 @@
 
 #if USE_CC_HEAP == 1 || USE_CC_HEAP == 3
 #else
-#error USE_CC_HEAP type incompatible with nupm 
+#error USE_CC_HEAP type incompatible with nupm
 #endif
 
 #include "hstore_common.h"
@@ -40,8 +40,6 @@ public:
 };
 
 using open_pool_handle = std::unique_ptr<region, region_closer>;
-
-#include "hstore_open_pool.h"
 
 using Persister = persister_nupm;
 

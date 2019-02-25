@@ -1,5 +1,10 @@
-#ifndef _DAWN_PERSIST_MAP_H
-#define _DAWN_PERSIST_MAP_H
+/*
+ * (C) Copyright IBM Corporation 2018, 2019. All rights reserved.
+ * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
+ */
+
+#ifndef _COMANCHE_PERSIST_MAP_H
+#define _COMANCHE_PERSIST_MAP_H
 
 #include "bucket_aligned.h"
 #include "hash_bucket.h"
@@ -7,10 +12,9 @@
 #include "persistent.h"
 #include "persist_atomic.h"
 #include "segment_layout.h"
+#include "size_control.h"
 
-#include <cassert>
 #include <cstddef> /* size_t */
-#include <limits> /* numeric_limits */
 
 /* Persistent data for hstore.
  */
@@ -19,79 +23,6 @@ namespace impl
 {
 	template <typename Allocator>
 		class persist_controller;
-
-	class size_control
-	{
-		/* unstable == 0 implies that size is valid and persisted
-		 * if unstable != 0, restart must individually count the contents.
-		 *
-		 * The size_and_unstable field is 2^N times the actual size,
-		 * and the lower N bits represents "unstable," not part of the size.
-		 */
-		persistent_atomic_t<std::size_t> _size_and_unstable;
-		static constexpr unsigned N = 8;
-		static constexpr std::size_t count_1 = 1U<<N;
-		std::size_t destable_count() const { return _size_and_unstable & (count_1-1U); }
-	public:
-		size_control()
-			: _size_and_unstable(0)
-		{}
-		void size_set_stable(std::size_t n) { _size_and_unstable = (n << N); }
-		std::size_t size() const { assert( is_stable() ); return _size_and_unstable >> N; }
-		void stabilize() { assert(destable_count() != 0); --_size_and_unstable; }
-		void destabilize() { ++_size_and_unstable; assert(destable_count() != 0); }
-		void decr() { _size_and_unstable -= count_1; }
-		void incr() { _size_and_unstable += count_1; }
-		bool is_stable() const { return destable_count() == 0; }
-	};
-
-	/* Size change state as an object. Not for RIAA strictness, but to move a memory
-	 * fetch which appears to stall the pipeline following a call to pmem_persist.
-	 */
-	class size_change
-	{
-		size_control *_size_control;
-		size_change(const size_change &) = delete;
-		size_change& operator=(const size_change &) = delete;
-	protected:
-		size_control & get_size_control() const { return *_size_control; }
-	public:
-		size_change(size_control &ctl)
-			: _size_control(&ctl)
-		{
-			_size_control->destabilize();
-		}
-		~size_change()
-		{
-			_size_control->stabilize();
-		}
-	};
-
-	class size_incr
-		: public size_change
-	{
-	public:
-		size_incr(size_control &ctl)
-			: size_change(ctl)
-		{}
-		~size_incr()
-		{
-			get_size_control().incr();
-		}
-	};
-
-	class size_decr
-		: public size_change
-	{
-	public:
-		size_decr(size_control &ctl)
-			: size_change(ctl)
-		{}
-		~size_decr()
-		{
-			get_size_control().decr();
-		}
-	};
 
 	template <typename Allocator>
 		class persist_map

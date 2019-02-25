@@ -142,6 +142,7 @@ public:
     E_BAD_ALIGNMENT = -9,
     E_INSUFFICIENT_BUFFER = -10,
     E_BAD_OFFSET = -11,
+    E_ALREADY_OPEN = -12,
   };
 
   /** 
@@ -161,7 +162,7 @@ public:
    * @param flags Creation flags
    * @param
    * 
-   * @return Pool handle
+   * @return Pool handle or POOL_ERROR
    */
   virtual pool_t create_pool(const std::string& path,
                              const std::string& name,
@@ -176,7 +177,7 @@ public:
    * @param name Name of object pool
    * @param flags Open flags e.g., FLAGS_READ_ONLY
    * 
-   * @return Pool handle
+   * @return Pool handle or POOL_ERROR
    */
   virtual pool_t open_pool(const std::string& path,
                            const std::string& name,
@@ -185,26 +186,21 @@ public:
   /** 
    * Close pool handle
    * 
-   * @param pool Pool handle
+   * @param pool Pool handle or POOL_ERROR
+   *
+   * @return S_OK on success
    */
-  virtual void close_pool(const pool_t pool) = 0;
-
-  /** 
-   * Close and delete an existing pool
-   * 
-   * @param pool Pool handle
-   */
-  virtual void delete_pool(const pool_t pool)  = 0;
+  virtual status_t close_pool(const pool_t pool) = 0;
 
   /** 
    * Close and delete an existing pool
    * 
    * @param path Path of persistent memory (e.g., /mnt/pmem0/ )
    * @param name Name of object pool
+   * 
+   * @return S_OK on success
    */
-  virtual void delete_pool(const std::string &path, const std::string &name) {
-    delete_pool(open_pool(path, name));
-  }
+  virtual status_t delete_pool(const std::string &path, const std::string &name) = 0;
 
   /** 
    * Get mapped memory regions for pool
@@ -305,7 +301,7 @@ public:
 
 
   /** 
-   * Durict memory regions should be unregistered before the memory is released on the client side.
+   * Direct memory regions should be unregistered before the memory is released on the client side.
    * 
    * @param vaddr Address of region to unregister.
    * 
@@ -420,8 +416,10 @@ public:
    * Free server-side allocated memory
    *
    * @param p Pointer to memory allocated through a get call
+   * 
+   * @return S_OK on success
    */
-  virtual void free_memory(void * p) { return ::free(p); }
+  virtual status_t free_memory(void * p) { ::free(p); return S_OK; }
 
 
   /** 

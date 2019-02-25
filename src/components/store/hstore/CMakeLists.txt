@@ -7,7 +7,7 @@ set (CMAKE_CXX_STANDARD 14)
 add_subdirectory(./unit_test)
 
 enable_language(CXX)
-set(SOURCES src/dax_map.cpp src/hstore.cpp src/hstore_factory.cpp src/hop_hash.cpp src/perishable.cpp)
+set(SOURCES src/dax_map.cpp src/hstore.cpp src/hstore_factory.cpp src/hop_hash.cpp src/perishable.cpp src/size_control.cpp)
 
 #add_custom_target(format-hstore
 #  COMMAND /usr/bin/clang-format
@@ -39,12 +39,7 @@ add_library(${PROJECT_NAME} SHARED ${SOURCES})
 
 set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--no-undefined")
 
-# when using pmem only
-#target_link_libraries(${PROJECT_NAME} common comanche-core pthread numa dl rt boost_system boost_filesystem tbb pmem pmemobj pmempool cityhash)
-# when using nupm only
-#target_link_libraries(${PROJECT_NAME} common comanche-core pthread numa dl rt cityhash nupm)
-# when using either pmem or nupm
-target_link_libraries(${PROJECT_NAME} common comanche-core pthread numa dl rt boost_system boost_filesystem tbb pmem pmemobj pmempool cityhash nupm)
+target_link_libraries(${PROJECT_NAME} common comanche-core pthread numa dl rt boost_system boost_filesystem tbb pmem cityhash nupm)
 
 set_target_properties(${PROJECT_NAME} PROPERTIES INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib:${CMAKE_INSTALL_PREFIX}/lib64)
 

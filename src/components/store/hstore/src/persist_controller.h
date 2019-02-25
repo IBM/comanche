@@ -1,8 +1,14 @@
-#ifndef _DAWN_PERSIST_CONTROLLER_H
-#define _DAWN_PERSIST_CONTROLLER_H
+/*
+ * (C) Copyright IBM Corporation 2018, 2019. All rights reserved.
+ * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
+ */
+
+#ifndef _COMANCHE_PERSIST_CONTROLLER_H
+#define _COMANCHE_PERSIST_CONTROLLER_H
 
 #include "construction_mode.h"
 #include "persist_data.h"
+#include "test_flags.h" /* TEST_HSTORE_PERISHABLE */
 
 #include <boost/iterator/transform_iterator.hpp>
 
@@ -16,7 +22,12 @@
  * goes through this class. Ideally this should also get writes to persist_data::_sc.
  */
 
+#if TEST_HSTORE_PERISHABLE
 #include <iostream>
+#endif
+
+class perishable_expiry;
+
 namespace impl
 {
 	template <typename Allocator, typename SizeChange>
@@ -35,7 +46,18 @@ namespace impl
 			persist_size_change& operator=(const persist_size_change &) = delete;
 			~persist_size_change()
 			{
-				_pc->size_stabilize();
+				try
+				{
+					/* Note: change and size_stabilize are separate calls which could be combined. */
+					this->SizeChange::change();
+					_pc->size_stabilize();
+				}
+				catch ( const perishable_expiry & )
+				{
+#if TEST_HSTORE_PERISHABLE
+					std::cerr << "perishable_expiry in " << __func__ << "\n";
+#endif
+				}
 			}
 		};
 
@@ -105,10 +127,17 @@ namespace impl
 			{
 				return _persist->_segment_count._target;
 			}
+#if TEST_HSTORE_PERISHABLE
+			auto size_unstable() const /* debugging */
+			{
+				return _persist->_size_control.size_unstable();
+			}
+#endif
 			std::size_t size() const
 			{
 				return _persist->_size_control.size();
 			}
+
 			size_control &get_size_control()
 			{
 				return _persist->_size_control;
@@ -130,7 +159,7 @@ namespace impl
 					}
 				);
 			}
-			bool is_size_unstable() const;
+			bool is_size_stable() const;
 			void size_set(std::size_t n);
 
 			auto bucket_count() const -> size_type

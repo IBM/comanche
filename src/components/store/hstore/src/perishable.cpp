@@ -30,6 +30,18 @@ void perishable::enable(bool e)
 	_enabled = e;
 }
 
+void perishable::test()
+{
+	if ( _enabled )
+	{
+		if ( _time_to_live == 0 )
+		{
+			throw perishable_expiry{};
+		}
+	}
+
+}
+
 void perishable::report()
 {
 	if ( _initial != 0 )

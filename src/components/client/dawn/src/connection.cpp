@@ -51,11 +51,11 @@ Connection_handler::pool_t Connection_handler::open_pool(const std::string path,
     throw Protocol_exception("expected POOL_RESPONSE message - got %x",
                              response_msg->type_id);
 
+  auto pool_id = response_msg->pool_id;
+  auto status = msg->status;
   free_buffer(iob);
-
-  if (msg->status == -1) throw General_exception("status: -1");
-
-  return response_msg->pool_id;
+  if (status == E_FAIL) return Component::IKVStore::POOL_ERROR;
+  return pool_id;
 }
 
 Connection_handler::pool_t Connection_handler::create_pool(
@@ -92,14 +92,15 @@ Connection_handler::pool_t Connection_handler::create_pool(
                              response_msg->type_id);
   status_t rc = response_msg->status;
 
+  auto pool_id = response_msg->pool_id;
+  auto status = msg->status;
+
   free_buffer(iob);
-
-  if (rc != S_OK) throw General_exception("create_pool operation failed");
-
-  return response_msg->pool_id;
+  if (status != S_OK) return Component::IKVStore::POOL_ERROR;
+  return pool_id;
 }
 
-void Connection_handler::close_or_delete_pool(pool_t pool, int op)
+status_t Connection_handler::close_or_delete_pool(pool_t pool, int op)
 {
   API_LOCK();
   /* send pool request message */
@@ -117,18 +118,19 @@ void Connection_handler::close_or_delete_pool(pool_t pool, int op)
   if (response_msg->type_id != Dawn::Protocol::MSG_TYPE_POOL_RESPONSE)
     throw Protocol_exception("expected POOL_RESPONSE message - got %x",
                              response_msg->type_id);
-
+  auto status = response_msg->status;
   free_buffer(iob);
+  return status;
 }
 
-void Connection_handler::close_pool(pool_t pool)
+status_t Connection_handler::close_pool(pool_t pool)
 {
-  close_or_delete_pool(pool, Dawn::Protocol::OP_CLOSE);
+  return close_or_delete_pool(pool, Dawn::Protocol::OP_CLOSE);
 }
 
-void Connection_handler::delete_pool(Connection_handler::pool_t pool)
+status_t Connection_handler::delete_pool(Connection_handler::pool_t pool)
 {
-  close_or_delete_pool(pool, Dawn::Protocol::OP_DELETE);
+  return close_or_delete_pool(pool, Dawn::Protocol::OP_DELETE);
 }
 
 /**
@@ -154,6 +156,11 @@ status_t Connection_handler::put(const pool_t pool,
   if (option_DEBUG)
     PINF("put: %.*s (key_len=%lu) (value_len=%lu)", (int) key_len, (char*) key,
          key_len, value_len);
+
+  if ((key_len + value_len + sizeof(Dawn::Protocol::Message_IO_request)) >
+      Buffer_manager<Component::IFabric_client>::BUFFER_LEN) {
+    return IKVStore::E_TOO_LARGE;
+  }
 
   const auto iob = allocate();
 
@@ -182,9 +189,9 @@ status_t Connection_handler::put(const pool_t pool,
     PLOG("got response from PUT operation: status=%d request_id=%lu",
          response_msg->status, response_msg->request_id);
 
+  auto status = response_msg->status;
   free_buffer(iob);
-
-  return response_msg->status;
+  return status;
 }
 
 status_t Connection_handler::two_stage_put_direct(
@@ -292,8 +299,9 @@ status_t Connection_handler::put_direct(
   if (option_DEBUG)
     PLOG("got response from PUT_DIRECT operation: status=%d", msg->status);
 
+  auto status = response_msg->status;
   free_buffer(iob);
-  return msg->status;
+  return status;
 }
 
 status_t Connection_handler::get(const pool_t       pool,
@@ -326,18 +334,18 @@ status_t Connection_handler::get(const pool_t       pool,
 
   if (option_DEBUG)
     PLOG("got response from GET operation: status=%d (%s)", msg->status,
-         msg->data);
+         response_msg->data);
 
-  status_t status = msg->status;
+  status_t status = response_msg->status;
 
   /* copy result */
   if (status == S_OK) {
     value.reserve(response_msg->data_len + 1);
     value.insert(0, response_msg->data, response_msg->data_len);
-    free_buffer(iob);
     assert(response_msg->data);
   }
 
+  free_buffer(iob);
   return status;
 }
 
@@ -355,6 +363,7 @@ status_t Connection_handler::get(const pool_t       pool,
       iob->length(), auth_id(), ++_request_id, pool,
       Dawn::Protocol::OP_GET,  // op
       key.c_str(), key.length(), 0);
+  
   if (_options.short_circuit_backend)
     msg->resvd |= Dawn::Protocol::MSG_RESVD_SCBE;
 
@@ -375,7 +384,7 @@ status_t Connection_handler::get(const pool_t       pool,
          response_msg->status, response_msg->request_id,
          response_msg->data_length());
 
-  if (msg->status != S_OK) return msg->status;
+  if (response_msg->status != S_OK) return response_msg->status;
 
   if (option_DEBUG) PLOG("message value:(%s)", response_msg->data);
 
@@ -406,8 +415,9 @@ status_t Connection_handler::get(const pool_t       pool,
     ((char*) value)[response_msg->data_len] = '\0';
   }
 
+  auto status = response_msg->status;
   free_buffer(iob);
-  return msg->status;
+  return status;
 }
 
 status_t Connection_handler::get_direct(
@@ -449,7 +459,7 @@ status_t Connection_handler::get_direct(
          response_msg->status, response_msg->request_id,
          response_msg->data_length());
 
-  if (msg->status != S_OK) return msg->status;
+  if (response_msg->status != S_OK) return response_msg->status;
 
   if (option_DEBUG) PLOG("value:(%s)", response_msg->data);
 
@@ -473,9 +483,45 @@ status_t Connection_handler::get_direct(
     memcpy(value, response_msg->data, response_msg->data_len);
   }
 
+  auto status = response_msg->status;
   free_buffer(iob);
-  return msg->status;
+  return status;
 }
+
+status_t Connection_handler::erase(const pool_t pool,
+                                   const std::string& key)
+{
+  API_LOCK();
+
+  const auto iob = allocate();
+  assert(iob);
+
+  const auto msg = new (iob->base()) Dawn::Protocol::Message_IO_request(
+      iob->length(), auth_id(), ++_request_id, pool,
+      Dawn::Protocol::OP_ERASE,
+      key.c_str(), key.length(), 0);
+
+  iob->set_length(msg->msg_len);
+  sync_inject_send(iob);
+
+  sync_recv(iob);
+
+  auto response_msg = new (iob->base()) Dawn::Protocol::Message_IO_response();
+  if (response_msg->type_id != Dawn::Protocol::MSG_TYPE_IO_RESPONSE)
+    throw Protocol_exception("expected IO_RESPONSE message - got %x",
+                             response_msg->type_id);
+
+  if (option_DEBUG)
+    PLOG("got response from ERASE operation: status=%d request_id=%lu "
+         "data_len=%lu",
+         response_msg->status, response_msg->request_id,
+         response_msg->data_length());
+
+  auto status = response_msg->status;
+  free_buffer(iob);
+  return status;
+}
+
 
 int Connection_handler::tick()
 {
@@ -510,9 +556,8 @@ int Connection_handler::tick()
       if (msg->type_id == Dawn::Protocol::MSG_TYPE_HANDSHAKE_REPLY)
         set_state(READY);
       else
-        throw Protocol_exception(
-            "client: expecting handshake reply got type_id=%u len=%lu",
-            msg->type_id, msg->msg_len);
+        throw Protocol_exception("client: expecting handshake reply got type_id=%u len=%lu",
+                                 msg->type_id, msg->msg_len);
 
       PMAJOR("client : HANDSHAKE_GET_RESPONSE (max_message_size=%lu MiB)",
              REDUCE_MiB(msg->max_message_size));
