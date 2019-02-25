@@ -83,8 +83,8 @@ static Pool_session* get_session(const IKVStore::pool_t pid)
 {
   auto session = reinterpret_cast<Pool_session*>(pid);
 
-  if(_pool_sessions.count(session) != 1)
-    throw API_exception("invalid pool identifier");
+  if(_pool_sessions.count(session) == 0)
+    throw API_exception("invalid pool identifier (%p)", pid);
 
   assert(session);
   return session;
@@ -302,6 +302,7 @@ IKVStore::pool_t Map_store::create_pool(const std::string& path,
     }
     session = new Pool_session{handle};
     _pools[handle->key] = handle;
+    PLOG("adding new session (%p)", session);
     _pool_sessions.insert(session); /* create a session too */
   }
   
@@ -347,6 +348,7 @@ status_t Map_store::close_pool(const pool_t pid)
   auto session = get_session(pid);
 
   Std_lock_guard g(_pool_sessions_lock);
+  delete session;
   _pool_sessions.erase(session);
 
   return S_OK;
@@ -376,10 +378,12 @@ status_t Map_store::delete_pool(const std::string& path,
   }
     
   /* delete pool too */
-  auto i = _pools.find(key);
-  if(i != _pools.end())
-    _pools.erase(i);
-  return E_INVAL;
+  if(_pools.find(key) == _pools.end())
+    throw Logic_exception("unable to delete pool session");
+  
+  _pools.erase(key);
+  delete ph;
+  return S_OK;
 }
 
 

@@ -13,7 +13,10 @@ using Connection_base = Fabric_connection_base;
    Pool_manager tracks open pool handles on a per-shard (single thread) basis
  */
 class Pool_manager {
- public:
+private:
+  static constexpr bool option_DEBUG = true;
+  
+public:
   using pool_t = Component::IKVStore::pool_t;
 
   Pool_manager() {}
@@ -28,10 +31,17 @@ class Pool_manager {
     auto i = _name_map.find(path);
     if (i == _name_map.end()) {
       PLOG("check_for_open_pool (%s) false", path.c_str());
+      out_pool = 0;
       return false;
     }
     PLOG("check_for_open_pool (%s) true", path.c_str());
-    return (_open_pools.find(i->second) != _open_pools.end());
+    auto j = _open_pools.find(i->second);
+    if(j != _open_pools.end()) {
+      out_pool = i->second;
+      return true;
+    }
+    out_pool = 0;
+    return false;
   }
 
   /**
@@ -52,9 +62,11 @@ class Pool_manager {
   void add_reference(pool_t pool)
   {
     if (_open_pools.find(pool) == _open_pools.end())
-      throw Logic_exception("add reference to un-open pool");
-    else
+      throw Logic_exception("add reference to pool that is not open");
+    else {
       _open_pools[pool] += 1;
+      if(option_DEBUG) PLOG("pool (%p) ref:%u", pool, _open_pools[pool]);
+    }
   }
 
   /**
@@ -66,16 +78,30 @@ class Pool_manager {
    */
   bool release_pool_reference(pool_t pool)
   {
-    std::map<pool_t, unsigned>::iterator i = _open_pools.find(pool);
-    if (i == _open_pools.end())
+    if (_open_pools.find(pool) == _open_pools.end())
       throw Logic_exception("release_pool_reference on invalid pool");
-    if (i->second == 0)
-      throw Logic_exception("invalid release, reference is already");
-    i->second--;
-    bool is_last = (i->second == 0);
-    if(is_last)
-      _open_pools.erase(i);
-    return is_last; /* return true if last reference */
+
+    _open_pools[pool] -= 1;
+    if(option_DEBUG) PLOG("pool (%p) ref:%u", pool, _open_pools[pool]);
+    
+    if(_open_pools[pool] == 0) {
+      _open_pools.erase(pool);
+      return true;
+    }
+    return false;
+    
+    // std::map<pool_t, unsigned>::iterator i = _open_pools.find(pool);
+    // if (i == _open_pools.end())
+    //   throw Logic_exception("release_pool_reference on invalid pool");
+    // if (i->second == 0)
+    //   throw Logic_exception("invalid release, reference is already");
+    // i->second--;
+    // bool is_last = (i->second == 0);
+    // if(is_last) {
+    //   _open_pools.erase(i);
+    //   PLOG("removing pool (%p) from open list", pool);
+    // }
+    // return is_last; /* return true if last reference */
   }
 
   /**
@@ -85,7 +111,7 @@ class Pool_manager {
    * @param pool Pool identifier
    */
   void blitz_pool_reference(pool_t pool) {
-    _open_pools[pool] = 0;
+    _open_pools.erase(pool);
   }
 
   /**
