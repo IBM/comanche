@@ -83,8 +83,8 @@ static Pool_session* get_session(const IKVStore::pool_t pid)
 {
   auto session = reinterpret_cast<Pool_session*>(pid);
 
-  if(_pool_sessions.count(session) != 1)
-    throw API_exception("invalid pool identifier");
+  if(_pool_sessions.count(session) == 0)
+    throw API_exception("invalid pool identifier (%p)", pid);
 
   assert(session);
   return session;
@@ -289,7 +289,7 @@ IKVStore::pool_t Map_store::create_pool(const std::string& path,
 
   const auto handle = new Pool_handle;
   Pool_session * session = nullptr;
-  handle->key = path + "/" + name;
+  handle->key = path + name;
   handle->flags = flags;
   {
     Std_lock_guard g(_pool_sessions_lock);
@@ -302,6 +302,7 @@ IKVStore::pool_t Map_store::create_pool(const std::string& path,
     }
     session = new Pool_session{handle};
     _pools[handle->key] = handle;
+    PLOG("adding new session (%p)", session);
     _pool_sessions.insert(session); /* create a session too */
   }
   
@@ -321,6 +322,7 @@ IKVStore::pool_t Map_store::open_pool(const std::string& path,
   Pool_handle * ph = nullptr;
   /* see if a pool exists that matches the key */
   for(auto& h: _pools) {
+    PLOG("pool:%s", h.first.c_str());
     if(h.first == key) {
       ph = h.second;
       break;
@@ -328,7 +330,7 @@ IKVStore::pool_t Map_store::open_pool(const std::string& path,
   }
 
   if(ph == nullptr)
-    throw API_exception("open_pool failed; pool (%s) does not exist", key.c_str());
+    return Component::IKVStore::POOL_ERROR;
 
   auto new_session = new Pool_session(ph);
   if(option_DEBUG)
@@ -346,26 +348,42 @@ status_t Map_store::close_pool(const pool_t pid)
   auto session = get_session(pid);
 
   Std_lock_guard g(_pool_sessions_lock);
+  delete session;
   _pool_sessions.erase(session);
 
   return S_OK;
 }
 
-status_t Map_store::delete_pool(const pool_t pid)
+status_t Map_store::delete_pool(const std::string& path,
+                                const std::string& name)
 {
-  auto session = get_session(pid);
+  std::string key = path + name;
 
-  Std_lock_guard g(_pool_sessions_lock);
-  _pool_sessions.erase(session);
-
-  /* delete pool too */
-  for(auto& p : _pools) {
-    if(p.second == session->pool) {
-      _pools.erase(p.first);
-      return S_OK;
+  Pool_handle * ph = nullptr;
+  /* see if a pool exists that matches the key */
+  for(auto& h: _pools) {
+    if(h.first == key) {
+      ph = h.second;
+      break;
     }
   }
-  return E_INVAL;
+
+  if(ph == nullptr)
+    return E_POOL_NOT_FOUND;
+
+  Std_lock_guard g(_pool_sessions_lock);
+  for(auto& s: _pool_sessions) {
+    if(s->pool->key == key)
+      return E_ALREADY_OPEN;
+  }
+    
+  /* delete pool too */
+  if(_pools.find(key) == _pools.end())
+    throw Logic_exception("unable to delete pool session");
+  
+  _pools.erase(key);
+  delete ph;
+  return S_OK;
 }
 
 

@@ -310,9 +310,7 @@ TEST_F(KVStore_test, DeletePool)
 {
   if ( pmem_effective )
   {
-    auto pool = _kvstore->open_pool(pool_dir(), pool_name());
-    ASSERT_LT(0, int64_t(pool));
-    _kvstore->delete_pool(pool);
+    _kvstore->delete_pool(pool_dir(), pool_name());
   }
 }
 

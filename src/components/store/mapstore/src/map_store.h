@@ -18,7 +18,7 @@
 class Map_store : public Component::IKVStore /* generic Key-Value store interface */
 {  
 private:
-  static constexpr bool option_DEBUG = false;
+  static constexpr bool option_DEBUG = true;
 
 public:
   /** 
@@ -70,7 +70,8 @@ public:
   
   virtual status_t close_pool(const pool_t pid) override;
 
-  virtual status_t delete_pool(const pool_t pid) override;
+  virtual status_t delete_pool(const std::string& path,
+                               const std::string& name) override;
 
   virtual status_t put(const pool_t pool,
                        const std::string& key,

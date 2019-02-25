@@ -89,7 +89,8 @@ class Dawn_client : public Component::IKVStore,
 
   virtual status_t close_pool(const pool_t pool) override;
 
-  virtual status_t delete_pool(const pool_t pool) override;
+  virtual status_t delete_pool(const std::string& path,
+                               const std::string& name) override;
 
   virtual status_t put(const pool_t       pool,
                        const std::string& key,
@@ -134,6 +135,8 @@ class Dawn_client : public Component::IKVStore,
 
   virtual pool_t open_pool(const std::string& pool_name,
                            unsigned int flags = 0) override;
+
+  virtual status_t delete_pool(const std::string& pool_name) override;
 
   virtual std::string find(const std::string& key_expression,
                            Component::IKVIndex::offset_t begin_position,
@@ -185,9 +188,9 @@ class Dawn_client_factory : public Component::IKVStore_factory {
   virtual Component::IKVStore* create(unsigned           debug_level,
                                       const std::string& owner,
                                       const std::string& addr,
-                                      const std::string& param2) override
+                                      const std::string& param) override
   {
-    Component::IKVStore* obj = static_cast<Component::IKVStore*>(new Dawn_client(debug_level, owner, addr, param2));
+    Component::IKVStore* obj = static_cast<Component::IKVStore*>(new Dawn_client(debug_level, owner, addr, param));
     obj->add_ref();
     return obj;
   }

@@ -81,15 +81,18 @@ status_t Dummy_store::close_pool(const pool_t pid)
   return S_OK;
 }
 
-status_t Dummy_store::delete_pool(const pool_t pid)
+status_t Dummy_store::delete_pool(const std::string& path,
+                                  const std::string& name)
 {
-  auto i = sessions.find(pid);
-  if(i == sessions.end())
-    return E_INVAL;
+  std::string fullpath = path + name;
 
-  ddm.erase_region(pid, 0);
-  
-  sessions.erase(i);
+  auto uuid = CityHash64(fullpath.c_str(), fullpath.length());
+  for (auto& s : sessions) {
+    if(s.first == uuid)
+      return Component::IKVStore::E_ALREADY_OPEN;
+  }
+    
+  ddm.erase_region(uuid, 0);
   return S_OK;
 }
 

@@ -479,7 +479,8 @@ TEST_F(KVStore_test, EraseMany)
 
 TEST_F(KVStore_test, DeletePool)
 {
-  _kvstore->delete_pool(pool);
+  _kvstore->close_pool(pool);
+  _kvstore->delete_pool(pool_dir(), pool_name());
 }
 
 } // namespace
