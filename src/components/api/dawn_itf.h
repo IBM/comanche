@@ -80,19 +80,9 @@ public:
   /** 
    * Close and delete an existing pool
    * 
-   * @param pool Pool handle
+   * @param pool Pool name
    */
-  virtual status_t delete_pool(const IKVStore::pool_t pool) = 0;
-
-  /** 
-   * Close and delete an existing pool
-   * 
-   * @param path Path of persistent memory (e.g., /mnt/pmem0/ )
-   * @param name Name of object pool
-   */
-  virtual status_t delete_pool(const std::string& pool_name) {
-    return delete_pool(open_pool(pool_name));
-  }
+  virtual status_t delete_pool(const std::string& pool_name) = 0;
 
   /** 
    * Write or overwrite an object value. If there already exists a

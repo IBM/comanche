@@ -75,9 +75,14 @@ Connection_handler::pool_t Connection_handler::create_pool(
 
   PLOG("Connection_handler::create_pool");
 
-  const auto msg = new (iob->base()) Dawn::Protocol::Message_pool_request(
-      iob->length(), auth_id(), /* auth id */
-      ++_request_id, size, Dawn::Protocol::OP_CREATE, path, name);
+  const auto msg = new (iob->base())
+    Dawn::Protocol::Message_pool_request(iob->length(),
+                                         auth_id(), /* auth id */
+                                         ++_request_id,
+                                         size,
+                                         Dawn::Protocol::OP_CREATE,
+                                         path,
+                                         name);
   assert(msg->op);
 
   msg->expected_object_count = expected_obj_count;
@@ -100,13 +105,15 @@ Connection_handler::pool_t Connection_handler::create_pool(
   return pool_id;
 }
 
-status_t Connection_handler::close_or_delete_pool(pool_t pool, int op)
+status_t Connection_handler::close_pool(pool_t pool)
 {
   API_LOCK();
   /* send pool request message */
   auto       iob = allocate();
-  const auto msg = new (iob->base()) Dawn::Protocol::Message_pool_request(
-      iob->length(), auth_id(), ++_request_id, op);
+  const auto msg = new (iob->base()) Dawn::Protocol::Message_pool_request(iob->length(),
+                                                                          auth_id(),
+                                                                          ++_request_id,
+                                                                          Dawn::Protocol::OP_CLOSE);
   msg->pool_id = pool;
 
   iob->set_length(msg->msg_len);
@@ -123,14 +130,32 @@ status_t Connection_handler::close_or_delete_pool(pool_t pool, int op)
   return status;
 }
 
-status_t Connection_handler::close_pool(pool_t pool)
-{
-  return close_or_delete_pool(pool, Dawn::Protocol::OP_CLOSE);
-}
+status_t Connection_handler::delete_pool(const std::string& path,
+                                         const std::string& name)
 
-status_t Connection_handler::delete_pool(Connection_handler::pool_t pool)
 {
-  return close_or_delete_pool(pool, Dawn::Protocol::OP_DELETE);
+  API_LOCK();
+  /* send pool request message */
+  auto       iob = allocate();
+  const auto msg = new (iob->base()) Dawn::Protocol::Message_pool_request(iob->length(),
+                                                                          auth_id(),
+                                                                          ++_request_id,
+                                                                          0, // size
+                                                                          Dawn::Protocol::OP_DELETE,
+                                                                          path,
+                                                                          name);
+  iob->set_length(msg->msg_len);
+  sync_inject_send(iob);
+
+  sync_recv(iob);
+
+  auto response_msg = new (iob->base()) Dawn::Protocol::Message_pool_response();
+  if (response_msg->type_id != Dawn::Protocol::MSG_TYPE_POOL_RESPONSE)
+    throw Protocol_exception("expected POOL_RESPONSE message - got %x",
+                             response_msg->type_id);
+  auto status = response_msg->status;
+  free_buffer(iob);
+  return status;
 }
 
 /**
