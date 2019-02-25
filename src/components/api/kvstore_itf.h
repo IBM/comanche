@@ -193,12 +193,12 @@ public:
   virtual status_t close_pool(const pool_t pool) = 0;
 
   /** 
-   * Close and delete an existing pool
+   * Delete an existing pool
    * 
    * @param path Path of persistent memory (e.g., /mnt/pmem0/ )
    * @param name Name of object pool
    * 
-   * @return S_OK on success
+   * @return S_OK on success, E_ALREADY_OPEN if pool cannot be deleted
    */
   virtual status_t delete_pool(const std::string &path, const std::string &name) = 0;
 

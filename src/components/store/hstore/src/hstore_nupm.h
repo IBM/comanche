@@ -163,7 +163,7 @@ public:
     auto pop = open_pool_handle(static_cast<region *>(_devdax_manager->open_region(uuid, _numa_node, nullptr)), region_closer(shared_from_this()));
     if ( ! pop )
     {
-      throw General_exception("failed to re-open region %s", path_.str().c_str());
+      throw std::invalid_argument("failed to re-open pool");
     }
 
     void *a = &pop->heap;

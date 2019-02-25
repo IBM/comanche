@@ -202,6 +202,7 @@ void Shard::process_message_pool_request(Connection_handler* handler,
   Protocol::Message_pool_response* response = new (response_iob->base())
       Protocol::Message_pool_response(handler->auth_id());
   assert(response);
+  response->status = S_OK;
 
   /* handle operation */
   if (msg->op == Dawn::Protocol::OP_CREATE) {
@@ -223,7 +224,9 @@ void Shard::process_message_pool_request(Connection_handler* handler,
                                        msg->pool_size,
                                        0,  // flags
                                        msg->expected_object_count);
-
+        if(!pool)
+          throw Logic_exception("create_pool on internal kvstore failed");
+        
         /* register pool handle */
         handler->register_pool(pool_name, pool);
       }
@@ -231,7 +234,7 @@ void Shard::process_message_pool_request(Connection_handler* handler,
       if (option_DEBUG > 2) PLOG("OP_CREATE: new pool id: %lx", pool);
 
       std::vector<::iovec> regions;
-      status_t             rc = _i_kvstore->get_pool_regions(pool, regions);
+      status_t  rc = _i_kvstore->get_pool_regions(pool, regions);
       if (rc == S_OK) {
       }
 
@@ -258,17 +261,22 @@ void Shard::process_message_pool_request(Connection_handler* handler,
       const std::string pool_name = msg->path() + std::string(msg->pool_name());
 
       /* check that pool is not already open */
-      if (!handler->check_for_open_pool(pool_name, pool)) {
-        /* pool does not exist yet */
-        pool = _i_kvstore->open_pool(msg->path(), msg->pool_name());
-
-        /* register pool handle */
-        handler->register_pool(pool_name, pool);
-      }
-      else {
+      if (handler->check_for_open_pool(pool_name, pool)) {
         PLOG("reusing existing open pool (%p)", (void*) pool);
         /* pool exists */
         handler->add_reference(pool);
+      }
+      else {
+        /* pool does not exist yet */
+        pool = _i_kvstore->open_pool(msg->path(), msg->pool_name());
+
+        if(pool == Component::IKVStore::POOL_ERROR) {
+          response->pool_id = 0;
+          response->status = E_INVAL;
+          goto send_response;
+        }
+        /* register pool handle */
+        handler->register_pool(pool_name, pool);
       }
 
       if (option_DEBUG > 2) PLOG("OP_OPEN: pool id: %lx", pool);
@@ -288,6 +296,7 @@ void Shard::process_message_pool_request(Connection_handler* handler,
       auto pool = msg->pool_id;
 
       if (handler->release_pool_reference(pool)) {
+        PLOG("Last reference (%p) closing pool", pool);
         _i_kvstore->close_pool(pool);
       }
       response->pool_id = pool;
@@ -326,6 +335,7 @@ void Shard::process_message_pool_request(Connection_handler* handler,
     throw Protocol_exception(
         "process_message_pool_request - bad operation (msg->op = %d)", msg->op);
 
+ send_response:
   /* trim response length */
   response_iob->set_length(response->msg_len);
 
@@ -333,10 +343,14 @@ void Shard::process_message_pool_request(Connection_handler* handler,
   handler->post_response(response_iob);
 }
 
+
+
+
 void Shard::process_message_IO_request(Connection_handler*           handler,
                                        Protocol::Message_IO_request* msg)
 {
   using namespace Component;
+  int status = S_OK;
 
   /////////////////////////////////////////////////////////////////////////////
   //   PUT ADVANCE   //
@@ -354,12 +368,17 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
     assert(target_len > 0);
 
     /* create (if needed) and lock value */
-    auto key_handle =
-        _i_kvstore->lock(msg->pool_id, msg->key(), IKVStore::STORE_LOCK_WRITE,
-                         target, target_len);
+    auto key_handle = _i_kvstore->lock(msg->pool_id,
+                                       msg->key(),
+                                       IKVStore::STORE_LOCK_WRITE,
+                                       target,
+                                       target_len);
 
-    if (key_handle == Component::IKVStore::KEY_NONE)
-      throw Program_exception("PUT_ADVANCE failed to lock value (lock() returned KEY_NONE) ");
+    if (key_handle == Component::IKVStore::KEY_NONE) {
+      PWRN("PUT_ADVANCE failed to lock value (lock() returned KEY_NONE) ");
+      status = E_INVAL;
+      goto send_response;
+    }
 
     if (target_len != msg->val_len)
       throw Logic_exception("locked value length mismatch");
@@ -368,8 +387,13 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
     add_locked_value(pool_id, key_handle, target);
 
     /* register memory unless pre-registered */
-    Connection_base::memory_region_t region =
-        nullptr;  // TODO handler->get_preregistered(pool_id);
+    Connection_base::memory_region_t region = nullptr;  // TODO handler->get_preregistered(pool_id);
+
+    if (option_DEBUG > 2) {
+      PLOG("registering locked value: %p %lu", target, target_len);
+    }
+  
+      
     // if(!region) {
     //   if(option_DEBUG || 1)
     //     PLOG("using ondemand registration");
@@ -387,14 +411,13 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
 
     return;
   }
-
+  
+ send_response:
   /* states that we require a response */
   const auto iob = handler->allocate();
 
   Protocol::Message_IO_response* response = new (iob->base())
       Protocol::Message_IO_response(iob->length(), handler->auth_id());
-
-  int status;
 
   /////////////////////////////////////////////////////////////////////////////
   //   PUT           //
