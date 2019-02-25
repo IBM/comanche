@@ -52,13 +52,12 @@ TEST_F(KVStore_test, Instantiate)
 TEST_F(KVStore_test, OpenPool)
 {
   ASSERT_TRUE(_kvstore);
-  try {
-    pool = _kvstore->create_pool("./", "test1.pool", MB(32));
-  }
-  catch(...) {
-    pool = _kvstore->open_pool("./", "test1.pool");
-  }
-  ASSERT_TRUE(pool != 0);
+  pool = _kvstore->create_pool("#", "test1.pool", MB(32));
+
+  if(pool == Component::IKVStore::POOL_ERROR)
+    pool = _kvstore->open_pool("#", "test1.pool");
+
+  ASSERT_TRUE(pool != Component::IKVStore::POOL_ERROR);
 }
 
 
@@ -112,15 +111,20 @@ TEST_F(KVStore_test, ClosePool)
 
 TEST_F(KVStore_test, ReopenPool)
 {
-  pool = _kvstore->open_pool("./", "test1.pool");
-  ASSERT_TRUE(pool != 0);
+  pool = _kvstore->open_pool("#", "test1.pool");
+  ASSERT_TRUE(pool != Component::IKVStore::POOL_ERROR);
   PLOG("re-opened pool: %p", (void*) pool);
 }
 
+TEST_F(KVStore_test, ReClosePool)
+{
+  _kvstore->close_pool(pool);
+}
+  
 TEST_F(KVStore_test, DeletePool)
 {
   PLOG("deleting pool: %p", (void*) pool);
-  _kvstore->delete_pool(pool);
+  _kvstore->delete_pool("#", "test1.pool");
 }
 
 

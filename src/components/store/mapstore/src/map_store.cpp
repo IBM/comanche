@@ -289,7 +289,7 @@ IKVStore::pool_t Map_store::create_pool(const std::string& path,
 
   const auto handle = new Pool_handle;
   Pool_session * session = nullptr;
-  handle->key = path + "/" + name;
+  handle->key = path + name;
   handle->flags = flags;
   {
     Std_lock_guard g(_pool_sessions_lock);
@@ -321,6 +321,7 @@ IKVStore::pool_t Map_store::open_pool(const std::string& path,
   Pool_handle * ph = nullptr;
   /* see if a pool exists that matches the key */
   for(auto& h: _pools) {
+    PLOG("pool:%s", h.first.c_str());
     if(h.first == key) {
       ph = h.second;
       break;
@@ -328,7 +329,7 @@ IKVStore::pool_t Map_store::open_pool(const std::string& path,
   }
 
   if(ph == nullptr)
-    throw API_exception("open_pool failed; pool (%s) does not exist", key.c_str());
+    return Component::IKVStore::POOL_ERROR;
 
   auto new_session = new Pool_session(ph);
   if(option_DEBUG)
@@ -351,20 +352,33 @@ status_t Map_store::close_pool(const pool_t pid)
   return S_OK;
 }
 
-status_t Map_store::delete_pool(const pool_t pid)
+status_t Map_store::delete_pool(const std::string& path,
+                                const std::string& name)
 {
-  auto session = get_session(pid);
+  std::string key = path + name;
 
-  Std_lock_guard g(_pool_sessions_lock);
-  _pool_sessions.erase(session);
-
-  /* delete pool too */
-  for(auto& p : _pools) {
-    if(p.second == session->pool) {
-      _pools.erase(p.first);
-      return S_OK;
+  Pool_handle * ph = nullptr;
+  /* see if a pool exists that matches the key */
+  for(auto& h: _pools) {
+    if(h.first == key) {
+      ph = h.second;
+      break;
     }
   }
+
+  if(ph == nullptr)
+    return E_POOL_NOT_FOUND;
+
+  Std_lock_guard g(_pool_sessions_lock);
+  for(auto& s: _pool_sessions) {
+    if(s->pool->key == key)
+      return E_ALREADY_OPEN;
+  }
+    
+  /* delete pool too */
+  auto i = _pools.find(key);
+  if(i != _pools.end())
+    _pools.erase(i);
   return E_INVAL;
 }
 
