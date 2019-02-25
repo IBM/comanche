@@ -108,7 +108,8 @@ void basic_test(IKVStore *kv, unsigned shard)
     ASSERT_TRUE(strncmp((char *) pv, value.c_str(), value.length()) == 0);
   }
 
-  kv->delete_pool(pool);
+  kv->close_pool(pool);
+  ASSERT_TRUE(kv->delete_pool("/dev/dax0.", poolname) == S_OK);
   free(pv);
 }
 
@@ -191,8 +192,7 @@ TEST_F(Dawn_client_test, PutGet)
   _dawn->close_pool(pool1);
   ASSERT_TRUE(strncmp((char *) pv, value.c_str(), value.length()) == 0);
 
-  _dawn->delete_pool(pool);
-  _dawn->delete_pool(pool1);
+  _dawn->delete_pool("/mnt/pmem0/dawn", Options.pool.c_str());
   free(pv);
   PLOG("PutGet OK!");
 }
@@ -222,7 +222,7 @@ TEST_F(Dawn_client_test, BasicPutAndGet)
     ASSERT_TRUE(strncmp((char *) pv, value.c_str(), value.length()) == 0);
   }
 
-  _dawn->delete_pool(pool);
+  _dawn->delete_pool("/mnt/pmem0/dawn", Options.pool.c_str());
   free(pv);
   PLOG("BasicPutAndGet OK!");
 }
@@ -376,7 +376,8 @@ TEST_F(Dawn_client_test, PerfSmallPut)
 
   ::free(data);
 
-  _dawn->delete_pool(pool);
+  _dawn->close_pool(pool);
+  _dawn->delete_pool("/mnt/pmem0/dawn", Options.pool.c_str());
 }
 #endif
 
@@ -436,7 +437,8 @@ TEST_F(Dawn_client_test, PerfSmallPutDirect)
 
   _dawn->unregister_direct_memory(handle);
 
-  _dawn->delete_pool(pool);
+  _dawn->close_pool(pool);
+  _dawn->delete_pool("/mnt/pmem0/dawn", Options.pool.c_str());
 }
 #endif
 
@@ -692,6 +694,9 @@ TEST_F(Dawn_client_test, PutDirect0)
   ASSERT_FALSE(rc == Component::IKVStore::E_POOL_NOT_FOUND);
   ASSERT_TRUE(rc == S_OK);
 
+  ASSERT_TRUE(_dawn->close_pool(pool) != Component::IKVStore::POOL_ERROR);
+  ASSERT_TRUE(_dawn->delete_pool("/mnt/pmem0/dawn", "test_pd_8MB") == S_OK);
+
   ASSERT_NO_THROW(_dawn->delete_pool(pool));
   ASSERT_TRUE(_dawn->unregister_direct_memory(value) == S_OK);
 }
@@ -717,7 +722,8 @@ TEST_F(Dawn_client_test, PutDirectLarge)
                                 value_len) == S_OK);
 
   ASSERT_TRUE(pool > 0);
-  ASSERT_NO_THROW(_dawn->delete_pool(pool));
+  ASSERT_TRUE(_dawn->close_pool(pool) != Component::IKVStore::POOL_ERROR);
+  ASSERT_TRUE(_dawn->delete_pool("/mnt/pmem0/dawn", "bigPool4G") == S_OK);
   ASSERT_TRUE(_dawn->unregister_direct_memory(value) == S_OK);
 }
 #endif

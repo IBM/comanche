@@ -97,7 +97,9 @@ class Connection_handler : public Connection_base {
 
   status_t close_pool(pool_t pool);
 
-  status_t delete_pool(pool_t pool);
+  status_t delete_pool(const std::string& path,
+                       const std::string& name);
+
 
   status_t put(const pool_t      pool,
                const std::string key,
@@ -173,13 +175,6 @@ class Connection_handler : public Connection_base {
                                 const size_t                         value_len,
                                 Component::IKVStore::memory_handle_t handle);
 
-  /**
-   * Close or delete a pool helper
-   *
-   * @param pool
-   * @param op
-   */
-  status_t close_or_delete_pool(pool_t pool, int op);
 
  private:
 #ifdef THREAD_SAFE_CLIENT
