@@ -3,11 +3,13 @@
 
 #include <boost/filesystem.hpp>
 #include <gperftools/profiler.h>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <ctime>
 #include <exception>
 #include <fstream>
+#include <string>
 #include <sstream>
 #include <vector>
 #include <common/cycles.h>
@@ -121,6 +123,7 @@ public:
   std::string _devices;
   std::vector<int> _core_list = std::vector<int>();
   int _execution_time;
+  std::string _start_time = ""; // default behavior: start now
   int _debug_level = 0;
   std::string _component = DEFAULT_COMPONENT;
   std::string _results_path = "./results";
@@ -208,55 +211,47 @@ public:
   {
     handle_program_options();
 
-    if (initialize_store(core) != 0)
-      {
-        PERR("initialize returned an error. Aborting setup.");
-        throw std::exception();
+    if (initialize_store(core) != 0) {
+      PERR("initialize returned an error. Aborting setup.");
+      throw std::exception();
+    }
+
+    try {
+      if (component_uses_direct_memory()) {
+        pthread_mutex_lock(&g_write_lock);
+
+        size_t data_size = sizeof(Data) + ((sizeof(KV_pair) + g_data->_key_len + g_data->_val_len ) * _pool_num_objects);
+        data_size += get_difference_to_next_power_of_two(data_size);
+
+        if (_verbose) {
+          PINF("allocating %zu of aligned, direct memory. Aligned to %d", data_size,  MB(2));
+        }
+
+        g_data->_data = (KV_pair*)aligned_alloc(MB(2), data_size);
+        madvise(g_data->_data, data_size, MADV_HUGEPAGE);
+
+        _memory_handle = _store->register_direct_memory(g_data->_data, data_size);
+        g_data->initialize_data(false);
+
+        pthread_mutex_unlock(&g_write_lock);
       }
-
-    try
-      {
-        if (component_uses_direct_memory())
-          {
-            pthread_mutex_lock(&g_write_lock);
-
-            size_t data_size = sizeof(Data) + ((sizeof(KV_pair) + g_data->_key_len + g_data->_val_len ) * _pool_num_objects);
-            data_size += get_difference_to_next_power_of_two(data_size);
-
-            if (_verbose)
-              {
-                PINF("allocating %zu of aligned, direct memory. Aligned to %d", data_size,  MB(2));
-              }
-
-            g_data->_data = (KV_pair*)aligned_alloc(MB(2), data_size);
-            madvise(g_data->_data, data_size, MADV_HUGEPAGE);
-
-            _memory_handle = _store->register_direct_memory(g_data->_data, data_size);
-            g_data->initialize_data(false);
-
-            pthread_mutex_unlock(&g_write_lock);
-          }
-      }
-    catch ( const Exception &e )
-      {
-        PERR("failed during direct memory setup: %s.", e.cause());
-      }
-    catch ( const std::exception &e )
-      {
-        PERR("failed during direct memory setup: %s.", e.what());
-      }
-    catch(...)
-      {
-        PERR("failed during direct memory setup");
-        throw std::exception();
-      }
+    }
+    catch ( const Exception &e ) {
+      PERR("failed during direct memory setup: %s.", e.cause());
+    }
+    catch ( const std::exception &e ) {
+      PERR("failed during direct memory setup: %s.", e.what());
+    }
+    catch(...) {
+      PERR("failed during direct memory setup");
+      throw std::exception();
+    }
 
     // make sure path is available for use
     boost::filesystem::path dir(_pool_path);
-    if (boost::filesystem::create_directory(dir))
-      {
-        std::cout << "Created directory for testing: " << _pool_path << std::endl;
-      }
+    if (boost::filesystem::create_directory(dir)) {
+      std::cout << "Created directory for testing: " << _pool_path << std::endl;
+    }
 
     // initialize experiment
     char poolname[256];
@@ -264,105 +259,86 @@ public:
     sprintf(poolname, "%s.%d", _pool_name.c_str(), core_index);
     auto path = _pool_path + "/" + poolname;
 
-    if (_component != "dawn" && boost::filesystem::exists(path))
-      {
-        bool might_be_dax = boost::filesystem::exists(path);
-        try
-          {
-            // pool already exists. Delete it.
-            if (_verbose)
-              {
-                std::cout << "pool might already exists at " << path << ". Attempting to delete it...";
-              }
+    if (_component != "dawn" && boost::filesystem::exists(path)) {
+      bool might_be_dax = boost::filesystem::exists(path);
+      try {
+        // pool already exists. Delete it.
+        if (_verbose) {
+          std::cout << "pool might already exists at " << path << ". Attempting to delete it...";
+        }
 
-            _store->delete_pool(_store->open_pool(_pool_path, poolname));
+        _store->delete_pool(_store->open_pool(_pool_path, poolname));
 
-            if (_verbose)
-              {
-                std::cout << " pool deleted!" << std::endl;
-              }
-          }
-        catch ( const Exception &e )
-          {
-            if ( ! might_be_dax )
-              {
-                PERR("open+delete existing pool %s failed: %s.", poolname, e.cause());
-              }
-          }
-        catch ( const std::exception &e )
-          {
-            if ( ! might_be_dax )
-              {
-                PERR("open+delete existing pool %s failed: %s.", poolname, e.what());
-              }
-          }
-        catch(...)
-          {
-            if ( ! might_be_dax )
-              {
-                PERR("open+delete existing pool %s failed.", poolname);
-                std::cerr << "open+delete existing pool failed" << std::endl;
-              }
-          }
+        if (_verbose) {
+          std::cout << " pool deleted!" << std::endl;
+        }
       }
+      catch ( const Exception &e ) {
+        if ( ! might_be_dax ) {
+          PERR("open+delete existing pool %s failed: %s.", poolname, e.cause());
+        }
+      }
+      catch ( const std::exception &e ) {
+        if ( ! might_be_dax ) {
+          PERR("open+delete existing pool %s failed: %s.", poolname, e.what());
+        }
+      }
+      catch(...) {
+        if ( ! might_be_dax ) {
+          PERR("open+delete existing pool %s failed.", poolname);
+          std::cerr << "open+delete existing pool failed" << std::endl;
+        }
+      }
+    }
 
     PLOG("Creating pool for worker %u ...", core);
-    try
-      {
-        _pool = _store->create_pool(_pool_path, poolname, _pool_size, _pool_flags, _pool_num_objects * HT_SIZE_FACTOR);
-      }
-    catch ( const Exception &e )
-      {
-        PERR("create_pool failed: %s. Aborting experiment.", e.cause());
-        throw;
-      }
-    catch ( const std::exception &e )
-      {
-        PERR("create_pool failed: %s. Aborting experiment.", e.what());
-        throw;
-      }
-    catch(...)
-      {
-        PERR("create_pool failed! Aborting experiment.");
-        throw;
-      }
+    try {
+      _pool = _store->create_pool(_pool_path, poolname, _pool_size, _pool_flags, _pool_num_objects * HT_SIZE_FACTOR);
+    }
+    catch ( const Exception &e ) {
+      PERR("create_pool failed: %s. Aborting experiment.", e.cause());
+      throw;
+    }
+    catch ( const std::exception &e ) {
+      PERR("create_pool failed: %s. Aborting experiment.", e.what());
+      throw;
+    }
+    catch(...) {
+      PERR("create_pool failed! Aborting experiment.");
+      throw;
+    }
 
     PLOG("Created pool for worker %u...OK!", core);
 
-    if (!_skip_json_reporting)
-      {
-        // initialize experiment report
-        pthread_mutex_lock(&g_write_lock);
+    if (!_skip_json_reporting) {
+      // initialize experiment report
+      pthread_mutex_lock(&g_write_lock);
 
-        rapidjson::Document document = _get_report_document();
-        if (!document.HasMember("experiment"))
-          {
-            _initialize_experiment_report(document);
-          }
-      }
+      rapidjson::Document document = _get_report_document();
+      if (!document.HasMember("experiment"))
+        {
+          _initialize_experiment_report(document);
+        }
+    }
 
     g_iops = 0;
     pthread_mutex_unlock(&g_write_lock);
 
-    try
-      {
-        initialize_custom(core);
-      }
-    catch ( const Exception &e )
-      {
-        PERR("initialize_custom failed: %s. Aborting experiment.", e.cause());
-        throw;
-      }
-    catch ( const std::exception &e )
-      {
-        PERR("initialize_custom failed: %s. Aborting experiment.", e.what());
-        throw;
-      }
-    catch(...)
-      {
-        PERR("initialize_custom failed! Aborting experiment.");
-        throw std::exception();
-      }
+    try {
+      initialize_custom(core);
+    }
+    catch ( const Exception &e ) {
+      PERR("initialize_custom failed: %s. Aborting experiment.", e.cause());
+      throw;
+    }
+    catch ( const std::exception &e ) {
+      PERR("initialize_custom failed: %s. Aborting experiment.", e.what());
+      throw;
+    }
+    catch(...) {
+      PERR("initialize_custom failed! Aborting experiment.");
+      throw std::exception();
+    }
 
 #ifdef PROFILE
     ProfilerRegisterThread();
@@ -378,6 +354,46 @@ public:
   static std::string json_map(const std::string &key, const std::string &value)
   {
     return quote(key) + ": " + value;
+  }
+
+  // if experiment should be delayed, stop here and wait. Otherwise, start immediately
+  void wait_for_delayed_start(unsigned core)
+  {
+    if (_start_time == "") {
+      // start immediately; don't do anything here
+    }
+    else {
+      std::time_t current_time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+      struct std::tm *exp_start_time = std::localtime(&current_time);
+      struct std::tm time_input;
+
+      if (std::cin.fail())
+      {
+        PERR("Error reading time string %s. Should be HH:MM format.", _start_time.c_str());
+      }
+      else
+      {
+        std::istringstream time_string(_start_time);
+        time_string >> std::get_time(&time_input, "%R");
+
+        if (std::cin.fail())
+        {
+          PERR("Invalid start_time string found. Should be in HH:MM format (24 hour clock). Starting experiment now.");
+        }
+        else
+        {
+          exp_start_time->tm_hour = time_input.tm_hour;
+          exp_start_time->tm_min = time_input.tm_min;
+          exp_start_time->tm_sec = 0;
+
+          PINF("[%u] delaying experiment start until %d:%d", core, (int)exp_start_time->tm_hour, (int)exp_start_time->tm_min);
+          
+          std::this_thread::sleep_until(std::chrono::system_clock::from_time_t(mktime(exp_start_time)));
+
+          PINF("[%u] starting experiment now", core);
+        }
+      }
+    }
   }
 
   /* copied from nd_utils.h, which is not accessible to the build */
@@ -754,75 +770,79 @@ public:
     ProgramOptions Options;
 
     try
-      {
-        if (g_vm.count("component") > 0) {
-          _component = g_vm["component"].as<std::string>();
-        }
-
-        if ((_component == "pmstore" || _component == "hstore") && g_vm.count("path") == 0)
-          {
-            PERR("component '%s' requires --path input argument for persistent memory store. Aborting!", _component.c_str());
-            throw std::exception();
-          }
-
-        if(g_vm.count("path") > 0) {
-          _pool_path = g_vm["path"].as<std::string>();
-        }
-
-        if (g_vm.count("pool_name") > 0) {
-          _pool_name = g_vm["pool_name"].as<std::string>();
-        }
-
-        if(g_vm.count("size") > 0) {
-          _pool_size = g_vm["size"].as<unsigned long long int>();
-        }
-
-        if (g_vm.count("elements") > 0) {
-          _pool_num_objects = g_vm["elements"].as<int>();
-        }
-
-        if (g_vm.count("flags") > 0) {
-          _pool_flags = g_vm["flags"].as<int>();
-        }
-
-        if (g_vm.count("owner") > 0) {
-          _owner = g_vm["owner"].as<std::string>();
-        }
-
-        if (g_vm.count("bins") > 0) {
-          _bin_count = g_vm["bins"].as<int>();
-        }
-
-        if (g_vm.count("latency_range_min") > 0) {
-          _bin_threshold_min = g_vm["latency_range_min"].as<double>();
-        }
-
-        if (g_vm.count("latency_range_max") > 0) {
-          _bin_threshold_max = g_vm["latency_range_max"].as<double>();
-        }
-
-        _verbose = g_vm.count("verbose");
-        _summary = g_vm.count("summary");
-        _skip_json_reporting = g_vm.count("skip_json_reporting");
-
-        _debug_level = g_vm.count("debug_level") > 0 ? g_vm["debug_level"].as<int>() : 0;
-        _server_address = g_vm.count("server") ? g_vm["server"].as<std::string>() : "127.0.0.1";
-        _port = g_vm.count("port") ? g_vm["port"].as<unsigned>() : 11911;
-        _port_increment = g_vm.count("port_increment") ? g_vm["port_increment"].as<unsigned>() : 0;
-        _device_name = g_vm.count("device_name") ? g_vm["device_name"].as<std::string>() : "unused";
-
-        if (_component == "nvmestore" && g_vm.count("pci_addr") == 0)
-          {
-            PERR("nvmestore requires pci_addr as an input. Aborting!");
-            throw std::exception();
-          }
-
-        _pci_address = g_vm.count("pci_addr") ? g_vm["pci_addr"].as<std::string>() : "no_pci_addr";
+    {
+      if (g_vm.count("component") > 0) {
+        _component = g_vm["component"].as<std::string>();
       }
+
+      if ((_component == "pmstore" || _component == "hstore") && g_vm.count("path") == 0)
+        {
+          PERR("component '%s' requires --path input argument for persistent memory store. Aborting!", _component.c_str());
+          throw std::exception();
+        }
+
+      if(g_vm.count("path") > 0) {
+        _pool_path = g_vm["path"].as<std::string>();
+      }
+
+      if (g_vm.count("pool_name") > 0) {
+        _pool_name = g_vm["pool_name"].as<std::string>();
+      }
+
+      if(g_vm.count("size") > 0) {
+        _pool_size = g_vm["size"].as<unsigned long long int>();
+      }
+
+      if (g_vm.count("elements") > 0) {
+        _pool_num_objects = g_vm["elements"].as<int>();
+      }
+
+      if (g_vm.count("flags") > 0) {
+        _pool_flags = g_vm["flags"].as<int>();
+      }
+
+      if (g_vm.count("owner") > 0) {
+        _owner = g_vm["owner"].as<std::string>();
+      }
+
+      if (g_vm.count("bins") > 0) {
+        _bin_count = g_vm["bins"].as<int>();
+      }
+
+      if (g_vm.count("latency_range_min") > 0) {
+        _bin_threshold_min = g_vm["latency_range_min"].as<double>();
+      }
+
+      if (g_vm.count("latency_range_max") > 0) {
+        _bin_threshold_max = g_vm["latency_range_max"].as<double>();
+      }
+
+      if (g_vm.count("start_time") > 0) {
+        _start_time = g_vm["start_time"].as<std::string>();
+      }
+
+      _verbose = g_vm.count("verbose");
+      _summary = g_vm.count("summary");
+      _skip_json_reporting = g_vm.count("skip_json_reporting");
+
+      _debug_level = g_vm.count("debug_level") > 0 ? g_vm["debug_level"].as<int>() : 0;
+      _server_address = g_vm.count("server") ? g_vm["server"].as<std::string>() : "127.0.0.1";
+      _port = g_vm.count("port") ? g_vm["port"].as<unsigned>() : 11911;
+      _port_increment = g_vm.count("port_increment") ? g_vm["port_increment"].as<unsigned>() : 0;
+      _device_name = g_vm.count("device_name") ? g_vm["device_name"].as<std::string>() : "unused";
+
+      if (_component == "nvmestore" && g_vm.count("pci_addr") == 0)
+      {
+        PERR("nvmestore requires pci_addr as an input. Aborting!");
+        throw std::exception();
+      }
+
+      _pci_address = g_vm.count("pci_addr") ? g_vm["pci_addr"].as<std::string>() : "no_pci_addr";
+    }
     catch (const po::error &ex)
-      {
-        std::cerr << ex.what() << '\n';
-      }
+    {
+      std::cerr << ex.what() << '\n';
+    }
   }
 
   template <typename T>

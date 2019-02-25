@@ -62,13 +62,14 @@ public:
         // handle first time setup
         if(_first_iter) 
         {
-            PLOG("[%u] Starting Get Direct experiment...", core);
-            _first_iter = false;
-            _exp_start_time = std::chrono::high_resolution_clock::now();
+          // seed the pool with elements from _data
+          _populate_pool_to_capacity(core, _direct_memory_handle);
 
+          wait_for_delayed_start(core);
 
-            // seed the pool with elements from _data
-            _populate_pool_to_capacity(core, _direct_memory_handle);
+          PLOG("[%u] Starting Get Direct experiment...", core);
+          _first_iter = false;
+          _exp_start_time = std::chrono::high_resolution_clock::now();
         }     
 
         // end experiment if we've reached the total number of components
