@@ -18,7 +18,7 @@
 class Map_store : public Component::IKVStore /* generic Key-Value store interface */
 {  
 private:
-  static constexpr bool option_DEBUG = false;
+  static constexpr bool option_DEBUG = true;
 
 public:
   /** 
