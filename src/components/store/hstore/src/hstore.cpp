@@ -250,11 +250,16 @@ auto hstore::open_pool(const std::string &dir,
                        unsigned int /* flags */) -> pool_t
 {
   auto path = pool_path(dir, name);
-  auto s = _pool_manager->pool_open(path);
-  auto p = static_cast<tracked_pool *>(s.get());
-  std::unique_lock<std::mutex> sessions_lk(_pools_mutex);
-  _pools.emplace(p, std::move(s));
-  return reinterpret_cast<IKVStore::pool_t>(p);
+  try {
+    auto s = _pool_manager->pool_open(path);
+    auto p = static_cast<tracked_pool *>(s.get());
+    std::unique_lock<std::mutex> sessions_lk(_pools_mutex);
+    _pools.emplace(p, std::move(s));
+    return reinterpret_cast<IKVStore::pool_t>(p);
+  }
+  catch( std::invalid_argument &e ) {
+    return Component::IKVStore::POOL_ERROR;
+  }
 }
 
 status_t hstore::close_pool(const pool_t pid)

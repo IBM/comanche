@@ -318,22 +318,25 @@ status_t NVME_store::close_pool(pool_t pid)
   return S_OK;
 }
 
-status_t NVME_store::delete_pool(const pool_t pid)
+status_t NVME_store::delete_pool(const std::string& path,
+                                 const std::string& name)
 {
-  struct open_session_t * session = reinterpret_cast<struct open_session_t*>(pid);
+  throw API_exception("not implemented");
+  
+  // struct open_session_t * session = reinterpret_cast<struct open_session_t*>(pid);
 
-  if(g_sessions.find(session) == g_sessions.end())
-    return E_INVAL;
+  // if(g_sessions.find(session) == g_sessions.end())
+  //   return E_INVAL;
 
-  g_sessions.erase(session);
-  pmemobj_close(session->pop);
-  //TODO should clean the blk_allocator and blk dev (reference) here?
-  //_blk_alloc->resize(0, 0);
+  // g_sessions.erase(session);
+  // pmemobj_close(session->pop);
+  // //TODO should clean the blk_allocator and blk dev (reference) here?
+  // //_blk_alloc->resize(0, 0);
 
-  if(pmempool_rm(session->path.c_str(), 0))
-    throw General_exception("unable to delete pool (%p)", pid);
+  // if(pmempool_rm(session->path.c_str(), 0))
+  //   throw General_exception("unable to delete pool (%p)", pid);
 
-  PLOG("pool deleted: %s", session->path.c_str());
+  // PLOG("pool deleted: %s", session->path.c_str());
   return S_OK;
 }
 

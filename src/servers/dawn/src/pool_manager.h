@@ -31,8 +31,7 @@ class Pool_manager {
       return false;
     }
     PLOG("check_for_open_pool (%s) true", path.c_str());
-    out_pool = i->second;
-    return true;
+    return (_open_pools.find(i->second) != _open_pools.end());
   }
 
   /**
@@ -73,7 +72,10 @@ class Pool_manager {
     if (i->second == 0)
       throw Logic_exception("invalid release, reference is already");
     i->second--;
-    return i->second == 0; /* return true if last reference */
+    bool is_last = (i->second == 0);
+    if(is_last)
+      _open_pools.erase(i);
+    return is_last; /* return true if last reference */
   }
 
   /**
@@ -82,7 +84,9 @@ class Pool_manager {
    *
    * @param pool Pool identifier
    */
-  void blitz_pool_reference(pool_t pool) { _open_pools[pool] = 0; }
+  void blitz_pool_reference(pool_t pool) {
+    _open_pools[pool] = 0;
+  }
 
   /**
    * Determine if pool is open and valid

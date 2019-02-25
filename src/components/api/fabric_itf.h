@@ -314,7 +314,10 @@ public:
    * @throw std::range_error - address already registered
    * @throw std::logic_error - inconsistent memory registry
    */
-  virtual memory_region_t register_memory(const void * contig_addr, std::size_t size, std::uint64_t key, std::uint64_t flags) = 0;
+  virtual memory_region_t register_memory(const void * contig_addr,
+                                          std::size_t size,
+                                          std::uint64_t key,
+                                          std::uint64_t flags) = 0;
 
   /**
    * De-register memory region
