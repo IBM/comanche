@@ -142,6 +142,7 @@ public:
     E_BAD_ALIGNMENT = -9,
     E_INSUFFICIENT_BUFFER = -10,
     E_BAD_OFFSET = -11,
+    E_ALREADY_OPEN = -12,
   };
 
   /** 
@@ -194,23 +195,12 @@ public:
   /** 
    * Close and delete an existing pool
    * 
-   * @param pool Pool handle
-   * 
-   * @return S_OK on success   
-   */
-  virtual status_t delete_pool(const pool_t pool) = 0;
-
-  /** 
-   * Close and delete an existing pool
-   * 
    * @param path Path of persistent memory (e.g., /mnt/pmem0/ )
    * @param name Name of object pool
    * 
    * @return S_OK on success
    */
-  virtual status_t delete_pool(const std::string &path, const std::string &name) {
-    return delete_pool(open_pool(path, name));
-  }
+  virtual status_t delete_pool(const std::string &path, const std::string &name) = 0;
 
   /** 
    * Get mapped memory regions for pool
@@ -311,7 +301,7 @@ public:
 
 
   /** 
-   * Durict memory regions should be unregistered before the memory is released on the client side.
+   * Direct memory regions should be unregistered before the memory is released on the client side.
    * 
    * @param vaddr Address of region to unregister.
    * 

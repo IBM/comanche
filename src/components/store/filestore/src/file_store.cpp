@@ -211,7 +211,7 @@ IKVStore::pool_t FileStore::open_pool(const std::string& path,
 
   if(option_DEBUG)
     PLOG("opened pool OK: %s", p.string().c_str());
-
+  
   auto handle = new Pool_handle;
   handle->path = p;
 
@@ -236,13 +236,20 @@ status_t FileStore::close_pool(pool_t pid)
   return S_OK;
 }
 
-status_t FileStore::delete_pool(const pool_t pid)
+status_t FileStore::delete_pool(const std::string &path, const std::string &name)
 {
-  auto handle = reinterpret_cast<Pool_handle*>(pid);
-  if(_pool_sessions.count(handle) != 1)
-    return E_INVAL;
+  fs::path p = path + "/" + name;
+  if(!fs::exists(path))
+    throw API_exception("path (%s) does not exist", path.c_str());
 
-  boost::filesystem::remove_all(handle->path);
+
+  lock_guard g(_pool_sessions_lock);
+  for(auto& s: _pool_sessions) {
+    if(s->path == p)
+      return E_ALREADY_OPEN;
+  }
+    
+  boost::filesystem::remove_all(path);
   return S_OK;
 }
 

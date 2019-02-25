@@ -103,9 +103,14 @@ TEST_F(KVStore_test, ReopenPool)
   ASSERT_TRUE(pool != 0);
 }
 
+TEST_F(KVStore_test, ClosePoolAgain)
+{
+  _kvstore->close_pool(pool);
+}
+
 TEST_F(KVStore_test, DeletePool)
 {
-  _kvstore->delete_pool(pool);
+  _kvstore->delete_pool("./", "test1.pool");
 }
 
 
