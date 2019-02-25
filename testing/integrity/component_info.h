@@ -144,6 +144,16 @@ public:
         return 0;
     }
     
+    static std::string quote(const std::string &s)
+    {
+      return "\"" + s + "\"";
+    }
+
+    static std::string json_map(const std::string &key, const std::string &value)
+    {
+      return quote(key) + ": " + value;
+    }
+
     void load_component()
     {        
         Component::IBase* comp = Component::load_component(component_object, component_uuid);
@@ -163,6 +173,26 @@ public:
         else if (component_name.compare("dawn") == 0)
         {
             store = factory->create(debug_level, owner, server_address, device_name);
+        }
+        else if (component_name.compare("hstore") == 0)
+        {
+          unsigned core = 0;  // always use core 0 for tests
+          unsigned long dax_size = 0x8000000000;
+          unsigned region_id = 0;
+          std::ostringstream addr;
+          addr << std::showbase << std::hex << 0x7000000000 + dax_size * core;
+          std::ostringstream device_map;
+          device_map <<
+            "[ " 
+              " { "
+                + json_map("region_id", std::to_string(region_id))
+                /* actual device name is <idevice_name>.<core>, e.g. /dev/dax0.2 */
+                + ", " + json_map("path", quote(device_name + "." + std::to_string(core)))
+                + ", " + json_map("addr", quote(addr.str()))
+                + " }"
+            " ]";
+          store = factory->create(debug_level, "name", owner, device_map.str());
+
         }
         else if (!isIndex) {
           store = factory->create(owner, owner_param);
