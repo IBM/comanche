@@ -1,5 +1,5 @@
 /*
-   Copyright [2018, 2019] [IBM Corporation]
+   Copyright [2019] [IBM Corporation]
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -19,21 +19,27 @@
  *
  */
 
-#ifndef _SYSTEM_FAIL_H_
-#define _SYSTEM_FAIL_H_
+#include "system_fail.h"
 
-#include <system_error>
+#include <netdb.h> /* gai_strerror */
+#include <system_error> /* error_category */
 
-const std::error_category& gai_category() noexcept;
-
-static inline void system_fail(int e, const std::string &context)
+namespace
 {
-    throw std::system_error{std::error_code{e, std::system_category()}, context};
+  class gai_error_category
+    : public std::error_category
+  {
+    const char *name() const noexcept override { return "getaddrinfo"; }
+    std::string message(int condition) const override
+    {
+      return ::gai_strerror(condition);
+    }
+  };
+
+  gai_error_category gai_errors;
 }
 
-static inline void gai_fail(int e, const std::string &context)
+const std::error_category& gai_category() noexcept
 {
-    throw std::system_error{std::error_code{e, gai_category()}, context};
+    return gai_errors;
 }
-
-#endif

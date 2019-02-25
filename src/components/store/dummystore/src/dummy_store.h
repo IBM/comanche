@@ -68,9 +68,9 @@ public:
                            const std::string& name,
                            unsigned int flags = 0) override;
   
-  virtual void close_pool(const pool_t pid) override;
+  virtual status_t close_pool(const pool_t pid) override;
 
-  virtual void delete_pool(const pool_t pid) override;
+  virtual status_t delete_pool(const pool_t pid) override;
 
   virtual status_t put(const pool_t pool,
                        const std::string& key,
@@ -108,7 +108,7 @@ public:
   
   virtual size_t count(const pool_t pool) override;
 
-  virtual void free_memory(void * p) override;
+  virtual status_t free_memory(void * p) override;
   
   virtual void debug(const pool_t pool, unsigned cmd, uint64_t arg) override;
 

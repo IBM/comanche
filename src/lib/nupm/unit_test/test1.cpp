@@ -3,8 +3,10 @@
 #include <common/rand.h>
 #include <common/utils.h>
 #include <core/heap_allocator.h>
+#include <boost/icl/split_interval_map.hpp>
 #include <gtest/gtest.h>
 #include <chrono>
+#include <list>
 #include "arena_alloc.h"
 #include "dax_map.h"
 #include "rc_alloc_avl.h"
@@ -52,23 +54,257 @@ class Libnupm_test : public ::testing::Test {
 //   return true;
 // }
 
-//#define RUN_RPALLOCATOR_TESTS
+#define RUN_AVL_RANGE_ALLOCATOR_TESTS
+#define RUN_RPALLOCATOR_TESTS
 //#define RUN_VMEM_ALLOCATOR_TESTS
-#define RUN_DEVDAX_TEST
-//#define RUN_AVL_RCA_TEST
-//#define RUN_AVL_STRESS_TEST
-//#define RUN_MALLOC_STRESS_TEST
-//#define RUN_LB_TEST
-//#define RUN_LB_STRESS_TEST
-//#define RUN_LB_INTEGRITY_TEST
+//#define RUN_DEVDAX_TEST
+#define RUN_AVL_RCA_TEST
+#define RUN_AVL_STRESS_TEST
+#define RUN_AVL_RECONST_TEST
+#define RUN_MALLOC_STRESS_TEST
+#define RUN_LB_TEST
+#define RUN_LB_STRESS_TEST
+#define RUN_LB_INTEGRITY_TEST
+#define RUN_LB_RECONST_TEST
+
+using namespace std;
+using namespace boost::icl;
+
+typedef split_interval_set<addr_t> interval_set_t;
+
+#ifdef RUN_AVL_RANGE_ALLOCATOR_TESTS
+TEST_F(Libnupm_test, AVLRange)
+{
+  const addr_t BASE = 0x900000000; 
+  const size_t ARENA_SIZE = GB(32);
+  const size_t COUNT = 100000;
+  init_genrand64(0xF00B);
+
+  
+  std::vector<iovec> log;
+  interval_set_t iset;
+
+  PLOG("Building AVL...");
+  std::string before, after;
+  {
+    Core::AVL_range_allocator avl(BASE, ARENA_SIZE);
+    for (size_t i = 1; i < COUNT; i++) {
+      size_t s = round_up(((genrand64_int64() % 4096) + 8), 8);
+      assert(s % 8 == 0);
+      auto mr = avl.alloc(s, 8);
+      void * p = mr->paddr();
+      ASSERT_TRUE(check_aligned(p, 8));
+      ASSERT_TRUE(((addr_t)p) >= BASE);
+      
+      /* closed, both value included in range */
+      auto ival = interval<addr_t>::closed((addr_t)p, ((addr_t)p) + s - 1);
+
+      /* Check for overlap */
+      auto itRes = iset.equal_range(ival);
+      for( auto it = itRes.first; it != itRes.second; ++it ) {
+        PERR("detected existing region: %lx-%lx", it->lower(), it->upper());
+        ASSERT_TRUE(false);
+      }
+
+      iset += ival;
+      log.push_back({p, s});
+    }
+    avl.dump_info(&before);
+  }
+  
+  /* now do reconstitution */
+  PLOG("Reconstituting AVL...");
+  {  
+    Core::AVL_range_allocator avl(BASE, ARENA_SIZE);
+
+    for(auto a : log) {
+      avl.alloc_at((addr_t)a.iov_base, a.iov_len);
+    }
+    avl.dump_info(&after);
+  }
+  ASSERT_TRUE(before==after);
+
+}
+#endif
+
+#ifdef RUN_AVL_RECONST_TEST
+TEST_F(Libnupm_test, RcAllocatorAVLReconstitute)
+{
+  const size_t ARENA_SIZE = GB(32);
+  const size_t COUNT = 100000;
+  const size_t MAX_SMALL_OBJ = 4096; // see mapper.h
+  void * p = aligned_alloc(GB(1), ARENA_SIZE);
+  ASSERT_TRUE(p);
+  init_genrand64(0xF00B);
+  
+  std::vector<iovec> log;
+  interval_set_t iset;
+  
+  /* set up AVL allocator */
+  std::string state_A, state_B;
+
+  PLOG("Populating AVL allocator...");
+  { 
+    nupm::Rca_AVL rca;
+    rca.add_managed_region(p, ARENA_SIZE, 0);
+
+    for (size_t i = 1; i < COUNT; i++) {
+      size_t s = round_up(((genrand64_int64() % MAX_SMALL_OBJ) + 8), 8);
+      //      s+= KB(4); // force to large objects
+      assert(s % 8 == 0);
+      void *p = rca.alloc(s, 0 /* numa */, 8 /* alignment */);
+      ASSERT_TRUE(check_aligned(p, 8));
+
+      /* closed, both value included in range */
+      auto ival = interval<addr_t>::closed((addr_t)p, ((addr_t)p) + s - 1);
+
+      /* Check for overlap */
+      auto itRes = iset.equal_range(ival);
+      for( auto it = itRes.first; it != itRes.second; ++it ) {
+        PERR("detected existing region: %lx-%lx", it->lower(), it->upper());
+        ASSERT_TRUE(false);
+      }
+
+      iset += ival;
+      log.push_back({p, s});    
+    }
+
+    rca.debug_dump(&state_A);
+  }
+
+  /* now do reconstitution */
+  PLOG("Reconstituting AVL allocator...");
+  {
+    nupm::Rca_AVL rca;
+    rca.add_managed_region(p, ARENA_SIZE, 0);
+
+    for(auto a : log) {
+      rca.inject_allocation(a.iov_base, a.iov_len, 0 /* numa */);
+    }
+    rca.debug_dump(&state_B);
+  }
+  ASSERT_TRUE(state_A == state_B);
+
+}
+#endif
+
+#ifdef RUN_LB_RECONST_TEST
+TEST_F(Libnupm_test, RcAllocatorLBReconstitute)
+{
+  const size_t ARENA_SIZE = GB(32);
+  const size_t COUNT = 100000;
+  const size_t MAX_SMALL_OBJ = 4096; // see mapper.h
+  void * p = (void*) 0x900000000; //aligned_alloc(GB(1), ARENA_SIZE);
+  ASSERT_TRUE(p);
+
+  struct info_t {
+    void *   p;
+    size_t   size;
+
+    bool operator< (info_t cmp)  {
+      return ((addr_t)p) < ((addr_t)cmp.p);
+    }
+  };
+  
+  struct compare {
+    bool operator() (info_t a, info_t b)
+    {
+      return a.p == b.p && a.size == b.size;
+    }
+  };
+ 
+  
+  std::list<info_t> log;
+  interval_set_t iset;
+  std::string before;
+  
+  /* do allocations */
+  PLOG("Populating LB allocator...");
+  {
+    nupm::Rca_LB rca;
+    rca.add_managed_region(p, ARENA_SIZE, 0);
+    init_genrand64(0xF00B);
+
+    for (size_t i = 1; i < COUNT; i++) {
+      size_t s = round_up(((genrand64_int64() % MAX_SMALL_OBJ) + 8), 8);
+      assert(s % 8 == 0);
+      void *p = rca.alloc(s, 0 /* numa */, 8 /* alignment */);
+      ASSERT_TRUE(check_aligned(p, 8));
+
+      /* closed, both value included in range */
+      auto ival = interval<addr_t>::closed((addr_t)p, ((addr_t)p) + s - 1);
+
+      /* Check for overlap */
+      auto itRes = iset.equal_range(ival);
+      for( auto it = itRes.first; it != itRes.second; ++it ) {
+        PERR("detected existing region: %lx-%lx", it->lower(), it->upper());
+        ASSERT_TRUE(false);
+      }
+
+      iset += ival;     
+
+      log.push_back({p, s});    
+    }
+    /* capture state */
+    rca.debug_dump(&before);
+  }
+
+  std::string before_repeat;
+  /* do same again */
+  PLOG("Again, populating LB allocator...");
+  {
+    nupm::Rca_LB rca;
+    rca.add_managed_region(p, ARENA_SIZE, 0);
+    init_genrand64(0xF00B);
+    
+    for (size_t i = 1; i < COUNT; i++) {
+      size_t s = round_up(((genrand64_int64() % 4096) + 8), 8);
+      assert(s % 8 == 0);
+      void *p = rca.alloc(s, 0 /* numa */, 8 /* alignment */);
+      ASSERT_TRUE(check_aligned(p, 8));
+    }
+    /* capture state */
+    rca.debug_dump(&before_repeat);
+  }
+  ASSERT_TRUE(before == before_repeat);
+
+  PLOG("Checking for duplicates...");
+  /* check for duplicates */
+  {
+    std::list<info_t> tmplog = log;
+    tmplog.sort();
+    size_t before_uniq = tmplog.size();
+    tmplog.unique(compare());
+    ASSERT_TRUE(before_uniq == log.size());
+  }
+  
+  /* now do reconstitution */
+  PLOG("Reconstituting LB allocator...");
+  std::string after;
+  {
+    nupm::Rca_LB rca;
+    rca.add_managed_region(p, ARENA_SIZE, 0);
+
+    for(auto a : log) {
+      ASSERT_TRUE(a.size <= 4104);
+      rca.inject_allocation(a.p, a.size, 0 /* numa */);
+    }
+    rca.debug_dump(&after);
+  }
+  PLOG("before state len=%lu / after state len = %lu",
+       before.length(), after.length());
+  ASSERT_TRUE(before == after);
+
+  
+}
+#endif
 
 #ifdef RUN_LB_INTEGRITY_TEST
 TEST_F(Libnupm_test, RcAllocatorLBIntegrity)
 {
   const size_t ARENA_SIZE = GB(32);
-  void *       p          = (void*) 0x9800000000;
-  //  void * p = aligned_alloc(GB(1), ARENA_SIZE);
-  uint64_t     tag   = 1;
+  void * p = aligned_alloc(GB(1), ARENA_SIZE);
+  uint64_t tag = 1;
   ASSERT_TRUE(p);
 
   nupm::Rca_LB rca;
@@ -109,7 +345,7 @@ TEST_F(Libnupm_test, RcAllocatorLBIntegrity)
       if (iptr[i] != e.tag) PLOG("iptr[%lu] = %lu", iptr[i], e.tag);
       ASSERT_TRUE(iptr[i] == e.tag);
     }
-    //    PLOG("OK (%u)", alloc_num);
+
     alloc_num++;
     tag++;
   }
@@ -131,7 +367,7 @@ TEST_F(Libnupm_test, RcAllocatorLBIntegrity)
       if (iptr[i] != e.tag) PLOG("iptr[%lu] = %lu", iptr[i], e.tag);
       ASSERT_TRUE(iptr[i] == e.tag);
     }
-    //    PLOG("OK (%u)", alloc_num);
+
     alloc_num++;
     tag++;
   }
@@ -216,7 +452,7 @@ TEST_F(Libnupm_test, RcAllocatorLB)
     }
 
     /* logical power-fail */
-    rca.debug_dump(&state_A);  // TODO get string version
+    rca.debug_dump(&state_A);  
 
     /* now we should be able to free */
     for (auto &i : allocations) {
@@ -324,7 +560,7 @@ TEST_F(Libnupm_test, RcAllocatorAVL)
     }
 
     /* logical power-fail */
-    rca.debug_dump(&state_A);  // TODO get string version
+    rca.debug_dump(&state_A);  
   }
 
   {
@@ -368,7 +604,7 @@ TEST_F(Libnupm_test, RcAllocatorStress)
   const size_t COUNT = 10000000;
   for (size_t i = 0; i < COUNT; i++) {
     size_t s = 32;  //(genrand64_int64() % 32) + 1;
-    rca.alloc(s, 0 /* numa */, 0 /* alignment */);
+    rca.alloc(s, 0 /* numa */, 8 /* alignment */);
   }
   __sync_synchronize();
   auto   end_time = std::chrono::high_resolution_clock::now();
@@ -488,88 +724,6 @@ TEST_F(Libnupm_test, TxCache)
 }
 #endif
 
-#ifdef RUN_RPALLOCATOR_TESTS
-TEST_F(Libnupm_test, RpAllocatorPerf)
-{
-  nupm::Rp_allocator_volatile<1> allocator;
-  allocator.initialize_thread();
-
-  std::chrono::system_clock::time_point start, end;
-
-  const unsigned      ITERATIONS = 10000000;
-  std::vector<void *> alloc_v;
-  alloc_v.reserve(ITERATIONS);
-
-  start = std::chrono::high_resolution_clock::now();
-  for (unsigned i = 0; i < ITERATIONS; i++) {
-    void *p = allocator.alloc(64, i % 2);
-    ASSERT_TRUE(p);
-    alloc_v.push_back(p);
-  }
-  end = std::chrono::high_resolution_clock::now();
-  double secs =
-      std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
-          .count() /
-      1000.0;
-  PINF("Arena::SingleThreadAlloc: %lu allocs/sec",
-       (unsigned long) (((double) ITERATIONS) / secs));
-
-  for (auto &a : alloc_v) allocator.free(a);
-}
-
-TEST_F(Libnupm_test, RpAllocatorPerf2)
-{
-  nupm::Rp_allocator_volatile<0> allocator;
-  allocator.initialize_thread();
-
-  std::chrono::system_clock::time_point start, end;
-
-  const unsigned      ITERATIONS = 10000000;
-  std::vector<void *> alloc_v;
-  alloc_v.reserve(ITERATIONS);
-
-  start = std::chrono::high_resolution_clock::now();
-  for (unsigned i = 0; i < ITERATIONS; i++) {
-    size_t s = genrand64_int64() % 8096;
-    void * p = allocator.alloc(s, i % 2);
-    ASSERT_TRUE(p);
-    alloc_v.push_back(p);
-  }
-  end = std::chrono::high_resolution_clock::now();
-  double secs =
-      std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
-          .count() /
-      1000.0;
-  PINF("Arena::SingleThreadAlloc: %lu allocs/sec",
-       (unsigned long) (((double) ITERATIONS) / secs));
-
-  for (auto &a : alloc_v) allocator.free(a);
-}
-
-TEST_F(Libnupm_test, RpAllocatorIntegrity)
-{
-  nupm::Rp_allocator_volatile<0> allocator;
-  allocator.initialize_thread();
-
-  const unsigned      ITERATIONS = 1000000;
-  std::vector<void *> alloc_v;
-  alloc_v.reserve(ITERATIONS);
-
-  for (unsigned i = 0; i < ITERATIONS; i++) {
-    void *p = allocator.alloc(1024, i % 2);
-    ASSERT_TRUE(p);
-    alloc_v.push_back(p);
-    char m = ((char *) p)[7];
-    memset(p, m, 1024);
-  }
-
-  for (auto &a : alloc_v) {
-    char m = ((char *) a)[7];
-    ASSERT_TRUE(memcheck(a, m, 1024));
-    allocator.free(a);
-  }
-}
-#endif
 
 #if 0
 TEST_F(Libnupm_test, Arena)

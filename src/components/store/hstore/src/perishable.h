@@ -12,6 +12,7 @@ public:
 	static void reset(std::uint64_t n);
 	static void enable(bool e);
 	static void tick();
+	static void test(); /* like tick, but without the decrement */
 	static void report();
 };
 

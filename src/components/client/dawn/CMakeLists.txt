@@ -18,8 +18,6 @@ include_directories(${CMAKE_INSTALL_PREFIX}/include)
 link_directories(${CMAKE_INSTALL_PREFIX}/lib)
 
 include_directories(../../../servers/dawn/src/)
-include_directories(/usr/lib/jvm/java-11-openjdk-amd64/include/)
-include_directories(./src) # For <jni.h>, if not found in the jvm path
 
 add_library(${PROJECT_NAME} SHARED ${SOURCES})
 

@@ -21,6 +21,7 @@ unsigned debug_level = 0;
 }
 
 void Shard::initialize_components(const std::string& backend,
+                                  const std::string& index,
                                   const std::string& pci_addr,
                                   const std::string& dax_config,
                                   unsigned           debug_level)
@@ -76,6 +77,17 @@ void Shard::initialize_components(const std::string& backend,
       _i_kvstore = fact->create("owner", "name");
     }
     fact->release_ref();
+  }
+  /* INDEX */
+  {
+    IBase* comp;
+    if (index == "rbtree") {
+      comp = load_component("libcomanche-indexrbtree.so", rbtreeindex_factory);
+      if (!comp)
+        throw General_exception("unable to load libcomanche-indexrbtree.so");
+      _index_factory = static_cast<IKVIndex_factory*>(comp->query_interface(IKVIndex_factory::iid()));
+      assert(_index_factory);
+    }    
   }
 }
 
@@ -250,7 +262,6 @@ void Shard::process_message_pool_request(Connection_handler* handler,
         /* pool does not exist yet */
         pool = _i_kvstore->open_pool(msg->path(), msg->pool_name());
 
-        PLOG("pool open for first time (%p)", (void*) pool);
         /* register pool handle */
         handler->register_pool(pool_name, pool);
       }
@@ -267,7 +278,7 @@ void Shard::process_message_pool_request(Connection_handler* handler,
     catch (...) {
       PLOG("OP_OPEN: error");
       response->pool_id = 0;
-      response->status  = E_FAIL;
+      response->status = E_FAIL;
     }
   }
   else if (msg->op == Dawn::Protocol::OP_CLOSE) {
@@ -327,9 +338,6 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
 {
   using namespace Component;
 
-  // if(!_pm->is_pool_open(msg->pool_id))
-  //   throw Protocol_exception("invalid pool identifier");
-
   /////////////////////////////////////////////////////////////////////////////
   //   PUT ADVANCE   //
   /////////////////////
@@ -351,8 +359,7 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
                          target, target_len);
 
     if (key_handle == Component::IKVStore::KEY_NONE)
-      throw Program_exception(
-          "PUT_ADVANCE failed to lock value (lock() returned KEY_NONE) ");
+      throw Program_exception("PUT_ADVANCE failed to lock value (lock() returned KEY_NONE) ");
 
     if (target_len != msg->val_len)
       throw Logic_exception("locked value length mismatch");
@@ -436,8 +443,7 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
       void*  value_out     = nullptr;
       size_t value_out_len = 0;
 
-      std::string k;
-      k.assign(msg->key(), msg->key_len);
+      std::string k(msg->key(), msg->key_len);
 
       auto key_handle = _i_kvstore->lock(
           msg->pool_id, k, IKVStore::STORE_LOCK_READ, value_out, value_out_len);
@@ -523,8 +529,17 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
     }
     return;
   }
-  else
+  /////////////////////////////////////////////////////////////////////////////
+  //   ERASE         //
+  /////////////////////
+  else if (msg->op == Protocol::OP_ERASE) {
+    std::string k(msg->key(), msg->key_len);
+    
+    status = _i_kvstore->erase(msg->pool_id, k);
+  }
+  else {
     throw Protocol_exception("operation not implemented");
+  }
 
   response->request_id = msg->request_id;
   response->status     = status;

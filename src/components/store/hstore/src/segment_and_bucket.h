@@ -1,9 +1,15 @@
+/*
+ * (C) Copyright IBM Corporation 2018, 2019. All rights reserved.
+ * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
+ */
+
 #ifndef _COMANCHE_SEGMENT_AND_BUCKET_H
 #define _COMANCHE_SEGMENT_AND_BUCKET_H
 
 #include "bucket_control_unlocked.h"
 #include "segment_layout.h"
 #include <cstddef> /* size_t */
+#include <ostream>
 
 namespace impl
 {
@@ -24,7 +30,7 @@ namespace impl
 			{
 			}
 			auto &deref() const { return _seg->deref(_bi); }
-			auto incr() -> segment_and_bucket &
+			auto incr_with_wrap() -> segment_and_bucket &
 			{
 				/* To develop (six_t, bix_t) pair:
 				 *  1. Increment the bix_t (low) part.
@@ -117,6 +123,15 @@ namespace impl
 				;
 			}
 		};
+	}
+
+template <typename Bucket>
+	auto operator<<(
+		std::ostream &o_
+		, const impl::segment_and_bucket<Bucket> &b_
+	) -> std::ostream &
+	{
+		return o_ << b_.si() << "." << b_.bi();
 	}
 
 template <typename Bucket>

@@ -338,7 +338,7 @@ IKVStore::pool_t Map_store::open_pool(const std::string& path,
   return reinterpret_cast<IKVStore::pool_t>(new_session);
 }
 
-void Map_store::close_pool(const pool_t pid)
+status_t Map_store::close_pool(const pool_t pid)
 {
   if(option_DEBUG)
     PLOG("close_pool(%p)", (void*) pid);
@@ -347,9 +347,11 @@ void Map_store::close_pool(const pool_t pid)
 
   Std_lock_guard g(_pool_sessions_lock);
   _pool_sessions.erase(session);
+
+  return S_OK;
 }
 
-void Map_store::delete_pool(const pool_t pid)
+status_t Map_store::delete_pool(const pool_t pid)
 {
   auto session = get_session(pid);
 
@@ -360,10 +362,10 @@ void Map_store::delete_pool(const pool_t pid)
   for(auto& p : _pools) {
     if(p.second == session->pool) {
       _pools.erase(p.first);
-      return;
+      return S_OK;
     }
   }
-  throw Logic_exception("unable to find pool to delete");
+  return E_INVAL;
 }
 
 
@@ -450,9 +452,10 @@ size_t Map_store::count(const pool_t pid)
   return session->pool->count();
 }
 
-void Map_store::free_memory(void * p)
+status_t Map_store::free_memory(void * p)
 {
   scalable_free(p);
+  return S_OK;
 }
 
 void Map_store::debug(const pool_t pool, unsigned cmd, uint64_t arg)

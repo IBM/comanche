@@ -68,9 +68,9 @@ public:
                            const std::string& name,
                            unsigned int flags = 0) override;
   
-  virtual void close_pool(const pool_t pid) override;
+  virtual status_t close_pool(const pool_t pid) override;
 
-  virtual void delete_pool(const pool_t pid) override;
+  virtual status_t delete_pool(const std::string &path, const std::string &name) override;
 
   virtual status_t put(const pool_t pool,
                        const std::string& key,

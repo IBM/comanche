@@ -56,7 +56,7 @@ IBase *load_component(const char *dllname, Component::uuid_t component_id) {
   void *(*factory_createInstance)(Component::uuid_t &);
   char *error;
 
-  PLOG("Load path: %s", dllname);
+  PLOG("Loading component: %s", dllname);
 
   void *dll = dlopen(dllname, RTLD_NOW);
 
@@ -65,7 +65,6 @@ IBase *load_component(const char *dllname, Component::uuid_t component_id) {
     dll_path += "/lib/";
     dll_path += dllname;
 
-    PLOG("Load path: %s", dll_path.c_str());
     dll = dlopen(dll_path.c_str(), RTLD_NOW);
 
     if (!dll) {

@@ -1,5 +1,5 @@
 /*
-   Copyright [2018] [IBM Corporation]
+   Copyright [2018, 2019] [IBM Corporation]
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -41,7 +41,15 @@ std::shared_ptr<addrinfo> getaddrinfo_ptr(std::string dst_addr, uint16_t port)
   auto r = ::getaddrinfo(dst_addr.c_str(), std::to_string(port).c_str(), &hints, &presults);
   if ( r )
   {
-    system_fail(r, __func__);
+    if ( r < 0 )
+    {
+      /* special ::getaddrinfo error, see /usr/include/netdb.h for a list. */
+      gai_fail(r, __func__);
+    }
+    else
+    {
+      system_fail(r, __func__);
+    }
   }
   return std::shared_ptr<addrinfo>(presults, ::freeaddrinfo);
 }

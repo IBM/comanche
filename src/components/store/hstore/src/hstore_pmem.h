@@ -419,19 +419,12 @@ public:
       throw General_exception("failed to re-open pool (not initialized)");
     }
 
-    /* open_pool returns either a ::open_pool (usable for delete_pool) or a ::session
-     * (usable for delete_pool and everything else), depending on whether the pool
-     * data is usuable for all operations or just for deletion.
+    /* open_pool returns  a ::session.
+     * If the session constructor throws an exception opening an pool you wish to delete,
+     * use the form of delete_pool which does not require an open pool.
      */
-    try
-    {
-      auto heap_oid = read_const_root(root)->heap_oid;
-      return std::make_unique<session<open_pool_handle, ALLOC_T, table_t>>(heap_oid, path_, std::move(pop), anchors.persist_data_ptr);
-    }
-    catch ( ... )
-    {
-      return std::make_unique<open_pool<open_pool_handle>>(path_, std::move(pop));
-    }
+    auto heap_oid = read_const_root(root)->heap_oid;
+    return std::make_unique<session<open_pool_handle, ALLOC_T, table_t>>(heap_oid, path_, std::move(pop), anchors.persist_data_ptr);
   }
 
   void pool_close_check(const std::string &path)
