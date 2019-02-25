@@ -353,12 +353,17 @@ TEST_F(KVStore_test, GetManyLongLong)
   get_many(kvv_long_long, "long_long");
 }
 
-TEST_F(KVStore_test, DeletePool)
+TEST_F(KVStore_test, ClosePool)
 {
   if ( _kvstore && 0 < int64_t(pool) )
   {
-    _kvstore->delete_pool(pool);
+    _kvstore->close_pool(pool);
   }
+}
+
+TEST_F(KVStore_test, DeletePool)
+{
+  _kvstore->delete_pool(pool_dir(), pool_name());
 }
 
 } // namespace

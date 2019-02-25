@@ -293,27 +293,6 @@ status_t hstore::delete_pool(const std::string &dir, const std::string &name)
   return S_OK;
 }
 
-status_t hstore::delete_pool(const pool_t pid)
-{
-  try
-    {
-      /* Not sure why a session would have to be open in order to erase a pool,
-       * but the kvstore interface requires it.
-       */
-      pool_path pp;
-      {
-        auto pool = move_pool(pid);
-        pp = pool->path();
-      }
-      delete_pool(pp.dir(), pp.name());
-    }
-  catch ( const API_exception &e )
-    {
-      return E_INVAL;
-    }
-  return S_OK;
-}
-
 auto hstore::put(const pool_t pool,
                  const std::string &key,
                  const void * value,
