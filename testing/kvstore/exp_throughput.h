@@ -37,6 +37,8 @@ public:
     // handle first time setup
     if (_first_iter) 
       {
+        wait_for_delayed_start(core);
+
         PLOG("[%u] Starting Throughput experiment (value len:%lu)...", core, g_data->value_len());
         _first_iter = false;
         
