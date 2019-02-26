@@ -38,14 +38,12 @@ Dummy_store::~Dummy_store()
 
 std::unordered_map<uint64_t, void *> sessions;
 
-IKVStore::pool_t Dummy_store::create_pool(const std::string& path,
-                                          const std::string& name,
+IKVStore::pool_t Dummy_store::create_pool(const std::string& name,
                                           const size_t size,
                                           unsigned int flags,
                                           uint64_t args)
 {
-  std::string fullpath = path;
-  fullpath += name;
+  const std::string& fullpath = name;
   PLOG("Dummy_store::create_pool (%s)", fullpath.c_str());
     
   auto uuid = CityHash64(fullpath.c_str(), fullpath.length());
@@ -55,12 +53,10 @@ IKVStore::pool_t Dummy_store::create_pool(const std::string& path,
   return uuid;
 }
 
-IKVStore::pool_t Dummy_store::open_pool(const std::string& path,
-                                        const std::string& name,
+IKVStore::pool_t Dummy_store::open_pool(const std::string& name,
                                         unsigned int flags)
 {
-  std::string fullpath = path;
-  fullpath += name;
+  const std::string& fullpath = name;
   PLOG("Dummy_store::open_pool (%s)", fullpath.c_str());
   
   auto uuid = CityHash64(fullpath.c_str(), fullpath.length());
@@ -81,10 +77,9 @@ status_t Dummy_store::close_pool(const pool_t pid)
   return S_OK;
 }
 
-status_t Dummy_store::delete_pool(const std::string& path,
-                                  const std::string& name)
+status_t Dummy_store::delete_pool(const std::string& name)
 {
-  std::string fullpath = path + name;
+  const std::string& fullpath = name;
 
   auto uuid = CityHash64(fullpath.c_str(), fullpath.length());
   for (auto& s : sessions) {
