@@ -127,12 +127,12 @@ TEST_F(KVStore_test, OpenPool)
   pool_path = "./";
 #endif
   try{
-  _pool = _kvstore->create_pool(pool_path, pool_name, MB(128));
+  _pool = _kvstore->create_pool(pool_path + pool_name, MB(128));
   _pool_is_reopen = false;
   }
   catch(...){
     // open the pool if it exists
-    _pool = _kvstore->open_pool(pool_path, pool_name);
+    _pool = _kvstore->open_pool(pool_path + pool_name);
     _pool_is_reopen = true;
     PINF("NVMEStore:open a exsiting pool instead!");
   }
