@@ -68,13 +68,21 @@ public:
   };
 
   enum {
+    FLAGS_NONE        = 0x0,
     FLAGS_READ_ONLY   = 0x1,
     FLAGS_SET_SIZE    = 0x2,
     FLAGS_CREATE_ONLY = 0x4,
+    FLAGS_DONT_STOMP  = 0x1,
   };
 
   enum {
     POOL_ERROR = 0,
+  };
+
+  enum class Capability {
+    CAP_POOL_DELETE_CHECK, /*< checks if pool is open before allowing delete */
+    CAP_RWLOCK_PER_POOL,
+    CAP_POOL_THREAD_SAFE,
   };
 
   enum class Op_type {
@@ -83,6 +91,7 @@ public:
     INCREMENT_UINT64,
     CAS_UINT64,
   };
+
 
   class Operation
   {
@@ -123,10 +132,10 @@ public:
     const void * data() const noexcept { return _data; }
   };
 
-  typedef enum {
+  enum lock_type_t {
     STORE_LOCK_READ=1,
     STORE_LOCK_WRITE=2,
-  } lock_type_t;
+  };
 
   enum {
     S_OK = 0,
@@ -147,12 +156,25 @@ public:
 
   /** 
    * Determine thread safety of the component
+   * Check capability of component
    * 
+   * @param cap Capability type
    * 
    * @return THREAD_MODEL_XXXX
    */
   virtual int thread_safety() const = 0;
 
+  /** 
+   * Check capability of component
+   * 
+   * @param cap Capability type
+   * 
+   * @return THREAD_MODEL_XXXX
+   */  
+  virtual int get_capability(Capability cap) const {
+    return -1;
+  }
+  
   /** 
    * Create an object pool. If the pool exists and the FLAGS_CREATE_ONLY
    * is not provided, then the existing pool will be opened.  If FLAGS_CREATE_ONLY
@@ -255,7 +277,8 @@ public:
   virtual status_t put(const pool_t pool,
                        const std::string& key,
                        const void * value,
-                       const size_t value_len) { return E_NOT_SUPPORTED; }
+                       const size_t value_len,
+                       unsigned int flags = FLAGS_NONE) { return E_NOT_SUPPORTED; }
 
   /** 
    * Zero-copy put operation.  If there does not exist an object
@@ -274,7 +297,8 @@ public:
                               const std::string& key,
                               const void * value,
                               const size_t value_len,
-                              memory_handle_t handle = HANDLE_NONE) {
+                              memory_handle_t handle = HANDLE_NONE,
+                              unsigned int flags = FLAGS_NONE) {
     return E_NOT_SUPPORTED;
   }
 
