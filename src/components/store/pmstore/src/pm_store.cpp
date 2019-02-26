@@ -164,8 +164,7 @@ PM_store::~PM_store()
 }
 
 
-IKVStore::pool_t PM_store::create_pool(const std::string& path,
-                                       const std::string& name,
+IKVStore::pool_t PM_store::create_pool(const std::string& name,
                                        const size_t size,
                                        unsigned int flags,
                                        uint64_t args)
@@ -173,18 +172,14 @@ IKVStore::pool_t PM_store::create_pool(const std::string& path,
   PMEMobjpool *pop;
 
   if(option_DEBUG)
-    PLOG("PM_store::create_pool path=%s pool_name=%s", path.c_str(), name.c_str());
+    PLOG("PM_store::create_pool pool_name=%s", name.c_str());
 
   if(size > PMEMOBJ_MAX_ALLOC_SIZE) {
     PWRN("PM_store::create_pool - object too large");
     return E_TOO_LARGE;
   }
 
-  std::string fullpath;
-  if(path[path.length()-1]!='/')
-    fullpath = path + "/" + name;
-  else
-    fullpath = path + name;
+  const std::string& fullpath = name;
 
   if (access(fullpath.c_str(), F_OK) != 0) {
     if(option_DEBUG)
@@ -251,16 +246,15 @@ IKVStore::pool_t PM_store::create_pool(const std::string& path,
   return reinterpret_cast<uint64_t>(session);
 }
 
-IKVStore::pool_t PM_store::open_pool(const std::string& path,
-                                     const std::string& name,
+IKVStore::pool_t PM_store::open_pool(const std::string& name,
                                      unsigned int flags)
 {
   PMEMobjpool *pop = nullptr;
 
-  if (access(path.c_str(), F_OK) != 0)
-    throw API_exception("Pool %s:%s does not exist", path.c_str(), name.c_str());
+  if (access(name.c_str(), F_OK) != 0)
+    return POOL_ERROR;
 
-  std::string fullpath = path + name;
+  const std::string& fullpath = name;
 
   /* check integrity first */
   if(check_pool(fullpath.c_str()) != 0) {
@@ -324,10 +318,9 @@ status_t PM_store::close_pool(pool_t pid)
   return S_OK;
 }
 
-status_t PM_store::delete_pool(const std::string& path,
-                               const std::string& name)
+status_t PM_store::delete_pool(const std::string& name)
 {
-  std::string fullpath = path + name;
+  const std::string& fullpath = name;
   
   for(auto& s: g_sessions) {
     if(s->path == fullpath)
