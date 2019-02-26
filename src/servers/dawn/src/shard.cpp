@@ -282,7 +282,7 @@ void Shard::process_message_pool_request(Connection_handler* handler,
   }
   else if (msg->op == Dawn::Protocol::OP_DELETE) {
 
-    if (option_DEBUG > 2) PMAJOR("POOL DELETE: pool_id=%lx", msg->pool_id);
+    if (option_DEBUG > 2) PMAJOR("POOL DELETE: pool_id=%lx name=%s", msg->pool_id, msg->pool_name());
     
     Component::IKVStore::pool_t pool;
     const std::string pool_name = msg->pool_name();

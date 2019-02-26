@@ -88,7 +88,10 @@ DECLARE_STATIC_COMPONENT_UUID(dawn_client_factory,
 void basic_test(IKVStore *kv, unsigned shard)
 {
   int  rc;
-  auto pool = kv->create_pool(Options.pool, MB(8));
+  std::stringstream ss;
+  ss << Options.pool << shard;
+  std::string pool_name = ss.str();
+  auto pool = kv->create_pool(pool_name, MB(8));
 
   std::string value = "Hello! Value";  // 12 chars
 
@@ -106,7 +109,7 @@ void basic_test(IKVStore *kv, unsigned shard)
   }
 
   kv->close_pool(pool);
-  ASSERT_TRUE(kv->delete_pool(Options.pool) == S_OK);
+  ASSERT_TRUE(kv->delete_pool(pool_name) == S_OK);
   free(pv);
 }
 
@@ -165,33 +168,33 @@ TEST_F(Dawn_client_test, OpenCloseDelete)
 {
   using namespace Component;
   IKVStore::pool_t pool, pool2, pool3;
-  ASSERT_TRUE((pool = _dawn->create_pool(Options.pool + "X", GB(1))) != IKVStore::POOL_ERROR);
+  ASSERT_TRUE((pool = _dawn->create_pool(Options.pool, GB(1))) != IKVStore::POOL_ERROR);
   ASSERT_FALSE(pool  == IKVStore::POOL_ERROR);
   ASSERT_TRUE(_dawn->close_pool(pool) == S_OK);
 
   /* pool already exists */
-  //ASSERT_TRUE(_dawn->create_pool("/tmp/Y", GB(1)) == IKVStore::POOL_ERROR);
+  //ASSERT_TRUE(_dawn->create_pool(Options.pool, GB(1)) == IKVStore::POOL_ERROR);
 
   /* open two handles to the same pool */
-  ASSERT_TRUE((pool = _dawn->open_pool(Options.pool + "Y")) != IKVStore::POOL_ERROR);
-  ASSERT_TRUE((pool2 = _dawn->open_pool(Options.pool + "Y")) != IKVStore::POOL_ERROR);
+  ASSERT_TRUE((pool = _dawn->open_pool(Options.pool)) != IKVStore::POOL_ERROR);
+  ASSERT_TRUE((pool2 = _dawn->open_pool(Options.pool)) != IKVStore::POOL_ERROR);
 
   /* try delete open pool */
-  ASSERT_TRUE(_dawn->delete_pool(Options.pool + "Y") == IKVStore::E_ALREADY_OPEN);
+  ASSERT_TRUE(_dawn->delete_pool(Options.pool) == IKVStore::E_ALREADY_OPEN);
 
   /* open another */
-  ASSERT_TRUE((pool3 = _dawn->open_pool(Options.pool + "Y")) != IKVStore::POOL_ERROR);
+  ASSERT_TRUE((pool3 = _dawn->open_pool(Options.pool)) != IKVStore::POOL_ERROR);
 
   /* close two */
   ASSERT_TRUE(_dawn->close_pool(pool) == S_OK);
   ASSERT_TRUE(_dawn->close_pool(pool2) == S_OK);
 
   /* try to delete open pool */
-  ASSERT_TRUE(_dawn->delete_pool(Options.pool + "Y") == IKVStore::E_ALREADY_OPEN);
+  ASSERT_TRUE(_dawn->delete_pool(Options.pool) == IKVStore::E_ALREADY_OPEN);
   ASSERT_TRUE(_dawn->close_pool(pool3) == S_OK);
 
   /* ok, now we can delete */
-  ASSERT_TRUE(_dawn->delete_pool(Options.pool + "Y") == S_OK);
+  ASSERT_TRUE(_dawn->delete_pool(Options.pool) == S_OK);
   PLOG("OpenCloseDelete Test OK");
 }
   

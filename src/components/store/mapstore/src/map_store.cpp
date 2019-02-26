@@ -365,13 +365,17 @@ status_t Map_store::delete_pool(const std::string& name)
     }
   }
 
-  if(ph == nullptr)
+  if(ph == nullptr) {
+    PWRN("map_store: delete_pool (%s) pool not found", name.c_str());
     return E_POOL_NOT_FOUND;
+  }
 
   Std_lock_guard g(_pool_sessions_lock);
   for(auto& s: _pool_sessions) {
-    if(s->pool->key == key)
+    if(s->pool->key == key) {
+      PWRN("map_store: delete_pool (%s) pool delted failed because pool still open (%s)", name.c_str());
       return E_ALREADY_OPEN;
+    }
   }
     
   /* delete pool too */
@@ -436,7 +440,7 @@ Map_store::lock(const pool_t pid,
   assert(session->pool);
 
   if(option_DEBUG)
-    PLOG("map_store: lock(%s,%p,%lu)", key.c_str(), out_value, out_value_len);
+    PLOG("map_store: lock(%s)", key.c_str());
 
   return session->pool->lock(key, type, out_value, out_value_len);
 }
