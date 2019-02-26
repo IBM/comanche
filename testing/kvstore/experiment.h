@@ -115,6 +115,7 @@ class Experiment : public Core::Tasklet
 public:
   std::string _pool_path = "./data";
   std::string _pool_name = "Exp.pool";
+  std::string _pool_name_local;  // full pool name, e.g. "Exp.pool.0" for core 0
   std::string _owner = "owner";
   unsigned long long int _pool_size = MB(100);
   int _pool_flags = Component::IKVStore::FLAGS_SET_SIZE;
@@ -249,7 +250,7 @@ public:
 
     // make sure path is available for use
     boost::filesystem::path dir(_pool_path);
-    if (boost::filesystem::create_directory(dir)) {
+    if (boost::filesystem::create_directory(dir) && _verbose) {
       std::cout << "Created directory for testing: " << _pool_path << std::endl;
     }
 
@@ -257,6 +258,7 @@ public:
     char poolname[256];
     int core_index = _get_core_index(core);
     sprintf(poolname, "%s.%d", _pool_name.c_str(), core_index);
+    _pool_name_local = poolname;
     auto path = _pool_path + "/" + poolname;
 
     if (_component != "dawn" && boost::filesystem::exists(path)) {
@@ -267,7 +269,7 @@ public:
           std::cout << "pool might already exists at " << path << ". Attempting to delete it...";
         }
 
-        _store->delete_pool(_store->open_pool(_pool_path, poolname));
+        _store->delete_pool(_pool_path, poolname);
 
         if (_verbose) {
           std::cout << " pool deleted!" << std::endl;
@@ -291,9 +293,9 @@ public:
       }
     }
 
-    PLOG("Creating pool for worker %u ...", core);
+    PLOG("Creating pool %s for worker %u ...", _pool_name_local.c_str(), core);
     try {
-      _pool = _store->create_pool(_pool_path, poolname, _pool_size, _pool_flags, _pool_num_objects * HT_SIZE_FACTOR);
+      _pool = _store->create_pool(_pool_path, _pool_name_local, _pool_size, _pool_flags, _pool_num_objects * HT_SIZE_FACTOR);
     }
     catch ( const Exception &e ) {
       PERR("create_pool failed: %s. Aborting experiment.", e.cause());
@@ -703,7 +705,7 @@ public:
               std::cout << "cleanup: attempting to delete pool" << std::endl;
             }
 
-          _store->delete_pool(_pool);
+          _store->delete_pool(_pool_path, _pool_name);
         }
       catch ( const Exception &e )
         {
