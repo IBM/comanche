@@ -218,7 +218,13 @@ public:
    * 
    * @return S_OK on success, E_ALREADY_OPEN if pool cannot be deleted
    */
-  virtual status_t delete_pool(const std::string &path, const std::string &name) = 0;
+  virtual status_t delete_pool(const std::string &path, const std::string &name) {
+    return delete_pool(path + name);
+  }
+  
+  virtual status_t delete_pool(const std::string &name) {
+    return E_NOT_IMPL;
+  }
 
   /** 
    * Get mapped memory regions for pool
