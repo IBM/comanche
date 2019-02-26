@@ -53,10 +53,10 @@ TEST_F(KVStore_test, OpenPool)
 {
   ASSERT_TRUE(_kvstore);
   try {
-    pool = _kvstore->create_pool("./", "test1.pool", MB(32));
+    pool = _kvstore->create_pool("/tmp/test1.pool", MB(32));
   }
   catch(...) {
-    pool = _kvstore->open_pool("./", "test1.pool");
+    pool = _kvstore->open_pool("/tmp/test1.pool");
   }
   ASSERT_TRUE(pool != 0);
 }
@@ -99,7 +99,7 @@ TEST_F(KVStore_test, ClosePool)
 
 TEST_F(KVStore_test, ReopenPool)
 {
-  pool = _kvstore->open_pool("./", "test1.pool");
+  pool = _kvstore->open_pool("/tmp/test1.pool");
   ASSERT_TRUE(pool != 0);
 }
 
@@ -110,7 +110,7 @@ TEST_F(KVStore_test, ClosePoolAgain)
 
 TEST_F(KVStore_test, DeletePool)
 {
-  _kvstore->delete_pool("./", "test1.pool");
+  _kvstore->delete_pool("/tmp/test1.pool");
 }
 
 
