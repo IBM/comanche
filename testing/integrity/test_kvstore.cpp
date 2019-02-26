@@ -67,7 +67,7 @@ protected:
             if (boost::filesystem::exists(pool_path + "/" + _pool_name))
             {
                 // pool already exists. Delete it.
-                _g_store->delete_pool(_g_store->open_pool(pool_path, _pool_name));
+                _g_store->delete_pool(pool_path, "test.pool");
             }
         }
         catch(...)
@@ -90,8 +90,8 @@ protected:
         {
            _pool = _g_store->open_pool(pool_path, _pool_name);
         }
-        
-        _g_store->delete_pool(_pool);
+       
+        _g_store->delete_pool(pool_path, "test.pool");
     }
 };
 
