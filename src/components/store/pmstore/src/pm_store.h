@@ -81,7 +81,8 @@ public:
   virtual status_t put(const pool_t pool,
                        const std::string& key,
                        const void * value,
-                       const size_t value_len) override;
+                       const size_t value_len,
+                       unsigned int flags = FLAGS_NONE) override;
 
   virtual status_t get(const pool_t pool,
                        const std::string& key,
@@ -98,7 +99,8 @@ public:
                               const std::string& key,
                               const void * value,
                               const size_t value_len,
-                              memory_handle_t handle = HANDLE_NONE) override;
+                              memory_handle_t handle = HANDLE_NONE,
+                              unsigned flags = FLAGS_NONE) override;
 
   virtual Component::IKVStore::memory_handle_t register_direct_memory(void * vaddr, size_t len) override;
 

@@ -394,7 +394,8 @@ status_t Map_store::delete_pool(const std::string& name)
 status_t Map_store::put(IKVStore::pool_t pid,
                         const std::string& key,
                         const void * value,
-                        size_t value_len)
+                        size_t value_len,
+                        unsigned int flags)
 {
   auto session = get_session(pid);
   assert(session->pool);
@@ -426,7 +427,8 @@ status_t Map_store::put_direct(const pool_t pid,
                                const std::string& key,
                                const void * value,
                                const size_t value_len,
-                               memory_handle_t memory_handle)
+                               memory_handle_t memory_handle,
+                               unsigned int flags)
 {
   auto session = get_session(pid);
   return Map_store::put(pid, key, value, value_len);

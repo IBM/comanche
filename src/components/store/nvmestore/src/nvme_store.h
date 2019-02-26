@@ -126,7 +126,8 @@ public:
   virtual status_t put(const pool_t pool,
                        const std::string& key,
                        const void * value,
-                       const size_t value_len) override;
+                       const size_t value_len,
+                       unsigned int flags = FLAGS_NONE) override;
 
   virtual status_t get(const pool_t pool,
                   const std::string& key,

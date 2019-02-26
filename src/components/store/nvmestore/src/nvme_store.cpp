@@ -384,7 +384,8 @@ static int __alloc_new_object(struct open_session_t *session, uint64_t hashkey, 
 status_t NVME_store::put(IKVStore::pool_t pool,
                          const std::string& key,
                          const void * value,
-                         size_t value_len)
+                         size_t value_len,
+                         unsigned int flags)
 {
   struct open_session_t * session = reinterpret_cast<struct open_session_t*>(pool);
 
