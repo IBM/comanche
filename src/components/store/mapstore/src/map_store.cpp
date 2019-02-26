@@ -43,7 +43,8 @@ public:
 
   status_t put(const std::string& key,
                const void * value,
-               const size_t value_len);
+               const size_t value_len,
+               unsigned int flags);
     
   status_t get(const std::string& key,
                void*& out_value,
@@ -92,7 +93,8 @@ static Pool_session* get_session(const IKVStore::pool_t pid)
 
 status_t Pool_handle::put(const std::string& key,
                           const void * value,
-                          const size_t value_len)
+                          const size_t value_len,
+                          unsigned int flags)
 {
   if(!value || !value_len)
     throw API_exception("invalid parameters");
@@ -103,6 +105,9 @@ status_t Pool_handle::put(const std::string& key,
   
   auto i = map.find(key);
   if(i != map.end()) {
+    if(flags & IKVStore::FLAGS_DONT_STOMP)
+      return IKVStore::E_KEY_EXISTS;
+    
     auto& p = i->second;
     if(p.length == value_len) {
       memcpy(p.ptr, value, value_len);
@@ -399,7 +404,7 @@ status_t Map_store::put(IKVStore::pool_t pid,
 {
   auto session = get_session(pid);
   assert(session->pool);
-  return session->pool->put(key, value, value_len);  
+  return session->pool->put(key, value, value_len, flags);  
 }
 
 status_t Map_store::get(const pool_t pid,
