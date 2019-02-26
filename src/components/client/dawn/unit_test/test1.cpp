@@ -178,7 +178,7 @@ TEST_F(Dawn_client_test, OpenCloseDelete)
   ASSERT_TRUE(_dawn->create_pool(poolname, GB(1), IKVStore::FLAGS_CREATE_ONLY) == IKVStore::POOL_ERROR);
 
   /* open two handles to the same pool + create with implicit open */
-  ASSERT_TRUE((pool = _dawn->create_pool(poolname)) != IKVStore::POOL_ERROR);
+  ASSERT_TRUE((pool = _dawn->create_pool(poolname, GB(1))) != IKVStore::POOL_ERROR);
   ASSERT_TRUE((pool2 = _dawn->open_pool(poolname)) != IKVStore::POOL_ERROR);
 
   /* try delete open pool */
