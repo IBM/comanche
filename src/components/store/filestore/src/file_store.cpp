@@ -249,7 +249,8 @@ status_t FileStore::delete_pool(const std::string &name)
 status_t FileStore::put(IKVStore::pool_t pid,
                         const std::string& key,
                         const void * value,
-                        size_t value_len)
+                        size_t value_len,
+                        unsigned int flags)
 {
   auto handle = reinterpret_cast<Pool_handle*>(pid);
   if(_pool_sessions.count(handle) != 1)
@@ -257,6 +258,17 @@ status_t FileStore::put(IKVStore::pool_t pid,
 
   return handle->put(key, value, value_len);
 }
+
+status_t FileStore::put_direct(const pool_t pool,
+                               const std::string& key,
+                               const void * value,
+                               const size_t value_len,
+                               memory_handle_t memory_handle,
+                               unsigned int flags)
+{
+  return FileStore::put(pool, key, value, value_len, flags);
+}
+
 
 status_t FileStore::get(const pool_t pid,
                         const std::string& key,
@@ -283,14 +295,6 @@ status_t FileStore::get_direct(const pool_t pid,
   return pool_handle->get_direct(key, out_value, out_value_len);
 }
 
-status_t FileStore::put_direct(const pool_t pool,
-                               const std::string& key,
-                               const void * value,
-                               const size_t value_len,
-                               memory_handle_t memory_handle = HANDLE_NONE)
-{
-  return FileStore::put(pool, key, value, value_len);
-}
 
 
 status_t FileStore::erase(const pool_t pid,

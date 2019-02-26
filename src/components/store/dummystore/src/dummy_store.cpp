@@ -95,7 +95,8 @@ status_t Dummy_store::delete_pool(const std::string& name)
 status_t Dummy_store::put(IKVStore::pool_t pid,
                           const std::string& key,
                           const void * value,
-                          size_t value_len)
+                          size_t value_len,
+                          unsigned int flags)
 {
   auto i = sessions.find(pid);
   if(i == sessions.end())
@@ -164,10 +165,11 @@ status_t Dummy_store::get_direct(const pool_t pid,
 }
 
 status_t Dummy_store::put_direct(const pool_t pid,
-                               const std::string& key,
-                               const void * value,
-                               const size_t value_len,
-                               memory_handle_t memory_handle)
+                                 const std::string& key,
+                                 const void * value,
+                                 const size_t value_len,
+                                 memory_handle_t memory_handle,
+                                 unsigned int flags)
 {
   return S_OK;
 }

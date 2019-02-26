@@ -363,10 +363,11 @@ status_t PM_store::put_direct(const pool_t pool,
                               const std::string& key,
                               const void * value,
                               const size_t value_len,
-                              memory_handle_t handle)
+                              memory_handle_t handle,
+                              unsigned int flags)
 {
   /* pm_store can't do DMA yet, so revert to memcpy */
-  return put(pool, key, value, value_len);
+  return put(pool, key, value, value_len, flags);
 }
 
 Component::IKVStore::memory_handle_t PM_store::register_direct_memory(void * vaddr, size_t len)
@@ -377,7 +378,8 @@ Component::IKVStore::memory_handle_t PM_store::register_direct_memory(void * vad
 status_t PM_store::put(IKVStore::pool_t pool,
                        const std::string& key,
                        const void * value,
-                       const size_t value_len)
+                       const size_t value_len,
+                       unsigned int flags)
 {
   if(option_DEBUG) {
     PLOG("PM_store: put (key=%.*s) (value=%.*s)",
