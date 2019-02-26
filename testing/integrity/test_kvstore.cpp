@@ -37,17 +37,17 @@ protected:
 
     void TearDown() override
     {
-        if (component_info.uses_direct_memory && component_info.memory_handle != nullptr)
-        {
-            _g_store->unregister_direct_memory(component_info.memory_handle);
-        }
+      if (component_info.uses_direct_memory && component_info.memory_handle != nullptr)
+      {
+        _g_store->unregister_direct_memory(component_info.memory_handle);
+      }
 
-        if (_direct_memory_location != nullptr)
-        {
-            free(_direct_memory_location);
-        }
+      if (_direct_memory_location != nullptr)
+      {
+        free(_direct_memory_location);
+      }
 
-        destroy_pool();
+      destroy_pool();
     }
 
     void create_pool()
@@ -64,10 +64,16 @@ protected:
 
         try
         {
-            if (boost::filesystem::exists(pool_path + "/" + _pool_name))
+            if (boost::filesystem::exists(pool_path +_pool_name))
             {
                 // pool already exists. Delete it.
-                _g_store->delete_pool(pool_path, "test.pool");
+                int rc;
+                rc = _g_store->delete_pool(pool_path, _pool_name);
+                if (rc != S_OK)
+                {
+                  PERR("delete_pool returned error code %d", rc);
+                  throw;
+                }
             }
         }
         catch(...)
@@ -77,21 +83,44 @@ protected:
 
         _fact = component_info.factory;
 
-        _pool = _g_store->create_pool(pool_path, _pool_name, _pool_size);
+        _pool = _g_store->create_pool(pool_path + _pool_name, _pool_size);
 
         ASSERT_TRUE(_pool > 0) << "failed create_pool";  // just fail here if pool creation didn't work
     }
 
     virtual void destroy_pool()
     {
-        _fact->release_ref();
+      _fact->release_ref();
 
-        if (_pool <= 0)
-        {
-           _pool = _g_store->open_pool(pool_path, _pool_name);
-        }
+      if (_pool <= 0)
+      {
+         _pool = _g_store->open_pool(pool_path + _pool_name);
+      }
+   
+      if (_pool > 0)
+      { 
+        int rc;
        
-        _g_store->delete_pool(pool_path, "test.pool");
+        rc = _g_store->close_pool(_pool);
+
+        if (rc != S_OK)
+        {
+          PERR("close_pool returned error code %d", rc);
+          throw;
+        }
+
+        rc = _g_store->delete_pool(pool_path, _pool_name);
+
+        if (rc != S_OK)
+        {
+          PERR("delete_pool returned error code %d", rc);
+          throw;
+        }
+      }
+      else
+      {
+        PERR("could not open_pool with name %s%s", pool_path.c_str(), _pool_name.c_str());
+      }
     }
 };
 
@@ -117,9 +146,12 @@ public:
 
 TEST_F(PoolTest, OpenPool)
 {
-    const Component::IKVStore::pool_t pool = _g_store->open_pool(pool_path, _pool_name);
+    const Component::IKVStore::pool_t pool = _g_store->open_pool(pool_path + _pool_name);
     
     ASSERT_TRUE(pool > 0);
+
+    int rc = _g_store->close_pool(pool);
+    ASSERT_TRUE(rc == S_OK);
 }
 
 // this exists to put handling key creation and memory handling in one place to reduce copy/paste
