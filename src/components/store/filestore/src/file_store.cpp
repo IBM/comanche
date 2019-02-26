@@ -175,16 +175,12 @@ FileStore::~FileStore()
 }
   
 
-IKVStore::pool_t FileStore::create_pool(const std::string& path,
-                                        const std::string& name,
+IKVStore::pool_t FileStore::create_pool(const std::string& name,
                                         const size_t size,
                                         unsigned int flags,
                                         uint64_t args)
 {
-  if(!fs::exists(path))
-    throw API_exception("path (%s) does not exist", path.c_str());
-
-  fs::path p = path + "/" + name;
+  fs::path p = name;
   if(!fs::create_directory(p))
     throw API_exception("filestore: failed to create directory (%s)", p.string().c_str());
 
@@ -201,13 +197,12 @@ IKVStore::pool_t FileStore::create_pool(const std::string& path,
   return reinterpret_cast<IKVStore::pool_t>(handle);
 }
 
-IKVStore::pool_t FileStore::open_pool(const std::string& path,
-                                      const std::string& name,
+IKVStore::pool_t FileStore::open_pool(const std::string& name,
                                       unsigned int flags)
 {
-  fs::path p = path + "/" + name;
-  if(!fs::exists(path))
-    throw API_exception("path (%s) does not exist", path.c_str());
+  fs::path p = name;
+  if(!fs::exists(name))
+    return POOL_ERROR;
 
   if(option_DEBUG)
     PLOG("opened pool OK: %s", p.string().c_str());
@@ -236,20 +231,18 @@ status_t FileStore::close_pool(pool_t pid)
   return S_OK;
 }
 
-status_t FileStore::delete_pool(const std::string &path, const std::string &name)
+status_t FileStore::delete_pool(const std::string &name)
 {
-  fs::path p = path + "/" + name;
-  if(!fs::exists(path))
-    throw API_exception("path (%s) does not exist", path.c_str());
-
+  if(!fs::exists(name))
+    return E_POOL_NOT_FOUND;
 
   lock_guard g(_pool_sessions_lock);
   for(auto& s: _pool_sessions) {
-    if(s->path == p)
+    if(s->path == name)
       return E_ALREADY_OPEN;
   }
     
-  boost::filesystem::remove_all(path);
+  boost::filesystem::remove_all(name);
   return S_OK;
 }
 
