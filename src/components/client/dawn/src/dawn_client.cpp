@@ -117,20 +117,18 @@ int Dawn_client::thread_safety() const
   return IKVStore::THREAD_MODEL_SINGLE_PER_POOL;
 }
 
-IKVStore::pool_t Dawn_client::create_pool(const std::string& path,
-                                          const std::string& name,
+IKVStore::pool_t Dawn_client::create_pool(const std::string& name,
                                           const size_t       size,
                                           unsigned int       flags,
                                           uint64_t           expected_obj_count)
 {
-  return _connection->create_pool(path, name, size, flags, expected_obj_count);
+  return _connection->create_pool(name, size, flags, expected_obj_count);
 }
 
-IKVStore::pool_t Dawn_client::open_pool(const std::string& path,
-                                        const std::string& name,
+IKVStore::pool_t Dawn_client::open_pool(const std::string& name,
                                         unsigned int       flags)
 {
-  return _connection->open_pool(path, name, flags);
+  return _connection->open_pool(name, flags);
 }
 
 status_t Dawn_client::close_pool(const IKVStore::pool_t pool)
@@ -139,10 +137,9 @@ status_t Dawn_client::close_pool(const IKVStore::pool_t pool)
   return _connection->close_pool(pool);
 }
 
-status_t Dawn_client::delete_pool(const std::string& path,
-                                  const std::string& name)
+status_t Dawn_client::delete_pool(const std::string& name)
 {
-  return _connection->delete_pool(path, name);
+  return _connection->delete_pool(name);
 }
 
 
@@ -207,26 +204,6 @@ status_t Dawn_client::free_memory(void * p)
 
 void Dawn_client::debug(const IKVStore::pool_t pool, unsigned cmd, uint64_t arg)
 {
-}
-
-/* IDawn specific methods */
-IKVStore::pool_t Dawn_client::create_pool(const std::string& pool_name,
-                                          const size_t size,
-                                          unsigned int flags,
-                                          uint64_t expected_obj_count) 
-{
-  return 0;
-}
-
-IKVStore::pool_t Dawn_client::open_pool(const std::string& pool_name,
-                                       unsigned int flags) 
-{
-  return 0;
-}
-
-status_t Dawn_client::delete_pool(const std::string& pool_name)
-{
-  return E_NOT_IMPL;
 }
 
 std::string Dawn_client::find(const std::string& key_expression,
