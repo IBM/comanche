@@ -109,20 +109,17 @@ public:
   virtual int thread_safety() const override { return THREAD_MODEL_SINGLE_PER_POOL; }
 
 
-  virtual pool_t create_pool(const std::string& path,
-                             const std::string& name,
+  virtual pool_t create_pool(const std::string& name,
                              const size_t size,
                              unsigned int flags,
                              uint64_t expected_obj_count = 0
                              ) override;
 
-  virtual pool_t open_pool(const std::string& path,
-                           const std::string& name,
+  virtual pool_t open_pool(const std::string& name,
                            unsigned int flags) override;
 
 
-  virtual status_t delete_pool(const std::string& path,
-                               const std::string& name) override;
+  virtual status_t delete_pool(const std::string& name) override;
 
   virtual status_t close_pool(const pool_t pid) override;
 

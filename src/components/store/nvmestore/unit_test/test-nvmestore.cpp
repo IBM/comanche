@@ -127,12 +127,12 @@ TEST_F(KVStore_test, OpenPool)
   pool_path = "./";
 #endif
   try{
-  _pool = _kvstore->create_pool(pool_path, pool_name, MB(128));
+  _pool = _kvstore->create_pool(pool_path + pool_name, MB(128));
   _pool_is_reopen = false;
   }
   catch(...){
     // open the pool if it exists
-    _pool = _kvstore->open_pool(pool_path, pool_name);
+    _pool = _kvstore->open_pool(pool_path + pool_name);
     _pool_is_reopen = true;
     PINF("NVMEStore:open a exsiting pool instead!");
   }
@@ -323,7 +323,7 @@ TEST_F(KVStore_test, Multiplestore)
 
   fact->release_ref();
 
-  _pool = _kvstore2->create_pool(PMEM_PATH, "test-nvme2.pool", MB(128));
+  _pool = _kvstore2->create_pool(PMEM_PATH "test-nvme2.pool", MB(128));
   _kvstore2->release_ref();
 }
 

@@ -163,8 +163,7 @@ NVME_store::~NVME_store()
   _blk_dev->release_ref();
 }
 
-IKVStore::pool_t NVME_store::create_pool(const std::string& path,
-                                         const std::string& name,
+IKVStore::pool_t NVME_store::create_pool(const std::string& name,
                                          const size_t size,
                                          unsigned int flags,
                                          uint64_t args)
@@ -176,13 +175,8 @@ IKVStore::pool_t NVME_store::create_pool(const std::string& path,
 
   // TODO: need to check size
   // TODO: pass prefix (pm_path) into nvmestore component config
-  std::string fullpath = "/mnt/pmem0/";
+  const std::string& fullpath = name;
   
-  if(path[path.length()-1]!='/')
-    fullpath += path + "/" + name;
-  else
-    fullpath += path + name;
-
   PINF("NVME_store::create_pool fullpath=%s name=%s", fullpath.c_str(), name.c_str());
   
   /* open existing pool */
@@ -198,7 +192,7 @@ IKVStore::pool_t NVME_store::create_pool(const std::string& path,
   }
 
   if(not pop)
-    throw General_exception("failed to create or open pool (%s)", pmemobj_errormsg());
+    return POOL_ERROR;
 
   /* see: https://github.com/pmem/pmdk/blob/stable-1.4/src/examples/libpmemobj/map/kv_server.c */
   assert(pop);
@@ -237,21 +231,15 @@ IKVStore::pool_t NVME_store::create_pool(const std::string& path,
   return reinterpret_cast<uint64_t>(session);
 }
 
-IKVStore::pool_t NVME_store::open_pool(const std::string& path,
-                                       const std::string& name,
+IKVStore::pool_t NVME_store::open_pool(const std::string& name,
                                        unsigned int flags)
 {
   PMEMobjpool *pop; //pool to allocate all mapping
   size_t max_sz_hxmap = MB(500); // this can fit 1M objects (block_range_t)
 
-  PINF("NVME_store::open_pool path=%s name=%s", path.c_str(), name.c_str());
+  PINF("NVME_store::open_pool name=%s", name.c_str());
 
-  std::string fullpath;
-
-  if(path[path.length()-1]!='/')
-    fullpath = path + "/" + name;
-  else
-    fullpath = path + name;
+  const std::string& fullpath = name;
 
   /* if trying to open a unclosed pool!*/
   for(auto iter : g_sessions){
@@ -318,8 +306,7 @@ status_t NVME_store::close_pool(pool_t pid)
   return S_OK;
 }
 
-status_t NVME_store::delete_pool(const std::string& path,
-                                 const std::string& name)
+status_t NVME_store::delete_pool(const std::string& name)
 {
   throw API_exception("not implemented");
   
