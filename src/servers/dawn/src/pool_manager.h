@@ -34,13 +34,15 @@ public:
       out_pool = 0;
       return false;
     }
-    PLOG("check_for_open_pool (%s) true", path.c_str());
+    
     auto j = _open_pools.find(i->second);
     if(j != _open_pools.end()) {
       out_pool = i->second;
+      PLOG("check_for_open_pool (%s) true", path.c_str());
       return true;
     }
     out_pool = 0;
+    PLOG("check_for_open_pool (%s) false", path.c_str());
     return false;
   }
 

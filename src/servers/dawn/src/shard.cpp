@@ -221,11 +221,12 @@ void Shard::process_message_pool_request(Connection_handler* handler,
     else {
       pool = _i_kvstore->create_pool(msg->pool_name(),
                                      msg->pool_size,
-                                     0,  // flags
+                                     msg->flags,
                                      msg->expected_object_count);
+
       if(pool == Component::IKVStore::POOL_ERROR) {
         response->pool_id = 0;
-        response->status = E_FAIL;
+        response->status = Component::IKVStore::POOL_ERROR;
         PWRN("unable to create pool (%s)", pool_name.c_str());
       }
       else {
@@ -275,6 +276,7 @@ void Shard::process_message_pool_request(Connection_handler* handler,
     if(handler->release_pool_reference(msg->pool_id)) {
       PLOG("actually closing pool %p", msg->pool_id);
       response->status = _i_kvstore->close_pool(msg->pool_id);
+      assert(response->status == S_OK);
     }
     else {
       response->status = S_OK;

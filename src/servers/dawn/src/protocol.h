@@ -142,6 +142,7 @@ struct Message_pool_request : public Message {
   size_t expected_object_count;
   union {
     uint64_t pool_id;
+    unsigned int flags;
   };
   char data[]; /*< unique name of pool (for this client) */
 
