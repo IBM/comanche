@@ -168,7 +168,17 @@ public:
                              const std::string& name,
                              const size_t size,
                              unsigned int flags = 0,
-                             uint64_t expected_obj_count = 0) = 0;
+                             uint64_t expected_obj_count = 0) __attribute__((deprecated)) {
+    return create_pool(path + name, size, flags, expected_obj_count);
+  }
+
+  virtual pool_t create_pool(const std::string& name,
+                             const size_t size,
+                             unsigned int flags = 0,
+                             uint64_t expected_obj_count = 0) {
+    return POOL_ERROR;
+  }
+
 
   /** 
    * Open an existing pool
@@ -181,7 +191,15 @@ public:
    */
   virtual pool_t open_pool(const std::string& path,
                            const std::string& name,
-                           unsigned int flags = 0) = 0;
+                           unsigned int flags = 0) __attribute__((deprecated)) {
+    return open_pool(path + name, flags);
+  }
+
+  virtual pool_t open_pool(const std::string& name,
+                           unsigned int flags = 0) {
+    return POOL_ERROR;
+  }
+
 
   /** 
    * Close pool handle
