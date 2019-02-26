@@ -80,8 +80,9 @@ Connection_handler::pool_t Connection_handler::create_pool(
                                          Dawn::Protocol::OP_CREATE,
                                          name);
   assert(msg->op);
-
+  msg->flags = flags;
   msg->expected_object_count = expected_obj_count;
+  
   iob->set_length(msg->msg_len);
   sync_inject_send(iob);
 
@@ -231,7 +232,8 @@ status_t Connection_handler::two_stage_put_direct(
          (int) key_len, (char*) key, key_len, (char*) value, value_len, handle);
 
   assert(value_len <= _max_message_size);
-
+  assert(value_len > 0);
+  
   const auto iob = allocate();
 
   /* send advance message, this will be followed by partial puts */

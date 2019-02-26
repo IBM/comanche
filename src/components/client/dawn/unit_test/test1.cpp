@@ -13,16 +13,15 @@
 #include <chrono> /* milliseconds */
 #include <thread> /* this_thread::sleep_for */
 
-#define TEST_SESSION_CONTROL
-#define TEST_BASIC_PUT_AND_GET
-//#define TEST_PUT_DIRECT_0
-//#define TEST_PUT_DIRECT_1
-// #define TEST_PERF_SMALL_PUT
-// #define TEST_PERF_SMALL_GET
+#define TEST_PERF_SMALL_PUT
+#define TEST_PERF_SMALL_GET_DIRECT
+#define TEST_PERF_LARGE_PUT_DIRECT
+#define TEST_PERF_LARGE_GET_DIRECT
+
+
+//#define TEST_SCALE_IOPS
+
 // #define TEST_PERF_SMALL_PUT_DIRECT
-// #define TEST_PERF_LARGE_PUT_DIRECT
-// #define TEST_PERF_LARGE_GET_DIRECT
-// #define TEST_SCALE_IOPS
 
 struct {
   std::string addr;
@@ -113,7 +112,6 @@ void basic_test(IKVStore *kv, unsigned shard)
   free(pv);
 }
 
-#ifdef TEST_SESSION_CONTROL
 
 TEST_F(Dawn_client_test, SessionControl)
 {
@@ -145,10 +143,11 @@ TEST_F(Dawn_client_test, SessionControl)
   fact->release_ref();
 }
 
-#endif
+
 
 TEST_F(Dawn_client_test, Instantiate)
 {
+  PMAJOR("Running Instantiate...");
   /* create object instance through factory */
   Component::IBase *comp = Component::load_component(
       "libcomanche-dawn-client.so", dawn_client_factory);
@@ -166,48 +165,54 @@ TEST_F(Dawn_client_test, Instantiate)
   
 TEST_F(Dawn_client_test, OpenCloseDelete)
 {
+  PMAJOR("Running OpenCloseDelete...");
   using namespace Component;
   IKVStore::pool_t pool, pool2, pool3;
-  ASSERT_TRUE((pool = _dawn->create_pool(Options.pool, GB(1))) != IKVStore::POOL_ERROR);
+
+  const std::string poolname = Options.pool + "/OpenCloseDelete";
+  ASSERT_TRUE((pool = _dawn->create_pool(poolname, GB(1))) != IKVStore::POOL_ERROR);
   ASSERT_FALSE(pool  == IKVStore::POOL_ERROR);
   ASSERT_TRUE(_dawn->close_pool(pool) == S_OK);
 
   /* pool already exists */
-  //ASSERT_TRUE(_dawn->create_pool(Options.pool, GB(1)) == IKVStore::POOL_ERROR);
+  ASSERT_TRUE(_dawn->create_pool(poolname, GB(1), IKVStore::FLAGS_CREATE_ONLY) == IKVStore::POOL_ERROR);
 
-  /* open two handles to the same pool */
-  ASSERT_TRUE((pool = _dawn->open_pool(Options.pool)) != IKVStore::POOL_ERROR);
-  ASSERT_TRUE((pool2 = _dawn->open_pool(Options.pool)) != IKVStore::POOL_ERROR);
+  /* open two handles to the same pool + create with implicit open */
+  ASSERT_TRUE((pool = _dawn->create_pool(poolname)) != IKVStore::POOL_ERROR);
+  ASSERT_TRUE((pool2 = _dawn->open_pool(poolname)) != IKVStore::POOL_ERROR);
 
   /* try delete open pool */
-  ASSERT_TRUE(_dawn->delete_pool(Options.pool) == IKVStore::E_ALREADY_OPEN);
+  ASSERT_TRUE(_dawn->delete_pool(poolname) == IKVStore::E_ALREADY_OPEN);
 
   /* open another */
-  ASSERT_TRUE((pool3 = _dawn->open_pool(Options.pool)) != IKVStore::POOL_ERROR);
+  ASSERT_TRUE((pool3 = _dawn->open_pool(poolname)) != IKVStore::POOL_ERROR);
 
   /* close two */
   ASSERT_TRUE(_dawn->close_pool(pool) == S_OK);
   ASSERT_TRUE(_dawn->close_pool(pool2) == S_OK);
 
   /* try to delete open pool */
-  ASSERT_TRUE(_dawn->delete_pool(Options.pool) == IKVStore::E_ALREADY_OPEN);
+  ASSERT_TRUE(_dawn->delete_pool(poolname) == IKVStore::E_ALREADY_OPEN);
   ASSERT_TRUE(_dawn->close_pool(pool3) == S_OK);
 
   /* ok, now we can delete */
-  ASSERT_TRUE(_dawn->delete_pool(Options.pool) == S_OK);
+  ASSERT_TRUE(_dawn->delete_pool(poolname) == S_OK);
   PLOG("OpenCloseDelete Test OK");
 }
   
 TEST_F(Dawn_client_test, PutGet)
 {
+  PMAJOR("Running PutGet...");
   ASSERT_TRUE(_dawn);
   int rc;
 
-  auto pool = _dawn->open_pool(Options.pool, 0);
+  const std::string poolname = Options.pool + "/PutGet";
+
+  auto pool = _dawn->open_pool(poolname, 0);
 
   if (pool == Component::IKVStore::POOL_ERROR) {
     /* ok, try to create pool instead */
-    pool = _dawn->create_pool(Options.pool, GB(1));
+    pool = _dawn->create_pool(poolname, GB(1));
   }
 
   std::string value = "Hello! Value";  // 12 chars
@@ -216,7 +221,7 @@ TEST_F(Dawn_client_test, PutGet)
   ASSERT_TRUE(rc == S_OK || rc == -2);
   _dawn->close_pool(pool);
 
-  auto pool1 = _dawn->open_pool(Options.pool, 0);
+  auto pool1 = _dawn->open_pool(poolname, 0);
   void *      pv;
   size_t      pv_len = 0;
   PINF("performing 'get' to retrieve what was put..");
@@ -226,14 +231,14 @@ TEST_F(Dawn_client_test, PutGet)
   _dawn->close_pool(pool1);
   ASSERT_TRUE(strncmp((char *) pv, value.c_str(), value.length()) == 0);
 
-  _dawn->delete_pool(Options.pool);
+  _dawn->delete_pool(poolname);
   free(pv);
   PLOG("PutGet OK!");
 }
 
-#ifdef TEST_BASIC_PUT_AND_GET
 TEST_F(Dawn_client_test, BasicPutAndGet)
 {
+  PMAJOR("Running BasicPutGet...");
   ASSERT_TRUE(_dawn);
   int rc;
 
@@ -260,7 +265,7 @@ TEST_F(Dawn_client_test, BasicPutAndGet)
   free(pv);
   PLOG("BasicPutAndGet OK!");
 }
-#endif
+
 
 #ifdef TEST_SCALE_IOPS
 
@@ -355,6 +360,7 @@ class IOPS_task : public Core::Tasklet {
 
 TEST_F(Dawn_client_test, PerfScaleIops)
 {
+  PMAJOR("Running PerfScaleIops...");
   static constexpr unsigned NUM_CORES = 8;
   cpu_mask_t                mask;
   for (unsigned c = 0; c < NUM_CORES; c++) mask.add_core(c + Options.base_core);
@@ -369,11 +375,13 @@ TEST_F(Dawn_client_test, PerfScaleIops)
 #ifdef TEST_PERF_SMALL_PUT
 TEST_F(Dawn_client_test, PerfSmallPut)
 {
+  PMAJOR("Running SmallPut...");
   ASSERT_TRUE(_dawn);
   int rc;
 
+  const std::string poolname = Options.pool + "/PerfSmallPut";
   auto pool =
-    _dawn->create_pool(std::string("/mnt/pmem0/dawn") + Options.pool, GB(4));
+    _dawn->create_pool(poolname, GB(4));
 
   static constexpr unsigned long ITERATIONS = 1000000;
   static constexpr unsigned long VALUE_SIZE = 32;
@@ -411,13 +419,14 @@ TEST_F(Dawn_client_test, PerfSmallPut)
   ::free(data);
 
   _dawn->close_pool(pool);
-  _dawn->delete_pool("/mnt/pmem0/dawn", Options.pool);
+  _dawn->delete_pool(poolname);
 }
 #endif
 
 #ifdef TEST_PERF_SMALL_PUT_DIRECT
 TEST_F(Dawn_client_test, PerfSmallPutDirect)
 {
+  PMAJOR("Running SmallPutDirect...");
   int rc;
 
   /* open or create pool */
@@ -479,22 +488,16 @@ TEST_F(Dawn_client_test, PerfSmallPutDirect)
 #ifdef TEST_PERF_LARGE_PUT_DIRECT
 TEST_F(Dawn_client_test, PerfLargePutDirect)
 {
+  PMAJOR("Running LargePutDirect...");
+
   int rc;
   ASSERT_TRUE(_dawn);
   
+  const std::string poolname = Options.pool + "/PerfLargePutDirect";
+  
   /* open or create pool */
-  Component::IKVStore::pool_t pool = _dawn->open_pool(Options.pool, 0);
+  auto pool = _dawn->create_pool(poolname, GB(8));
 
-  if (pool == Component::IKVStore::POOL_ERROR) {
-    /* ok, try to create pool instead */
-    pool = _dawn->create_pool(Options.pool, GB(8));
-
-    //    virtual pool_t create_pool(const std::string& path,
-    // const std::string& name,
-    // const size_t size,
-    // unsigned int flags = 0,
-    // uint64_t expected_obj_count = 0) = 0;
-  }
   PLOG("Test pool created OK.");
 
   static constexpr unsigned long PER_ITERATION = 4;
@@ -531,7 +534,7 @@ TEST_F(Dawn_client_test, PerfLargePutDirect)
     rc = _dawn->put_direct(pool, data[i % PER_ITERATION].key,
                            data[i % PER_ITERATION].value, VALUE_SIZE,
                            handle); /* pass handle from memory registration */
-    ASSERT_TRUE(rc == S_OK || rc == -6);
+    ASSERT_TRUE(rc == S_OK);
   }
 
   auto end  = std::chrono::high_resolution_clock::now();
@@ -542,7 +545,7 @@ TEST_F(Dawn_client_test, PerfLargePutDirect)
        ((PER_ITERATION * ITERATIONS * VALUE_SIZE) / secs) / (1024.0 * 1024));
 
   _dawn->close_pool(pool);
-  PLOG("Pool closed");
+  _dawn->delete_pool(poolname);
   _dawn->unregister_direct_memory(handle);
   PLOG("Unregistered memory");
 }
@@ -553,12 +556,14 @@ TEST_F(Dawn_client_test, PerfLargeGetDirect)
 {
   int rc;
 
-  auto pool = _dawn->create_pool(Options.pool, GB(8));
+  PMAJOR("Running LargeGetDirect...");
+  const std::string poolname = Options.pool + "/PerfLargeGetDirect";
+  auto pool = _dawn->create_pool(poolname, GB(8));
   ASSERT_TRUE(pool != IKVStore::POOL_ERROR);
 
   static constexpr unsigned long PER_ITERATION = 4;
   static constexpr unsigned long ITERATIONS    = 10;
-  static constexpr unsigned long VALUE_SIZE    = MB(512);
+  static constexpr unsigned long VALUE_SIZE    = MB(64);
   static constexpr unsigned long KEY_SIZE      = 16;
 
   struct record_t {
@@ -619,18 +624,19 @@ TEST_F(Dawn_client_test, PerfLargeGetDirect)
        ((PER_ITERATION * ITERATIONS * VALUE_SIZE) / secs) / (1024.0 * 1024));
 
   _dawn->close_pool(pool);
-  _dawn->delete_pool(Options.pool);
+  _dawn->delete_pool(poolname);
   _dawn->unregister_direct_memory(handle);
 }
 #endif
 
-#ifdef TEST_PERF_SMALL_GET
+#ifdef TEST_PERF_SMALL_GET_DIRECT
 TEST_F(Dawn_client_test, PerfSmallGetDirect)
 {
+  PMAJOR("Running SmallGetDirect...");
   int rc;
 
-  auto pool =
-      _dawn->create_pool(Options.pool, GB(8));
+  const std::string poolname = Options.pool + "/PerfSmallGetDirect";
+  auto pool = _dawn->create_pool(poolname, GB(8));
 
   static constexpr unsigned long PER_ITERATION = 8;
   static constexpr unsigned long ITERATIONS    = 100000;
@@ -697,67 +703,11 @@ TEST_F(Dawn_client_test, PerfSmallGetDirect)
        ((PER_ITERATION * ITERATIONS * VALUE_SIZE) / secs) / (1024.0 * 1024));
 
   _dawn->close_pool(pool);
-
+  _dawn->delete_pool(poolname);
   _dawn->unregister_direct_memory(handle);
 }
 #endif
 
-#ifdef TEST_PUT_DIRECT_0
-TEST_F(Dawn_client_test, PutDirect0)
-{
-  auto pool = _dawn->create_pool("/mnt/pmem0/dawn", "test_pd_8MB", MB(8));
-
-  ASSERT_TRUE(pool > 0);
-
-  std::string key       = "PUT_DIRECT0_key";
-  size_t      value_len = 32;
-  void *      value     = aligned_alloc(4096, value_len);
-  ASSERT_TRUE(value);
-
-  memset(value, 'x', value_len);
-  ((char *) value)[0] = 'a';
-  //  strcpy((char*) value, "This_is_a_value_that_is_put_directly");
-
-  ASSERT_TRUE(_dawn->register_direct_memory(value, value_len) == S_OK);
-
-  auto rc =
-      _dawn->put_direct(pool, key.c_str(), key.length(), value, value_len);
-  ASSERT_FALSE(rc == Component::IKVStore::E_POOL_NOT_FOUND);
-  ASSERT_TRUE(rc == S_OK);
-
-  ASSERT_TRUE(_dawn->close_pool(pool) != Component::IKVStore::POOL_ERROR);
-  ASSERT_TRUE(_dawn->delete_pool("/mnt/pmem0/dawn", "test_pd_8MB") == S_OK);
-
-  ASSERT_NO_THROW(_dawn->delete_pool(pool));
-  ASSERT_TRUE(_dawn->unregister_direct_memory(value) == S_OK);
-}
-#endif
-
-#ifdef TEST_PUT_DIRECT_1
-TEST_F(Dawn_client_test, PutDirectLarge)
-{
-  auto pool = _dawn->create_pool("/mnt/pmem0/dawn", "bigPool4G", GB(4));
-
-  std::string key       = "PUT_DIRECT1_key";
-  size_t      value_len = MB(256);
-  void *      value     = aligned_alloc(4096, value_len);
-  ASSERT_TRUE(value);
-
-  memset(value, 'x', value_len);
-  ((char *) value)[0] = 'a';
-  //  strcpy((char*) value, "This_is_a_value_that_is_put_directly");
-
-  ASSERT_TRUE(_dawn->register_direct_memory(value, value_len) == S_OK);
-
-  ASSERT_TRUE(_dawn->put_direct(pool, key.c_str(), key.length(), value,
-                                value_len) == S_OK);
-
-  ASSERT_TRUE(pool > 0);
-  ASSERT_TRUE(_dawn->close_pool(pool) != Component::IKVStore::POOL_ERROR);
-  ASSERT_TRUE(_dawn->delete_pool("/mnt/pmem0/dawn", "bigPool4G") == S_OK);
-  ASSERT_TRUE(_dawn->unregister_direct_memory(value) == S_OK);
-}
-#endif
 
 TEST_F(Dawn_client_test, Release)
 {

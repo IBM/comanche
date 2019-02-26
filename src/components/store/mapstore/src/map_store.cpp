@@ -283,7 +283,7 @@ IKVStore::pool_t Map_store::create_pool(const std::string& name,
                                         unsigned int flags,
                                         uint64_t args)
 {
-  if(flags & FLAGS_READ_ONLY)
+  if(flags & IKVStore::FLAGS_READ_ONLY)
     throw API_exception("read only create_pool not supported on map-store component");
 
   const auto handle = new Pool_handle;
@@ -293,20 +293,20 @@ IKVStore::pool_t Map_store::create_pool(const std::string& name,
   {
     Std_lock_guard g(_pool_sessions_lock);
 
-    if(flags & FLAGS_CREATE_ONLY) {
+    if(flags & IKVStore::FLAGS_CREATE_ONLY) {
       if(_pools.find(handle->key) != _pools.end()) {
         delete handle;
-        throw General_exception("pool already exists");
+        return POOL_ERROR;
       }
     }
     session = new Pool_session{handle};
     _pools[handle->key] = handle;
-    PLOG("adding new session (%p)", session);
+    PLOG("map_store: adding new session (%p)", session);
     _pool_sessions.insert(session); /* create a session too */
   }
   
   if(option_DEBUG)
-    PLOG("Map_store: created pool OK: %s", handle->key.c_str());
+    PLOG("map_store: created pool OK: %s", handle->key.c_str());
 
   assert(session);
   return reinterpret_cast<IKVStore::pool_t>(session);
@@ -332,7 +332,7 @@ IKVStore::pool_t Map_store::open_pool(const std::string& name,
 
   auto new_session = new Pool_session(ph);
   if(option_DEBUG)
-    PLOG("opened pool(%p)", new_session);
+    PLOG("map_store: opened pool(%p)", new_session);
   _pool_sessions.insert(new_session);
   
   return reinterpret_cast<IKVStore::pool_t>(new_session);
@@ -341,13 +341,16 @@ IKVStore::pool_t Map_store::open_pool(const std::string& name,
 status_t Map_store::close_pool(const pool_t pid)
 {
   if(option_DEBUG)
-    PLOG("close_pool(%p)", (void*) pid);
+    PLOG("map_store: close_pool(%p)", (void*) pid);
   
   auto session = get_session(pid);
+  assert(session);
 
   Std_lock_guard g(_pool_sessions_lock);
   delete session;
   _pool_sessions.erase(session);
+  if(option_DEBUG)
+    PLOG("map_store: erased session %p", session);
 
   return S_OK;
 }
@@ -373,7 +376,7 @@ status_t Map_store::delete_pool(const std::string& name)
   Std_lock_guard g(_pool_sessions_lock);
   for(auto& s: _pool_sessions) {
     if(s->pool->key == key) {
-      PWRN("map_store: delete_pool (%s) pool delted failed because pool still open (%s)", name.c_str());
+      PWRN("map_store: delete_pool (%s) pool delete failed because pool still open (%p)", key.c_str(), s);
       return E_ALREADY_OPEN;
     }
   }

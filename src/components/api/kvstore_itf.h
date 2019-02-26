@@ -68,9 +68,9 @@ public:
   };
 
   enum {
-    FLAGS_READ_ONLY = 1,
-    FLAGS_SET_SIZE = 2,
-    FLAGS_CREATE_ONLY = 3,
+    FLAGS_READ_ONLY   = 0x1,
+    FLAGS_SET_SIZE    = 0x2,
+    FLAGS_CREATE_ONLY = 0x4,
   };
 
   enum {
