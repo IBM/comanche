@@ -80,9 +80,9 @@ public:
   };
 
   enum class Capability {
-    CAP_POOL_DELETE_CHECK, /*< checks if pool is open before allowing delete */
-    CAP_RWLOCK_PER_POOL,
-    CAP_POOL_THREAD_SAFE,
+    POOL_DELETE_CHECK, /*< checks if pool is open before allowing delete */
+    RWLOCK_PER_POOL,
+    POOL_THREAD_SAFE,
   };
 
   enum class Op_type {
