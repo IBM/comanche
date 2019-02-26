@@ -154,16 +154,24 @@ public:
   virtual int thread_safety() const = 0;
 
   /** 
-   * Create an object pool
+   * Create an object pool. If the pool exists and the FLAGS_CREATE_ONLY
+   * is not provided, then the existing pool will be opened.  If FLAGS_CREATE_ONLY
+   * is specified and the pool exists, POOL ERROR will be returned.
    * 
-   * @param path Path of the persistent memory (e.g., /mnt/pmem0/ )
    * @param name Name of object pool
    * @param size Size of object pool in bytes
    * @param flags Creation flags
-   * @param
+   * @param expected_obj_count [optional] Expected number of objects in pool
    * 
    * @return Pool handle or POOL_ERROR
    */
+  virtual pool_t create_pool(const std::string& name,
+                             const size_t size,
+                             unsigned int flags = 0,
+                             uint64_t expected_obj_count = 0) {
+    return POOL_ERROR;
+  }
+
   virtual pool_t create_pool(const std::string& path,
                              const std::string& name,
                              const size_t size,
@@ -172,59 +180,52 @@ public:
     return create_pool(path + name, size, flags, expected_obj_count);
   }
 
-  virtual pool_t create_pool(const std::string& name,
-                             const size_t size,
-                             unsigned int flags = 0,
-                             uint64_t expected_obj_count = 0) {
-    return POOL_ERROR;
-  }
-
 
   /** 
    * Open an existing pool
    * 
-   * @param path Path of persistent memory (e.g., /mnt/pmem0/ )
    * @param name Name of object pool
    * @param flags Open flags e.g., FLAGS_READ_ONLY
    * 
-   * @return Pool handle or POOL_ERROR
+   * @return Pool handle or POOL_ERROR if pool cannot be opened, or flags supported
    */
+  virtual pool_t open_pool(const std::string& name,
+                           unsigned int flags = 0) {
+    return POOL_ERROR;
+  }
+
   virtual pool_t open_pool(const std::string& path,
                            const std::string& name,
                            unsigned int flags = 0) __attribute__((deprecated)) {
     return open_pool(path + name, flags);
   }
 
-  virtual pool_t open_pool(const std::string& name,
-                           unsigned int flags = 0) {
-    return POOL_ERROR;
-  }
-
-
+  
   /** 
    * Close pool handle
    * 
-   * @param pool Pool handle or POOL_ERROR
+   * @param pool Pool handle 
    *
-   * @return S_OK on success
+   * @return S_OK on success, E_ALREADY_OPEN if pool cannot be closed due to open session.
    */
   virtual status_t close_pool(const pool_t pool) = 0;
 
+  
   /** 
    * Delete an existing pool
    * 
-   * @param path Path of persistent memory (e.g., /mnt/pmem0/ )
    * @param name Name of object pool
    * 
    * @return S_OK on success, E_ALREADY_OPEN if pool cannot be deleted
    */
+  virtual status_t delete_pool(const std::string &name) {
+    return E_NOT_IMPL;
+  }
+
   virtual status_t delete_pool(const std::string &path, const std::string &name) {
     return delete_pool(path + name);
   }
   
-  virtual status_t delete_pool(const std::string &name) {
-    return E_NOT_IMPL;
-  }
 
   /** 
    * Get mapped memory regions for pool
