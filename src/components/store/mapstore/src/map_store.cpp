@@ -486,6 +486,15 @@ void Map_store::debug(const pool_t pool, unsigned cmd, uint64_t arg)
 {
 }
 
+int Map_store::get_capability(Capability cap) const
+{
+  switch(cap) {
+  case Capability::POOL_DELETE_CHECK: return 1;
+  case Capability::POOL_THREAD_SAFE: return 1;
+  case Capability::RWLOCK_PER_POOL: return 1;
+  default: return -1;
+  }
+}
 
 /** 
  * Factory entry point
