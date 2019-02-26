@@ -16,7 +16,7 @@ public:
     Component::uuid_t component_uuid = Component::filestore_factory;
     std::string owner = "owner";
     std::string owner_param = "name";
-    std::string pool_path = "./data";
+    std::string pool_path = "./data/";
     std::string pci_address = "";
     std::string server_address = "";
     std::string device_name = "";

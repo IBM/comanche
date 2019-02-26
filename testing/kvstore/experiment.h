@@ -113,7 +113,7 @@ extern uint64_t g_iops;
 class Experiment : public Core::Tasklet
 {
 public:
-  std::string _pool_path = "./data";
+  std::string _pool_path = "./data/";
   std::string _pool_name = "Exp.pool";
   std::string _pool_name_local;  // full pool name, e.g. "Exp.pool.0" for core 0
   std::string _owner = "owner";
@@ -258,35 +258,44 @@ public:
     char poolname[256];
     int core_index = _get_core_index(core);
     sprintf(poolname, "%s.%d", _pool_name.c_str(), core_index);
-    _pool_name_local = poolname;
-    auto path = _pool_path + "/" + poolname;
+    _pool_name_local = std::string(poolname);
+    auto path = _pool_path + poolname;
 
     if (_component != "dawn" && boost::filesystem::exists(path)) {
       bool might_be_dax = boost::filesystem::exists(path);
-      try {
+      try
+      {
         // pool already exists. Delete it.
-        if (_verbose) {
-          std::cout << "pool might already exists at " << path << ". Attempting to delete it...";
+        if (_verbose)
+        {
+          std::cout << "pool might already exist at " << path << ". Attempting to delete it...";
         }
 
         _store->delete_pool(_pool_path, poolname);
 
-        if (_verbose) {
+        if (_verbose)
+        {
           std::cout << " pool deleted!" << std::endl;
         }
       }
-      catch ( const Exception &e ) {
-        if ( ! might_be_dax ) {
+      catch ( const Exception &e )
+      {
+        if ( ! might_be_dax )
+        {
           PERR("open+delete existing pool %s failed: %s.", poolname, e.cause());
         }
       }
-      catch ( const std::exception &e ) {
-        if ( ! might_be_dax ) {
+      catch ( const std::exception &e )
+      {
+        if ( ! might_be_dax )
+        {
           PERR("open+delete existing pool %s failed: %s.", poolname, e.what());
         }
       }
-      catch(...) {
-        if ( ! might_be_dax ) {
+      catch(...)
+      {
+        if ( ! might_be_dax )
+        {
           PERR("open+delete existing pool %s failed.", poolname);
           std::cerr << "open+delete existing pool failed" << std::endl;
         }
@@ -294,50 +303,59 @@ public:
     }
 
     PLOG("Creating pool %s for worker %u ...", _pool_name_local.c_str(), core);
-    try {
-      _pool = _store->create_pool(_pool_path, _pool_name_local, _pool_size, _pool_flags, _pool_num_objects * HT_SIZE_FACTOR);
+    try
+    {
+      _pool = _store->create_pool(_pool_path + _pool_name_local, _pool_size, _pool_flags, _pool_num_objects * HT_SIZE_FACTOR);
     }
-    catch ( const Exception &e ) {
+    catch ( const Exception &e )
+    {
       PERR("create_pool failed: %s. Aborting experiment.", e.cause());
       throw;
     }
-    catch ( const std::exception &e ) {
+    catch ( const std::exception &e )
+    {
       PERR("create_pool failed: %s. Aborting experiment.", e.what());
       throw;
     }
-    catch(...) {
+    catch(...)
+    {
       PERR("create_pool failed! Aborting experiment.");
       throw;
     }
 
     PLOG("Created pool for worker %u...OK!", core);
 
-    if (!_skip_json_reporting) {
+    if (!_skip_json_reporting)
+    {
       // initialize experiment report
       pthread_mutex_lock(&g_write_lock);
 
       rapidjson::Document document = _get_report_document();
       if (!document.HasMember("experiment"))
-        {
-          _initialize_experiment_report(document);
-        }
+      {
+        _initialize_experiment_report(document);
+      }
     }
 
     g_iops = 0;
     pthread_mutex_unlock(&g_write_lock);
 
-    try {
+    try
+    {
       initialize_custom(core);
     }
-    catch ( const Exception &e ) {
+    catch ( const Exception &e )
+    {
       PERR("initialize_custom failed: %s. Aborting experiment.", e.cause());
       throw;
     }
-    catch ( const std::exception &e ) {
+    catch ( const std::exception &e )
+    {
       PERR("initialize_custom failed: %s. Aborting experiment.", e.what());
       throw;
     }
-    catch(...) {
+    catch(...)
+    {
       PERR("initialize_custom failed! Aborting experiment.");
       throw std::exception();
     }
@@ -654,107 +672,138 @@ public:
   }
 
   void cleanup(unsigned core) noexcept override
-    try {
+  {
+    int rc;
+
+    try 
+    {
       try
-        {
-          cleanup_custom(core);
-        }
+      {
+        cleanup_custom(core);
+      }
       catch ( const Exception &e )
-        {
-          PERR("cleanup_custom failed: %s. Aborting experiment.", e.cause());
-          throw;
-        }
+      {
+        PERR("cleanup_custom failed: %s. Aborting experiment.", e.cause());
+        throw;
+      }
       catch ( const std::exception &e )
+      {
+        PERR("cleanup_custom failed: %s. Aborting experiment.", e.what());
+        throw;
+      }
+      catch(...)
+      {
+        PERR("cleanup_custom failed!");
+        throw std::exception();
+      }
+
+      try
+      {
+        if (component_uses_direct_memory())
         {
-          PERR("cleanup_custom failed: %s. Aborting experiment.", e.what());
+          _store->unregister_direct_memory(_memory_handle);
+        }
+      }
+      catch ( const Exception &e )
+      {
+        PERR("unregister_direct_memory failed: %s. Aborting experiment.", e.cause());
+        throw;
+      }
+      catch ( const std::exception &e )
+      {
+        PERR("unregister_direct_memory failed: %s. Aborting experiment.", e.what());
+        throw;
+      }
+      catch(...)
+      {
+        PERR("unregister_direct_memory failed!");
+        throw std::exception();
+      }
+
+      try
+      {
+        rc = _store->close_pool(_pool);
+
+        if (rc != S_OK)
+        {
+          PERR("close_pool returned error code %d", rc);
           throw;
         }
+      }
       catch(...)
+      {
+        PERR("close_pool failed!");
+        throw;
+      }
+
+      try
+      {
+        if (_verbose)
         {
-          PERR("cleanup_custom failed!");
+            std::cout << "cleanup: attempting to delete pool: " << _pool_path << _pool_name_local;
+        }
+
+        rc = _store->delete_pool(_pool_path, _pool_name_local);
+        if (S_OK != rc)
+        {
+          PERR("delete_pool returned error code %d", (int)rc);
           throw std::exception();
         }
 
-      try
+        if (_verbose)
         {
-          if (component_uses_direct_memory())
-            {
-              _store->unregister_direct_memory(_memory_handle);
-            }
+          std::cout << " ...done!" << std::endl;
         }
+      }
       catch ( const Exception &e )
-        {
-          PERR("unregister_direct_memory failed: %s. Aborting experiment.", e.cause());
-          throw;
-        }
+      {
+        PERR("delete_pool failed: %s. Ending experiment.", e.cause());
+        throw;
+      }
       catch ( const std::exception &e )
-        {
-          PERR("unregister_direct_memory failed: %s. Aborting experiment.", e.what());
-          throw;
-        }
+      {
+        PERR("delete_pool failed: %s. Ending experiment.", e.what());
+        throw;
+      }
       catch(...)
-        {
-          PERR("unregister_direct_memory failed!");
-          throw std::exception();
-        }
+      {
+        PERR("delete_pool failed! Ending experiment.");
+        throw std::exception();
+      }
 
       try
+      {
+        if (_verbose)
         {
-          if (_verbose)
-            {
-              std::cout << "cleanup: attempting to delete pool" << std::endl;
-            }
-
-          _store->delete_pool(_pool_path, _pool_name);
+          std::cout << "cleanup: attempting to release_ref on store at " << &_store;
         }
+
+        if (_verbose)
+        {
+          std::cout << " ...done!" << std::endl;
+        }
+      }
       catch ( const Exception &e )
-        {
-          PERR("delete_pool failed: %s. Ending experiment.", e.cause());
-          throw;
-        }
+      {
+        PERR("release_ref call on _store failed: %s.", e.cause());
+        throw;
+      }
       catch ( const std::exception &e )
-        {
-          PERR("delete_pool failed: %s. Ending experiment.", e.what());
-          throw;
-        }
+      {
+        PERR("release_ref failed: %s.", e.what());
+        throw;
+      }
       catch(...)
-        {
-          PERR("delete_pool failed! Ending experiment.");
-          throw std::exception();
-        }
-
-      try
-        {
-          if (_verbose)
-            {
-              std::cout << "cleanup: attempting to release_ref on store at " << &_store;
-            }
-
-          if (_verbose)
-            {
-              std::cout << " ...done!" << std::endl;
-            }
-        }
-      catch ( const Exception &e )
-        {
-          PERR("release_ref call on _store failed: %s.", e.cause());
-          throw;
-        }
-      catch ( const std::exception &e )
-        {
-          PERR("release_ref failed: %s.", e.what());
-          throw;
-        }
-      catch(...)
-        {
-          PERR("release_ref call on _store failed!");
-          throw std::exception();
-        }
+      {
+        PERR("release_ref call on _store failed!");
+        throw std::exception();
+      }
     }
     catch ( ... )
-      {
-        PERR("cleanup of core %u was incomplete.", core);
-      }
+    {
+      PERR("cleanup of core %u was incomplete.", core);
+    }
+  }
 
   bool component_uses_direct_memory()
   {
@@ -773,53 +822,64 @@ public:
 
     try
     {
-      if (g_vm.count("component") > 0) {
+      if (g_vm.count("component") > 0)
+      {
         _component = g_vm["component"].as<std::string>();
       }
 
       if ((_component == "pmstore" || _component == "hstore") && g_vm.count("path") == 0)
-        {
-          PERR("component '%s' requires --path input argument for persistent memory store. Aborting!", _component.c_str());
-          throw std::exception();
-        }
+      {
+        PERR("component '%s' requires --path input argument for persistent memory store. Aborting!", _component.c_str());
+        throw std::exception();
+      }
 
-      if(g_vm.count("path") > 0) {
+      if (g_vm.count("path") > 0)
+      {
         _pool_path = g_vm["path"].as<std::string>();
       }
 
-      if (g_vm.count("pool_name") > 0) {
+      if (g_vm.count("pool_name") > 0)
+      {
         _pool_name = g_vm["pool_name"].as<std::string>();
       }
 
-      if(g_vm.count("size") > 0) {
+      if (g_vm.count("size") > 0)
+      {
         _pool_size = g_vm["size"].as<unsigned long long int>();
       }
 
-      if (g_vm.count("elements") > 0) {
+      if (g_vm.count("elements") > 0)
+      {
         _pool_num_objects = g_vm["elements"].as<int>();
       }
 
-      if (g_vm.count("flags") > 0) {
+      if (g_vm.count("flags") > 0)
+      {
         _pool_flags = g_vm["flags"].as<int>();
       }
 
-      if (g_vm.count("owner") > 0) {
+      if (g_vm.count("owner") > 0)
+      {
         _owner = g_vm["owner"].as<std::string>();
       }
 
-      if (g_vm.count("bins") > 0) {
+      if (g_vm.count("bins") > 0)
+      {
         _bin_count = g_vm["bins"].as<int>();
       }
 
-      if (g_vm.count("latency_range_min") > 0) {
+      if (g_vm.count("latency_range_min") > 0)
+      {
         _bin_threshold_min = g_vm["latency_range_min"].as<double>();
       }
 
-      if (g_vm.count("latency_range_max") > 0) {
+      if (g_vm.count("latency_range_max") > 0)
+      {
         _bin_threshold_max = g_vm["latency_range_max"].as<double>();
       }
 
-      if (g_vm.count("start_time") > 0) {
+      if (g_vm.count("start_time") > 0)
+      {
         _start_time = g_vm["start_time"].as<std::string>();
       }
 
