@@ -278,8 +278,7 @@ Map_store::~Map_store()
 }
   
 
-IKVStore::pool_t Map_store::create_pool(const std::string& path,
-                                        const std::string& name,
+IKVStore::pool_t Map_store::create_pool(const std::string& name,
                                         const size_t size,
                                         unsigned int flags,
                                         uint64_t args)
@@ -289,7 +288,7 @@ IKVStore::pool_t Map_store::create_pool(const std::string& path,
 
   const auto handle = new Pool_handle;
   Pool_session * session = nullptr;
-  handle->key = path + name;
+  handle->key = name;
   handle->flags = flags;
   {
     Std_lock_guard g(_pool_sessions_lock);
@@ -313,11 +312,10 @@ IKVStore::pool_t Map_store::create_pool(const std::string& path,
   return reinterpret_cast<IKVStore::pool_t>(session);
 }
 
-IKVStore::pool_t Map_store::open_pool(const std::string& path,
-                                      const std::string& name,
+IKVStore::pool_t Map_store::open_pool(const std::string& name,
                                       unsigned int flags)
 {
-  std::string key = path + name;
+  const std::string& key = name;
 
   Pool_handle * ph = nullptr;
   /* see if a pool exists that matches the key */
@@ -354,10 +352,9 @@ status_t Map_store::close_pool(const pool_t pid)
   return S_OK;
 }
 
-status_t Map_store::delete_pool(const std::string& path,
-                                const std::string& name)
+status_t Map_store::delete_pool(const std::string& name)
 {
-  std::string key = path + name;
+  const std::string& key = name;
 
   Pool_handle * ph = nullptr;
   /* see if a pool exists that matches the key */
