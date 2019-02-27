@@ -123,34 +123,34 @@ namespace impl
 				;
 			}
 		};
-	}
 
-template <typename Bucket>
-	auto operator<<(
-		std::ostream &o_
-		, const impl::segment_and_bucket<Bucket> &b_
-	) -> std::ostream &
-	{
-		return o_ << b_.si() << "." << b_.bi();
-	}
+	template <typename Bucket>
+		auto operator<<(
+			std::ostream &o_
+			, const segment_and_bucket<Bucket> &b_
+		) -> std::ostream &
+		{
+			return o_ << b_.si() << "." << b_.bi();
+		}
 
-template <typename Bucket>
-	auto operator==(
-		const impl::segment_and_bucket<Bucket> &a_
-		, const impl::segment_and_bucket<Bucket> &b_
-	) -> bool
-	{
-		/* (test bi first as it is the more likely mismatch) */
-		return a_.bi() == b_.bi() && a_.si() == b_.si();
-	}
+	template <typename Bucket>
+		auto operator==(
+			const segment_and_bucket<Bucket> &a_
+			, const segment_and_bucket<Bucket> &b_
+		) -> bool
+		{
+			/* (test bi first as it is the more likely mismatch) */
+			return a_.bi() == b_.bi() && a_.si() == b_.si();
+		}
 
-template <typename Bucket>
-	auto operator!=(
-		const impl::segment_and_bucket<Bucket> &a_
-		, const impl::segment_and_bucket<Bucket> &b_
-	) -> bool
-	{
-		return ! ( a_ == b_);
-	}
+	template <typename Bucket>
+		auto operator!=(
+			const segment_and_bucket<Bucket> &a_
+			, const segment_and_bucket<Bucket> &b_
+		) -> bool
+		{
+			return ! ( a_ == b_);
+		}
+}
 
 #endif

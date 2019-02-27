@@ -6,30 +6,30 @@
  * ===== owner =====
  */
 
-template <typename TableBase, typename Lock>
+template <typename Lock>
 	auto impl::operator<<(
 		std::ostream &o_
-		, const owner_print<TableBase, Lock> &t_
+		, const owner_print<Lock> &op_
 	) -> std::ostream &
 	{
-		const auto &w = t_.get_table().locate_owner(t_.sb());
+		const auto &w = static_cast<const owner &>(op_.sb().deref());
 		return o_
 			<< "(owner "
-			<< w.owned(t_.get_table().bucket_count(), t_.lock())
+			<< w.owned(op_.bucket_count(), op_.lock())
 			<< ")";
 	}
 
 template <typename TableBase>
 	auto impl::operator<<(
 		std::ostream &o_
-		, const owner_print<TableBase, bypass_lock<typename TableBase::bucket_t, const owner>> &t_
+		, const owner_print<bypass_lock<typename TableBase::bucket_t, const owner>> &op_
 	) -> std::ostream &
 	{
-		const auto &w = t_.get_table().locate_owner(t_.sb());
-		bypass_lock<typename TableBase::bucket_t, const owner> lk(w, t_.sb());
+		const auto &w = static_cast<const owner &>(op_.sb().deref());
+		bypass_lock<typename TableBase::bucket_t, const owner> lk(w, op_.sb());
 		return o_
 			<< "(owner owns"
-			<< w.owned(t_.get_table().bucket_count(), lk)
+			<< w.owned(op_.get_table().bucket_count(), lk)
 			<< ")";
 	}
 

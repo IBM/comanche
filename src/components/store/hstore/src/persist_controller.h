@@ -89,7 +89,7 @@ namespace impl
 			);
 			auto bucket_count_uncached() -> size_type
 			{
-				return base_segment_size << (segment_count_actual() - 1U);
+				return base_segment_size << (segment_count_actual().value_not_stable() - 1U);
 			}
 
 		public:
@@ -101,6 +101,8 @@ namespace impl
 			) -> persist_controller & = delete;
 
 			auto resize_prolog() -> bucket_aligned_t *;
+			auto resize_restart_prolog() -> bucket_aligned_t *;
+			void resize_interlog();
 			void resize_epilog();
 
 			void size_stabilize();
@@ -119,23 +121,23 @@ namespace impl
 			void persist_existing_segments(const char *what = "old segments");
 			void persist_new_segment(const char *what = "new segments");
 
-			std::size_t segment_count_actual() const
+			auto segment_count_actual() const
 			{
 				return _persist->_segment_count._actual;
 			}
-			std::size_t segment_count_target() const
+			std::size_t segment_count_specified() const
 			{
-				return _persist->_segment_count._target;
+				return _persist->_segment_count._specified;
 			}
 #if TEST_HSTORE_PERISHABLE
 			auto size_unstable() const /* debugging */
 			{
-				return _persist->_size_control.size_unstable();
+				return _persist->_size_control.value_not_stable();
 			}
 #endif
 			std::size_t size() const
 			{
-				return _persist->_size_control.size();
+				return _persist->_size_control.value();
 			}
 
 			size_control &get_size_control()

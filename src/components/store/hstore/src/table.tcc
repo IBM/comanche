@@ -67,44 +67,90 @@ template <
 			}
 		);
 
-		_bc[0]._index = 0;
-		_bc[0]._next = &_bc[0];
-		_bc[0]._prev = &_bc[0];
-		_bc[0]._bucket_mutexes = new bucket_mutexes_t[base_segment_size];
-		_bc[0]._buckets_end = _bc[0]._buckets + base_segment_size;
+		{
+			auto ix = 0U;
+			_bc[ix]._index = ix;
+			_bc[ix]._next = &_bc[0];
+			_bc[ix]._prev = &_bc[0];
+			const auto segment_size = base_segment_size;
+			_bc[ix]._bucket_mutexes = new bucket_mutexes_t[segment_size];
+			_bc[ix]._buckets_end = _bc[ix]._buckets + segment_size;
+			if ( mode_ == construction_mode::reconstitute )
+			{
+				for ( auto it = _bc[ix]._buckets; it != _bc[ix]._buckets_end; ++it )
+				{
+					content_t &c = *it;
+					/* reconsititute key and value */
+					if ( c.state_get() != bucket_t::FREE )
+					{
+						c.value().first.reconstitute(av_);
+						c.value().second.reconstitute(av_);
+					}
+				}
+			}
+		}
 
-		for ( auto ix = 1U; ix != this->persist_controller_t::segment_count_actual(); ++ix )
+		for ( auto ix = 1U; ix != this->persist_controller_t::segment_count_actual().value_not_stable(); ++ix )
 		{
 			_bc[ix-1]._next = &_bc[ix];
 			_bc[ix]._prev = &_bc[ix-1];
 			_bc[ix]._index = ix;
 			_bc[ix]._next = &_bc[0];
 			_bc[0]._prev = &_bc[ix];
-			auto segment_size = base_segment_size << (ix-1U);
+			const auto segment_size = base_segment_size << (ix-1U);
 			_bc[ix]._bucket_mutexes =
 				new bucket_mutexes_t[segment_size];
 			_bc[ix]._buckets_end = _bc[ix]._buckets + segment_size;
-		}
-#if TRACE_MANY
-		std::cerr << __func__ << " count " << this->persist_controller_t::segment_count_actual()
-			<< " count_target " << this->persist_controller_t::segment_count_target() << "\n";
-#endif
-
-		{
-			/* ERROR: will this work if size is unstable? (Yes, because iterator no longer depends on size */
-			for ( iterator it = begin(); it != end(); ++it )
+			if ( mode_ == construction_mode::reconstitute )
 			{
-				/* reconsititute key and value */
-				it->first.reconstitute(av_);
-				it->second.reconstitute(av_);
+				for ( auto it = _bc[ix]._buckets; it != _bc[ix]._buckets_end; ++it )
+				{
+					/* reconsititute key and value */
+					content_t &c = *it;
+					if ( c.state_get() != bucket_t::FREE )
+					{
+						c.value().first.reconstitute(av_);
+						c.value().second.reconstitute(av_);
+					}
+				}
 			}
 		}
-
+#if TRACE_MANY
+		std::cerr << __func__ << " segment_count " << this->persist_controller_t::segment_count_actual().value_not_stable()
+			<< " segment_count_specified " << this->persist_controller_t::segment_count_specified() << "\n";
+#endif
 		/* If table allocation incomplete (perhaps in the middle of a resize op), resize until large enough. */
-		while ( this->persist_controller_t::segment_count_actual() != this->persist_controller_t::segment_count_target() )
+
+#if TEST_HSTORE_PERISHABLE
+		std::cerr << "Table base constructor: "
+			<< (this->is_size_stable() ? "stable" : "unstable") << " segment_count " << this->segment_count_actual().value_not_stable() << "\n";
+#endif
+		if ( ! this->persist_controller_t::segment_count_actual().is_stable() )
 		{
 			/* ERROR: reconstruction code for resize state not written. */
-			resize();
+			const auto ix = this->persist_controller_t::segment_count_actual().value_not_stable();
+			bucket_control_t &junior_bucket_control = _bc[ix];
+
+			junior_bucket_control._buckets = this->persist_controller_t::resize_restart_prolog();
+			junior_bucket_control._next = &_bc[0];
+			junior_bucket_control._prev = &_bc[ix-1];
+			junior_bucket_control._index = ix;
+			const auto segment_size = base_segment_size << (ix-1U);
+			junior_bucket_control._bucket_mutexes = new bucket_mutexes_t[segment_size];
+			junior_bucket_control._buckets_end = junior_bucket_control._buckets + segment_size;
+
+			for ( auto jr = junior_bucket_control._buckets; jr != junior_bucket_control._buckets_end ; ++jr )
+			{
+				content_t &c = *jr;
+				if ( c.state_get() != bucket_t::FREE )
+				{
+					c.value().first.reconstitute(av_);
+					c.value().second.reconstitute(av_);
+				}
+			}
+			 
+			resize_pass2();
+			this->persist_controller_t::resize_epilog();
 		}
 
 #if TEST_HSTORE_PERISHABLE
@@ -124,7 +170,7 @@ template <
 			 */
 			auto sb = make_segment_and_bucket_for_iterator(0);
 			const auto sb_end =
-				make_segment_and_bucket_for_iterator(bucket_count());
+				make_segment_and_bucket_at_end();
 			/* Develop the mask as if we have not yet read the ownership for element 0 */
 			auto owned_mask = owned_by_owner_mask(sb) << 1U;
 			for ( ; sb != sb_end ; sb.incr_without_wrap() )
@@ -454,7 +500,7 @@ template <
 #if TRACE_MANY
 			std::ostringstream c_old;
 			{
-				c_old << make_owner_print(*this, owner_lock);
+				c_old << make_owner_print(this->bucket_count(), owner_lock);
 			}
 #endif
 			b_dst_lock_.ref().content_share(b_src_lock.ref());
@@ -499,7 +545,7 @@ template <
 				<< " "
 				<< c_old.str()
 				<< "->"
-				<< make_owner_print(*this, owner_lock)
+				<< make_owner_print(this->bucket_count(), owner_lock)
 				<< "\n";
 #endif
 			b_dst_lock_ = std::move(b_src_lock);
@@ -591,7 +637,7 @@ template <
 #if TRACE_MANY
 					std::cerr << __func__ << " bucket " << owner_lk.index()
 						<< " store at " << b_dst.index() << " "
-						<< make_owner_print(*this, owner_lk)
+						<< make_owner_print(this->bucket_count(), owner_lk)
 						<< " " << b_dst.ref() << "\n";
 #endif
 				}
@@ -677,6 +723,8 @@ template <
 		 * and the "need to scan junior content bit" must be updated together.
 		 */
 
+		this->persist_controller_t::resize_interlog();
+
 		/* PASS 2: remove old content, update owners. Some old content mave have been
 		 * removed if pass 2 was restarted, so use the new (junior) content to drive
 		 * the operations.
@@ -696,7 +744,7 @@ template <
 
 		bix_t ix_senior = 0U;
 		const auto sb_senior_end =
-			make_segment_and_bucket_for_iterator(bucket_count());
+			make_segment_and_bucket_at_end();
 #if TRACE_MANY
 			std::cerr << __func__
 				<< " bucket_count " << bucket_count()
@@ -777,84 +825,99 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
+	void impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::resize_pass2_inner(
+		bix_t ix_senior
+		, bucket_control_t &junior_bucket_control
+		, content_unique_lock_t &populated_content_lk
+	)
+	{
+		/* examine the key to locate old and new owners (owners) */
+		auto hash = _hasher.hf(populated_content_lk.ref().key());
+		auto ix_senior_owner = bucket_ix(hash);
+		auto ix_junior_owner = bucket_expanded_ix(hash);
+#if TRACE_MANY
+		std::cerr << __func__ << ".2 content "
+			<< ix_senior << " -> " << junior_content_lk.index()
+			<< " owner " << ix_senior_owner << " -> " << ix_junior_owner
+			<< "\n";
+#endif
+		if ( ix_senior_owner != ix_junior_owner )
+		{
+			auto senior_owner_sb = make_segment_and_bucket(ix_senior_owner);
+			auto senior_owner_lk = make_owner_unique_lock(senior_owner_sb);
+			owner_unique_lock_t
+				junior_owner_lk(
+					junior_bucket_control._buckets[ix_senior_owner]
+					, segment_and_bucket_t(&junior_bucket_control, ix_senior_owner)
+					, junior_bucket_control._bucket_mutexes[ix_senior_owner]._m_owner
+				);
+
+			/* special locate, used before size has been updated
+			 * to pre-fill new buckets
+			 */
+			auto &junior_owner = junior_bucket_control._buckets[ix_senior_owner];
+			auto owner_pos = distance_wrapped(ix_senior_owner, ix_senior);
+			assert(owner_pos < owner::size);
+			junior_owner.insert(ix_junior_owner, owner_pos, junior_owner_lk);
+			senior_owner_lk.ref().erase(owner_pos, senior_owner_lk);
+			this->persist_controller_t::persist_owner(junior_owner_lk.ref(), "pass 2 junior owner");
+			this->persist_controller_t::persist_owner(senior_owner_lk.ref(), "pass 2 senior owner");
+		}
+	}
+
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
 	void impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::resize_pass2()
 	{
 		/* PASS 2: remove old content, update owners. Some old content mave have been
 		 * removed if pass 2 was restarted, so use the new (junior) content to drive
 		 * the operations.
 		 */
+		const auto old_segment_count = this->persist_controller_t::segment_count_actual().value_not_stable();
+		bucket_control_t &junior_bucket_control = _bc[old_segment_count];
+
 		bix_t ix_senior = 0U;
-		const auto sb_senior_end = make_segment_and_bucket_for_iterator(bucket_count());
+		const auto sb_senior_end = make_segment_and_bucket_at_end();
 		for (
 			auto sb_senior = make_segment_and_bucket(0U)
 			; sb_senior != sb_senior_end
 			; sb_senior.incr_without_wrap(), ++ix_senior
 		)
 		{
+
+			/* get segment count before it was made unstable */
 			/* special locate, used before size has been updated
 			 * to pre-fill new buckets
 			 */
 			content_unique_lock_t
 				junior_content_lk(
-					_bc[segment_count()]._buckets[ix_senior]
-					, segment_and_bucket_t(&_bc[segment_count()], ix_senior)
-					, _bc[segment_count()]._bucket_mutexes[ix_senior]._m_content
+					junior_bucket_control._buckets[ix_senior]
+					, segment_and_bucket_t(&junior_bucket_control, ix_senior)
+					, junior_bucket_control._bucket_mutexes[ix_senior]._m_content
 				);
 
 			auto senior_content_lk = make_content_unique_lock(sb_senior);
-			if ( junior_content_lk.ref().state_get() == bucket_t::IN_USE || senior_content_lk.ref().state_get() == bucket_t::IN_USE )
+
+			if ( junior_content_lk.ref().state_get() == bucket_t::IN_USE )
 			{
-				/* examine the key to locate old and new owners (owners) */
-				auto hash = _hasher.hf(junior_content_lk.ref().key());
-				auto ix_senior_owner = bucket_ix(hash);
-				auto ix_junior_owner = bucket_expanded_ix(hash);
-#if TRACE_MANY
-				std::cerr << __func__ << ".2 content "
-					<< ix_senior << " -> " << junior_content_lk.index()
-					<< " owner " << ix_senior_owner << " -> " << ix_junior_owner
-					<< "\n";
-#endif
-				if ( ix_senior_owner != ix_junior_owner )
-				{
-					auto senior_owner_sb = make_segment_and_bucket(ix_senior_owner);
-					auto senior_owner_lk = make_owner_unique_lock(senior_owner_sb);
-					owner_unique_lock_t
-						junior_owner_lk(
-							_bc[segment_count()]._buckets[ix_senior_owner]
-							, segment_and_bucket_t(&_bc[segment_count()], ix_senior_owner)
-							, _bc[segment_count()]._bucket_mutexes[ix_senior_owner]._m_owner
-						);
-
-					/* special locate, used before size has been updated
-					 * to pre-fill new buckets
-					 */
-					auto &junior_owner = _bc[segment_count()]._buckets[ix_senior_owner];
-					auto owner_pos = distance_wrapped(ix_senior_owner, ix_senior);
-					assert(owner_pos < owner::size);
-					junior_owner.insert(ix_junior_owner, owner_pos, junior_owner_lk);
-					senior_owner_lk.ref().erase(owner_pos, senior_owner_lk);
-					if ( junior_content_lk.ref().state_get() == bucket_t::FREE )
-					{
-						/* content not moved, but owner changed (because content
-						 * is near start of table and owner moved from near old end
-						 * to near new end)
-						 */
-						assert(ix_senior < base_segment_size);
+				resize_pass2_inner(ix_senior, junior_bucket_control, junior_content_lk);
+				senior_content_lk.ref().erase();
+				senior_content_lk.ref().state_set(bucket_t::FREE);
+			}
+			else if ( senior_content_lk.ref().state_get() == bucket_t::IN_USE )
+			{
+				resize_pass2_inner(ix_senior, junior_bucket_control, senior_content_lk);
 #if TRACK_OWNER
-						/* adjust the owner location (as kept in content) to reflect the
-						 * new owner location
-						 */
-						senior_content_lk.ref().owner_update(bucket_count());
+				/* adjust the owner location (as kept in content) to reflect the
+				 * new owner location
+				 */
+				senior_content_lk.ref().owner_update(bucket_count());
 #endif
-					}
-					this->persist_controller_t::persist_owner(junior_owner_lk.ref(), "pass 2 junior owner");
-					this->persist_controller_t::persist_owner(senior_owner_lk.ref(), "pass 2 senior owner");
-
-					if ( junior_content_lk.ref().state_get() == bucket_t::IN_USE )
-					{
-						senior_content_lk.ref().erase();
-					}
-				}
+			}
+			else
+			{
 			}
 		}
 
@@ -864,8 +927,8 @@ template <
 		this->persist_controller_t::persist_new_segment("pass 2 junior owner");
 
 		/* link in new segment in non-persistent circular list of segments */
-		_bc[segment_count()-1]._next = &_bc[segment_count()];
-		_bc[0]._prev = &_bc[segment_count()];
+		_bc[old_segment_count-1]._next = &junior_bucket_control;
+		_bc[0]._prev = &junior_bucket_control;
 	}
 
 template <
@@ -952,6 +1015,35 @@ template <
 			: segment_and_bucket_t(&_bc[si], bi)
 			;
 #pragma GCC diagnostic pop
+	}
+
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<
+		Key, T, Hash, Pred, Allocator, SharedMutex
+	>::make_segment_and_bucket_at_begin() const -> segment_and_bucket_t
+	{
+		return segment_and_bucket_t(&_bc[0], 0); /* begin iterator */
+	}
+
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	auto impl::table_base<
+		Key, T, Hash, Pred, Allocator, SharedMutex
+	>::make_segment_and_bucket_at_end() const -> segment_and_bucket_t
+	{
+		auto ix = bucket_count();
+
+		auto si =
+			__builtin_expect((segment_layout::ix_high(ix) == 0),false)
+			? 0
+			: segment_layout::log2(ix_high(ix))
+			;
+		return segment_and_bucket_t(&_bc[si-1], _bc[si-1].segment_size() ); /* end iterator */
 	}
 
 template <
@@ -1085,7 +1177,7 @@ template <
 			std::cerr
 				<< __func__
 				<< " owner "
-				<< make_owner_print(*this, bi_)
+				<< make_owner_print(this->bucket_count(), bi_)
 				<< " value " << wv
 				<< "\n";
 #endif
@@ -1211,7 +1303,7 @@ template <
 			<< " " << k_
 			<< " starting at " << bi_lk.index()
 			<< " "
-			<< make_owner_print(*this, bi_lk)
+			<< make_owner_print(this->bucket_count(), bi_lk)
 			<< " found "
 			<< *bf << "\n";
 #endif

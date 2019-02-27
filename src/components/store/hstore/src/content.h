@@ -33,7 +33,7 @@ namespace impl
 		class content
 		{
 		public:
-			enum state_t { FREE, ENTERING, IN_USE, EXITING };
+			enum state_t { FREE, IN_USE };
 		private:
 			using key_t = typename Value::first_type;
 			using mapped_t = typename Value::second_type;

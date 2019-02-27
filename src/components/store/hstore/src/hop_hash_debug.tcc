@@ -7,13 +7,13 @@
 #include "owner_debug.tcc"
 #include "content_debug.tcc"
 
-template <typename TableBase, typename LockOwner, typename LockContent>
-	impl::bucket_print<TableBase, LockOwner, LockContent>::bucket_print(
-		const TableBase &t_
+template <typename LockOwner, typename LockContent>
+	impl::bucket_print<LockOwner, LockContent>::bucket_print(
+		const std::size_t ct_
 		, LockOwner &c_
 		, LockContent &i_
 	)
-		: _t(&t_)
+		: _ct(ct_)
 		, _c{&c_}
 		, _i{&i_}
 	{
@@ -24,17 +24,16 @@ template <typename TableBase, typename LockOwner, typename LockContent>
  * ===== hash_bucket =====
  */
 
-template <typename TableBase, typename LockOwner, typename LockContent>
+template <typename LockOwner, typename LockContent>
 	auto impl::operator<<(
 		std::ostream &o_
-		, const bucket_print<TableBase, LockOwner, LockContent> &p_
+		, const bucket_print<LockOwner, LockContent> &p_
 	) -> std::ostream &
 	{
-		const auto &t = p_.get_table();
-		const auto &b = t.locate(p_.sb());
+		const auto &b = p_.sb().deref();
 		return o_
 			<< "( "
-			<< make_owner_print(t, p_.lock_owner())
+			<< make_owner_print(p_.bucket_count(), p_.lock_owner())
 			<< " "
 			<< b
 			<< " )";
@@ -45,18 +44,16 @@ template <typename TableBase>
 		std::ostream &o_
 		, const bucket_print
 			<
-				TableBase
-				, bypass_lock<typename TableBase::bucket_t, owner>
+				bypass_lock<typename TableBase::bucket_t, owner>
 				, bypass_lock<typename TableBase::bucket_t, content<typename TableBase::bucket_t>>
 			> &p_
 	) -> std::ostream &
 	{
-		const auto &t = p_.get_table();
-		const auto &b = t.locate(p_.index());
+		const auto &b = p_.sb().deref();
 		auto lk_shared_owner = bypass_lock<typename TableBase::bucket_t, owner>(p_.index());
 		return o_
 			<< "( "
-			<< make_owner_print(t, lk_shared_owner)
+			<< make_owner_print(p_.bucket_count(), lk_shared_owner)
 			<< " "
 			<< b
 			<< " )";

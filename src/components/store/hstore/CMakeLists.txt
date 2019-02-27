@@ -7,7 +7,7 @@ set (CMAKE_CXX_STANDARD 14)
 add_subdirectory(./unit_test)
 
 enable_language(CXX)
-set(SOURCES src/dax_map.cpp src/hstore.cpp src/hstore_factory.cpp src/hop_hash.cpp src/perishable.cpp src/size_control.cpp)
+set(SOURCES src/dax_map.cpp src/hstore.cpp src/hstore_factory.cpp src/hop_hash.cpp src/perishable.cpp)
 
 #add_custom_target(format-hstore
 #  COMMAND /usr/bin/clang-format

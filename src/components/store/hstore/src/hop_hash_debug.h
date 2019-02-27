@@ -1,5 +1,5 @@
-#ifndef _DAWN_HSTORE_HOP_HASH_DEBUG_H
-#define _DAWN_HSTORE_HOP_HASH_DEBUG_H
+#ifndef _COMANCHE_HSTORE_HOP_HASH_DEBUG_H
+#define _COMANCHE_HSTORE_HOP_HASH_DEBUG_H
 
 #include "segment_and_bucket.h"
 #include <cstddef> /* size_t */
@@ -37,64 +37,60 @@ namespace impl
 		) -> std::ostream &;
 
 	template <
-		typename TableBase
-		, typename Lock
+		typename Lock
 	>
 		class owner_print
 		{
-			const TableBase *_t;
+			std::size_t _ct;
 			Lock *_i;
 		public:
-			owner_print(const TableBase &t_, Lock &i_)
-				: _t(&t_)
+			owner_print(std::size_t ct_, Lock &i_)
+				: _ct(ct_)
 				, _i{&i_}
 			{}
-			const TableBase &get_table() const { return *_t; }
+			std::size_t bucket_count() const { return _ct; }
 			Lock &lock() const { return *_i; }
 			auto sb() const { return lock().sb(); }
 			std::size_t index() const { return lock().index(); }
 		};
 
 	template <
-		typename TableBase
-		, typename Lock
+		typename Lock
 	>
 		auto make_owner_print(
-			const TableBase &t_
+			const std::size_t &sz_
 			, Lock &lk_
-		) -> owner_print<TableBase, Lock>
+		) -> owner_print<Lock>
 		{
-			return owner_print<TableBase, Lock>(t_, lk_);
+			return owner_print<Lock>(sz_, lk_);
 		}
 
 	template <
-		typename TableBase
-		, typename Lock
+		typename Lock
 	>
 		auto operator<<(
 			std::ostream &o
-			, const owner_print<TableBase, Lock> &
+			, const owner_print<Lock> &
 		) -> std::ostream &;
 
 	template <typename TableBase>
 		auto operator<<(
 			std::ostream &o
-			, const owner_print<TableBase, bypass_lock<typename TableBase::bucket_t, const owner>> &
+			, const owner_print<bypass_lock<typename TableBase::bucket_t, const owner>> &
 		) -> std::ostream &;
 
 	template <
-		typename TableBase
-		, typename LockOwner
+		typename LockOwner
 		, typename LockContent
 	>
 		class bucket_print
 		{
-			const TableBase *_t;
+			std::size_t _ct;
 			LockOwner *_c;
 			LockContent *_i;
 		public:
-			bucket_print(const TableBase &t, LockOwner &w, LockContent &i);
-			const TableBase &get_table() const { return *_t; }
+			bucket_print(std::size_t bucket_count_, LockOwner &w, LockContent &i);
+			std::size_t bucket_count() const { return _ct; }
 			LockOwner &lock_owner() const { return *_c; }
 			LockContent &lock() const { return *_i; }
 			std::size_t index() const { return lock().index(); }
@@ -116,23 +112,21 @@ namespace impl
 		};
 
 	template <
-		typename TableBase
-		, typename LockOwner
+		typename LockOwner
 		, typename LockContent
 	>
-		auto make_bucket_print(const TableBase &t_, LockOwner &lk_, LockContent &co_)
+		auto make_bucket_print(std::size_t ct_, LockOwner &lk_, LockContent &co_)
 		{
-			return bucket_print<TableBase, LockOwner, LockContent>(t_, lk_, co_);
+			return bucket_print<LockOwner, LockContent>(ct_, lk_, co_);
 		}
 
 	template <
-		typename TableBase
-		, typename LockOwner
+		typename LockOwner
 		, typename LockContent
 	>
 		auto operator<<(
 			std::ostream &o
-			, const impl::bucket_print<TableBase, LockOwner, LockContent> &
+			, const impl::bucket_print<LockOwner, LockContent> &
 		) -> std::ostream &;
 
 	template <
@@ -173,13 +167,12 @@ namespace impl
 		) -> std::ostream &;
 
 	template <
-		typename TableBase
-		, typename LockOwner
+		typename LockOwner
 		, typename LockContent
 	>
 		auto operator<<(
 			std::ostream &
-			, const bucket_print<TableBase, LockOwner, LockContent> &
+			, const bucket_print<LockOwner, LockContent> &
 		) -> std::ostream &;
 
 	template <
