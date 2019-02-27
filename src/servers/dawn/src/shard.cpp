@@ -340,10 +340,11 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
       status = E_INVAL;
       goto send_response;
     }
-    
+
+    std::string k(msg->key(), msg->key_len);
     /* create (if needed) and lock value */    
     auto key_handle = _i_kvstore->lock(msg->pool_id,
-                                       msg->key(),
+                                       k,
                                        IKVStore::STORE_LOCK_WRITE,
                                        target,
                                        target_len);
@@ -447,7 +448,8 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
 
       std::string k(msg->key(), msg->key_len);
 
-      auto key_handle = _i_kvstore->lock(msg->pool_id, k,
+      auto key_handle = _i_kvstore->lock(msg->pool_id,
+                                         k,
                                          IKVStore::STORE_LOCK_READ,
                                          value_out,
                                          value_out_len);
