@@ -121,14 +121,9 @@ class KVStore_test
   static long unsigned put_many(const kvv_t &kvv, const std::string &descr);
   static void get_many(const kvv_t &kvv, const std::string &descr);
 
-  std::string pool_dir() const
-  {
-    return "/mnt/pmem0/pool/0/";
-  }
-
   std::string pool_name() const
   {
-    return "test-" + store_map::impl->name + store_map::numa_zone() + ".pool";
+    return "/mnt/pmem0/pool/0/test-" + store_map::impl->name + store_map::numa_zone() + ".pool";
   }
 };
 
@@ -174,7 +169,7 @@ TEST_F(KVStore_test, RemoveOldPool)
   {
     try
     {
-      _kvstore->delete_pool(pool_dir(), pool_name());
+      _kvstore->delete_pool(pool_name());
     }
     catch ( Exception & )
     {
@@ -185,7 +180,7 @@ TEST_F(KVStore_test, RemoveOldPool)
 TEST_F(KVStore_test, CreatePool)
 {
   ASSERT_TRUE(_kvstore);
-  pool = _kvstore->create_pool(pool_dir(), pool_name(), MB(16381UL), 0, estimated_object_count);
+  pool = _kvstore->create_pool(pool_name(), MB(16381UL), 0, estimated_object_count);
   ASSERT_LT(0, int64_t(pool));
 }
 
@@ -363,7 +358,7 @@ TEST_F(KVStore_test, ClosePool)
 
 TEST_F(KVStore_test, DeletePool)
 {
-  _kvstore->delete_pool(pool_dir(), pool_name());
+  _kvstore->delete_pool(pool_name());
 }
 
 } // namespace

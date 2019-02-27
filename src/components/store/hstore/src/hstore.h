@@ -78,19 +78,16 @@ public:
 
   int thread_safety() const;
 
-  pool_t create_pool(const std::string &path,
-                     const std::string &name,
+  pool_t create_pool(const std::string &name,
                      std::size_t size,
                      unsigned int flags,
                      uint64_t expected_obj_count
                      ) override;
 
-  pool_t open_pool(const std::string &path,
-                   const std::string &name,
+  pool_t open_pool(const std::string &name,
                    unsigned int flags) override;
 
-  status_t delete_pool(const std::string &path,
-                       const std::string &name) override;
+  status_t delete_pool(const std::string &name) override;
 
   status_t close_pool(pool_t pid) override;
 

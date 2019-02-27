@@ -217,24 +217,22 @@ auto hstore::thread_safety() const -> int
   return thread_model;
 }
 
-auto hstore::create_pool(
-                         const std::string & dir_,
-                         const std::string & name_,
+auto hstore::create_pool(const std::string & name_,
                          const std::size_t size_,
                          unsigned int /* flags */,
                          const uint64_t  expected_obj_count_) -> pool_t
 {
-  std::cerr << "create_pool " << dir_ << "/" << name_ << " size " << size_ << "\n";
+  std::cerr << "create_pool " << name_ << " size " << size_ << "\n";
   if ( option_DEBUG )
   {
-    PLOG(PREFIX "dir=%s pool_name=%s", __func__, dir_.c_str(), name_.c_str());
+    PLOG(PREFIX "pool_name=%s", __func__, name_.c_str());
   }
   {
     auto c = _pool_manager->pool_create_check(size_);
     if ( c != S_OK )  { return c; }
   }
 
-  auto path = pool_path(dir_, name_);
+  auto path = pool_path(name_);
 
   auto s = std::unique_ptr<session_t>(static_cast<session_t *>(_pool_manager->pool_create(path, size_, expected_obj_count_).release()));
 
@@ -245,11 +243,10 @@ auto hstore::create_pool(
   return reinterpret_cast<IKVStore::pool_t>(p);
 }
 
-auto hstore::open_pool(const std::string &dir,
-                       const std::string &name,
+auto hstore::open_pool(const std::string &name_,
                        unsigned int /* flags */) -> pool_t
 {
-  auto path = pool_path(dir, name);
+  auto path = pool_path(name_);
   try {
     auto s = _pool_manager->pool_open(path);
     auto p = static_cast<tracked_pool *>(s.get());
@@ -281,14 +278,14 @@ status_t hstore::close_pool(const pool_t pid)
   return S_OK;
 }
 
-status_t hstore::delete_pool(const std::string &dir, const std::string &name)
+status_t hstore::delete_pool(const std::string &name_)
 {
-  auto path = pool_path(dir, name);
+  auto path = pool_path(name_);
 
   _pool_manager->pool_delete(path);
   if ( option_DEBUG )
   {
-    PLOG("pool deleted: %s/%s", dir.c_str(), name.c_str());
+    PLOG("pool deleted: %s", name_.c_str());
   }
   return S_OK;
 }

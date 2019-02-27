@@ -71,14 +71,9 @@ class KVStore_test : public ::testing::Test {
 
   static std::size_t extant_count; /* Number of PutMany keys not placed because they already existed */
 
-  std::string pool_dir() const
-  {
-    return "/mnt/pmem0/pool/0/";
-  }
-
   std::string pool_name() const
   {
-    return "test-" + store_map::impl->name + store_map::numa_zone() + ".pool";
+    return "/mnt/pmem0/pool/0/test-" + store_map::impl->name + store_map::numa_zone() + ".pool";
   }
 };
 
@@ -133,7 +128,7 @@ TEST_F(KVStore_test, RemoveOldPool)
   {
     try
     {
-      _kvstore->delete_pool(pool_dir(), pool_name());
+      _kvstore->delete_pool(pool_name());
     }
     catch ( Exception & )
     {
@@ -151,7 +146,7 @@ TEST_F(KVStore_test, CreatePool)
    * requires size multiplied
    *  - by 8U to account for current AVL_LB allocator alignment requirements
    */
-  pool = _kvstore->create_pool(pool_dir(), pool_name(), ( many_count_target * 64U * 3U * 2U + 4 * single_value_size ) * 8U, 0, estimated_object_count);
+  pool = _kvstore->create_pool(pool_name(), ( many_count_target * 64U * 3U * 2U + 4 * single_value_size ) * 8U, 0, estimated_object_count);
   ASSERT_LT(0, int64_t(pool));
 }
 
@@ -306,7 +301,7 @@ TEST_F(KVStore_test, OpenPool)
   ASSERT_TRUE(_kvstore);
   if ( pmem_effective )
   {
-    pool = _kvstore->open_pool(pool_dir(), pool_name(), 0);
+    pool = _kvstore->open_pool(pool_name(), 0);
   }
   ASSERT_LT(0, int64_t(pool));
 }
@@ -480,7 +475,7 @@ TEST_F(KVStore_test, EraseMany)
 TEST_F(KVStore_test, DeletePool)
 {
   _kvstore->close_pool(pool);
-  _kvstore->delete_pool(pool_dir(), pool_name());
+  _kvstore->delete_pool(pool_name());
 }
 
 } // namespace

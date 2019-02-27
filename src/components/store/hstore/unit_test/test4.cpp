@@ -125,11 +125,6 @@ class KVStore_test
   static void get_many(Component::IKVStore::pool_t pool, const kvv_t &kvv, const std::string &descr);
   static void get_many_threaded(const kvv_t &kvv, const std::string &descr);
 
-  std::string pool_dir() const
-  {
-    return "/mnt/pmem0/pool/0/";
-  }
-
   std::string pool_name(int i) const
   {
     return "test-" + store_map::impl->name + store_map::numa_zone() + "-" + std::to_string(i) + ".pool";
@@ -181,7 +176,7 @@ TEST_F(KVStore_test, RemoveOldPool)
     {
       try
       {
-        _kvstore->delete_pool(pool_dir(), pool_name(i));
+        _kvstore->delete_pool(pool_name(i));
       }
       catch ( Exception & )
       {
@@ -195,7 +190,7 @@ TEST_F(KVStore_test, CreatePools)
   ASSERT_TRUE(_kvstore);
   for ( auto i = 0; i != pool.size(); ++i )
   {
-    pool[i] = _kvstore->create_pool(pool_dir(), pool_name(i), GB(12UL), 0, estimated_object_count);
+    pool[i] = _kvstore->create_pool(pool_name(i), GB(12UL), 0, estimated_object_count);
     ASSERT_LT(0, int64_t(pool[i]));
   }
 }
@@ -414,7 +409,7 @@ TEST_F(KVStore_test, DeletePool)
     {
       try
       {
-        _kvstore->delete_pool(pool_dir(), pool_name(i));
+        _kvstore->delete_pool(pool_name(i));
       }
       catch ( ... )
       {

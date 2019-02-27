@@ -387,9 +387,9 @@ public:
 
   auto pool_open(const pool_path &path_) -> std::unique_ptr<tracked_pool> override
   {
-    if (access(path_.dir().c_str(), F_OK) != 0)
+    if (access(path_.str().c_str(), F_OK) != 0)
     {
-      throw API_exception("Pool %s:%s does not exist", path_.dir().c_str(), path_.name().c_str());
+      throw API_exception("Pool %s does not exist", path_.stri().c_str());
     }
 
     /* check integrity first */
