@@ -334,6 +334,12 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
     size_t target_len = msg->val_len;
     assert(target_len > 0);
     assert(msg->pool_id > 0);
+
+    /* can't support dont stomp flag */
+    if(msg->flags & IKVStore::FLAGS_DONT_STOMP) {
+      status = E_INVAL;
+      goto send_response;
+    }
     
     /* create (if needed) and lock value */    
     auto key_handle = _i_kvstore->lock(msg->pool_id,
@@ -404,7 +410,12 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
     }
     else {
       const std::string k(msg->key(), msg->key_len);
-      status = _i_kvstore->put(msg->pool_id, k, msg->value(), msg->val_len);
+
+      status = _i_kvstore->put(msg->pool_id,
+                               k,
+                               msg->value(),
+                               msg->val_len,
+                               msg->flags);
 
       if (option_DEBUG > 2) {
         if (status == Component::IKVStore::E_ALREADY_EXISTS)

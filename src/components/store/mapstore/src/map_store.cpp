@@ -435,7 +435,6 @@ status_t Map_store::put_direct(const pool_t pid,
                                memory_handle_t memory_handle,
                                unsigned int flags)
 {
-  auto session = get_session(pid);
   return Map_store::put(pid, key, value, value_len);
 }
 

@@ -305,6 +305,8 @@ struct Message_IO_request : public Message {
   uint64_t request_id; /*< id or sender timestamp counter */
   uint64_t key_len;
   uint64_t val_len;
+  uint32_t flags;
+  uint32_t padding;
   char     data[];
 
 } __attribute__((packed));

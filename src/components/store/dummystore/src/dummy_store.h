@@ -55,6 +55,8 @@ public:
 
 public:
 
+  virtual int get_capability(Capability cap) const { return 0; }
+
   /* IKVStore */
   virtual int thread_safety() const { return THREAD_MODEL_RWLOCK_PER_POOL; }
   

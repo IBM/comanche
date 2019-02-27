@@ -81,8 +81,8 @@ public:
 
   enum class Capability {
     POOL_DELETE_CHECK, /*< checks if pool is open before allowing delete */
-    RWLOCK_PER_POOL,
-    POOL_THREAD_SAFE,
+    RWLOCK_PER_POOL,   /*< pools are locked with RW-lock */
+    POOL_THREAD_SAFE,  /*< pools can be shared across multiple client threads */
   };
 
   enum class Op_type {
