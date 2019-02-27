@@ -65,8 +65,7 @@ template <typename Value>
 		return
 			_state == FREE ? "FREE"
 			: _state == IN_USE ? "IN_USE"
-			: _state == ENTERING ? "ENTERING"
-			: "EXITING"
+			: "?"
 			;
 	}
 

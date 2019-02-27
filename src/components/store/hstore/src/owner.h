@@ -1,5 +1,5 @@
-#ifndef _DAWN_HSTORE_OWNER_H
-#define _DAWN_HSTORE_OWNER_H
+#ifndef _COMANCHE_HSTORE_OWNER_H
+#define _COMANCHE_HSTORE_OWNER_H
 
 #include "trace_flags.h"
 
@@ -103,17 +103,16 @@ namespace impl
 
 #if TRACE_OWNER
 		template <
-			typename Table
-			, typename Lock
+			typename Lock
 		>
 			friend auto operator<<(
 				std::ostream &o
-				, const impl::owner_print<Table, Lock> &
+				, const impl::owner_print<Lock> &
 			) -> std::ostream &;
 		template <typename Table>
 			friend auto operator<<(
 				std::ostream &o
-				, const impl::owner_print<Table, impl::bypass_lock<const typename Table::bucket_t, const impl::owner>> &
+				, const impl::owner_print<impl::bypass_lock<const typename Table::bucket_t, const impl::owner>> &
 			) -> std::ostream &;
 #endif
 	};

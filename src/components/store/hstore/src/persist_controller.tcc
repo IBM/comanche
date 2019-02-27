@@ -30,14 +30,11 @@ template <typename Allocator>
 		, _persist(persist_)
 		, _bucket_count_cached(bucket_count_uncached())
 	{
-		assert(_persist->_segment_count._target <= _segment_capacity);
-		assert(1U <= _persist->_segment_count._target);
-		assert(
-			_persist->_segment_count._actual <= _persist->_segment_count._target
-		);
+		assert(_persist->_segment_count._specified <= _segment_capacity);
+		assert(1U <= _persist->_segment_count._specified);
 
 		/* Persisted data needs at least one segment. */
-		if ( _persist->_segment_count._actual == 0 )
+		if ( _persist->_segment_count._actual.is_stable() && _persist->_segment_count._actual.value() == 0 )
 		{
 			_persist->do_initial_allocation(av_);
 		}
@@ -109,7 +106,7 @@ template <typename Allocator>
 			auto bp = &*sc[0].bp;
 			persist_internal(&bp[0], &bp[base_segment_size], "segment 0");
 		}
-		for ( auto i = 1U; i != segment_count_actual(); ++i )
+		for ( auto i = 1U; i != segment_count_actual().value_not_stable(); ++i )
 		{
 			auto bp = &*sc[i].bp;
 			persist_internal(&bp[0], &bp[base_segment_size<<(i-1U)], "segment N");
@@ -123,10 +120,11 @@ template <typename Allocator>
  * That is unnecessary, as the virtual addresses are kept (in a separate table).
  */
 		auto sc = &*_persist->_sc;
-		auto bp = &*sc[segment_count_actual()].bp;
+		auto ct = segment_count_actual().value_not_stable();
+		auto bp = &*sc[ct].bp;
 		persist_internal(
 			&bp[0]
-			, &bp[base_segment_size<<(segment_count_actual()-1U)]
+			, &bp[base_segment_size<<(ct-1U)]
 			, "segment new"
 		);
 	}
@@ -160,7 +158,7 @@ template <typename Allocator>
 template <typename Allocator>
 	void impl::persist_controller<Allocator>::size_set(std::size_t n)
 	{
-		_persist->_size_control.size_set_stable(n);
+		_persist->_size_control.value_set_stable(n);
 		persist_size();
 	}
 
@@ -180,11 +178,8 @@ template <typename Allocator>
 
 template <typename Allocator>
 	auto impl::persist_controller<Allocator>::resize_prolog(
-	) -> bucket_aligned<hash_bucket<value_type>> * /* bucket_aligned_t */
+	) -> bucket_aligned_t *
 	{
-		_persist->_segment_count._target = _persist->_segment_count._actual + 1U;
-		persist_segment_count();
-
 		using void_allocator_t =
 			typename bucket_allocator_t::template rebind<void>::other;
 
@@ -195,18 +190,31 @@ template <typename Allocator>
 				, "resize"
 			);
 		new (&*ptr) typename persist_data_t::bucket_aligned_t[bucket_count()];
-		_persist->_sc[_persist->_segment_count._actual].bp = ptr;
-
-		persist_segment_table();
-
+		_persist->_sc[_persist->_segment_count._actual.value()].bp = ptr;
 		auto sc = &*_persist->_sc;
-		return &*(sc[segment_count_actual()].bp);
+		return &*(sc[segment_count_actual().value()].bp);
+	}
+
+template <typename Allocator>
+	auto impl::persist_controller<Allocator>::resize_restart_prolog(
+	) -> bucket_aligned_t *
+	{
+		auto sc = &*_persist->_sc;
+		return &*(sc[segment_count_actual().value_not_stable()].bp);
+	}
+
+template <typename Allocator>
+	void impl::persist_controller<Allocator>::resize_interlog()
+	{
+		persist_segment_table();
+		_persist->_segment_count._actual.destabilize();
+		persist_segment_count();
 	}
 
 template <typename Allocator>
 	void impl::persist_controller<Allocator>::resize_epilog()
 	{
-		_persist->_segment_count._actual = _persist->_segment_count._target;
+		_persist->_segment_count._actual.value_set_stable(_persist->_segment_count._actual.value_not_stable() + 1U);
 		_bucket_count_cached = bucket_count_uncached();
 		persist_segment_count();
 	}

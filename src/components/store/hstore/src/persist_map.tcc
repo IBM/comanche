@@ -30,8 +30,9 @@ template <typename Allocator>
 	{
 		using void_allocator_t = typename Allocator::template rebind<void>::other;
 
-		if ( _segment_count._actual == 0 )
+		if ( _segment_count._actual.is_stable() )
 		{
+			if ( _segment_count._actual.value() == 0 )
 			{
 				auto ptr =
 					bucket_allocator_t(av_).allocate(
@@ -41,12 +42,12 @@ template <typename Allocator>
 					);
 				new ( &*ptr ) bucket_aligned_t[base_segment_size];
 				_sc[0].bp = ptr;
-				_segment_count._actual = 1U;
+				_segment_count._actual.incr();
 				av_.persist(&_segment_count, sizeof _segment_count);
 			}
 
 			/* while not enough allocated segments to hold n elements */
-			for ( auto ix = _segment_count._actual; ix != _segment_count._target; ++ix )
+			for ( auto ix = _segment_count._actual.value(); ix != _segment_count._specified; ++ix )
 			{
 				auto segment_size = base_segment_size<<(ix-1U);
 
@@ -58,7 +59,7 @@ template <typename Allocator>
 					);
 				new (&*ptr) bucket_aligned_t[base_segment_size << (ix-1U)];
 				_sc[ix].bp = ptr;
-				_segment_count._actual = ix + 1U;
+				_segment_count._actual.incr();
 				av_.persist(&_segment_count, sizeof _segment_count);
 			}
 
@@ -70,15 +71,24 @@ template <typename Allocator>
 	void impl::persist_map<Allocator>::reconstitute(Allocator av_)
 	{
 		auto av = bucket_allocator_t(av_);
-		if ( _segment_count._actual != 0 )
+		if ( ! _segment_count._actual.is_stable() || _segment_count._actual.value() != 0 )
 		{
-			av.reconstitute(base_segment_size, _sc[0].bp);
+			auto ix = 0U;
+			av.reconstitute(base_segment_size, _sc[ix].bp);
+			++ix;
 
 			/* restore segments beyond the first */
-			for ( auto ix = 1U; ix != _segment_count._actual; ++ix )
+			for ( ; ix != _segment_count._actual.value_not_stable(); ++ix )
 			{
 				auto segment_size = base_segment_size<<(ix-1U);
 				av.reconstitute(segment_size, _sc[ix].bp);
 			}
+			if ( ! _segment_count._actual.is_stable() )
+			{
+				/* restore the last, "junior" segment */
+				auto segment_size = base_segment_size<<(ix-1U);
+				av.reconstitute(segment_size, _sc[ix].bp);
+			}
+
 		}
 	}

@@ -330,7 +330,7 @@ namespace impl
 
 			six_t segment_count() const override
 			{
-				return persist_controller_t::segment_count_actual();
+				return persist_controller_t::segment_count_actual().value();
 			}
 
 			auto bucket_ix(const hash_result_t h) const -> bix_t;
@@ -352,6 +352,11 @@ namespace impl
 			void resize();
 			void resize_pass1();
 			void resize_pass2();
+			void resize_pass2_inner(
+				bix_t ix_senior
+				, bucket_control_t &junior_bucket_control
+				, content_unique_lock_t &populated_content_lk
+			);
 			auto locate_bucket_mutexes(
 				const segment_and_bucket_t &
 			) const -> bucket_mutexes_t &;
@@ -389,6 +394,8 @@ namespace impl
 			auto make_segment_and_bucket_for_iterator(
 				bix_t ix
 			) const -> segment_and_bucket_t;
+			auto make_segment_and_bucket_at_begin() const -> segment_and_bucket_t;
+			auto make_segment_and_bucket_at_end() const -> segment_and_bucket_t;
 			auto make_segment_and_bucket_prev(
 				segment_and_bucket_t a
 				, unsigned bkwd
@@ -440,13 +447,11 @@ namespace impl
 			auto count(const key_type &k) const -> size_type;
 			auto begin() -> iterator
 			{
-				return iterator(make_segment_and_bucket_for_iterator(0U));
+				return iterator(make_segment_and_bucket_at_begin());
 			}
 			auto end() -> iterator
 			{
-				return iterator(
-					make_segment_and_bucket_for_iterator(bucket_count())
-				);
+				return iterator(make_segment_and_bucket_at_end());
 			}
 			auto begin() const -> const_iterator
 			{
@@ -458,14 +463,11 @@ namespace impl
 			}
 			auto cbegin() const -> const_iterator
 			{
-				return const_iterator(*this, make_segment_and_bucket_for_iterator(0U));
+				return const_iterator(make_segment_and_bucket_at_begin());
 			}
 			auto cend() const -> const_iterator
 			{
-				return const_iterator(
-					*this
-					, make_segment_and_bucket_for_iterator(bucket_count())
-				);
+				return const_iterator(make_segment_and_bucket_at_end());
 			}
 
 			using persist_controller_t::bucket_count;
@@ -526,17 +528,11 @@ namespace impl
 				) -> std::ostream &;
 #endif
 #if TRACE_OWNER
-			template <
-				typename TableBase
-				, typename Lock
-			>
+			template <typename Lock>
 				friend
 					auto operator<<(
 						std::ostream &o_
-						, const impl::owner_print<
-							TableBase
-							, Lock
-						> &
+						, const impl::owner_print<Lock> &
 					) -> std::ostream &;
 
 			template <typename TableBase>
@@ -544,8 +540,7 @@ namespace impl
 					auto operator<<(
 						std::ostream &o_
 						, const owner_print<
-							TableBase
-							, bypass_lock<typename TableBase::bucket_t, const owner>
+							bypass_lock<typename TableBase::bucket_t, const owner>
 						> &
 					) -> std::ostream &;
 #endif
@@ -559,8 +554,7 @@ namespace impl
 					auto operator<<(
 						std::ostream &o_
 						, const impl::bucket_print<
-							TableBase
-							, LockOwner
+							LockOwner
 							, LockContent
 						> &
 					) -> std::ostream &;
@@ -571,8 +565,7 @@ namespace impl
 					std::ostream &o_
 					, const bucket_print
 					<
-						table_base
-						, bypass_lock<typename Table::bucket_t, const owner>
+						bypass_lock<typename Table::bucket_t, const owner>
 						, bypass_lock<
 							typename Table::bucket_t
 							, const content<typename Table::value_type>
@@ -702,32 +695,32 @@ template <
 			friend class impl::table_iterator_impl;
 	};
 
-template <typename Table>
-	bool operator!=(
-		const impl::table_local_iterator_impl<Table> a
-		, const impl::table_local_iterator_impl<Table> b
-	);
-
-template <typename Table>
-	bool operator==(
-		const impl::table_local_iterator_impl<Table> a
-		, const impl::table_local_iterator_impl<Table> b
-	);
-
-template <typename Table>
-	bool operator!=(
-		const impl::table_iterator_impl<Table> a
-		, const impl::table_iterator_impl<Table> b
-	);
-
-template <typename Table>
-	bool operator==(
-		const impl::table_iterator_impl<Table> a
-		, const impl::table_iterator_impl<Table> b
-	);
-
 namespace impl
 {
+	template <typename Table>
+		bool operator!=(
+			const table_local_iterator_impl<Table> a
+			, const table_local_iterator_impl<Table> b
+		);
+
+	template <typename Table>
+		bool operator==(
+			const table_local_iterator_impl<Table> a
+			, const table_local_iterator_impl<Table> b
+		);
+
+	template <typename Table>
+		bool operator!=(
+			const table_iterator_impl<Table> a
+			, const table_iterator_impl<Table> b
+		);
+
+	template <typename Table>
+		bool operator==(
+			const table_iterator_impl<Table> a
+			, const table_iterator_impl<Table> b
+		);
+
 	template <typename Table>
 		class table_local_iterator_impl
 			: public std::iterator
@@ -954,7 +947,7 @@ namespace impl
 			using segment_and_bucket_t = typename Table::segment_and_bucket_t;
 			using typename table_iterator_impl<Table>::base;
 		public:
-			table_const_iterator(const Table &t, typename Table::size_type i)
+			table_const_iterator(typename Table::size_type i)
 				: table_iterator_impl<Table>(i)
 			{}
 			/* Table 106 (Iterator) */
@@ -981,43 +974,43 @@ namespace impl
 			}
 			/* Table 109 (ForwardIterator) - handled by 107 */
 		};
+
+	template <typename Table>
+		bool operator==(
+			const table_local_iterator_impl<Table> a
+			, const table_local_iterator_impl<Table> b
+		)
+		{
+			return a._mask == b._mask;
+		}
+
+	template <typename Table>
+		bool operator!=(
+			const table_local_iterator_impl<Table> a
+			, const table_local_iterator_impl<Table> b
+		)
+		{
+			return !(a==b);
+		}
+
+	template <typename Table>
+		bool operator==(
+			const table_iterator_impl<Table> a
+			, const table_iterator_impl<Table> b
+		)
+		{
+			return a._sb == b._sb;
+		}
+
+	template <typename Table>
+		bool operator!=(
+			const table_iterator_impl<Table> a
+			, const table_iterator_impl<Table> b
+		)
+		{
+			return !(a==b);
+		}
 }
-
-template <typename Table>
-	bool operator==(
-		const impl::table_local_iterator_impl<Table> a
-		, const impl::table_local_iterator_impl<Table> b
-	)
-	{
-		return a._mask == b._mask;
-	}
-
-template <typename Table>
-	bool operator!=(
-		const impl::table_local_iterator_impl<Table> a
-		, const impl::table_local_iterator_impl<Table> b
-	)
-	{
-		return !(a==b);
-	}
-
-template <typename Table>
-	bool operator==(
-		const impl::table_iterator_impl<Table> a
-		, const impl::table_iterator_impl<Table> b
-	)
-	{
-		return a._sb == b._sb;
-	}
-
-template <typename Table>
-	bool operator!=(
-		const impl::table_iterator_impl<Table> a
-		, const impl::table_iterator_impl<Table> b
-	)
-	{
-		return !(a==b);
-	}
 
 #if TRACK_OWNER
 #include "owner.tcc"

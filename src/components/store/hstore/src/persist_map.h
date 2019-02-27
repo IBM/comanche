@@ -21,6 +21,8 @@
 
 namespace impl
 {
+	using segment_count_actual_t = value_unstable<segment_layout::six_t, 1>;
+
 	template <typename Allocator>
 		class persist_controller;
 
@@ -34,7 +36,7 @@ namespace impl
 			using bucket_allocator_t =
 				typename Allocator::template rebind<bucket_aligned_t>::other;
 			using bucket_ptr = typename bucket_allocator_t::pointer;
-	private:
+
 			/* bucket indexes */
 			using bix_t = segment_layout::bix_t;
 			/* segment indexes */
@@ -43,12 +45,12 @@ namespace impl
 			struct segment_count
 			{
 				/* current segment count */
-				persistent_atomic_t<six_t> _actual;
+				segment_count_actual_t _actual;
 				/* desired segment count */
-				persistent_atomic_t<six_t> _target;
-				segment_count(six_t target_)
+				persistent_atomic_t<six_t> _specified;
+				segment_count(six_t specified_)
 					: _actual(0)
-					, _target(target_)
+					, _specified(specified_)
 				{}
 			};
 

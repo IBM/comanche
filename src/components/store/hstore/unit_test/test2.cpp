@@ -76,7 +76,13 @@ bool KVStore_test::pmem_simulated = getenv("PMEM_IS_PMEM_FORCE");
 bool KVStore_test::pmem_effective = ! getenv("PMEM_IS_PMEM_FORCE") || getenv("PMEM_IS_PMEM_FORCE") == std::string("0");
 Component::IKVStore * KVStore_test::_kvstore;
 
-const std::size_t KVStore_test::estimated_object_count = pmem_simulated ? estimated_object_count_small : estimated_object_count_large;
+const std::size_t KVStore_test::estimated_object_count =
+#if 0
+  pmem_simulated ? estimated_object_count_small : estimated_object_count_large
+#else
+  0 /* test resize */
+#endif
+  ;
 
 constexpr unsigned KVStore_test::many_key_length;
 constexpr unsigned KVStore_test::many_value_length;
