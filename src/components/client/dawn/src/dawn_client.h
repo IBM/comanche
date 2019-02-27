@@ -77,31 +77,32 @@ class Dawn_client : public Component::IKVStore,
   /* IKVStore (as remote proxy) */
   virtual int thread_safety() const override;
 
-  virtual pool_t create_pool(const std::string& path,
-                             const std::string& name,
+  virtual int get_capability(Capability cap) const override;
+
+  virtual pool_t create_pool(const std::string& name,
                              const size_t       size,
                              unsigned int       flags    = 0,
                              uint64_t expected_obj_count = 0) override;
 
-  virtual pool_t open_pool(const std::string& path,
-                           const std::string& name,
+  virtual pool_t open_pool(const std::string& name,
                            unsigned int       flags = 0) override;
 
   virtual status_t close_pool(const pool_t pool) override;
 
-  virtual status_t delete_pool(const std::string& path,
-                               const std::string& name) override;
+  virtual status_t delete_pool(const std::string& name) override;
 
   virtual status_t put(const pool_t       pool,
                        const std::string& key,
                        const void*        value,
-                       const size_t       value_len) override;
+                       const size_t       value_len,
+                       unsigned int       flags = FLAGS_NONE) override;
 
   virtual status_t put_direct(const pool_t       pool,
                               const std::string& key,
                               const void*        value,
                               const size_t       value_len,
-                              memory_handle_t    handle) override;
+                              memory_handle_t    handle = HANDLE_NONE,
+                              unsigned int       flags = FLAGS_NONE) override;
 
   virtual status_t get(const pool_t       pool,
                        const std::string& key,
@@ -128,16 +129,6 @@ class Dawn_client : public Component::IKVStore,
   virtual status_t free_memory(void * p) override;
 
   /* IDawn specific methods */
-  virtual pool_t create_pool(const std::string& pool_name,
-                             const size_t size,
-                             unsigned int flags = 0,
-                             uint64_t expected_obj_count = 0) override;
-
-  virtual pool_t open_pool(const std::string& pool_name,
-                           unsigned int flags = 0) override;
-
-  virtual status_t delete_pool(const std::string& pool_name) override;
-
   virtual std::string find(const std::string& key_expression,
                            Component::IKVIndex::offset_t begin_position,
                            Component::IKVIndex::find_t find_type,

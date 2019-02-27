@@ -104,7 +104,6 @@ struct Message_pool_request : public Message {
                        uint64_t           request_id,
                        size_t             pool_size,
                        uint8_t            op,
-                       const std::string& path,
                        const std::string& pool_name)
       : Message(auth_id, MSG_TYPE_POOL_REQUEST, op), pool_size(pool_size),
         expected_object_count(0)
@@ -114,21 +113,14 @@ struct Message_pool_request : public Message {
     assert(buffer_size > sizeof(Message_pool_request));
     auto max_data_len = buffer_size - sizeof(Message_pool_request);
 
-    size_t len = pool_name.length() + path.length();
+    size_t len = pool_name.length();
     if (len >= max_data_len)
       throw API_exception("buffer space too small for name (%u)", max_data_len);
 
-    size_t path_len = path.length();
-    strncpy(data, path.c_str(), path_len);
-    data[path_len] = '\0';
+    strncpy(data, pool_name.c_str(), len);
+    data[len] = '\0';
 
-    pool_name_offset = path_len + 1;
-
-    size_t pool_name_len = pool_name.length();
-    strncpy(&data[pool_name_offset], pool_name.c_str(), pool_name_len);
-    data[pool_name_offset + pool_name_len] = '\0';
-
-    msg_len = sizeof(Message_pool_request) + len + 2;
+    msg_len = sizeof(Message_pool_request) + len + 1;
   }
 
   Message_pool_request(size_t   buffer_size,
@@ -144,14 +136,13 @@ struct Message_pool_request : public Message {
     msg_len = sizeof(Message_pool_request) + 1;
   }
 
-  const char* path() const { return data; }
-  const char* pool_name() const { return &data[pool_name_offset]; }
+  const char* pool_name() const { return data; }
 
   size_t pool_size; /*< size of pool in bytes */
   size_t expected_object_count;
   union {
-    size_t   pool_name_offset; /* offset in data[] for pool name */
     uint64_t pool_id;
+    unsigned int flags;
   };
   char data[]; /*< unique name of pool (for this client) */
 
@@ -314,6 +305,8 @@ struct Message_IO_request : public Message {
   uint64_t request_id; /*< id or sender timestamp counter */
   uint64_t key_len;
   uint64_t val_len;
+  uint32_t flags;
+  uint32_t padding;
   char     data[];
 
 } __attribute__((packed));

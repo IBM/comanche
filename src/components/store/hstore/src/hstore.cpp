@@ -212,7 +212,7 @@ hstore::~hstore()
 {
 }
 
-auto hstore::thread_safety() const -> status_t
+auto hstore::thread_safety() const -> int
 {
   return thread_model;
 }
@@ -296,7 +296,8 @@ status_t hstore::delete_pool(const std::string &dir, const std::string &name)
 auto hstore::put(const pool_t pool,
                  const std::string &key,
                  const void * value,
-                 const std::size_t value_len) -> status_t
+                 const std::size_t value_len,
+                 unsigned int) -> status_t
 {
   if ( option_DEBUG ) {
     PLOG(
@@ -379,7 +380,8 @@ auto hstore::put_direct(const pool_t pool,
                         const std::string& key,
                         const void * value,
                         const std::size_t value_len,
-                        memory_handle_t) -> status_t
+                        memory_handle_t,
+                        unsigned int /*flags */) -> status_t
 {
   return put(pool, key, value, value_len);
 }

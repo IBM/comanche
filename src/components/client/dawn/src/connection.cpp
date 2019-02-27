@@ -22,13 +22,12 @@ Connection_handler::Connection_handler(Connection_base::Transport* connection)
   _max_inject_size = connection->max_inject_size();
 }
 
-Connection_handler::pool_t Connection_handler::open_pool(const std::string path,
-                                                         const std::string name,
+Connection_handler::pool_t Connection_handler::open_pool(const std::string name,
                                                          unsigned int flags)
 {
   API_LOCK();
 
-  PMAJOR("open pool: %s %s", path.c_str(), name.c_str());
+  PMAJOR("open pool: %s", name.c_str());
 
   /* send pool request message */
   const auto iob = allocate();
@@ -37,7 +36,7 @@ Connection_handler::pool_t Connection_handler::open_pool(const std::string path,
   const auto msg = new (iob->base()) Dawn::Protocol::Message_pool_request(
       iob->length(), auth_id(), /* auth id */
       ++_request_id, 0,         /* size */
-      Dawn::Protocol::OP_OPEN, path, name);
+      Dawn::Protocol::OP_OPEN, name);
 
   iob->set_length(msg->msg_len);
 
@@ -59,15 +58,13 @@ Connection_handler::pool_t Connection_handler::open_pool(const std::string path,
 }
 
 Connection_handler::pool_t Connection_handler::create_pool(
-    const std::string path,
     const std::string name,
     const size_t      size,
     unsigned int      flags,
     uint64_t          expected_obj_count)
 {
   API_LOCK();
-  PMAJOR("create pool: %s %s (expected objs=%lu)", path.c_str(), name.c_str(),
-         expected_obj_count);
+  PMAJOR("create pool: %s (expected objs=%lu)", name.c_str(), expected_obj_count);
 
   /* send pool request message */
   const auto iob = allocate();
@@ -81,11 +78,11 @@ Connection_handler::pool_t Connection_handler::create_pool(
                                          ++_request_id,
                                          size,
                                          Dawn::Protocol::OP_CREATE,
-                                         path,
                                          name);
   assert(msg->op);
-
+  msg->flags = flags;
   msg->expected_object_count = expected_obj_count;
+  
   iob->set_length(msg->msg_len);
   sync_inject_send(iob);
 
@@ -130,8 +127,7 @@ status_t Connection_handler::close_pool(pool_t pool)
   return status;
 }
 
-status_t Connection_handler::delete_pool(const std::string& path,
-                                         const std::string& name)
+status_t Connection_handler::delete_pool(const std::string& name)
 
 {
   API_LOCK();
@@ -142,7 +138,6 @@ status_t Connection_handler::delete_pool(const std::string& path,
                                                                           ++_request_id,
                                                                           0, // size
                                                                           Dawn::Protocol::OP_DELETE,
-                                                                          path,
                                                                           name);
   iob->set_length(msg->msg_len);
   sync_inject_send(iob);
@@ -165,16 +160,18 @@ status_t Connection_handler::delete_pool(const std::string& path,
 status_t Connection_handler::put(const pool_t      pool,
                                  const std::string key,
                                  const void*       value,
-                                 const size_t      value_len)
+                                 const size_t      value_len,
+                                 unsigned int      flags)
 {
-  return put(pool, key.c_str(), key.length(), value, value_len);
+  return put(pool, key.c_str(), key.length(), value, value_len, flags);
 }
 
 status_t Connection_handler::put(const pool_t pool,
                                  const void*  key,
                                  const size_t key_len,
                                  const void*  value,
-                                 const size_t value_len)
+                                 const size_t value_len,
+                                 unsigned int flags)
 {
   API_LOCK();
 
@@ -225,9 +222,12 @@ status_t Connection_handler::two_stage_put_direct(
     const size_t                         key_len,
     const void*                          value,
     const size_t                         value_len,
-    Component::IKVStore::memory_handle_t handle)
+    Component::IKVStore::memory_handle_t handle,
+    unsigned int                         flags)
 {
   using namespace Dawn;
+
+  assert(pool);
 
   if (option_DEBUG)
     PINF("multi_put_direct: key=(%.*s) key_len=%lu value=(%.20s...) "
@@ -235,7 +235,8 @@ status_t Connection_handler::two_stage_put_direct(
          (int) key_len, (char*) key, key_len, (char*) value, value_len, handle);
 
   assert(value_len <= _max_message_size);
-
+  assert(value_len > 0);
+  
   const auto iob = allocate();
 
   /* send advance message, this will be followed by partial puts */
@@ -244,6 +245,7 @@ status_t Connection_handler::two_stage_put_direct(
       Protocol::Message_IO_request(iob->length(), auth_id(), request_id, pool,
                                    Protocol::OP_PUT_ADVANCE,  // op
                                    key, key_len, value_len);
+  msg->flags = flags;
   iob->set_length(msg->msg_len);
   sync_inject_send(iob);
   free_buffer(iob);
@@ -267,18 +269,29 @@ status_t Connection_handler::put_direct(
     const std::string&                   key,
     const void*                          value,
     const size_t                         value_len,
-    Component::IKVStore::memory_handle_t handle)
+    Component::IKVStore::memory_handle_t handle,
+    unsigned int                         flags)
 {
   API_LOCK();
 
   assert(_max_message_size);
 
+  if(pool == 0) {
+    PWRN("put_direct: invalid pool identifier");
+    return E_INVAL;
+  }
+
   const auto key_len = key.length();
   if ((key_len + value_len + sizeof(Dawn::Protocol::Message_IO_request)) >
       Buffer_manager<Component::IFabric_client>::BUFFER_LEN) {
     /* for large puts, we use a two-stage protocol */
-    return two_stage_put_direct(pool, key.c_str(), key_len, value, value_len,
-                                handle);
+    return two_stage_put_direct(pool,
+                                key.c_str(),
+                                key_len,
+                                value,
+                                value_len,
+                                handle,
+                                flags);
   }
 
   if (option_DEBUG)
@@ -309,6 +322,7 @@ status_t Connection_handler::put_direct(
 
   if (_options.short_circuit_backend)
     msg->resvd |= Dawn::Protocol::MSG_RESVD_SCBE;
+  msg->flags = flags;
 
   iob->set_length(msg->msg_len);
   sync_send(iob, value_buffer); /* send two concatentated buffers */

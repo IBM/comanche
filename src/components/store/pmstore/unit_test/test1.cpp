@@ -55,7 +55,7 @@ TEST_F(KVStore_test, Instantiate)
 TEST_F(KVStore_test, OpenPool)
 {
   ASSERT_TRUE(_kvstore);
-  pool = _kvstore->create_pool(PMEM_PATH, "test-pmstore.pool", MB(128));
+  pool = _kvstore->create_pool(PMEM_PATH  "test-pmstore.pool", MB(128));
   ASSERT_TRUE(pool > 0);
 }
 

@@ -93,7 +93,7 @@ TEST_F(KVStore_test, OpenPool)
   PLOG(" test-nvmestore: try to openpool");
   ASSERT_TRUE(_kvstore);
   // pass blk and alloc here
-  _pool = _kvstore->create_pool(PMEM_PATH, POOL_NAME, GB(8));
+  _pool = _kvstore->create_pool(PMEM_PATH POOL_NAME, GB(8));
   ASSERT_TRUE(_pool > 0);
 }
 

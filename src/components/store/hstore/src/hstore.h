@@ -76,8 +76,7 @@ public:
 
 public:
 
-  /* IKVStore */
-  status_t thread_safety() const override;
+  int thread_safety() const;
 
   pool_t create_pool(const std::string &path,
                      const std::string &name,
@@ -98,13 +97,15 @@ public:
   status_t put(pool_t pool,
                const std::string &key,
                const void * value,
-               std::size_t value_len) override;
+               std::size_t value_len,
+               unsigned int flags = FLAGS_NONE) override;
 
   status_t put_direct(pool_t pool,
                       const std::string& key,
                       const void * value,
                       std::size_t value_len,
-                      memory_handle_t handle) override;
+                      memory_handle_t handle = HANDLE_NONE,
+                      unsigned int flags = FLAGS_NONE) override;
 
   status_t get(pool_t pool,
                const std::string &key,
