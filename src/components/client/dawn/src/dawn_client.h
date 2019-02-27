@@ -77,6 +77,8 @@ class Dawn_client : public Component::IKVStore,
   /* IKVStore (as remote proxy) */
   virtual int thread_safety() const override;
 
+  virtual int get_capability(Capability cap) const override;
+
   virtual pool_t create_pool(const std::string& name,
                              const size_t       size,
                              unsigned int       flags    = 0,
@@ -92,13 +94,15 @@ class Dawn_client : public Component::IKVStore,
   virtual status_t put(const pool_t       pool,
                        const std::string& key,
                        const void*        value,
-                       const size_t       value_len) override;
+                       const size_t       value_len,
+                       unsigned int       flags = FLAGS_NONE) override;
 
   virtual status_t put_direct(const pool_t       pool,
                               const std::string& key,
                               const void*        value,
                               const size_t       value_len,
-                              memory_handle_t    handle) override;
+                              memory_handle_t    handle = HANDLE_NONE,
+                              unsigned int       flags = FLAGS_NONE) override;
 
   virtual status_t get(const pool_t       pool,
                        const std::string& key,

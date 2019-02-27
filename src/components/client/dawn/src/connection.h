@@ -101,19 +101,22 @@ class Connection_handler : public Connection_base {
   status_t put(const pool_t      pool,
                const std::string key,
                const void*       value,
-               const size_t      value_len);
+               const size_t      value_len,
+               unsigned int      flags);
 
   status_t put(const pool_t pool,
                const void*  key,
                const size_t key_len,
                const void*  value,
-               const size_t value_len);
+               const size_t value_len,
+               unsigned int flags);
 
   status_t put_direct(const pool_t                         pool,
                       const std::string&                   key,
                       const void*                          value,
                       const size_t                         value_len,
-                      Component::IKVStore::memory_handle_t handle);
+                      Component::IKVStore::memory_handle_t handle,
+                      unsigned int                         flags);
 
   status_t get(const pool_t pool, const std::string& key, std::string& value);
 
@@ -170,7 +173,8 @@ class Connection_handler : public Connection_base {
                                 const size_t                         key_len,
                                 const void*                          value,
                                 const size_t                         value_len,
-                                Component::IKVStore::memory_handle_t handle);
+                                Component::IKVStore::memory_handle_t handle,
+                                unsigned int                         flags);
 
 
  private:

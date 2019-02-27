@@ -93,13 +93,15 @@ public:
    * @param key Object key
    * @param value Value data
    * @param value_len Size of value in bytes
+   * @param flags Additional flags
    * 
    * @return S_OK or error code
    */
   virtual status_t put(const IKVStore::pool_t pool,
                        const std::string& key,
                        const void * value,
-                       const size_t value_len) = 0;
+                       const size_t value_len,
+                       unsigned int flags = IKVStore::FLAGS_NONE) = 0;
 
   /** 
    * Zero-copy put operation.  If there does not exist an object
@@ -110,7 +112,8 @@ public:
    * @param key_len Key length in bytes
    * @param value Value
    * @param value_len Value length in bytes
-   * @param handle Memory registration handle 
+   * @param handle Memory registration handle
+   * @param flags Additional flags 
    *
    * @return S_OK or error code
    */
@@ -118,7 +121,8 @@ public:
                               const std::string& key,
                               const void * value,
                               const size_t value_len,
-                              IKVStore::IKVStore::memory_handle_t handle = IKVStore::HANDLE_NONE) = 0;
+                              IKVStore::IKVStore::memory_handle_t handle = IKVStore::HANDLE_NONE,
+                              unsigned int flags = IKVStore::FLAGS_NONE) = 0;
 
   /** 
    * Read an object value

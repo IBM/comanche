@@ -160,16 +160,18 @@ status_t Connection_handler::delete_pool(const std::string& name)
 status_t Connection_handler::put(const pool_t      pool,
                                  const std::string key,
                                  const void*       value,
-                                 const size_t      value_len)
+                                 const size_t      value_len,
+                                 unsigned int      flags)
 {
-  return put(pool, key.c_str(), key.length(), value, value_len);
+  return put(pool, key.c_str(), key.length(), value, value_len, flags);
 }
 
 status_t Connection_handler::put(const pool_t pool,
                                  const void*  key,
                                  const size_t key_len,
                                  const void*  value,
-                                 const size_t value_len)
+                                 const size_t value_len,
+                                 unsigned int flags)
 {
   API_LOCK();
 
@@ -220,7 +222,8 @@ status_t Connection_handler::two_stage_put_direct(
     const size_t                         key_len,
     const void*                          value,
     const size_t                         value_len,
-    Component::IKVStore::memory_handle_t handle)
+    Component::IKVStore::memory_handle_t handle,
+    unsigned int                         flags)
 {
   using namespace Dawn;
 
@@ -242,6 +245,7 @@ status_t Connection_handler::two_stage_put_direct(
       Protocol::Message_IO_request(iob->length(), auth_id(), request_id, pool,
                                    Protocol::OP_PUT_ADVANCE,  // op
                                    key, key_len, value_len);
+  msg->flags = flags;
   iob->set_length(msg->msg_len);
   sync_inject_send(iob);
   free_buffer(iob);
@@ -265,7 +269,8 @@ status_t Connection_handler::put_direct(
     const std::string&                   key,
     const void*                          value,
     const size_t                         value_len,
-    Component::IKVStore::memory_handle_t handle)
+    Component::IKVStore::memory_handle_t handle,
+    unsigned int                         flags)
 {
   API_LOCK();
 
@@ -280,8 +285,13 @@ status_t Connection_handler::put_direct(
   if ((key_len + value_len + sizeof(Dawn::Protocol::Message_IO_request)) >
       Buffer_manager<Component::IFabric_client>::BUFFER_LEN) {
     /* for large puts, we use a two-stage protocol */
-    return two_stage_put_direct(pool, key.c_str(), key_len, value, value_len,
-                                handle);
+    return two_stage_put_direct(pool,
+                                key.c_str(),
+                                key_len,
+                                value,
+                                value_len,
+                                handle,
+                                flags);
   }
 
   if (option_DEBUG)
@@ -312,6 +322,7 @@ status_t Connection_handler::put_direct(
 
   if (_options.short_circuit_backend)
     msg->resvd |= Dawn::Protocol::MSG_RESVD_SCBE;
+  msg->flags = flags;
 
   iob->set_length(msg->msg_len);
   sync_send(iob, value_buffer); /* send two concatentated buffers */

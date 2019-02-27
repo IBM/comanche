@@ -117,6 +117,17 @@ int Dawn_client::thread_safety() const
   return IKVStore::THREAD_MODEL_SINGLE_PER_POOL;
 }
 
+int Dawn_client::get_capability(Capability cap) const
+{
+  switch(cap) {
+  case Capability::POOL_DELETE_CHECK: return 1;
+  case Capability::POOL_THREAD_SAFE: return 1;
+  case Capability::RWLOCK_PER_POOL: return 1;
+  default: return -1;
+  }
+}
+
+
 IKVStore::pool_t Dawn_client::create_pool(const std::string& name,
                                           const size_t       size,
                                           unsigned int       flags,
@@ -146,18 +157,20 @@ status_t Dawn_client::delete_pool(const std::string& name)
 status_t Dawn_client::put(const IKVStore::pool_t pool,
                           const std::string&     key,
                           const void*            value,
-                          const size_t           value_len)
+                          const size_t           value_len,
+                          unsigned int           flags)
 {
-  return _connection->put(pool, key, value, value_len);
+  return _connection->put(pool, key, value, value_len, flags);
 }
 
 status_t Dawn_client::put_direct(const pool_t       pool,
                                  const std::string& key,
                                  const void*        value,
                                  const size_t       value_len,
-                                 memory_handle_t    handle)
+                                 memory_handle_t    handle,
+                                 unsigned int       flags)
 {
-  return _connection->put_direct(pool, key, value, value_len, handle);
+  return _connection->put_direct(pool, key, value, value_len, handle, flags);
 }
 
 status_t Dawn_client::get(const IKVStore::pool_t pool,
