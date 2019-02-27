@@ -396,6 +396,9 @@ status_t PM_store::put(IKVStore::pool_t pool,
 
   TOID(struct map_value) val;
   bool exists =  HM_LOOKUP(pop, D_RO(root)->map, hashkey);
+
+  if(exists && (flags & IKVStore::FLAGS_DONT_STOMP))
+    return E_ALREADY_EXISTS;
   
   TX_BEGIN(pop) {
 
@@ -809,6 +812,16 @@ void PM_store::State_map::state_remove(const pool_t pool, const void * ptr) {
   if(entry == pool_state_map.end())
     throw General_exception("invalid remove");
   pool_state_map.erase(entry);
+}
+
+int PM_store::get_capability(Capability cap) const
+{
+  switch(cap) {
+  case Capability::POOL_DELETE_CHECK: return 1;
+  case Capability::POOL_THREAD_SAFE: return 0;
+  case Capability::RWLOCK_PER_POOL: return 0;
+  default: return -1;
+  }
 }
 
 
