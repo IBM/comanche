@@ -72,7 +72,7 @@ public:
     FLAGS_READ_ONLY   = 0x1,
     FLAGS_SET_SIZE    = 0x2,
     FLAGS_CREATE_ONLY = 0x4,
-    FLAGS_DONT_STOMP  = 0x1,
+    FLAGS_DONT_STOMP  = 0x8,
   };
 
   enum {
@@ -189,7 +189,7 @@ public:
    */
   virtual pool_t create_pool(const std::string& name,
                              const size_t size,
-                             unsigned int flags = 0,
+                             uint32_t flags = 0,
                              uint64_t expected_obj_count = 0) {
     return POOL_ERROR;
   }
@@ -197,7 +197,7 @@ public:
   virtual pool_t create_pool(const std::string& path,
                              const std::string& name,
                              const size_t size,
-                             unsigned int flags = 0,
+                             uint32_t flags = 0,
                              uint64_t expected_obj_count = 0) __attribute__((deprecated)) {
     return create_pool(path + name, size, flags, expected_obj_count);
   }
@@ -212,13 +212,13 @@ public:
    * @return Pool handle or POOL_ERROR if pool cannot be opened, or flags supported
    */
   virtual pool_t open_pool(const std::string& name,
-                           unsigned int flags = 0) {
+                           uint32_t flags = 0) {
     return POOL_ERROR;
   }
 
   virtual pool_t open_pool(const std::string& path,
                            const std::string& name,
-                           unsigned int flags = 0) __attribute__((deprecated)) {
+                           uint32_t flags = 0) __attribute__((deprecated)) {
     return open_pool(path + name, flags);
   }
 
@@ -278,7 +278,7 @@ public:
                        const std::string& key,
                        const void * value,
                        const size_t value_len,
-                       unsigned int flags = FLAGS_NONE) { return E_NOT_SUPPORTED; }
+                       uint32_t flags = FLAGS_NONE) { return E_NOT_SUPPORTED; }
 
   /** 
    * Zero-copy put operation.  If there does not exist an object
@@ -298,7 +298,7 @@ public:
                               const void * value,
                               const size_t value_len,
                               memory_handle_t handle = HANDLE_NONE,
-                              unsigned int flags = FLAGS_NONE) {
+                              uint32_t flags = FLAGS_NONE) {
     return E_NOT_SUPPORTED;
   }
 

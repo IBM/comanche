@@ -591,16 +591,19 @@ TEST_F(Dawn_client_test, PerfLargeGetDirect)
   auto start = std::chrono::high_resolution_clock::now();
 
   for (unsigned long i = 0; i < (ITERATIONS * PER_ITERATION); i++) {
+    PLOG("Putting key(%s)", data[i % PER_ITERATION].key.c_str());
     /* different value each iteration; tests memory region registration */
-    rc = _dawn->put_direct(pool, data[i % PER_ITERATION].key,
-                           data[i % PER_ITERATION].value, VALUE_SIZE,
+    rc = _dawn->put_direct(pool,
+                           data[i % PER_ITERATION].key,
+                           data[i % PER_ITERATION].value,
+                           VALUE_SIZE,
                            handle); /* pass handle from memory registration */
     ASSERT_TRUE(rc == S_OK || rc == -6);
   }
 
   auto end  = std::chrono::high_resolution_clock::now();
   auto secs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() / 1000.0;
-  PINF("PerfLargePutDirect Throughput: %.2f MiB/sec",
+  PINF("LargePutDirect Throughput: %.2f MiB/sec",
        ((PER_ITERATION * ITERATIONS * VALUE_SIZE) / secs) / (1024.0 * 1024));
 
   PINF("LargeGetDirect: Starting .. get phase");
@@ -610,6 +613,7 @@ TEST_F(Dawn_client_test, PerfLargeGetDirect)
   /* perform get phase */
   for (unsigned long i = 0; i < (ITERATIONS * PER_ITERATION); i++) {
     size_t value_len = VALUE_SIZE;
+    PLOG("get_direct (key=%s)", data[i % PER_ITERATION].key.c_str());
     rc               = _dawn->get_direct(pool,
                                          data[i % PER_ITERATION].key,
                                          data[i % PER_ITERATION].value,

@@ -102,12 +102,14 @@ status_t Pool_handle::put(const std::string& key,
 #ifndef SINGLE_THREADED
   RWLock_guard guard(map_lock, RWLock_guard::WRITE);
 #endif
-  
+
   auto i = map.find(key);
   if(i != map.end()) {
-    if(flags & IKVStore::FLAGS_DONT_STOMP)
+    if(flags & IKVStore::FLAGS_DONT_STOMP) {
+      PWRN("put refuses to stomp (%s)", key.c_str());
       return IKVStore::E_KEY_EXISTS;
-    
+    }
+
     auto& p = i->second;
     if(p.length == value_len) {
       memcpy(p.ptr, value, value_len);
@@ -122,7 +124,7 @@ status_t Pool_handle::put(const std::string& key,
   else {
     auto buffer = scalable_aligned_malloc(value_len, OBJECT_ALIGNMENT);
     memcpy(buffer, value, value_len);
-    map.emplace(key, Value_pair{buffer, value_len});
+    map[key] = Value_pair{buffer, value_len};
   }
   
   return S_OK;
@@ -204,7 +206,7 @@ IKVStore::key_t Pool_handle::lock(const std::string& key,
 
       if(out_value_len == 0) {
         for(auto& i : map) {
-           PLOG("key:(%s)%lu", i.first.c_str(), i.first.length());
+           PLOG("key:(%s) length=%lu", i.first.c_str(), i.first.length());
          }
         throw General_exception("mapstore: tried to lock object that was not found and object size to create not given (key=%s)", key.c_str());
       }
@@ -216,6 +218,7 @@ IKVStore::key_t Pool_handle::lock(const std::string& key,
                                 out_value_len);
         
       assert(buffer);
+      PLOG("lock emplacing key=(%s)", key.c_str());
       map.emplace(key, Value_pair{buffer, out_value_len});
     }   
   }
@@ -435,7 +438,7 @@ status_t Map_store::put_direct(const pool_t pid,
                                memory_handle_t memory_handle,
                                unsigned int flags)
 {
-  return Map_store::put(pid, key, value, value_len);
+  return Map_store::put(pid, key, value, value_len, flags);
 }
 
 Component::IKVStore::key_t
