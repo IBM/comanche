@@ -118,7 +118,7 @@ public:
 		return _heap.free(p_, _numa_node);
 	}
 
-	bool is_reconstituted(const void * p_)
+	bool is_reconstituted(const void * p_) const
 	{
 		return contains(_reconstituted, static_cast<alloc_set_t::element_type>(p_));
 	}
