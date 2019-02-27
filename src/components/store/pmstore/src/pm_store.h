@@ -63,6 +63,8 @@ public:
   /* IKVStore */
   virtual status_t thread_safety() const { return THREAD_MODEL_SINGLE_PER_POOL; }
 
+  virtual int get_capability(Capability cap) const;
+
   virtual pool_t create_pool(const std::string& name,
                              const size_t size,
                              unsigned int flags,
