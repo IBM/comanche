@@ -16,7 +16,7 @@ public:
     Component::uuid_t component_uuid = Component::filestore_factory;
     std::string owner = "owner";
     std::string owner_param = "name";
-    std::string pool_path = "./data";
+    std::string pool_path = "./data/";
     std::string pci_address = "";
     std::string server_address = "";
     std::string device_name = "";
@@ -83,12 +83,12 @@ public:
                 else if (component_name.compare("pmstore") == 0) {
                     component_object = "libcomanche-pmstore.so";
                     component_uuid = Component::pmstore_factory;
-                    pool_path = "/mnt/pmem0";
+                    pool_path = "/mnt/pmem0/";
                 }
                 else if (component_name.compare("nvmestore") == 0) {
                     component_object = "libcomanche-nvmestore.so";
                     component_uuid = Component::nvmestore_factory;
-                    pool_path = "/mnt/pmem0";
+                    pool_path = "/mnt/pmem0/";
                     pci_address = "09:00.0";  // IMPORTANT: this is what will show up as the first part of command "$ lspci | grep Non"
                 }
                 else if (component_name.compare("dawn") == 0)
@@ -96,20 +96,20 @@ public:
                     DECLARE_STATIC_COMPONENT_UUID(dawn_factory, 0xfac66078,0xcb8a,0x4724,0xa454,0xd1,0xd8,0x8d,0xe2,0xdb,0x87);  // TODO: find a better way to register arbitrary components to promote modular use
                     component_uuid = dawn_factory;
                     component_object = "libcomanche-dawn-client.so";
-                    pool_path = "/mnt/pmem0";
+                    pool_path = "/mnt/pmem0/";
                     uses_direct_memory = true;
                 }
                 else if (component_name.compare("hstore") == 0)
                 {
                     component_uuid = Component::hstore_factory;
                     component_object = "libcomanche-hstore.so";
-                    pool_path = "/mnt/pmem0/pool";
+                    pool_path = "/mnt/pmem0/pool/";
                 }
                 else if (component_name.compare("mapstore") == 0)
                 {
                     component_uuid = Component::mapstore_factory;
                     component_object = "libcomanche-storemap.so";
-                    pool_path = "/mnt/pmem0";
+                    pool_path = "/mnt/pmem0/";
                 }
                 else if (component_name.compare("rbtreeindex") == 0) {
                   component_object = "libcomanche-indexrbtree.so";

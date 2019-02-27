@@ -207,11 +207,11 @@ void Shard::process_message_pool_request(Connection_handler* handler,
   /* handle operation */
   if (msg->op == Dawn::Protocol::OP_CREATE) {
     if (option_DEBUG > 1)
-      PMAJOR("POOL CREATE: op=%u path=%s%s size=%lu obj-count=%lu", msg->op,
-             msg->path(), msg->pool_name(), msg->pool_size,
+      PMAJOR("POOL CREATE: op=%u name=%s size=%lu obj-count=%lu", msg->op,
+             msg->pool_name(), msg->pool_size,
              msg->expected_object_count);
 
-    const std::string pool_name = msg->path() + std::string(msg->pool_name());
+    const std::string pool_name = msg->pool_name();
 
     Component::IKVStore::pool_t pool;
 
@@ -219,13 +219,14 @@ void Shard::process_message_pool_request(Connection_handler* handler,
       handler->add_reference(pool);
     }
     else {
-      pool = _i_kvstore->create_pool(msg->path(), msg->pool_name(),
+      pool = _i_kvstore->create_pool(msg->pool_name(),
                                      msg->pool_size,
-                                     0,  // flags
+                                     msg->flags,
                                      msg->expected_object_count);
+
       if(pool == Component::IKVStore::POOL_ERROR) {
         response->pool_id = 0;
-        response->status = E_FAIL;
+        response->status = Component::IKVStore::POOL_ERROR;
         PWRN("unable to create pool (%s)", pool_name.c_str());
       }
       else {
@@ -240,10 +241,10 @@ void Shard::process_message_pool_request(Connection_handler* handler,
   }
   else if (msg->op == Dawn::Protocol::OP_OPEN) {
     if (option_DEBUG > 1)
-      PMAJOR("POOL OPEN: path=%s%s", msg->path(), msg->pool_name());
+      PMAJOR("POOL OPEN: name=%s", msg->pool_name());
 
     Component::IKVStore::pool_t pool;
-    const std::string pool_name = msg->path() + std::string(msg->pool_name());
+    const std::string pool_name(msg->pool_name());
     
     /* check that pool is not already open */
     if (handler->check_for_open_pool(pool_name, pool)) {
@@ -254,7 +255,7 @@ void Shard::process_message_pool_request(Connection_handler* handler,
     }
     else {
         /* pool does not exist yet */
-      pool = _i_kvstore->open_pool(msg->path(), msg->pool_name());
+      pool = _i_kvstore->open_pool(msg->pool_name());
 
       if(pool == Component::IKVStore::POOL_ERROR) {
         response->pool_id = 0;
@@ -275,6 +276,7 @@ void Shard::process_message_pool_request(Connection_handler* handler,
     if(handler->release_pool_reference(msg->pool_id)) {
       PLOG("actually closing pool %p", msg->pool_id);
       response->status = _i_kvstore->close_pool(msg->pool_id);
+      assert(response->status == S_OK);
     }
     else {
       response->status = S_OK;
@@ -282,10 +284,10 @@ void Shard::process_message_pool_request(Connection_handler* handler,
   }
   else if (msg->op == Dawn::Protocol::OP_DELETE) {
 
-    if (option_DEBUG > 2) PMAJOR("POOL DELETE: pool_id=%lx", msg->pool_id);
+    if (option_DEBUG > 2) PMAJOR("POOL DELETE: pool_id=%lx name=%s", msg->pool_id, msg->pool_name());
     
     Component::IKVStore::pool_t pool;
-    const std::string pool_name = msg->path() + std::string(msg->pool_name());
+    const std::string pool_name = msg->pool_name();
 
     /* check if pool is still open; return error if it is */
     if (handler->check_for_open_pool(pool_name, pool)) {
@@ -294,7 +296,7 @@ void Shard::process_message_pool_request(Connection_handler* handler,
     }
     else {
       response->pool_id = 0;
-      response->status = _i_kvstore->delete_pool(msg->path(),msg->pool_name());
+      response->status = _i_kvstore->delete_pool(msg->pool_name());
     }
   }
   else
@@ -331,10 +333,18 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
     void*  target     = nullptr;
     size_t target_len = msg->val_len;
     assert(target_len > 0);
+    assert(msg->pool_id > 0);
 
-    /* create (if needed) and lock value */
+    /* can't support dont stomp flag */
+    if(msg->flags & IKVStore::FLAGS_DONT_STOMP) {
+      status = E_INVAL;
+      goto send_response;
+    }
+
+    std::string k(msg->key(), msg->key_len);
+    /* create (if needed) and lock value */    
     auto key_handle = _i_kvstore->lock(msg->pool_id,
-                                       msg->key(),
+                                       k,
                                        IKVStore::STORE_LOCK_WRITE,
                                        target,
                                        target_len);
@@ -401,7 +411,12 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
     }
     else {
       const std::string k(msg->key(), msg->key_len);
-      status = _i_kvstore->put(msg->pool_id, k, msg->value(), msg->val_len);
+
+      status = _i_kvstore->put(msg->pool_id,
+                               k,
+                               msg->value(),
+                               msg->val_len,
+                               msg->flags);
 
       if (option_DEBUG > 2) {
         if (status == Component::IKVStore::E_ALREADY_EXISTS)
@@ -433,8 +448,11 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
 
       std::string k(msg->key(), msg->key_len);
 
-      auto key_handle = _i_kvstore->lock(
-          msg->pool_id, k, IKVStore::STORE_LOCK_READ, value_out, value_out_len);
+      auto key_handle = _i_kvstore->lock(msg->pool_id,
+                                         k,
+                                         IKVStore::STORE_LOCK_READ,
+                                         value_out,
+                                         value_out_len);
 
       if (option_DEBUG > 2)
         PLOG("shard: locked OK: value_out=%p (%.*s) value_out_len=%lu",

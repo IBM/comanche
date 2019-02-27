@@ -55,28 +55,28 @@ public:
 
 public:
 
+  virtual int get_capability(Capability cap) const { return 0; }
+
   /* IKVStore */
   virtual int thread_safety() const { return THREAD_MODEL_RWLOCK_PER_POOL; }
   
-  virtual pool_t create_pool(const std::string& path,
-                             const std::string& name,
+  virtual pool_t create_pool(const std::string& name,
                              const size_t size,
                              unsigned int flags = 0,
                              uint64_t expected_obj_count = 0) override;
   
-  virtual pool_t open_pool(const std::string& path,
-                           const std::string& name,
+  virtual pool_t open_pool(const std::string& name,
                            unsigned int flags = 0) override;
   
   virtual status_t close_pool(const pool_t pid) override;
 
-  virtual status_t delete_pool(const std::string& path,
-                               const std::string& name) override;
+  virtual status_t delete_pool(const std::string& name) override;
 
   virtual status_t put(const pool_t pool,
                        const std::string& key,
                        const void * value,
-                       const size_t value_len) override;
+                       const size_t value_len,
+                       unsigned int flags = FLAGS_NONE) override;
 
   virtual status_t get(const pool_t pool,
                        const std::string& key,
@@ -93,7 +93,8 @@ public:
                               const std::string& key,
                               const void * value,
                               const size_t value_len,
-                              IKVStore::memory_handle_t handle = HANDLE_NONE) override;
+                              IKVStore::memory_handle_t handle = HANDLE_NONE,
+                              unsigned int flags = FLAGS_NONE) override;
   
   virtual key_t lock(const pool_t pool,
                      const std::string& key,

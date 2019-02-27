@@ -85,38 +85,38 @@ class Connection_handler : public Connection_base {
     while (tick() > 0) sleep(1);
   }
 
-  pool_t open_pool(const std::string path,
-                   const std::string name,
+  pool_t open_pool(const std::string name,
                    unsigned int      flags);
 
-  pool_t create_pool(const std::string path,
-                     const std::string name,
+  pool_t create_pool(const std::string name,
                      const size_t      size,
                      unsigned int      flags,
                      uint64_t          expected_obj_count);
 
   status_t close_pool(pool_t pool);
 
-  status_t delete_pool(const std::string& path,
-                       const std::string& name);
+  status_t delete_pool(const std::string& name);
 
 
   status_t put(const pool_t      pool,
                const std::string key,
                const void*       value,
-               const size_t      value_len);
+               const size_t      value_len,
+               unsigned int      flags);
 
   status_t put(const pool_t pool,
                const void*  key,
                const size_t key_len,
                const void*  value,
-               const size_t value_len);
+               const size_t value_len,
+               unsigned int flags);
 
   status_t put_direct(const pool_t                         pool,
                       const std::string&                   key,
                       const void*                          value,
                       const size_t                         value_len,
-                      Component::IKVStore::memory_handle_t handle);
+                      Component::IKVStore::memory_handle_t handle,
+                      unsigned int                         flags);
 
   status_t get(const pool_t pool, const std::string& key, std::string& value);
 
@@ -173,7 +173,8 @@ class Connection_handler : public Connection_base {
                                 const size_t                         key_len,
                                 const void*                          value,
                                 const size_t                         value_len,
-                                Component::IKVStore::memory_handle_t handle);
+                                Component::IKVStore::memory_handle_t handle,
+                                unsigned int                         flags);
 
 
  private:

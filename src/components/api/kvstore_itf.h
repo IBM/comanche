@@ -68,13 +68,21 @@ public:
   };
 
   enum {
-    FLAGS_READ_ONLY = 1,
-    FLAGS_SET_SIZE = 2,
-    FLAGS_CREATE_ONLY = 3,
+    FLAGS_NONE        = 0x0,
+    FLAGS_READ_ONLY   = 0x1,
+    FLAGS_SET_SIZE    = 0x2,
+    FLAGS_CREATE_ONLY = 0x4,
+    FLAGS_DONT_STOMP  = 0x8,
   };
 
   enum {
     POOL_ERROR = 0,
+  };
+
+  enum class Capability {
+    POOL_DELETE_CHECK, /*< checks if pool is open before allowing delete */
+    RWLOCK_PER_POOL,   /*< pools are locked with RW-lock */
+    POOL_THREAD_SAFE,  /*< pools can be shared across multiple client threads */
   };
 
   enum class Op_type {
@@ -83,6 +91,7 @@ public:
     INCREMENT_UINT64,
     CAS_UINT64,
   };
+
 
   class Operation
   {
@@ -123,10 +132,10 @@ public:
     const void * data() const noexcept { return _data; }
   };
 
-  typedef enum {
+  enum lock_type_t {
     STORE_LOCK_READ=1,
     STORE_LOCK_WRITE=2,
-  } lock_type_t;
+  };
 
   enum {
     S_OK = 0,
@@ -147,60 +156,98 @@ public:
 
   /** 
    * Determine thread safety of the component
+   * Check capability of component
    * 
+   * @param cap Capability type
    * 
    * @return THREAD_MODEL_XXXX
    */
   virtual int thread_safety() const = 0;
 
   /** 
-   * Create an object pool
+   * Check capability of component
    * 
-   * @param path Path of the persistent memory (e.g., /mnt/pmem0/ )
+   * @param cap Capability type
+   * 
+   * @return THREAD_MODEL_XXXX
+   */  
+  virtual int get_capability(Capability cap) const {
+    return -1;
+  }
+  
+  /** 
+   * Create an object pool. If the pool exists and the FLAGS_CREATE_ONLY
+   * is not provided, then the existing pool will be opened.  If FLAGS_CREATE_ONLY
+   * is specified and the pool exists, POOL ERROR will be returned.
+   * 
    * @param name Name of object pool
    * @param size Size of object pool in bytes
    * @param flags Creation flags
-   * @param
+   * @param expected_obj_count [optional] Expected number of objects in pool
    * 
    * @return Pool handle or POOL_ERROR
    */
+  virtual pool_t create_pool(const std::string& name,
+                             const size_t size,
+                             uint32_t flags = 0,
+                             uint64_t expected_obj_count = 0) {
+    return POOL_ERROR;
+  }
+
   virtual pool_t create_pool(const std::string& path,
                              const std::string& name,
                              const size_t size,
-                             unsigned int flags = 0,
-                             uint64_t expected_obj_count = 0) = 0;
+                             uint32_t flags = 0,
+                             uint64_t expected_obj_count = 0) __attribute__((deprecated)) {
+    return create_pool(path + name, size, flags, expected_obj_count);
+  }
+
 
   /** 
    * Open an existing pool
    * 
-   * @param path Path of persistent memory (e.g., /mnt/pmem0/ )
    * @param name Name of object pool
    * @param flags Open flags e.g., FLAGS_READ_ONLY
    * 
-   * @return Pool handle or POOL_ERROR
+   * @return Pool handle or POOL_ERROR if pool cannot be opened, or flags supported
    */
+  virtual pool_t open_pool(const std::string& name,
+                           uint32_t flags = 0) {
+    return POOL_ERROR;
+  }
+
   virtual pool_t open_pool(const std::string& path,
                            const std::string& name,
-                           unsigned int flags = 0) = 0;
+                           uint32_t flags = 0) __attribute__((deprecated)) {
+    return open_pool(path + name, flags);
+  }
 
+  
   /** 
    * Close pool handle
    * 
-   * @param pool Pool handle or POOL_ERROR
+   * @param pool Pool handle 
    *
-   * @return S_OK on success
+   * @return S_OK on success, E_ALREADY_OPEN if pool cannot be closed due to open session.
    */
   virtual status_t close_pool(const pool_t pool) = 0;
 
+  
   /** 
    * Delete an existing pool
    * 
-   * @param path Path of persistent memory (e.g., /mnt/pmem0/ )
    * @param name Name of object pool
    * 
    * @return S_OK on success, E_ALREADY_OPEN if pool cannot be deleted
    */
-  virtual status_t delete_pool(const std::string &path, const std::string &name) = 0;
+  virtual status_t delete_pool(const std::string &name) {
+    return E_NOT_IMPL;
+  }
+
+  virtual status_t delete_pool(const std::string &path, const std::string &name) {
+    return delete_pool(path + name);
+  }
+  
 
   /** 
    * Get mapped memory regions for pool
@@ -230,7 +277,8 @@ public:
   virtual status_t put(const pool_t pool,
                        const std::string& key,
                        const void * value,
-                       const size_t value_len) { return E_NOT_SUPPORTED; }
+                       const size_t value_len,
+                       uint32_t flags = FLAGS_NONE) { return E_NOT_SUPPORTED; }
 
   /** 
    * Zero-copy put operation.  If there does not exist an object
@@ -249,7 +297,8 @@ public:
                               const std::string& key,
                               const void * value,
                               const size_t value_len,
-                              memory_handle_t handle = HANDLE_NONE) {
+                              memory_handle_t handle = HANDLE_NONE,
+                              uint32_t flags = FLAGS_NONE) {
     return E_NOT_SUPPORTED;
   }
 
