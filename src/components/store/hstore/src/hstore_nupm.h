@@ -139,16 +139,21 @@ public:
   auto pool_create(
     const pool_path &path_
     , std::size_t size_
+    , int flags_
     , std::size_t expected_obj_count_
   ) -> std::unique_ptr<tracked_pool> override
   {
+    if ( flags_ != 0 )
+    {
+      throw pool_error("unsupported flags " + std::to_string(flags_), pool_ec::pool_unsupported_mode);
+    }
     auto uuid = dax_uuid_hash(path_);
     /* Attempt to create a new pool. */
     auto pop = open_pool_handle(static_cast<region *>(_devdax_manager->create_region(uuid, _numa_node, size_)), region_closer(shared_from_this()));
     /* Guess that nullptr indicate a failure */
     if ( ! pop )
     {
-      throw General_exception("failed to re-open region %s", path_.str().c_str());
+      throw pool_error("create_region fail: " + path_.str(), pool_ec::region_fail);
     }
     PLOG(PREFIX "in %s: created region ID %" PRIx64 " at %p:0x%zx", __func__, path_.str().c_str(), uuid, static_cast<const void *>(pop.get()), size_);
 
@@ -157,8 +162,14 @@ public:
   }
 
   auto pool_open(
-    const pool_path &path_) -> std::unique_ptr<tracked_pool> override
+    const pool_path &path_
+    , int flags_
+  ) -> std::unique_ptr<tracked_pool> override
   {
+    if ( flags_ != 0 )
+    {
+      throw pool_error("unsupported flags " + std::to_string(flags_), pool_ec::pool_unsupported_mode);
+    }
     auto uuid = dax_uuid_hash(path_);
     auto pop = open_pool_handle(static_cast<region *>(_devdax_manager->open_region(uuid, _numa_node, nullptr)), region_closer(shared_from_this()));
     if ( ! pop )

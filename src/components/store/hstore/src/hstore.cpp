@@ -219,8 +219,9 @@ auto hstore::thread_safety() const -> int
 
 auto hstore::create_pool(const std::string & name_,
                          const std::size_t size_,
-                         unsigned int /* flags */,
+                         std::uint32_t flags_,
                          const uint64_t  expected_obj_count_) -> pool_t
+try
 {
   std::cerr << "create_pool " << name_ << " size " << size_ << "\n";
   if ( option_DEBUG )
@@ -234,7 +235,12 @@ auto hstore::create_pool(const std::string & name_,
 
   auto path = pool_path(name_);
 
-  auto s = std::unique_ptr<session_t>(static_cast<session_t *>(_pool_manager->pool_create(path, size_, expected_obj_count_).release()));
+  auto s =
+    std::unique_ptr<session_t>(
+      static_cast<session_t *>(
+        _pool_manager->pool_create(path, size_, flags_ & ~FLAGS_CREATE_ONLY, expected_obj_count_).release()
+      )
+    );
 
   auto p = s.get();
   std::unique_lock<std::mutex> sessions_lk(_pools_mutex);
@@ -242,19 +248,29 @@ auto hstore::create_pool(const std::string & name_,
 
   return reinterpret_cast<IKVStore::pool_t>(p);
 }
+catch ( const pool_error & )
+{
+  return flags_ & FLAGS_CREATE_ONLY
+    ? static_cast<IKVStore::pool_t>(POOL_ERROR)
+    : open_pool(name_, flags_ & ~FLAGS_CREATE_ONLY)
+    ;
+}
 
 auto hstore::open_pool(const std::string &name_,
-                       unsigned int /* flags */) -> pool_t
+                       std::uint32_t flags) -> pool_t
 {
   auto path = pool_path(name_);
   try {
-    auto s = _pool_manager->pool_open(path);
+    auto s = _pool_manager->pool_open(path, flags);
     auto p = static_cast<tracked_pool *>(s.get());
     std::unique_lock<std::mutex> sessions_lk(_pools_mutex);
     _pools.emplace(p, std::move(s));
     return reinterpret_cast<IKVStore::pool_t>(p);
   }
-  catch( std::invalid_argument &e ) {
+  catch( const pool_error & ) {
+    return Component::IKVStore::POOL_ERROR;
+  }
+  catch( const std::invalid_argument & ) {
     return Component::IKVStore::POOL_ERROR;
   }
 }
@@ -294,8 +310,12 @@ auto hstore::put(const pool_t pool,
                  const std::string &key,
                  const void * value,
                  const std::size_t value_len,
-                 unsigned int) -> status_t
+                 std::uint32_t flags) -> status_t
 {
+  if ( flags != 0 )
+  {
+    return E_BAD_PARAM;
+  }
   if ( option_DEBUG ) {
     PLOG(
          PREFIX "(key=%s) (value=%.*s)"
@@ -378,9 +398,9 @@ auto hstore::put_direct(const pool_t pool,
                         const void * value,
                         const std::size_t value_len,
                         memory_handle_t,
-                        unsigned int /*flags */) -> status_t
+                        std::uint32_t flags) -> status_t
 {
-  return put(pool, key, value, value_len);
+  return put(pool, key, value, value_len, flags);
 }
 
 auto hstore::get(const pool_t pool,
@@ -461,21 +481,20 @@ auto hstore::get_direct(const pool_t pool,
     throw General_exception("get_direct failed unexpectedly");
   }
 
-#if 0
 namespace
 {
-class lock
-  : public Component::IKVStore::Opaque_key
-  , public std::string
-{
-public:
-  lock(const std::string &)
-    : std::string(s)
-    , Component::IKVStore::Opaque_key{}
-  {}
-};
+  class lock_impl
+    : public Component::IKVStore::Opaque_key
+  {
+    std::string _s;
+  public:
+    lock_impl(const std::string &s_)
+      : Component::IKVStore::Opaque_key{}
+      , _s(s_)
+    {}
+    const std::string &key() const { return _s; }
+  };
 }
-#endif
 
 namespace
 {
@@ -534,33 +553,37 @@ auto hstore::lock(const pool_t pool,
       out_value = r.first->second.data();
       out_value_len = r.first->second.size();
     }
-  return reinterpret_cast<key_t>(new std::string(key));
+  return new lock_impl(key);
 }
 
 
 auto hstore::unlock(const pool_t pool,
                     key_t key_) -> status_t
 {
-  std::string *key = reinterpret_cast<std::string *>(key_);
-
-  if ( key )
+  if ( key_ )
+  {
+    if ( auto lk = dynamic_cast<lock_impl *>(key_) )
     {
       try {
         auto &session = dynamic_cast<session_t &>(locate_session(pool));
-        auto p_key = KEY_T(key->begin(), key->end(), session.allocator());
+        auto p_key = KEY_T(lk->key().begin(), lk->key().end(), session.allocator());
 
         session.map().unlock(p_key);
       }
       catch ( const std::out_of_range &e )
-        {
-          return E_KEY_NOT_FOUND;
-        }
-      catch(...) {
+      {
+        return E_KEY_NOT_FOUND;
+      }
+      catch( ... ) {
         throw General_exception(PREFIX "failed unexpectedly", __func__);
       }
-      delete key;
+      delete lk;
     }
-
+    else
+    {
+      return S_OK; /* not really OK - was not one of our locks */
+    }
+  }
   return S_OK;
 }
 
