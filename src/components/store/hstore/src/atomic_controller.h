@@ -29,6 +29,7 @@ namespace impl
 			table_t *_map;
 			void redo_update();
 			void redo_replace();
+			void redo_finish();
 		public:
 			atomic_controller(
 				persist_atomic<typename Table::value_type> &persist_
