@@ -406,8 +406,8 @@ public:
           exp_start_time->tm_min = time_input.tm_min;
           exp_start_time->tm_sec = 0;
 
-          PINF("[%u] delaying experiment start until %d:%d", core, (int)exp_start_time->tm_hour, (int)exp_start_time->tm_min);
-          
+          PINF("[%u] delaying experiment start until %d:%.2d", core, (int)exp_start_time->tm_hour, (int)exp_start_time->tm_min);
+
           std::this_thread::sleep_until(std::chrono::system_clock::from_time_t(mktime(exp_start_time)));
 
           PINF("[%u] starting experiment now", core);
