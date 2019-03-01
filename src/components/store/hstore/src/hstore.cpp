@@ -238,7 +238,7 @@ try
   auto s =
     std::unique_ptr<session_t>(
       static_cast<session_t *>(
-        _pool_manager->pool_create(path, size_, flags_ & ~FLAGS_CREATE_ONLY, expected_obj_count_).release()
+        _pool_manager->pool_create(path, size_, flags_ & ~(FLAGS_CREATE_ONLY|FLAGS_SET_SIZE), expected_obj_count_).release()
       )
     );
 
@@ -312,7 +312,7 @@ auto hstore::put(const pool_t pool,
                  const std::size_t value_len,
                  std::uint32_t flags) -> status_t
 {
-  if ( flags != 0 )
+  if ( (flags & ~FLAGS_DONT_STOMP) != 0 )
   {
     return E_BAD_PARAM;
   }
@@ -349,7 +349,11 @@ auto hstore::put(const pool_t pool,
       )
     );
 #endif
-  return i.second ? S_OK : update_by_issue_41(pool, key, value, value_len,  i.first->second.data(), i.first->second.size());
+  return
+    i.second                   ? S_OK
+    : flags & FLAGS_DONT_STOMP ? E_KEY_EXISTS 
+    : update_by_issue_41(pool, key, value, value_len,  i.first->second.data(), i.first->second.size())
+    ;
 }
 
 auto hstore::update_by_issue_41(const pool_t pool,
