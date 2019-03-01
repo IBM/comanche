@@ -160,6 +160,7 @@ status_t Dawn_client::put(const IKVStore::pool_t pool,
                           const size_t           value_len,
                           unsigned int           flags)
 {
+  assert(flags < FLAGS_MAX_VALUE);
   return _connection->put(pool, key, value, value_len, flags);
 }
 

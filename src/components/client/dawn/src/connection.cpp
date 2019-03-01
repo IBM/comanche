@@ -23,7 +23,7 @@ Connection_handler::Connection_handler(Connection_base::Transport* connection)
 }
 
 Connection_handler::pool_t Connection_handler::open_pool(const std::string name,
-                                                         unsigned int flags)
+                                                         uint32_t flags)
 {
   API_LOCK();
 
@@ -171,7 +171,7 @@ status_t Connection_handler::put(const pool_t pool,
                                  const size_t key_len,
                                  const void*  value,
                                  const size_t value_len,
-                                 unsigned int flags)
+                                 uint32_t flags)
 {
   API_LOCK();
 
