@@ -3,8 +3,8 @@
  * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
  */
 
-#ifndef _COMANCHE_PERSIST_CONTROLLER_H
-#define _COMANCHE_PERSIST_CONTROLLER_H
+#ifndef _COMANCHE_HSTORE_PERSIST_CONTROLLER_H
+#define _COMANCHE_HSTORE_PERSIST_CONTROLLER_H
 
 #include "construction_mode.h"
 #include "persist_data.h"

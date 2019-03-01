@@ -1,3 +1,8 @@
+/*
+ * (C) Copyright IBM Corporation 2018, 2019. All rights reserved.
+ * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
+ */
+
 #ifndef _COMANCHE_HSTORE_PALLOC_H_
 #define _COMANCHE_HSTORE_PALLOC_H_
 
@@ -37,7 +42,7 @@ std::tuple<PMEMoid, std::size_t> palloc_inner(
 	{
 		throw pobj_bad_alloc(0, 1, size_max_, size_min_, EINVAL);
 	}
-    while ( 0 != pmemobj_alloc(pop_, &oid, size_max_, type_num_, ctor_, ctor_arg_) )
+	while ( 0 != pmemobj_alloc(pop_, &oid, size_max_, type_num_, ctor_, ctor_arg_) )
 	{
 		size_max_ = size_max_ / 64U * 63U;
 		if ( size_max_ < size_min_ )

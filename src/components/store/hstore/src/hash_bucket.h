@@ -1,5 +1,10 @@
-#ifndef _DAWN_HSTORE_HASH_BUCKET_H
-#define _DAWN_HSTORE_HASH_BUCKET_H
+/*
+ * (C) Copyright IBM Corporation 2018. All rights reserved.
+ * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
+ */
+
+#ifndef _COMANCHE_HSTORE_HASH_BUCKET_H
+#define _COMANCHE_HSTORE_HASH_BUCKET_H
 
 #include "owner.h"
 #include "content.h"
