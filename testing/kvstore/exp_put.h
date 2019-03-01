@@ -64,7 +64,6 @@ public:
       }
     timer.stop();
     
-
     assert(rc == S_OK);
    
     double lap_time = timer.get_lap_time_in_seconds();
