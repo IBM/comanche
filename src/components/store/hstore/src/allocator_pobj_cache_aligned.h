@@ -1,5 +1,10 @@
-#ifndef _COMANCHE_ALLOCATOR_POBJ_CACHE_ALIGNED_H
-#define _COMANCHE_ALLOCATOR_POBJ_CACHE_ALIGNED_H
+/*
+ * (C) Copyright IBM Corporation 2018, 2019. All rights reserved.
+ * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
+ */
+
+#ifndef _COMANCHE_HSTORE_ALLOCATOR_POBJ_CACHE_ALIGNED_H
+#define _COMANCHE_HSTORE_ALLOCATOR_POBJ_CACHE_ALIGNED_H
 
 #include "deallocator_pobj_cache_aligned.h"
 #include "pool_pobj.h"

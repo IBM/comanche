@@ -1,5 +1,10 @@
-#ifndef COMANCHE_HSTORE_ALLOCATOR_H
-#define COMANCHE_HSTORE_ALLOCATOR_H
+/*
+ * (C) Copyright IBM Corporation 2018, 2019. All rights reserved.
+ * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
+ */
+
+#ifndef COMANCHE_HSTORE_ALLOCATOR_CC_H
+#define COMANCHE_HSTORE_ALLOCATOR_CC_H
 
 #include "deallocator_cc.h"
 

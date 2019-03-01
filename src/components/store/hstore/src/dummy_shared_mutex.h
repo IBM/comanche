@@ -1,5 +1,10 @@
-#ifndef _DAWN_HSTORE_DUMMY_SHARED_MUTEX_H_
-#define _DAWN_HSTORE_DUMMY_SHARED_MUTEX_H_
+/*
+ * (C) Copyright IBM Corporation 2018. All rights reserved.
+ * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
+ */
+
+#ifndef _COMANCHE_HSTORE_DUMMY_SHARED_MUTEX_H_
+#define _COMANCHE_HSTORE_DUMMY_SHARED_MUTEX_H_
 
 namespace dummy
 {

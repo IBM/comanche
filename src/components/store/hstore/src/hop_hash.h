@@ -3,8 +3,8 @@
  * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
  */
 
-#ifndef _COMANCHE_HOP_HASH_H
-#define _COMANCHE_HOP_HASH_H
+#ifndef _COMANCHE_HSTORE_HOP_HASH_H
+#define _COMANCHE_HSTORE_HOP_HASH_H
 
 #include "segment_layout.h"
 
