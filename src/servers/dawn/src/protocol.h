@@ -220,7 +220,7 @@ struct Message_IO_request : public Message {
                      size_t      value_len,
                      uint32_t    flags)
       : Message(auth_id, MSG_TYPE_IO_REQUEST, op), request_id(request_id),
-        pool_id(pool_id)
+        pool_id(pool_id), flags(flags)
   {
     set_key_and_value(buffer_size, key, key_len, value, value_len);
     msg_len = sizeof(Message_IO_request) + key_len + value_len + 1;
