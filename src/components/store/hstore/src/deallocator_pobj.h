@@ -1,5 +1,10 @@
-#ifndef _COMANCHE_DEALLOCATOR_POBJ_H
-#define _COMANCHE_DEALLOCATOR_POBJ_H
+/*
+ * (C) Copyright IBM Corporation 2018, 2019. All rights reserved.
+ * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
+ */
+
+#ifndef _COMANCHE_HSTORE_DEALLOCATOR_POBJ_H
+#define _COMANCHE_HSTORE_DEALLOCATOR_POBJ_H
 
 #include "persister_pmem.h"
 #include "pointer_pobj.h"

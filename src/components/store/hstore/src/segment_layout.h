@@ -1,5 +1,10 @@
-#ifndef _DAWN_SEGMENT_LAYOUT_H
-#define _DAWN_SEGMENT_LAYOUT_H
+/*
+ * (C) Copyright IBM Corporation 2018. All rights reserved.
+ * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
+ */
+
+#ifndef _COMANCHE_HSTORE_SEGMENT_LAYOUT_H
+#define _COMANCHE_HSTORE_SEGMENT_LAYOUT_H
 
 #include <cstddef> /* size_t */
 #include <limits> /* numeric_limits */

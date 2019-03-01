@@ -3,8 +3,8 @@
  * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
  */
 
-#ifndef _DAWN_HSTORE_H_
-#define _DAWN_HSTORE_H_
+#ifndef _COMANCHE_HSTORE_H_
+#define _COMANCHE_HSTORE_H_
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Weffc++"
@@ -80,12 +80,12 @@ public:
 
   pool_t create_pool(const std::string &name,
                      std::size_t size,
-                     unsigned int flags,
-                     uint64_t expected_obj_count
+                     std::uint32_t flags,
+                     std::uint64_t expected_obj_count
                      ) override;
 
   pool_t open_pool(const std::string &name,
-                   unsigned int flags) override;
+                   std::uint32_t flags) override;
 
   status_t delete_pool(const std::string &name) override;
 
@@ -95,14 +95,14 @@ public:
                const std::string &key,
                const void * value,
                std::size_t value_len,
-               unsigned int flags = FLAGS_NONE) override;
+               std::uint32_t flags = FLAGS_NONE) override;
 
   status_t put_direct(pool_t pool,
                       const std::string& key,
                       const void * value,
                       std::size_t value_len,
                       memory_handle_t handle = HANDLE_NONE,
-                      unsigned int flags = FLAGS_NONE) override;
+                      std::uint32_t flags = FLAGS_NONE) override;
 
   status_t get(pool_t pool,
                const std::string &key,

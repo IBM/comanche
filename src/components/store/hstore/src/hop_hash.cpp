@@ -1,8 +1,9 @@
-#include "hop_hash.h"
-
 /*
- * Hopscotch hash table - template Key, Value, and allocators
+ * (C) Copyright IBM Corporation 2018. All rights reserved.
+ * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
  */
+
+#include "hop_hash.h"
 
 /* Inteded to implement Hopscotch hashing
  * http://mcg.cs.tau.ac.il/papers/disc2008-hopscotch.pdf

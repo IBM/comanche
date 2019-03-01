@@ -31,7 +31,7 @@ template <typename Value>
 template <typename Value>
 	void impl::content<Value>::set_owner(owner_t
 #if TRACK_OWNER
-	       	owner_
+		owner_
 #endif
 	)
 	{

@@ -1,5 +1,6 @@
 /*
- * Hopscotch hash table - template Key, Value, and allocators
+ * (C) Copyright IBM Corporation 2018. All rights reserved.
+ * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
  */
 
 #include "segment_and_bucket.h"

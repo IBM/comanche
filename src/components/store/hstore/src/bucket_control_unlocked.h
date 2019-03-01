@@ -1,5 +1,10 @@
-#ifndef _COMANCHE_BUCKET_CONTROL_UNLOCKED_
-#define _COMANCHE_BUCKET_CONTROL_UNLOCKED_
+/*
+ * (C) Copyright IBM Corporation 2018, 2019. All rights reserved.
+ * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
+ */
+
+#ifndef _COMANCHE_HSTORE_BUCKET_CONTROL_UNLOCKED_
+#define _COMANCHE_HSTORE_BUCKET_CONTROL_UNLOCKED_
 
 #include "bucket_aligned.h"
 #include <cstddef> /* size_t */

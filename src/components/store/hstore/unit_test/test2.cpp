@@ -25,6 +25,7 @@ class KVStore_test : public ::testing::Test {
   static constexpr std::size_t many_count_target_large = 2000000;
   /* Shorter test: use when PMEM_IS_PMEM_FORCE=0 */
   static constexpr std::size_t many_count_target_small = 400;
+
  protected:
 
   // If the constructor and destructor are not enough for setting up
@@ -236,7 +237,7 @@ TEST_F(KVStore_test, PutMany)
           {
             ++fail_count;
           }
-	}
+        }
       }
       EXPECT_EQ(many_count_target, extant_count + succeed_count + fail_count);
       many_count_actual = extant_count + succeed_count;
@@ -286,21 +287,153 @@ TEST_F(KVStore_test, GetMany)
        */
       EXPECT_GT(many_count_target * 0.01, double(mismatch_count));
     }
+  }
+}
 
+TEST_F(KVStore_test, UpdateMany)
+{
+  /* We will try the inserts many times, as the perishable timer will abort all but the last attempt */
+  bool finished = false;
+
+  _kvstore->debug(0, 0 /* enable */, 0);
+  /*
+   * We would like to generate "crashes" with some reasonable frequency,
+   * but not at every store. (Every store would be too slow, at least
+   * when using mmap to simulate persistent store). We use a Fibonacci
+   * series to produce crashes at decreasingly frequent intervals.
+   *
+   * p0 and p1 produce a Fibonacci series in perishable_count
+   */
+  unsigned p0 = 0;
+  unsigned p1 = 1;
+  for (
+    unsigned perishable_count = p0 + p1
+    ; ! finished
+    ; perishable_count = p0 + p1, p0 = p1, p1 = perishable_count
+    )
+  {
+    unsigned fail_count = 0;
+    unsigned succeed_count = 0;
+    _kvstore->debug(0, 1 /* reset */, perishable_count);
+    _kvstore->debug(0, 0 /* enable */, true);
+    try
     {
-      auto erase_count = 0;
+      pool_open p(_kvstore, pool_name());
+
+      std::mt19937_64 r0{};
+
       for ( auto &kv : kvv )
       {
         const auto &key = std::get<0>(kv);
-        auto r = _kvstore->erase(p.pool(), key);
-        if ( r == S_OK )
+        const auto &value = std::get<1>(kv);
+        const auto update_value = value + ((key[0] & 1) ? "X" : "");
         {
-          ++erase_count;
+          auto r = _kvstore->put(p.pool(), key, update_value.c_str(), update_value.length());
+          EXPECT_EQ(S_OK, r);
+          if ( r == S_OK )
+          {
+            ++succeed_count;
+          }
+          else
+          {
+            ++fail_count;
+          }
         }
       }
-      EXPECT_EQ(count, erase_count);
-      auto count = _kvstore->count(p.pool());
-      EXPECT_EQ(0U, count);
+      EXPECT_EQ(many_count_target, succeed_count + fail_count);
+      many_count_actual = succeed_count;
+      finished = true;
+      /* Done with forcing crashes */
+      _kvstore->debug(0, 0 /* enable */, false);
+      std::cerr << __func__ << " Final put pass " << perishable_count << " inserts " << succeed_count << " total " << many_count_actual << "\n";
+    }
+    catch ( const std::runtime_error &e )
+    {
+      if ( e.what() != std::string("perishable timer expired") ) { throw; }
+      std::cerr << __func__ << " Perishable pass " << perishable_count << " inserts " << succeed_count << " total " << many_count_actual << "\n";
+    }
+  }
+}
+
+TEST_F(KVStore_test, GetManyUpdates)
+{
+  _kvstore->debug(0, 0 /* enable */, 0);
+  ASSERT_TRUE(_kvstore);
+  if ( pmem_effective )
+  {
+    pool_open p(_kvstore, pool_name());
+    ASSERT_LT(0, int64_t(p.pool()));
+    auto count = _kvstore->count(p.pool());
+    {
+      /* count should be close to PutMany many_count_actual; duplicate keys are the difference */
+      EXPECT_LE(many_count_actual * 0.99, double(count));
+    }
+    {
+      std::size_t mismatch_count = 0;
+      for ( auto &kv : kvv )
+      {
+        const auto &key = std::get<0>(kv);
+        const auto &ev = std::get<1>(kv);
+        const auto update_ev = ev + ((key[0] & 1) ? "X" : "");
+        void * value = nullptr;
+        size_t value_len = 0;
+        auto r = _kvstore->get(p.pool(), key, value, value_len);
+        EXPECT_EQ(S_OK, r);
+        if ( update_ev.size() != value_len )
+        {
+          std::cerr << "Length mismatch, key length " << key.size() << " key " << key << " expected value " << update_ev << " actual value " << std::string(static_cast<char *>(value), value_len) << " key[0] " << key[0] << " selector " << (key[0] & 1) << "\n";
+        }
+        EXPECT_EQ(update_ev.size(), value_len);
+        mismatch_count += ( update_ev.size() != value_len || 0 != memcmp(update_ev.data(), value, update_ev.size()) );
+        _kvstore->free_memory(value);
+      }
+      /* We do not know exactly now many mismatches (caused by duplicates) to expcect,
+       * because "extant_count" counts both extant items due to duplicate keys in the
+       * population arrays and extant items due to restarts.
+       * But it should be a small fraction of the total number of keys
+       */
+      EXPECT_GT(many_count_target * 0.01, double(mismatch_count));
+    }
+  }
+}
+
+TEST_F(KVStore_test, EraseMany)
+{
+  ASSERT_TRUE(_kvstore);
+  bool finished = false;
+
+  unsigned p0 = 0;
+  unsigned p1 = 1;
+  for (
+    auto perishable_count = p0 + p1
+    ; ! finished
+    ; perishable_count = p0 + p1, p0 = p1, p1 = perishable_count
+    )
+  {
+    auto erase_count = 0;
+    try
+    {
+      pool_open p(_kvstore, pool_name());
+      ASSERT_LT(0, int64_t(p.pool()));
+      {
+        for ( auto &kv : kvv )
+        {
+          const auto &key = std::get<0>(kv);
+          auto r = _kvstore->erase(p.pool(), key);
+          if ( r == S_OK )
+          {
+            ++erase_count;
+          }
+        }
+        auto count = _kvstore->count(p.pool());
+        EXPECT_EQ(0U, count);
+        finished = true;
+      }
+    }
+    catch ( const std::runtime_error &e )
+    {
+      if ( e.what() != std::string("perishable timer expired") ) { throw; }
+      std::cerr << __func__ << " Perishable pass " << perishable_count << " erasures " << erase_count << " total " << many_count_actual << "\n";
     }
   }
 }
