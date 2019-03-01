@@ -282,7 +282,7 @@ void Shard::process_message_pool_request(Connection_handler* handler,
 
     /* release reference, if its zero, we can close pool for real */
     if(handler->release_pool_reference(msg->pool_id)) {
-      PLOG("actually closing pool %p", msg->pool_id);
+      PLOG("actually closing pool %p", (void*) msg->pool_id);
       response->status = _i_kvstore->close_pool(msg->pool_id);
       assert(response->status == S_OK);
     }
