@@ -73,6 +73,7 @@ public:
     FLAGS_SET_SIZE    = 0x2,
     FLAGS_CREATE_ONLY = 0x4,
     FLAGS_DONT_STOMP  = 0x8,
+    FLAGS_MAX_VALUE   = 0x8,        
   };
 
   enum {
