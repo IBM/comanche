@@ -1,5 +1,10 @@
-#ifndef _DAWN_COND_PRINT_H_
-#define _DAWN_COND_PRINT_H_
+/*
+ * (C) Copyright IBM Corporation 2018. All rights reserved.
+ * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
+ */
+
+#ifndef _COMANCHE_HSTORE_COND_PRINT_H_
+#define _COMANCHE_HSTORE_COND_PRINT_H_
 
 /*
  * cond_print: Convert a value to a printable string, if possible,

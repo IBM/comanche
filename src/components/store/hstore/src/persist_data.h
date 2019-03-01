@@ -1,5 +1,10 @@
-#ifndef _DAWN_PERSIST_DATA_H
-#define _DAWN_PERSIST_DATA_H
+/*
+ * (C) Copyright IBM Corporation 2018. All rights reserved.
+ * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
+ */
+
+#ifndef _COMANCHE_HSTORE_PERSIST_DATA_H
+#define _COMANCHE_HSTORE_PERSIST_DATA_H
 
 #include "persist_atomic.h"
 #include "persist_map.h"

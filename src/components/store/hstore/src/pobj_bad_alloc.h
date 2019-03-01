@@ -1,5 +1,10 @@
-#ifndef _DAWN_POBJ_BAD_ALLOC_H
-#define _DAWN_POBJ_BAD_ALLOC_H
+/*
+ * (C) Copyright IBM Corporation 2018. All rights reserved.
+ * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
+ */
+
+#ifndef _COMANCHE_HSTORE_POBJ_BAD_ALLOC_H
+#define _COMANCHE_HSTORE_POBJ_BAD_ALLOC_H
 
 #include <cstring>
 #include <stdexcept>

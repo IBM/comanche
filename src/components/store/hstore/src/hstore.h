@@ -3,8 +3,8 @@
  * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
  */
 
-#ifndef _DAWN_HSTORE_H_
-#define _DAWN_HSTORE_H_
+#ifndef _COMANCHE_HSTORE_H_
+#define _COMANCHE_HSTORE_H_
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Weffc++"
