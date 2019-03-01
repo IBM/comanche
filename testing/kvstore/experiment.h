@@ -383,35 +383,33 @@ public:
       // start immediately; don't do anything here
     }
     else {
-      std::time_t current_time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-      struct std::tm *exp_start_time = std::localtime(&current_time);
-      struct std::tm time_input;
-
+      
       if (std::cin.fail())
       {
         PERR("Error reading time string %s. Should be HH:MM format.", _start_time.c_str());
       }
       else
       {
-        std::istringstream time_string(_start_time);
-        time_string >> std::get_time(&time_input, "%R");
+        using namespace std;
+        using namespace std::chrono;
 
         if (std::cin.fail())
-        {
-          PERR("Invalid start_time string found. Should be in HH:MM format (24 hour clock). Starting experiment now.");
-        }
-        else
-        {
-          exp_start_time->tm_hour = time_input.tm_hour;
-          exp_start_time->tm_min = time_input.tm_min;
-          exp_start_time->tm_sec = 0;
+          throw General_exception("Invalid start_time string found. Should be in HH:MM format (24 hour clock).");
+        std::istringstream time_string(_start_time);
+        std::tm time_input;
+        time_string >> std::get_time(&time_input, "%R");
 
-          PINF("[%u] delaying experiment start until %d:%d", core, (int)exp_start_time->tm_hour, (int)exp_start_time->tm_min);
-          
-          std::this_thread::sleep_until(std::chrono::system_clock::from_time_t(mktime(exp_start_time)));
+        const time_t now = time(NULL);
+        struct tm * now_tm = localtime(&now);
+        struct tm go_tm;
+        memcpy(&go_tm, now_tm, sizeof(struct tm));
+        go_tm.tm_min = time_input.tm_min;
+        go_tm.tm_hour = time_input.tm_hour;
 
-          PINF("[%u] starting experiment now", core);
-        }
+        PINF("[%u] delaying experiment start until %d:%.2d", core, (int)go_tm.tm_hour, (int)go_tm.tm_min);
+        std::this_thread::sleep_until(std::chrono::system_clock::from_time_t(mktime(&go_tm)));
+
+        PINF("[%u] starting experiment now", core);
       }
     }
   }
