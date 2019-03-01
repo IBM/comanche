@@ -25,9 +25,12 @@ template <typename Table>
 				/* reconstitute allocated memory */
 				_persist->mod_key.reconstitute(allocator_type(*this));
 				_persist->mod_mapped.reconstitute(allocator_type(*this));
-				if ( _persist->mod_size )
+				if ( 0 < _persist->mod_size )
 				{
-					allocator_type(*this).reconstitute(_persist->mod_size * (sizeof *_persist->mod_ctl), _persist->mod_ctl);
+					allocator_type(*this).reconstitute(_persist->mod_size, _persist->mod_ctl);
+				}
+				else
+				{
 				}
 			}
 			redo();
@@ -47,6 +50,11 @@ template <typename Table>
 				redo_replace();
 			}
 		}
+	}
+
+template <typename Table>
+	auto impl::atomic_controller<Table>::redo_finish() -> void
+	{
 		_persist->mod_size = 0;
 		persist_range(&_persist->mod_size, &_persist->mod_size + 1, "atomic size");
 	}
@@ -62,6 +70,7 @@ template <typename Table>
 			, std::forward_as_tuple(std::move(_persist->mod_key))
 			, std::forward_as_tuple(data_begin, data_end, allocator_type(*this))
 		);
+		redo_finish();
 	}
 
 template <typename Table>
@@ -79,7 +88,7 @@ template <typename Table>
 				std::size_t sz = i->size;
 				auto src_last = src_first + sz;
 				std::size_t o_d = i->offset_dst;
-			auto dst_first = &dst[o_d];
+				auto dst_first = &dst[o_d];
 				/* NOTE: could be replaced with a pmem persistent memcpy */
 				persist_range(
 					dst_first
@@ -92,6 +101,9 @@ template <typename Table>
 		{
 			/* no such key */
 		}
+		std::size_t ct = _persist->mod_size;
+		redo_finish();
+		allocator_type(*this).deallocate(_persist->mod_ctl, ct);
 	}
 
 template <typename Table>

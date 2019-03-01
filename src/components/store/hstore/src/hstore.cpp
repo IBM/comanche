@@ -381,7 +381,11 @@ try
     );
   }
 }
-catch ( std::exception & )
+catch ( std::bad_alloc & )
+{
+  return E_FAIL;
+}
+catch ( std::bad_cast & )
 {
   return E_FAIL;
 }
@@ -679,7 +683,7 @@ auto hstore::erase(const pool_t pool,
       ;
   }
   catch(...) {
-    throw General_exception("hm_XXX_remove failed unexpectedly");
+    throw General_exception("erase failed unexpectedly");
   }
 }
 
@@ -784,7 +788,11 @@ auto hstore::atomic_update(
 
       return session.enter_update(p_key, op_vector.begin(), op_vector.end());
     }
-  catch ( std::exception & )
+  catch ( std::bad_alloc & )
+    {
+      return E_FAIL;
+    }
+  catch ( std::system_error & )
     {
       return E_FAIL;
     }

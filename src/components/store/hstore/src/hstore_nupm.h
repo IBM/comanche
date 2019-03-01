@@ -79,7 +79,7 @@ private:
     auto pop = _devdax_manager->create_region(uuid, _numa_node, size_);
     if (not pop) {
       auto e = errno;
-      throw General_exception("failed to create region (%s) %s", path_, std::strerror(e));
+      throw std::system_error(std::error_code(e, std::system_category()), std::string("failed to create region ") + path_.str());
     }
     PLOG(PREFIX "in %s: created region ID %" PRIx64 " at %p:0x%zx", __func__, path_.str().c_str(), uuid, pop, size_);
     return pop;
