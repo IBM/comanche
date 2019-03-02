@@ -23,7 +23,7 @@ Connection_handler::Connection_handler(Connection_base::Transport* connection)
 }
 
 Connection_handler::pool_t Connection_handler::open_pool(const std::string name,
-                                                         unsigned int flags)
+                                                         uint32_t flags)
 {
   API_LOCK();
 
@@ -161,7 +161,7 @@ status_t Connection_handler::put(const pool_t      pool,
                                  const std::string key,
                                  const void*       value,
                                  const size_t      value_len,
-                                 unsigned int      flags)
+                                 uint32_t      flags)
 {
   return put(pool, key.c_str(), key.length(), value, value_len, flags);
 }
@@ -171,7 +171,7 @@ status_t Connection_handler::put(const pool_t pool,
                                  const size_t key_len,
                                  const void*  value,
                                  const size_t value_len,
-                                 unsigned int flags)
+                                 uint32_t flags)
 {
   API_LOCK();
 
@@ -189,7 +189,11 @@ status_t Connection_handler::put(const pool_t pool,
   const auto msg = new (iob->base()) Dawn::Protocol::Message_IO_request(
       iob->length(), auth_id(), ++_request_id, pool,
       Dawn::Protocol::OP_PUT,  // op
-      key, key_len, value, value_len);
+      key,
+      key_len,
+      value,
+      value_len,
+      flags);
 
   if (_options.short_circuit_backend)
     msg->resvd |= Dawn::Protocol::MSG_RESVD_SCBE;
@@ -223,7 +227,7 @@ status_t Connection_handler::two_stage_put_direct(
     const void*                          value,
     const size_t                         value_len,
     Component::IKVStore::memory_handle_t handle,
-    unsigned int                         flags)
+    uint32_t                             flags)
 {
   using namespace Dawn;
 
@@ -244,7 +248,7 @@ status_t Connection_handler::two_stage_put_direct(
   const auto msg        = new (iob->base())
       Protocol::Message_IO_request(iob->length(), auth_id(), request_id, pool,
                                    Protocol::OP_PUT_ADVANCE,  // op
-                                   key, key_len, value_len);
+                                   key, key_len, value_len, flags);
   msg->flags = flags;
   iob->set_length(msg->msg_len);
   sync_inject_send(iob);
@@ -270,7 +274,7 @@ status_t Connection_handler::put_direct(
     const void*                          value,
     const size_t                         value_len,
     Component::IKVStore::memory_handle_t handle,
-    unsigned int                         flags)
+    uint32_t                             flags)
 {
   API_LOCK();
 
@@ -318,7 +322,7 @@ status_t Connection_handler::put_direct(
   const auto msg = new (iob->base()) Dawn::Protocol::Message_IO_request(
       iob->length(), auth_id(), ++_request_id, pool,
       Dawn::Protocol::OP_PUT,  // op
-      key.c_str(), key_len, value_len);
+      key.c_str(), key_len, value_len, flags);
 
   if (_options.short_circuit_backend)
     msg->resvd |= Dawn::Protocol::MSG_RESVD_SCBE;
@@ -355,7 +359,7 @@ status_t Connection_handler::get(const pool_t       pool,
   const auto msg = new (iob->base()) Dawn::Protocol::Message_IO_request(
       iob->length(), auth_id(), ++_request_id, pool,
       Dawn::Protocol::OP_GET,  // op
-      key, "");
+      key, "", 0);
 
   if (_options.short_circuit_backend)
     msg->resvd |= Dawn::Protocol::MSG_RESVD_SCBE;
@@ -399,7 +403,10 @@ status_t Connection_handler::get(const pool_t       pool,
   assert(iob);
 
   const auto msg = new (iob->base()) Dawn::Protocol::Message_IO_request(
-      iob->length(), auth_id(), ++_request_id, pool,
+      iob->length(),
+      auth_id(),
+      ++_request_id,
+      pool,
       Dawn::Protocol::OP_GET,  // op
       key.c_str(), key.length(), 0);
   

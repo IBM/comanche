@@ -81,11 +81,11 @@ class Dawn_client : public Component::IKVStore,
 
   virtual pool_t create_pool(const std::string& name,
                              const size_t       size,
-                             unsigned int       flags    = 0,
+                             uint32_t           flags    = 0,
                              uint64_t expected_obj_count = 0) override;
 
   virtual pool_t open_pool(const std::string& name,
-                           unsigned int       flags = 0) override;
+                           uint32_t           flags = 0) override;
 
   virtual status_t close_pool(const pool_t pool) override;
 
@@ -95,14 +95,14 @@ class Dawn_client : public Component::IKVStore,
                        const std::string& key,
                        const void*        value,
                        const size_t       value_len,
-                       unsigned int       flags = FLAGS_NONE) override;
+                       uint32_t       flags = FLAGS_NONE) override;
 
   virtual status_t put_direct(const pool_t       pool,
                               const std::string& key,
                               const void*        value,
                               const size_t       value_len,
                               memory_handle_t    handle = HANDLE_NONE,
-                              unsigned int       flags = FLAGS_NONE) override;
+                              uint32_t           flags = FLAGS_NONE) override;
 
   virtual status_t get(const pool_t       pool,
                        const std::string& key,
