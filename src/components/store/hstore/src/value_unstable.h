@@ -37,9 +37,7 @@ namespace impl
 			void value_set_stable(T n) { _value_and_unstable = (n << N); }
 			T value() const { assert( is_stable() ); return value_not_stable(); }
 			T value_not_stable() const { return _value_and_unstable >> N; }
-#if 0
-			T value_and_unstable() const { return _value_and_unstable; }
-#endif
+
 			void stabilize() { assert(destable_count() != 0); --_value_and_unstable; }
 			void destabilize() { ++_value_and_unstable; assert(destable_count() != 0); }
 			void decr() { _value_and_unstable -= count_1; }
