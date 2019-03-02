@@ -29,8 +29,8 @@ private:
   std::mutex _pools_mutex;
   using pools_map = std::map<tracked_pool *, std::unique_ptr<tracked_pool>>;
   pools_map _pools; /* would map sessions, but delete_pool also requires an "open" pool */
-  auto locate_open_pool(const IKVStore::pool_t pid) -> tracked_pool &;
-  auto locate_session(const IKVStore::pool_t pid) -> tracked_pool &;
+  auto locate_open_pool(const Component::IKVStore::pool_t pid) -> tracked_pool *;
+  auto locate_session(const Component::IKVStore::pool_t pid) -> tracked_pool *;
   auto move_pool(const IKVStore::pool_t pid) -> std::unique_ptr<tracked_pool>;
 
 public:
@@ -66,13 +66,6 @@ public:
   void unload() override {
     delete this;
   }
-
-  auto update_by_issue_41(const pool_t pool,
-                 const std::string &key,
-                 const void * value,
-                 std::size_t value_len,
-                 void * old_value,
-                 const std::size_t old_value_len) -> status_t;
 
 public:
 
