@@ -130,14 +130,14 @@ int Dawn_client::get_capability(Capability cap) const
 
 IKVStore::pool_t Dawn_client::create_pool(const std::string& name,
                                           const size_t       size,
-                                          unsigned int       flags,
+                                          uint32_t           flags,
                                           uint64_t           expected_obj_count)
 {
   return _connection->create_pool(name, size, flags, expected_obj_count);
 }
 
 IKVStore::pool_t Dawn_client::open_pool(const std::string& name,
-                                        unsigned int       flags)
+                                        uint32_t       flags)
 {
   return _connection->open_pool(name, flags);
 }
@@ -158,8 +158,9 @@ status_t Dawn_client::put(const IKVStore::pool_t pool,
                           const std::string&     key,
                           const void*            value,
                           const size_t           value_len,
-                          unsigned int           flags)
+                          uint32_t               flags)
 {
+  assert(flags < FLAGS_MAX_VALUE);
   return _connection->put(pool, key, value, value_len, flags);
 }
 
@@ -168,7 +169,7 @@ status_t Dawn_client::put_direct(const pool_t       pool,
                                  const void*        value,
                                  const size_t       value_len,
                                  memory_handle_t    handle,
-                                 unsigned int       flags)
+                                 uint32_t           flags)
 {
   return _connection->put_direct(pool, key, value, value_len, handle, flags);
 }

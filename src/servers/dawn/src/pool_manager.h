@@ -14,7 +14,7 @@ using Connection_base = Fabric_connection_base;
  */
 class Pool_manager {
 private:
-  static constexpr bool option_DEBUG = true;
+  static constexpr bool option_DEBUG = false;
   
 public:
   using pool_t = Component::IKVStore::pool_t;
@@ -67,7 +67,7 @@ public:
       throw Logic_exception("add reference to pool that is not open");
     else {
       _open_pools[pool] += 1;
-      if(option_DEBUG) PLOG("pool (%p) ref:%u", pool, _open_pools[pool]);
+      if(option_DEBUG) PLOG("pool (%p) ref:%u", (void*) pool, _open_pools[pool]);
     }
   }
 
@@ -84,7 +84,7 @@ public:
       throw Logic_exception("release_pool_reference on invalid pool");
 
     _open_pools[pool] -= 1;
-    if(option_DEBUG) PLOG("pool (%p) ref:%u", pool, _open_pools[pool]);
+    if(option_DEBUG) PLOG("pool (%p) ref:%u", (void*) pool, _open_pools[pool]);
     
     if(_open_pools[pool] == 0) {
       _open_pools.erase(pool);

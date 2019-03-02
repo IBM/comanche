@@ -142,7 +142,7 @@ struct Message_pool_request : public Message {
   size_t expected_object_count;
   union {
     uint64_t pool_id;
-    unsigned int flags;
+    uint32_t flags;
   };
   char data[]; /*< unique name of pool (for this client) */
 
@@ -169,9 +169,10 @@ struct Message_IO_request : public Message {
                      uint64_t           pool_id,
                      uint8_t            op,
                      const std::string& key,
-                     const std::string& value)
+                     const std::string& value,
+                     uint32_t           flags)
       : Message(auth_id, MSG_TYPE_IO_REQUEST, op), request_id(request_id),
-        pool_id(pool_id)
+        pool_id(pool_id), flags(flags)
   {
     set_key_and_value(buffer_size, key, value);
     msg_len = sizeof(Message_IO_request) + key_len + value.length();
@@ -184,9 +185,10 @@ struct Message_IO_request : public Message {
                      uint8_t     op,
                      const void* key,
                      size_t      key_len,
-                     size_t      value_len)
+                     size_t      value_len,
+                     uint32_t    flags)
       : Message(auth_id, MSG_TYPE_IO_REQUEST, op), request_id(request_id),
-        pool_id(pool_id)
+        pool_id(pool_id), flags(flags)
   {
     set_key_value_len(buffer_size, key, key_len, value_len);
     msg_len = sizeof(Message_IO_request) + key_len;
@@ -197,10 +199,11 @@ struct Message_IO_request : public Message {
                      uint64_t     request_id,
                      uint64_t     pool_id,
                      uint8_t      op,
-                     std::string& key,
-                     size_t       value_len)
+                     const std::string& key,
+                     size_t       value_len,
+                     uint32_t     flags)
       : Message(auth_id, MSG_TYPE_IO_REQUEST, op), request_id(request_id),
-        pool_id(pool_id)
+        pool_id(pool_id), flags(flags)
   {
     set_key_value_len(buffer_size, key, value_len);
     msg_len = sizeof(Message_IO_request) + key_len;
@@ -214,9 +217,10 @@ struct Message_IO_request : public Message {
                      const void* key,
                      size_t      key_len,
                      const void* value,
-                     size_t      value_len)
+                     size_t      value_len,
+                     uint32_t    flags)
       : Message(auth_id, MSG_TYPE_IO_REQUEST, op), request_id(request_id),
-        pool_id(pool_id)
+        pool_id(pool_id), flags(flags)
   {
     set_key_and_value(buffer_size, key, key_len, value, value_len);
     msg_len = sizeof(Message_IO_request) + key_len + value_len + 1;

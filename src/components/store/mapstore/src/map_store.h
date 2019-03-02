@@ -33,7 +33,7 @@ public:
    * Destructor
    * 
    */
-  virtual ~Map_store();
+  ~Map_store();
 
   /** 
    * Component/interface management

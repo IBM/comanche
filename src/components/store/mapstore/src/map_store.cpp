@@ -3,6 +3,7 @@
 #include <iostream>
 #include <set>
 #include <unordered_map>
+#include <map>
 #include <string>
 #include <stdio.h>
 #include <api/kvstore_itf.h>
@@ -36,8 +37,8 @@ private:
   static constexpr bool option_DEBUG = false;
 
 public:
-  std::string                       key;
-  map_t<std::string, Value_pair>    map; /*< rb-tree based map */
+  std::string                       name;
+  map_t<std::string, Value_pair>    map; /*< hash table based map */
   Common::RWLock                    map_lock; /*< read write lock */
   unsigned int                      flags;
 
@@ -80,8 +81,9 @@ std::unordered_map<std::string, Pool_handle *>  _pools; /*< existing pools */
 
 using Std_lock_guard = std::lock_guard<std::mutex>;
 
-static Pool_session* get_session(const IKVStore::pool_t pid)
+Pool_session* get_session(const IKVStore::pool_t pid)
 {
+  Std_lock_guard g(_pool_sessions_lock);
   auto session = reinterpret_cast<Pool_session*>(pid);
 
   if(_pool_sessions.count(session) == 0)
@@ -277,12 +279,16 @@ Map_store::Map_store(const std::string& owner, const std::string& name)
 
 Map_store::~Map_store()
 {
+  // TODO: seg faults?
+#if 0
   Std_lock_guard g(_pool_sessions_lock);
+
   for(auto& s : _pool_sessions)
     delete s;
-    
+
   for(auto& p : _pools)
     delete p.second;
+#endif
 }
   
 
@@ -296,25 +302,25 @@ IKVStore::pool_t Map_store::create_pool(const std::string& name,
 
   const auto handle = new Pool_handle;
   Pool_session * session = nullptr;
-  handle->key = name;
+  handle->name = name;
   handle->flags = flags;
   {
     Std_lock_guard g(_pool_sessions_lock);
 
     if(flags & IKVStore::FLAGS_CREATE_ONLY) {
-      if(_pools.find(handle->key) != _pools.end()) {
+      if(_pools.find(handle->name) != _pools.end()) {
         delete handle;
         return POOL_ERROR;
       }
     }
     session = new Pool_session{handle};
-    _pools[handle->key] = handle;
+    _pools[handle->name] = handle;
     PLOG("map_store: adding new session (%p)", session);
     _pool_sessions.insert(session); /* create a session too */
   }
   
   if(option_DEBUG)
-    PLOG("map_store: created pool OK: %s", handle->key.c_str());
+    PLOG("map_store: created pool OK: %s", handle->name.c_str());
 
   assert(session);
   return reinterpret_cast<IKVStore::pool_t>(session);
@@ -363,37 +369,37 @@ status_t Map_store::close_pool(const pool_t pid)
   return S_OK;
 }
 
-status_t Map_store::delete_pool(const std::string& name)
+status_t Map_store::delete_pool(const std::string& poolname)
 {
-  const std::string& key = name;
+  Std_lock_guard g(_pool_sessions_lock);
 
+  return S_OK;
   Pool_handle * ph = nullptr;
-  /* see if a pool exists that matches the key */
+  /* see if a pool exists that matches the poolname */
   for(auto& h: _pools) {
-    if(h.first == key) {
+    if(h.first == poolname) {
       ph = h.second;
       break;
     }
   }
 
   if(ph == nullptr) {
-    PWRN("map_store: delete_pool (%s) pool not found", name.c_str());
+    PWRN("map_store: delete_pool (%s) pool not found", poolname.c_str());
     return E_POOL_NOT_FOUND;
   }
 
-  Std_lock_guard g(_pool_sessions_lock);
   for(auto& s: _pool_sessions) {
-    if(s->pool->key == key) {
-      PWRN("map_store: delete_pool (%s) pool delete failed because pool still open (%p)", key.c_str(), s);
+    if(s->pool->name == poolname) {
+      PWRN("map_store: delete_pool (%s) pool delete failed because pool still open (%p)", poolname.c_str(), s);
       return E_ALREADY_OPEN;
     }
   }
     
   /* delete pool too */
-  if(_pools.find(key) == _pools.end())
+  if(_pools.find(poolname) == _pools.end())
     throw Logic_exception("unable to delete pool session");
   
-  _pools.erase(key);
+  _pools.erase(poolname);
   delete ph;
   return S_OK;
 }
