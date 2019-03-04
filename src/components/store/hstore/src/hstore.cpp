@@ -158,12 +158,12 @@ using session_t = session<hstore_nupm::open_pool_handle, ALLOC_T, table_t>;
 
 thread_local std::set<tracked_pool *> tls_cache = {};
 
-auto hstore::locate_session(const Component::IKVStore::pool_t pid) -> tracked_pool &
+auto hstore::locate_session(const Component::IKVStore::pool_t pid) -> tracked_pool *
 {
-  return dynamic_cast<tracked_pool &>(this->locate_open_pool(pid));
+  return dynamic_cast<tracked_pool *>(this->locate_open_pool(pid));
 }
 
-auto hstore::locate_open_pool(const Component::IKVStore::pool_t pid) -> tracked_pool &
+auto hstore::locate_open_pool(const Component::IKVStore::pool_t pid) -> tracked_pool *
 {
   auto *const s = reinterpret_cast<tracked_pool *>(pid);
   auto it = tls_cache.find(s);
@@ -173,11 +173,11 @@ auto hstore::locate_open_pool(const Component::IKVStore::pool_t pid) -> tracked_
     auto ps = _pools.find(s);
     if ( ps == _pools.end() )
     {
-      throw API_exception(PREFIX "invalid pool identifier %p", __func__, s);
+      return nullptr;
     }
     it = tls_cache.insert(ps->second.get()).first;
   }
-  return **it;
+  return *it;
 }
 
 auto hstore::move_pool(const Component::IKVStore::pool_t pid) -> std::unique_ptr<tracked_pool>
@@ -312,10 +312,6 @@ auto hstore::put(const pool_t pool,
                  const std::size_t value_len,
                  std::uint32_t flags) -> status_t
 {
-  if ( (flags & ~FLAGS_DONT_STOMP) != 0 )
-  {
-    return E_BAD_PARAM;
-  }
   if ( option_DEBUG ) {
     PLOG(
          PREFIX "(key=%s) (value=%.*s)"
@@ -327,78 +323,47 @@ auto hstore::put(const pool_t pool,
     assert(0 < value_len);
   }
 
-  if(value == nullptr)
-    throw std::invalid_argument("value argument is null");
-
-  auto &session = dynamic_cast<session_t &>(locate_session(pool));
-
-  auto cvalue = static_cast<const char *>(value);
-
-  const auto i =
-#if 1
-    session.map().emplace(
-                          std::piecewise_construct
-                          , std::forward_as_tuple(key.begin(), key.end(), session.allocator())
-                          , std::forward_as_tuple(cvalue, cvalue + value_len, session.allocator())
-                          );
-#else
-    session.map().insert(
-      table_t::value_type(
-        table_t::key_type(key.begin(), key.end(), session.allocator())
-	, table_t::mapped_type(cvalue, cvalue + value_len, session.allocator())
-      )
-    );
-#endif
-  return
-    i.second                   ? S_OK
-    : flags & FLAGS_DONT_STOMP ? E_KEY_EXISTS 
-    : update_by_issue_41(pool, key, value, value_len,  i.first->second.data(), i.first->second.size())
-    ;
-}
-
-auto hstore::update_by_issue_41(const pool_t pool,
-                 const std::string &key,
-                 const void * value,
-                 const std::size_t value_len,
-                 void * /* old_value */,
-                 const std::size_t old_value_len
-) -> status_t
-try
-{
-  /* hstore issue 41: "a put should replace any existing k,v pairs that match. If the new put is a different size, then the object should be reallocated. If the new put is the same size, then it should be updated in place." */
-  if ( value_len != old_value_len )
+  if ( (flags & ~FLAGS_DONT_STOMP) != 0 )
   {
-    auto &session = dynamic_cast<session_t &>(locate_session(pool));
-    auto p_key = KEY_T(key.begin(), key.end(), session.allocator());
-    return session.enter_replace(p_key, value, value_len);
+    return E_BAD_PARAM;
   }
-  else {
-    std::vector<std::unique_ptr<IKVStore::Operation>> v;
-    v.emplace_back(std::make_unique<IKVStore::Operation_write>(0, value_len, value));
-    std::vector<IKVStore::Operation *> v2;
-    std::transform(v.begin(), v.end(), std::back_inserter(v2), [] (const auto &i) { return i.get(); });
-    return this->atomic_update(
-      pool
-      , key
-      , v2
-      , false
-    );
+  if ( value == nullptr )
+  {
+    return E_BAD_PARAM;
   }
-}
-catch ( std::bad_alloc & )
-{
-  return E_FAIL;
-}
-catch ( std::bad_cast & )
-{
-  return E_FAIL;
-}
 
+  const auto session = dynamic_cast<session_t *>(locate_session(pool));
+
+  if ( session )
+  {
+    try
+    {
+      auto i = session->insert(key, value, value_len);
+
+      return
+        i.second                   ? S_OK
+        : flags & FLAGS_DONT_STOMP ? E_KEY_EXISTS 
+        : session->update_by_issue_41(key, value, value_len, i.first->second.data(), i.first->second.size())
+        ;
+    }
+    catch ( std::bad_alloc & )
+    {
+      return E_FAIL;
+    }
+  }
+  else
+  {
+    return E_POOL_NOT_FOUND;
+  }
+}
 
 auto hstore::get_pool_regions(const pool_t pool, std::vector<::iovec>& out_regions) -> status_t
 {
-  auto &session = dynamic_cast<session_t &>(locate_session(pool));
-  return _pool_manager->pool_get_regions(session.pool(), out_regions);
+  const auto session = dynamic_cast<session_t *>(locate_session(pool));
+  return session
+    ? _pool_manager->pool_get_regions(session->pool(), out_regions)
+    : E_POOL_NOT_FOUND
+    ;
 }
 
 auto hstore::put_direct(const pool_t pool,
@@ -419,28 +384,12 @@ auto hstore::get(const pool_t pool,
 #if 0
   PLOG(PREFIX " get(%s)", __func__, key.c_str());
 #endif
-  try
-    {
-      const auto &session = dynamic_cast<const session_t &>(locate_session(pool));
-      auto p_key = KEY_T(key.begin(), key.end(), session.allocator());
-      auto &v = session.map().at(p_key);
-
-      if(out_value == nullptr || out_value_len == 0) {
-        out_value_len = v.size();
-        out_value = malloc(out_value_len);
-        if ( ! out_value )
-          throw std::bad_alloc();
-      }
-      memcpy(out_value, v.data(), out_value_len);
-      return S_OK;
-    }
-  catch ( std::out_of_range & )
-    {
-      return E_KEY_NOT_FOUND;
-    }
-  catch (...) {
-    throw General_exception(PREFIX "failed unexpectedly", __func__);
-  }
+  const auto session = dynamic_cast<const session_t *>(locate_session(pool));
+  return
+    session
+    ? session->get(key, out_value, out_value_len)
+    : E_POOL_NOT_FOUND
+    ;
 }
 
 auto hstore::get_direct(const pool_t pool,
@@ -448,72 +397,13 @@ auto hstore::get_direct(const pool_t pool,
                         void* out_value,
                         std::size_t& out_value_len,
                         Component::IKVStore::memory_handle_t) -> status_t
-  try {
-    const auto &session = dynamic_cast<const session_t &>(locate_session(pool));
-    auto p_key = KEY_T(key.begin(), key.end(), session.allocator());
-
-    auto &v = session.map().at(p_key);
-
-    auto value_len = v.size();
-    if (out_value_len < value_len)
-      {
-        /* NOTE: it might be helpful to tell the caller how large a buffer we need,
-         * but that dones not seem to be expected.
-         */
-        PWRN(PREFIX "failed; insufficient buffer", __func__);
-        return E_INSUFFICIENT_BUFFER;
-      }
-
-    out_value_len = value_len;
-
-    assert(out_value);
-
-    /* memcpy for moment
-     */
-    memcpy(out_value, v.data(), out_value_len);
-    if ( option_DEBUG )
-      {
-        PLOG(
-             PREFIX "value_len=%lu value=(%s)", __func__
-             , v.size()
-             , static_cast<char*>(out_value)
-             );
-      }
-    return S_OK;
-  }
-  catch ( const std::out_of_range & )
-    {
-      return E_KEY_NOT_FOUND;
-    }
-  catch(...) {
-    throw General_exception("get_direct failed unexpectedly");
-  }
-
-namespace
 {
-  class lock_impl
-    : public Component::IKVStore::Opaque_key
-  {
-    std::string _s;
-  public:
-    lock_impl(const std::string &s_)
-      : Component::IKVStore::Opaque_key{}
-      , _s(s_)
-    {}
-    const std::string &key() const { return _s; }
-  };
-}
-
-namespace
-{
-bool try_lock(table_t &map, hstore::lock_type_t type, const KEY_T &p_key)
-{
+  const auto session = dynamic_cast<const session_t *>(locate_session(pool));
   return
-    type == Component::IKVStore::STORE_LOCK_READ
-    ? map.lock_shared(p_key)
-    : map.lock_unique(p_key)
+    session
+    ? session->get_direct(key, out_value, out_value_len)
+    : E_POOL_NOT_FOUND
     ;
-}
 }
 
 auto hstore::lock(const pool_t pool,
@@ -522,107 +412,25 @@ auto hstore::lock(const pool_t pool,
                   void *& out_value,
                   std::size_t & out_value_len) -> key_t
 {
-  auto &session = dynamic_cast<session_t &>(locate_session(pool));
-  const auto p_key = KEY_T(key.begin(), key.end(), session.allocator());
-
-  try
-    {
-      MAPPED_T &val = session.map().at(p_key);
-      if ( ! try_lock(session.map(), type, p_key) )
-        {
-          return KEY_NONE;
-        }
-      out_value = val.data();
-      out_value_len = val.size();
-    }
-  catch ( std::out_of_range & )
-    {
-      /* if the key is not found, we create it and
-         allocate value space equal in size to out_value_len
-      */
-
-      if ( option_DEBUG )
-        {
-          PLOG(PREFIX "allocating object %lu bytes", __func__, out_value_len);
-        }
-
-      auto r =
-        session.map().emplace(
-                              std::piecewise_construct
-                              , std::forward_as_tuple(p_key)
-                              , std::forward_as_tuple(out_value_len, session.allocator())
-                              );
-
-      if ( ! r.second )
-        {
-          return KEY_NONE;
-        }
-
-      out_value = r.first->second.data();
-      out_value_len = r.first->second.size();
-    }
-  return new lock_impl(key);
+  const auto session = dynamic_cast<session_t *>(locate_session(pool));
+  return
+    session
+    ? session->lock(key, type, out_value, out_value_len)
+    : KEY_NONE
+    ;
 }
 
 
 auto hstore::unlock(const pool_t pool,
                     key_t key_) -> status_t
 {
-  if ( key_ )
-  {
-    if ( auto lk = dynamic_cast<lock_impl *>(key_) )
-    {
-      try {
-        auto &session = dynamic_cast<session_t &>(locate_session(pool));
-        auto p_key = KEY_T(lk->key().begin(), lk->key().end(), session.allocator());
-
-        session.map().unlock(p_key);
-      }
-      catch ( const std::out_of_range &e )
-      {
-        return E_KEY_NOT_FOUND;
-      }
-      catch( ... ) {
-        throw General_exception(PREFIX "failed unexpectedly", __func__);
-      }
-      delete lk;
-    }
-    else
-    {
-      return S_OK; /* not really OK - was not one of our locks */
-    }
-  }
-  return S_OK;
+  const auto session = dynamic_cast<session_t *>(locate_session(pool));
+  return
+    session
+    ? session->unlock(key_)
+    : E_POOL_NOT_FOUND
+    ;
 }
-
-class maybe_lock
-{
-  table_t &_map;
-  const KEY_T &_key;
-  bool _taken;
-public:
-  maybe_lock(table_t &map_, const KEY_T &pkey_, bool take_)
-    : _map(map_)
-    , _key(pkey_)
-    , _taken(false)
-  {
-    if ( take_ )
-      {
-        if( ! _map.lock_unique(_key) )
-          {
-            throw General_exception("unable to get write lock");
-          }
-        _taken = true;
-      }
-  }
-  ~maybe_lock()
-  {
-    if ( _taken )
-      {
-        _map.unlock(_key); /* release lock */
-      }
-  }
-};
 
 auto hstore::apply(
                    const pool_t pool,
@@ -632,69 +440,34 @@ auto hstore::apply(
                    bool take_lock
                    ) -> status_t
 {
-  auto &session = dynamic_cast<session_t &>(locate_session(pool));
-  MAPPED_T *val;
-  auto p_key = KEY_T(key.begin(), key.end(), session.allocator());
-  try
-    {
-      val = &session.map().at(p_key);
-    }
-  catch ( const std::out_of_range & )
-    {
-      /* if the key is not found, we create it and
-         allocate value space equal in size to out_value_len
-      */
-
-      if ( option_DEBUG )
-        {
-          PLOG(PREFIX "allocating object %lu bytes", __func__, object_size);
-        }
-
-      auto r =
-        session.map().emplace(
-                              std::piecewise_construct
-                              , std::forward_as_tuple(p_key)
-                              , std::forward_as_tuple(object_size, session.allocator())
-                              );
-      if ( ! r.second )
-        {
-          return E_KEY_NOT_FOUND;
-        }
-      val = &(*r.first).second;
-    }
-
-  auto data = static_cast<char *>(val->data());
-  auto data_len = val->size();
-
-  maybe_lock m(session.map(), p_key, take_lock);
-
-  functor(data, data_len);
-
-  return S_OK;
+  const auto apply_method = take_lock ? &session_t::lock_and_apply : &session_t::apply;
+  const auto session = dynamic_cast<session_t *>(locate_session(pool));
+  return
+    session
+    ? (session->*apply_method)(key, functor, object_size)
+    : E_POOL_NOT_FOUND
+    ;
 }
 
 auto hstore::erase(const pool_t pool,
                    const std::string &key
                    ) -> status_t
 {
-  try {
-    auto &session = dynamic_cast<session_t &>(locate_session(pool));
-    auto p_key = KEY_T(key.begin(), key.end(), session.allocator());
-    return
-      session.map().erase(p_key) == 0
-      ? E_KEY_NOT_FOUND
-      : S_OK
-      ;
-  }
-  catch(...) {
-    throw General_exception("erase failed unexpectedly");
-  }
+  const auto session = dynamic_cast<session_t *>(locate_session(pool));
+  return session
+    ? session->erase(key)
+    : E_POOL_NOT_FOUND
+    ;
 }
 
 std::size_t hstore::count(const pool_t pool)
 {
-  const auto &session = dynamic_cast<const session_t &>(locate_session(pool));
-  return session.map().size();
+  const auto session = dynamic_cast<session_t *>(locate_session(pool));
+  return
+    session
+    ? session->count()
+    : 0
+    ;
 }
 
 void hstore::debug(const pool_t pool, const unsigned cmd, const uint64_t arg)
@@ -709,52 +482,13 @@ void hstore::debug(const pool_t pool, const unsigned cmd, const uint64_t arg)
       break;
     case 2:
       {
-        const auto &session = dynamic_cast<const session_t &>(locate_session(pool));
-        table_t::size_type count = 0;
-        /* bucket counter */
-        for (
-             auto n = session.map().bucket_count()
-               ; n != 0
-               ; --n
-             )
-          {
-            auto last = session.map().end(n-1);
-            for ( auto first = session.map().begin(n-1); first != last; ++first )
-              {
-                ++count;
-              }
-          }
-        *reinterpret_cast<table_t::size_type *>(arg) = count;
+        const auto session = dynamic_cast<const session_t *>(locate_session(pool));
+        *reinterpret_cast<table_t::size_type *>(arg) = session ? session->bucket_count() : 0;
       }
       break;
     default:
       break;
     };
-#if 0
-  auto &session = locate_session(pool);
-
-  auto& root = session.root;
-  auto& pop = session.pool();
-
-  HM_CMD(pop, read_const_root(root)->map(), cmd, arg);
-#endif
-}
-
-namespace
-{
-/* Return value not set. Ignored?? */
-int _functor(
-             const std::string &key
-             , MAPPED_T &m
-             , std::function
-             <
-             int(const std::string &key, const void *val, std::size_t val_len)
-             > *lambda)
-{
-  assert(lambda);
-  (*lambda)(key, m.data(), m.size());
-  return 0;
-}
 }
 
 auto hstore::map(
@@ -765,39 +499,35 @@ auto hstore::map(
                  > function
                  ) -> status_t
 {
-  auto &session = dynamic_cast<session_t &>(locate_session(pool));
+  const auto session = dynamic_cast<session_t *>(locate_session(pool));
 
-  for ( auto &mt : session.map() )
-    {
-      const auto &pstring = mt.first;
-      std::string s(static_cast<const char *>(pstring.data()), pstring.size());
-      _functor(s, mt.second, &function);
-    }
-
-  return S_OK;
+  return session
+    ? ( session->map(function), S_OK )
+    : E_POOL_NOT_FOUND
+    ;
 }
 
 auto hstore::atomic_update(
                            const pool_t pool
                            , const std::string& key
-                           , const std::vector<Operation *> &op_vector
+                           , const std::vector<IKVStore::Operation *> &op_vector
                            , const bool take_lock) -> status_t
-  try
-    {
-      auto &session = dynamic_cast<session_t &>(locate_session(pool));
-
-      auto p_key = KEY_T(key.begin(), key.end(), session.allocator());
-
-      maybe_lock m(session.map(), p_key, take_lock);
-
-      return session.enter_update(p_key, op_vector.begin(), op_vector.end());
-    }
-  catch ( std::bad_alloc & )
-    {
-      return E_FAIL;
-    }
-  catch ( std::system_error & )
-    {
-      return E_FAIL;
-    }
+try
+{
+  const auto update_method = take_lock ? &session_t::lock_and_atomic_update : &session_t::atomic_update;
+  const auto session = dynamic_cast<session_t *>(locate_session(pool));
+    return
+      session
+      ? (session->*update_method)(key, op_vector)
+      : E_POOL_NOT_FOUND
+      ;
+}
+catch ( std::bad_alloc & )
+{
+  return E_FAIL;
+}
+catch ( std::system_error & )
+{
+  return E_FAIL;
+}
 
