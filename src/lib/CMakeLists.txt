@@ -49,7 +49,7 @@ else(BOOTSTRAP_DEPS)
   add_subdirectory(common)
   add_subdirectory(core)
   add_subdirectory(tds)
-#  add_subdirectory(dawn-client)
+  add_subdirectory(dawn-client)
   
 endif(BOOTSTRAP_DEPS)
 
