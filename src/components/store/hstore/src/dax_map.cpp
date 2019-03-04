@@ -14,8 +14,8 @@
 
 /*
  * The schema for the JSON "dax_map" parameter, in Draft 7 form as
- * described at https://json-schema.org. Sorry about the addr form.
- * It was a requirement.
+ * described at https://json-schema.org. The addr is a string
+ * convertable to a number by std::stoull(addr,0,0).
  *
  * {
  *   "type": "array",
