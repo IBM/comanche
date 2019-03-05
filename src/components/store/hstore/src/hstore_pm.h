@@ -18,6 +18,8 @@ enum class pool_ec
   pool_fail,
   pool_unsupported_mode,
   region_fail,
+  region_fail_general_exception,
+  region_fail_api_exception,
 };
 
 class pool_category
@@ -34,6 +36,10 @@ class pool_category
       return "pool unsupported flags";
     case int(pool_ec::region_fail):
       return "region-backed pool failure";
+    case int(pool_ec::region_fail_general_exception):
+      return "region-backed pool failure (General_exception)";
+    case int(pool_ec::region_fail_api_exception):
+      return "region-backed pool failure (API_exception)";
     default:
       return "unknown pool failure";
     }

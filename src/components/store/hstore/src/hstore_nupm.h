@@ -149,16 +149,27 @@ public:
     }
     auto uuid = dax_uuid_hash(path_);
     /* Attempt to create a new pool. */
-    auto pop = open_pool_handle(static_cast<region *>(_devdax_manager->create_region(uuid, _numa_node, size_)), region_closer(shared_from_this()));
-    /* Guess that nullptr indicate a failure */
-    if ( ! pop )
+    try
     {
-      throw pool_error("create_region fail: " + path_.str(), pool_ec::region_fail);
-    }
-    PLOG(PREFIX "in %s: created region ID %" PRIx64 " at %p:0x%zx", __func__, path_.str().c_str(), uuid, static_cast<const void *>(pop.get()), size_);
+      auto pop = open_pool_handle(static_cast<region *>(_devdax_manager->create_region(uuid, _numa_node, size_)), region_closer(shared_from_this()));
+      /* Guess that nullptr indicate a failure */
+      if ( ! pop )
+      {
+        throw pool_error("create_region fail: " + path_.str(), pool_ec::region_fail);
+      }
+      PLOG(PREFIX "in %s: created region ID %" PRIx64 " at %p:0x%zx", __func__, path_.str().c_str(), uuid, static_cast<const void *>(pop.get()), size_);
 
-    map_create(pop.get(), size_, expected_obj_count_);
-    return std::make_unique<session<open_pool_handle, ALLOC_T, table_t>>(path_, std::move(pop), construction_mode::create);
+      map_create(pop.get(), size_, expected_obj_count_);
+      return std::make_unique<session<open_pool_handle, ALLOC_T, table_t>>(path_, std::move(pop), construction_mode::create);
+    }
+    catch ( const General_exception &e )
+    {
+      throw pool_error("create_region fail: " + path_.str() + " " + e.cause(), pool_ec::region_fail_general_exception);
+    }
+    catch ( const API_exception &e )
+    {
+      throw pool_error("create_region fail: " + path_.str() + " " + e.cause(), pool_ec::region_fail_api_exception);
+    }
   }
 
   auto pool_open(
