@@ -34,21 +34,21 @@ private:
   auto move_pool(const IKVStore::pool_t pid) -> std::unique_ptr<tracked_pool>;
 
 public:
-  /** 
+  /**
    * Constructor
-   * 
+   *
    */
   hstore(const std::string &owner, const std::string &name, std::unique_ptr<Devdax_manager> mgr);
 
-  /** 
+  /**
    * Destructor
-   * 
+   *
    */
   ~hstore();
 
-  /** 
+  /**
    * Component/interface management
-   * 
+   *
    */
   DECLARE_VERSION(0.1f);
   DECLARE_COMPONENT_UUID(
@@ -70,6 +70,15 @@ public:
 public:
 
   int thread_safety() const;
+
+  /**
+   * Check capability of component
+   *
+   * @param cap Capability type
+   *
+   * @return 1 if supported, 0 if not supported, -1 if not recognized??
+   */
+  int get_capability(Capability cap) const override;
 
   pool_t create_pool(const std::string &name,
                      std::size_t size,
@@ -157,9 +166,9 @@ class hstore_factory : public Component::IKVStore_factory
 {
 public:
 
-  /** 
+  /**
    * Component/interface management
-   * 
+   *
    */
   DECLARE_VERSION(0.1f);
   DECLARE_COMPONENT_UUID(

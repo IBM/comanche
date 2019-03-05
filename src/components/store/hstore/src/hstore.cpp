@@ -72,11 +72,13 @@
 #include <mutex>
 using hstore_shared_mutex = std::shared_timed_mutex;
 static constexpr auto thread_model = Component::IKVStore::THREAD_MODEL_MULTI_PER_POOL;
+static constexpr auto is_thread_safe = true;
 #else
 /* not a thread-safe hash */
 #include "dummy_shared_mutex.h"
 using hstore_shared_mutex = dummy::shared_mutex;
 static constexpr auto thread_model = Component::IKVStore::THREAD_MODEL_SINGLE_PER_POOL;
+static constexpr auto is_thread_safe = false;
 #endif
 
 template<typename T>
@@ -217,6 +219,21 @@ auto hstore::thread_safety() const -> int
   return thread_model;
 }
 
+int get_capability(const Capability cap) const
+{
+  switch (cap)
+  {
+  case POOL_DELETE_CHECK: /*< checks if pool is open before allowing delete */
+    return false;
+  case RWLOCK_PER_POOL:   /*< pools are locked with RW-lock */
+    return false;
+  case POOL_THREAD_SAFE:  /*< pools can be shared across multiple client threads */
+    return is_thread_safe;
+  default:
+    return -1;
+  }
+}
+
 auto hstore::create_pool(const std::string & name_,
                          const std::size_t size_,
                          std::uint32_t flags_,
@@ -252,7 +269,7 @@ catch ( const pool_error & )
 {
   return flags_ & FLAGS_CREATE_ONLY
     ? static_cast<IKVStore::pool_t>(POOL_ERROR)
-    : open_pool(name_, flags_ & ~FLAGS_CREATE_ONLY)
+    : open_pool(name_, flags_ & ~FLAGS_SET_SIZE)
     ;
 }
 
