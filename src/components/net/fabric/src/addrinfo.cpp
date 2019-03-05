@@ -44,11 +44,11 @@ std::shared_ptr<addrinfo> getaddrinfo_ptr(std::string dst_addr, uint16_t port)
     if ( r < 0 )
     {
       /* special ::getaddrinfo error, see /usr/include/netdb.h for a list. */
-      gai_fail(r, __func__);
+      gai_fail(r, __func__ + std::string(" name/addr \"") + dst_addr + "\", service/port " + std::to_string(port));
     }
     else
     {
-      system_fail(r, __func__);
+      system_fail(r, __func__ + std::string(" name/addr \"") + dst_addr + "\", service/port " + std::to_string(port));
     }
   }
   return std::shared_ptr<addrinfo>(presults, ::freeaddrinfo);
