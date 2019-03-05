@@ -82,8 +82,10 @@ class Shard : public Shard_transport {
   {
     if (option_DEBUG > 2) PLOG("shard:%u worker thread entered.", _core);
 
-    if (set_cpu_affinity(1UL << _core) != 0)
-      throw General_exception("unable to set cpu affinity (%lu)", _core);
+    /* pin thread */
+    cpu_mask_t mask;
+    mask.add_core(_core);
+    set_cpu_affinity_mask(mask);
 
     initialize_components(backend, index, pci_addr, dax_config, debug_level);
 

@@ -135,9 +135,11 @@ TEST_F(Block_unvme_test, PartitionIntegrity)
 TEST_F(Block_unvme_test, WriteThroughput)
 {
   using namespace Component;
-  
-  set_cpu_affinity(1UL << 2);
 
+  cpu_mask_t mask;
+  mask.add_core(2);
+  set_cpu_affinity_mask(mask);
+    
   sleep(1);
   
   io_buffer_t mem = _block->allocate_io_buffer(4096,4096,Component::NUMA_NODE_ANY);
@@ -170,7 +172,9 @@ TEST_F(Block_unvme_test, WriteThroughput)
 #if 1
 TEST_F(Block_unvme_test, WriteLatency)
 {
-  set_cpu_affinity(1UL << 2);
+  cpu_mask_t mask;
+  mask.add_core(2);
+  set_cpu_affinity_mask(mask);
 
   sleep(1);
   
