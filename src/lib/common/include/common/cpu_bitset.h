@@ -37,6 +37,8 @@
 
 #include <bitset>
 
-typedef std::bitset<64> Cpu_bitset;
+static constexpr unsigned COMMON_MAX_CORES = 256;
+
+typedef std::bitset<COMMON_MAX_CORES> Cpu_bitset;
 
 #endif

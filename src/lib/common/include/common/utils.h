@@ -346,32 +346,6 @@ void touch_huge_pages(void *addr, size_t size);
  */
 void touch_pages(void *addr, size_t size);
 
-#if defined(__linux__)
-/**
- * Get the cpu is from numa cpu mask
- *
- * @param mask Cpu bitmask from numa node
- * @param n The nth cpu in the numa node
- * @return The global cpu id
- */
-INLINE unsigned get_cpu_id(struct bitmask *mask, unsigned n) {
-  uint64_t cpumask = *(mask->maskp);
-  unsigned curr_pos = 0;
-  unsigned remaining = n;
-
-  do {
-    if (cpumask & 1) {
-      remaining--;
-      if (remaining == 0) break;
-    }
-    cpumask = cpumask >> 1;
-    curr_pos++;
-  } while (remaining != 0);
-
-  return curr_pos;
-}
-#endif
-
 /**
  * Determines the actual system thread affinities from logical (consecutive)
  * affinities for a given NUMA node.
