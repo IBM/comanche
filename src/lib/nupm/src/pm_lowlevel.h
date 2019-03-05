@@ -38,7 +38,7 @@ __attribute__((constructor))
 static void __pm_lowlevel_ctr() 
 {
   if(getenv("NO_CLFLUSHOPT"))
-    pm_lowlevel::has_clflushopt = true;
+    pm_lowlevel::has_clflushopt = false;
 }
 
 
