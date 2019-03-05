@@ -114,8 +114,11 @@ class Per_core_tasking {
 
  private:
   void thread_entry(unsigned core) {
-    if(_pin)
-      set_cpu_affinity(1UL << core);
+    if(_pin) {
+      cpu_mask_t mask;
+      mask.add_core(core);
+      set_cpu_affinity_mask(mask);
+    }
 
     _tasklet[core]->initialize(core);
 

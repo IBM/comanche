@@ -35,28 +35,11 @@
 #include <sstream>
 #include <string>
 
-int set_cpu_affinity_mask(cpu_mask_t &mask) {
+int set_cpu_affinity_mask(cpu_mask_t& mask) {
 #if defined(unix)
   return sched_setaffinity(0, mask.size(), mask.cpu_set());
 #else
   PWRN("set_cpu_affinity_mask: not implemented");
-  return -1;
-#endif
-}
-
-int set_cpu_affinity(unsigned long mask) {
-#if defined(unix)
-  cpu_mask_t cpumask;
-  cpumask.set_mask(mask);
-
-  int rc;
-  if ((rc = set_cpu_affinity_mask(cpumask)) != 0) {
-    PWRN("unable to set CPU affinity. mask=%lx", mask);
-  }
-  return rc;
-
-#else
-  PWRN("set_cpu_affinity: not implemented");
   return -1;
 #endif
 }

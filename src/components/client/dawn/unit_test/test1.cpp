@@ -13,11 +13,10 @@
 #include <chrono> /* milliseconds */
 #include <thread> /* this_thread::sleep_for */
 
-#define TEST_PERF_SMALL_PUT
-#define TEST_PERF_SMALL_GET_DIRECT
-#define TEST_PERF_LARGE_PUT_DIRECT
-#define TEST_PERF_LARGE_GET_DIRECT
-
+//#define TEST_PERF_SMALL_PUT
+//#define TEST_PERF_SMALL_GET_DIRECT
+//#define TEST_PERF_LARGE_PUT_DIRECT
+//#define TEST_PERF_LARGE_GET_DIRECT
 
 //#define TEST_SCALE_IOPS
 
@@ -199,14 +198,14 @@ TEST_F(Dawn_client_test, OpenCloseDelete)
   ASSERT_TRUE(_dawn->delete_pool(poolname) == S_OK);
   PLOG("OpenCloseDelete Test OK");
 }
-  
-TEST_F(Dawn_client_test, PutGet)
+
+TEST_F(Dawn_client_test, GetNotExist)
 {
   PMAJOR("Running PutGet...");
   ASSERT_TRUE(_dawn);
   int rc;
 
-  const std::string poolname = Options.pool + "/PutGet";
+  const std::string poolname = Options.pool + "/GetNotExist";
 
   auto pool = _dawn->open_pool(poolname, 0);
 
@@ -215,25 +214,18 @@ TEST_F(Dawn_client_test, PutGet)
     pool = _dawn->create_pool(poolname, GB(1));
   }
 
-  std::string value = "Hello! Value";  // 12 chars
-  rc                = _dawn->put(pool, "key0", value.c_str(), value.length());
-  PINF("put response:%d", rc);
-  ASSERT_TRUE(rc == S_OK || rc == -2);
-  _dawn->close_pool(pool);
-
-  auto pool1 = _dawn->open_pool(poolname, 0);
   void *      pv;
   size_t      pv_len = 0;
-  PINF("performing 'get' to retrieve what was put..");
-  rc = _dawn->get(pool1, "key0", pv, pv_len);
+  PINF("performing 'get' to retrieve non existing..");
+  rc = _dawn->get(pool, "key0", pv, pv_len);
   PINF("get response:%d (%s) len:%lu", rc, (char *) pv, pv_len);
-  ASSERT_TRUE(rc == S_OK);
-  _dawn->close_pool(pool1);
-  ASSERT_TRUE(strncmp((char *) pv, value.c_str(), value.length()) == 0);
+  //  ASSERT_TRUE(rc == S_OK);
+  _dawn->close_pool(pool);
+  // ASSERT_TRUE(strncmp((char *) pv, value.c_str(), value.length()) == 0);
 
   _dawn->delete_pool(poolname);
   free(pv);
-  PLOG("PutGet OK!");
+  PLOG("GetNotExist OK!");
 }
 
 TEST_F(Dawn_client_test, BasicPutAndGet)
