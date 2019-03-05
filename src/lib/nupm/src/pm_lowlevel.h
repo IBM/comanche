@@ -30,10 +30,26 @@
 namespace nupm
 {
 
+namespace pm_lowlevel {
+  static bool has_clflushopt = true;
+}
+  
+__attribute__((constructor))
+static void __pm_lowlevel_ctr() 
+{
+  if(getenv("NO_CLFLUSHOPT"))
+    pm_lowlevel::has_clflushopt = true;
+}
+
+
+  
 inline static void mem_flush(const void *addr, size_t len)
 {
   /* flushes cache aligned chunks, line is flushed from cache */
-  flush_clflushopt_nolog(addr, len);
+  if(pm_lowlevel::has_clflushopt) 
+    flush_clflushopt_nolog(addr, len);
+  else
+    flush_clflush_nolog(addr, len);
   _mm_sfence();
 }
 
