@@ -3,7 +3,7 @@ cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 project(libnupm-test CXX)
 
 enable_language(CXX C ASM)
-set(GCC_COVERAGE_COMPILE_FLAGS "-std=c++11 -g -O2 -fPIC -msse3")
+set(GCC_COVERAGE_COMPILE_FLAGS "-std=c++11 -g -O2 -fPIC")
 
 find_library(GTEST_LIB NAMES GTEST PATHS /usr/local/lib,/usr/lib)
 
