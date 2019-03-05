@@ -139,8 +139,7 @@ class cpu_mask_t {
 #error Platform not supported.
 #endif
 
-int set_cpu_affinity_mask(cpu_mask_t &mask);
-int set_cpu_affinity(unsigned long mask);
+int set_cpu_affinity_mask(cpu_mask_t& mask);
 status_t string_to_mask(std::string def, cpu_mask_t &mask);
 
 #endif

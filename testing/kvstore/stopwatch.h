@@ -37,10 +37,6 @@ public:
       lap_time = stop_time - start_time;
       total += lap_time; 
     }
-    else
-    {
-      std::cerr << "WARNING: trying to stop a stopped counter" << std::endl;
-    }
   }
 
   void reset()
