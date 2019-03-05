@@ -252,7 +252,7 @@ catch ( const pool_error & )
 {
   return flags_ & FLAGS_CREATE_ONLY
     ? static_cast<IKVStore::pool_t>(POOL_ERROR)
-    : open_pool(name_, flags_ & ~FLAGS_CREATE_ONLY)
+    : open_pool(name_, flags_ & ~FLAGS_SET_SIZE)
     ;
 }
 
