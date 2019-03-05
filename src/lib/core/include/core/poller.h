@@ -95,7 +95,9 @@ class Poller {
       assert(s == 0);
     }
 
-    set_cpu_affinity(1UL << core);
+    cpu_mask_t mask;
+    mask.add_core(core);
+    set_cpu_affinity_mask(mask);
 
     /* simple round robin */
     while (!_exit_flag) {
