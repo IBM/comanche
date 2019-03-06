@@ -105,9 +105,10 @@ class Connection_handler
    * Check for network completions
    *
    */
-  inline void check_network_completions()
+  Fabric_connection_base::Completion_state check_network_completions()    
   {
-    if (poll_completions()) {
+    auto state = poll_completions();
+    if ( state == Fabric_connection_base::Completion_state::ADDED_DEFERRED_LOCK ) {
       /* deferred unlocks */
       if (_deferred_unlock) {
         if (option_DEBUG > 2)
@@ -117,6 +118,7 @@ class Connection_handler
         _deferred_unlock = nullptr;
       }
     }
+    return state;
   }
 
   /**
