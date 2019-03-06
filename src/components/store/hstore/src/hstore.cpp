@@ -219,15 +219,15 @@ auto hstore::thread_safety() const -> int
   return thread_model;
 }
 
-int get_capability(const Capability cap) const
+int hstore::get_capability(const Capability cap) const
 {
   switch (cap)
   {
-  case POOL_DELETE_CHECK: /*< checks if pool is open before allowing delete */
+  case Capability::POOL_DELETE_CHECK: /*< checks if pool is open before allowing delete */
     return false;
-  case RWLOCK_PER_POOL:   /*< pools are locked with RW-lock */
+  case Capability::RWLOCK_PER_POOL:   /*< pools are locked with RW-lock */
     return false;
-  case POOL_THREAD_SAFE:  /*< pools can be shared across multiple client threads */
+  case Capability::POOL_THREAD_SAFE:  /*< pools can be shared across multiple client threads */
     return is_thread_safe;
   default:
     return -1;
