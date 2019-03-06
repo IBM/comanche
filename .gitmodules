@@ -26,3 +26,6 @@
 [submodule "src/lib/rapidjson"]
 	path = src/lib/rapidjson
 	url = https://github.com/dwaddington/rapidjson.git
+[submodule "testing/ycsb/ycsb-c"]
+	path = testing/ycsb/ycsb-c
+	url = https://github.com/basicthinker/YCSB-C.git
