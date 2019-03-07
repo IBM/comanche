@@ -1,15 +1,16 @@
 #ifndef __EXP_PUT_LATENCY_H__
 #define __EXP_PUT_LATENCY_H__
 
+#include "experiment.h"
+
+#include "kvstore_perf.h"
+#include "statistics.h"
+
 #include <chrono>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <vector>
-
-#include "experiment.h"
-#include "kvstore_perf.h"
-#include "statistics.h"
 
 extern Data * g_data;
 extern pthread_mutex_t g_write_lock;
@@ -22,16 +23,19 @@ public:
   BinStatistics _latency_stats;
 
   ExperimentPut(struct ProgramOptions options): Experiment(options) 
+    , _start_time()
+    , _latencies()
+    , _latency_stats()
   {
     _test_name = "put";
   }
 
-  void initialize_custom(unsigned core) override
+  void initialize_custom(unsigned /* core */) override
   {
     _latency_stats.init(_bin_count, _bin_threshold_min, _bin_threshold_max);
   }
 
-  bool do_work(unsigned core) override 
+  bool do_work(unsigned core) override
   {
     // handle first time setup
     if(_first_iter) 
@@ -50,7 +54,7 @@ public:
       }
 
     // check time it takes to complete a single put operation
-    int rc;
+    int rc = S_OK;
 
     timer.start();
     try
@@ -59,7 +63,7 @@ public:
       }
     catch(...)
       {
-        PERR("put call failed! Returned %d. Ending experiment.", rc);
+        PERR("%s", "put call threw exception! Ending experiment.");
         throw std::exception();
       }
     timer.stop();
@@ -94,8 +98,10 @@ public:
     auto total_time = timer.get_time_in_seconds();
     PLOG("stopwatch : %g secs", total_time);
     
-    unsigned long iops = (unsigned long) ((double) _pool_num_objects) / total_time;
-    PLOG("%lu iops (core=%u)", iops, core);
+    {
+      unsigned long iops = static_cast<unsigned long>( double(_pool_num_objects) / total_time );
+      PLOG("%lu iops (core=%u)", iops, core);
+    }
 
     try
       {
@@ -113,7 +119,7 @@ public:
         _debug_print(core, "time_stats created"); 
 
         double run_time = timer.get_time_in_seconds();
-        unsigned iops = ((double)_i) / run_time;
+        unsigned iops = static_cast<unsigned>(double(_i) / run_time);
         PINF("[%u] put: IOPS--> %u (%lu operations over %2g seconds)", core, iops, _i, run_time);
         _update_aggregate_iops(iops);
 
@@ -156,7 +162,7 @@ public:
       }
     catch(...)
       {
-        PERR("cleanup_custom failed inside exp_put.h");
+        PERR("%s", "cleanup_custom failed inside exp_put.h");
         throw std::exception();
       }
   }

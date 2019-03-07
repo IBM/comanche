@@ -1,31 +1,49 @@
 #ifndef __EXPERIMENT_H__
 #define __EXPERIMENT_H__
 
-#include <boost/filesystem.hpp>
-#include <gperftools/profiler.h>
-#include <chrono>
-#include <cmath>
-#include <cstdio>
-#include <ctime>
-#include <exception>
-#include <fstream>
-#include <string>
-#include <sstream>
-#include <vector>
-#include <common/cycles.h>
-#include <core/task.h>
-#include <api/kvstore_itf.h>
-#include <sys/sysmacros.h> /* major, minor */
+#include "task.h"
 
 #include "data.h"
 #include "kvstore_perf.h"
 #include "statistics.h"
 #include "stopwatch.h"
 
+#include "rapidjson/document.h"
+#include "rapidjson/filereadstream.h"
+#include "rapidjson/prettywriter.h"
+#include "rapidjson/stringbuffer.h"
+
+#include <boost/filesystem.hpp>
+#include <boost/program_options.hpp>
+#include <gperftools/profiler.h>
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+#include <common/cycles.h>
+#pragma GCC diagnostic pop
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Weffc++"
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+#pragma GCC diagnostic ignored "-Wpedantic"
+#pragma GCC diagnostic ignored "-Wsign-conversion"
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#include <api/kvstore_itf.h>
+#pragma GCC diagnostic pop
+#include <sys/mman.h> /* madvise, MADV_HUGEPAGE */
+#include <sys/sysmacros.h> /* major, minor */
+
 #include <algorithm> /* transform - should follow local includes */
 #include <cctype> /* isdigit */
+#include <chrono>
+#include <cmath>
+#include <cstdio>
+#include <ctime>
+#include <exception>
+#include <fstream>
 #include <map> /* map - should follow local includes */
 #include <stdexcept> /* logic_error, domain_error */
+#include <string>
+#include <sstream>
+#include <vector>
 
 #define HT_SIZE_FACTOR 3
 
@@ -33,83 +51,85 @@ extern Data * g_data;
 extern boost::program_options::variables_map g_vm;
 extern pthread_mutex_t g_write_lock;
 
-extern uint64_t g_iops;
+extern double g_iops;
 
-  template <typename T>
-    class dotted_pair
-    {
-    public:
-      T first;
-      T second;
-      explicit dotted_pair(T first_, T second_)
-        : first(first_)
-        , second(second_)
-      {}
-      dotted_pair() : dotted_pair(T(), T()) {}
-      dotted_pair &operator++() { ++second; return *this; }
-      dotted_pair &operator+=(T t_) { second += t_; return *this; }
-    };
+template <typename T>
+  class dotted_pair
+  {
+  public:
+    T first;
+    T second;
+    explicit dotted_pair(T first_, T second_)
+      : first(first_)
+      , second(second_)
+    {}
+    dotted_pair() : dotted_pair(T(), T()) {}
+    dotted_pair &operator++() { ++second; return *this; }
+    dotted_pair &operator+=(T t_) { second += t_; return *this; }
+  };
 
-  /* read a "dotted pair." If no dot, the first element is 0 and the second element is the value read */
-  template <typename T>
-    std::istream &operator>>(std::istream &i_, dotted_pair<T> &p_)
+/* read a "dotted pair." If no dot, the first element is 0 and the second element is the value read */
+template <typename T>
+  std::istream &operator>>(std::istream &i_, dotted_pair<T> &p_)
+  {
+    i_ >> p_.first;
+    if ( ! i_.eof() && i_.peek() == '.' )
     {
-      i_ >> p_.first;
-      if ( ! i_.eof() && i_.peek() == '.' )
-      {
-        i_.get();
-        i_ >> p_.second;
-      }
-      else
-      {
-        p_.second = p_.first;
-        p_.first = T();
-      }
-      return i_;
+      i_.get();
+      i_ >> p_.second;
     }
+    else
+    {
+      p_.second = p_.first;
+      p_.first = T();
+    }
+    return i_;
+  }
 
-  /* write a "dotted pair." */
-  template <typename T>
-    std::ostream &operator<<(std::ostream &o_, const dotted_pair<T> &p_)
-    {
-      return o_ << p_.first << "." << p_.second;
-    }
+/* write a "dotted pair." */
+template <typename T>
+  std::ostream &operator<<(std::ostream &o_, const dotted_pair<T> &p_)
+  {
+    return o_ << p_.first << "." << p_.second;
+  }
 
-  /* compare "dotted pairs" */
-  template <typename T>
-    void check_comparable(const dotted_pair<T> &a_, const dotted_pair<T> &b_)
+/* compare "dotted pairs" */
+template <typename T>
+  void check_comparable(const dotted_pair<T> &a_, const dotted_pair<T> &b_)
+  {
+    if ( a_.first != b_.first )
     {
-      if ( a_.first != b_.first )
-      {
-        std::ostringstream o;
-        o << "dotted pair " << a_ << " is not comparable to dotted pair " << b_;
-        throw std::domain_error(o.str());	      
-      }
+      std::ostringstream o;
+      o << "dotted pair " << a_ << " is not comparable to dotted pair " << b_;
+      throw std::domain_error(o.str());	      
     }
-  template <typename T>
-    bool operator==(const dotted_pair<T> &a_, const dotted_pair<T> &b_)
-    {
-      check_comparable(a_, b_);
-      return a_.second == b_.second;
-    }
-  template <typename T>
-    bool operator!=(const dotted_pair<T> &a_, const dotted_pair<T> &b_)
-    {
-      return ! ( a_ == b_ );
-    }
-  template <typename T>
-    bool operator<(const dotted_pair<T> &a_, const dotted_pair<T> &b_)
-    {
-      check_comparable(a_, b_);
-      return a_.second < b_.second;
-    }
+  }
+template <typename T>
+  bool operator==(const dotted_pair<T> &a_, const dotted_pair<T> &b_)
+  {
+    check_comparable(a_, b_);
+    return a_.second == b_.second;
+  }
+template <typename T>
+  bool operator!=(const dotted_pair<T> &a_, const dotted_pair<T> &b_)
+  {
+    return ! ( a_ == b_ );
+  }
+template <typename T>
+  bool operator<(const dotted_pair<T> &a_, const dotted_pair<T> &b_)
+  {
+    check_comparable(a_, b_);
+    return a_.second < b_.second;
+  }
 
-  template <typename T>
-    dotted_pair<T> operator+(dotted_pair<T> p_, T t_)
-    {
-       return p_ += t_;
-    }
+template <typename T>
+  dotted_pair<T> operator+(dotted_pair<T> p_, T t_)
+  {
+     return p_ += t_;
+  }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wnon-virtual-dtor"
 class Experiment : public Core::Tasklet
 {
 public:
@@ -119,7 +139,7 @@ public:
   std::string _owner = "owner";
   unsigned long long int _pool_size = MB(100);
   int _pool_flags = Component::IKVStore::FLAGS_SET_SIZE;
-  int _pool_num_objects = 100000;
+  std::size_t _pool_num_objects = 100000;
   std::string _cores;
   std::string _devices;
   std::vector<int> _core_list = std::vector<int>();
@@ -197,14 +217,29 @@ public:
   }
 
   Experiment(struct ProgramOptions options)
-    : _cores((g_vm.count("cores") > 0) ? g_vm["cores"].as<std::string>() : "0")
+    : _pool_name_local()
+    , _cores((g_vm.count("cores") > 0) ? g_vm["cores"].as<std::string>() : "0")
     , _devices((g_vm.count("devices") > 0) ? g_vm["devices"].as<std::string>() : _cores)
+    , _execution_time()
     , _report_filename(options.report_file_name)
+    , _test_name()
+    , _store()
+    , _pool()
+    , _server_address()
+    , _port()
+    , _port_increment()
+    , _device_name()
+    , _pci_address()
+    , timer()
+    , _bin_increment()
     , _core_to_device_map(make_core_to_device_map(_cores, _devices))
   {
   }
 
-  ~Experiment() {
+  Experiment(const Experiment &) = delete;
+  Experiment& operator=(const Experiment &) = delete;
+
+  virtual ~Experiment() {
     _store->release_ref();
   }
 
@@ -213,7 +248,7 @@ public:
     handle_program_options();
 
     if (initialize_store(core) != 0) {
-      PERR("initialize returned an error. Aborting setup.");
+      PERR("%s", "initialize returned an error. Aborting setup.");
       throw std::exception();
     }
 
@@ -221,18 +256,18 @@ public:
       if (component_uses_direct_memory()) {
         pthread_mutex_lock(&g_write_lock);
 
-        size_t data_size = sizeof(Data) + ((sizeof(KV_pair) + g_data->_key_len + g_data->_val_len ) * _pool_num_objects);
-        data_size += get_difference_to_next_power_of_two(data_size);
+        size_t data_size = sizeof(Data) + ((sizeof(KV_pair) + g_data->key_len() + g_data->value_len() ) * _pool_num_objects);
+        data_size = round_up_to_pow2(data_size);
 
         if (_verbose) {
           PINF("allocating %zu of aligned, direct memory. Aligned to %d", data_size,  MB(2));
         }
 
-        g_data->_data = (KV_pair*)aligned_alloc(MB(2), data_size);
-        madvise(g_data->_data, data_size, MADV_HUGEPAGE);
+        auto data_ptr = static_cast<KV_pair*>(aligned_alloc(MB(2), data_size));
+        madvise(data_ptr, data_size, MADV_HUGEPAGE);
 
-        _memory_handle = _store->register_direct_memory(g_data->_data, data_size);
-        g_data->initialize_data(false);
+        _memory_handle = _store->register_direct_memory(data_ptr, data_size);
+        g_data->initialize_data(data_ptr);
 
         pthread_mutex_unlock(&g_write_lock);
       }
@@ -244,7 +279,7 @@ public:
       PERR("failed during direct memory setup: %s.", e.what());
     }
     catch(...) {
-      PERR("failed during direct memory setup");
+      PERR("%s", "failed during direct memory setup");
       throw std::exception();
     }
 
@@ -319,7 +354,7 @@ public:
     }
     catch(...)
     {
-      PERR("create_pool failed! Aborting experiment.");
+      PERR("%s", "create_pool failed! Aborting experiment.");
       throw;
     }
 
@@ -356,7 +391,7 @@ public:
     }
     catch(...)
     {
-      PERR("initialize_custom failed! Aborting experiment.");
+      PERR("%s", "initialize_custom failed! Aborting experiment.");
       throw std::exception();
     }
 
@@ -406,7 +441,7 @@ public:
         go_tm.tm_min = time_input.tm_min;
         go_tm.tm_hour = time_input.tm_hour;
 
-        PINF("[%u] delaying experiment start until %d:%.2d", core, (int)go_tm.tm_hour, (int)go_tm.tm_min);
+        PINF("[%u] delaying experiment start until %d:%.2d", core, int(go_tm.tm_hour), int(go_tm.tm_min));
         std::this_thread::sleep_until(std::chrono::system_clock::from_time_t(mktime(&go_tm)));
 
         PINF("[%u] starting experiment now", core);
@@ -470,7 +505,7 @@ public:
    *   Assumes /dev/dax<node>.<number> representation)
    *   Considers only dax devices specified in the device string.
    */
-  unsigned dev_dax_max_count_per_node(const std::string & dev_dax_prefix_)
+  unsigned dev_dax_max_count_per_node(const std::string & /* dev_dax_prefix_ */)
   {
     std::map<unsigned, unsigned> dev_count {};
     for ( auto & it : _core_to_device_map )
@@ -543,24 +578,24 @@ public:
       }
     catch(...)
       {
-        PERR("error during load_component.");
+        PERR("%s", "error during load_component.");
         return 1;
       }
 
     if (_verbose)
       {
-        PINF("[%u] component address: %p", core, &comp);
+        PINF("[%u] component address: %p", core, static_cast<const void *>(&comp));
       }
 
     if (!comp)
       {
-        PERR("comp loaded, but returned invalid value");
+        PERR("%s", "comp loaded, but returned invalid value");
         return 1;
       }
 
     try
       {
-        IKVStore_factory * fact = (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
+        IKVStore_factory * fact = static_cast<IKVStore_factory *>(comp->query_interface(IKVStore_factory::iid()));
 
         if(_component == "nvmestore") {
           _store = fact->create("owner",_owner, _pci_address);
@@ -574,7 +609,7 @@ public:
           url << _server_address << ":" << port;
           PLOG("(%d) server url: (%s)", _get_core_index(core), url.str().c_str());
           _store = fact->create(_debug_level, _owner, url.str(), _device_name);
-          PMAJOR("dawn component instance: %p", _store);
+          PMAJOR("dawn component instance: %p", static_cast<const void *>(_store));
         }
         else if (_component == "hstore") {
           auto device = core_to_device(core);
@@ -607,7 +642,7 @@ public:
 
         if (_verbose)
           {
-            PINF("factory: release_ref on %p", &fact);
+            PINF("factory: release_ref on %p", static_cast<const void *>(&fact));
           }
         fact->release_ref();
       }
@@ -623,14 +658,14 @@ public:
       }
     catch(...)
       {
-        PERR("factory creation step failed");
+        PERR("%s", "factory creation step failed");
         return 1;
       }
 
     return 0;
   }
 
-  virtual void initialize_custom(unsigned core)
+  virtual void initialize_custom(unsigned /* core */)
   {
     // does nothing by itself; put per-experiment initialization functions here
     printf("no initialize_custom function used\n");
@@ -641,38 +676,29 @@ public:
     return _ready;
   }
 
-  // do_work should be overwritten by child class
-  bool do_work(unsigned core) override
-  {
-    assert(false && "Experiment.do_work needs to use override!");
-    return false;
-  }
-
-  virtual void cleanup_custom(unsigned core)
+  virtual void cleanup_custom(unsigned /* core */)
   {
     // does nothing by itself; put per-experiment cleanup functions in its place
     printf("no cleanup_custom function used\n");
   }
 
-  void _update_aggregate_iops(uint64_t iops)
+  void _update_aggregate_iops(double iops)
   {
     g_iops += iops;
 
     if (_verbose)
       {
-        PLOG("_update_aggregate_iops done. Currently = %lu", g_iops) ;
+        PLOG("_update_aggregate_iops done. Currently = %lu", static_cast<unsigned long>(g_iops)) ;
       }
   }
 
   void summarize()
   {
-    PINF("[TOTAL] %s IOPS: %lu", _test_name.c_str(), g_iops);
+    PINF("[TOTAL] %s IOPS: %lu", _test_name.c_str(), static_cast<unsigned long>(g_iops));
   }
 
   void cleanup(unsigned core) noexcept override
   {
-    int rc;
-
     try 
     {
       try
@@ -691,7 +717,7 @@ public:
       }
       catch(...)
       {
-        PERR("cleanup_custom failed!");
+        PERR("%s", "cleanup_custom failed!");
         throw std::exception();
       }
 
@@ -714,13 +740,13 @@ public:
       }
       catch(...)
       {
-        PERR("unregister_direct_memory failed!");
+        PERR("%s", "unregister_direct_memory failed!");
         throw std::exception();
       }
 
       try
       {
-        rc = _store->close_pool(_pool);
+        auto rc = _store->close_pool(_pool);
 
         if (rc != S_OK)
         {
@@ -730,7 +756,7 @@ public:
       }
       catch(...)
       {
-        PERR("close_pool failed!");
+        PERR("%s", "close_pool failed!");
         throw;
       }
 
@@ -741,10 +767,10 @@ public:
             std::cout << "cleanup: attempting to delete pool: " << _pool_path << _pool_name_local;
         }
 
-        rc = _store->delete_pool(_pool_path, _pool_name_local);
+        auto rc = _store->delete_pool(_pool_path, _pool_name_local);
         if (S_OK != rc)
         {
-          PERR("delete_pool returned error code %d", (int)rc);
+          PERR("delete_pool returned error code %d", int(rc));
           throw std::exception();
         }
 
@@ -765,7 +791,7 @@ public:
       }
       catch(...)
       {
-        PERR("delete_pool failed! Ending experiment.");
+        PERR("%s", "delete_pool failed! Ending experiment.");
         throw std::exception();
       }
 
@@ -793,7 +819,7 @@ public:
       }
       catch(...)
       {
-        PERR("release_ref call on _store failed!");
+        PERR("%s", "release_ref call on _store failed!");
         throw std::exception();
       }
     }
@@ -893,7 +919,7 @@ public:
 
       if (_component == "nvmestore" && g_vm.count("pci_addr") == 0)
       {
-        PERR("nvmestore requires pci_addr as an input. Aborting!");
+        PERR("%s", "nvmestore requires pci_addr as an input. Aborting!");
         throw std::exception();
       }
 
@@ -966,7 +992,7 @@ public:
     cpu_mask_t mask;
     int hardware_total_cores = std::thread::hardware_concurrency();
 
-    for (int i = 0; i < cores.size(); i++)
+    for (unsigned i = 0; i < cores.size(); i++)
       {
         _cpu_mask_add_core_wrapper(mask, cores.at(i), cores.at(i), hardware_total_cores);
       }
@@ -987,10 +1013,6 @@ public:
         PERR("specified core range (%u-%u) exceeds physical core count. Valid range is 0-%d.", core_first, core_last, max_cores - 1);
         throw std::exception();
       }
-    else if (core_first < 0 || core_last < 0)
-      {
-        PERR("core values must be positive! Trying to use %u-%u.", core_first, core_last);
-      }
 
     try
       {
@@ -1005,7 +1027,7 @@ public:
       }
     catch(...)
       {
-        PERR("failed while adding core to mask.");
+        PERR("%s", "failed while adding core to mask.");
         throw std::exception();
       }
   }
@@ -1014,7 +1036,7 @@ public:
   {
     if (_verbose)
       {
-        if (limit_to_core0 && core==0 || !limit_to_core0)
+        if ( ( ! limit_to_core0 ) || core == 0 )
           {
             std::cout << "[" << core << "]: " << text << std::endl;
           }
@@ -1023,7 +1045,7 @@ public:
   int _get_core_index(unsigned core)
   {
     int index = -1;
-    int core_int = (int)core;
+    int core_int = int(core);
 
     if (_core_list.empty())
       {
@@ -1032,7 +1054,7 @@ public:
       }
 
     // this is inefficient, but number of cores should be relatively small (hundreds at most)
-    for (int i = 0; i < _core_list.size(); i++)
+    for (unsigned i = 0; i < _core_list.size(); i++)
       {
         if (_core_list.at(i) == core_int)
           {
@@ -1056,7 +1078,7 @@ public:
 
     if (_report_filename.empty())
       {
-        PERR("filename for report is empty!");
+        PERR("%s", "filename for report is empty!");
         throw std::exception();
       }
 
@@ -1078,14 +1100,14 @@ public:
             buffer_size = MIN_READ_BUFFER_SIZE;
           }
 
-        char readBuffer[buffer_size];
+	std::vector<char> readBuffer(buffer_size);
 
-        rapidjson::FileReadStream is(pFile, readBuffer, buffer_size);
+        rapidjson::FileReadStream is(pFile, &readBuffer[0], buffer_size);
         document.ParseStream<0>(is);
 
         if (document.HasParseError())
           {
-            PERR("parsing error in document, code = %d", (int)document.GetParseError());
+            PERR("parsing error in document, code = %d", int(document.GetParseError()));
             throw std::exception();
           }
 
@@ -1093,7 +1115,7 @@ public:
       }
     catch(...)
       {
-        PERR("failed while reading in existing json document");
+        PERR("%s", "failed while reading in existing json document");
         throw std::exception();
       }
 
@@ -1106,7 +1128,7 @@ public:
   {
     if (_verbose)
       {
-        PINF("writing experiment parameters to file");
+        PINF("%s", "writing experiment parameters to file");
       }
     rapidjson::Document::AllocatorType &allocator = document.GetAllocator();
 
@@ -1120,16 +1142,16 @@ public:
     temp_value.SetString(rapidjson::StringRef(_cores.c_str()));
     temp_object.AddMember("cores", temp_value, allocator);
 
-    temp_value.SetInt(g_data->_key_len);
+    temp_value.SetInt(int(g_data->key_len()));
     temp_object.AddMember("key_length", temp_value, allocator);
 
-    temp_value.SetInt(g_data->_val_len);
+    temp_value.SetInt(int(g_data->value_len()));
     temp_object.AddMember("value_length", temp_value, allocator);
 
-    temp_value.SetInt(_pool_num_objects);
+    temp_value.SetInt(int(_pool_num_objects));
     temp_object.AddMember("elements", temp_value, allocator);
 
-    temp_value.SetDouble(_pool_size);
+    temp_value.SetDouble(double(_pool_size));
     temp_object.AddMember("pool_size", temp_value, allocator);
 
     temp_value.SetInt(_pool_flags);
@@ -1138,8 +1160,8 @@ public:
     // first experiment could take some time; parse out start time from the filename we're using
     const std::string REPORT_NAME_START = "results_";
     const std::string REPORT_NAME_END = ".json";
-    unsigned time_start =  _report_filename.find(REPORT_NAME_START);
-    unsigned time_end = _report_filename.find(REPORT_NAME_END);
+    auto time_start = _report_filename.find(REPORT_NAME_START);
+    auto time_end = _report_filename.find(REPORT_NAME_END);
     std::string timestring = _report_filename.substr(time_start + REPORT_NAME_START.length(), time_end - time_start - REPORT_NAME_START.length());
 
     temp_value.SetString(rapidjson::StringRef(timestring.c_str()));
@@ -1157,7 +1179,7 @@ public:
       }
     catch(...)
       {
-        PERR("failed during write to json document");
+        PERR("%s", "failed during write to json document");
       }
 
     try
@@ -1167,7 +1189,7 @@ public:
       }
     catch(...)
       {
-        PERR("failed while writing to ofstream");
+        PERR("%s", "failed while writing to ofstream");
         throw std::exception();
       }
   }
@@ -1177,7 +1199,7 @@ public:
   {
     struct stat stat_buf;
 
-    int rc = stat(filename.c_str(), &stat_buf);
+    auto rc = stat(filename.c_str(), &stat_buf);
 
     return rc == 0 ? stat_buf.st_size : -1;
   }
@@ -1186,7 +1208,7 @@ public:
   {
     struct stat stat_buf;
 
-    int rc = stat(path.c_str(), &stat_buf);
+    auto rc = stat(path.c_str(), &stat_buf);
 
     return rc == 0 ? stat_buf.st_blksize : -1;
   }
@@ -1197,7 +1219,7 @@ public:
 
     if (_test_name.empty())
       {
-        PERR("_test_name is empty!");
+        PERR("%s", "_test_name is empty!");
         throw std::exception();
       }
 
@@ -1219,7 +1241,7 @@ public:
           {
             rapidjson::Value &items = document[_test_name.c_str()];
 
-            &items.AddMember(temp_value, new_info, document.GetAllocator());
+            items.AddMember(temp_value, new_info, document.GetAllocator());
           }
 
         // write back to file
@@ -1228,7 +1250,7 @@ public:
       }
     catch(...)
       {
-        PERR("failed during write to json document");
+        PERR("%s", "failed during write to json document");
       }
 
     _debug_print(core, "_report_document_save: writing to ofstream");
@@ -1239,7 +1261,7 @@ public:
       }
     catch(...)
       {
-        PERR("failed while writing to ofstream");
+        PERR("%s", "failed while writing to ofstream");
         throw std::exception();
       }
 
@@ -1275,14 +1297,14 @@ public:
       }
   }
 
-  rapidjson::Value _add_statistics_to_report(std::string name, BinStatistics& stats, rapidjson::Document& document)
+  rapidjson::Value _add_statistics_to_report(std::string /* name */, BinStatistics& stats, rapidjson::Document& document)
   {
     rapidjson::Value bin_info(rapidjson::kObjectType);
     rapidjson::Value temp_array(rapidjson::kArrayType);
     rapidjson::Value temp_value;
 
     // latency bin info
-    temp_value.SetInt(stats.getBinCount());
+    temp_value.SetInt(int(stats.getBinCount()));
     bin_info.AddMember("bin_count", temp_value, document.GetAllocator());
 
     temp_value.SetDouble(stats.getMinThreshold());
@@ -1341,7 +1363,7 @@ public:
     return timestring;
   }
 
-  BinStatistics _compute_bin_statistics_from_vectors(std::vector<double> data, std::vector<double> data_bins, int bin_count, double bin_min, double bin_max, int elements)
+  BinStatistics _compute_bin_statistics_from_vectors(std::vector<double> data, std::vector<double> data_bins, int bin_count, double bin_min, double bin_max, std::size_t elements)
   {
     if (data.size() != data_bins.size())
       {
@@ -1350,7 +1372,7 @@ public:
 
     BinStatistics stats(bin_count, bin_min, bin_max);
 
-    for (int i = 0; i < elements; i++)
+    for (std::size_t i = 0; i < elements; i++)
       {
         stats.update_value_for_bin(data[i], data_bins[i]);
       }
@@ -1362,9 +1384,9 @@ public:
   {
     BinStatistics stats(bin_count, bin_min, bin_max);
 
-    for (int i = 0; i < data.size(); i++)
+    for ( const auto &d : data )
       {
-        stats.update(data[i]);
+        stats.update(d);
       }
 
     return stats;
@@ -1382,7 +1404,7 @@ public:
         return "";
       }
 
-    PLOG("creating JSON report");
+    PLOG("%s", "creating JSON report");
     std::string timestring = get_time_string();
 
     // create json document/object
@@ -1425,16 +1447,15 @@ public:
   }
 
 
-  long GetDataInputSize(int index)
+  long GetDataInputSize(std::size_t index)
   {
     std::string value = g_data->value(index);
-    int size = value.size();
 
-    return size;
+    return value.size();
   }
 
 
-  unsigned long GetElementSize(unsigned core, int index)
+  unsigned long GetElementSize(unsigned core, std::size_t index)
   {
     if (_element_size <= 0)
       {
@@ -1465,7 +1486,7 @@ public:
     return _element_size_on_disk;
   }
 
-  void _update_data_process_amount(unsigned core, int index)
+  void _update_data_process_amount(unsigned core, std::size_t index)
   {
     if (_element_size == -1)  // -1 is reserved and impossible
       {
@@ -1489,7 +1510,7 @@ public:
         PINF("throughput calculation: %ld data (element size %ld)", _total_data_processed, _element_size);
       }
 
-    double size_mb = _total_data_processed * 0.000001;  // bytes -> MB
+    double size_mb = double(_total_data_processed) * 0.000001;  // bytes -> MB
     double time = timer.get_time_in_seconds();
     double throughput = size_mb / time;
 
@@ -1504,10 +1525,11 @@ public:
         std::cout << "_populate_pool_to_capacity start: _pool_num_components = " << _pool_num_objects << ", _elements_stored = " << _elements_stored << ", _pool_element_end = " << _pool_element_end << std::endl;
       }
 
+#if 0 /* unused */
     long elements_remaining = _pool_num_objects - _elements_stored;
+#endif
     bool can_add_more_elements;
-    int rc;
-    long current = _pool_element_end + 1;  // first run: should be 0 (start index)
+    unsigned long current = _pool_element_end + 1;  // first run: should be 0 (start index)
     long maximum_elements = -1;
     _pool_element_start = current;
 
@@ -1520,11 +1542,12 @@ public:
 
     do
       {
+        int rc;
         try
           {
             if (memory_handle != Component::IKVStore::HANDLE_NONE)
               {
-                rc = _store->put_direct(_pool, g_data->key(current), g_data->value(current), g_data->_val_len, memory_handle);
+                rc = _store->put_direct(_pool, g_data->key(current), g_data->value(current), g_data->value_len(), memory_handle);
               }
             else
               {
@@ -1542,7 +1565,7 @@ public:
         catch(...)
           {
             std::cerr << "current = " << current << std::endl;
-            PERR("_populate_pool_to_capacity failed at put call");
+            PERR("%s", "_populate_pool_to_capacity failed at put call");
             throw std::exception();
           }
 
@@ -1556,7 +1579,7 @@ public:
         // calculate maximum number of elements we can put in pool at one time
         if (_element_size_on_disk == -1)
           {
-            _element_size_on_disk = GetElementSize(core, current);
+            _element_size_on_disk = int(GetElementSize(core, current));
 
             if (_verbose)
               {
@@ -1568,7 +1591,7 @@ public:
 
         if (maximum_elements == -1)
           {
-            maximum_elements = (long)(_pool_size / _element_size_on_disk);
+            maximum_elements = long(_pool_size / _element_size_on_disk);
 
             if (_verbose)
               {
@@ -1578,9 +1601,9 @@ public:
               }
           }
 
-        current++;
+        ++current;
 
-        bool can_add_more_in_batch = (current - _pool_element_start) != maximum_elements;
+        bool can_add_more_in_batch = (current - _pool_element_start) != static_cast<unsigned long>(maximum_elements);
         bool can_add_more_overall = current != _pool_num_objects;
 
         can_add_more_elements = can_add_more_in_batch && can_add_more_overall;
@@ -1618,12 +1641,13 @@ public:
   // assumptions: _i is tracking current element in use
   void _enforce_maximum_pool_size(unsigned core)
   {
-    unsigned long block_size = GetElementSize(core, _i);
-
+#if 0 /* unused */
+    unsigned long block_size = GetElementSize(core, int(_i));
+#endif
     _elements_in_use++;
 
     // erase elements that exceed pool capacity and start again
-    if ((_elements_in_use * _element_size_on_disk) >= _pool_size)
+    if ((_elements_in_use * static_cast<unsigned long>(_element_size_on_disk)) >= _pool_size)
       {
         bool timer_running_at_start = timer.is_running();  // if timer was running, pause it
 
@@ -1633,7 +1657,7 @@ public:
 
             if (_verbose)
               {
-                PLOG("enforce_maximum_pool_size pausing timer");
+                PLOG("%s", "enforce_maximum_pool_size pausing timer");
               }
           }
 
@@ -1647,9 +1671,9 @@ public:
 
         try
           {
-            for (int i = _i - 1; i > (_i - _elements_in_use); i--)
+            for (auto i = _i - 1; i > (_i - _elements_in_use); --i)
               {
-                int rc =_store->erase(_pool, g_data->key(i));
+                auto rc =_store->erase(_pool, g_data->key(i));
                 if (rc != S_OK && core == 0)
                   {
                     // throw exception
@@ -1662,7 +1686,7 @@ public:
           }
         catch(...)
           {
-            PERR("failed during erase step");
+            PERR("%s", "failed during erase step");
             throw std::exception();
           }
 
@@ -1680,7 +1704,7 @@ public:
           {
             if (_verbose)
               {
-                PLOG("enforce_maximum_pool_size restarting timer");
+                PLOG("%s", "enforce_maximum_pool_size restarting timer");
               }
 
             timer.start();
@@ -1688,19 +1712,17 @@ public:
       }
   }
 
-  void _erase_pool_entries_in_range(int start, int finish)
+  void _erase_pool_entries_in_range(std::size_t start, std::size_t finish)
   {
     if (_verbose)
       {
         std::cout << "erasing pool entries in range " << start << " to " << finish << std::endl;
       }
 
-    int rc;
-
     try {
-      for (int i = start; i < finish; i++)
+      for (auto i = start; i < finish; ++i)
         {
-          rc = _store->erase(_pool, g_data->key(i));
+          auto rc = _store->erase(_pool, g_data->key(i));
 
           if (rc != S_OK) {
             PERR("erase returned %d", rc);
@@ -1709,36 +1731,12 @@ public:
         }
     }
     catch(...) {
-      PERR("erase step failed");
+      PERR("%s", "erase step failed");
       throw std::exception();
     }
   }
-
-  static size_t get_difference_to_next_power_of_two(size_t value)
-  {
-    if (value < 0)
-      {
-        PERR("get_difference_to_next_power_of_two only supports positive numbers");
-        throw std::exception();
-      }
-
-    if (value == 0 || value == 1)
-      {
-        return 0;
-      }
-
-    int i = 1;
-    std::vector<size_t> powers_of_two = {1, 2};
-
-    while (value > powers_of_two[i])
-      {
-        i++;
-        powers_of_two.push_back(std::pow(2, i));
-      }
-
-    return powers_of_two[i] - value;
-  }
 };
+#pragma GCC diagnostic pop
 
 
 #endif //  __EXPERIMENT_H__

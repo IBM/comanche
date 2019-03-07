@@ -1,8 +1,12 @@
 #ifndef __STOPWATCH_H__
 #define __STOPWATCH_H__
 
-#include <cstdlib>
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wold-style-cast"
 #include "common/cycles.h"
+#pragma GCC diagnostic pop
+
+#include <cstdlib>
 
 class Stopwatch
 {
@@ -51,16 +55,16 @@ public:
   {
     if (running) {
       uint64_t stop_time = rdtsc();
-      return (total + (stop_time - start_time)) / cycles_per_second;
+      return double(total + (stop_time - start_time)) / cycles_per_second;
     }
     else {
-      return ((double)total) / cycles_per_second;
+      return double(total) / cycles_per_second;
     }
   }
 
   double get_lap_time_in_seconds()
   {
-    return ((double)lap_time) / cycles_per_second;
+    return double(lap_time) / cycles_per_second;
   }
 
 private:

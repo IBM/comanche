@@ -1,8 +1,10 @@
 #ifndef __STATISTICS_H__
 #define __STATISTICS_H__
 
-#include <cmath>
 #include <common/logging.h>
+
+#include <algorithm>
+#include <cmath>
 #include <iostream>
 #include <limits>
 #include <vector>
@@ -109,12 +111,22 @@ class BinStatistics
 {
 public:
     BinStatistics()
+      : _bin_count()
+      , _increment()
+      , _min()
+      , _max()
+      , _bins()
     {
        // default: everything goes into one bin with range at top and bottom of double range
        init(1, std::numeric_limits<double>::min(), std::numeric_limits<double>::max());
     }
 
     BinStatistics(int bins, double threshold_min, double threshold_max)
+      : _bin_count(bins)
+      , _increment((threshold_max - threshold_min) / bins)
+      , _min(threshold_min)
+      , _max(threshold_max)
+      , _bins(std::max(0, bins))
     {
         init(bins, threshold_min, threshold_max);
     } 
@@ -123,18 +135,18 @@ public:
     {
         if (bins < 0)
         {
-            PERR("BinStatistics.init: bins can't be negative");
+            PERR("%s", "BinStatistics.init: bins can't be negative");
             throw std::exception();
         }
         else if (bins == 0)
         {
-            PERR("BinStatistics.init: bin count should be at least 1");
+            PERR("%s", "BinStatistics.init: bin count should be at least 1");
             throw std::exception();
         }
 
         if (threshold_min > threshold_max)
         {
-            PERR("BinStatistics.init: threshold_max should be larger than threshold_min. ");
+            PERR("%s", "BinStatistics.init: threshold_max should be larger than threshold_min. ");
             std::cerr << "min: " << threshold_min << ", max = " << threshold_max << std::endl;
             throw std::exception();
         }
@@ -146,7 +158,7 @@ public:
         _increment = (threshold_max - threshold_min) / bins;
         _bins.resize(bins);
     }
-
+  public:
 
     void update(double value)
     {
@@ -190,7 +202,7 @@ private:
 
     int find_bin_from_value(double value)
     {
-        int bin = (value - _min) / _increment;
+        int bin = int((value - _min) / _increment);
 
         // clamp value to desired range
         if (bin >= (_bin_count - 1))
