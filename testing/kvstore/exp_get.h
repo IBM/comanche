@@ -57,43 +57,40 @@ public:
       }
 
     // check time it takes to complete a single put operation
-    void * pval;
-    size_t pval_len;
-    int rc;
 
-    timer.start();
     try
-      {
-        rc = _store->get(_pool, g_data->key(_i), pval, pval_len);
-      }
-    catch(...)
-      {
-        PERR("get call failed! Ending experiment.");
-        throw std::exception();
-      }
-    timer.stop();
+    {
+      void * pval = nullptr; /* change to get semantics requires initializaitonof pval */
+      size_t pval_len;
+      timer.start();
+      auto rc = _store->get(_pool, g_data->key(_i), pval, pval_len);
+      timer.stop();
 
-    _update_data_process_amount(core, _i);
+      _update_data_process_amount(core, _i);
 
-    double lap_time = timer.get_lap_time_in_seconds();
-    double time_since_start = timer.get_time_in_seconds();
-
-    if (pval != nullptr)
-      {
-        _store->free_memory(pval);
-      }
-
-    // store the information for later use
-    _latency_stats.update(lap_time);
-    _start_time.push_back(time_since_start);
-    _latencies.push_back(lap_time);
-
-    if (rc != S_OK)
+      if ( rc != S_OK )
       {
         std::cerr << "_pool_element_end = " << _pool_element_end << std::endl;
         std::cerr << "rc != S_OK: " << rc << " @ _i = " << _i << ". Exiting." << std::endl;
         throw std::exception();
       }
+
+      _store->free_memory(pval);
+
+    }
+    catch(...)
+    {
+      PERR("get call failed! Ending experiment.");
+      throw std::exception();
+    }
+
+    double lap_time = timer.get_lap_time_in_seconds();
+    double time_since_start = timer.get_time_in_seconds();
+
+    // store the information for later use
+    _latency_stats.update(lap_time);
+    _start_time.push_back(time_since_start);
+    _latencies.push_back(lap_time);
 
     _i++;  // increment after running so all elements get used
 
