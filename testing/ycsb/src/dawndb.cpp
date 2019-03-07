@@ -26,7 +26,6 @@ DawnDB::DawnDB(Properties &props)
 DawnDB::~DawnDB()
 {
   clean();
-  cout << "deleted" << endl;
 }
 
 void DawnDB::init(Properties &props)

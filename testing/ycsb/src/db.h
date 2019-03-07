@@ -31,6 +31,7 @@ class DB {
                     vector<pair<string, string>> &results)           = 0;
   virtual void init(Properties &props)                               = 0;
   virtual void clean()                                               = 0;
+  virtual ~DB(){};
 };
 }  // namespace ycsb
 
