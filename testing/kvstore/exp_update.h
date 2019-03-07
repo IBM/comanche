@@ -1,15 +1,16 @@
 #ifndef __EXP_UPDATE_H__
 #define __EXP_UPDATE_H__
 
+#include "experiment.h"
+
+#include "kvstore_perf.h"
+#include "statistics.h"
+
 #include <chrono>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <vector>
-
-#include "experiment.h"
-#include "kvstore_perf.h"
-#include "statistics.h"
 
 extern Data * g_data;
 extern pthread_mutex_t g_write_lock;
@@ -22,11 +23,14 @@ public:
   BinStatistics _latency_stats;
 
   ExperimentUpdate(struct ProgramOptions options): Experiment(options) 
+    , _start_time()
+    , _latencies()
+    , _latency_stats()
   {
     _test_name = "update";
   }
 
-  void initialize_custom(unsigned core) override
+  void initialize_custom(unsigned /* core */) override
   {
     _latency_stats.init(_bin_count, _bin_threshold_min, _bin_threshold_max);
   }
@@ -57,7 +61,7 @@ public:
     auto new_val = Common::random_string(g_data->value_len());
 
     // check time it takes to complete a single put operation
-    int rc;
+    int rc = S_OK;
 
     timer.start();
 
@@ -65,7 +69,7 @@ public:
         rc = _store->put(_pool, g_data->key(_i), new_val.c_str(), g_data->value_len());
     }
     catch(...) {
-      PERR("put (update) call failed! Returned %d. Ending experiment.", rc);
+      PERR("%s", "put (update) call threw exception! Ending experiment.");
       throw std::exception();
     }
 
@@ -126,8 +130,8 @@ public:
       _debug_print(core, "time_stats created"); 
 
       double run_time = timer.get_time_in_seconds();
-      unsigned iops = ((double)_i) / run_time;
-      PINF("[%u] update: IOPS--> %u (%lu operations over %2g seconds)", core, iops, _i, run_time);
+      double iops = double(_i) / run_time;
+      PINF("[%u] update: IOPS--> %u (%lu operations over %2g seconds)", core, unsigned(iops), _i, run_time);
       _update_aggregate_iops(iops);
 
       double throughput = _calculate_current_throughput();
@@ -167,7 +171,7 @@ public:
       pthread_mutex_unlock(&g_write_lock);
     }
     catch(...) {
-      PERR("cleanup_custom failed inside exp_put.h");
+      PERR("%s", "cleanup_custom failed inside exp_put.h");
       throw std::exception();
     }
   }

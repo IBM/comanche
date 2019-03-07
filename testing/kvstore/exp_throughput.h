@@ -1,15 +1,16 @@
 #ifndef __EXP_THROUGHPUT_H__
 #define __EXP_THROUGHPUT_H__
 
+#include "experiment.h"
+
+#include "statistics.h"
+#include "stopwatch.h"
+
 #include <chrono>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <vector>
-
-#include "experiment.h"
-#include "statistics.h"
-#include "stopwatch.h"
 
 extern Data * _data;
 extern pthread_mutex_t g_write_lock;
@@ -17,17 +18,21 @@ extern pthread_mutex_t g_write_lock;
 class ExperimentThroughput : public Experiment
 { 
 public:
-  std::chrono::high_resolution_clock::time_point _start_time, _end_time;
+  std::chrono::high_resolution_clock::time_point _start_time;
+  std::chrono::high_resolution_clock::time_point _end_time;
   static unsigned long _iops;
   static std::mutex _iops_lock;
   Stopwatch _sw;
   
   ExperimentThroughput(struct ProgramOptions options): Experiment(options) 
+    , _start_time()
+    , _end_time()
+    , _sw()
   {
     _test_name = "throughput";
   }
 
-  void initialize_custom(unsigned core) override
+  void initialize_custom(unsigned /* core */) override
   {
     _start_time = std::chrono::high_resolution_clock::now();
   }
@@ -89,10 +94,10 @@ public:
     _sw.stop();
 
     PLOG("stopwatch : %g secs", _sw.get_time_in_seconds());
-    double secs = std::chrono::duration_cast<std::chrono::milliseconds>(_end_time - _start_time).count() / 1000.0;
+    double secs = double(std::chrono::duration_cast<std::chrono::milliseconds>(_end_time - _start_time).count()) / 1000.0;
     PLOG("wall clock: %g secs", secs);
     
-    unsigned long iops = (unsigned long) ((double) _pool_num_objects) / secs;
+    unsigned long iops = static_cast<unsigned long>(double(_pool_num_objects) / secs);
     PLOG("%lu iops (core=%u)", iops, core);
     _iops_lock.lock();
     _iops+= iops;

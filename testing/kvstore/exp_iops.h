@@ -1,16 +1,17 @@
 #ifndef __EXP_IOPS_H__
 #define __EXP_IOPS_H__
 
+#include "task.h"
+
+#include <pthread.h>
+#include "kvstore_perf.h"
+#include "statistics.h"
+
 #include <chrono>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <vector>
-
-#include <pthread.h>
-#include "experiment.h"
-#include "kvstore_perf.h"
-#include "statistics.h"
 
 extern Data * _data;
 

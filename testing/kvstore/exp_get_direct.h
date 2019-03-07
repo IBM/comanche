@@ -1,17 +1,23 @@
 #ifndef __EXP_GET_DIRECT_LATENCY_H__
 #define __EXP_GET_DIRECT_LATENCY_H__
 
-#include <chrono>
+#include "experiment.h"
+
+#include "kvstore_perf.h"
+#include "statistics.h"
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wnon-virtual-dtor"
 #include <core/physical_memory.h> 
+#pragma GCC diagnostic pop
+
+#include <sys/mman.h>
+
+#include <chrono>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <vector>
-#include <sys/mman.h>
-
-#include "experiment.h"
-#include "kvstore_perf.h"
-#include "statistics.h"
 
 extern Data * g_data;
 
@@ -25,9 +31,15 @@ public:
     Component::IKVStore::memory_handle_t _direct_memory_handle = Component::IKVStore::HANDLE_NONE;
 
     ExperimentGetDirect(struct ProgramOptions options) : Experiment(options) 
+      , _start_time()
+      , _latencies()
+      , _exp_start_time()
+      , _latency_stats()
     {    
         _test_name = "get_direct";
     }
+    ExperimentGetDirect(const ExperimentGetDirect &) = delete;
+    ExperimentGetDirect& operator=(const ExperimentGetDirect &) = delete;
 
     void initialize_custom(unsigned core)
     {
@@ -42,19 +54,19 @@ public:
       {
         if (_component.compare("dawn") == 0)
         {
-           size_t data_size = sizeof(KV_pair) * g_data->_num_elements;
-           Data * data = (Data*)aligned_alloc(_pool_size, data_size);
+           size_t data_size = sizeof(KV_pair) * g_data->num_elements();
+           Data * data = static_cast<Data*>(aligned_alloc(_pool_size, data_size));
            madvise(data, data_size, MADV_HUGEPAGE);
            _direct_memory_handle = _store->register_direct_memory(data, data_size);
         }
       }
       catch(...)
       {
-        PERR("failed during direct_memory_handle setup");
+        PERR("%s", "failed during direct_memory_handle setup");
         throw std::exception();
       }
 
-      PLOG("pool seeded with values");
+      PLOG("%s", "pool seeded with values");
     }
 
     bool do_work(unsigned core) override 
@@ -83,7 +95,7 @@ public:
         // check time it takes to complete a single put operation
         uint64_t cycles, start, end;
 
-        Component::io_buffer_t handle;
+        Component::io_buffer_t handle{};
         Core::Physical_memory mem_alloc;
         size_t pval_len = 64;
         void* pval = operator new(pval_len);
@@ -116,11 +128,11 @@ public:
         _update_data_process_amount(core, _i);
 
         cycles = end - start;
-        double time = (cycles / _cycles_per_second);
+        double time = double(cycles) / _cycles_per_second;
         //printf("start: %u  end: %u  cycles: %u seconds: %f\n", start, end, cycles, time);
 
         std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
-        double time_since_start = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - _exp_start_time).count() / 1000.0;
+        double time_since_start = double(std::chrono::duration_cast<std::chrono::milliseconds>(end_time - _exp_start_time).count()) / 1000.0;
        
         if (_component.compare("nvmestore") == 0)
         { 
@@ -144,7 +156,7 @@ public:
 
         _i++;  // increment after running so all elements get used
 
-       if (_i == _pool_element_end + 1)
+       if (_i == std::size_t(_pool_element_end) + 1)
        {
             _erase_pool_entries_in_range(_pool_element_start, _pool_element_end);
            _populate_pool_to_capacity(core, _direct_memory_handle);
@@ -167,7 +179,7 @@ public:
         }
 
         double run_time = timer.get_time_in_seconds();
-        double iops = _i / run_time;
+        double iops = double(_i) / run_time;
         PINF("[%u] get_direct: IOPS: %2g in %2g seconds", core, iops, run_time);
         _update_aggregate_iops(iops);
 

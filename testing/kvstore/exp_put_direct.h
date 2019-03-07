@@ -1,15 +1,15 @@
 #ifndef __EXP_PUT_DIRECT_LATENCY_H__
 #define __EXP_PUT_DIRECT_LATENCY_H__
 
+#include "experiment.h"
+#include "kvstore_perf.h"
+#include "statistics.h"
+
 #include <chrono>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <vector>
-
-#include "experiment.h"
-#include "kvstore_perf.h"
-#include "statistics.h"
 
 extern Data * g_data;
 extern pthread_mutex_t g_write_lock;
@@ -23,6 +23,10 @@ public:
     BinStatistics _latency_stats;
 
     ExperimentPutDirect(struct ProgramOptions options): Experiment(options) 
+      , _start_time()
+      , _latencies()
+      , _exp_start_time()
+      , _latency_stats()
     {
         _test_name = "put_direct";
     }
@@ -68,11 +72,11 @@ public:
         _update_data_process_amount(core, _i);
 
         cycles = end - start;
-        double time = (cycles / _cycles_per_second);
+        double time = double(cycles) / _cycles_per_second;
         //printf("start: %u  end: %u  cycles: %u seconds: %f\n", start, end, cycles, time);
 
         std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
-        double time_since_start = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - _exp_start_time).count() / 1000.0;
+        double time_since_start = double(std::chrono::duration_cast<std::chrono::milliseconds>(end_time - _exp_start_time).count()) / 1000.0;
 
         // store the information for later use
         _start_time.push_back(time_since_start);
@@ -99,7 +103,7 @@ public:
 
         timer.stop();  // should already be stopped here; just in case
         double run_time = timer.get_time_in_seconds();
-        double iops = _i / run_time;
+        double iops = double(_i) / run_time;
         PINF("[%u] put_direct: IOPS: %2g in %2g seconds", core, iops, run_time);
         _update_aggregate_iops(iops);
 
@@ -151,7 +155,7 @@ public:
        }
        catch(...)
        {
-         PERR("failed during save to JSON");
+         PERR("%s", "failed during save to JSON");
          pthread_mutex_unlock(&g_write_lock);
          throw std::exception();
        }

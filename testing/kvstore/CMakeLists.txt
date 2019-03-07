@@ -5,6 +5,7 @@ add_subdirectory(unit_test)
 project (kvstore-perf)
 
 add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
+add_compile_options(-g -pedantic -Wall -Werror -Wextra -Wcast-align -Wcast-qual -Wconversion -Weffc++ -Wold-style-cast -Wredundant-decls -Wshadow -Wtype-limits -Wunused-parameter -Wwrite-strings)
 
 add_executable(kvstore-perf kvstore_perf.cpp exp_throughput.cpp)
 

@@ -1,15 +1,16 @@
 #ifndef __EXP_GET_LATENCY_H__
 #define __EXP_GET_LATENCY_H__
 
+#include "experiment.h"
+
+#include "kvstore_perf.h"
+#include "statistics.h"
+
 #include <chrono>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <vector>
-
-#include "experiment.h"
-#include "kvstore_perf.h"
-#include "statistics.h"
 
 extern Data * g_data;
 extern pthread_mutex_t g_write_lock;
@@ -22,6 +23,9 @@ public:
   BinStatistics _latency_stats;
 
   ExperimentGet(struct ProgramOptions options): Experiment(options)
+    , _start_time()
+    , _latencies()
+    , _latency_stats()
   {
     _test_name = "get";
   }
@@ -56,33 +60,31 @@ public:
         return false; 
       }
 
-    // check time it takes to complete a single put operation
+    // check time it takes to complete a single get operation
 
     try
     {
       void * pval = nullptr; /* change to get semantics requires initializaitonof pval */
       size_t pval_len;
+
       timer.start();
       auto rc = _store->get(_pool, g_data->key(_i), pval, pval_len);
       timer.stop();
-
-      _update_data_process_amount(core, _i);
-
       if ( rc != S_OK )
       {
         std::cerr << "_pool_element_end = " << _pool_element_end << std::endl;
         std::cerr << "rc != S_OK: " << rc << " @ _i = " << _i << ". Exiting." << std::endl;
         throw std::exception();
-      }
-
+      }  
       _store->free_memory(pval);
-
     }
     catch(...)
     {
-      PERR("get call failed! Ending experiment.");
+      PERR("%s", "get call threw exception! Ending experiment.");
       throw std::exception();
     }
+
+    _update_data_process_amount(core, _i);
 
     double lap_time = timer.get_lap_time_in_seconds();
     double time_since_start = timer.get_time_in_seconds();
@@ -94,7 +96,7 @@ public:
 
     _i++;  // increment after running so all elements get used
 
-    if (_i == _pool_element_end + 1)
+    if (_i == unsigned(_pool_element_end) + 1)
       {
         try
           {
@@ -103,7 +105,7 @@ public:
           }
         catch(...)
           {
-            PERR("failed during erasing and repopulation");
+            PERR("%s", "failed during erasing and repopulation");
             throw std::exception();
           }
 
@@ -120,7 +122,7 @@ public:
   void cleanup_custom(unsigned core)  
   {
     double run_time = timer.get_time_in_seconds();
-    double iops = ((double) _i / run_time);
+    double iops = double(_i) / run_time;
     PINF("[%u] get: IOPS: %2g in %2g seconds", core, iops, run_time);
     _update_aggregate_iops(iops);
     

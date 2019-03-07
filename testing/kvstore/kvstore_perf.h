@@ -1,14 +1,7 @@
 #ifndef __KVSTORE_PERF_H__
 #define __KVSTORE_PERF_H__
 
-#include <api/kvstore_itf.h>
-#include <pthread.h>
-#include <sys/stat.h>
-
-#include "rapidjson/document.h"
-#include "rapidjson/filereadstream.h"
-#include "rapidjson/prettywriter.h"
-#include "rapidjson/stringbuffer.h"
+#include <string>
 
 #define DEFAULT_COMPONENT "filestore"
 #define PMSTORE_PATH "libcomanche-pmstore.so"
@@ -16,8 +9,6 @@
 #define NVMESTORE_PATH "libcomanche-nvmestore.so"
 #define ROCKSTORE_PATH "libcomanche-rocksdb.so"
 #define DAWN_PATH "libcomanche-dawn-client.so"
-
-extern boost::program_options::options_description g_desc;
 
 void show_program_options();
 
@@ -47,6 +38,32 @@ struct ProgramOptions {
   std::string server_address;
   std::string device_name;
   std::string pci_addr;
+  ProgramOptions()
+    : test()
+    , cores()
+    , devices()
+    , time_secs()
+    , path()
+    , pool_name()
+    , size()
+    , flags()
+    , elements()
+    , report_file_name()
+    , key_length()
+    , value_length()
+    , bin_count()
+    , bin_threshold_min()
+    , bin_threshold_max()
+    , debug_level()
+    , summary()
+    , skip_json_reporting()
+    , pin()
+    , start_time()
+    , owner()
+    , server_address()
+    , device_name()
+    , pci_addr()
+  {}
 }; 
 
 
