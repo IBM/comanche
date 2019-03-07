@@ -25,6 +25,13 @@ class Fabric_connection_base {
     void *parm;
   } action_t;
 
+  enum class Completion_state {
+    ADDED_DEFERRED_LOCK,
+    NO_DEFER,
+    CLIENT_DISCONNECT,
+    NONE,
+  };
+  
   /**
    * Ctor
    *
@@ -221,7 +228,7 @@ class Fabric_connection_base {
   inline buffer_t *posted_recv() const { return _posted_recv_buffer; }
   inline buffer_t *posted_send() const { return _posted_send_buffer; }
 
-  inline bool poll_completions()
+  inline Completion_state poll_completions()
   {
     if( _posted_recv_buffer_outstanding ||
         _posted_send_buffer_outstanding ||
@@ -234,12 +241,12 @@ class Fabric_connection_base {
           check_for_posted_value_complete(&added_deferred_unlock);
         }
         catch (std::logic_error e) {
-          throw General_exception("client disconnected");
+          return Completion_state::CLIENT_DISCONNECT;
         }
 
-        return added_deferred_unlock;
+        return added_deferred_unlock ? Completion_state::ADDED_DEFERRED_LOCK : Completion_state::NO_DEFER;
       }
-    return false;
+    return Completion_state::NONE;
   }
 
   /**
