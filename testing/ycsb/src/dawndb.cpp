@@ -77,7 +77,7 @@ int DawnDB::get(const string &table,
 
 int DawnDB::put(const string &table,
                 const string &key,
-                const char *  value,
+                const string &value,
                 bool          direct)
 {
   /* open or create pool */
@@ -88,7 +88,6 @@ int DawnDB::put(const string &table,
     pool = client->create_pool(table, GB(1));
   }
 
-  size_t length = strlen(value);
   /*
   if (direct) {
     auto handle = client->register_direct_memory(value, length);
@@ -97,14 +96,14 @@ int DawnDB::put(const string &table,
   }
   else {
   */
-  int ret = client->put(pool, key, value, length);
+  int ret = client->put(pool, key, value.c_str(), value.length());
   client->close_pool(pool);
   return ret;
 }
 
 int DawnDB::update(const string &table,
                    const string &key,
-                   const char *  value,
+                   const string &value,
                    bool          direct)
 {
   return put(table, key, value, direct);
