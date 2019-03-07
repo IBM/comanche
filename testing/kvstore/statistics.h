@@ -1,11 +1,16 @@
 #ifndef __STATISTICS_H__
 #define __STATISTICS_H__
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Weffc++"
 #include <common/logging.h>
+#pragma GCC diagnostic pop
 
 #include <algorithm>
 #include <cmath>
-#include <iostream>
+#include <limits>
+#include <sstream>
+#include <stdexcept>
 #include <limits>
 #include <vector>
 
@@ -31,7 +36,7 @@ public:
     double getMax() { return max; }
     double getMean() { return mean; }
     double getVariance() { return variance; }
-    double getStd() { return (count > 1 ? sqrt( variance / ( count - 1 ) ) : 0.0); }
+    double getStd() { return (count > 1 ? std::sqrt( variance / ( count - 1 ) ) : 0.0); }
 
 private:
     void update_count()
@@ -109,55 +114,42 @@ private:
 
 class BinStatistics
 {
-public:
-    BinStatistics()
-      : _bin_count()
-      , _increment()
-      , _min()
-      , _max()
-      , _bins()
+#if 0
+    void init(unsigned bins, double threshold_min, double threshold_max)
     {
-       // default: everything goes into one bin with range at top and bottom of double range
-       init(1, std::numeric_limits<double>::min(), std::numeric_limits<double>::max());
-    }
 
-    BinStatistics(int bins, double threshold_min, double threshold_max)
-      : _bin_count(bins)
-      , _increment((threshold_max - threshold_min) / bins)
-      , _min(threshold_min)
-      , _max(threshold_max)
-      , _bins(std::max(0, bins))
-    {
-        init(bins, threshold_min, threshold_max);
-    } 
-
-    void init(int bins, double threshold_min, double threshold_max)
-    {
-        if (bins < 0)
-        {
-            PERR("%s", "BinStatistics.init: bins can't be negative");
-            throw std::exception();
-        }
-        else if (bins == 0)
-        {
-            PERR("%s", "BinStatistics.init: bin count should be at least 1");
-            throw std::exception();
-        }
-
-        if (threshold_min > threshold_max)
-        {
-            PERR("%s", "BinStatistics.init: threshold_max should be larger than threshold_min. ");
-            std::cerr << "min: " << threshold_min << ", max = " << threshold_max << std::endl;
-            throw std::exception();
-        }
-
-        _bin_count = bins;
-        _min = threshold_min;
-        _max = threshold_max;
-
-        _increment = (threshold_max - threshold_min) / bins;
         _bins.resize(bins);
     }
+#endif
+public:
+    BinStatistics()
+      : BinStatistics(1, std::numeric_limits<double>::min(), std::numeric_limits<double>::max())
+    {
+    }
+
+    BinStatistics(unsigned bins, double threshold_min, double threshold_max)
+      : _bin_count(bins)
+      , _increment((threshold_max - threshold_min) / std::max(1U, bins))
+      , _min(threshold_min)
+      , _max(threshold_max)
+      , _bins(bins)
+    {
+      if (bins == 0)
+      {
+	std::string e = "BinStatistics: bin count is 0, should be at least 1"; 
+        PERR("%s.", e.c_str());
+        throw std::runtime_error(e);
+      }
+
+      if (threshold_min > threshold_max)
+      {
+        std::ostringstream e;
+        e << "BinStatistics: threshold_min " << threshold_min << " exceeds threshold_max " << threshold_max; 
+        PERR("%s.", e.str().c_str());
+        throw std::runtime_error(e.str());
+      }
+    } 
+
   public:
 
     void update(double value)

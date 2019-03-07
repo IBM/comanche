@@ -6,12 +6,15 @@
 #include "common/cycles.h"
 #pragma GCC diagnostic pop
 
-#include <cstdlib>
+#include <cstddef>
+#include <iostream>
 
 class Stopwatch
 {
 public:
-  bool is_running()
+  using duration_t = std::uint64_t;
+  using time_point_t = std::uint64_t;
+  bool is_running() const
   {
     return running;
   }
@@ -51,29 +54,44 @@ public:
     lap_time = 0;
   }
 
-  double get_time_in_seconds()
+  double get_time_in_seconds() const
   {
-    if (running) {
-      uint64_t stop_time = rdtsc();
-      return double(total + (stop_time - start_time)) / cycles_per_second;
-    }
-    else {
-      return double(total) / cycles_per_second;
-    }
+    return double(get_time_native())/cycles_per_second;
   }
 
-  double get_lap_time_in_seconds()
+  duration_t get_time_native() const
+  {
+    return
+      running
+      ? total + (rdtsc() - start_time)
+      : total
+      ;
+  }
+
+  double get_lap_time_in_seconds() const
   {
     return double(lap_time) / cycles_per_second;
   }
 
+  duration_t get_lap_time_native() const
+  {
+    return lap_time;
+  }
+
+  Stopwatch()
+    : total()
+    , lap_time()
+    , start_time()
+    , running(false)
+    , cycles_per_second(Common::get_rdtsc_frequency_mhz() * 1000000.0)
+  {}
+
 private:
-  uint64_t total = 0;
-  uint64_t lap_time = 0;
-  uint64_t start_time = 0;
-  
-  bool     running = false;
-  double   cycles_per_second = Common::get_rdtsc_frequency_mhz() * 1000000.0f;
+  duration_t total;
+  duration_t lap_time;
+  time_point_t start_time;
+  bool     running;
+  double   cycles_per_second;
 };
 
 

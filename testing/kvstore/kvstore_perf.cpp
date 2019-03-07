@@ -1,6 +1,13 @@
 /* note: we do not include component source, only the API definition */
 
-#include "kvstore_perf.h"
+#include "data.h"
+#include "exp_put.h"
+#include "exp_get.h"
+#include "exp_get_direct.h"
+#include "exp_put_direct.h"
+#include "exp_throughput.h"
+#include "exp_throughupdate.h"
+#include "exp_update.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Weffc++"
@@ -18,34 +25,28 @@
 #include <api/kvstore_itf.h>
 #pragma GCC diagnostic pop
 #include <boost/program_options.hpp>
-#include <chrono>
-#include <iostream>
-#include <numeric> /* accumulate */
 
-#define DEFAULT_PATH "/mnt/pmem0/"
-#define POOL_NAME "test.pool"
 #undef PROFILE
 
 #ifdef PROFILE
 #include <gperftools/profiler.h>
 #endif
 
-#include "data.h"
-#include "exp_put.h"
-#include "exp_get.h"
-#include "exp_get_direct.h"
-#include "exp_put_direct.h"
-#include "exp_throughput.h"
-#include "exp_update.h"
+#include <chrono>
+#include <iostream>
+#include <mutex>
+#include <numeric> /* accumulate */
+
+#define DEFAULT_COMPONENT "filestore"
 
 using namespace Component;
 
-ProgramOptions Options;
 Data * g_data;
 double g_iops;
 boost::program_options::variables_map g_vm; 
 
-pthread_mutex_t g_write_lock = PTHREAD_MUTEX_INITIALIZER;
+std::mutex g_write_lock;
+
 namespace
 {
   boost::program_options::options_description g_desc("Options");
@@ -69,9 +70,12 @@ namespace
     { "get_direct", run_exp<ExperimentGetDirect> },
     { "put_direct", run_exp<ExperimentPutDirect> },
     { "throughput", run_exp<ExperimentThroughput> },
+    { "throughupdate", run_exp<ExperimentThroughupdate> },
     { "update", run_exp<ExperimentUpdate> },
   };
 }
+
+void show_program_options();
 
 int main(int argc, char * argv[])
 {
@@ -80,7 +84,6 @@ int main(int argc, char * argv[])
 #endif
 
   namespace po = boost::program_options; 
-
 
   try {
     show_program_options();
@@ -92,51 +95,44 @@ int main(int argc, char * argv[])
       return 0;
     }
 
-    Options.component = g_vm.count("component") > 0 ? g_vm["component"].as<std::string>() : DEFAULT_COMPONENT;
-    Options.test = g_vm["test"].as<std::string>();
-    Options.cores  = g_vm["cores"].as<std::string>();
-    Options.elements = g_vm["elements"].as<int>();
-    Options.key_length = g_vm["key_length"].as<unsigned int>();
-    Options.value_length = g_vm["value_length"].as<unsigned int>();
-    Options.skip_json_reporting = g_vm.count("skip_json_reporting");
-    Options.pin = !(g_vm.count("nopin") > 0);
+    ProgramOptions Options(g_vm);
+
+    bool use_direct_memory = Options.component == "dawn";
+    g_data = new Data(Options.elements, Options.key_length, Options.value_length, use_direct_memory);
+
+    Options.report_file_name = Options.do_json_reporting ? Experiment::create_report(Options.component) : "";
+
+    cpu_mask_t cpus;
+
+    try
+    {
+      cpus = Experiment::get_cpu_mask_from_string(Options.cores);
+    }
+    catch(...)
+    {
+      PERR("%s", "couldn't create CPU mask. Exiting.");
+      return 1;
+    }
+
+#ifdef PROFILE
+    ProfilerStart("cpu.profile");
+#endif
+
+    for ( const auto &e : test_vector )
+    {
+      if ( Options.test == "all" || Options.test == e.first )
+      {
+        e.second(cpus, Options);
+      }
+    }
+#ifdef PROFILE
+    ProfilerStop();
+#endif
   }
   catch (const po::error &ex) {
     std::cerr << ex.what() << '\n';
     return -1;
   }
-
-  bool use_direct_memory = Options.component == "dawn";
-  g_data = new Data(Options.elements, Options.key_length, Options.value_length, use_direct_memory);
-
-  Options.report_file_name = Experiment::create_report(Options);
-
-  cpu_mask_t cpus;
-
-  try
-  {
-    cpus = Experiment::get_cpu_mask_from_string(Options.cores);
-  }
-  catch(...)
-  {
-    PERR("%s", "couldn't create CPU mask. Exiting.");
-    return 1;
-  }
-
-#ifdef PROFILE
-  ProfilerStart("cpu.profile");
-#endif
-
-  for ( const auto &e : test_vector )
-  {
-    if ( Options.test == "all" || Options.test == e.first )
-    {
-      e.second(cpus, Options);
-    }
-  }
-#ifdef PROFILE
-  ProfilerStop();
-#endif
   
   return 0;
 }
@@ -186,5 +182,6 @@ void show_program_options()
     ("verbose", "Verbose output")
     ("summary", "Prints summary statement: most frequent latency bin info per core")
     ("skip_json_reporting", "disables creation of json report file")
+    ("continuous", "enables never-ending execution, if possible")
     ;
 }
