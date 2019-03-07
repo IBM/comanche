@@ -13,18 +13,21 @@ int Connection_handler::tick()
   auto now = rdtsc();
   
   /* output IOPS */
-  if(_stats.next_stamp == 0) {
+  if (_stats.next_stamp == 0) {
     _stats.next_stamp = now + (_freq_mhz * 1000000.0);
     _stats.last_count = _stats.response_count;
   }
-  if(now >= (_stats.next_stamp)) {
+  if (now >= (_stats.next_stamp)) {
     PMAJOR("(%p) IOPS: %lu /s", this, _stats.response_count - _stats.last_count);
     _stats.next_stamp = now + (_freq_mhz * 1000000.0);
     _stats.last_count = _stats.response_count;
   }
 #endif
 
-  check_network_completions();
+  if (check_network_completions() == Fabric_connection_base::Completion_state::CLIENT_DISCONNECT) {
+    PMAJOR("Client disconnected.");
+    return Dawn::Connection_handler::TICK_RESPONSE_CLOSE;
+  }
 
   switch (_state) {
 
