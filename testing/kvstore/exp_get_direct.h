@@ -92,8 +92,7 @@ public:
           return false; 
         }
 
-        // check time it takes to complete a single put operation
-        uint64_t cycles, start, end;
+        // check time it takes to complete a single get_direct operation
 
         Component::io_buffer_t handle{};
         Core::Physical_memory mem_alloc;
@@ -120,16 +119,12 @@ public:
         }
 
         timer.start();
-        start = rdtsc();
         int rc = _store->get_direct(_pool, g_data->key(_i), pval, pval_len, memory_handle);
-        end = rdtsc();
         timer.stop();
        
         _update_data_process_amount(core, _i);
 
-        cycles = end - start;
-        double time = double(cycles) / _cycles_per_second;
-        //printf("start: %u  end: %u  cycles: %u seconds: %f\n", start, end, cycles, time);
+	double time = timer.get_lap_time_in_seconds();
 
         std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
         double time_since_start = double(std::chrono::duration_cast<std::chrono::milliseconds>(end_time - _exp_start_time).count()) / 1000.0;
