@@ -8,47 +8,30 @@
 using namespace ycsbutils;
 using namespace std;
 
-namespace ycsb{
-	class DB{
-		public:
-                 DB(Properties &props) { init(props); }
-                 virtual int  get(const string &pool,
-                                  const string &key,
-                                  char *        value,
-                                  bool          direct = false) = 0;
-                 virtual int  put(const string &pool,
-                                  const string &key,
-                                  const char *  value,
-                                  bool          direct = false) = 0;
-                 virtual int  update(const string &pool,
-                                     const string &key,
-                                     const char *  value,
-                                     bool          direct = false)                  = 0;
-                 virtual int  erase(const string &pool, const string &key) = 0;
-                 virtual int  scan(const string &pool,
-                                   const string &key,
-                                   int           count,
-                                   vector < map<string, string> & results) = 0;
-                 ~DB()
-                 {
-                   clean();
-                   delete this;
-                 }
-
-                private:
-                 virtual void init(Properties &props) {}
-                 virtual void clean() {}
-        };
-
-        class DBFactory {
-         public:
-          static DB *create(Properties &prop)
-          {
-            if (props["db"] == "dawn") {
-              return new DawnDB();
-            }
-          }
-        };
-}
+namespace ycsb
+{
+class DB {
+ public:
+  virtual int  get(const string &table,
+                   const string &key,
+                   char *        value,
+                   bool          direct = false)                              = 0;
+  virtual int  put(const string &table,
+                   const string &key,
+                   const char *  value,
+                   bool          direct = false)                              = 0;
+  virtual int  update(const string &table,
+                      const string &key,
+                      const char *  value,
+                      bool          direct = false)                           = 0;
+  virtual int  erase(const string &table, const string &key)         = 0;
+  virtual int  scan(const string &                table,
+                    const string &                key,
+                    int                           count,
+                    vector<pair<string, string>> &results)           = 0;
+  virtual void init(Properties &props)                               = 0;
+  virtual void clean()                                               = 0;
+};
+}  // namespace ycsb
 
 #endif
