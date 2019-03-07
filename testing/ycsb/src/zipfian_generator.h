@@ -13,7 +13,7 @@
 #include <cmath>
 #include <cstdint>
 #include <mutex>
-#include "utils.h"
+#include "properties.h"
 
 namespace ycsbc {
 
@@ -97,8 +97,8 @@ inline uint64_t ZipfianGenerator::Next(uint64_t num) {
     RaiseZeta(num);
     eta_ = Eta();
   }
-  
-  double u = utils::RandomDouble();
+
+  double u  = ycsbutils::RandomDouble();
   double uz = u * zeta_n_;
   
   if (uz < 1.0) {

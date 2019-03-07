@@ -48,7 +48,7 @@ else(BOOTSTRAP_DEPS)
   add_subdirectory(nupm)
   add_subdirectory(common)
   add_subdirectory(core)
-  add_subdirectory(tds)
+  add_subdirectory(tbb)
 #  add_subdirectory(dawn-client)
   
 endif(BOOTSTRAP_DEPS)

@@ -13,11 +13,16 @@ int main(){
    props.setProperty("dev", "mlx5_0");
    props.setProperty("recordcount", "10");
    props.setProperty("operationcount", "10");
+   //   props.setProperty("requestdistribution", "uniform");
+   props.setProperty("requestdistribution", "zipfian");
+   // props.setProperty("readproportion", "1");
+   props.setProperty("updateproportion", "1");
    ycsb::DB *db = ycsb::DBFactory::create(props);
    assert(db);
    ycsb::Workload* wl = new ycsb::Workload(props, db);
    assert(wl);
    wl->load();
+   wl->run();
    delete wl;
    delete db;
 }
