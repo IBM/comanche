@@ -1,10 +1,12 @@
-#ifndef __YCSB_PROPERTIES_H_
-#define __YCSB_PROPERTIES_H_
+#ifndef __YCSB_PROPERTIES_H__
+#define __YCSB_PROPERTIES_H__
 
-#include <string>
-#include <map>
-#include <fstream>
+#include <algorithm>
 #include <cassert>
+#include <fstream>
+#include <map>
+#include <random>
+#include <string>
 
 namespace ycsbutils
 {
@@ -21,6 +23,7 @@ class Properties {
 
  private:
   std::map<std::string, std::string> properties_;
+  std::string                        trim(const std::string &str);
 };
 
 inline std::string Properties::getProperty(
@@ -53,7 +56,7 @@ inline void Properties::setProperty(const std::string &key,
 
 inline bool Properties::load(std::ifstream &input)
 {
-  if (!input.is_open()) throw utils::Exception("File not open!");
+  if (!input.is_open()) throw "File not open!";
 
   while (!input.eof() && !input.bad()) {
     std::string line;
@@ -61,10 +64,51 @@ inline bool Properties::load(std::ifstream &input)
     if (line[0] == '#') continue;
     size_t pos = line.find_first_of('=');
     if (pos == std::string::npos) continue;
-    SetProperty(Trim(line.substr(0, pos)), Trim(line.substr(pos + 1)));
+    setProperty(trim(line.substr(0, pos)), trim(line.substr(pos + 1)));
   }
   return true;
 }
+
+inline std::string trim(const std::string &str)
+{
+  auto front = std::find_if_not(str.begin(), str.end(),
+                                [](int c) { return std::isspace(c); });
+  return std::string(
+      front,
+      std::find_if_not(str.rbegin(), std::string::const_reverse_iterator(front),
+                       [](int c) { return std::isspace(c); })
+          .base());
+}
+const uint64_t kFNVOffsetBasis64 = 0xCBF29CE484222325;
+const uint64_t kFNVPrime64       = 1099511628211;
+
+inline uint64_t FNVHash64(uint64_t val)
+{
+  uint64_t hash = kFNVOffsetBasis64;
+
+  for (int i = 0; i < 8; i++) {
+    uint64_t octet = val & 0x00ff;
+    val            = val >> 8;
+
+    hash = hash ^ octet;
+    hash = hash * kFNVPrime64;
+  }
+  return hash;
+}
+
+inline uint64_t Hash(uint64_t val) { return FNVHash64(val); }
+
+inline double RandomDouble(double min = 0.0, double max = 1.0)
+{
+  static std::default_random_engine             generator;
+  static std::uniform_real_distribution<double> uniform(min, max);
+  return uniform(generator);
+}
+
+///
+/// Returns an ASCII code that can be printed to desplay
+///
+inline char RandomPrintChar() { return rand() % 94 + 33; }
 }  // namespace ycsbutils
 
 #endif

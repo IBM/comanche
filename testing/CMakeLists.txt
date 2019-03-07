@@ -4,3 +4,4 @@ set(CMAKE_CXX_STANDARD 11)
 
 add_subdirectory (kvstore)
 add_subdirectory (integrity)
+add_subdirectory (ycsb)
