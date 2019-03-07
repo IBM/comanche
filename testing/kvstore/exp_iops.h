@@ -4,7 +4,6 @@
 #include "task.h"
 
 #include <pthread.h>
-#include "kvstore_perf.h"
 #include "statistics.h"
 
 #include <chrono>
