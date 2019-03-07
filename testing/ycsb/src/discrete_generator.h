@@ -15,7 +15,7 @@
 #include <cassert>
 #include <mutex>
 #include <vector>
-#include "utils.h"
+#include "properties.h"
 
 namespace ycsbc {
 
@@ -47,7 +47,7 @@ inline void DiscreteGenerator<Value>::AddValue(Value value, double weight) {
 template <typename Value>
 inline Value DiscreteGenerator<Value>::Next() {
   mutex_.lock();
-  double chooser = utils::RandomDouble();
+  double chooser = ycsbutils::RandomDouble();
   mutex_.unlock();
   
   for (auto p = values_.cbegin(); p != values_.cend(); ++p) {

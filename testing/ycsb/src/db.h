@@ -18,11 +18,11 @@ class DB {
                    bool          direct = false)                              = 0;
   virtual int  put(const string &table,
                    const string &key,
-                   const char *  value,
+                   const string &value,
                    bool          direct = false)                              = 0;
   virtual int  update(const string &table,
                       const string &key,
-                      const char *  value,
+                      const string &value,
                       bool          direct = false)                           = 0;
   virtual int  erase(const string &table, const string &key)         = 0;
   virtual int  scan(const string &                table,
@@ -31,6 +31,7 @@ class DB {
                     vector<pair<string, string>> &results)           = 0;
   virtual void init(Properties &props)                               = 0;
   virtual void clean()                                               = 0;
+  virtual ~DB(){};
 };
 }  // namespace ycsb
 
