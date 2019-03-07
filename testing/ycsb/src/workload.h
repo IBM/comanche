@@ -10,6 +10,8 @@ using namespace std;
 
 namespace ycsb
 {
+enum Operation { INSERT, READ, UPDATE, SCAN, READMODIFYWRITE };
+
 class Workload {
  public:
   const int SIZE = 64;
@@ -22,7 +24,7 @@ class Workload {
   Properties&                  props;
   DB *       db;
   vector<pair<string, string>> kvs;
-  //  ycsbc::Generator             gen;
+  //  ycsbc::Generator<Value>      gen;
   int                          records;
   int                          operations;
   inline string                buildKeyName(uint64_t key_num);
