@@ -17,10 +17,6 @@
 #include <boost/program_options.hpp>
 #include <gperftools/profiler.h>
 #pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wold-style-cast"
-#include <common/cycles.h>
-#pragma GCC diagnostic pop
-#pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Weffc++"
 #pragma GCC diagnostic ignored "-Wold-style-cast"
 #pragma GCC diagnostic ignored "-Wpedantic"
@@ -182,8 +178,6 @@ public:
   double _bin_threshold_min = 0.000000001;
   double _bin_threshold_max = 0.001;
   double _bin_increment;
-
-  float _cycles_per_second = Common::get_rdtsc_frequency_mhz() * 1000000;
 
   using core_to_device_map_t = std::map<unsigned, dotted_pair<unsigned>>;
   core_to_device_map_t _core_to_device_map;
