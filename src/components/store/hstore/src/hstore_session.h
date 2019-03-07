@@ -219,15 +219,32 @@ template <typename Handle, typename Allocator, typename Table>
 			auto p_key = KEY_T(key.begin(), key.end(), this->allocator());
 			auto &v = map().at(p_key);
 
-			if ( out_value == nullptr || out_value_len == 0 )
+			if ( out_value == nullptr )
 			{
-				out_value_len = v.size();
-				out_value = ::malloc(out_value_len);
+				out_value = ::malloc(v.size());
 				if ( ! out_value )
 				{
 					throw std::bad_alloc();
 				}
 			}
+			else
+			{
+				/* Although not documented, assume that non-zero
+				 * out_value implies that out_value_len holds
+				 * the buffer's size.
+				 *
+				 * It might be reaonable to
+				 *  a) fill the buffer and/or
+				 *  b) return the necessary size in out_value_len,
+				 * but neither action is documented, so we do not.
+				 */
+				if ( out_value_len < v.size() )
+				{
+					return Component::IKVStore::E_INSUFFICIENT_BUFFER;
+				}
+			}
+
+			out_value_len = v.size();
 			memcpy(out_value, v.data(), out_value_len);
 			return Component::IKVStore::S_OK;
 		}
