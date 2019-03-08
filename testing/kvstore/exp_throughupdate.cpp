@@ -1,5 +1,7 @@
 #include "exp_throughupdate.h"
 
+#include "boost/date_time/posix_time/posix_time.hpp"
+
 #include <csignal>
 
 std::mutex ExperimentThroughupdate::_iops_lock;
@@ -67,11 +69,14 @@ bool ExperimentThroughupdate::do_work(unsigned core)
   auto now = std::chrono::high_resolution_clock::now();
   if ( _report_interval <= now - _report_time )
   {
+    auto ptime = boost::posix_time::microsec_clock::universal_time();
+    auto ptime_str = to_iso_extended_string(ptime);
+
     double secs = to_seconds(now - _report_time);
     unsigned long iops = static_cast<unsigned long>(double(_op_count_interval) / secs);
     PLOG(
-      "time %.3f IOps %lu core %u"
-      , to_seconds(elapsed(now))
+      "time %s IOps %lu core %u"
+      , ptime_str.c_str()
       , iops
       , core
     );
