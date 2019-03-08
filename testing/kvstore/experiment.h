@@ -149,9 +149,6 @@ private:
   Component::IKVStore::memory_handle_t _memory_handle;
 
   // common experiment parameters
-public:
-  size_t                                _i;
-private:
   Component::IKVStore *                 _store;
   Component::IKVStore::pool_t           _pool;
   std::string                           _server_address;
@@ -217,7 +214,7 @@ private:
      return core_to_device_map;
   }
 public: 
-  Experiment(std::string name_, struct ProgramOptions options)
+  Experiment(std::string name_, ProgramOptions options)
     : _pool_path("./data/")
     , _pool_name("Exp.pool")
     , _pool_name_local()
@@ -237,7 +234,6 @@ public:
     , _do_json_reporting(options.do_json_reporting)
     , _test_name(name_)
     , _memory_handle(Component::IKVStore::HANDLE_NONE)
-    , _i(0)
     , _store()
     , _pool()
     , _server_address()
@@ -468,9 +464,9 @@ public:
         time_string >> std::get_time(&time_input, "%R");
 
         const time_t now = time(NULL);
-        struct tm * now_tm = localtime(&now);
-        struct tm go_tm;
-	std::memcpy(&go_tm, now_tm, sizeof(struct tm));
+	std::tm * now_tm = localtime(&now);
+	std::tm go_tm;
+	std::memcpy(&go_tm, now_tm, sizeof(std::tm));
         go_tm.tm_min = time_input.tm_min;
         go_tm.tm_hour = time_input.tm_hour;
 
@@ -492,7 +488,7 @@ public:
       throw General_exception("inaccessible devdax path (%s): %s", dax_path.c_str(), strerror(e));
     }
 
-    struct stat statbuf;
+    struct ::stat statbuf;
     if ( ::fstat(fd, &statbuf) == -1 )
     {
       auto e = errno;
@@ -1095,7 +1091,7 @@ public:
   // returns file size in bytes
   long GetFileSize(std::string filename)
   {
-    struct stat stat_buf;
+    struct ::stat stat_buf;
 
     auto rc = stat(filename.c_str(), &stat_buf);
 
@@ -1104,7 +1100,7 @@ public:
 
   long GetBlockSize(std::string path)
   {
-    struct stat stat_buf;
+    struct ::stat stat_buf;
 
     auto rc = stat(path.c_str(), &stat_buf);
 
@@ -1249,7 +1245,7 @@ public:
   static std::string get_time_string()
   {
     time_t rawtime;
-    struct tm *timeinfo;
+    ::tm *timeinfo;
     time(&rawtime);
     timeinfo = localtime(&rawtime);
     char buffer[80];
@@ -1526,8 +1522,8 @@ public:
     }
   }
 
-  // assumptions: _i is tracking current element in use
-  void _enforce_maximum_pool_size(unsigned core)
+  // assumptions: i_ is tracking current element in use
+  void _enforce_maximum_pool_size(unsigned core, std::size_t i_)
   {
 #if 0 /* unused */
     unsigned long block_size = GetElementSize(core, int(_i));
@@ -1559,7 +1555,7 @@ public:
 
         try
           {
-            for (auto i = _i - 1; i > (_i - _elements_in_use); --i)
+            for (auto i = i_ - 1; i > (i_ - _elements_in_use); --i)
               {
                 auto rc =_store->erase(_pool, g_data->key(i));
                 if (rc != S_OK && core == 0)
@@ -1567,7 +1563,7 @@ public:
                     // throw exception
                     std::string error_string = "erase returned !S_OK: ";
                     error_string.append(std::to_string(rc));
-                    error_string.append(", i = " + std::to_string(i) + ", _i = " + std::to_string(_i));
+                    error_string.append(", i = " + std::to_string(i) + ", i_ = " + std::to_string(i_));
                     perror(error_string.c_str());
                   }
               }
@@ -1583,7 +1579,7 @@ public:
         if (_verbose)
           {
             std::stringstream debug_end;
-            debug_end << "done. _i = " << _i;
+            debug_end << "done. i_ = " << i_;
 
             _debug_print(core, debug_end.str(), true);
           }

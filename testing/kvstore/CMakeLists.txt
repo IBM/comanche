@@ -7,7 +7,7 @@ project (kvstore-perf)
 add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 add_compile_options(-g -pedantic -Wall -Werror -Wextra -Wcast-align -Wcast-qual -Wconversion -Weffc++ -Wold-style-cast -Wredundant-decls -Wshadow -Wtype-limits -Wunused-parameter -Wwrite-strings)
 
-add_executable(kvstore-perf kvstore_perf.cpp exp_throughput.cpp exp_throughupdate.cpp experiment.cpp program_options.cpp)
+add_executable(kvstore-perf kvstore_perf.cpp exp_throughput.cpp experiment.cpp program_options.cpp)
 
 target_link_libraries(kvstore-perf comanche-core common numa gtest pthread dl boost_program_options ${TBB_LIBRARIES} profiler boost_system boost_filesystem tbbmalloc)
 
