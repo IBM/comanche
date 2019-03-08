@@ -17,6 +17,7 @@ add_library(${PROJECT_NAME} SHARED ${SOURCES})
 
 set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--no-undefined")
 
+target_compile_options(${PROJECT_NAME} PUBLIC "$<$<CONFIG:Debug>:-O0>")
 target_link_libraries(${PROJECT_NAME} common comanche-core fabric pthread)
 
 # set the linkage in the install/lib
@@ -25,4 +26,3 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 install (TARGETS ${PROJECT_NAME}
     LIBRARY
     DESTINATION lib)
-# target_link_libraries(${PROJECT_NAME} common comanche-core pthread numa dl rt z rdmacm ibverbs)

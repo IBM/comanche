@@ -4,7 +4,6 @@
 #include "task.h"
 
 #include <pthread.h>
-#include "kvstore_perf.h"
 #include "statistics.h"
 
 #include <chrono>
@@ -19,7 +18,7 @@ class Experiment_IOPS : public Core::Tasklet
 { 
 public:
 
-  Experiment_IOPS(struct ProgramOptions options)
+  Experiment_IOPS(ProgramOptions options)
   {
     assert(options.factory);
     _store = options.factory->create(options.debug_level, options.owner, options.server_address, options.device_name);    
@@ -81,7 +80,7 @@ public:
        
     // _i++;  // increment after running so all elements get used
 
-    // _enforce_maximum_pool_size(core);
+    // _enforce_maximum_pool_size(core, _i);
 
     // if (rc != S_OK)
     //   {

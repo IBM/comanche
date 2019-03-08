@@ -2,9 +2,14 @@
 #define __DATA_H__
 
 #include <common/str_utils.h>
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Weffc++"
 #include <common/logging.h>
+#pragma GCC diagnostic pop
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Weffc++"
 #include <common/exceptions.h>
-
+#pragma GCC diagnostic pop
 
 class KV_pair 
 {
@@ -43,9 +48,9 @@ public:
     , _data(nullptr)
   {
     if (!delay_initialization)
-      {
-        initialize_data(new KV_pair[_num_elements]);
-      }
+    {
+      initialize_data(new KV_pair[_num_elements]);
+    }
   }
 
   Data(const Data &) = delete;
@@ -63,14 +68,14 @@ public:
         
     _data = data;
     
-    for(size_t i=0;i<_num_elements;i++) 
-      {
-        auto key = Common::random_string(_key_len);
-        auto val = Common::random_string(_val_len);
+    for( size_t i=0; i<_num_elements; ++i) 
+    {
+      auto key = Common::random_string(_key_len);
+      auto val = Common::random_string(_val_len);
 
-        _data[i].key = key;
-        _data[i].value = val;
-      }
+      _data[i].key = key;
+      _data[i].value = val;
+    }
 
     PLOG("%d elements initialized, size %d.", int(_num_elements), int(_val_len));
   }

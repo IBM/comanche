@@ -1,6 +1,12 @@
 /* note: we do not include component source, only the API definition */
 
-#include "kvstore_perf.h"
+#include "data.h"
+#include "exp_put.h"
+#include "exp_get.h"
+#include "exp_get_direct.h"
+#include "exp_put_direct.h"
+#include "exp_throughput.h"
+#include "exp_update.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Weffc++"
@@ -18,34 +24,28 @@
 #include <api/kvstore_itf.h>
 #pragma GCC diagnostic pop
 #include <boost/program_options.hpp>
-#include <chrono>
-#include <iostream>
-#include <numeric> /* accumulate */
 
-#define DEFAULT_PATH "/mnt/pmem0/"
-#define POOL_NAME "test.pool"
 #undef PROFILE
 
 #ifdef PROFILE
 #include <gperftools/profiler.h>
 #endif
 
-#include "data.h"
-#include "exp_put.h"
-#include "exp_get.h"
-#include "exp_get_direct.h"
-#include "exp_put_direct.h"
-#include "exp_throughput.h"
-#include "exp_update.h"
+#include <chrono>
+#include <iostream>
+#include <mutex>
+#include <numeric> /* accumulate */
+
+#define DEFAULT_COMPONENT "filestore"
 
 using namespace Component;
 
-ProgramOptions Options;
 Data * g_data;
 double g_iops;
 boost::program_options::variables_map g_vm; 
 
-pthread_mutex_t g_write_lock = PTHREAD_MUTEX_INITIALIZER;
+std::mutex g_write_lock;
+
 namespace
 {
   boost::program_options::options_description g_desc("Options");
@@ -73,6 +73,11 @@ namespace
   };
 }
 
+void add_program_options(
+  boost::program_options::options_description &desc
+  , const std::vector<test_element> &test_vector
+);
+
 int main(int argc, char * argv[])
 {
 #ifdef PROFILE
@@ -81,9 +86,8 @@ int main(int argc, char * argv[])
 
   namespace po = boost::program_options; 
 
-
   try {
-    show_program_options();
+    add_program_options(g_desc, test_vector);
 
     po::store(po::command_line_parser(argc, argv).options(g_desc).positional(g_pos).run(), g_vm);
 
@@ -92,73 +96,67 @@ int main(int argc, char * argv[])
       return 0;
     }
 
-    Options.component = g_vm.count("component") > 0 ? g_vm["component"].as<std::string>() : DEFAULT_COMPONENT;
-    Options.test = g_vm["test"].as<std::string>();
-    Options.cores  = g_vm["cores"].as<std::string>();
-    Options.elements = g_vm["elements"].as<int>();
-    Options.key_length = g_vm["key_length"].as<unsigned int>();
-    Options.value_length = g_vm["value_length"].as<unsigned int>();
-    Options.skip_json_reporting = g_vm.count("skip_json_reporting");
-    Options.pin = !(g_vm.count("nopin") > 0);
+    ProgramOptions Options(g_vm);
+
+    bool use_direct_memory = Options.component == "dawn";
+    g_data = new Data(Options.elements, Options.key_length, Options.value_length, use_direct_memory);
+
+    Options.report_file_name = Options.do_json_reporting ? Experiment::create_report(Options.component) : "";
+
+    cpu_mask_t cpus;
+
+    try
+    {
+      cpus = Experiment::get_cpu_mask_from_string(Options.cores);
+    }
+    catch(...)
+    {
+      PERR("%s", "couldn't create CPU mask. Exiting.");
+      return 1;
+    }
+
+#ifdef PROFILE
+    ProfilerStart("cpu.profile");
+#endif
+
+    for ( const auto &e : test_vector )
+    {
+      if ( Options.test == "all" || Options.test == e.first )
+      {
+        e.second(cpus, Options);
+      }
+    }
+#ifdef PROFILE
+    ProfilerStop();
+#endif
   }
   catch (const po::error &ex) {
     std::cerr << ex.what() << '\n';
     return -1;
   }
-
-  bool use_direct_memory = Options.component == "dawn";
-  g_data = new Data(Options.elements, Options.key_length, Options.value_length, use_direct_memory);
-
-  Options.report_file_name = Experiment::create_report(Options);
-
-  cpu_mask_t cpus;
-
-  try
-  {
-    cpus = Experiment::get_cpu_mask_from_string(Options.cores);
-  }
-  catch(...)
-  {
-    PERR("%s", "couldn't create CPU mask. Exiting.");
-    return 1;
-  }
-
-#ifdef PROFILE
-  ProfilerStart("cpu.profile");
-#endif
-
-  for ( const auto &e : test_vector )
-  {
-    if ( Options.test == "all" || Options.test == e.first )
-    {
-      e.second(cpus, Options);
-    }
-  }
-#ifdef PROFILE
-  ProfilerStop();
-#endif
   
   return 0;
 }
 
-
-
-void show_program_options()
+void add_program_options(
+  boost::program_options::options_description &desc_
+  , const std::vector<test_element> &test_vector_
+)
 {
   namespace po = boost::program_options;
 
   const std::string test_names =
     "Test name <"
       + std::accumulate(
-          test_vector.begin()
-          , test_vector.end()
+          test_vector_.begin()
+          , test_vector_.end()
           , test_element("all", nullptr)
           , [] (const test_element &a, const test_element &b) { return test_element(a.first + "|" + b.first, nullptr); }
         ).first
       + ">. Default: all."
     ;
 
-  g_desc.add_options()
+  desc_.add_options()
     ("help", "Show help")
     ("test" , po::value<std::string>()->default_value("all"), test_names.c_str())
     ("component", po::value<std::string>()->default_value(DEFAULT_COMPONENT), "Implementation selection <filestore|pmstore|dawn|nvmestore|mapstore|hstore>. Default: filestore.")
@@ -166,15 +164,16 @@ void show_program_options()
     ("devices", po::value<std::string>(), "Comma-separated ranges of devices to use during test. Each identifier is a dotted pair of numa zone and index, e.g. '1.2'. For comaptibility with cores, a simple index number is accepted and implies numa node 0. These examples all specify device indexes 2 through 4 inclusive in numa node 0: '2,3,4', '0.2:3'. These examples all specify devices 2 thourgh 4 inclusive on numa node 1: '1.2,1.3,1.4', '1.2-1.4', '1.2:3'.  When using hstore, the actual dax device names are concatenations of the device_name option with <node>.<index> values specified by this option. In the node 0 example above, with device_name /dev/dax, the device paths are /dev/dax0.2 through /dev/dax0.4 inclusive. Default: the value of cores.")
     ("path", po::value<std::string>(), "Path of directory for pool. Default: current directory.")
     ("pool_name", po::value<std::string>(), "Prefix name of pool; will append core number. Default: Exp.pool")
-    ("size", po::value<unsigned long long int>(), "Size of pool. Default: 100MB.")
+    ("size", po::value<unsigned long long>(), "Size of pool. Default: 100MB.")
     ("flags", po::value<int>(), "Flags for pool creation. Default: none.")
     ("elements", po::value<int>()->default_value(100000), "Number of data elements. Default: 100,000.")
-    ("key_length", po::value<unsigned int>()->default_value(8), "Key length of data. Default: 8.")
-    ("value_length", po::value<unsigned int>()->default_value(32), "Value length of data. Default: 32.")
+    ("key_length", po::value<unsigned>()->default_value(8), "Key length of data. Default: 8.")
+    ("value_length", po::value<unsigned>()->default_value(32), "Value length of data. Default: 32.")
     ("bins", po::value<unsigned int>(), "Number of bins for statistics. Default: 100. ")
     ("latency_range_min", po::value<double>(), "Lowest latency bin threshold. Default: 10e-9.")
     ("latency_range_max", po::value<double>(), "Highest latency bin threshold. Default: 10e-3.")
     ("debug_level", po::value<int>(), "Debug level. Default: 0.")
+    ("read_pct", po::value<unsigned>()->default_value(0) , "Read percentage in throughput test. Default: 0.")
     ("owner", po::value<std::string>(), "Owner name for component registration")
     ("server", po::value<std::string>(), "Dawn server IP address")
     ("port", po::value<unsigned>(), "Dawn server port. Default 11911")
@@ -186,5 +185,6 @@ void show_program_options()
     ("verbose", "Verbose output")
     ("summary", "Prints summary statement: most frequent latency bin info per core")
     ("skip_json_reporting", "disables creation of json report file")
+    ("continuous", "enables never-ending execution, if possible")
     ;
 }

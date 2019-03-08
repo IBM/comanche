@@ -3,42 +3,44 @@
 
 #include "experiment.h"
 
-#include "kvstore_perf.h"
 #include "statistics.h"
 
-#include <chrono>
 #include <cstdlib>
-#include <fstream>
-#include <iostream>
+#include <mutex>
+#include <sstream>
+#include <stdexcept>
 #include <vector>
 
 extern Data * g_data;
-extern pthread_mutex_t g_write_lock;
+extern std::mutex g_write_lock;
 
 class ExperimentUpdate : public Experiment
 { 
-public:
+  std::size_t _i;
   std::vector<double> _start_time;
   std::vector<double> _latencies;
   BinStatistics _latency_stats;
 
-  ExperimentUpdate(struct ProgramOptions options): Experiment(options) 
+public:
+  ExperimentUpdate(const ProgramOptions &options)
+    : Experiment("update", options) 
+    , _i(0)
     , _start_time()
     , _latencies()
     , _latency_stats()
   {
-    _test_name = "update";
   }
 
   void initialize_custom(unsigned /* core */) override
   {
-    _latency_stats.init(_bin_count, _bin_threshold_min, _bin_threshold_max);
+    _latency_stats = BinStatistics(bin_count(), bin_threshold_min(), bin_threshold_max());
   }
 
   bool do_work(unsigned core) override 
   {
     // handle first time setup
-    if(_first_iter) {
+    if(_first_iter)
+    {
       _pool_element_end = -1;
 
       // seed the pool with elements from _data
@@ -52,7 +54,7 @@ public:
     }
 
     // end experiment if we've reached the total number of components
-    if (_i == _pool_num_objects) {
+    if ( _i == pool_num_objects() ) {
       PINF("[%u] update: reached total number of components. Exiting.", core);
       return false;
     }
@@ -61,20 +63,28 @@ public:
     auto new_val = Common::random_string(g_data->value_len());
 
     // check time it takes to complete a single put operation
-    int rc = S_OK;
-
-    timer.start();
-
-    try {
-        rc = _store->put(_pool, g_data->key(_i), new_val.c_str(), g_data->value_len());
+    try
+    {
+      StopwatchInterval si(timer);
+      auto rc = store()->put(pool(), g_data->key(_i), new_val.c_str(), g_data->value_len());
+      if ( rc != S_OK)
+      {
+        std::ostringstream e;
+	e << "_pool_element_end = " << _pool_element_end << " put rc != S_OK: " << rc << " @ _i = " << _i;
+        PERR("[%u] %s. Exiting.", core, e.str().c_str());
+        throw std::runtime_error(e.str());
+      }
+    }
+    catch ( std::exception &e )
+    {
+      PERR("put (update) call threw exception %s! Ending experiment.", e.what());
+      throw;
     }
     catch(...) {
       PERR("%s", "put (update) call threw exception! Ending experiment.");
       throw std::exception();
     }
 
-    timer.stop();
-   
     double lap_time = timer.get_lap_time_in_seconds();
     double time_since_start = timer.get_time_in_seconds();
 
@@ -85,14 +95,10 @@ public:
     _latencies.push_back(lap_time);
     _latency_stats.update(lap_time);
 
-    _enforce_maximum_pool_size(core);
+    _enforce_maximum_pool_size(core, _i);
 
-    _i++;  // increment after running so all elements get used
+    ++_i;  // increment after running so all elements get used
 
-    if (rc != S_OK) {
-      PERR("[%u] returned !S_OK (%d) on put call! Exiting.", core, rc);
-      return false;
-    }
 /* // Temporarily disabled since erase step isn't supported on all components yet -TJanssen 1/30/2019
     if (_i == _pool_element_end + 1) {
       try {
@@ -119,14 +125,15 @@ public:
     try {
       _debug_print(core, "cleanup_custom started");
 
-      if (_verbose) {
+      if ( is_verbose() )
+      {
         std::stringstream stats_info;
-        stats_info << "creating time_stats with " << _bin_count << " bins: [" << _start_time.front() << " - " << _start_time.at(_i-1) << "]. _i = " << _i << std::endl;
+        stats_info << "creating time_stats with " << bin_count() << " bins: [" << _start_time.front() << " - " << _start_time.at(_i-1) << "]. _i = " << _i << std::endl;
         _debug_print(core, stats_info.str());
       }
 
       // compute _start_time_stats pre-lock
-      BinStatistics start_time_stats = _compute_bin_statistics_from_vectors(_latencies, _start_time, _bin_count, _start_time.front(), _start_time.at(_i-1), _i);
+      BinStatistics start_time_stats = _compute_bin_statistics_from_vectors(_latencies, _start_time, bin_count(), _start_time.front(), _start_time.at(_i-1), _i);
       _debug_print(core, "time_stats created"); 
 
       double run_time = timer.get_time_in_seconds();
@@ -135,40 +142,39 @@ public:
       _update_aggregate_iops(iops);
 
       double throughput = _calculate_current_throughput();
-      PINF("[%u] update: THROUGHPUT: %.2f MB/s (%ld bytes over %.3f seconds)", core, throughput, _total_data_processed, run_time);
+      PINF("[%u] update: THROUGHPUT: %.2f MB/s (%lu bytes over %.3f seconds)", core, throughput, total_data_processed(), run_time);
 
-      if (_skip_json_reporting) {
-        return;
-      }
+      if ( is_json_reporting() )
+      {
+        std::lock_guard<std::mutex> g(g_write_lock);
 
-      pthread_mutex_lock(&g_write_lock);
-      _debug_print(core, "cleanup_custom mutex locked");
+        _debug_print(core, "cleanup_custom mutex locked");
 
-      // get existing results, read to document variable
-      rapidjson::Document document = _get_report_document();
+        // get existing results, read to document variable
+        rapidjson::Document document = _get_report_document();
 
-      // collect latency stats
-      rapidjson::Value latency_object = _add_statistics_to_report("latency", _latency_stats, document);
-      rapidjson::Value timing_object = _add_statistics_to_report("start_time", start_time_stats, document);
-      rapidjson::Value iops_object;
-      rapidjson::Value throughput_object;
+        // collect latency stats
+        rapidjson::Value latency_object = _add_statistics_to_report("latency", _latency_stats, document);
+        rapidjson::Value timing_object = _add_statistics_to_report("start_time", start_time_stats, document);
+        rapidjson::Value iops_object;
+        rapidjson::Value throughput_object;
 
-      iops_object.SetDouble(iops);
-      throughput_object.SetDouble(throughput);
+        iops_object.SetDouble(iops);
+        throughput_object.SetDouble(throughput);
 
-      // save everything
-      rapidjson::Value experiment_object(rapidjson::kObjectType);
+        // save everything
+        rapidjson::Value experiment_object(rapidjson::kObjectType);
        
-      experiment_object.AddMember("IOPS", iops_object, document.GetAllocator());
-      experiment_object.AddMember("throughput (MB/s)", throughput_object, document.GetAllocator());
-      experiment_object.AddMember("latency", latency_object, document.GetAllocator());
-      experiment_object.AddMember("start_time", timing_object, document.GetAllocator()); 
-      _print_highest_count_bin(_latency_stats, core);
+        experiment_object.AddMember("IOPS", iops_object, document.GetAllocator());
+        experiment_object.AddMember("throughput (MB/s)", throughput_object, document.GetAllocator());
+        experiment_object.AddMember("latency", latency_object, document.GetAllocator());
+        experiment_object.AddMember("start_time", timing_object, document.GetAllocator()); 
+        _print_highest_count_bin(_latency_stats, core);
 
-      _report_document_save(document, core, experiment_object);
+        _report_document_save(document, core, experiment_object);
 
-      _debug_print(core, "cleanup_custom mutex unlocking");
-      pthread_mutex_unlock(&g_write_lock);
+        _debug_print(core, "cleanup_custom mutex unlocking");
+      }
     }
     catch(...) {
       PERR("%s", "cleanup_custom failed inside exp_put.h");
