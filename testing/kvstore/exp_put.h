@@ -17,12 +17,15 @@ extern std::mutex g_write_lock;
 
 class ExperimentPut : public Experiment
 {
-public:
+  std::size_t _i;
   std::vector<double> _start_time;
   std::vector<double> _latencies;
   BinStatistics _latency_stats;
 
-  ExperimentPut(const ProgramOptions &options): Experiment("put", options)
+public:
+  ExperimentPut(const ProgramOptions &options)
+    : Experiment("put", options)
+    , _i(0)
     , _start_time()
     , _latencies()
     , _latency_stats()
@@ -53,21 +56,21 @@ public:
     }
 
     // check time it takes to complete a single put operation
-    int rc = S_OK;
-
-    timer.start();
     try
     {
-      rc = store()->put(pool(), g_data->key(_i), g_data->value(_i), g_data->value_len());
+      StopwatchInterval si(timer);
+      auto rc = store()->put(pool(), g_data->key(_i), g_data->value(_i), g_data->value_len());
+      if (rc != S_OK)
+      {
+        perror("put returned !S_OK value");
+        throw std::exception();
+      }
     }
     catch(...)
     {
       PERR("%s", "put call threw exception! Ending experiment.");
       throw std::exception();
     }
-    timer.stop();
-
-    assert(rc == S_OK);
 
     double lap_time = timer.get_lap_time_in_seconds();
     double time_since_start = timer.get_time_in_seconds();
@@ -79,16 +82,11 @@ public:
     _latency_stats.update(lap_time);
 
     // THIS IS SKEWING THINGS?
-    //_enforce_maximum_pool_size(core);
+    //_enforce_maximum_pool_size(core, _i);
 
     ++_i;  // increment after running so all elements get used
 
 
-    if (rc != S_OK)
-    {
-      perror("put returned !S_OK value");
-      throw std::exception();
-    }
     return true;
   }
 

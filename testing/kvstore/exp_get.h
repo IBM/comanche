@@ -14,12 +14,15 @@ extern std::mutex g_write_lock;
 
 class ExperimentGet : public Experiment
 { 
-public:
+  std::size_t _i;
   std::vector<double> _start_time;
   std::vector<double> _latencies;
   BinStatistics _latency_stats;
 
-  ExperimentGet(struct ProgramOptions options): Experiment("get",  options)
+public:
+  ExperimentGet(ProgramOptions options)
+    : Experiment("get",  options)
+    , _i(0)
     , _start_time()
     , _latencies()
     , _latency_stats()
@@ -61,16 +64,17 @@ public:
       void * pval = nullptr; /* change to get semantics requires initializaitonof pval */
       size_t pval_len;
 
-      timer.start();
-      auto rc = store()->get(pool(), g_data->key(_i), pval, pval_len);
-      timer.stop();
-      if ( rc != S_OK )
       {
-        std::ostringstream e;
-	e << "_pool_element_end = " << pool_element_end() << " get rc != S_OK: " << rc << " @ _i = " << _i;
-        PERR("[%u] %s. Exiting.", core, e.str().c_str());
-        throw std::runtime_error(e.str());
-      }  
+        StopwatchInterval si(timer);
+        auto rc = store()->get(pool(), g_data->key(_i), pval, pval_len);
+        if ( rc != S_OK )
+        {
+          std::ostringstream e;
+          e << "_pool_element_end = " << pool_element_end() << " get rc != S_OK: " << rc << " @ _i = " << _i;
+          PERR("[%u] %s. Exiting.", core, e.str().c_str());
+          throw std::runtime_error(e.str());
+        }  
+      }
       store()->free_memory(pval);
     }
     catch(...)

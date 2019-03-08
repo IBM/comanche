@@ -19,6 +19,7 @@ struct ProgramOptions
   bool continuous;
   bool verbose;
   bool summary;
+  unsigned read_pct;
   /* finalized later */
   std::string devices;
   unsigned time_secs;

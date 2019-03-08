@@ -6,7 +6,6 @@
 #include "exp_get_direct.h"
 #include "exp_put_direct.h"
 #include "exp_throughput.h"
-#include "exp_throughupdate.h"
 #include "exp_update.h"
 
 #pragma GCC diagnostic push
@@ -70,12 +69,14 @@ namespace
     { "get_direct", run_exp<ExperimentGetDirect> },
     { "put_direct", run_exp<ExperimentPutDirect> },
     { "throughput", run_exp<ExperimentThroughput> },
-    { "throughupdate", run_exp<ExperimentThroughupdate> },
     { "update", run_exp<ExperimentUpdate> },
   };
 }
 
-void show_program_options();
+void add_program_options(
+  boost::program_options::options_description &desc
+  , const std::vector<test_element> &test_vector
+);
 
 int main(int argc, char * argv[])
 {
@@ -86,7 +87,7 @@ int main(int argc, char * argv[])
   namespace po = boost::program_options; 
 
   try {
-    show_program_options();
+    add_program_options(g_desc, test_vector);
 
     po::store(po::command_line_parser(argc, argv).options(g_desc).positional(g_pos).run(), g_vm);
 
@@ -137,24 +138,25 @@ int main(int argc, char * argv[])
   return 0;
 }
 
-
-
-void show_program_options()
+void add_program_options(
+  boost::program_options::options_description &desc_
+  , const std::vector<test_element> &test_vector_
+)
 {
   namespace po = boost::program_options;
 
   const std::string test_names =
     "Test name <"
       + std::accumulate(
-          test_vector.begin()
-          , test_vector.end()
+          test_vector_.begin()
+          , test_vector_.end()
           , test_element("all", nullptr)
           , [] (const test_element &a, const test_element &b) { return test_element(a.first + "|" + b.first, nullptr); }
         ).first
       + ">. Default: all."
     ;
 
-  g_desc.add_options()
+  desc_.add_options()
     ("help", "Show help")
     ("test" , po::value<std::string>()->default_value("all"), test_names.c_str())
     ("component", po::value<std::string>()->default_value(DEFAULT_COMPONENT), "Implementation selection <filestore|pmstore|dawn|nvmestore|mapstore|hstore>. Default: filestore.")
@@ -162,15 +164,16 @@ void show_program_options()
     ("devices", po::value<std::string>(), "Comma-separated ranges of devices to use during test. Each identifier is a dotted pair of numa zone and index, e.g. '1.2'. For comaptibility with cores, a simple index number is accepted and implies numa node 0. These examples all specify device indexes 2 through 4 inclusive in numa node 0: '2,3,4', '0.2:3'. These examples all specify devices 2 thourgh 4 inclusive on numa node 1: '1.2,1.3,1.4', '1.2-1.4', '1.2:3'.  When using hstore, the actual dax device names are concatenations of the device_name option with <node>.<index> values specified by this option. In the node 0 example above, with device_name /dev/dax, the device paths are /dev/dax0.2 through /dev/dax0.4 inclusive. Default: the value of cores.")
     ("path", po::value<std::string>(), "Path of directory for pool. Default: current directory.")
     ("pool_name", po::value<std::string>(), "Prefix name of pool; will append core number. Default: Exp.pool")
-    ("size", po::value<unsigned long long int>(), "Size of pool. Default: 100MB.")
+    ("size", po::value<unsigned long long>(), "Size of pool. Default: 100MB.")
     ("flags", po::value<int>(), "Flags for pool creation. Default: none.")
     ("elements", po::value<int>()->default_value(100000), "Number of data elements. Default: 100,000.")
-    ("key_length", po::value<unsigned int>()->default_value(8), "Key length of data. Default: 8.")
-    ("value_length", po::value<unsigned int>()->default_value(32), "Value length of data. Default: 32.")
+    ("key_length", po::value<unsigned>()->default_value(8), "Key length of data. Default: 8.")
+    ("value_length", po::value<unsigned>()->default_value(32), "Value length of data. Default: 32.")
     ("bins", po::value<unsigned int>(), "Number of bins for statistics. Default: 100. ")
     ("latency_range_min", po::value<double>(), "Lowest latency bin threshold. Default: 10e-9.")
     ("latency_range_max", po::value<double>(), "Highest latency bin threshold. Default: 10e-3.")
     ("debug_level", po::value<int>(), "Debug level. Default: 0.")
+    ("read_pct", po::value<unsigned>()->default_value(0) , "Read percentage in throughput test. Default: 0.")
     ("owner", po::value<std::string>(), "Owner name for component registration")
     ("server", po::value<std::string>(), "Dawn server IP address")
     ("port", po::value<unsigned>(), "Dawn server port. Default 11911")

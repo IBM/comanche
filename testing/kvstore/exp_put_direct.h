@@ -16,13 +16,16 @@ extern std::mutex g_write_lock;
 
 class ExperimentPutDirect : public Experiment
 { 
-public:
+  std::size_t _i;
     std::vector<double> _start_time;
     std::vector<double> _latencies;
     std::chrono::high_resolution_clock::time_point _exp_start_time;
     BinStatistics _latency_stats;
 
-    ExperimentPutDirect(const ProgramOptions &options): Experiment("put_direct", options) 
+public:
+    ExperimentPutDirect(const ProgramOptions &options)
+      : Experiment("put_direct", options) 
+      , _i(0)
       , _start_time()
       , _latencies()
       , _exp_start_time()
@@ -60,9 +63,16 @@ public:
 
         // check time it takes to complete a single put operation
 
-        timer.start();
-        auto rc = store()->put_direct(pool(), g_data->key(_i), g_data->value(_i), g_data->value_len(), memory_handle());
-        timer.stop();
+        {
+          StopwatchInterval si(timer);
+          auto rc = store()->put_direct(pool(), g_data->key(_i), g_data->value(_i), g_data->value_len(), memory_handle());
+          if (rc != S_OK)
+          {
+            perror("put returned !S_OK value");
+            std::cout << "rc = " << rc << std::endl;
+            throw std::exception();
+          }
+	}
 
         _update_data_process_amount(core, _i);
 
@@ -79,14 +89,8 @@ public:
        
         ++_i;  // increment after running so all elements get used
 
-        _enforce_maximum_pool_size(core);
+        _enforce_maximum_pool_size(core, _i);
 
-        if (rc != S_OK)
-        {
-            perror("put returned !S_OK value");
-            std::cout << "rc = " << rc << std::endl;
-            throw std::exception();
-        }
         return true;
     }
 

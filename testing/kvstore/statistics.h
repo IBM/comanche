@@ -114,13 +114,6 @@ private:
 
 class BinStatistics
 {
-#if 0
-    void init(unsigned bins, double threshold_min, double threshold_max)
-    {
-
-        _bins.resize(bins);
-    }
-#endif
 public:
     BinStatistics()
       : BinStatistics(1, std::numeric_limits<double>::min(), std::numeric_limits<double>::max())

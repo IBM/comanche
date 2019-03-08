@@ -23,16 +23,19 @@
 extern std::mutex g_write_lock;
 extern Data * g_data;
 
-class ExperimentGetDirect: public Experiment
+class ExperimentGetDirect
+  : public Experiment
 { 
-public:
+  std::size_t _i;
     std::vector<double> _start_time;
     std::vector<double> _latencies;
     std::chrono::high_resolution_clock::time_point _exp_start_time;
     BinStatistics _latency_stats;
     Component::IKVStore::memory_handle_t _direct_memory_handle = Component::IKVStore::HANDLE_NONE;
 
+public:
     ExperimentGetDirect(const ProgramOptions &options) : Experiment("get_direct", options) 
+      , _i(0)
       , _start_time()
       , _latencies()
       , _exp_start_time()
@@ -119,13 +122,19 @@ public:
             memory_handle = _direct_memory_handle;
         }
 
-        timer.start();
-        int rc = store()->get_direct(pool(), g_data->key(_i), pval, pval_len, memory_handle);
-        timer.stop();
+        {
+          StopwatchInterval si(timer);
+          auto rc = store()->get_direct(pool(), g_data->key(_i), pval, pval_len, memory_handle);
+          if (rc != S_OK)
+          {
+              std::cout << "rc != S_OK: rc = " << rc << std::endl;
+              throw std::exception();
+          }
+        }
        
         _update_data_process_amount(core, _i);
 
-	double time = timer.get_lap_time_in_seconds();
+        double time = timer.get_lap_time_in_seconds();
 
         std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
         double time_since_start = double(std::chrono::duration_cast<std::chrono::milliseconds>(end_time - _exp_start_time).count()) / 1000.0;
@@ -144,11 +153,6 @@ public:
         _start_time.push_back(time_since_start);
         _latency_stats.update(time);
         
-        if (rc != S_OK)
-        {
-            std::cout << "rc != S_OK: rc = " << rc << std::endl;
-            throw std::exception();
-        }
 
         ++_i;  // increment after running so all elements get used
 

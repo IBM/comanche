@@ -94,5 +94,20 @@ private:
   double   cycles_per_second;
 };
 
+class StopwatchInterval
+{
+  Stopwatch &_sw;
+public:
+  StopwatchInterval(Stopwatch &sw_)
+    : _sw(sw_)
+  {
+    _sw.start();
+  }
+  ~StopwatchInterval()
+  {
+    _sw.stop();
+  }
+};
+	
 
 #endif //  __STOPWATCH_H__
