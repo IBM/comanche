@@ -10,7 +10,6 @@ link_directories(/usr/local/lib64)
 
 add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 
-file(GLOB SOURCES ../src/*.c*)
 add_executable(unit_tests_ycsb test1.cpp ${SOURCES})
 target_link_libraries(unit_tests_ycsb ${ASAN_LIB} comanche-core common numa gtest pthread dl)
 #target_include_directories(unit_tests_ycsb PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
