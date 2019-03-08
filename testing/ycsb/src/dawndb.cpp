@@ -18,6 +18,7 @@ using namespace std;
 using namespace ycsb;
 
 Component::IKVStore *client;
+Component::IKVStore::pool_t pool;
 
 DawnDB::DawnDB(Properties &props)
 {
@@ -41,6 +42,12 @@ void DawnDB::init(Properties &props)
   int    debug    = stoi(props.getProperty("debug_level", "1"));
   client          = fact->create(debug, username, address, dev);
   fact->release_ref();
+  pool = client->open_pool("table", 0);
+
+  if (pool == Component::IKVStore::POOL_ERROR) {
+    /* ok, try to create pool instead */
+    pool = client->create_pool("table", GB(1));
+  }
 }
 
 int DawnDB::get(const string &table,
@@ -50,13 +57,12 @@ int DawnDB::get(const string &table,
 {
   int ret = 0;
   /* open or create pool */
+  /*
   Component::IKVStore::pool_t pool = client->open_pool(table, 0);
 
   if (pool == Component::IKVStore::POOL_ERROR) {
-    /* ok, try to create pool instead */
     pool = client->create_pool(table, GB(1));
   }
-  /*
   if (direct) {
     size_t length = strlen(value);
     auto   handle = client->register_direct_memory(value, length);
@@ -71,7 +77,7 @@ int DawnDB::get(const string &table,
   memcpy(value, b, len);
   client->free_memory(b);
 
-  client->close_pool(pool);
+  // client->close_pool(pool);
   return ret;
 }
 
@@ -80,15 +86,13 @@ int DawnDB::put(const string &table,
                 const string &value,
                 bool          direct)
 {
-  /* open or create pool */
+  /*
   Component::IKVStore::pool_t pool = client->open_pool(table, 0);
 
   if (pool == Component::IKVStore::POOL_ERROR) {
-    /* ok, try to create pool instead */
     pool = client->create_pool(table, GB(1));
   }
 
-  /*
   if (direct) {
     auto handle = client->register_direct_memory(value, length);
     ret         = client->put_direct(pool, key, value, length, handle);
@@ -97,7 +101,7 @@ int DawnDB::put(const string &table,
   else {
   */
   int ret = client->put(pool, key, value.c_str(), value.length());
-  client->close_pool(pool);
+  // client->close_pool(pool);
   return ret;
 }
 
@@ -111,15 +115,15 @@ int DawnDB::update(const string &table,
 
 int DawnDB::erase(const string &table, const string &key)
 {
-  /* open or create pool */
+  /*
   Component::IKVStore::pool_t pool = client->open_pool(table, 0);
 
   if (pool == Component::IKVStore::POOL_ERROR) {
-    /* ok, try to create pool instead */
     pool = client->create_pool(table, GB(1));
   }
+  */
   int ret = client->erase(pool, key);
-  client->close_pool(pool);
+  // client->close_pool(pool);
   return ret;
 }
 
@@ -133,5 +137,6 @@ int DawnDB::scan(const string &                table,
 
 void DawnDB::clean()
 {
+  client->close_pool(pool);
   client->release_ref();
 }
