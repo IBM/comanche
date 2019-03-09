@@ -9,9 +9,6 @@
 #include <stdexcept>
 #include <vector>
 
-extern Data * g_data;
-extern std::mutex g_write_lock;
-
 class ExperimentGet : public Experiment
 { 
   std::size_t _i;
@@ -20,7 +17,7 @@ class ExperimentGet : public Experiment
   BinStatistics _latency_stats;
 
 public:
-  ExperimentGet(ProgramOptions options)
+  ExperimentGet(const ProgramOptions &options)
     : Experiment("get",  options)
     , _i(0)
     , _start_time()
@@ -80,7 +77,7 @@ public:
     catch(...)
     {
       PERR("%s", "get call threw exception! Ending experiment.");
-      throw std::exception();
+      throw;
     }
 
     _update_data_process_amount(core, _i);
@@ -105,7 +102,7 @@ public:
       catch(...)
       {
         PERR("%s", "failed during erasing and repopulation");
-        throw std::exception();
+        throw;
       }
 
       if (is_verbose())

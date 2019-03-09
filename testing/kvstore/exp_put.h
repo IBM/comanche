@@ -12,9 +12,6 @@
 #include <mutex>
 #include <vector>
 
-extern Data * g_data;
-extern std::mutex g_write_lock;
-
 class ExperimentPut : public Experiment
 {
   std::size_t _i;
@@ -62,14 +59,15 @@ public:
       auto rc = store()->put(pool(), g_data->key(_i), g_data->value(_i), g_data->value_len());
       if (rc != S_OK)
       {
-        perror("put returned !S_OK value");
-        throw std::exception();
+         auto e = "put returned !S_OK value rc = " + std::to_string(rc);
+         PERR("%s.", e.c_str());
+         throw std::runtime_error(e);
       }
     }
     catch(...)
     {
       PERR("%s", "put call threw exception! Ending experiment.");
-      throw std::exception();
+      throw;
     }
 
     double lap_time = timer.get_lap_time_in_seconds();
@@ -157,7 +155,7 @@ public:
     catch(...)
     {
       PERR("%s", "cleanup_custom failed inside exp_put.h");
-      throw std::exception();
+      throw;
     }
   }
 };

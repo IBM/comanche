@@ -11,8 +11,6 @@
 #include <random>
 #include <mutex>
 
-extern Data * _data;
-
 class ExperimentThroughput : public Experiment
 {
   unsigned long _i_rd;

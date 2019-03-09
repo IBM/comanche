@@ -24,7 +24,7 @@ public:
     if (!running)
     {
       __sync_synchronize(); /* we need the barrier to avoid measuring out of order execution */
-      start_time = rdtsc(); 
+      start_time = rdtsc();
       running = true;
     }
     else
@@ -42,7 +42,7 @@ public:
       running = false;
 
       lap_time = stop_time - start_time;
-      total += lap_time; 
+      total += lap_time;
     }
   }
 
@@ -108,6 +108,5 @@ public:
     _sw.stop();
   }
 };
-	
 
 #endif //  __STOPWATCH_H__
