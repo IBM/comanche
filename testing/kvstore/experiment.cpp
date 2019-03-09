@@ -21,6 +21,7 @@
 #include <cstddef>
 #include <cmath>
 #include <exception>
+#include <fstream> /* ifstream, ofstream */
 #include <iostream> /* cerr */
 #include <stdexcept> /* logic_error, domain_error */
 #include <sstream>

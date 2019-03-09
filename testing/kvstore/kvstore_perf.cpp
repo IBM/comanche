@@ -7,6 +7,7 @@
 #include "exp_put_direct.h"
 #include "exp_throughput.h"
 #include "exp_update.h"
+#include "get_cpu_mask_from_string.h"
 #include "get_vector_from_string.h"
 #include "program_options.h"
 
@@ -66,6 +67,7 @@ namespace
   };
 }
 
+#if 0
 namespace
 {
   void _cpu_mask_add_core_wrapper(cpu_mask_t &mask, unsigned core_first, unsigned core_last, unsigned mac_cores)
@@ -118,6 +120,7 @@ namespace
     return mask;
   }
 }
+#endif
 
 int main(int argc, char * argv[])
 {
