@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iosfwd>
 #include <limits>
 #include <sstream>
 #include <stdexcept>
@@ -18,8 +19,14 @@ class RunningStatistics
 {
 public:
     RunningStatistics()
+      : count(0)
+      , min(0)
+      , max(0)
+      , mean(0)
+      , variance(0)
+      , mean_last(0)
+      , variance_last(0)
     {
-
     }
 
     void add_value(double value)
@@ -31,12 +38,12 @@ public:
         update_variance(value);
     }
 
-    int getCount() { return count; }
-    double getMin() { return min; }
-    double getMax() { return max; }
-    double getMean() { return mean; }
-    double getVariance() { return variance; }
-    double getStd() { return (count > 1 ? std::sqrt( variance / ( count - 1 ) ) : 0.0); }
+    unsigned getCount() const { return count; }
+    double getMin() const { return min; }
+    double getMax() const { return max; }
+    double getMean() const { return mean; }
+    double getVariance() const { return variance; }
+    double getStd() const { return (count > 1 ? std::sqrt( variance / ( count - 1 ) ) : 0.0); }
 
 private:
     void update_count()
@@ -50,7 +57,7 @@ private:
         {
             min = value;
         }
-        else  
+        else
         {
             if (value < min)
             {
@@ -65,7 +72,7 @@ private:
         {
             max = value;
         }
-        else  
+        else
         {
             if (value > max)
             {
@@ -84,7 +91,7 @@ private:
         else
         {
             mean_last = mean;
-            mean = mean_last + ((value - mean_last)/count); 
+            mean = mean_last + ((value - mean_last)/count);
         }
     }
 
@@ -102,14 +109,14 @@ private:
         }
     }
 
-    int count = 0;
-    double min = 0;  
-    double max = 0;  
-    double mean = 0;
-    double variance = 0;
+    unsigned count;
+    double min;
+    double max;
+    double mean;
+    double variance;
 
-    double mean_last = 0;
-    double variance_last = 0;
+    double mean_last;
+    double variance_last;
 };
 
 class BinStatistics
@@ -129,7 +136,7 @@ public:
     {
       if (bins == 0)
       {
-	std::string e = "BinStatistics: bin count is 0, should be at least 1"; 
+        std::string e = "BinStatistics: bin count is 0, should be at least 1";
         PERR("%s.", e.c_str());
         throw std::runtime_error(e);
       }
@@ -137,11 +144,11 @@ public:
       if (threshold_min > threshold_max)
       {
         std::ostringstream e;
-        e << "BinStatistics: threshold_min " << threshold_min << " exceeds threshold_max " << threshold_max; 
+        e << "BinStatistics: threshold_min " << threshold_min << " exceeds threshold_max " << threshold_max;
         PERR("%s.", e.str().c_str());
         throw std::runtime_error(e.str());
       }
-    } 
+    }
 
   public:
 
@@ -159,47 +166,45 @@ public:
         _bins[bin].add_value(value);
     }
 
-    double getIncrement() { return _increment; }
-    double getMinThreshold() { return _min; }
-    double getMaxThreshold() { return _max; }
-    double getBinCount() { return _bin_count; }
+    double getIncrement() const { return _increment; }
+    double getMinThreshold() const { return _min; }
+    double getMaxThreshold() const { return _max; }
+    unsigned getBinCount() const { return _bin_count; }
 
-    RunningStatistics getBin(int bin)
+    const RunningStatistics &getBin(unsigned bin) const
     {
-        if (bin < 0)
+        if ( _bin_count <= bin )
         {
-            throw std::exception();
-        }
-        else if (bin > _bin_count)
-        {
-            throw std::exception();
+            throw std::domain_error("bin " + std::to_string(bin) + "not in range [0.." + std::to_string(_bin_count) + ")" );
         }
 
         return _bins[bin];
     }
 
+    std::ostream &print_highest_count_bin(std::ostream &, unsigned core) const;
+
 private:
-    int _bin_count;
+    unsigned _bin_count;
     double _increment;
     double _min;
     double _max;
     std::vector<RunningStatistics> _bins;
 
-    int find_bin_from_value(double value)
+    unsigned find_bin_from_value(double value) const
     {
         int bin = int((value - _min) / _increment);
 
         // clamp value to desired range
-        if (bin >= (_bin_count - 1))
+        if ( int(_bin_count) <= bin )
         {
-            bin = _bin_count - 1;
+            bin = int(_bin_count) - 1;
         }
         else if(bin < 0)
         {
             bin = 0;
         }
 
-        return bin;
+        return unsigned(bin);
     }
 };
 

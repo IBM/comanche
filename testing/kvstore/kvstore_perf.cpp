@@ -7,12 +7,13 @@
 #include "exp_put_direct.h"
 #include "exp_throughput.h"
 #include "exp_update.h"
+#include "get_vector_from_string.h"
+#include "program_options.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Weffc++"
 #include <common/utils.h>
 #pragma GCC diagnostic pop
-#include <common/str_utils.h>
 #include "task.h"
 #include <api/components.h>
 #pragma GCC diagnostic push
@@ -34,21 +35,13 @@
 #include <chrono>
 #include <iostream>
 #include <mutex>
-#include <numeric> /* accumulate */
-
-#define DEFAULT_COMPONENT "filestore"
+#include <thread>
 
 using namespace Component;
 
-Data * g_data;
-double g_iops;
-boost::program_options::variables_map g_vm; 
-
-std::mutex g_write_lock;
-
 namespace
 {
-  boost::program_options::options_description g_desc("Options");
+  boost::program_options::options_description po_desc("Options");
   boost::program_options::positional_options_description g_pos;
 
   template <typename Exp>
@@ -73,10 +66,58 @@ namespace
   };
 }
 
-void add_program_options(
-  boost::program_options::options_description &desc
-  , const std::vector<test_element> &test_vector
-);
+namespace
+{
+  void _cpu_mask_add_core_wrapper(cpu_mask_t &mask, unsigned core_first, unsigned core_last, unsigned mac_cores)
+  {
+    if ( core_last < core_first )
+    {
+      std::ostringstream e;
+      e << "invalid core range specified: start (" << core_first << ") > end (" << core_last << ")";
+      PERR("%s.", e.str().c_str());
+      throw std::runtime_error(e.str());
+    }
+    else if ( mac_cores < core_last )  // mac_cores is zero indexed
+    {
+      std::ostringstream e;
+      e << "specified core end (-" << core_last << "exceeds physical core count. Valid range is [0.." << mac_cores << ")";
+      PERR("%s", e.str().c_str());
+      throw std::runtime_error(e.str());
+    }
+
+    try
+    {
+      for (unsigned core = core_first; core != core_last; ++core)
+      {
+        mask.add_core(core);
+      }
+    }
+    catch ( const Exception &e )
+    {
+      PERR("failed while adding core to mask: %s.", e.cause());
+      throw;
+    }
+    catch(...)
+    {
+      PERR("%s", "failed while adding core to mask.");
+      throw;
+    }
+  }
+
+  cpu_mask_t get_cpu_mask_from_string(std::string core_string)
+  {
+    auto cores = get_vector_from_string<int>(core_string);
+    cpu_mask_t mask;
+    int hardware_total_cores = std::thread::hardware_concurrency();
+
+    for ( auto c : cores )
+    {
+      _cpu_mask_add_core_wrapper(mask, c, c+1, hardware_total_cores);
+    }
+
+    return mask;
+  }
+}
 
 int main(int argc, char * argv[])
 {
@@ -86,20 +127,30 @@ int main(int argc, char * argv[])
 
   namespace po = boost::program_options; 
 
-  try {
-    add_program_options(g_desc, test_vector);
+  try
+  {
+    std::vector<std::string> test_names;
+    std::transform(
+      test_vector.begin()
+      , test_vector.end()
+      , std::back_inserter(test_names)
+      , [] ( const test_element &e ) { return e.first; }
+    );
+    ProgramOptions::add_program_options(po_desc, test_names);
 
-    po::store(po::command_line_parser(argc, argv).options(g_desc).positional(g_pos).run(), g_vm);
+    boost::program_options::variables_map vm; 
+    po::store(po::command_line_parser(argc, argv).options(po_desc).positional(g_pos).run(), vm);
 
-    if(g_vm.count("help")) {
-      std::cout << g_desc;
+    if ( vm.count("help") )
+    {
+      std::cout << po_desc;
       return 0;
     }
 
-    ProgramOptions Options(g_vm);
+    ProgramOptions Options(vm);
 
     bool use_direct_memory = Options.component == "dawn";
-    g_data = new Data(Options.elements, Options.key_length, Options.value_length, use_direct_memory);
+    Experiment::g_data = new Data(Options.elements, Options.key_length, Options.value_length, use_direct_memory);
 
     Options.report_file_name = Options.do_json_reporting ? Experiment::create_report(Options.component) : "";
 
@@ -107,9 +158,9 @@ int main(int argc, char * argv[])
 
     try
     {
-      cpus = Experiment::get_cpu_mask_from_string(Options.cores);
+      cpus = get_cpu_mask_from_string(Options.cores);
     }
-    catch(...)
+    catch (...)
     {
       PERR("%s", "couldn't create CPU mask. Exiting.");
       return 1;
@@ -136,55 +187,4 @@ int main(int argc, char * argv[])
   }
   
   return 0;
-}
-
-void add_program_options(
-  boost::program_options::options_description &desc_
-  , const std::vector<test_element> &test_vector_
-)
-{
-  namespace po = boost::program_options;
-
-  const std::string test_names =
-    "Test name <"
-      + std::accumulate(
-          test_vector_.begin()
-          , test_vector_.end()
-          , test_element("all", nullptr)
-          , [] (const test_element &a, const test_element &b) { return test_element(a.first + "|" + b.first, nullptr); }
-        ).first
-      + ">. Default: all."
-    ;
-
-  desc_.add_options()
-    ("help", "Show help")
-    ("test" , po::value<std::string>()->default_value("all"), test_names.c_str())
-    ("component", po::value<std::string>()->default_value(DEFAULT_COMPONENT), "Implementation selection <filestore|pmstore|dawn|nvmestore|mapstore|hstore>. Default: filestore.")
-    ("cores", po::value<std::string>()->default_value("0"), "Comma-separated ranges of core indexes to use for test. A range may be specified by a single index, a pair of indexes separated by a hyphen, or an index followed by a colon followed by a count of additional indexes. These examples all specify cores 2 through 4 inclusive: '2,3,4', '2-4', '2:3'. Default: 0.")
-    ("devices", po::value<std::string>(), "Comma-separated ranges of devices to use during test. Each identifier is a dotted pair of numa zone and index, e.g. '1.2'. For comaptibility with cores, a simple index number is accepted and implies numa node 0. These examples all specify device indexes 2 through 4 inclusive in numa node 0: '2,3,4', '0.2:3'. These examples all specify devices 2 thourgh 4 inclusive on numa node 1: '1.2,1.3,1.4', '1.2-1.4', '1.2:3'.  When using hstore, the actual dax device names are concatenations of the device_name option with <node>.<index> values specified by this option. In the node 0 example above, with device_name /dev/dax, the device paths are /dev/dax0.2 through /dev/dax0.4 inclusive. Default: the value of cores.")
-    ("path", po::value<std::string>(), "Path of directory for pool. Default: current directory.")
-    ("pool_name", po::value<std::string>(), "Prefix name of pool; will append core number. Default: Exp.pool")
-    ("size", po::value<unsigned long long>(), "Size of pool. Default: 100MB.")
-    ("flags", po::value<int>(), "Flags for pool creation. Default: none.")
-    ("elements", po::value<int>()->default_value(100000), "Number of data elements. Default: 100,000.")
-    ("key_length", po::value<unsigned>()->default_value(8), "Key length of data. Default: 8.")
-    ("value_length", po::value<unsigned>()->default_value(32), "Value length of data. Default: 32.")
-    ("bins", po::value<unsigned int>(), "Number of bins for statistics. Default: 100. ")
-    ("latency_range_min", po::value<double>(), "Lowest latency bin threshold. Default: 10e-9.")
-    ("latency_range_max", po::value<double>(), "Highest latency bin threshold. Default: 10e-3.")
-    ("debug_level", po::value<int>(), "Debug level. Default: 0.")
-    ("read_pct", po::value<unsigned>()->default_value(0) , "Read percentage in throughput test. Default: 0.")
-    ("owner", po::value<std::string>(), "Owner name for component registration")
-    ("server", po::value<std::string>(), "Dawn server IP address")
-    ("port", po::value<unsigned>(), "Dawn server port. Default 11911")
-    ("port_increment", po::value<unsigned>(), "Port increment every N instances. Default none.")
-    ("device_name", po::value<std::string>(), "Device name")
-    ("pci_addr", po::value<std::string>(), "PCI address (e.g. 0b:00.0)")
-    ("nopin", "Do not pin down worker threads to cores")
-    ("start_time", po::value<std::string>(), "Delay start time of experiment until specified time (HH:MM, 24 hour format expected. Default: start immediately.")
-    ("verbose", "Verbose output")
-    ("summary", "Prints summary statement: most frequent latency bin info per core")
-    ("skip_json_reporting", "disables creation of json report file")
-    ("continuous", "enables never-ending execution, if possible")
-    ;
 }
