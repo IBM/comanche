@@ -4,9 +4,12 @@
 #include <algorithm>
 #include <cassert>
 #include <fstream>
+#include <iostream>
 #include <map>
 #include <random>
 #include <string>
+
+using namespace std;
 
 namespace ycsbutils
 {
@@ -69,7 +72,7 @@ inline bool Properties::load(std::ifstream &input)
   return true;
 }
 
-inline std::string trim(const std::string &str)
+inline std::string Properties::trim(const std::string &str)
 {
   auto front = std::find_if_not(str.begin(), str.end(),
                                 [](int c) { return std::isspace(c); });
