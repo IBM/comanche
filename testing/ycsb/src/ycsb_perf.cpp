@@ -3,7 +3,6 @@
 #include <iostream>
 #include "../../kvstore/experiment.h"
 #include "../../kvstore/stopwatch.h"
-#include "args.h"
 #include "db_fact.h"
 #include "workload.h"
 
@@ -43,10 +42,7 @@ int main(int argc, char * argv[])
 
     if (operation == "run") props.setProperty("run", "1");
 
-    ycsb::DB *db = ycsb::DBFactory::create(props);
-    assert(db);
-    Args                                   args(db, props);
-    Core::Per_core_tasking<ycsb::Workload, Args> exp(cpus, args);
+    Core::Per_core_tasking<ycsb::Workload, Properties &> exp(cpus, props);
     exp.wait_for_all();
     auto first_exp = exp.tasklet(cpus.first_core());
     first_exp->summarize();
