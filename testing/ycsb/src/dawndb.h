@@ -1,6 +1,9 @@
 #ifndef __YCSB_DAWNDB_H__
 #define __YCSB_DAWNDB_H__
 
+#include <api/components.h>
+#include <api/kvstore_itf.h>
+#include "../../kvstore/stopwatch.h"
 #include "db.h"
 #include "properties.h"
 
@@ -10,7 +13,7 @@ namespace ycsb
 {
 class DawnDB : public DB {
   public:
-   DawnDB(Properties &props);
+   DawnDB(Properties &props, unsigned core = 0);
    virtual ~DawnDB();
    virtual int  get(const string &table,
                     const string &key,
@@ -29,8 +32,12 @@ class DawnDB : public DB {
                      const string &                key,
                      int                           count,
                      vector<pair<string, string>> &results) override;
-   virtual void init(Properties &props) override;
+   virtual void init(Properties &props, unsigned core = 0) override;
    virtual void clean() override;
+
+  private:
+   Component::IKVStore *       client;
+   Component::IKVStore::pool_t pool;
 };
 
 }  // namespace ycsb

@@ -6,7 +6,6 @@
 #include <vector>
 #include "../../kvstore/statistics.h"
 #include "../../kvstore/stopwatch.h"
-#include "args.h"
 #include "db.h"
 #include "discrete_generator.h"
 #include "generator.h"
@@ -22,7 +21,7 @@ class Workload : public Core::Tasklet {
  public:
   static const int    SIZE;
   const string        TABLE;
-  Workload(Args& args);
+  Workload(Properties& props);
   void load();
   void run();
   virtual ~Workload();
@@ -34,8 +33,8 @@ class Workload : public Core::Tasklet {
   void         summarize();
 
  private:
-  Properties&                  props;
-  DB *       db;
+  Properties&                         props;
+  DB*                                 db;
   vector<pair<string, string>> kvs;
   ycsbc::DiscreteGenerator<Operation> op;
   ycsbc::Generator<uint64_t>*  gen;
@@ -61,7 +60,7 @@ class Workload : public Core::Tasklet {
   void                         doInsert();
   void                         doUpdate();
   void                         doScan();
-  static bool                  isready;
+  bool                         isready = false;
 };
 
 }  // namespace ycsb
