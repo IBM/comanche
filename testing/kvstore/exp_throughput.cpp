@@ -5,6 +5,7 @@
 
 #include "boost/date_time/posix_time/posix_time.hpp"
 
+#include <unistd.h> /* HOST_NAME_MAX, gethostname */
 #include <csignal>
 
 std::mutex ExperimentThroughput::_iops_lock;
@@ -12,6 +13,20 @@ unsigned long ExperimentThroughput::_iops;
 bool ExperimentThroughput::_stop= false;
 
 std::uniform_int_distribution<int> distribution(0,99);
+
+namespace
+{
+	std::string gethostname()
+	{
+		char buffer[HOST_NAME_MAX];
+		if ( ::gethostname(buffer, sizeof buffer) )
+		{
+			auto e = errno;
+			throw std::system_error(std::error_code(e, std::system_category()), "gethostname failed");
+		}
+		return buffer;
+	}
+}
 
 ExperimentThroughput::ExperimentThroughput(const ProgramOptions &options)
   : Experiment("throughput", options)
@@ -30,6 +45,7 @@ ExperimentThroughput::ExperimentThroughput(const ProgramOptions &options)
   , _sw_rd()
   , _sw_wr()
   , _continuous(options.continuous)
+  , _hostname(gethostname())
 {
 }
 
@@ -100,8 +116,9 @@ bool ExperimentThroughput::do_work(unsigned core)
     double secs = to_seconds(now - _report_time);
     unsigned long iops = static_cast<unsigned long>(double(_op_count_interval_rd + _op_count_interval_wr) / secs);
     PLOG(
-      "time %s core %u IOps %lu"
+      "time %s %s core %u IOps %lu"
       , ptime_str.c_str()
+      , _hostname.c_str()
       , core
       , iops
     );
