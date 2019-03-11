@@ -7,7 +7,7 @@
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wnon-virtual-dtor"
-#include <core/physical_memory.h> 
+#include <core/physical_memory.h>
 #pragma GCC diagnostic pop
 
 #include <sys/mman.h>
@@ -20,12 +20,9 @@
 #include <stdexcept>
 #include <vector>
 
-extern std::mutex g_write_lock;
-extern Data * g_data;
-
 class ExperimentGetDirect
   : public Experiment
-{ 
+{
   std::size_t _i;
     std::vector<double> _start_time;
     std::vector<double> _latencies;
@@ -34,13 +31,13 @@ class ExperimentGetDirect
     Component::IKVStore::memory_handle_t _direct_memory_handle = Component::IKVStore::HANDLE_NONE;
 
 public:
-    ExperimentGetDirect(const ProgramOptions &options) : Experiment("get_direct", options) 
+    ExperimentGetDirect(const ProgramOptions &options) : Experiment("get_direct", options)
       , _i(0)
       , _start_time()
       , _latencies()
       , _exp_start_time()
       , _latency_stats()
-    {    
+    {
     }
     ExperimentGetDirect(const ExperimentGetDirect &) = delete;
     ExperimentGetDirect& operator=(const ExperimentGetDirect &) = delete;
@@ -67,16 +64,16 @@ public:
       catch(...)
       {
         PERR("%s", "failed during direct_memory_handle setup");
-        throw std::exception();
+        throw;
       }
 
       PLOG("%s", "pool seeded with values");
     }
 
-    bool do_work(unsigned core) override 
+    bool do_work(unsigned core) override
     {
         // handle first time setup
-        if(_first_iter) 
+        if(_first_iter)
         {
           // seed the pool with elements from _data
           _populate_pool_to_capacity(core, _direct_memory_handle);
@@ -86,14 +83,14 @@ public:
           PLOG("[%u] Starting Get Direct experiment...", core);
           _first_iter = false;
           _exp_start_time = std::chrono::high_resolution_clock::now();
-        }     
+        }
 
         // end experiment if we've reached the total number of components
         if (_i + 1 == pool_num_objects())
         {
           PINF("[%u] get_direct: reached total number of components. Exiting.", core);
           timer.stop();
-          return false; 
+          return false;
         }
 
         // check time it takes to complete a single get_direct operation
@@ -102,14 +99,14 @@ public:
         Core::Physical_memory mem_alloc;
         size_t pval_len = 64;
         void* pval = operator new(pval_len);
-        Component::IKVStore::memory_handle_t memory_handle = Component::IKVStore::HANDLE_NONE; 
+        Component::IKVStore::memory_handle_t memory_handle = Component::IKVStore::HANDLE_NONE;
 
         if ( component_is("nvmestore") )
         {
             // TODO: make the input parameters 1 and 2 variable based on experiment inputs
             handle = mem_alloc.allocate_io_buffer(MB(8), 4096, Component::NUMA_NODE_ANY);
             pval = mem_alloc.virt_addr(handle);
-            
+
             if (!handle)
             {
                 perror("ExpGetDirect.do_work: allocate_io_buffer failed");
@@ -127,20 +124,21 @@ public:
           auto rc = store()->get_direct(pool(), g_data->key(_i), pval, pval_len, memory_handle);
           if (rc != S_OK)
           {
-              std::cout << "rc != S_OK: rc = " << rc << std::endl;
-              throw std::exception();
+            auto e = "get_direct returned !S_OK value rc = " + std::to_string(rc);
+            PERR("%s.", e.c_str());
+            throw std::runtime_error(e);
           }
         }
-       
+
         _update_data_process_amount(core, _i);
 
         double time = timer.get_lap_time_in_seconds();
 
         std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
         double time_since_start = double(std::chrono::duration_cast<std::chrono::milliseconds>(end_time - _exp_start_time).count()) / 1000.0;
-       
+
         if ( component_is("nvmestore") )
-        { 
+        {
              mem_alloc.free_io_buffer(handle);
         }
         else if (pval != nullptr)
@@ -152,7 +150,7 @@ public:
         _latencies.push_back(time);
         _start_time.push_back(time_since_start);
         _latency_stats.update(time);
-        
+
 
         ++_i;  // increment after running so all elements get used
 
@@ -171,7 +169,7 @@ public:
        return true;
     }
 
-    void cleanup_custom(unsigned core)  
+    void cleanup_custom(unsigned core)
     {
         if ( component_is("dawn") )
         {
@@ -218,7 +216,7 @@ public:
          experiment_object.AddMember("IOPS", iops_object, document.GetAllocator());
          experiment_object.AddMember("throughput (MB/s)", throughput_object, document.GetAllocator());
          experiment_object.AddMember("latency", latency_object, document.GetAllocator());
-         experiment_object.AddMember("start_time", timing_object, document.GetAllocator()); 
+         experiment_object.AddMember("start_time", timing_object, document.GetAllocator());
         _print_highest_count_bin(_latency_stats, core);
 
          _report_document_save(document, core, experiment_object);

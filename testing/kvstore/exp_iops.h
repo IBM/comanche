@@ -12,8 +12,6 @@
 #include <iostream>
 #include <vector>
 
-extern Data * _data;
-
 class Experiment_IOPS : public Core::Tasklet
 { 
 public:
