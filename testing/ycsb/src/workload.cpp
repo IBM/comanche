@@ -70,6 +70,9 @@ bool Workload::ready() { return isready; }
 bool Workload::do_work(unsigned core)
 {
   load();
+  if (props.getProperty("run", "0") == "1") {
+    run();
+  }
   return false;
 }
 
@@ -172,6 +175,9 @@ void Workload::cleanup(unsigned core)
   up.stop();
 
   if (rd_cnt > 0 || up_cnt > 0) {
+    cout << "read: " << rd_cnt << ", update: " << up_cnt << endl;
+    cout << "Time: " << rd.get_time_in_seconds() + up.get_time_in_seconds()
+         << endl;
     unsigned long iops = (rd_cnt + up_cnt) /
                          (rd.get_time_in_seconds() + up.get_time_in_seconds());
     std::lock_guard<std::mutex> g(_iops_lock);
