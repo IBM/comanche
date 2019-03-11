@@ -30,10 +30,11 @@ class ExperimentThroughput : public Experiment
   Stopwatch _sw_rd;
   Stopwatch _sw_wr;
   bool _continuous;
-  static void handler(int);
+  std::string _hostname;
   static bool _stop;
 
   std::chrono::high_resolution_clock::duration elapsed(std::chrono::high_resolution_clock::time_point);
+  static void handler(int);
   static double to_seconds(std::chrono::high_resolution_clock::duration);
 
 public:
