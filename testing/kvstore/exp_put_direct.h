@@ -11,9 +11,6 @@
 #include <iostream>
 #include <vector>
 
-extern Data * g_data;
-extern std::mutex g_write_lock;
-
 class ExperimentPutDirect : public Experiment
 { 
   std::size_t _i;
@@ -68,15 +65,15 @@ public:
           auto rc = store()->put_direct(pool(), g_data->key(_i), g_data->value(_i), g_data->value_len(), memory_handle());
           if (rc != S_OK)
           {
-            perror("put returned !S_OK value");
-            std::cout << "rc = " << rc << std::endl;
-            throw std::exception();
+            auto e = "put_direct returned !S_OK value rc = " + std::to_string(rc);
+            PERR("%s.", e.c_str());
+            throw std::runtime_error(e);
           }
-	}
+        }
 
         _update_data_process_amount(core, _i);
 
-	auto time = timer.get_lap_time_in_seconds();
+        auto time = timer.get_lap_time_in_seconds();
 
         std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
         double time_since_start = double(std::chrono::duration_cast<std::chrono::milliseconds>(end_time - _exp_start_time).count()) / 1000.0;
@@ -150,7 +147,7 @@ public:
         catch(...)
         {
           PERR("%s", "failed during save to JSON");
-          throw std::exception();
+          throw;
         }
 
         _print_highest_count_bin(_latency_stats, core);

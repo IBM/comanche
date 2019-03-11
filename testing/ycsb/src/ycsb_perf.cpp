@@ -1,7 +1,7 @@
 #include "ycsb_perf.h"
 #include <stdlib.h>
 #include <iostream>
-#include "../../kvstore/experiment.h"
+#include "../../kvstore/get_cpu_mask_from_string.h"
 #include "../../kvstore/stopwatch.h"
 #include "db_fact.h"
 #include "workload.h"
@@ -33,7 +33,7 @@ int main(int argc, char * argv[])
 
     try {
       cpus =
-          Experiment::get_cpu_mask_from_string(props.getProperty("cores", "0"));
+          get_cpu_mask_from_string(props.getProperty("cores", "0"));
     }
     catch (...) {
       PERR("%s", "couldn't create CPU mask. Exiting.");

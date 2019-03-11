@@ -1,5 +1,8 @@
 #include "exp_throughput.h"
 
+#include "data.h"
+#include "program_options.h"
+
 #include "boost/date_time/posix_time/posix_time.hpp"
 
 #include <csignal>
