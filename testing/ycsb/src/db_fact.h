@@ -3,6 +3,7 @@
 
 #include "dawndb.h"
 #include "db.h"
+#include "memcached.h"
 #include "properties.h"
 
 namespace ycsb
@@ -14,9 +15,11 @@ class DBFactory {
     if (props.getProperty("db") == "dawn") {
       return new DawnDB(props, core);
     }
-    else {
-      return nullptr;
+    else if (props.getProperty("db") == "memcached") {
+      return new Memcached(props, core);
     }
+    else
+      return nullptr;
   }
 };
 
