@@ -10,6 +10,7 @@ add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 #
 include_directories(${CMAKE_INSTALL_PREFIX}/include)
 include_directories(/usr/local/include)
+include_directories(/usr/include)
 link_directories(${CMAKE_INSTALL_PREFIX}/lib)
 link_directories(/usr/local/lib64)
 link_directories(/usr/local/lib)
@@ -22,7 +23,8 @@ add_executable(ycsb-perf src/ycsb_perf.cpp ${SOURCES})
 #
 target_link_libraries(ycsb-perf comanche-core common numa gtest pthread dl
     boost_program_options ${TBB_LIBRARIES} profiler boost_system
-    boost_filesystem tbbmalloc memcached memcachedutil aerospike ssl crypto m z)
+    boost_filesystem tbbmalloc memcached memcachedutil aerospike ssl crypto m z
+    hiredis)
 #
 set_target_properties(${PROJECT_NAME} PROPERTIES 
   INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib)
