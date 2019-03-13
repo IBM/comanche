@@ -3,8 +3,8 @@
 #include <iostream>
 #include <string>
 #include "../../kvstore/stopwatch.h"
-#include "args.h"
 #include "counter_generator.h"
+#include "db_fact.h"
 #include "generator.h"
 #include "properties.h"
 #include "uniform_generator.h"
@@ -15,17 +15,21 @@ using namespace ycsb;
 using namespace ycsbc;
 
 const int    Workload::SIZE  = 32;
-bool         Workload::isready = false;
 unsigned long Workload::_iops      = 0;
 unsigned long Workload::_iops_load = 0;
 mutex         Workload::_iops_lock;
 mutex         Workload::_iops_load_lock;
+// DB*           Workload::db;
 
-Workload::Workload(Args& args) : props(args.props), db(args.db) {}
+Workload::Workload(Properties& props) : props(props)
+{
+}
 
 void Workload::initialize(unsigned core)
 {
-  string TABLE                    = "table" + core;
+  db = ycsb::DBFactory::create(props, core);
+  assert(db);
+  string TABLE = "table" + to_string(core);
   records = stoi(props.getProperty("recordcount"));
   operations = stoi(props.getProperty("operationcount"));
   Generator<uint64_t>* loadkeygen = new CounterGenerator(0);
@@ -66,6 +70,9 @@ bool Workload::ready() { return isready; }
 bool Workload::do_work(unsigned core)
 {
   load();
+  if (props.getProperty("run", "0") == "1") {
+    run();
+  }
   return false;
 }
 
@@ -84,6 +91,7 @@ void Workload::load()
     }
     wr.stop();
     double elapse = wr.get_lap_time_in_seconds();
+    // cout << timer.get_lap_time_in_seconds() << endl;
     wr_stat.add_value(elapse);
     wr_cnt++;
   }
@@ -161,11 +169,15 @@ void Workload::doScan() {}
 
 void Workload::cleanup(unsigned core)
 {
+  cout << "do clean" << endl;
   rd.stop();
   wr.stop();
   up.stop();
 
   if (rd_cnt > 0 || up_cnt > 0) {
+    cout << "read: " << rd_cnt << ", update: " << up_cnt << endl;
+    cout << "Time: " << rd.get_time_in_seconds() + up.get_time_in_seconds()
+         << endl;
     unsigned long iops = (rd_cnt + up_cnt) /
                          (rd.get_time_in_seconds() + up.get_time_in_seconds());
     std::lock_guard<std::mutex> g(_iops_lock);
@@ -187,6 +199,7 @@ Workload::~Workload()
 {
   kvs.clear();
   delete gen;
+  delete db;
 }
 
 inline string Workload::buildKeyName(uint64_t key_num)

@@ -1,6 +1,4 @@
 #include "dawndb.h"
-#include <api/components.h>
-#include <api/kvstore_itf.h>
 #include <common/cpu.h>
 #include <common/str_utils.h>
 #include <core/dpdk.h>
@@ -17,19 +15,18 @@ using namespace Common;
 using namespace std;
 using namespace ycsb;
 
-Component::IKVStore *client;
+/*
 Component::IKVStore::pool_t pool;
+Stopwatch                   timer;
+*/
 
-DawnDB::DawnDB(Properties &props)
-{
-  init(props);
-}
+DawnDB::DawnDB(Properties &props, unsigned core) { init(props, core); }
 DawnDB::~DawnDB()
 {
   clean();
 }
 
-void DawnDB::init(Properties &props)
+void DawnDB::init(Properties &props, unsigned core)
 {
   Component::IBase *comp = Component::load_component(
       "libcomanche-dawn-client.so", dawn_client_factory);
@@ -42,11 +39,11 @@ void DawnDB::init(Properties &props)
   int    debug    = stoi(props.getProperty("debug_level", "1"));
   client          = fact->create(debug, username, address, dev);
   fact->release_ref();
-  pool = client->open_pool("table", 0);
+  pool = client->open_pool("table" + to_string(core), 0);
 
   if (pool == Component::IKVStore::POOL_ERROR) {
     /* ok, try to create pool instead */
-    pool = client->create_pool("table", GB(1));
+    pool = client->create_pool("table" + to_string(core), GB(1));
   }
 }
 
@@ -101,6 +98,7 @@ int DawnDB::put(const string &table,
   else {
   */
   int ret = client->put(pool, key, value.c_str(), value.length());
+  // cout << "in db:" << timer.get_lap_time_in_seconds() << endl;
   // client->close_pool(pool);
   return ret;
 }
