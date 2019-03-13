@@ -6,6 +6,7 @@
 #include "db.h"
 #include "memcached.h"
 #include "properties.h"
+#include "redisc.h"
 
 namespace ycsb
 {
@@ -21,6 +22,9 @@ class DBFactory {
     }
     else if (props.getProperty("db") == "aerospike") {
       return new AerospikeDB(props, core);
+    }
+    else if (props.getProperty("db") == "redis") {
+      return new RedisC(props, core);
     }
     else
       return nullptr;
