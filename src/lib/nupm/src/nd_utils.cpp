@@ -294,7 +294,7 @@ size_t get_dax_device_size(const std::string& dax_path)
   struct stat statbuf;
 
   int fd = open(dax_path.c_str(), O_RDWR, 0666);  
-  if (fd == -1) throw General_exception("inaccessible devdax path (%s)", dax_path.c_str());
+  if (fd == -1) throw General_exception("get_dax_device_size: inaccessible devdax path (%s)", dax_path.c_str());
 
   int rc = fstat(fd, &statbuf);
   if (rc == -1) throw ND_control_exception("fstat call failed");
