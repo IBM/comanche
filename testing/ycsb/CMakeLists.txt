@@ -15,20 +15,28 @@ link_directories(${CMAKE_INSTALL_PREFIX}/lib)
 link_directories(/usr/local/lib64)
 link_directories(/usr/local/lib)
 link_directories(/usr/lib)
-#
-#enable_language(CXX C ASM)
-file(GLOB SOURCES src/*.c*)
-#
-add_executable(ycsb-perf src/ycsb_perf.cpp ${SOURCES})
-#
-target_link_libraries(ycsb-perf comanche-core common numa gtest pthread dl
+
+find_library(LIBMEMCACHED_LIB libmemcached)
+
+# only build if libmemcached found
+if(LIBMEMCACHED_LIB)
+  #
+  #enable_language(CXX C ASM)
+  file(GLOB SOURCES src/*.c*)
+  #
+  add_executable(ycsb-perf src/ycsb_perf.cpp ${SOURCES})
+  #
+  target_link_libraries(ycsb-perf comanche-core common numa gtest pthread dl
     boost_program_options ${TBB_LIBRARIES} profiler boost_system
     boost_filesystem tbbmalloc memcached memcachedutil aerospike ssl crypto m z
     hiredis)
-#
-set_target_properties(${PROJECT_NAME} PROPERTIES 
-  INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib)
+  #
+  set_target_properties(${PROJECT_NAME} PROPERTIES 
+    INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib)
 
-install(TARGETS ycsb-perf RUNTIME DESTINATION bin)
+  install(TARGETS ycsb-perf RUNTIME DESTINATION bin)
+
+  message(FATAL_ERROR "libmemcached not found")
+endif()
 
 #add_subdirectory(unit_test)
