@@ -41,7 +41,6 @@ static void __pm_lowlevel_ctr()
     pm_lowlevel::has_clflushopt = false;
 }
 
-
   
 inline static void mem_flush(const void *addr, size_t len)
 {
