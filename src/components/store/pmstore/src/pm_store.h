@@ -22,7 +22,7 @@
 class PM_store : public Component::IKVStore
 {
 private:
-  bool option_DEBUG;
+  const unsigned _debug_level;
 
 public:
   /** 
@@ -202,13 +202,13 @@ public:
     return obj;
   }
 
-  virtual Component::IKVStore * create(const std::string& owner,
-                                       const std::string& name) override
-  {
-    Component::IKVStore * obj = static_cast<Component::IKVStore*>(new PM_store(0, owner, name));
-    obj->add_ref();
-    return obj;
-  }
+  // virtual Component::IKVStore * create(const std::string& owner,
+  //                                      const std::string& name) override
+  // {
+  //   Component::IKVStore * obj = static_cast<Component::IKVStore*>(new PM_store(debug_level, owner, name));
+  //   obj->add_ref();
+  //   return obj;
+  //  }
 
 };
 
