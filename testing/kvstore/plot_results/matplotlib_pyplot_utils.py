@@ -187,7 +187,7 @@ def save_plot(filename, label, dpi=80, clear_plot=True, plot_path="./figures"):
     create_directory_if_missing(plot_path + "/%s" % filename)
 
     full_path = plot_path + "/" + filename + "/" + label
-    plt.savefig(full_path, dpi=dpi)
+    plt.savefig(full_path + ".pdf")
     print("saved figure: %s.png" % full_path)
 
     if clear_plot:

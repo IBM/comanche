@@ -142,8 +142,6 @@ class Plot:
             if core == core_list[len(core_list) - 1]:  # last loop
                 plt.xlabel("Latency bins (%s total)" % bin_count, horizontalalignment='left', x=0.0)
 
-
-
             plt.bar(np.arange(bin_count_raw), counts[str(core)], color=self.figure_background)
             plt.ylabel("Count (Core %s)" % core, color=self.figure_background)
 
