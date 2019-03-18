@@ -103,7 +103,10 @@ class Per_core_tasking {
           }
           else remaining ++;
         }
-      }      
+      }
+      if(remaining > 0)
+        usleep(500000);
+      
     } while(remaining > 0);
   }
 
