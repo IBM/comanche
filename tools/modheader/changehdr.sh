@@ -5,9 +5,9 @@ if [ ! $1 ] ; then
   echo "changehdr <new_header_file>"
 fi
 
-HEADERS=`find . -name "*.h"`
-CXXFILES=`find . -name "*.c*"`
-CFILES=`find . -name "*.c"`
+HEADERS=`find . -maxdepth 1 -name "*.h"`
+CXXFILES=`find . -maxdepth 1 -name "*.c*"`
+CFILES=`find . -maxdepth 1 -name "*.c"`
 
 for i in $HEADERS; do
     echo "Modifying header in file $i ..."
