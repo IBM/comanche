@@ -10,22 +10,3 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 */
-
-
-
-/*
- * Authors:
- *
- * Daniel G. Waddington (daniel.waddington@ibm.com)
- *
- */
-
-#ifndef __CORE_XMS_H__
-#define __CORE_XMS_H__
-
-#include <common/types.h>
-
-extern "C" addr_t xms_get_phys(void* vaddr);
-extern "C" void* xms_mmap(void* vaddr, addr_t paddr, size_t size);
-
-#endif  // __CORE_XMS_H__
