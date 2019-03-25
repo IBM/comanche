@@ -9,7 +9,7 @@
 #include <vector>
 
 class ExperimentUpdate : public Experiment
-{ 
+{
   std::size_t _i;
   std::vector<double> _start_time;
   std::vector<double> _latencies;
