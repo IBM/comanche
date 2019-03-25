@@ -29,3 +29,9 @@
 [submodule "testing/ycsb/ycsb-c"]
 	path = testing/ycsb/ycsb-c
 	url = https://github.com/basicthinker/YCSB-C.git
+[submodule "testing/ycsb/memcached/memcached"]
+	path = testing/ycsb/memcached/memcached
+	url = https://github.com/memcached/memcached.git
+[submodule "testing/ycsb/memcached/memcachedb"]
+	path = testing/ycsb/memcached/memcachedb
+	url = https://github.com/LMDB/memcachedb.git

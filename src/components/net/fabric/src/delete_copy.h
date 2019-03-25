@@ -1,7 +1,16 @@
-/* Intended for use in classes where -Weffc+ ought to recognize that copying is already impossible but does not, e.g.
- *  - class derived from boost:uncopyable
- *  - class has a declared move constructor or move assignment operator
- */
+/*
+   Copyright [2017-2019] [IBM Corporation]
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
+
 #define DELETE_COPY(X) \
   X(const X &) = delete; \
   X& operator=(const X &) = delete

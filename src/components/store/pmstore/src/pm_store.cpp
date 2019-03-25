@@ -154,9 +154,10 @@ static int check_pool(const char * path)
 
 
 PM_store::PM_store(unsigned int debug_level, const std::string& owner, const std::string& name)
+  : _debug_level(debug_level)
 {
-  PLOG("PMEMOBJ_MAX_ALLOC_SIZE: %lu MB", REDUCE_MB(PMEMOBJ_MAX_ALLOC_SIZE));
-  option_DEBUG = debug_level > 2;
+  PLOG("PM_store: debug level %u", debug_level);
+  PLOG("PM_Store: PMEMOBJ_MAX_ALLOC_SIZE: %lu MB", REDUCE_MB(PMEMOBJ_MAX_ALLOC_SIZE));
 }
 
 PM_store::~PM_store()
@@ -171,7 +172,7 @@ IKVStore::pool_t PM_store::create_pool(const std::string& name,
 {
   PMEMobjpool *pop;
 
-  if(option_DEBUG)
+  if(_debug_level)
     PLOG("PM_store::create_pool pool_name=%s", name.c_str());
 
   if(size > PMEMOBJ_MAX_ALLOC_SIZE) {
@@ -182,7 +183,7 @@ IKVStore::pool_t PM_store::create_pool(const std::string& name,
   const std::string& fullpath = name;
 
   if (access(fullpath.c_str(), F_OK) != 0) {
-    if(option_DEBUG)
+    if(_debug_level)
       PLOG("PM_store: creating new pool: %s (%s) size=%lu", name.c_str(), fullpath.c_str(), size);
 
     boost::filesystem::path p(fullpath);
@@ -198,7 +199,7 @@ IKVStore::pool_t PM_store::create_pool(const std::string& name,
     }
     else { /* could not open existing pool */
 
-      if(option_DEBUG)
+      if(_debug_level)
         PLOG("PM_store: pool check failed: trying to create new one: %s", fullpath.c_str());
 
       /* probably device dax */
@@ -277,14 +278,14 @@ IKVStore::pool_t PM_store::open_pool(const std::string& name,
     throw General_exception("Root is NULL!");
 
   if(D_RO(root)->map.oid.off == 0) {
-    if(option_DEBUG)
+    if(_debug_level)
       PLOG("Root is empty: new hash required");
     //    struct hashmap_args *args = (struct hashmap_args *)arg;
     if(HM_CREATE(pop, &D_RW(root)->map, nullptr))
       throw General_exception("hm_XXX_create failed unexpectedly");
   }
   else {
-    if(option_DEBUG)
+    if(_debug_level)
       PLOG("Using existing root:");
     if(HM_INIT(pop, D_RW(root)->map))
       throw General_exception("hm_XXX_init failed unexpectedly");
@@ -312,7 +313,7 @@ status_t PM_store::close_pool(pool_t pid)
   g_sessions.erase(session);
 
   pmemobj_close(session->pop);
-  if(option_DEBUG)
+  if(_debug_level)
     PLOG("PM_store::closed pool (%lx)", pid);
 
   return S_OK;
@@ -331,7 +332,7 @@ status_t PM_store::delete_pool(const std::string& name)
     throw General_exception("unable to delete pool (%s)", fullpath.c_str());
   }
 
-  if(option_DEBUG)
+  if(_debug_level)
     PLOG("pool deleted: %s", fullpath.c_str());
 
   return S_OK;
@@ -381,7 +382,7 @@ status_t PM_store::put(IKVStore::pool_t pool,
                        const size_t value_len,
                        unsigned int flags)
 {
-  if(option_DEBUG) {
+  if(_debug_level) {
     PLOG("PM_store: put (key=%.*s) (value=%.*s)",
          (int) key.length(), (char*) key.c_str(), (int) value_len, (char*) value);
     assert(value_len > 0);
@@ -506,7 +507,7 @@ status_t PM_store::get_direct(const pool_t pool,
     */
     memcpy(out_value, D_RO(val)->data, val_len);
 
-    if(option_DEBUG)
+    if(_debug_level)
       PLOG("PM_store: value_len=%lu value=(%s)", val_len, (char*) out_value);
   }
   catch(...) {
@@ -543,7 +544,7 @@ PM_store::lock(const pool_t pool,
       if(out_value_len == 0)
         return Component::IKVStore::KEY_NONE;
 
-      if(option_DEBUG)
+      if(_debug_level)
         PLOG("PM_store: lock allocating object (%lx) of %lu bytes", key_hash, out_value_len);
       val = TX_ALLOC(struct map_value, sizeof(struct map_value) + out_value_len);
       D_RW(val)->len = out_value_len;
@@ -554,7 +555,7 @@ PM_store::lock(const pool_t pool,
         throw General_exception("hm_XXX_insert failed unexpectedly (rc=%d)", rc);
     }
     else {
-      if(option_DEBUG)
+      if(_debug_level)
         PLOG("PM_store: lock using existing object (%lx) of %lu bytes", key_hash, D_RO(val)->len);
     }
 
