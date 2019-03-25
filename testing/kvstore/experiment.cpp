@@ -9,9 +9,6 @@
 #include "rapidjson/stringbuffer.h"
 
 #include <boost/filesystem.hpp>
-#if 0
-#include <boost/program_options.hpp>
-#endif
 #include <gperftools/profiler.h>
 #include <sys/mman.h> /* madvise, MADV_HUGEPAGE */
 #include <sys/sysmacros.h> /* major, minor */
@@ -772,7 +769,7 @@ rapidjson::Document Experiment::_get_report_document()
 
   try
   {
-    FILE *pFile = ::fopen(_report_filename.c_str(), "r");
+    std::unique_ptr<FILE, int (*)(FILE *)> pFile(::fopen(_report_filename.c_str(), "r"), ::fclose);
     if ( ! pFile )
     {
       auto er = errno;
@@ -791,7 +788,7 @@ rapidjson::Document Experiment::_get_report_document()
 
     std::vector<char> readBuffer(buffer_size);
 
-    rapidjson::FileReadStream is(pFile, &readBuffer[0], buffer_size);
+    rapidjson::FileReadStream is(pFile.get(), &readBuffer[0], buffer_size);
     document.ParseStream<0>(is);
 
     if (document.HasParseError())
@@ -800,8 +797,6 @@ rapidjson::Document Experiment::_get_report_document()
       PERR("%s", e.c_str());
       throw std::runtime_error(e);
     }
-
-    ::fclose(pFile);
   }
   catch(...)
   {
@@ -823,31 +818,17 @@ void Experiment::_initialize_experiment_report(rapidjson::Document& document)
   rapidjson::Document::AllocatorType &allocator = document.GetAllocator();
 
   rapidjson::Value temp_object(rapidjson::kObjectType);
-  rapidjson::Value temp_value;
 
   // experiment parameters
-#if 0
-  temp_value.SetString(rapidjson::StringRef(_component.c_str()));
-#endif
-  temp_object.AddMember("component", temp_value.SetString(rapidjson::StringRef(_component.c_str())), allocator);
-
-  temp_value.SetString(rapidjson::StringRef(_cores.c_str()));
-  temp_object.AddMember("cores", temp_value, allocator);
-
-  temp_value.SetInt(int(g_data->key_len()));
-  temp_object.AddMember("key_length", temp_value, allocator);
-
-  temp_value.SetInt(int(g_data->value_len()));
-  temp_object.AddMember("value_length", temp_value, allocator);
-
-  temp_value.SetInt(int(_pool_num_objects));
-  temp_object.AddMember("elements", temp_value, allocator);
-
-  temp_value.SetDouble(double(_pool_size));
-  temp_object.AddMember("pool_size", temp_value, allocator);
-
-  temp_value.SetInt(_pool_flags);
-  temp_object.AddMember("pool_flags", temp_value, allocator);
+  temp_object
+    .AddMember("component", rapidjson::StringRef(_component.c_str()), allocator)
+    .AddMember("cores", rapidjson::StringRef(_cores.c_str()), allocator)
+    .AddMember("key_length", int(g_data->key_len()), allocator)
+    .AddMember("value_length", int(g_data->value_len()), allocator)
+    .AddMember("elements", int(_pool_num_objects), allocator)
+    .AddMember("pool_size", double(_pool_size), allocator)
+    .AddMember("pool_flags", _pool_flags, allocator)
+    ;
 
   // first experiment could take some time; parse out start time from the filename we're using
   const std::string REPORT_NAME_START = "results_";
@@ -856,8 +837,7 @@ void Experiment::_initialize_experiment_report(rapidjson::Document& document)
   auto time_end = _report_filename.find(REPORT_NAME_END);
   std::string timestring = _report_filename.substr(time_start + REPORT_NAME_START.length(), time_end - time_start - REPORT_NAME_START.length());
 
-  temp_value.SetString(rapidjson::StringRef(timestring.c_str()));
-  temp_object.AddMember("date", temp_value, allocator);
+  temp_object.AddMember("date", rapidjson::StringRef(timestring.c_str()), allocator);
 
   document.AddMember("experiment", temp_object, allocator);
 
@@ -897,120 +877,75 @@ void Experiment::_report_document_save(rapidjson::Document& document, unsigned c
     throw std::logic_error(e);
   }
 
-  rapidjson::Value temp_value;
   rapidjson::Value temp_object(rapidjson::kObjectType);
   rapidjson::StringBuffer strbuf;
 
   std::string core_string = std::to_string(core);
-  temp_value.SetString(rapidjson::StringRef(core_string.c_str()));
+  rapidjson::Value core_value(rapidjson::StringRef(core_string.c_str()));
 
   try
   {
     if (document.IsObject() && !document.HasMember(_test_name.c_str()))
     {
-      temp_object.AddMember(temp_value, new_info, document.GetAllocator());
+      temp_object.AddMember(core_value, new_info, document.GetAllocator());
       document.AddMember(rapidjson::StringRef(_test_name.c_str()), temp_object, document.GetAllocator());
     }
     else
     {
       rapidjson::Value &items = document[_test_name.c_str()];
 
-      items.AddMember(temp_value, new_info, document.GetAllocator());
+      items.AddMember(core_value, new_info, document.GetAllocator());
     }
 
     // write back to file
     rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(strbuf);
     document.Accept(writer);
-    }
-    catch(...)
-    {
-      PERR("%s", "failed during write to json document");
-    }
-
-    _debug_print(core, "_report_document_save: writing to ofstream");
-    try
-    {
-      std::ofstream outf(_report_filename.c_str());
-      outf << strbuf.GetString() << std::endl;
-    }
-    catch(...)
-    {
-      PERR("%s", "failed while writing to ofstream");
-      throw;
-    }
-
-    _debug_print(core, "_report_document_save finished");
   }
-
-#if 0
-  void _print_highest_count_bin(BinStatistics& stats, unsigned core)
+  catch(...)
   {
-    unsigned count_highest = std::numeric_limits<unsigned>::max();  // arbitrary placeholder value
-    unsigned count_highest_index = std::numeric_limits<unsigned>::max();  // arbitrary placeholder value
-
-    // find bin with highest count
-    for ( unsigned i = 0; i < stats.getBinCount(); ++i )
-    {
-      if ( stats.getBin(i).getCount() > count_highest )
-      {
-        count_highest = stats.getBin(i).getCount();
-        count_highest_index = i;
-      }
-    }
-
-    if (count_highest != std::numeric_limits<unsigned>::max() && _summary)
-    {
-      RunningStatistics bin = stats.getBin(count_highest_index);
-
-      // print information about that bin
-      std::cout << "SUMMARY: core " << core << std::endl;
-      std::cout << "\tmean:\t" << bin.getMean() << std::endl;
-      std::cout << "\tmin:\t" << bin.getMin() << std::endl;
-      std::cout << "\tmax:\t" << bin.getMax() << std::endl;
-      std::cout << "\tstd:\t" << bin.getMax() << std::endl;
-      std::cout << "\tcount:\t" << bin.getCount() << std::endl;
-    }
+    PERR("%s", "failed during write to json document");
   }
-#endif
 
-rapidjson::Value Experiment::_add_statistics_to_report(std::string /* name */, BinStatistics& stats, rapidjson::Document& document)
+  _debug_print(core, "_report_document_save: writing to ofstream");
+  try
+  {
+    std::ofstream outf(_report_filename.c_str());
+    outf << strbuf.GetString() << std::endl;
+  }
+  catch(...)
+  {
+    PERR("%s", "failed while writing to ofstream");
+    throw;
+  }
+
+  _debug_print(core, "_report_document_save finished");
+}
+
+rapidjson::Value Experiment::_add_statistics_to_report(BinStatistics& stats, rapidjson::Document& document)
 {
   rapidjson::Value bin_info(rapidjson::kObjectType);
   rapidjson::Value temp_array(rapidjson::kArrayType);
-  rapidjson::Value temp_value;
 
   // latency bin info
-  temp_value.SetInt(int(stats.getBinCount()));
-  bin_info.AddMember("bin_count", temp_value, document.GetAllocator());
-
-  temp_value.SetDouble(stats.getMinThreshold());
-  bin_info.AddMember("threshold_min", temp_value, document.GetAllocator());
-
-  temp_value.SetDouble(stats.getMaxThreshold());
-  bin_info.AddMember("threshold_max", temp_value, document.GetAllocator());
-
-  temp_value.SetDouble(stats.getIncrement());
-  bin_info.AddMember("increment", temp_value, document.GetAllocator());
+  bin_info
+    .AddMember("bin_count", int(stats.getBinCount()), document.GetAllocator())
+    .AddMember("threshold_min", double(stats.getMinThreshold()), document.GetAllocator())
+    .AddMember("threshold_max", double(stats.getMaxThreshold()), document.GetAllocator())
+    .AddMember("increment", double(stats.getIncrement()), document.GetAllocator())
+    ;
 
   for (unsigned i = 0; i < stats.getBinCount(); i++)
   {
     // PushBack requires unique object
     rapidjson::Value temp_object(rapidjson::kObjectType);
 
-    temp_value.SetDouble(stats.getBin(i).getCount());
-    temp_object.AddMember("count", temp_value, document.GetAllocator());
-
-    temp_value.SetDouble(stats.getBin(i).getMin());
-    temp_object.AddMember("min", temp_value, document.GetAllocator());
-
-    temp_value.SetDouble(stats.getBin(i).getMax());
-    temp_object.AddMember("max", temp_value, document.GetAllocator());
-
-    temp_value.SetDouble(stats.getBin(i).getMean());
-    temp_object.AddMember("mean", temp_value, document.GetAllocator());
-
-    temp_value.SetDouble(stats.getBin(i).getStd());
-    temp_object.AddMember("std", temp_value, document.GetAllocator());
+    temp_object
+      .AddMember("count", double(stats.getBin(i).getCount()), document.GetAllocator())
+      .AddMember("min", double(stats.getBin(i).getMin()), document.GetAllocator())
+      .AddMember("max", double(stats.getBin(i).getMax()), document.GetAllocator())
+      .AddMember("mean", double(stats.getBin(i).getMax()), document.GetAllocator())
+      .AddMember("std", double(stats.getBin(i).getStd()), document.GetAllocator())
+      ;
 
     temp_array.PushBack(temp_object, document.GetAllocator());
   }
@@ -1018,12 +953,13 @@ rapidjson::Value Experiment::_add_statistics_to_report(std::string /* name */, B
   // add new info to report
   rapidjson::Value bin_object(rapidjson::kObjectType);
 
-  bin_object.AddMember("info", bin_info, document.GetAllocator());
-  bin_object.AddMember("bins", temp_array, document.GetAllocator());
+  bin_object
+    .AddMember("info", bin_info, document.GetAllocator())
+    .AddMember("bins", temp_array, document.GetAllocator())
+    ;
 
   return bin_object;
 }
-
 
 BinStatistics Experiment::_compute_bin_statistics_from_vectors(std::vector<double> data, std::vector<double> data_bins, int bin_count, double bin_min, double bin_max, std::size_t elements)
 {
@@ -1173,9 +1109,6 @@ void Experiment::_populate_pool_to_capacity(unsigned core, Component::IKVStore::
     std::cout << "_populate_pool_to_capacity start: _pool_num_components = " << _pool_num_objects << ", _elements_stored = " << _elements_stored << ", _pool_element_end = " << _pool_element_end << std::endl;
   }
 
-#if 0 /* unused */
-  long elements_remaining = _pool_num_objects - _elements_stored;
-#endif
   bool can_add_more_elements;
   unsigned long current = _pool_element_end + 1;  // first run: should be 0 (start index)
   long maximum_elements = -1;
@@ -1286,9 +1219,6 @@ void Experiment::_populate_pool_to_capacity(unsigned core, Component::IKVStore::
 // assumptions: i_ is tracking current element in use
 void Experiment::_enforce_maximum_pool_size(unsigned core, std::size_t i_)
 {
-#if 0 /* unused */
-  unsigned long block_size = GetElementSize(core, int(_i));
-#endif
   _elements_in_use++;
 
   // erase elements that exceed pool capacity and start again
