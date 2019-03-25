@@ -182,7 +182,7 @@ public:
 
   void _print_highest_count_bin(BinStatistics& stats, unsigned core);
 
-  rapidjson::Value _add_statistics_to_report(std::string /* name */, BinStatistics& stats, rapidjson::Document& document) ;
+  rapidjson::Value _add_statistics_to_report(BinStatistics& stats, rapidjson::Document& document) ;
 
   BinStatistics _compute_bin_statistics_from_vectors(std::vector<double> data, std::vector<double> data_bins, int bin_count, double bin_min, double bin_max, std::size_t elements) ;
 
