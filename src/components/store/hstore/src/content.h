@@ -42,13 +42,7 @@ namespace impl
 			/* NOTE: Cannot make _value persistent, but the user can make value's
 			 * individual conponents persistent.
 			 */
-			union u
-			{
-				int _n;
-				value_t _value;
-				u() {}
-				~u() {}
-			} _v;
+			value_t _value;
 			using owner_t = std::size_t; /* sufficient for all bucket indexes */
 			void set_owner(owner_t);
 			owner_t get_owner() const
@@ -78,7 +72,7 @@ namespace impl
 			{
 				if ( _state != FREE )
 				{
-					_v._value.~value_t();
+					_value.~value_t();
 				}
 			}
 
@@ -95,16 +89,16 @@ namespace impl
 				, std::size_t bi
 			) -> content &;
 
-			const key_t &key() const { return _v._value.first; }
-			const mapped_t &mapped() const { return _v._value.second; }
+			const key_t &key() const { return _value.first; }
+			const mapped_t &mapped() const { return _value.second; }
 			/* PMEM ESCAPE: Uncontrolled access to _value: only used by at(), which is not
 			 * itself used internally
 			 */
-			mapped_t &mapped() { return _v._value.second; }
+			mapped_t &mapped() { return _value.second; }
 			/* PMEM ESCAPE: Uncontrolled access to _value: only used by iterator, which is
 			 * not itself used internally
 			 */
-			value_t &value() { return _v._value; }
+			value_t &value() { return _value; }
 		public:
 			auto erase() -> void;
 			void state_set(state_t state_)
