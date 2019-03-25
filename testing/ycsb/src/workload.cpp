@@ -1,3 +1,15 @@
+/*
+   Copyright [2017-2019] [IBM Corporation]
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
 #include "workload.h"
 #include <assert.h>
 #include <iostream>
@@ -70,6 +82,9 @@ bool Workload::ready() { return isready; }
 bool Workload::do_work(unsigned core)
 {
   load();
+  if (props.getProperty("run", "0") == "1") {
+    run();
+  }
   return false;
 }
 
@@ -172,6 +187,9 @@ void Workload::cleanup(unsigned core)
   up.stop();
 
   if (rd_cnt > 0 || up_cnt > 0) {
+    cout << "read: " << rd_cnt << ", update: " << up_cnt << endl;
+    cout << "Time: " << rd.get_time_in_seconds() + up.get_time_in_seconds()
+         << endl;
     unsigned long iops = (rd_cnt + up_cnt) /
                          (rd.get_time_in_seconds() + up.get_time_in_seconds());
     std::lock_guard<std::mutex> g(_iops_lock);

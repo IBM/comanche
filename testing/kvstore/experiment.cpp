@@ -283,6 +283,9 @@ int Experiment::initialize_store(unsigned core)
     if( component_is( "nvmestore" ) ) {
       _store = fact->create("owner",_owner, *_pci_address);
     }
+    else if ( component_is( "pmstore" ) ) {
+      _store = fact->create(_debug_level, _owner, "", "");
+    }
     else if ( component_is( "dawn" ) ) {
       auto port = _port;
       if ( _port_increment )
@@ -585,7 +588,7 @@ void Experiment::_update_aggregate_iops(double iops)
 
 void Experiment::summarize()
 {
-  PINF("[TOTAL] %s IOPS: %lu", _test_name.c_str(), static_cast<unsigned long>(g_iops));
+  PINF("[TOTAL] %s %s IOPS: %lu", _cores.c_str(), _test_name.c_str(), static_cast<unsigned long>(g_iops));
 }
 
 void Experiment::cleanup(unsigned core) noexcept
