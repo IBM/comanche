@@ -47,6 +47,10 @@ private:
   std::vector<int> _core_list;
   int _execution_time;
   boost::optional<std::chrono::system_clock::time_point> _start_time; // default behavior: start now
+public:
+  boost::optional<std::chrono::high_resolution_clock::duration> _duration_directed; // default behavior: number of elements determines duration
+  boost::optional<std::chrono::high_resolution_clock::time_point> _end_time_directed;
+private:
   int _debug_level;
   std::string _component;
   std::string _results_path;
@@ -94,7 +98,7 @@ private:
   core_to_device_map_t _core_to_device_map;
 
   static core_to_device_map_t make_core_to_device_map(const std::string &cores, const std::string &devices);
-  
+
 public:
   static Data * g_data;
   static std::mutex g_write_lock;
