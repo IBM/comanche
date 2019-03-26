@@ -39,6 +39,7 @@ public:
   double bin_threshold_max;
   int debug_level;
   boost::optional<std::chrono::system_clock::time_point> start_time;
+  boost::optional<unsigned> duration;
   std::string owner;
   std::string server_address;
   unsigned port;
