@@ -57,10 +57,7 @@ void ExperimentThroughput::handler(int)
 void ExperimentThroughput::initialize_custom(unsigned /* core */)
 {
   _start_time = std::chrono::high_resolution_clock::now();
-  if ( _continuous )
-  {
-    std::signal(SIGINT, handler);
-  }
+  std::signal(SIGINT, handler);
 }
 
 bool ExperimentThroughput::do_work(unsigned core)
@@ -80,6 +77,10 @@ bool ExperimentThroughput::do_work(unsigned core)
      */
     _start_time = std::chrono::high_resolution_clock::now();
     _report_time = _start_time;
+    if ( _duration_directed )
+    {
+      _end_time_directed = _start_time + *_duration_directed;
+    }
   }
 
   if ( pool_num_objects() <= _op_count_wr && _rand_pct(_rand_engine) < _rd_pct )
@@ -128,13 +129,18 @@ bool ExperimentThroughput::do_work(unsigned core)
     ++_i_rd;
   }
 
-  if ( _continuous )
+  if ( _continuous || _end_time_directed )
   {
     _i_rd %= pool_num_objects();
     _i_wr %= pool_num_objects();
   }
 
-  auto do_more = _i_wr != pool_num_objects() && ! _stop;
+  auto do_more =
+    (  _end_time_directed
+      ? std::chrono::high_resolution_clock::now() < *_end_time_directed
+      : _i_wr != pool_num_objects()
+    ) && ! _stop
+    ;
 
   if ( ! do_more )
   {
@@ -156,6 +162,7 @@ double ExperimentThroughput::to_seconds(std::chrono::high_resolution_clock::dura
 
 void ExperimentThroughput::cleanup_custom(unsigned core)
 {
+  std::signal(SIGINT, SIG_DFL);
   auto duration = elapsed(std::chrono::high_resolution_clock::now());
   _sw_rd.stop();
   _sw_wr.stop();

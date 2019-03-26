@@ -82,6 +82,7 @@ try
   , bin_threshold_max(vm_["latency_range_max"].as<double>())
   , debug_level(vm_["debug_level"].as<int>())
   , start_time(vm_.count("start_time") ? parse_local_hh_mm(vm_["start_time"].as<std::string>()) : boost::optional<std::chrono::system_clock::time_point>() )
+  , duration(vm_.count("duration") ? vm_["duration"].as<unsigned>() : boost::optional<unsigned>() )
   , owner(vm_["owner"].as<std::string>())
   , server_address(vm_["server"].as<std::string>())
   , port(vm_["port"].as<unsigned>())
@@ -155,5 +156,6 @@ void ProgramOptions::add_program_options(
     ("summary", "Prints summary statement: most frequent latency bin info per core")
     ("skip_json_reporting", "disables creation of json report file")
     ("continuous", "enables never-ending execution, if possible")
+    ("duration", po::value<unsigned>(), "throughput test duration, in seconds")
     ;
 }
