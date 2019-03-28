@@ -87,19 +87,29 @@ struct Pool_session
   const unsigned canary = 0x45450101;
 };
 
+struct tls_cache_t {
+  Pool_session * session;
+};
+
 std::mutex                            _pool_sessions_lock;
 std::set<Pool_session *>              _pool_sessions;
 std::unordered_map<std::string, Pool_handle *>  _pools; /*< existing pools */
+static __thread tls_cache_t tls_cache = { nullptr };
 
 using Std_lock_guard = std::lock_guard<std::mutex>;
 
 Pool_session* get_session(const IKVStore::pool_t pid)
 {
-  Std_lock_guard g(_pool_sessions_lock);
   auto session = reinterpret_cast<Pool_session*>(pid);
 
-  if(_pool_sessions.count(session) == 0)
-    throw API_exception("invalid pool identifier (%p)", pid);
+  if ( session != tls_cache.session)
+  {
+    Std_lock_guard g(_pool_sessions_lock);
+
+    if(_pool_sessions.count(session) == 0)
+      throw API_exception("invalid pool identifier (%p)", pid);
+    tls_cache.session = session;
+  }
 
   assert(session);
   return session;
@@ -372,6 +382,7 @@ status_t Map_store::close_pool(const pool_t pid)
   auto session = get_session(pid);
   assert(session);
 
+  tls_cache.session = nullptr;
   Std_lock_guard g(_pool_sessions_lock);
   delete session;
   _pool_sessions.erase(session);
