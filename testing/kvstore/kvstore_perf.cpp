@@ -33,6 +33,7 @@
 #include <gperftools/profiler.h>
 #endif
 
+#include <algorithm>
 #include <chrono>
 #include <iostream>
 #include <mutex>
@@ -118,12 +119,27 @@ int main(int argc, char * argv[])
     ProfilerStart("cpu.profile");
 #endif
 
-    for ( const auto &e : test_vector )
+    if ( Options.test == "all" )
     {
-      if ( Options.test == "all" || Options.test == e.first )
+      for ( const auto &e : test_vector )
       {
         e.second(cpus, Options);
       }
+    }
+    else
+    {
+      const auto it =
+        std::find_if(
+          test_vector.begin()
+          , test_vector.end()
+          , [&Options] (const test_element &a) { return a.first == Options.test; }
+        );
+      if ( it == test_vector.end() )
+      {
+        PERR("No such test: %s.", Options.test.c_str());
+        return 1;
+      }
+      it->second(cpus, Options);
     }
 #ifdef PROFILE
     ProfilerStop();
