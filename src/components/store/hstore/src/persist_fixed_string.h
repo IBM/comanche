@@ -130,12 +130,13 @@ template <typename T, typename Allocator>
 				{
 					auto data_size =
 						static_cast<std::size_t>(last_ - first_) * sizeof(T);
+					using local_allocator_char_type = typename AL::template rebind<char>::other;
 					new (&large.al()) allocator_char_type(al_);
 					new (&large.ptr)
 						ptr_t(
 							static_cast<typename allocator_type::pointer>(
 								typename allocator_void_type::pointer(
-									al_.allocate(sizeof(element_type) + data_size)
+                                                      local_allocator_char_type(al_).allocate(sizeof(element_type) + data_size)
 								)
 							)
 						);
