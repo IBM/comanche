@@ -79,11 +79,17 @@ class Rca_AVL_internal {
 
   void *alloc(size_t size, int numa_node, size_t alignment)
   {
-    auto mr = _allocators[numa_node]->alloc(size, alignment);
-    if (_debug_level > 1) PLOG("allocated: 0x%lx size=%lu", mr->addr(), size);
+    try {
+      auto mr = _allocators[numa_node]->alloc(size, alignment);
+      if (_debug_level > 1) PLOG("allocated: 0x%lx size=%lu", mr->addr(), size);
 
-    assert(mr);
-    return mr->paddr();
+      assert(mr);
+      return mr->paddr();
+    }
+    catch(...) {
+      throw General_exception("region allocation out-of-space");
+    }
+    return nullptr;
   }
 
   void free(void *ptr, int numa_node)
@@ -104,6 +110,7 @@ class Rca_AVL_internal {
   }
 
  private:
+
   Core::Slab::CRuntime<Core::Memory_region> _slab; /* use C runtime for slab? */
   std::vector<Core::AVL_range_allocator *>  _allocators;
 };
