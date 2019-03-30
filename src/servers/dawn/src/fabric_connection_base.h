@@ -181,7 +181,7 @@ class Fabric_connection_base {
 
     if (!val_buffer) {
       /* BUG: if packet is small enough use inject */
-      if (false) { //iov->iov_len <= _transport->max_inject_size()) {
+      if (iov->iov_len <= 128) {  // _transport->max_inject_size()) {
         _transport->inject_send(iov->iov_base, iov->iov_len);
         free_buffer(buffer); /* buffer can be immediately freed; see fi_inject */
       }
