@@ -74,7 +74,8 @@ class Fabric_connection_base {
      * a connection after you close it. In particular, you cannot deregister
      * memory. So close_connection is the *last" operation on "_transport."
      */
-    _factory->close_connection(_transport);
+    // See BUG DAWN-134
+    //    _factory->close_connection(_transport);
   }
 
   static void completion_callback(void *        context,
@@ -84,8 +85,8 @@ class Fabric_connection_base {
                                   void *        error_data,
                                   void *        param)
   {
-    Fabric_connection_base *pThis =
-        static_cast<Fabric_connection_base *>(param);
+    Fabric_connection_base *pThis = static_cast<Fabric_connection_base *>(param);
+    
     /* set callback debugging here */
     static constexpr bool option_DEBUG = false;
 
@@ -95,6 +96,7 @@ class Fabric_connection_base {
 
     if (context == pThis->_posted_recv_buffer) {
       assert(pThis->_posted_recv_buffer_outstanding);
+      assert(pThis->_posted_recv_buffer);
       if (option_DEBUG) PLOG("Posted recv complete (%p).", context);
       pThis->_posted_recv_buffer_outstanding = false; /* signal recv completion */
       return;
@@ -119,7 +121,7 @@ class Fabric_connection_base {
     }
   }
 
-  inline bool check_for_posted_send_complete()
+  bool check_for_posted_send_complete()
   {
     if (_posted_send_buffer_outstanding) return false;
 
@@ -178,11 +180,10 @@ class Fabric_connection_base {
     const auto iov = buffer->iov;
 
     if (!val_buffer) {
-      /* if packet is small enough use inject */
-      if (iov->iov_len <= _transport->max_inject_size()) {
+      /* BUG: if packet is small enough use inject */
+      if (false) { //iov->iov_len <= _transport->max_inject_size()) {
         _transport->inject_send(iov->iov_base, iov->iov_len);
-        free_buffer(
-            buffer); /* buffer can be immediately freed; see fi_inject */
+        free_buffer(buffer); /* buffer can be immediately freed; see fi_inject */
       }
       else {
         _posted_send_buffer             = buffer;
