@@ -55,8 +55,9 @@ int Connection_handler::tick()
       
       if (check_for_posted_recv_complete()) { /*< check for recv completion */
         
-        const auto     iob = posted_recv();
+        const auto iob = posted_recv();
         assert(iob);
+        
         const Message *msg = static_cast<Message *>(iob->base());
         assert(msg);
 
@@ -139,7 +140,8 @@ int Connection_handler::tick()
           PMAJOR("Shard State: %lu %p WAIT_HANDSHAKE complete", _tick_count,
                  this);
 
-        auto iob = posted_recv();
+        const auto iob = posted_recv();
+        assert(iob);
 
         Message_handshake *msg = static_cast<Message_handshake *>(iob->base());
         if (msg->type_id == Dawn::Protocol::MSG_TYPE_HANDSHAKE) {

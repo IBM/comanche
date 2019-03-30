@@ -114,7 +114,7 @@ void Shard::main_loop()
 #endif
 
   uint64_t                  tick __attribute__((aligned(8))) = 0;
-  static constexpr uint64_t CHECK_CONNECTION_INTERVAL        = 1000000;
+  static constexpr uint64_t CHECK_CONNECTION_INTERVAL        = 10000000;
 
   Connection_handler::action_t                            action;
   std::vector<std::vector<Connection_handler*>::iterator> pending_close;
@@ -139,10 +139,11 @@ void Shard::main_loop()
 
         /* issue tick, unless we are stalling */
         uint64_t tick_response;
+
         if(handler->stall_tick() == 0)
           tick_response = handler->tick();
         else continue;
-    
+
         /* close session */
         if (tick_response == Dawn::Connection_handler::TICK_RESPONSE_CLOSE) {
           if (option_DEBUG > 1) PMAJOR("Shard: closing connection %p", handler);
@@ -183,9 +184,12 @@ void Shard::main_loop()
 
     
       /* handle pending close sessions */
-      if (unlikely(!pending_close.empty())) {
+      if (!pending_close.empty()) {
         for (auto& h : pending_close) {
-          if (option_DEBUG > 1) PLOG("Deleting handler (%p)", *h);
+          if (option_DEBUG > 1 || 1) {
+            PLOG("Deleting handler (%p)", *h);
+          }
+          assert(*h);
           delete *h;
           _handlers.erase(h);
 
@@ -358,6 +362,7 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
     /* can't support dont stomp flag */
     if(msg->flags & IKVStore::FLAGS_DONT_STOMP) {
       status = E_INVAL;
+      PWRN("PUT_ADVANCE failed IVStore::FLAGS_DONT_STOMP not viable");
       goto send_response;
     }
 
@@ -410,7 +415,8 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
  send_response:
   /* states that we require a response */
   const auto iob = handler->allocate();
-
+  assert(iob);
+  
   Protocol::Message_IO_response* response = new (iob->base())
       Protocol::Message_IO_response(iob->length(), handler->auth_id());
 
@@ -503,6 +509,7 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
         response->request_id = msg->request_id;
         response->status     = S_OK;
 
+        assert(iob);
         handler->post_response(iob);
       }
       else {
