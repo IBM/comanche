@@ -51,11 +51,12 @@ void DawnDB::init(Properties &props, unsigned core)
   int    debug    = stoi(props.getProperty("debug_level", "1"));
   client          = fact->create(debug, username, address, dev);
   fact->release_ref();
-  pool = client->open_pool("table" + to_string(core), 0);
+  poolname = "table" + to_string(core);
+  pool     = client->open_pool(poolname, 0);
 
   if (pool == Component::IKVStore::POOL_ERROR) {
     /* ok, try to create pool instead */
-    pool = client->create_pool("table" + to_string(core), GB(1));
+    pool = client->create_pool(poolname, GB(1));
   }
 }
 
@@ -148,5 +149,6 @@ int DawnDB::scan(const string &                table,
 void DawnDB::clean()
 {
   client->close_pool(pool);
+  client->delte_pool(poolname);
   client->release_ref();
 }
