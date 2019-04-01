@@ -204,7 +204,6 @@ void Workload::cleanup(unsigned core)
     _iops_load += wr_cnt / wr.get_time_in_seconds();
   }
 
-  this->summarize();
 }
 
 void Workload::summarize()

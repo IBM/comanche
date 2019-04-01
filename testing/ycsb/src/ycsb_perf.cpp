@@ -68,8 +68,8 @@ int main(int argc, char * argv[])
 
     Core::Per_core_tasking<ycsb::Workload, Properties &> exp(cpus, props);
     exp.wait_for_all();
-    //    auto first_exp = exp.tasklet(cpus.first_core());
-    //   first_exp->summarize();
+    auto first_exp = exp.tasklet(cpus.first_core());
+    first_exp->summarize();
     MPI_Finalize();
 
     return 0;
