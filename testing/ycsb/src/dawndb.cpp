@@ -16,6 +16,7 @@
 #include <core/dpdk.h>
 #include <core/task.h>
 #include <gtest/gtest.h>
+#include <mpi.h>
 #include <stdlib.h>
 #include <sys/mman.h>
 #include <boost/program_options.hpp>
@@ -47,6 +48,14 @@ void DawnDB::init(Properties &props, unsigned core)
       (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
   string username = "luna";
   string address  = props.getProperty("address");
+  size_t mid      = address.find(":");
+  int    port     = stoi(address.substr(mid + 1));
+  int    rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  port += rank;
+  address.replace(address.begin() + mid, address.end(), to_string(port));
+  cout << address << endl;
+
   string dev      = props.getProperty("dev");
   int    debug    = stoi(props.getProperty("debug_level", "1"));
   client          = fact->create(debug, username, address, dev);
