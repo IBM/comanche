@@ -50,6 +50,7 @@ class DawnDB : public DB {
   private:
    Component::IKVStore *       client;
    Component::IKVStore::pool_t pool;
+   string                      poolname;
 };
 
 }  // namespace ycsb

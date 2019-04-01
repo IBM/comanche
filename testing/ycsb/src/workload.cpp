@@ -26,7 +26,7 @@ using namespace std;
 using namespace ycsb;
 using namespace ycsbc;
 
-const int    Workload::SIZE  = 32;
+const int     Workload::SIZE       = 64;
 unsigned long Workload::_iops      = 0;
 unsigned long Workload::_iops_load = 0;
 mutex         Workload::_iops_lock;
