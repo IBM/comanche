@@ -11,6 +11,7 @@
    limitations under the License.
 */
 #include "ycsb_perf.h"
+#include <mpi.h>
 #include <stdlib.h>
 #include <iostream>
 #include "../../kvstore/get_cpu_mask_from_string.h"
@@ -22,16 +23,20 @@ using namespace std;
 
 int main(int argc, char * argv[])
 {
-    if(argc<4)
-        show_program_options();
+  MPI_Init(NULL, NULL);
+  int world_size;
+  MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  if (argc < 4) show_program_options();
 
-    string operation = argv[1];
-    string filename=argv[3];
+  string operation = argv[1];
+  string filename  = argv[3];
 
-    ifstream input(filename);
+  ifstream input(filename);
 
-    try {
-      props.load(input);
+  try {
+    props.load(input);
     }
     catch (const string &msg) {
       cerr << msg << endl;
@@ -40,6 +45,13 @@ int main(int argc, char * argv[])
     }
 
     input.close();
+    if (props.getProperty("cores", "0") == "-1") {
+      int start = rank * 6;
+      int end   = start + 5;
+      string cores = to_string(start) + "-" + to_string(end);
+      cout << cores << endl;
+      props.setProperty("cores", cores);
+    }
 
     cpu_mask_t cpus;
 
@@ -56,8 +68,9 @@ int main(int argc, char * argv[])
 
     Core::Per_core_tasking<ycsb::Workload, Properties &> exp(cpus, props);
     exp.wait_for_all();
-    auto first_exp = exp.tasklet(cpus.first_core());
-    first_exp->summarize();
+    //    auto first_exp = exp.tasklet(cpus.first_core());
+    //   first_exp->summarize();
+    MPI_Finalize();
 
     return 0;
 }
