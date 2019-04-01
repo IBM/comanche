@@ -149,6 +149,6 @@ int DawnDB::scan(const string &                table,
 void DawnDB::clean()
 {
   client->close_pool(pool);
-  client->delte_pool(poolname);
+  client->delete_pool(poolname);
   client->release_ref();
 }
