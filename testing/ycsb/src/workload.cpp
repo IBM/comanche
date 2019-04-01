@@ -12,6 +12,7 @@
 */
 #include "workload.h"
 #include <assert.h>
+#include <mpi.h>
 #include <iostream>
 #include <string>
 #include "../../kvstore/stopwatch.h"
@@ -92,6 +93,7 @@ void Workload::load()
 {
   int ret;
   wr.reset();
+  MPI_Barrier(MPI_COMM_WORLD);
   for (int i = 0; i < records; i++) {
     pair<string, string>& kv = kvs[i];
     // cout << "insert" << endl;
@@ -113,6 +115,7 @@ void Workload::run()
 {
   rd.reset();
   up.reset();
+  MPI_Barrier(MPI_COMM_WORLD);
   for (int i = 0; i < operations; i++) {
     Operation operation = op.Next();
     switch (operation) {
@@ -181,6 +184,7 @@ void Workload::doScan() {}
 
 void Workload::cleanup(unsigned core)
 {
+  MPI_Barrier(MPI_COMM_WORLD);
   cout << "do clean" << endl;
   rd.stop();
   wr.stop();
@@ -199,12 +203,25 @@ void Workload::cleanup(unsigned core)
     std::lock_guard<std::mutex> g(_iops_load_lock);
     _iops_load += wr_cnt / wr.get_time_in_seconds();
   }
+
+  this->summarize();
 }
 
 void Workload::summarize()
 {
-  cout << "[Overall], Load Throughput (ops/sec), " << _iops_load << endl;
-  cout << "[Overall], Operation Throughput (ops/sec), " << _iops << endl;
+  unsigned long global_iops_load = 0;
+  unsigned long global_iops      = 0;
+  MPI_Reduce(&_iops_load, &global_iops_load, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0,
+             MPI_COMM_WORLD);
+  MPI_Reduce(&_iops, &global_iops, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0,
+             MPI_COMM_WORLD);
+
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  if (rank == 0) {
+    cout << "[Overall], Load Throughput (ops/sec), " << _iops_load << endl;
+    cout << "[Overall], Operation Throughput (ops/sec), " << _iops << endl;
+  }
 }
 
 Workload::~Workload()
