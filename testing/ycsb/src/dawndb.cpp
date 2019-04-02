@@ -53,7 +53,7 @@ void DawnDB::init(Properties &props, unsigned core)
   int    rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   port += rank;
-  address.replace(address.begin() + mid, address.end(), to_string(port));
+  address.replace(address.begin() + mid +1, address.end(), to_string(port));
   cout << address << endl;
 
   string dev      = props.getProperty("dev");
@@ -143,7 +143,7 @@ int DawnDB::erase(const string &table, const string &key)
   }
   */
   int ret = client->erase(pool, key);
-  // client->close_pool(pool);
+  client->close_pool(pool);
   return ret;
 }
 

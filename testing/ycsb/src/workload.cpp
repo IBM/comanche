@@ -82,18 +82,20 @@ bool Workload::ready() { return isready; }
 
 bool Workload::do_work(unsigned core)
 {
-  load();
+  cout<<"I am core:"<<core<<endl;
+  load(core);
   if (props.getProperty("run", "0") == "1") {
-    run();
-  }
+    run(core);
+  } 
   return false;
 }
 
-void Workload::load()
+void Workload::load(unsigned core)
 {
   int ret;
   wr.reset();
-  MPI_Barrier(MPI_COMM_WORLD);
+  if(core%6==0)
+   MPI_Barrier(MPI_COMM_WORLD);
   for (int i = 0; i < records; i++) {
     pair<string, string>& kv = kvs[i];
     // cout << "insert" << endl;
@@ -111,11 +113,12 @@ void Workload::load()
   }
 }
 
-void Workload::run()
+void Workload::run(unsigned core)
 {
   rd.reset();
   up.reset();
-  MPI_Barrier(MPI_COMM_WORLD);
+  if(core%6==0)
+   MPI_Barrier(MPI_COMM_WORLD);
   for (int i = 0; i < operations; i++) {
     Operation operation = op.Next();
     switch (operation) {
@@ -184,6 +187,7 @@ void Workload::doScan() {}
 
 void Workload::cleanup(unsigned core)
 {
+    if(core%6==0)
   MPI_Barrier(MPI_COMM_WORLD);
   cout << "do clean" << endl;
   rd.stop();
@@ -218,8 +222,8 @@ void Workload::summarize()
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   if (rank == 0) {
-    cout << "[Overall], Load Throughput (ops/sec), " << _iops_load << endl;
-    cout << "[Overall], Operation Throughput (ops/sec), " << _iops << endl;
+    cout << "[Overall], Load Throughput (ops/sec), " << global_iops_load << endl;
+    cout << "[Overall], Operation Throughput (ops/sec), " << global_iops << endl;
   }
 }
 

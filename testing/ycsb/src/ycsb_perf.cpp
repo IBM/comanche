@@ -18,6 +18,7 @@
 #include "../../kvstore/stopwatch.h"
 #include "db_fact.h"
 #include "workload.h"
+#include <string>
 
 using namespace std;
 
@@ -45,9 +46,13 @@ int main(int argc, char * argv[])
     }
 
     input.close();
-    if (props.getProperty("cores", "0") == "-1") {
+    if (props.getProperty("cores", "0").find("-")==string::npos && props.getProperty("cores", "0") != "0") {
+        int total=atoi(props.getProperty("cores").c_str());
       int start = rank * 6;
-      int end   = start + 5;
+      int end=start+5;
+      if(total-start<6)
+          end=total-1;
+      
       string cores = to_string(start) + "-" + to_string(end);
       cout << cores << endl;
       props.setProperty("cores", cores);
