@@ -34,8 +34,8 @@ class Workload : public Core::Tasklet {
   static const int    SIZE;
   const string        TABLE;
   Workload(Properties& props);
-  void load();
-  void run();
+  void load(unsigned core=0);
+  void run(unsigned core=0);
   virtual ~Workload();
   virtual void initialize(unsigned core) override;
   virtual bool do_work(
