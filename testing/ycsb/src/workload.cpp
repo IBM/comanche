@@ -221,6 +221,7 @@ void Workload::summarize()
 
 Workload::~Workload()
 {
+    cleanup();
   kvs.clear();
   delete gen;
   delete db;
