@@ -34,12 +34,12 @@ mutex         Workload::_iops_lock;
 mutex         Workload::_iops_load_lock;
 // DB*           Workload::db;
 
-Workload::Workload(Properties& props) : props(props)
-{
-}
+Workload::Workload(Properties& props) : props(props) { initialize(); }
 
-void Workload::initialize(unsigned core)
+void Workload::initialize()
 {
+  int core;
+  MPI_Comm_rank(MPI_COMM_WORLD, &core);
   db = ycsb::DBFactory::create(props, core);
   assert(db);
   string TABLE = "table" + to_string(core);
@@ -75,27 +75,22 @@ void Workload::initialize(unsigned core)
   rd_cnt = 0;
   wr_cnt = 0;
   up_cnt = 0;
-  isready    = true;
 }
 
-bool Workload::ready() { return isready; }
-
-bool Workload::do_work(unsigned core)
+bool Workload::do_work()
 {
-  cout<<"I am core:"<<core<<endl;
-  load(core);
+  load();
   if (props.getProperty("run", "0") == "1") {
-    run(core);
+    run();
   } 
   return false;
 }
 
-void Workload::load(unsigned core)
+void Workload::load()
 {
   int ret;
   wr.reset();
-  if(core%6==0)
-   MPI_Barrier(MPI_COMM_WORLD);
+  MPI_Barrier(MPI_COMM_WORLD);
   for (int i = 0; i < records; i++) {
     pair<string, string>& kv = kvs[i];
     // cout << "insert" << endl;
@@ -117,8 +112,7 @@ void Workload::run(unsigned core)
 {
   rd.reset();
   up.reset();
-  if(core%6==0)
-   MPI_Barrier(MPI_COMM_WORLD);
+  MPI_Barrier(MPI_COMM_WORLD);
   for (int i = 0; i < operations; i++) {
     Operation operation = op.Next();
     switch (operation) {
@@ -140,7 +134,6 @@ void Workload::run(unsigned core)
 
 void Workload::doRead()
 {
-  // cout << "read" << endl;
   int index = gen->Next();
   if (index > records - 1) {
     throw "Key index overflow!";
@@ -185,14 +178,13 @@ void Workload::doUpdate()
 void Workload::doInsert() {}
 void Workload::doScan() {}
 
-void Workload::cleanup(unsigned core)
+void Workload::cleanup()
 {
-    if(core%6==0)
-  MPI_Barrier(MPI_COMM_WORLD);
-  cout << "do clean" << endl;
   rd.stop();
   wr.stop();
   up.stop();
+  MPI_Barrier(MPI_COMM_WORLD);
+  cout << "do clean" << endl;
 
   if (rd_cnt > 0 || up_cnt > 0) {
     cout << "read: " << rd_cnt << ", update: " << up_cnt << endl;
@@ -207,7 +199,7 @@ void Workload::cleanup(unsigned core)
     std::lock_guard<std::mutex> g(_iops_load_lock);
     _iops_load += wr_cnt / wr.get_time_in_seconds();
   }
-
+  summarize();
 }
 
 void Workload::summarize()

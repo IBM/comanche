@@ -52,7 +52,7 @@ void DawnDB::init(Properties &props, unsigned core)
   int    port     = stoi(address.substr(mid + 1));
   int    rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  port += rank;
+  port += rank / 6;
   address.replace(address.begin() + mid +1, address.end(), to_string(port));
   cout << address << endl;
 
