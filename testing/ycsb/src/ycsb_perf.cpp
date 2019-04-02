@@ -29,6 +29,7 @@ int main(int argc, char * argv[])
   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
   if (argc < 4) show_program_options();
 
   string operation = argv[1];
@@ -46,35 +47,13 @@ int main(int argc, char * argv[])
     }
 
     input.close();
-    if (props.getProperty("cores", "0").find("-")==string::npos && props.getProperty("cores", "0") != "0") {
-        int total=atoi(props.getProperty("cores").c_str());
-      int start = rank * 6;
-      int end=start+5;
-      if(total-start<6)
-          end=total-1;
-      
-      string cores = to_string(start) + "-" + to_string(end);
-      cout << cores << endl;
-      props.setProperty("cores", cores);
-    }
-
-    cpu_mask_t cpus;
-
-    try {
-      cpus =
-          get_cpu_mask_from_string(props.getProperty("cores", "0"));
-    }
-    catch (...) {
-      PERR("%s", "couldn't create CPU mask. Exiting.");
-      return 1;
-    }
 
     if (operation == "run") props.setProperty("run", "1");
 
-    Core::Per_core_tasking<ycsb::Workload, Properties &> exp(cpus, props);
-    exp.wait_for_all();
-    auto first_exp = exp.tasklet(cpus.first_core());
-    first_exp->summarize();
+    Workload *wl = new Workload(&props);
+    wl->do_work();
+    delete wl;
+
     MPI_Finalize();
 
     return 0;
