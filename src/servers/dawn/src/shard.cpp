@@ -193,7 +193,7 @@ void Shard::main_loop()
           }
           assert(h);
           delete h;
-          std::remove(_handlers.begin(), _handlers.end(), h);
+          _handlers.erase(std::remove(_handlers.begin(), _handlers.end(), h), _handlers.end());
 
           if (option_DEBUG > 1)
             PLOG("# remaining handlers (%lu)", _handlers.size());
