@@ -108,7 +108,7 @@ void Workload::load()
   }
 }
 
-void Workload::run(unsigned core)
+void Workload::run()
 {
   rd.reset();
   up.reset();

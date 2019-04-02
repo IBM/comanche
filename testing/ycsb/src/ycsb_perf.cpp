@@ -21,6 +21,7 @@
 #include <string>
 
 using namespace std;
+using namespace ycsb;
 
 int main(int argc, char * argv[])
 {
@@ -50,7 +51,7 @@ int main(int argc, char * argv[])
 
     if (operation == "run") props.setProperty("run", "1");
 
-    Workload *wl = new Workload(&props);
+    Workload *wl = new Workload(props);
     wl->do_work();
     delete wl;
 
