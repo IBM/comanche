@@ -22,6 +22,8 @@
 
 #include "shard.h"
 
+#include <algorithm> /* remove */
+
 using namespace Dawn;
 
 namespace Dawn
@@ -117,7 +119,7 @@ void Shard::main_loop()
   static constexpr uint64_t CHECK_CONNECTION_INTERVAL        = 10000000;
 
   Connection_handler::action_t                            action;
-  std::vector<std::vector<Connection_handler*>::iterator> pending_close;
+  std::vector<Connection_handler*> pending_close;
 
   while (_thread_exit == false) {
     /* check for new connections - but not too often */
@@ -147,7 +149,7 @@ void Shard::main_loop()
         /* close session */
         if (tick_response == Dawn::Connection_handler::TICK_RESPONSE_CLOSE) {
           if (option_DEBUG > 1) PMAJOR("Shard: closing connection %p", handler);
-          pending_close.push_back(handler_iter);
+          pending_close.push_back(handler);
         }
 
         /* process ALL deferred actions */
@@ -187,11 +189,11 @@ void Shard::main_loop()
       if (!pending_close.empty()) {
         for (auto& h : pending_close) {
           if (option_DEBUG > 1 || 1) {
-            PLOG("Deleting handler (%p)", *h);
+            PLOG("Deleting handler (%p)", h);
           }
-          assert(*h);
-          delete *h;
-          _handlers.erase(h);
+          assert(h);
+          delete h;
+          std::remove(_handlers.begin(), _handlers.end(), h);
 
           if (option_DEBUG > 1)
             PLOG("# remaining handlers (%lu)", _handlers.size());
