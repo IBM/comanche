@@ -18,7 +18,9 @@
 #include <gtest/gtest.h>
 #include <mpi.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/mman.h>
+#include <unistd.h>
 #include <boost/program_options.hpp>
 #include <iostream>
 #include <string>
@@ -53,8 +55,17 @@ void DawnDB::init(Properties &props, unsigned core)
   int    rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   port += rank / 6;
-  address.replace(address.begin() + mid +1, address.end(), to_string(port));
-  cout << address << endl;
+  char hostname[1024];
+  hostname[1023] = '\0';
+  gethostname(hostname, 1023);
+  char *s = strstr(hostname, "bio");
+  if (s == NULL) {
+    address.replace(address.begin() + mid + 1, address.end(), to_string(port));
+  }
+  else {
+    address.assign("10.0.1.94:" + to_string(port));
+  }
+  cout << "host: " + string(hostname) + ", address: " + address << endl;
 
   string dev      = props.getProperty("dev");
   int    debug    = stoi(props.getProperty("debug_level", "1"));
