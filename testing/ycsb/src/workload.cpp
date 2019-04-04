@@ -97,9 +97,9 @@ void Workload::load()
     pair<string, string>& kv = kvs[i];
     // cout << "insert" << endl;
     wr.start();
-    // ret = db->put(Workload::TABLE, kv.first, kv.second);
+    ret = db->put(Workload::TABLE, kv.first, kv.second);
     //  std::this_thread::sleep_for(std::chrono::seconds(1));
-    ret = db->put(Workload::TABLE, "abc", "edf");
+    //ret = db->put(Workload::TABLE, "abc", "edf");
     if (ret != 0) {
       throw "Insertion failed in loading phase";
       exit(-1);
