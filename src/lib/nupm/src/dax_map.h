@@ -86,7 +86,7 @@ class Devdax_manager {
    *
    * @return Pointer to mapped memory
    */
-  void *create_region(uint64_t uuid, unsigned region_id, size_t size);
+  void *create_region(uint64_t uuid, unsigned region_id, const size_t size);
 
   /**
    * Erase a previously allocated region

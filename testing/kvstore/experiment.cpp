@@ -307,7 +307,7 @@ int Experiment::initialize_store(unsigned core)
       _store = fact->create(_debug_level, _owner, url, *_device_name);
       PMAJOR("dawn component instance: %p", static_cast<const void *>(_store));
     }
-    else if ( component_is( "hstore" ) ) {
+    else if ( component_is( "hstore" ) || component_is("dummystore") ) {
       auto device = core_to_device(core);
       std::size_t dax_base = 0x7000000000;
       /* at least the dax size, rounded for alignment */
