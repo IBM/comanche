@@ -163,9 +163,9 @@ public:
     static thread_local Semaphore sem;
     
     async_read(buffer, buffer_offset, lba, lba_count, queue_id,
-               [](uint64_t gwid, void* arg0, void* arg1)
+               [](uint64_t, void* arg0, void*)
                {
-                 ((Semaphore *)arg0)->post();
+                 static_cast<Semaphore *>(arg0)->post();
                },
                (void*) &sem);
     sem.wait();
@@ -216,7 +216,7 @@ public:
 #endif
     
     async_write(buffer, buffer_offset, lba, lba_count, queue_id,
-                [](uint64_t gwid, void* arg0, void* arg1)
+                [](uint64_t, void* arg0, void*)
                 {
                   ((Semaphore *)arg0)->post();
                 },
@@ -254,7 +254,7 @@ public:
    * @param arg Argument to pass to work function
    * @param queue_id Logical queue identifier (counting from 0, -1=unspecified)
    */
-  virtual void attach_work(std::function<void(void*)> work_function, void * arg, int queue_id = 0) {
+  virtual void attach_work(std::function<void(void*)>, void *, int queue_id = 0) {
     throw API_exception("not implemented.");
   }
 
