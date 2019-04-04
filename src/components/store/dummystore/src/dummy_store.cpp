@@ -119,37 +119,16 @@ status_t Dummy_store::put(IKVStore::pool_t pid,
     PLOG("Dummy_store::put value_len=%lu", value_len);
 
   /* select some random location in the region */
-  /* note:alignement make a huge difference */
+  /* note:alignement makes a huge difference */
   uint64_t offset = round_down(genrand64_int64() % (GB(16) - value_len), 64);
   void * p = (void*) (((uint64_t)i->second) + offset);
 
-  uint64_t offset2 = round_down(genrand64_int64() % (GB(16) - value_len), 64);
-  void * p2 = (void*) (((uint64_t)i->second) + offset);
-
-
   /* copy and flush */
-#if 1
-  char * pz = (char *) p;
-
-#if 0
-  nupm::mem_flush(&pz[8], 56);
-  nupm::mem_flush(p2, 8);
-  nupm::mem_flush(pz, 8);
-  nupm::mem_flush(&pz[8], 56);
-  nupm::mem_flush(p2, 8);
-#else
-  nupm::mem_flush(pz, 64);
-  nupm::mem_flush(p2, 8);
-  nupm::mem_flush(pz, 64);
-#endif
-  
-  /* simulate hstore */
-  //memcpy(p, value, value_len);
-  //nupm::mem_flush(p, value_len);
-#else
-  pmem_memcpy(p, value, value_len,
+  pmem_memcpy(p,
+              value,
+              value_len,
               PMEM_F_MEM_NONTEMPORAL | PMEM_F_MEM_WC );  
-#endif
+
   return S_OK;
 }
 
@@ -159,9 +138,18 @@ status_t Dummy_store::get(const pool_t pid,
                           void*& out_value,
                           size_t& out_value_len)
 {
-  out_value = malloc(32);
-  memset(out_value, 'a', 32);
-  out_value_len = 32;
+  auto i = sessions.find(pid);
+  if(i == sessions.end())
+    throw API_exception("delete_pool bad pool for Dummy_store");
+
+  assert(out_value_len > 0);
+  /* select some random location in the region */
+  /* note:alignement makes a huge difference */
+  uint64_t offset = round_down(genrand64_int64() % (GB(16) - out_value_len), 64);
+  void * p = (void*) (((uint64_t)i->second) + offset);
+
+  /* copy */
+  memcpy(out_value, p, out_value_len);
   return S_OK;
 }
 
