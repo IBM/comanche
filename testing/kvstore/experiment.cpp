@@ -28,6 +28,7 @@
 
 #define PMSTORE_PATH "libcomanche-pmstore.so"
 #define FILESTORE_PATH "libcomanche-storefile.so"
+#define DUMMYSTORE_PATH "libcomanche-dummystore.so"
 #define NVMESTORE_PATH "libcomanche-nvmestore.so"
 #define ROCKSTORE_PATH "libcomanche-rocksdb.so"
 #define DAWN_PATH "libcomanche-dawn-client.so"
@@ -232,6 +233,9 @@ int Experiment::initialize_store(unsigned core)
     else if( component_is( "filestore" ) ) {
       comp = load_component(FILESTORE_PATH, filestore_factory);
     }
+    else if( component_is( "dummystore" ) ) {
+      comp = load_component(DUMMYSTORE_PATH, dummystore_factory);
+    }
     else if( component_is( "nvmestore" ) ) {
       comp = load_component(NVMESTORE_PATH, nvmestore_factory);
     }
@@ -303,7 +307,7 @@ int Experiment::initialize_store(unsigned core)
       _store = fact->create(_debug_level, _owner, url, *_device_name);
       PMAJOR("dawn component instance: %p", static_cast<const void *>(_store));
     }
-    else if ( component_is( "hstore" ) ) {
+    else if ( component_is( "hstore" ) || component_is("dummystore") ) {
       auto device = core_to_device(core);
       std::size_t dax_base = 0x7000000000;
       /* at least the dax size, rounded for alignment */
