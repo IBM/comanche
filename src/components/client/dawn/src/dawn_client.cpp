@@ -19,6 +19,9 @@
 
 #include <iostream>
 #include <regex>
+#include <thread>
+#include <random>
+#include <chrono>
 
 using namespace Component;
 
@@ -100,6 +103,12 @@ void Dawn_client::open_transport(const std::string& device,
 
     _fabric = _factory->make_fabric(fabric_spec);
     const std::string client_spec{"{}"};
+
+    std::mt19937_64 eng{std::random_device{}()};  // or seed however you want
+    std::uniform_int_distribution<> dist{10, 100};
+    std::this_thread::sleep_for(std::chrono::milliseconds{dist(eng)});
+
+    PMAJOR("TRY TO OPEN FABRIC");
     _transport = _fabric->open_client(client_spec, ip_addr, port);
     assert(_transport);
   }
