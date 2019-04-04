@@ -104,6 +104,8 @@ void Dawn_client::open_transport(const std::string& device,
     assert(_transport);
   }
 
+  PMAJOR("FABRIC OPEN CLIENT");
+
   assert(_transport);
   _connection = new Dawn::Client::Connection_handler(_transport);
   _connection->bootstrap();
