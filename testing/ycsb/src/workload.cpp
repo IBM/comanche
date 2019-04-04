@@ -13,8 +13,10 @@
 #include "workload.h"
 #include <assert.h>
 #include <mpi.h>
+#include <chrono>
 #include <iostream>
 #include <string>
+#include <thread>
 #include "../../kvstore/stopwatch.h"
 #include "counter_generator.h"
 #include "db_fact.h"
@@ -40,12 +42,12 @@ void Workload::initialize()
 {
   int core;
   MPI_Comm_rank(MPI_COMM_WORLD, &core);
+  Generator<uint64_t>* loadkeygen = new CounterGenerator(0);
   db = ycsb::DBFactory::create(props, core);
   assert(db);
   string TABLE = "table" + to_string(core);
   records = stoi(props.getProperty("recordcount"));
   operations = stoi(props.getProperty("operationcount"));
-  Generator<uint64_t>* loadkeygen = new CounterGenerator(0);
   for (int i = 0; i < records; i++) {
     pair<string, string> kv(Workload::buildKeyName(loadkeygen->Next()),
                             Workload::buildValue(Workload::SIZE));
@@ -95,7 +97,12 @@ void Workload::load()
     pair<string, string>& kv = kvs[i];
     // cout << "insert" << endl;
     wr.start();
-    ret = db->put(Workload::TABLE, kv.first, kv.second);
+    // ret = db->put(Workload::TABLE, kv.first, kv.second);
+    //  std::this_thread::sleep_for(std::chrono::seconds(1));
+    if (i == 0) cout << "putting first record!!!!!!!" << endl;
+    else
+      cout << "e";
+    ret = db->put(Workload::TABLE, "abc", "edf");
     if (ret != 0) {
       throw "Insertion failed in loading phase";
       exit(-1);
@@ -230,7 +237,8 @@ Workload::~Workload()
 inline string Workload::buildKeyName(uint64_t key_num)
 {
   key_num = ycsbutils::Hash(key_num);
-  return std::string("user").append(std::to_string(key_num));
+  // return std::string("user").append(std::to_string(key_num));
+  return std::to_string(key_num).substr(0, 16);
 }
 
 inline string Workload::buildValue(uint64_t size)
