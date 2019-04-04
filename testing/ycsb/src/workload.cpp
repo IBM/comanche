@@ -99,9 +99,6 @@ void Workload::load()
     wr.start();
     // ret = db->put(Workload::TABLE, kv.first, kv.second);
     //  std::this_thread::sleep_for(std::chrono::seconds(1));
-    if (i == 0) cout << "putting first record!!!!!!!" << endl;
-    else
-      cout << "e";
     ret = db->put(Workload::TABLE, "abc", "edf");
     if (ret != 0) {
       throw "Insertion failed in loading phase";
