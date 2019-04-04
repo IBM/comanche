@@ -75,8 +75,10 @@ void Dawn_client::open_transport(const std::string& device,
                                  const int          port,
                                  const std::string& provider)
 {
+    PMAJOR("Enter LOAD component pid ", getpid());
   {
     IBase* comp = load_component("libcomanche-fabric.so", net_fabric_factory);
+    PMAJOR("LOADED component pid ", getpid());
     assert(comp);
     _factory = static_cast<IFabric_factory*>(
         comp->query_interface(IFabric_factory::iid()));
@@ -100,6 +102,7 @@ void Dawn_client::open_transport(const std::string& device,
                                   ","
                                   " \"ep_attr\" : { \"type\" : \"FI_EP_MSG\" }"
                                   "}"};
+    PMAJOR("TRY TO OPEN FABRIC pid ", getpid());
 
     _fabric = _factory->make_fabric(fabric_spec);
     const std::string client_spec{"{}"};
@@ -108,7 +111,6 @@ void Dawn_client::open_transport(const std::string& device,
     std::uniform_int_distribution<> dist{10, 100};
     std::this_thread::sleep_for(std::chrono::milliseconds{dist(eng)});
 
-    PMAJOR("TRY TO OPEN FABRIC");
     _transport = _fabric->open_client(client_spec, ip_addr, port);
     assert(_transport);
   }
