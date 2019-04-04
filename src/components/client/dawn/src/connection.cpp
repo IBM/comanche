@@ -587,6 +587,7 @@ int Connection_handler::tick()
 
   switch (_state) {
     case INITIALIZE: {
+      PMAJOR("client : INITIALIZE");
       set_state(HANDSHAKE_SEND);
       break;
     }
