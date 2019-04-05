@@ -111,7 +111,7 @@ public:
 		persist(_state->_sw);
 		return p;
 	}
-	void free(const void *) {}
+	void free(const void *, std::size_t) {}
 	void *area() const { return _state; }
 };
 

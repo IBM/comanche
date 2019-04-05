@@ -110,7 +110,7 @@ template <typename T, typename Persister>
 
 		void deallocate(
 			pointer ptr
-			, size_type
+			, size_type sz_
 		)
 		{
 			auto pool = ::pmemobj_pool_by_oid(ptr);
@@ -132,7 +132,7 @@ template <typename T, typename Persister>
 					<< ")\n";
 			}
 #endif
-			heap->free(ptr);
+			heap->free(ptr, sizeof(T) * sz_);
 		}
 		auto max_size() const
 		{

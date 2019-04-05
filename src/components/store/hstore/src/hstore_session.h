@@ -179,20 +179,11 @@ template <typename Handle, typename Allocator, typename Table>
 			auto cvalue = static_cast<const char *>(value);
 
 			return
-#if 1
 				map().emplace(
 					std::piecewise_construct
 					, std::forward_as_tuple(key.begin(), key.end(), this->allocator())
 					, std::forward_as_tuple(cvalue, cvalue + value_len, this->allocator())
 				);
-#else
-				map().insert(
-					table_t::value_type(
-					table_t::key_type(key.begin(), key.end(), this->allocator())
-					, table_t::mapped_type(cvalue, cvalue + value_len, this->allocator())
-					)
-				);
-#endif
 		}
 
 		auto update_by_issue_41(
@@ -229,9 +220,6 @@ template <typename Handle, typename Allocator, typename Table>
 		) const -> status_t
 		try
 		{
-#if 0
-			auto p_key = KEY_T(key.begin(), key.end(), this->allocator());
-#endif
 			auto &v = map().at_special(key);
 
 			if ( out_value == nullptr )
@@ -275,9 +263,7 @@ template <typename Handle, typename Allocator, typename Table>
 		) const -> status_t
 		try
 		{
-			auto p_key = KEY_T(key.begin(), key.end(), this->allocator());
-
-			auto &v = this->map().at(p_key);
+			auto &v = this->map().at_special(key);
 
 			auto value_len = v.size();
 			if (out_value_len < value_len)
