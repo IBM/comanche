@@ -131,6 +131,8 @@ public:
       BinStatistics start_time_stats = _compute_bin_statistics_from_vectors(_latencies, _start_time, bin_count(), _start_time.front(), _start_time.at(_i-1), _i);
 
       // get existing results, read to document variable
+      std::lock_guard<std::mutex> g(g_write_lock);
+      
       rapidjson::Document document = _get_report_document();
       // save everything
 
@@ -142,7 +144,6 @@ public:
         .AddMember("start_time", _add_statistics_to_report(start_time_stats, document), document.GetAllocator())
         ;
 
-      std::lock_guard<std::mutex> g(g_write_lock);
       _report_document_save(document, core, experiment_object);
       _print_highest_count_bin(_latency_stats, core);
     }
