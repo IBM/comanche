@@ -229,8 +229,10 @@ template <typename Handle, typename Allocator, typename Table>
 		) const -> status_t
 		try
 		{
+#if 0
 			auto p_key = KEY_T(key.begin(), key.end(), this->allocator());
-			auto &v = map().at(p_key);
+#endif
+			auto &v = map().at_special(key);
 
 			if ( out_value == nullptr )
 			{
@@ -246,7 +248,7 @@ template <typename Handle, typename Allocator, typename Table>
 				 * out_value implies that out_value_len holds
 				 * the buffer's size.
 				 *
-				 * It might be reaonable to
+				 * It might be reasonable to
 				 *  a) fill the buffer and/or
 				 *  b) return the necessary size in out_value_len,
 				 * but neither action is documented, so we do not.

@@ -1116,6 +1116,20 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
+	template < typename K >
+		auto impl::table_base<
+			Key, T, Hash, Pred, Allocator, SharedMutex
+		>::make_owner_shared_lock_special(
+			const K &k_
+		) const -> owner_shared_lock_t
+		{
+			return make_owner_shared_lock(make_segment_and_bucket(bucket(k_)));
+		}
+
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
 	auto impl::table_base<
 		Key, T, Hash, Pred, Allocator, SharedMutex
 	>::make_owner_shared_lock(
@@ -1163,10 +1177,10 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	template <typename Lock>
+	template <typename Lock, typename K>
 		auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::locate_key(
 			Lock &bi_
-			, const key_type &k_
+			, const K &k_
 		) const -> std::tuple<bucket_t *, segment_and_bucket_t>
 		{
 			/* Use the owner to filter key checks, a performance aid
@@ -1334,6 +1348,27 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
+	template <typename K>
+		auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::at_special(
+			const K &k_
+		) const -> const mapped_type &
+		{
+			/* The bucket which owns the entry */
+			auto bi_lk = make_owner_shared_lock_special(k_);
+			const auto bf = std::get<0>(locate_key(bi_lk, k_));
+			if ( ! bf )
+			{
+				/* no such element */
+				throw std::out_of_range("no such element");
+			}
+			/* element found at bf */
+			return bf->mapped();
+		}
+
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
 	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::at(
 		const key_type &k_
 	) -> mapped_type &
@@ -1354,12 +1389,34 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::bucket(
-		const key_type &k_
-	) const -> size_type
-	{
-		return bucket_ix(_hasher.hf(k_));
-	}
+	template < typename K >
+		auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::at_special(
+			const K &k_
+		) -> mapped_type &
+		{
+			/* Lock the entry owner */
+			auto bi_lk = make_owner_shared_lock_special(k_);
+			const auto bf = std::get<0>(locate_key(bi_lk, k_));
+			if ( ! bf )
+			{
+				/* no such element */
+				throw std::out_of_range("no such element");
+			}
+			/* element found at bf */
+			return bf->mapped();
+		}
+
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	template < typename K >
+		auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::bucket(
+			const K &k_
+		) const -> size_type
+		{
+			return bucket_ix(_hasher.hf(k_));
+		}
 
 template <
 	typename Key, typename T, typename Hash, typename Pred
