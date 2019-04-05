@@ -122,9 +122,9 @@ public:
 		}
 	}
 
-	void free(void *p_)
+	void free(void *p_, std::size_t sz_)
 	{
-		return _heap.free(p_, _numa_node);
+		return _heap.free(p_, _numa_node, sz_);
 	}
 
 	bool is_reconstituted(const void * p_) const
@@ -167,9 +167,9 @@ public:
 		return _heap->inject_allocation(p_, sz_);
 	}
 
-	void free(void *p_)
+	void free(void *p_, std::size_t sz_)
 	{
-		return _heap->free(p_);
+		return _heap->free(p_, sz_);
 	}
 
 	bool is_reconstituted(const void *p_)
