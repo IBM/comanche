@@ -19,6 +19,10 @@
 
 #include "construction_mode.h"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+#include <tbb/scalable_allocator.h>
+#pragma GCC diagnostic pop
 #include <utility> /* move */
 #include <vector>
 
@@ -230,7 +234,7 @@ template <typename Handle, typename Allocator, typename Table>
 
 			if ( out_value == nullptr )
 			{
-				out_value = ::malloc(v.size());
+				out_value = ::scalable_malloc(v.size());
 				if ( ! out_value )
 				{
 					throw std::bad_alloc();
@@ -323,7 +327,7 @@ template <typename Handle, typename Allocator, typename Table>
 				*/
 				if ( option_DEBUG )
 				{
-					PLOG(PREFIX "allocating object %lu bytes", __func__, out_value_len);
+					PLOG(PREFIX "allocating object %zu bytes", __func__, out_value_len);
 				}
 
 				auto r =
@@ -388,7 +392,7 @@ template <typename Handle, typename Allocator, typename Table>
 
 				if ( option_DEBUG )
 				{
-					PLOG(PREFIX "allocating object %lu bytes", __func__, object_size);
+					PLOG(PREFIX "allocating object %zu bytes", __func__, object_size);
 				}
 
 				auto r =
