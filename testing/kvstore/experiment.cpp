@@ -33,7 +33,7 @@
 #define ROCKSTORE_PATH "libcomanche-rocksdb.so"
 #define DAWN_PATH "libcomanche-dawn-client.so"
 
-#define HT_SIZE_FACTOR 3
+#define HT_SIZE_FACTOR 1 /* already factor 3 in hstore */
 
 Data * Experiment::g_data;
 std::mutex Experiment::g_write_lock;
