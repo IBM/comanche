@@ -109,7 +109,7 @@ template <typename T, typename Persister = persister>
 			, size_type sz_
 		)
 		{
-			_pool.free(p, sz_);
+			_pool.free(p, sizeof(T) * sz_);
 		}
 
 		auto max_size() const

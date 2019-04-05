@@ -106,10 +106,10 @@ template <typename T, typename Persister = persister>
 
 		void deallocate(
 			pointer p
-			, size_type
+			, size_type sz_
 		)
 		{
-			_pool.free(p);
+			_pool.free(p, sizeof(T) * sz_);
 		}
 
 		auto max_size() const

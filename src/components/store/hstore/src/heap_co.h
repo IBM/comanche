@@ -127,7 +127,7 @@ public:
 		return PMEMoid { _oid.pool_uuid_lo, _start + p };
 	}
 
-	void free(PMEMoid) {}
+	void free(PMEMoid, std::size_t) {}
 };
 
 class heap_co

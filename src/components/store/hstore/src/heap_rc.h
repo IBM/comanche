@@ -124,7 +124,8 @@ public:
 
 	void free(void *p_, std::size_t sz_)
 	{
-		return _heap.free(p_, _numa_node, sz_);
+		auto sz = (sz_ + alignment - 1U)/alignment * alignment;
+		return _heap.free(p_, _numa_node, sz);
 	}
 
 	bool is_reconstituted(const void * p_) const
