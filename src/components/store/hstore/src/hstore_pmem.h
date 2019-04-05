@@ -158,7 +158,7 @@ namespace
   auto delete_and_recreate_pool(const char *path, const std::size_t size, const char *action) -> PMEMobjpool *
   {
     if ( 0 != pmempool_rm(path, PMEMPOOL_RM_FORCE | PMEMPOOL_RM_POOLSET_LOCAL))
-      throw General_exception("pmempool_rm on (%s) failed: %x", path, pmemobj_errormsg());
+      throw General_exception("pmempool_rm on (%s) failed: %" PRIxIKVSTORE_POOL_T, path, pmemobj_errormsg());
 
     auto pop = pmemobj_create_guarded(path, REGION_NAME, size, 0666);
     if (not pop) {
@@ -301,7 +301,7 @@ private:
     if (::access(path_.str().c_str(), F_OK) != 0) {
       if ( debug() )
         {
-          PLOG(PREFIX "creating new pool: %s (%s) size=%lu"
+          PLOG(PREFIX "creating new pool: %s (%s) size=%zu"
                , __func__
                , path_.name().c_str()
                , path_.str().c_str()

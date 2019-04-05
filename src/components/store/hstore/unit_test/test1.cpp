@@ -190,7 +190,7 @@ TEST_F(KVStore_test, BasicGet1)
   size_t value_len = 0;
   auto r = _kvstore->get(pool, single_key, value, value_len);
   EXPECT_EQ(S_OK, r);
-  PINF("Value=(%.*s) %lu", static_cast<int>(value_len), static_cast<char *>(value), value_len);
+  PINF("Value=(%.*s) %zu", static_cast<int>(value_len), static_cast<char *>(value), value_len);
   EXPECT_EQ(0, memcmp(single_value.data(), value, single_value.size()));
   _kvstore->free_memory(value);
 }
@@ -207,7 +207,7 @@ TEST_F(KVStore_test, BasicReplaceSameSize)
   size_t value_len = 0;
   auto r = _kvstore->get(pool, single_key, value, value_len);
   EXPECT_EQ(S_OK, r);
-  PINF("Value=(%.*s) %lu", static_cast<int>(value_len), static_cast<char *>(value), value_len);
+  PINF("Value=(%.*s) %zu", static_cast<int>(value_len), static_cast<char *>(value), value_len);
   EXPECT_EQ(0, memcmp(single_value_updated_same_size.data(), value, single_value_updated_same_size.size()));
   _kvstore->free_memory(value);
 }
@@ -222,7 +222,7 @@ TEST_F(KVStore_test, BasicReplaceDifferentSize)
   size_t value_len = 0;
   auto r = _kvstore->get(pool, single_key, value, value_len);
   EXPECT_EQ(S_OK, r);
-  PINF("Value=(%.*s) %lu", static_cast<int>(value_len), static_cast<char *>(value), value_len);
+  PINF("Value=(%.*s) %zu", static_cast<int>(value_len), static_cast<char *>(value), value_len);
   EXPECT_EQ(0, memcmp(single_value_updated_different_size.data(), value, single_value_updated_different_size.size()));
   _kvstore->free_memory(value);
 }
@@ -331,7 +331,7 @@ TEST_F(KVStore_test, BasicGet2)
   size_t value_len = 0;
   auto r = _kvstore->get(pool, single_key, value, value_len);
   EXPECT_EQ(S_OK, r);
-  PINF("Value=(%.*s) %lu", static_cast<int>(value_len), static_cast<char *>(value), value_len);
+  PINF("Value=(%.*s) %zu", static_cast<int>(value_len), static_cast<char *>(value), value_len);
   _kvstore->free_memory(value);
 }
 
@@ -446,7 +446,7 @@ TEST_F(KVStore_test, BasicUpdate)
     size_t value_len = 0;
     auto r = _kvstore->get(pool, single_key, value, value_len);
     EXPECT_EQ(S_OK, r);
-    PINF("Value=(%.50s) %lu", static_cast<char *>(value), value_len);
+    PINF("Value=(%.50s) %zu", static_cast<char *>(value), value_len);
     EXPECT_EQ(single_value_updated_different_size.size(), value_len);
     EXPECT_EQ(0, memcmp(single_value_updated3.data(), value, single_value_updated3.size()));
     _kvstore->free_memory(value);
