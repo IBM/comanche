@@ -18,6 +18,7 @@
 
 #include <sys/uio.h> /* iovec */
 
+#include <cinttypes> /* PRIx64 */
 #include <cstdlib>
 #include <functional>
 #include <vector>
@@ -26,6 +27,9 @@
 #include <api/components.h>
 #include <api/block_itf.h>
 #include <api/block_allocator_itf.h>
+
+/* print format for the pool type */
+#define PRIxIKVSTORE_POOL_T PRIx64
 
 namespace Component
 {
