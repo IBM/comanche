@@ -352,10 +352,10 @@ namespace impl
 				, content_unique_lock_t bf
 			) -> content_unique_lock_t;
 
-			template <typename Lock>
+			template <typename Lock, typename K>
 				auto locate_key(
 					Lock &bi
-					, const key_type &k
+					, const K &k
 				) const -> std::tuple<bucket_t *, segment_and_bucket_t>;
 
 			void resize();
@@ -381,6 +381,8 @@ namespace impl
 			) const -> owner_unique_lock_t;
 
 			auto make_owner_shared_lock(const key_type &k) const -> owner_shared_lock_t;
+			template <typename K>
+				auto make_owner_shared_lock_special(const K &k) const -> owner_shared_lock_t;
 			auto make_owner_shared_lock(
 				const segment_and_bucket_t &
 			) const -> owner_shared_lock_t;
@@ -412,7 +414,8 @@ namespace impl
 
 			static auto locate_owner(const segment_and_bucket_t &a) -> const owner &;
 
-			auto bucket(const key_type &) const -> size_type;
+			template <typename K>
+				auto bucket(const K &) const -> size_type;
 			auto bucket_size(const size_type n) const -> size_type;
 
 			auto owned_by_owner_mask(const segment_and_bucket_t &a) const -> owner::value_type;
@@ -453,6 +456,10 @@ namespace impl
 			auto erase(const key_type &key) -> size_type;
 			auto at(const key_type &key) -> mapped_type &;
 			auto at(const key_type &key) const -> const mapped_type &;
+			template <typename K>
+				auto at_special(const K &key) -> mapped_type &;
+			template <typename K>
+				auto at_special(const K &key) const -> const mapped_type &;
 			auto count(const key_type &k) const -> size_type;
 			auto begin() -> iterator
 			{
@@ -680,6 +687,19 @@ template <
 		{
 			return base::count(key);
 		}
+
+		/* lookup special */
+		template <typename K>
+			auto at_special(const K &key) const -> const mapped_type &
+			{
+				return base::at_special(key);
+			}
+
+		template <typename K>
+			auto at_special(const K &key) -> mapped_type &
+			{
+				return base::at_special(key);
+			}
 
 		/* locking */
 		auto lock_shared(const key_type &k) -> bool

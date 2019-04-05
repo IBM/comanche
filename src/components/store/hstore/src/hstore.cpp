@@ -72,7 +72,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cerrno>
-#include <cstring> /* strerror, memcpy */
+#include <cstring> /* strerror, memcmp, memcpy */
 #include <memory> /* unique_ptr */
 #include <new>
 #include <map> /* session set */
@@ -132,9 +132,28 @@ struct pstr_hash
   {
     return CityHash64(s.data(), s.size());
   }
+  static result_type hf(const std::string &s)
+  {
+    return CityHash64(s.data(), s.size());
+  }
+};
+
+struct pstr_equal
+{
+  using argument_type = KEY_T;
+  using result_type = bool;
+  result_type operator()(const argument_type &a, const argument_type &b) const
+  {
+    return a == b;
+  }
+  result_type operator()(const argument_type &a, const std::string &b) const
+  {
+    return a.size() == b.size() && 0 == std::memcmp(a.data(), b.data(), a.size());
+  }
 };
 
 using HASHER_T = pstr_hash;
+using EQUAL_T = pstr_equal;
 
 using allocator_segment_t = ALLOC_T::rebind<std::pair<const KEY_T, MAPPED_T>>::other;
 using allocator_atomic_t = ALLOC_T::rebind<impl::mod_control>::other;
@@ -150,7 +169,7 @@ using table_t =
   KEY_T
   , MAPPED_T
   , HASHER_T
-  , std::equal_to<KEY_T>
+  , EQUAL_T
   , allocator_segment_t
   , hstore_shared_mutex
   >;
