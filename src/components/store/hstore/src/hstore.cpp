@@ -64,6 +64,11 @@
 #include "persister_nupm.h"
 #endif
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+#include <tbb/scalable_allocator.h> /* scalable_free */
+#pragma GCC diagnostic pop
+
 #include <algorithm>
 #include <cassert>
 #include <cerrno>
@@ -309,7 +314,7 @@ status_t hstore::close_pool(const pool_t pid)
     auto pool = move_pool(pid);
     if ( option_DEBUG )
     {
-      PLOG(PREFIX "closed pool (%lx)", __func__, pid);
+      PLOG(PREFIX "closed pool (%" PRIxIKVSTORE_POOL_T ")", __func__, pid);
     }
   }
   catch ( const API_exception &e )
@@ -531,6 +536,12 @@ auto hstore::map(
     ? ( session->map(function), S_OK )
     : E_POOL_NOT_FOUND
     ;
+}
+
+auto hstore::free_memory(void * p) -> status_t
+{
+  scalable_free(p);
+  return S_OK;
 }
 
 auto hstore::atomic_update(

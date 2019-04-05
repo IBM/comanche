@@ -151,6 +151,8 @@ public:
                const void * value,
                const size_t value_len)> function) override;
 
+  status_t free_memory(void * p) override;
+
   void debug(pool_t pool, unsigned cmd, uint64_t arg) override;
 
   status_t _apply(pool_t pool,
