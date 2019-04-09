@@ -132,7 +132,7 @@ public:
 
       // get existing results, read to document variable
       std::lock_guard<std::mutex> g(g_write_lock);
-      
+
       rapidjson::Document document = _get_report_document();
       // save everything
 

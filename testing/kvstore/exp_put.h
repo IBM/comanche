@@ -123,7 +123,7 @@ public:
         BinStatistics start_time_stats = _compute_bin_statistics_from_vectors(_latencies, _start_time, bin_count(), _start_time.front(), _start_time.at(_i-1), _i);
         _debug_print(core, "time_stats created");
 
-        std::lock_guard<std::mutex> g(g_write_lock);        
+        std::lock_guard<std::mutex> g(g_write_lock);
 
         // get existing results, read to document variable
         rapidjson::Document document = _get_report_document();
