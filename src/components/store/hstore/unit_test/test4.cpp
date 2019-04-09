@@ -69,7 +69,7 @@ public:
  *    MB(2048UL)   918925    16        32
  *    MB(4096UL) >2000000    16        32
  *
- * (this table obsoleted, or at least made harder to generate, but use of multiple key and data sizes)
+ * (this table obsoleted, or at least made harder to generate, by use of multiple key and data sizes)
  */
 
 using namespace Component;
@@ -199,7 +199,14 @@ TEST_F(KVStore_test, RemoveOldPool)
 
 TEST_F(KVStore_test, CreatePools)
 {
+  /* time to create pools, in estimate objects / second */
   ASSERT_TRUE(_kvstore);
+  timer t(
+    [] (timer::duration_t d) {
+      auto seconds = std::chrono::duration<double>(d).count();
+      std::cerr << "create pool" << " " << estimated_object_count * pool.size() / seconds << " estimated objects per second\n";
+    }
+  );
   for ( auto i = 0; i != pool.size(); ++i )
   {
     pool[i] = _kvstore->create_pool(pool_name(i), GB(12UL), 0, estimated_object_count);
@@ -403,6 +410,39 @@ TEST_F(KVStore_test, GetManyLongLong)
 }
 
 TEST_F(KVStore_test, ClosePool)
+{
+  timer t(
+    [] (timer::duration_t d) {
+      auto seconds = std::chrono::duration<double>(d).count();
+      std::cerr << "close pool" << " " << multi_count_actual / seconds << " objects per second\n";
+    }
+  );
+  for ( auto p : pool )
+  {
+    if ( _kvstore && 0 < int64_t(p) )
+    {
+      _kvstore->close_pool(p);
+    }
+  }
+}
+
+TEST_F(KVStore_test, OpenPool2)
+{
+  timer t(
+    [] (timer::duration_t d) {
+      auto seconds = std::chrono::duration<double>(d).count();
+      std::cerr << "open pool" << " " << multi_count_actual / seconds << " objects per second\n";
+    }
+  );
+  ASSERT_TRUE(_kvstore);
+  for ( auto i = 0; i != pool.size(); ++i )
+  {
+    pool[i] = _kvstore->open_pool(pool_name(i));
+    ASSERT_LT(0, int64_t(pool[i]));
+  }
+}
+
+TEST_F(KVStore_test, ClosePool2)
 {
   for ( auto p : pool )
   {
