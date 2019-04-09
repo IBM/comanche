@@ -110,6 +110,9 @@ public:
    * BOTH service the completion queues and service those events
    * stalled previously
    *
+   *  completion_flags, FI_{SEND,RECV,RMA,ATOMIC,MSG,TAGGED,MULTICAST,(REMOTE_)?READ,(REMOTE_)?WRITE,REMOTE_CQ_DATA,MULTI_RECV},
+   *  are described in "man fi_cq" and defined in libfabric/include/rdma/fabric.h
+   *
    * @param completion_callback (context_t, completion_flags, std::size_t len, status_t status, void* error_data)
    *
    * @return Number of completions processed
