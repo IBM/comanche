@@ -4,6 +4,7 @@
 #include "exp_put.h"
 #include "exp_get.h"
 #include "exp_get_direct.h"
+#include "exp_insert_erase.h"
 #include "exp_put_direct.h"
 #include "exp_throughput.h"
 #include "exp_update.h"
@@ -64,6 +65,7 @@ namespace
     { "get_direct", run_exp<ExperimentGetDirect> },
     { "put_direct", run_exp<ExperimentPutDirect> },
     { "throughput", run_exp<ExperimentThroughput> },
+    { "insert_erase", run_exp<ExperimentInsertErase> },
     { "update", run_exp<ExperimentUpdate> },
   };
 }
