@@ -26,6 +26,7 @@ public:
   bool verbose;
   bool summary;
   unsigned read_pct;
+  unsigned insert_erase_pct;
   /* finalized later */
   std::string devices;
   unsigned time_secs;

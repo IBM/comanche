@@ -12,10 +12,13 @@
 ExperimentInsertErase::ExperimentInsertErase(const ProgramOptions &options)
   : Experiment("insert/erase", options)
   , _i(0)
+  , _populated{}
   , _start_time()
   , _latencies()
   , _latency_stats()
   , _rnd{}
+  , _pos_rnd(0, pool_num_objects() - 1)
+  , _k0_rnd(0, 255)
 {
 }
 
@@ -31,15 +34,9 @@ bool ExperimentInsertErase::do_work(unsigned core)
   {
     _pool_element_end = -1;
 
-    for ( auto kv : *g_data )
-    {
-      /* first byte of key set to zero for data elements not currently in table.
-       * Begin with a full table, so all first bytes non-zero
-       */
-      kv.key[0] = '\001';
-    }
     // seed the pool with elements from _data
     _populate_pool_to_capacity(core);
+    _populated = std::vector<bool>(pool_num_objects(), true);
 
     wait_for_delayed_start(core);
 
@@ -58,20 +55,25 @@ bool ExperimentInsertErase::do_work(unsigned core)
   // generate a new random value with the same value length to use
   auto new_val = Common::random_string(g_data->value_len());
 
-  std::uniform_int_distribution<std::size_t> pos_rnd(0, pool_num_objects() - 1);
-  std::uniform_int_distribution<std::uint8_t> key_mod(1, 255);
+  const char *op = "unknown";
   // check time it takes to complete a single put operation
   try
   {
-    auto pos = pos_rnd(_rnd);
-    auto k0 = key_mod(_rnd);
+    auto pos = _pos_rnd(_rnd);
     KV_pair &data = g_data->_data[pos];
+
+    op = _populated[pos] ? "erase" : "insert";
+    /* Randomize key for insert so the same keys are not continually reused */
+    if ( ! _populated[pos] )
+    {
+      data.key[0] = _k0_rnd(_rnd);
+    }
 
     StopwatchInterval si(timer);
     auto rc =
-      data.key[0]
-      ? store()->erase(pool(), g_data->key(_i))
-      : (data.key[0] = k0, store()->put(pool(), data.key, new_val.c_str(), g_data->value_len()))
+      _populated[pos]
+      ? store()->erase(pool(), data.key)
+      : store()->put(pool(), data.key, new_val.c_str(), g_data->value_len())
       ;
     if ( rc != S_OK )
     {
@@ -80,15 +82,16 @@ bool ExperimentInsertErase::do_work(unsigned core)
       PERR("[%u] %s. Exiting.", core, e.str().c_str());
       throw std::runtime_error(e.str());
     }
+    _populated[_i] = ! _populated[_i];
   }
   catch ( std::exception &e )
   {
-    PERR("insert or remove (%s) call threw exception %s! Ending experiment.", test_name().c_str(), e.what());
+    PERR("%s in %s threw exception %s! Ending experiment.", op, test_name().c_str(), e.what());
     throw;
   }
   catch ( ... )
   {
-    PERR("insert or remove (%s) call threw exception! Ending experiment.", test_name().c_str());
+    PERR("%s in %s threw unknown object! Ending experiment.", op, test_name().c_str());
     throw;
   }
 
