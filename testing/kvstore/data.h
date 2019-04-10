@@ -61,6 +61,26 @@ public:
     delete [] _data;
   }
 
+  auto begin() -> KV_pair *
+  {
+    return _data;
+  }
+
+  auto begin() const -> const KV_pair *
+  {
+    return _data;
+  }
+
+  auto end() -> KV_pair *
+  {
+    return _data + _num_elements;
+  }
+
+  auto end() const -> const KV_pair *
+  {
+    return _data + _num_elements;
+  }
+
   void initialize_data(KV_pair *data)
   {
     PLOG("Initializing data: %d key length, %d value length, %d elements....",
