@@ -12,12 +12,14 @@
 ExperimentInsertErase::ExperimentInsertErase(const ProgramOptions &options)
   : Experiment("insert/erase", options)
   , _i(0)
-  , _populated{}
+  , _populated(pool_num_objects(), false)
   , _start_time()
   , _latencies()
   , _latency_stats()
   , _rnd{}
+#if 0
   , _pos_rnd(0, pool_num_objects() - 1)
+#endif
   , _k0_rnd(0, 255)
 {
 }
@@ -32,11 +34,11 @@ bool ExperimentInsertErase::do_work(unsigned core)
   // handle first time setup
   if ( _first_iter )
   {
-    _pool_element_end = -1;
+    _pool_element_end = 0;
 
     // seed the pool with elements from _data
     _populate_pool_to_capacity(core);
-    _populated = std::vector<bool>(pool_num_objects(), true);
+    std::fill(_populated.begin() + pool_element_start(), _populated.begin() + pool_element_end(), true);
 
     wait_for_delayed_start(core);
 
@@ -59,7 +61,8 @@ bool ExperimentInsertErase::do_work(unsigned core)
   // check time it takes to complete a single put operation
   try
   {
-    auto pos = _pos_rnd(_rnd);
+    std::uniform_int_distribution<std::size_t> pos_rnd(0, pool_element_end()-1);
+    auto pos = pos_rnd(_rnd);
     KV_pair &data = g_data->_data[pos];
 
     op = _populated[pos] ? "erase" : "insert";
@@ -78,11 +81,11 @@ bool ExperimentInsertErase::do_work(unsigned core)
     if ( rc != S_OK )
     {
       std::ostringstream e;
-      e << "_pool_element_end = " << _pool_element_end << " put rc != S_OK: " << rc << " @ _i = " << _i;
+      e << "pool_element_end = " << pool_element_end() << " put rc != S_OK: " << rc << " @ pos = " << pos;
       PERR("[%u] %s. Exiting.", core, e.str().c_str());
       throw std::runtime_error(e.str());
     }
-    _populated[_i] = ! _populated[_i];
+    _populated[pos].flip();
   }
   catch ( std::exception &e )
   {
@@ -105,15 +108,13 @@ bool ExperimentInsertErase::do_work(unsigned core)
   _latencies.push_back(lap_time);
   _latency_stats.update(lap_time);
 
-  _enforce_maximum_pool_size(core, _i);
-
   ++_i;  // increment after running so all elements get used
 
 /* Temporarily disabled since erase step isn't supported on all components yet -TJanssen 1/30/2019 */
 #if 0
-  if (_i == _pool_element_end + 1) {
+  if (_i == pool_element_end()) {
     try {
-      _erase_pool_entries_in_range(_pool_element_start, _pool_element_end);
+      _erase_pool_entries_in_range(_pool_element_start, pool_element_end());
       _populate_pool_to_capacity(core);
     }
     catch(...) {

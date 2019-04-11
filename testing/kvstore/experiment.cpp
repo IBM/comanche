@@ -156,6 +156,8 @@ Experiment::Experiment(std::string name_, const ProgramOptions &options)
   , timer()
   , _verbose(options.verbose)
   , _summary(options.summary)
+  , _pool_element_start(0)
+  , _pool_element_end(0)
   , _bin_count(options.bin_count)
   , _bin_threshold_min(options.bin_threshold_min)
   , _bin_threshold_max(options.bin_threshold_max)
@@ -1116,7 +1118,7 @@ void Experiment::_populate_pool_to_capacity(unsigned core, Component::IKVStore::
   }
 
   bool can_add_more_elements;
-  unsigned long current = _pool_element_end + 1;  // first run: should be 0 (start index)
+  unsigned long current = _pool_element_end;  // first run: should be 0 (start index)
   long maximum_elements = -1;
   _pool_element_start = current;
 
@@ -1207,7 +1209,7 @@ void Experiment::_populate_pool_to_capacity(unsigned core, Component::IKVStore::
   }
   while ( can_add_more_elements );
 
-  _pool_element_end = current - 1;
+  _pool_element_end = current;
 
   if (_verbose)
   {
@@ -1297,7 +1299,7 @@ void Experiment::_erase_pool_entries_in_range(std::size_t start, std::size_t fin
 {
   if (_verbose)
   {
-    std::cout << "erasing pool entries in range " << start << " to " << finish << std::endl;
+    std::cout << "erasing pool entries in [" << start << ".." << finish << ")" << std::endl;
   }
 
   try

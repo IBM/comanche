@@ -81,9 +81,9 @@ private:
   long _element_size_on_disk = -1; // floor: filesystem block size
   long _element_size = -1; // raw amount of file data (bytes)
   long _elements_in_use = 0;
-  long _pool_element_start = 0;
+  unsigned long _pool_element_start;
 public:
-  long _pool_element_end = -1;
+  unsigned long _pool_element_end;
 private:
   long _elements_stored = 0;
   unsigned long _total_data_processed = 0;  // for use with throughput calculation
@@ -124,8 +124,8 @@ public:
   bool is_summary() const { return _summary; }
   unsigned long total_data_processed() const { return _total_data_processed; }
   bool is_json_reporting() const { return _do_json_reporting; }
-  long pool_element_start() const { return _pool_element_start; }
-  long pool_element_end() const { return _pool_element_end; }
+  unsigned long pool_element_start() const { return _pool_element_start; }
+  unsigned long pool_element_end() const { return _pool_element_end; }
   bool component_is(const std::string &c) const { return _component == c; }
   unsigned long long pool_size() const { return _pool_size; }
   Component::IKVStore::memory_handle_t memory_handle() const { return _memory_handle; }

@@ -39,7 +39,6 @@ class ExperimentThroughput : public Experiment
   bool _continuous;
   std::string _hostname;
   std::mt19937_64 _rnd;
-  std::uniform_int_distribution<std::size_t> _pos_rnd;
   std::uniform_int_distribution<std::uint8_t> _k0_rnd;
 
   static bool _stop;
