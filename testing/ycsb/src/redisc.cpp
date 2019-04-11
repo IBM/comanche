@@ -15,6 +15,9 @@ void RedisC::init(Properties &props, unsigned core)
   size_t mid     = address.find(":");
   string host    = address.substr(0, mid);
   int    port    = stoi(address.substr(mid + 1));
+  int    rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  port += rank / 6;
   c              = redisConnect(host.c_str(), port);
   assert(c);
   if (c->err) {
@@ -31,7 +34,7 @@ int RedisC::get(const string &table,
 {
   reply = (redisReply *) redisCommand(c, "GET %s", key.c_str());
   if (reply == NULL) return -1;
-  assert(strlen(reply->str) == strlen(value));
+  // assert(strlen(reply->str) == strlen(value));
   memcpy(value, reply->str, strlen(value));
   freeReplyObject(reply);
   return 0;
