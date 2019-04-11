@@ -27,7 +27,7 @@
 
 //#define TEST_PERF_SMALL_PUT
 //#define TEST_PERF_SMALL_GET_DIRECT
-//#define TEST_PERF_LARGE_PUT_DIRECT
+#define TEST_PERF_LARGE_PUT_DIRECT
 //#define TEST_PERF_LARGE_GET_DIRECT
 
 //#define TEST_SCALE_IOPS
@@ -211,6 +211,7 @@ TEST_F(Dawn_client_test, OpenCloseDelete)
   PLOG("OpenCloseDelete Test OK");
 }
 
+#if 0
 TEST_F(Dawn_client_test, GetNotExist)
 {
   PMAJOR("Running PutGet...");
@@ -239,7 +240,7 @@ TEST_F(Dawn_client_test, GetNotExist)
   free(pv);
   PLOG("GetNotExist OK!");
 }
-
+#endif 
 TEST_F(Dawn_client_test, BasicPutAndGet)
 {
   PMAJOR("Running BasicPutGet...");
