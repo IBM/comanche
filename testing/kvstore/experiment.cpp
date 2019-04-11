@@ -1117,7 +1117,6 @@ void Experiment::_populate_pool_to_capacity(unsigned core, Component::IKVStore::
     std::cout << "_populate_pool_to_capacity start: _pool_num_components = " << _pool_num_objects << ", _elements_stored = " << _elements_stored << ", _pool_element_end = " << _pool_element_end << std::endl;
   }
 
-  bool can_add_more_elements;
   unsigned long current = _pool_element_end;  // first run: should be 0 (start index)
   long maximum_elements = -1;
   _pool_element_start = current;
@@ -1129,7 +1128,10 @@ void Experiment::_populate_pool_to_capacity(unsigned core, Component::IKVStore::
     _debug_print(core, debug_start.str());
   }
 
-  do
+  bool can_add_more_in_batch = (current - _pool_element_start) != static_cast<unsigned long>(maximum_elements);
+  bool can_add_more_overall = current != _pool_num_objects;
+
+  while ( can_add_more_in_batch && can_add_more_overall )
   {
     try
     {
@@ -1189,25 +1191,19 @@ void Experiment::_populate_pool_to_capacity(unsigned core, Component::IKVStore::
 
     ++current;
 
-    bool can_add_more_in_batch = (current - _pool_element_start) != static_cast<unsigned long>(maximum_elements);
-    bool can_add_more_overall = current != _pool_num_objects;
-
-    can_add_more_elements = can_add_more_in_batch && can_add_more_overall;
-
-    if ( ! can_add_more_elements )
-    {
-      if ( ! can_add_more_in_batch )
-      {
-        _debug_print(core, "reached capacity", true);
-      }
-
-      if ( ! can_add_more_overall )
-      {
-        _debug_print(core, "reached last element", true);
-      }
-    }
+    can_add_more_in_batch = (current - _pool_element_start) != static_cast<unsigned long>(maximum_elements);
+    can_add_more_overall = current != _pool_num_objects;
   }
-  while ( can_add_more_elements );
+
+  if ( ! can_add_more_in_batch )
+  {
+    _debug_print(core, "reached capacity", true);
+  }
+
+  if ( ! can_add_more_overall )
+  {
+    _debug_print(core, "reached last element", true);
+  }
 
   _pool_element_end = current;
 
