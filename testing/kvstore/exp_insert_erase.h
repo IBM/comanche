@@ -17,7 +17,6 @@ class ExperimentInsertErase : public Experiment
   std::vector<double> _latencies;
   BinStatistics _latency_stats;
   std::mt19937_64 _rnd;
-  std::uniform_int_distribution<std::size_t> _pos_rnd;
   std::uniform_int_distribution<std::uint8_t> _k0_rnd;
 
 public:

@@ -41,6 +41,7 @@ public:
   int debug_level;
   boost::optional<std::chrono::system_clock::time_point> start_time;
   boost::optional<unsigned> duration;
+  unsigned report_interval;
   std::string owner;
   std::string server_address;
   unsigned port;
