@@ -390,27 +390,11 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
 
     /* register memory unless pre-registered */
     Connection_base::memory_region_t region = nullptr;  // TODO handler->get_preregistered(pool_id);
-
-    if (option_DEBUG > 2) {
-      PLOG("registering locked value: %p %lu", target, target_len);
-    }
-  
-      
-    // if(!region) {
-    //   if(option_DEBUG || 1)
-    //     PLOG("using ondemand registration");
-    //   region = ondemand_register(handler, target, target_len);
-    // }
-    // else {
-    //   if(option_DEBUG > 2)
-    //     PLOG("using pre-registered region (handle=%p)", region);
-    // }
-    // assert(region);
-    // TODO
     region = handler->ondemand_register(target, target_len);
+    //    region = handler->transport()->register_memory(target, target_len, 0, 0); // 
 
+    /* set up value memory to receive value from network */
     handler->set_pending_value(target, target_len, region);
-
     return;
   }
   
@@ -496,8 +480,8 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
       assert(value_out_len);
       assert(value_out);
 
-      if (value_out_len <
-          (iob->original_length - response->base_message_size())) {
+//      if (value_out_len < (iob->original_length - response->base_message_size())) {
+      if (value_out_len < KiB(64)) { // TODO set as static var - (iob->original_length - response->base_message_size())) { 
         /* value can fit in message buffer, let's copy instead of
            performing two-part DMA */
         if (option_DEBUG > 2) PLOG("shard: performing memcpy for small get");

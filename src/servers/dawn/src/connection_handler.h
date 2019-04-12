@@ -46,7 +46,7 @@ class Connection_handler
     , public Pool_manager {
  private:
 
-  bool option_DEBUG = Dawn::Global::debug_level > 1;
+  unsigned option_DEBUG = Dawn::Global::debug_level;
   static constexpr uint64_t STALL_TICKS = 20; /*< number of ticks to stall after post */
   
   /* Adaptor point for different transports */
