@@ -15,6 +15,7 @@ class ExperimentThroughput : public Experiment
 {
   struct op_count
   {
+    const char *name;
     unsigned long total;
     unsigned long interval;
     op_count &operator++() { ++total; ++interval; return *this; }
@@ -30,7 +31,8 @@ class ExperimentThroughput : public Experiment
   unsigned _rd_pct;
   unsigned _ie_pct;
   op_count _op_count_rd;
-  op_count _op_count_wr;
+  op_count _op_count_in;
+  op_count _op_count_up;
   op_count _op_count_er;
   static unsigned long _iops;
   static std::mutex _iops_lock;
