@@ -60,7 +60,7 @@ IKVStore::pool_t Dummy_store::create_pool(const std::string& name,
                                           uint64_t args)
 {
   const std::string& fullpath = name;
-  PLOG("Dummy_store::create_pool (%s)", fullpath.c_str());
+  PLOG("Dummy_store::create_pool (%s,size=%lu)", fullpath.c_str(), size);
     
   auto uuid = CityHash64(fullpath.c_str(), fullpath.length());
   void * p = _ddm->create_region(uuid, 0, size);
@@ -149,14 +149,13 @@ status_t Dummy_store::get(const pool_t pid,
   assert(out_value_len > 0);
   /* select some random location in the region */
   /* note:alignement makes a huge difference */
-  uint64_t offset = round_down(genrand64_int64() % (GB(16) - out_value_len), 64);
-  void * p = (void*) (((uint64_t)i->second.first) + offset);
+  uint64_t offset = round_down(genrand64_int64() % (i->second.second - 64), 64);
+  void * p = (void*) (((char*)i->second.first) + offset);
 
   /* copy */
-  if(out_value == nullptr) {
-    out_value = malloc(64);
-    out_value_len = 64;
-  }
+  out_value = malloc(64);
+  out_value_len = 64;
+
   memcpy(out_value, p, out_value_len);
   return S_OK;
 }
@@ -167,9 +166,19 @@ status_t Dummy_store::get_direct(const pool_t pid,
                                size_t& out_value_len,
                                Component::IKVStore::memory_handle_t handle)
 {
-  if(out_value_len < 32) return E_FAIL;
-  memset(out_value, 'a', 32);
-  out_value_len = 32;
+    auto i = sessions.find(pid);
+  if(i == sessions.end())
+    throw API_exception("delete_pool bad pool for Dummy_store");
+
+  assert(out_value_len > 0);
+  /* select some random location in the region */
+  /* note:alignement makes a huge difference */
+  uint64_t offset = round_down(genrand64_int64() % (i->second.second - 64), 64);
+  void * p = (void*) (((char*)i->second.first) + offset);
+
+  out_value_len = 64;
+
+  memcpy(out_value, p, out_value_len);
   return S_OK;
 }
 
