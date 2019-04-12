@@ -27,7 +27,7 @@ bool ExperimentUpdate::do_work(unsigned core)
   // handle first time setup
   if(_first_iter)
   {
-    _pool_element_end = -1;
+    _pool_element_end = 0;
 
     // seed the pool with elements from _data
     _populate_pool_to_capacity(core);
@@ -56,7 +56,7 @@ bool ExperimentUpdate::do_work(unsigned core)
     if ( rc != S_OK )
     {
       std::ostringstream e;
-      e << "_pool_element_end = " << _pool_element_end << " put rc != S_OK: " << rc << " @ _i = " << _i;
+      e << "pool_element_end = " << pool_element_end() << " put rc != S_OK: " << rc << " @ _i = " << _i;
       PERR("[%u] %s. Exiting.", core, e.str().c_str());
       throw std::runtime_error(e.str());
     }
@@ -88,9 +88,9 @@ bool ExperimentUpdate::do_work(unsigned core)
 
 /* Temporarily disabled since erase step isn't supported on all components yet -TJanssen 1/30/2019 */
 #if 0
-  if (_i == _pool_element_end + 1) {
+  if (_i == pool_element_end()) {
     try {
-      _erase_pool_entries_in_range(_pool_element_start, _pool_element_end);
+      _erase_pool_entries_in_range(_pool_element_start, pool_element_end());
       _populate_pool_to_capacity(core);
     }
     catch(...) {

@@ -84,6 +84,7 @@ try
   , debug_level(vm_["debug_level"].as<int>())
   , start_time(vm_.count("start_time") ? parse_local_hh_mm(vm_["start_time"].as<std::string>()) : boost::optional<std::chrono::system_clock::time_point>() )
   , duration(vm_.count("duration") ? vm_["duration"].as<unsigned>() : boost::optional<unsigned>() )
+  , report_interval(vm_["report_interval"].as<unsigned>())
   , owner(vm_["owner"].as<std::string>())
   , server_address(vm_["server"].as<std::string>())
   , port(vm_["port"].as<unsigned>())
@@ -159,5 +160,6 @@ void ProgramOptions::add_program_options(
     ("skip_json_reporting", "disables creation of json report file")
     ("continuous", "enables never-ending execution, if possible")
     ("duration", po::value<unsigned>(), "throughput test duration, in seconds")
+    ("report_interval", po::value<unsigned>()->default_value(5), "throughput test report interval, in seconds. Default: 5")
     ;
 }
