@@ -28,7 +28,7 @@
 //#define TEST_PERF_SMALL_PUT
 //#define TEST_PERF_SMALL_GET_DIRECT
 #define TEST_PERF_LARGE_PUT_DIRECT
-//#define TEST_PERF_LARGE_GET_DIRECT
+#define TEST_PERF_LARGE_GET_DIRECT
 
 //#define TEST_SCALE_IOPS
 
@@ -507,7 +507,7 @@ TEST_F(Dawn_client_test, PerfLargePutDirect)
 
   static constexpr unsigned long PER_ITERATION = 4;
   static constexpr unsigned long ITERATIONS    = 10;
-  static constexpr unsigned long VALUE_SIZE    = MB(512);
+  static constexpr unsigned long VALUE_SIZE    = MB(128);
   static constexpr unsigned long KEY_SIZE      = 16;
 
   struct record_t {
@@ -568,7 +568,7 @@ TEST_F(Dawn_client_test, PerfLargeGetDirect)
 
   static constexpr unsigned long PER_ITERATION = 4;
   static constexpr unsigned long ITERATIONS    = 10;
-  static constexpr unsigned long VALUE_SIZE    = MB(64);
+  static constexpr unsigned long VALUE_SIZE    = MB(128);
   static constexpr unsigned long KEY_SIZE      = 16;
 
   struct record_t {

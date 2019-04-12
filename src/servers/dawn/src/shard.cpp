@@ -188,7 +188,7 @@ void Shard::main_loop()
       /* handle pending close sessions */
       if (!pending_close.empty()) {
         for (auto& h : pending_close) {
-          if (option_DEBUG > 1 || 1) {
+          if (option_DEBUG > 1) {
             PLOG("Deleting handler (%p)", h);
           }
           assert(h);
@@ -345,6 +345,10 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
   using namespace Component;
   int status = S_OK;
 
+  const auto iob = handler->allocate();
+  assert(iob);
+  
+
   /////////////////////////////////////////////////////////////////////////////
   //   PUT ADVANCE   //
   /////////////////////
@@ -386,22 +390,29 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
       throw Logic_exception("locked value length mismatch");
 
     auto pool_id = msg->pool_id;
+
+    /* register clean up task for value */
     add_locked_value(pool_id, key_handle, target);
 
     /* register memory unless pre-registered */
-    Connection_base::memory_region_t region = nullptr;  // TODO handler->get_preregistered(pool_id);
-    region = handler->ondemand_register(target, target_len);
-    //    region = handler->transport()->register_memory(target, target_len, 0, 0); // 
+    Connection_base::memory_region_t region = handler->ondemand_register(target, target_len);
 
     /* set up value memory to receive value from network */
     handler->set_pending_value(target, target_len, region);
+
+    Protocol::Message_IO_response* response = new (iob->base())
+      Protocol::Message_IO_response(iob->length(), handler->auth_id());
+    response->request_id = msg->request_id;
+    response->status     = S_OK;
+
+    iob->set_length(response->msg_len);
+    
+    handler->post_send_buffer(iob);
+    
     return;
   }
   
  send_response:
-  /* states that we require a response */
-  const auto iob = handler->allocate();
-  assert(iob);
   
   Protocol::Message_IO_response* response = new (iob->base())
       Protocol::Message_IO_response(iob->length(), handler->auth_id());
