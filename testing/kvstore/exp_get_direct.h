@@ -154,7 +154,7 @@ public:
 
         ++_i;  // increment after running so all elements get used
 
-       if (_i == std::size_t(pool_element_end()) + 1)
+       if (_i == std::size_t(pool_element_end()))
        {
             _erase_pool_entries_in_range(pool_element_start(), pool_element_end());
            _populate_pool_to_capacity(core, _direct_memory_handle);

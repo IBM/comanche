@@ -1,35 +1,28 @@
-#include "exp_insert_erase.h"
+#include "exp_erase.h"
 
 #include "data.h"
 
 #include <common/str_utils.h>
 
 #include <mutex>
-#include <random>
 #include <sstream>
 #include <stdexcept>
 
-ExperimentInsertErase::ExperimentInsertErase(const ProgramOptions &options)
-  : Experiment("insert/erase", options)
+ExperimentErase::ExperimentErase(const ProgramOptions &options)
+  : Experiment("erase", options)
   , _i(0)
-  , _populated(pool_num_objects(), false)
   , _start_time()
   , _latencies()
   , _latency_stats()
-  , _rnd{}
-#if 0
-  , _pos_rnd(0, pool_num_objects() - 1)
-#endif
-  , _k0_rnd(0, 255)
 {
 }
 
-void ExperimentInsertErase::initialize_custom(unsigned /* core */)
+void ExperimentErase::initialize_custom(unsigned /* core */)
 {
   _latency_stats = BinStatistics(bin_count(), bin_threshold_min(), bin_threshold_max());
 }
 
-bool ExperimentInsertErase::do_work(unsigned core)
+bool ExperimentErase::do_work(unsigned core)
 {
   // handle first time setup
   if ( _first_iter )
@@ -38,11 +31,11 @@ bool ExperimentInsertErase::do_work(unsigned core)
 
     // seed the pool with elements from _data
     _populate_pool_to_capacity(core);
-    std::fill(_populated.begin() + pool_element_start(), _populated.begin() + pool_element_end(), true);
 
     wait_for_delayed_start(core);
 
     PLOG("[%u] Starting %s experiment...", core, test_name().c_str());
+    PLOG("[%u] num objects %ld", core, pool_num_objects());
 
     _first_iter = false;
   }
@@ -54,38 +47,24 @@ bool ExperimentInsertErase::do_work(unsigned core)
     return false;
   }
 
+  const char *op = "erase";
   // generate a new random value with the same value length to use
   auto new_val = Common::random_string(g_data->value_len());
 
-  const char *op = "unknown";
-  // check time it takes to complete a single put operation
+  // check time it takes to complete a single erase operation
   try
   {
-    std::uniform_int_distribution<std::size_t> pos_rnd(0, pool_element_end()-1);
-    auto pos = pos_rnd(_rnd);
-    KV_pair &data = g_data->_data[pos];
-
-    op = _populated[pos] ? "erase" : "insert";
-    /* Randomize key for insert so the same keys are not continually reused */
-    if ( ! _populated[pos] )
-    {
-      data.key[0] = _k0_rnd(_rnd);
-    }
+    KV_pair &data = g_data->_data[_i];
 
     StopwatchInterval si(timer);
-    auto rc =
-      _populated[pos]
-      ? store()->erase(pool(), data.key)
-      : store()->put(pool(), data.key, new_val.c_str(), g_data->value_len())
-      ;
+    auto rc = store()->erase(pool(), data.key);
     if ( rc != S_OK )
     {
       std::ostringstream e;
-      e << "pool_element_end = " << pool_element_end() << " put rc != S_OK: " << rc << " @ pos = " << pos;
+      e << "pool_element_end = " << pool_element_end() << " erase rc != S_OK: " << rc << " @ _i = " << _i;
       PERR("[%u] %s. Exiting.", core, e.str().c_str());
       throw std::runtime_error(e.str());
     }
-    _populated[pos].flip();
   }
   catch ( std::exception &e )
   {
@@ -111,10 +90,9 @@ bool ExperimentInsertErase::do_work(unsigned core)
   ++_i;  // increment after running so all elements get used
 
 /* Temporarily disabled since erase step isn't supported on all components yet -TJanssen 1/30/2019 */
-#if 0
+#if 1
   if (_i == pool_element_end()) {
     try {
-      _erase_pool_entries_in_range(_pool_element_start, pool_element_end());
       _populate_pool_to_capacity(core);
     }
     catch(...) {
@@ -122,7 +100,7 @@ bool ExperimentInsertErase::do_work(unsigned core)
       throw;
     }
 
-    if (_verbose) {
+    if ( is_verbose() ) {
       std::stringstream debug_message;
       debug_message << "pool repopulated: " << _i;
       _debug_print(core, debug_message.str());
@@ -132,7 +110,7 @@ bool ExperimentInsertErase::do_work(unsigned core)
   return true;
 }
 
-void ExperimentInsertErase::cleanup_custom(unsigned core)
+void ExperimentErase::cleanup_custom(unsigned core)
 try {
   _debug_print(core, "cleanup_custom started");
 

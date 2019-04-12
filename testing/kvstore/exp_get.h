@@ -36,7 +36,7 @@ public:
     // handle first time setup
     if(_first_iter)
     {
-      _pool_element_end = -1;
+      _pool_element_end = 0;
       // seed the pool with elements from _data
       _populate_pool_to_capacity(core);
 
@@ -67,7 +67,7 @@ public:
         if ( rc != S_OK )
         {
           std::ostringstream e;
-          e << "_pool_element_end = " << pool_element_end() << " get rc != S_OK: " << rc << " @ _i = " << _i;
+          e << "pool_element_end = " << pool_element_end() << " get rc != S_OK: " << rc << " @ _i = " << _i;
           PERR("[%u] %s. Exiting.", core, e.str().c_str());
           throw std::runtime_error(e.str());
         }
@@ -92,7 +92,7 @@ public:
 
     ++_i;  // increment after running so all elements get used
 
-    if (_i == unsigned(pool_element_end()) + 1)
+    if (_i == pool_element_end())
     {
       try
       {

@@ -35,21 +35,21 @@ ExperimentThroughput::ExperimentThroughput(const ProgramOptions &options)
   , _populated(pool_num_objects(), false)
   , _start_time()
   , _report_time()
-  , _report_interval(std::chrono::seconds(5))
+  , _report_interval(std::chrono::seconds(options.report_interval))
   , _rand_engine()
   , _rand_pct(0, 99)
   , _rd_pct(options.read_pct)
   , _ie_pct(options.insert_erase_pct)
-  , _op_count_rd{0, 0}
-  , _op_count_wr{0, 0}
-  , _op_count_er{0, 0}
+  , _op_count_rd{"read", 0, 0}
+  , _op_count_in{"insert", 0, 0}
+  , _op_count_up{"update", 0, 0}
+  , _op_count_er{"erase", 0, 0}
   , _sw_rd()
   , _sw_wr()
   , _continuous(options.continuous)
   , _hostname(gethostname())
   , _rnd{}
-  , _pos_rnd(0, pool_num_objects() - 1)
-  , _k0_rnd(0, 255)
+  , _k0_rnd(33, 126)
 {
 }
 
@@ -69,6 +69,10 @@ bool ExperimentThroughput::do_work(unsigned core)
   // handle first time setup
   if ( _first_iter )
   {
+    // seed the pool with elements from _data
+    _populate_pool_to_capacity(core);
+    std::fill(_populated.begin() + pool_element_start(), _populated.begin() + pool_element_end(), true);
+
     wait_for_delayed_start(core);
 
     PLOG("[%u] Starting Throughput experiment (value len:%lu)...", core, g_data->value_len());
@@ -87,40 +91,50 @@ bool ExperimentThroughput::do_work(unsigned core)
     }
   }
 
+  op_count *ct = &_op_count_rd;
   auto rnd_pct = _rand_pct(_rand_engine);
   /* If fully populated and the randomly chosen operation is "read" */
-  const char *op = "unknown";
   try
   {
-    if ( pool_num_objects() <= _op_count_wr.total && rnd_pct < _rd_pct )
+    if ( rnd_pct < _rd_pct )
     {
-      if ( _populated[_i_rd] )
+      auto p = std::find(_populated.begin() + _i_rd, _populated.end(), true);
+      if ( p == _populated.end() )
       {
-        op = "read";
+        p = std::find(_populated.begin(), _populated.end(), true);
+      }
+      if ( p != _populated.end() )
+      {
+        _i_rd = p - _populated.begin();
         void * pval = 0;
         size_t pval_len;
+        const KV_pair &data = g_data->_data[_i_rd];
         {
           StopwatchInterval si(_sw_rd);
-          auto rc = store()->get(pool(), g_data->key(_i_rd), pval, pval_len);
+          auto rc = store()->get(pool(), data.key, pval, pval_len);
           assert(rc == S_OK);
         }
+#if 0
+        PLOG("%s in %zu key %s", ct->name, _i_rd, data.key.c_str());
+#endif
         store()->free_memory(pval);
-        ++_op_count_rd;
+        ++*ct;
       }
+      ++_i_rd;
     }
     else if ( rnd_pct < _rd_pct + _ie_pct )
     {
       /* random operation is "insert or erase" */
-      auto pos = _pos_rnd(_rnd);
+      std::uniform_int_distribution<std::size_t> pos_rnd(pool_element_start(), pool_element_end() - 1);
+      auto pos = pos_rnd(_rnd);
       KV_pair &data = g_data->_data[pos];
 
-      op = _populated[pos] ? "erase" : "insert";
       /* Randomize key for insert so the same keys are not continually reused */
       if ( ! _populated[pos] )
       {
         data.key[0] = _k0_rnd(_rnd);
       }
-      auto & ct = _populated[pos] ? _op_count_er : _op_count_wr;
+      ct = _populated[pos] ? &_op_count_er : &_op_count_in;
       auto new_val = Common::random_string(g_data->value_len());
       StopwatchInterval si(timer);
       auto rc =
@@ -131,33 +145,41 @@ bool ExperimentThroughput::do_work(unsigned core)
       if ( rc != S_OK )
       {
         std::ostringstream e;
-        e << "_pool_element_end = " << _pool_element_end << " put rc != S_OK: " << rc << " @ pos = " << pos;
+        e << "pool_element_end = " << pool_element_end() << " put rc != S_OK: " << rc << " @ pos = " << pos;
         PERR("[%u] %s. Exiting.", core, e.str().c_str());
         throw std::runtime_error(e.str());
       }
-      ++ct;
-      _populated[pos] = ! _populated[pos];
+#if 0
+      PLOG("%s in %zu key %s", ct->name, pos, data.key.c_str());
+#endif
+      ++*ct;
+      _populated[pos].flip();
     }
     else
     {
-      op = "put";
+      ct = _populated[_i_wr] ? &_op_count_up : &_op_count_in;
+      const KV_pair &data = g_data->_data[_i_wr];
       {
         StopwatchInterval si(_sw_wr);
-        auto rc = store()->put(pool(), g_data->key_as_string(_i_wr), g_data->value(_i_wr), g_data->value_len());
+        auto rc = store()->put(pool(), data.key, data.value.data(), data.value.size());
         assert(rc == S_OK);
       }
-      ++_op_count_wr;
+#if 0
+      PLOG("%s in %zu key %s", ct->name, _i_wr, data.key.c_str());
+#endif
+      _populated[_i_wr] = true;
+      ++*ct;
       ++_i_wr;
     }
   }
   catch ( std::exception &e )
   {
-    PERR("%s in %s threw exception %s! Ending experiment.", op, test_name().c_str(), e.what());
+    PERR("%s in %s threw exception %s! Ending experiment.", ct->name, test_name().c_str(), e.what());
     throw;
   }
   catch ( ... )
   {
-    PERR("%s in %s threw unknown object! Ending experiment.", op, test_name().c_str());
+    PERR("%s in %s threw unknown object! Ending experiment.", ct->name, test_name().c_str());
     throw;
   }
 
@@ -168,7 +190,23 @@ bool ExperimentThroughput::do_work(unsigned core)
     auto ptime_str = to_iso_extended_string(ptime);
 
     double secs = to_seconds(now - _report_time);
-    unsigned long iops = static_cast<unsigned long>(double(_op_count_rd.interval + _op_count_wr.interval + _op_count_er.interval) / secs);
+#if 0
+    const unsigned long iops_rd = static_cast<unsigned long>(double(_op_count_rd.interval) / secs);
+    const unsigned long iops_in = static_cast<unsigned long>(double(_op_count_in.interval) / secs);
+    const unsigned long iops_up = static_cast<unsigned long>(double(_op_count_up.interval) / secs);
+    const unsigned long iops_er = static_cast<unsigned long>(double(_op_count_er.interval) / secs);
+    PLOG(
+      "time %s %s core %u IOps rd %lu in %lu up %lu er %lu"
+      , ptime_str.c_str()
+      , _hostname.c_str()
+      , core
+      , iops_rd
+      , iops_in
+      , iops_up
+      , iops_er
+    );
+#else
+    const unsigned long iops = static_cast<unsigned long>(double(_op_count_rd.interval + _op_count_in.interval + _op_count_up.interval + _op_count_er.interval) / secs);
     PLOG(
       "time %s %s core %u IOps %lu"
       , ptime_str.c_str()
@@ -176,16 +214,17 @@ bool ExperimentThroughput::do_work(unsigned core)
       , core
       , iops
     );
+#endif
     _report_time += _report_interval;
     _op_count_rd.interval = 0;
-    _op_count_wr.interval = 0;
+    _op_count_in.interval = 0;
+    _op_count_up.interval = 0;
     _op_count_er.interval = 0;
-    ++_i_rd;
   }
 
   if ( _continuous || _end_time_directed )
   {
-    _i_rd %= pool_num_objects();
+    _i_rd %= pool_element_end();
     _i_wr %= pool_num_objects();
   }
 
@@ -224,9 +263,9 @@ void ExperimentThroughput::cleanup_custom(unsigned core)
   PLOG("stopwatch : %g secs", _sw_rd.get_time_in_seconds() + _sw_wr.get_time_in_seconds());
   double secs = to_seconds(duration);
   PLOG("wall clock: %g secs", secs);
-  PLOG("op count : rd %lu wr %lu", _op_count_rd.total, _op_count_wr.total, _op_count_er.total);
+  PLOG("op count : rd %lu wr %lu er %lu", _op_count_rd.total, _op_count_in.total + _op_count_up.total, _op_count_er.total);
 
-  unsigned long iops = static_cast<unsigned long>(double(_op_count_rd.total + _op_count_wr.total + _op_count_er.total) / secs);
+  unsigned long iops = static_cast<unsigned long>(double(_op_count_rd.total + _op_count_in.total + _op_count_up.total + _op_count_er.total) / secs);
   PLOG("core %u IOps %lu", core, iops);
 
   {

@@ -156,6 +156,8 @@ Experiment::Experiment(std::string name_, const ProgramOptions &options)
   , timer()
   , _verbose(options.verbose)
   , _summary(options.summary)
+  , _pool_element_start(0)
+  , _pool_element_end(0)
   , _bin_count(options.bin_count)
   , _bin_threshold_min(options.bin_threshold_min)
   , _bin_threshold_max(options.bin_threshold_max)
@@ -1115,8 +1117,7 @@ void Experiment::_populate_pool_to_capacity(unsigned core, Component::IKVStore::
     std::cout << "_populate_pool_to_capacity start: _pool_num_components = " << _pool_num_objects << ", _elements_stored = " << _elements_stored << ", _pool_element_end = " << _pool_element_end << std::endl;
   }
 
-  bool can_add_more_elements;
-  unsigned long current = _pool_element_end + 1;  // first run: should be 0 (start index)
+  unsigned long current = _pool_element_end;  // first run: should be 0 (start index)
   long maximum_elements = -1;
   _pool_element_start = current;
 
@@ -1127,7 +1128,10 @@ void Experiment::_populate_pool_to_capacity(unsigned core, Component::IKVStore::
     _debug_print(core, debug_start.str());
   }
 
-  do
+  bool can_add_more_in_batch = (current - _pool_element_start) != static_cast<unsigned long>(maximum_elements);
+  bool can_add_more_overall = current != _pool_num_objects;
+
+  while ( can_add_more_in_batch && can_add_more_overall )
   {
     try
     {
@@ -1187,27 +1191,21 @@ void Experiment::_populate_pool_to_capacity(unsigned core, Component::IKVStore::
 
     ++current;
 
-    bool can_add_more_in_batch = (current - _pool_element_start) != static_cast<unsigned long>(maximum_elements);
-    bool can_add_more_overall = current != _pool_num_objects;
-
-    can_add_more_elements = can_add_more_in_batch && can_add_more_overall;
-
-    if ( ! can_add_more_elements )
-    {
-      if ( ! can_add_more_in_batch )
-      {
-        _debug_print(core, "reached capacity", true);
-      }
-
-      if ( ! can_add_more_overall )
-      {
-        _debug_print(core, "reached last element", true);
-      }
-    }
+    can_add_more_in_batch = (current - _pool_element_start) != static_cast<unsigned long>(maximum_elements);
+    can_add_more_overall = current != _pool_num_objects;
   }
-  while ( can_add_more_elements );
 
-  _pool_element_end = current - 1;
+  if ( ! can_add_more_in_batch )
+  {
+    _debug_print(core, "reached capacity", true);
+  }
+
+  if ( ! can_add_more_overall )
+  {
+    _debug_print(core, "reached last element", true);
+  }
+
+  _pool_element_end = current;
 
   if (_verbose)
   {
@@ -1297,7 +1295,7 @@ void Experiment::_erase_pool_entries_in_range(std::size_t start, std::size_t fin
 {
   if (_verbose)
   {
-    std::cout << "erasing pool entries in range " << start << " to " << finish << std::endl;
+    std::cout << "erasing pool entries in [" << start << ".." << finish << ")" << std::endl;
   }
 
   try
