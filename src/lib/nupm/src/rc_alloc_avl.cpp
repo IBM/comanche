@@ -81,7 +81,7 @@ class Rca_AVL_internal {
   {
     try {
       auto mr = _allocators[numa_node]->alloc(size, alignment);
-      if (_debug_level > 1) PLOG("allocated: 0x%lx size=%lu", mr->addr(), size);
+      if (_debug_level > 1) PLOG("AVL allocated: 0x%lx size=%lu", mr->addr(), size);
 
       assert(mr);
       return mr->paddr();
