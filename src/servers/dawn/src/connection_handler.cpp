@@ -97,19 +97,17 @@ int Connection_handler::tick()
       break;
     }
     case WAIT_RECV_VALUE: {
-      // if (option_DEBUG > 2) 
-      //   PMAJOR("Shard State: %lu %p WAIT_RECV_VALUE", _tick_count, this);
-
-      auto vp = _posted_value_buffer ?  _posted_value_buffer->base() : nullptr;
+      
       if (check_for_posted_value_complete()) {
 
         if (option_DEBUG > 2) {
           PMAJOR("Shard State: %lu %p WAIT_RECV_VALUE ok", _tick_count, this);
         }
 
+        assert(_posted_value_buffer);
+        
         /* add action to release lock */
-        if(vp)
-          add_pending_action(action_t{ACTION_RELEASE_VALUE_LOCK,vp});
+        add_pending_action(action_t{ACTION_RELEASE_VALUE_LOCK,_posted_value_buffer->base()});
 
         delete _posted_value_buffer; /* delete descriptor */
         _posted_value_buffer = nullptr;
@@ -197,8 +195,7 @@ void Connection_handler::set_pending_value(void *          target,
   auto iov  = new ::iovec{target, target_len};
   auto desc = get_memory_descriptor(region);
   assert(desc);
-  _posted_value_buffer =
-      new buffer_t(target_len); /* allocate buffer descriptor */
+  _posted_value_buffer = new buffer_t(target_len); /* allocate buffer descriptor */
   _posted_value_buffer->iov    = iov;
   _posted_value_buffer->region = region;
   _posted_value_buffer->desc   = desc;

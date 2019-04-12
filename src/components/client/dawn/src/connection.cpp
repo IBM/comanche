@@ -193,6 +193,7 @@ status_t Connection_handler::put(const pool_t pool,
 
   if ((key_len + value_len + sizeof(Dawn::Protocol::Message_IO_request)) >
       Buffer_manager<Component::IFabric_client>::BUFFER_LEN) {
+    PWRN("Dawn_client::put value length (%lu) too long. Use put_direct.", value_len);
     return IKVStore::E_TOO_LARGE;
   }
 
@@ -211,7 +212,7 @@ status_t Connection_handler::put(const pool_t pool,
     msg->resvd |= Dawn::Protocol::MSG_RESVD_SCBE;
 
   iob->set_length(msg->msg_len);
-  //  sync_inject_send(iob);
+
   sync_send(iob);
 
   sync_recv(iob);
@@ -245,28 +246,44 @@ status_t Connection_handler::two_stage_put_direct(
 
   assert(pool);
 
-  if (option_DEBUG)
-    PINF("multi_put_direct: key=(%.*s) key_len=%lu value=(%.20s...) "
-         "value_len=%lu handle=%p",
+  if (option_DEBUG || 1) {
+    PINF("two_stage_put_direct: key=(%.*s) key_len=%lu value=(%.20s...) value_len=%lu handle=%p",
          (int) key_len, (char*) key, key_len, (char*) value, value_len, handle);
+  }
 
   assert(value_len <= _max_message_size);
   assert(value_len > 0);
   
   const auto iob = allocate();
 
-  /* send advance message, this will be followed by partial puts */
+  /* send advance leader message */
   const auto request_id = ++_request_id;
   const auto msg        = new (iob->base())
-      Protocol::Message_IO_request(iob->length(), auth_id(), request_id, pool,
+      Protocol::Message_IO_request(iob->length(), 
+                                   auth_id(), request_id, pool,
                                    Protocol::OP_PUT_ADVANCE,  // op
                                    key, key_len, value_len, flags);
   msg->flags = flags;
   iob->set_length(msg->msg_len);
   sync_inject_send(iob);
-  free_buffer(iob);
 
-  /* send value, then wait for reply */
+  /* wait for response from header before posting the value */
+  {
+    sync_recv(iob);
+    
+    auto response_msg = new (iob->base()) Dawn::Protocol::Message_IO_response();
+    PMAJOR("got response (status=%u) from put direct header",response_msg->status);
+
+    if (response_msg->type_id != Dawn::Protocol::MSG_TYPE_IO_RESPONSE)
+    throw Protocol_exception("expected IO_RESPONSE message - got 0x%x",
+                             response_msg->type_id);
+    if(response_msg->status != S_OK) {
+      free_buffer(iob);
+      return msg->status;
+    }
+  }
+  
+  /* send value */
   buffer_t* value_buffer = reinterpret_cast<buffer_t*>(handle);
   value_buffer->set_length(value_len);
   assert(value_buffer->check_magic());
@@ -276,6 +293,12 @@ status_t Connection_handler::two_stage_put_direct(
          value_buffer->iov->iov_len, value_buffer->region, value_buffer->desc);
 
   sync_send(value_buffer);  // client owns buffer
+
+  free_buffer(iob);
+
+  if (option_DEBUG || 1) {
+    PINF("two_stage_put_direct: complete");
+  }
 
   return S_OK;
 }
@@ -290,6 +313,11 @@ status_t Connection_handler::put_direct(
 {
   API_LOCK();
 
+  if (handle == IKVStore::HANDLE_NONE) {
+    PWRN("put_direct: memory handle should be provided");
+    return E_BAD_PARAM;
+  }
+
   assert(_max_message_size);
 
   if(pool == 0) {
@@ -297,10 +325,19 @@ status_t Connection_handler::put_direct(
     return E_INVAL;
   }
 
+  buffer_t* value_buffer = reinterpret_cast<buffer_t*>(handle);
+  value_buffer->set_length(value_len);
+  
+  if (!value_buffer->check_magic()) {
+    PWRN("put_direct: memory handle is invalid");
+    return E_INVAL;
+  }
+
   const auto key_len = key.length();
   if ((key_len + value_len + sizeof(Dawn::Protocol::Message_IO_request)) >
       Buffer_manager<Component::IFabric_client>::BUFFER_LEN) {
-    /* for large puts, we use a two-stage protocol */
+    /* for large puts, where the receiver will not have
+     * sufficient buffer space, we use a two-stage protocol */
     return two_stage_put_direct(pool,
                                 key.c_str(),
                                 key_len,
@@ -313,18 +350,6 @@ status_t Connection_handler::put_direct(
   if (option_DEBUG)
     PLOG("put_direct: key=(%.*s) key_len=%lu value=(%.20s...) value_len=%lu",
          (int) key_len, (char*) key.c_str(), key_len, (char*) value, value_len);
-
-  buffer_t* value_buffer = nullptr;
-
-  /* on-demand register */
-  if (handle == IKVStore::HANDLE_NONE)
-    throw API_exception("put_direct: memory handle should be provided");
-
-  value_buffer = reinterpret_cast<buffer_t*>(handle);
-
-  value_buffer->set_length(value_len);
-  if (!value_buffer->check_magic())
-    throw General_exception("put_direct: memory handle is invalid");
 
   if (option_DEBUG)
     PLOG("value_buffer: (iov_len=%lu, mr=%p, desc=%p)",
@@ -341,10 +366,9 @@ status_t Connection_handler::put_direct(
   msg->flags = flags;
 
   iob->set_length(msg->msg_len);
-  sync_send(iob, value_buffer); /* send two concatentated buffers */
+  sync_send(iob, value_buffer); /* send two concatentated buffers in single DMA */
 
-  sync_recv(
-      iob); /* re-using iob; if we want to issue before, we'll have to rework */
+  sync_recv(iob); /* get response */
 
   auto response_msg = new (iob->base()) Dawn::Protocol::Message_IO_response();
   if (response_msg->type_id != Dawn::Protocol::MSG_TYPE_IO_RESPONSE)

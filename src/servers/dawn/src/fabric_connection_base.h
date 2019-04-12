@@ -147,11 +147,12 @@ class Fabric_connection_base {
       assert(_deferred_unlock == nullptr);
       _deferred_unlock = _posted_value_buffer->base();
       if (added_deferred_unlock) *added_deferred_unlock = true;
-      _posted_value_buffer = nullptr;
+      //_posted_value_buffer = nullptr;
     }
 
     return true;
   }
+
 
   void free_recv_buffer()
   {
