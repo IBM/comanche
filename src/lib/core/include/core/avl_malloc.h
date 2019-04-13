@@ -630,9 +630,10 @@ class AVL_range_allocator {
     if (region->_addr != addr) {
       assert(addr > region->_addr);
 
-      middle = new (_slab.alloc()) Memory_region(addr, size);
+      auto left_size = addr - region->_addr; // new size for left region
+      middle = new (_slab.alloc()) Memory_region(addr, region->_size - left_size);
       
-      region->_size -= size;  // make the containing region left chunk
+      region->_size = left_size;  // make the containing region left chunk
       middle->_next = region->_next;
       middle->_prev = region;
       region->_next = middle;
