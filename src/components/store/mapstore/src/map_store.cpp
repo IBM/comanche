@@ -232,7 +232,7 @@ IKVStore::key_t Pool_handle::lock(const std::string& key,
         for(auto& i : map) {
            PLOG("key:(%s) length=%lu", i.first.c_str(), i.first.length());
          }
-        throw General_exception("mapstore: tried to lock object that was not found and object size to create not given (key=%s)", key.c_str());
+        return IKVStore::KEY_NONE; 
       }
 
       buffer = scalable_aligned_malloc(out_value_len, OBJECT_ALIGNMENT);
