@@ -60,7 +60,7 @@ int Connection_handler::tick()
         
         const Message *msg = static_cast<Message *>(iob->base());
         assert(msg);
-
+        
         switch (msg->type_id) {
           case MSG_TYPE_IO_REQUEST: {
             if (option_DEBUG > 2) PMAJOR("Shard: IO_REQUEST");
@@ -97,15 +97,19 @@ int Connection_handler::tick()
       break;
     }
     case WAIT_RECV_VALUE: {
+      // if (option_DEBUG > 2) 
+      //   PMAJOR("Shard State: %lu %p WAIT_RECV_VALUE", _tick_count, this);
 
+      auto vp = _posted_value_buffer ?  _posted_value_buffer->base() : nullptr;
       if (check_for_posted_value_complete()) {
+
         if (option_DEBUG > 2) {
           PMAJOR("Shard State: %lu %p WAIT_RECV_VALUE ok", _tick_count, this);
         }
 
         /* add action to release lock */
-        // add_pending_action(action_t{ACTION_RELEASE_VALUE_LOCK,
-        //       _posted_value_buffer->base()});
+        if(vp)
+          add_pending_action(action_t{ACTION_RELEASE_VALUE_LOCK,vp});
 
         delete _posted_value_buffer; /* delete descriptor */
         _posted_value_buffer = nullptr;
@@ -187,7 +191,8 @@ void Connection_handler::set_pending_value(void *          target,
   assert(target_len);
 
   if (option_DEBUG > 2)
-    PLOG("set_pending_value (target=%p, target_len=%lu)", target, target_len);
+    PLOG("set_pending_value (target=%p, target_len=%lu, handle=%p)",
+         target, target_len, region);
 
   auto iov  = new ::iovec{target, target_len};
   auto desc = get_memory_descriptor(region);
