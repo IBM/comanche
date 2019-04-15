@@ -96,16 +96,17 @@ int Connection_handler::tick()
 
       break;
     }
+    case WAIT_SEND_VALUE: 
     case WAIT_RECV_VALUE: {
       
       if (check_for_posted_value_complete()) {
 
         if (option_DEBUG > 2) {
-          PMAJOR("Shard State: %lu %p WAIT_RECV_VALUE ok", _tick_count, this);
+          PMAJOR("Shard State: %lu %p WAIT_SEND/RECV_VALUE ok", _tick_count, this);
         }
 
         assert(_posted_value_buffer);
-        
+
         /* add action to release lock */
         add_pending_action(action_t{ACTION_RELEASE_VALUE_LOCK,_posted_value_buffer->base()});
 
@@ -117,7 +118,10 @@ int Connection_handler::tick()
                  this);
 
         set_state(POST_MSG_RECV);
-        _stats.recv_msg_count++;
+        if(_state == WAIT_RECV_VALUE)
+          _stats.recv_msg_count++;
+        else
+          _stats.send_msg_count++;
       }
       else
         _stats.wait_recv_value_misses++;
@@ -206,5 +210,32 @@ void Connection_handler::set_pending_value(void *          target,
   post_recv_value_buffer(_posted_value_buffer);
   set_state(State::WAIT_RECV_VALUE);
 }
+
+void Connection_handler::set_pending_send_value()
+{
+  /*
+  assert(target);
+  assert(target_len);
+
+  if (option_DEBUG > 2)
+    PLOG("set_pending_send_value (target=%p, target_len=%lu, handle=%p)",
+         target, target_len, region);
+
+  auto iov  = new ::iovec{target, target_len};
+  auto desc = get_memory_descriptor(region);
+  assert(desc);
+  _posted_value_buffer = new buffer_t(target_len);  allocate buffer descriptor 
+  _posted_value_buffer->iov    = iov;
+  _posted_value_buffer->region = region;
+  _posted_value_buffer->desc   = desc;
+  _posted_value_buffer->flags =
+      Buffer_manager<Fabric_connection_base>::BUFFER_FLAGS_EXTERNAL;
+  _posted_value_buffer_outstanding = true;
+
+  pos t_recv_value_buffer(_posted_value_buffer);
+  */
+  set_state(State::WAIT_SEND_VALUE);
+}
+
 
 }  // namespace Dawn

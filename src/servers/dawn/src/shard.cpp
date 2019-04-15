@@ -426,7 +426,7 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
     */
     if (option_DEBUG > 2)
       PLOG("PUT: (%p) key=(%.*s) value=(%.*s)", this, (int) msg->key_len,
-           msg->key(), (int) msg->val_len, msg->value());
+           msg->key(), (int) min(msg->val_len,10), msg->value());
 
     if (unlikely(msg->resvd & Dawn::Protocol::MSG_RESVD_SCBE)) {
       status = S_OK;  // short-circuit backend
@@ -454,7 +454,10 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
   /////////////////////
   else if (msg->op == Protocol::OP_GET) {
     if (option_DEBUG > 2)
-      PMAJOR("GET: (%p) (request=%lu) key=(%.*s) ", this, msg->request_id,
+      PMAJOR("GET: (%p) (request=%lu,buffer_size=%lu) key=(%.*s) ",
+             this,
+             msg->request_id,
+             msg->val_len,
              (int) msg->key_len, msg->key());
 
     if (msg->resvd & Dawn::Protocol::MSG_RESVD_SCBE) {
@@ -468,9 +471,10 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
     else {
       void*  value_out     = nullptr;
       size_t value_out_len = 0;
-
+      size_t client_side_value_len = msg->val_len;
+      bool is_direct = msg->resvd & Protocol::MSG_RESVD_DIRECT;
       std::string k(msg->key(), msg->key_len);
-
+      
       auto key_handle = _i_kvstore->lock(msg->pool_id,
                                          k,
                                          IKVStore::STORE_LOCK_READ,
@@ -478,8 +482,8 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
                                          value_out_len);
 
       if (option_DEBUG > 2)
-        PLOG("shard: locked OK: value_out=%p (%.*s) value_out_len=%lu",
-             value_out, (int) value_out_len, (char*) value_out, value_out_len);
+        PLOG("Shard: locked OK: value_out=%p (%.*s) value_out_len=%lu",
+             value_out, (int) min(value_out_len,10), (char*) value_out, value_out_len);
 
       if (key_handle == Component::IKVStore::KEY_NONE) { /* key not found */
         response->status = E_NOT_FOUND;
@@ -492,7 +496,7 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
       assert(value_out);
 
 //      if (value_out_len < (iob->original_length - response->base_message_size())) {
-      if (value_out_len < KiB(64)) { // TODO set as static var - (iob->original_length - response->base_message_size())) { 
+      if (!is_direct && (value_out_len < KiB(64))) { // TODO set as static var - (iob->original_length - response->base_message_size())) { 
         /* value can fit in message buffer, let's copy instead of
            performing two-part DMA */
         if (option_DEBUG > 2) PLOG("shard: performing memcpy for small get");
@@ -510,6 +514,20 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
         handler->post_response(iob);
       }
       else {
+
+        if(option_DEBUG > 2)
+          PLOG("Shard: get using two stage get response (value_len=%lu)", value_out_len);
+
+        /* check if client has allocated sufficient space */
+        if(client_side_value_len < value_out_len) {
+          _i_kvstore->unlock(msg->pool_id, key_handle);
+          response->status = E_INSUFFICIENT_SPACE;
+          iob->set_length(response->base_message_size());
+          handler->post_response(iob, nullptr);
+          PWRN("client posted insufficient space.");
+          return;
+        }
+        
         iob->set_length(response->base_message_size());
 
         /* register memory on-demand */
@@ -523,18 +541,18 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
         /* create value iob */
         buffer_t* value_buffer;
 
-        if (response->status == S_OK) {
-          value_buffer         = new buffer_t(value_out_len);
-          value_buffer->iov    = new iovec{(void*) value_out, value_out_len};
-          value_buffer->region = region;
-          value_buffer->desc   = handler->get_memory_descriptor(region);
+        assert(response->status == S_OK);
 
-          /* register clean up task for value */
-          add_locked_value(msg->pool_id, key_handle, value_out);
-        }
+        value_buffer         = new buffer_t(value_out_len);
+        value_buffer->iov    = new iovec{(void*) value_out, value_out_len};
+        value_buffer->region = region;
+        value_buffer->desc   = handler->get_memory_descriptor(region);
 
-        if (value_out_len <=
-            (handler->IO_buffer_size() - response->base_message_size())) {
+        /* register clean up task for value */
+        add_locked_value(msg->pool_id, key_handle, value_out);
+      
+
+        if (!is_direct && (value_out_len <= (handler->IO_buffer_size() - response->base_message_size()))) {
           if (option_DEBUG > 2)
             PLOG("posting response header and value together");
 
@@ -542,18 +560,19 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
           handler->post_response(iob, value_buffer);
         }
         else {
+          if (option_DEBUG > 2)
+            PLOG("posting response with separate value following");
+          
           /* for large gets we use a two-stage protocol sending
              response message and value separately
           */
           response->set_twostage_bit();
 
-          /* send two separate packets */
+          /* send two separate packets for response and value */
           handler->post_response(iob);
-
-          /* the client is allocating the recv buffer only after
-             receiving the response advance. this could timeout if
-             this side issues before the remote buffer is ready */
           handler->post_send_value_buffer(value_buffer);
+
+          handler->set_pending_send_value();
         }
       }
     }
