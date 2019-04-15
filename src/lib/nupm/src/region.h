@@ -29,6 +29,7 @@
 #include "mappers.h"
 #include "rc_alloc_avl.h"
 
+#define USED_SANITY_CHECK 0
 namespace nupm
 {
 
@@ -88,13 +89,16 @@ class Region {
     if (_free.empty()) return nullptr;
     void *p = _free.front();
     _free.pop_front();
+#if USED_SANITY_CHECK
     _used.push_front(p);
+#endif
     assert(check_aligned(p, _object_size));
     return p;
   }
 
   bool free(void *p)
   {
+#if USED_SANITY_CHECK
     auto i = _used.begin();
     if (*i == p) {
       _used.pop_front();
@@ -104,7 +108,8 @@ class Region {
 
     auto last = i;
     i++;
-    while (i != _used.end()) {
+    const auto e = _used.end();
+    while (i != e) {
       if (*i == p) {
         _used.erase_after(last);
         _free.push_front(p);
@@ -112,9 +117,13 @@ class Region {
         return true;
       }
       last = i;
-      i++;
+      ++i;
     }
     return false;
+#else
+    _free.push_front(p);
+    return true;
+#endif
   }
 
   bool allocate_at(void *ptr)
@@ -122,7 +131,9 @@ class Region {
     auto i = _free.begin();
     if (*i == ptr) {
       _free.pop_front();
+#if USED_SANITY_CHECK
       _used.push_front(ptr);
+#endif
       return true;
     }
     auto last = i;
@@ -130,7 +141,9 @@ class Region {
     while (i != _free.end()) {
       if (*i == ptr) {
         _free.erase_after(last);
+#if USED_SANITY_CHECK
         _used.push_front(ptr);
+#endif
         return true;
       }
       last = i;
@@ -143,9 +156,10 @@ class Region {
   {
     std::stringstream ss;
 
+#if USED_SANITY_CHECK
     for(auto i: _used)
       ss << "u(" << i << ")\n";
-
+#endif
     for(auto i: _free)
       ss << "f(" << i << ")\n";
     ss << "\n";
@@ -159,7 +173,9 @@ class Region {
   const size_t _object_size;
   addr_t _base, _top;
   list_t _free;
+#if USED_SANITY_CHECK
   list_t _used; /* we could do with this, but it guards against misuse */
+#endif
 };
 
 /**
