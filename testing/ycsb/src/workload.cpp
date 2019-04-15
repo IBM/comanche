@@ -235,7 +235,7 @@ inline string Workload::buildKeyName(uint64_t key_num)
 {
   key_num = ycsbutils::Hash(key_num);
   // return std::string("user").append(std::to_string(key_num));
-  return std::to_string(key_num).substr(0, 16);
+  return (Workload::TABLE + std::to_string(key_num)).substr(0, 16);
 }
 
 inline string Workload::buildValue(uint64_t size)

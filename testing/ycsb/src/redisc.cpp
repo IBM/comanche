@@ -1,5 +1,6 @@
 #include "redisc.h"
 #include <assert.h>
+#include <mpi.h>
 #include <string.h>
 #include <iostream>
 
@@ -78,7 +79,7 @@ int RedisC::scan(const string &                table,
 
 void RedisC::clean()
 {
-  redisCommand(c, "FLUSHDB");
+  redisCommand(c, "FLUSHALL");
   freeReplyObject(reply);
   redisFree(c);
 }
