@@ -26,7 +26,7 @@ void ProfilerStop() {}
 #endif
 
 #include <chrono>
-#include <cstdlib>
+#include <cstdlib> /* getenv */
 #include <functional> /* function */
 #include <future>
 #include <iostream>
@@ -80,13 +80,13 @@ namespace {
 class KVStore_test
   : public ::testing::Test
 {
-  static constexpr std::size_t estimated_object_count_large = 6000000;
+
+  static const std::size_t many_count_target_large;
+  static const std::size_t estimated_object_count_large;
+  /* Shorter test: use when PMEM_IS_PMEM_FORCE=0 */
+  static const std::size_t many_count_target_small;
   /* More testing of table splits, at a performance cost */
   static constexpr std::size_t estimated_object_count_small = 1;
-
-  static constexpr std::size_t many_count_target_large = 2000000;
-  /* Shorter test: use when PMEM_IS_PMEM_FORCE=0 */
-  static constexpr std::size_t many_count_target_small = 400;
 
  protected:
 
@@ -103,7 +103,8 @@ class KVStore_test
     // before the destructor).
   }
 
-  using poolv_t = std::array<Component::IKVStore::pool_t, 4>;
+  static constexpr std::size_t threads = 4;
+  using poolv_t = std::array<Component::IKVStore::pool_t, threads>;
 
   // Objects declared here can be used by all tests in the test case
 
@@ -144,10 +145,10 @@ class KVStore_test
   static poolv_t pool;
 };
 
-constexpr std::size_t KVStore_test::estimated_object_count_large;
 constexpr std::size_t KVStore_test::estimated_object_count_small;
-constexpr std::size_t KVStore_test::many_count_target_large;
-constexpr std::size_t KVStore_test::many_count_target_small;
+const std::size_t KVStore_test::many_count_target_large = std::getenv("COUNT_TARGET") ? std::stoul(std::getenv("COUNT_TARGET")) : 2000000;
+const std::size_t KVStore_test::estimated_object_count_large = many_count_target_large;
+const std::size_t KVStore_test::many_count_target_small = std::getenv("COUNT_TARGET") ? std::stoul(std::getenv("COUNT_TARGET")) : 400;
 
 bool KVStore_test::pmem_simulated = getenv("PMEM_IS_PMEM_FORCE");
 Component::IKVStore *KVStore_test::_kvstore;
@@ -431,7 +432,7 @@ TEST_F(KVStore_test, OpenPool2)
   timer t(
     [] (timer::duration_t d) {
       auto seconds = std::chrono::duration<double>(d).count();
-      std::cerr << "open pool" << " " << multi_count_actual / seconds << " objects per second\n";
+      std::cerr << "open pool" << " " << multi_count_actual << "/" << seconds << " = " << multi_count_actual / seconds << " objects per second\n";
     }
   );
   ASSERT_TRUE(_kvstore);
