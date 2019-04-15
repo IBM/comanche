@@ -75,6 +75,7 @@ class Connection_handler
     POST_MSG_RECV,
     WAIT_NEW_MSG_RECV,
     WAIT_RECV_VALUE,
+    WAIT_SEND_VALUE,
   };
 
   State _state = State::INITIALIZE;
@@ -206,6 +207,8 @@ class Connection_handler
                          size_t target_len,
                          Component::IFabric_connection::memory_region_t region);
 
+  void set_pending_send_value();
+
   inline uint64_t auth_id() const { return (uint64_t) this; /* temp */ }
 
   inline size_t max_message_size() const { return _max_message_size; }
@@ -224,6 +227,7 @@ class Connection_handler
   struct {
     uint64_t response_count               = 0;
     uint64_t recv_msg_count               = 0;
+    uint64_t send_msg_count               = 0;
     uint64_t wait_recv_value_misses       = 0;
     uint64_t wait_msg_recv_misses         = 0;
     uint64_t wait_respond_complete_misses = 0;
@@ -239,6 +243,7 @@ class Connection_handler
     PINF("Ticks                       : %lu", _tick_count);
     PINF("NEW_MSG_RECV misses         : %lu", _stats.wait_msg_recv_misses);
     PINF("Recv message count          : %lu", _stats.recv_msg_count);
+    PINF("Send message count          : %lu", _stats.send_msg_count);
     PINF("Response count              : %lu", _stats.response_count);
     PINF("WAIT_RECV_VALUE misses      : %lu", _stats.wait_recv_value_misses);
     PINF("WAIT_RESPOND_COMPLETE misses: %lu", _stats.wait_respond_complete_misses);

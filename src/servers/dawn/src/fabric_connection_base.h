@@ -147,11 +147,12 @@ class Fabric_connection_base {
       assert(_deferred_unlock == nullptr);
       _deferred_unlock = _posted_value_buffer->base();
       if (added_deferred_unlock) *added_deferred_unlock = true;
-      _posted_value_buffer = nullptr;
+      //_posted_value_buffer = nullptr;
     }
 
     return true;
   }
+
 
   void free_recv_buffer()
   {
@@ -219,7 +220,7 @@ class Fabric_connection_base {
     _posted_value_buffer_outstanding = true;
     _transport->post_send(_posted_value_buffer->iov,
                           _posted_value_buffer->iov + 1,
-                          &_posted_value_buffer->desc, _posted_value_buffer);
+                          &_posted_value_buffer->desc, _posted_value_buffer);    
   }
 
   void post_recv_value_buffer(buffer_t *buffer = nullptr)

@@ -220,6 +220,7 @@ IKVStore::key_t Pool_handle::lock(const std::string& key,
   void * buffer = nullptr;
   
   /* on-demand create */
+  try
   {
     RWLock_guard guard(map_lock, RWLock_guard::WRITE);
 
@@ -245,6 +246,9 @@ IKVStore::key_t Pool_handle::lock(const std::string& key,
       PLOG("lock emplacing key=(%s)", key.c_str());
       map.emplace(key, Value_pair{buffer, out_value_len});
     }   
+  }
+  catch(...) {
+    return IKVStore::KEY_NONE;
   }
   
   if(type == IKVStore::STORE_LOCK_READ)
