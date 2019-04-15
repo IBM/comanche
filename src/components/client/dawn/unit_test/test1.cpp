@@ -27,8 +27,8 @@
 
 //#define TEST_PERF_SMALL_PUT
 //#define TEST_PERF_SMALL_GET_DIRECT
-#define TEST_PERF_LARGE_PUT_DIRECT
-//#define TEST_PERF_LARGE_GET_DIRECT
+//#define TEST_PERF_LARGE_PUT_DIRECT
+#define TEST_PERF_LARGE_GET_DIRECT
 
 //#define TEST_SCALE_IOPS
 
@@ -40,6 +40,7 @@ struct {
   std::string device;
   unsigned    debug_level;
   unsigned    base_core;
+  size_t      value_size;
 } Options;
 
 Component::IKVStore_factory *fact;
@@ -507,7 +508,7 @@ TEST_F(Dawn_client_test, PerfLargePutDirect)
 
   static constexpr unsigned long PER_ITERATION = 4;
   static constexpr unsigned long ITERATIONS    = 10;
-  static constexpr unsigned long VALUE_SIZE    = MB(512);
+  static constexpr unsigned long VALUE_SIZE    = MB(128);
   static constexpr unsigned long KEY_SIZE      = 16;
 
   struct record_t {
@@ -566,19 +567,19 @@ TEST_F(Dawn_client_test, PerfLargeGetDirect)
   auto pool = _dawn->create_pool(poolname, GB(8));
   ASSERT_TRUE(pool != IKVStore::POOL_ERROR);
 
-  static constexpr unsigned long PER_ITERATION = 4;
-  static constexpr unsigned long ITERATIONS    = 10;
-  static constexpr unsigned long VALUE_SIZE    = MB(64);
-  static constexpr unsigned long KEY_SIZE      = 16;
+  unsigned long INNER_ITERATION = 4;
+  unsigned long ITERATIONS    = 1000;
+  unsigned long VALUE_SIZE    = MB(32);
+  if(Options.value_size > 0)
+    VALUE_SIZE = Options.value_size;
+  
+  unsigned long KEY_SIZE      = 16;
 
-  struct record_t {
-    std::string key;
-    char        value[VALUE_SIZE];
-  };
-
+  std::vector<std::string*> keys;
+  
   PLOG("Allocating buffer with test data ...");
-  size_t    data_size = sizeof(record_t) * PER_ITERATION;
-  record_t *data      = (record_t *) aligned_alloc(MiB(2), data_size);
+  size_t    data_size = VALUE_SIZE * INNER_ITERATION;
+  char     *data      = (char *) aligned_alloc(MiB(2), data_size);
   madvise(data, data_size, MADV_HUGEPAGE);
 
   ASSERT_FALSE(data == nullptr);
@@ -586,21 +587,25 @@ TEST_F(Dawn_client_test, PerfLargeGetDirect)
 
   PLOG("LargeGetDirect: Filling data...");
   /* set up data */
-  for (unsigned long i = 0; i < PER_ITERATION; i++) {
+  char * p = data;
+  for (unsigned long i = 0; i < INNER_ITERATION; i++) {
     auto val    = Common::random_string(VALUE_SIZE);
-    data[i].key = Common::random_string(KEY_SIZE);
-    memcpy(data[i].value, val.c_str(), VALUE_SIZE);
+    memcpy(p, val.c_str(), VALUE_SIZE);
+    p+=val.length();
+    auto s = new std::string;
+    *s = Common::random_string(KEY_SIZE);
+    keys.push_back(s);
   }
   PLOG("Starting PUT operation...");
 
   auto start = std::chrono::high_resolution_clock::now();
 
-  for (unsigned long i = 0; i < (ITERATIONS * PER_ITERATION); i++) {
-    PLOG("Putting key(%s)", data[i % PER_ITERATION].key.c_str());
+  for (unsigned long i = 0; i < (ITERATIONS * INNER_ITERATION); i++) {
+    PLOG("Putting key(%s)", keys[i % INNER_ITERATION]->c_str());
     /* different value each iteration; tests memory region registration */
     rc = _dawn->put_direct(pool,
-                           data[i % PER_ITERATION].key,
-                           data[i % PER_ITERATION].value,
+                           *keys[i % INNER_ITERATION],
+                           &data[i % INNER_ITERATION],
                            VALUE_SIZE,
                            handle); /* pass handle from memory registration */
     ASSERT_TRUE(rc == S_OK || rc == -6);
@@ -609,19 +614,19 @@ TEST_F(Dawn_client_test, PerfLargeGetDirect)
   auto end  = std::chrono::high_resolution_clock::now();
   auto secs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() / 1000.0;
   PINF("LargePutDirect Throughput: %.2f MiB/sec",
-       ((PER_ITERATION * ITERATIONS * VALUE_SIZE) / secs) / (1024.0 * 1024));
+       ((INNER_ITERATION * ITERATIONS * VALUE_SIZE) / secs) / (1024.0 * 1024));
 
   PINF("LargeGetDirect: Starting .. get phase");
 
   start = std::chrono::high_resolution_clock::now();
 
   /* perform get phase */
-  for (unsigned long i = 0; i < (ITERATIONS * PER_ITERATION); i++) {
+  for (unsigned long i = 0; i < (ITERATIONS * INNER_ITERATION); i++) {
     size_t value_len = VALUE_SIZE;
-    PLOG("get_direct (key=%s)", data[i % PER_ITERATION].key.c_str());
+    //    PLOG("get_direct (key=%s)", keys[i % INNER_ITERATION]->c_str());
     rc               = _dawn->get_direct(pool,
-                                         data[i % PER_ITERATION].key,
-                                         data[i % PER_ITERATION].value,
+                                         *keys[i % INNER_ITERATION],
+                                         &data[i % INNER_ITERATION],
                                          value_len,
                                          handle);
     ASSERT_TRUE(rc == S_OK);  // || rc == -6);
@@ -630,7 +635,7 @@ TEST_F(Dawn_client_test, PerfLargeGetDirect)
   end  = std::chrono::high_resolution_clock::now();
   secs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() / 1000.0;
   PINF("PerfLargeGetDirect Throughput: %.2f MiB/sec",
-       ((PER_ITERATION * ITERATIONS * VALUE_SIZE) / secs) / (1024.0 * 1024));
+       ((INNER_ITERATION * ITERATIONS * VALUE_SIZE) / secs) / (1024.0 * 1024));
 
   _dawn->close_pool(pool);
   _dawn->delete_pool(poolname);
@@ -735,15 +740,13 @@ int main(int argc, char **argv)
   try {
     namespace po = boost::program_options;
     po::options_description desc("Options");
-    desc.add_options()("help", "Show help")(
-        "debug", po::value<unsigned>()->default_value(0), "Debug level 0-3")(
-        "server-addr",
-        po::value<std::string>()->default_value("10.0.0.21:11911"),
-        "Server address IP:PORT")(
-        "device", po::value<std::string>()->default_value("mlx5_0"),
-        "Network device (e.g., mlx5_0)")(
-        "pool", po::value<std::string>()->default_value("myPool"), "Pool name")(
-        "base", po::value<unsigned>()->default_value(0), "Base core.");
+    desc.add_options()("help", "Show help")
+      ("debug", po::value<unsigned>()->default_value(0), "Debug level 0-3")
+      ("server-addr", po::value<std::string>()->default_value("10.0.0.21:11911"), "Server address IP:PORT")
+      ("device", po::value<std::string>()->default_value("mlx5_0"), "Network device (e.g., mlx5_0)")
+      ("pool", po::value<std::string>()->default_value("myPool"), "Pool name")
+      ("value_size", po::value<std::size_t>()->default_value(0), "Value size")
+      ("base", po::value<unsigned>()->default_value(0), "Base core.");
 
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -758,6 +761,7 @@ int main(int argc, char **argv)
     Options.pool        = vm["pool"].as<std::string>();
     Options.device      = vm["device"].as<std::string>();
     Options.base_core   = vm["base"].as<unsigned>();
+    Options.value_size  = vm["value_size"].as<std::size_t>();
 
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

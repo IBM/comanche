@@ -43,7 +43,8 @@ enum {
 };
 
 enum {
-  MSG_RESVD_SCBE = 0x2,
+  MSG_RESVD_SCBE   = 0x2, /* indicates short-circuit function (testing only) */
+  MSG_RESVD_DIRECT = 0x4, /* indicate get_direct from client side */
 };
 
 enum {
@@ -337,7 +338,8 @@ struct Message_IO_response : public Message {
     msg_len  = sizeof(Message_IO_response);
   }
 
-  Message_IO_response() {}
+  Message_IO_response() { 
+  }
 
   void copy_in_data(const void* in_data, size_t len)
   {
