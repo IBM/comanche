@@ -18,7 +18,8 @@ void RedisC::init(Properties &props, unsigned core)
   int    port    = stoi(address.substr(mid + 1));
   int    rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  port += rank / 6;
+  //port += rank / 6;
+  port += rank;
   char processor_name[MPI_MAX_PROCESSOR_NAME];
   int  name_len;
   MPI_Get_processor_name(processor_name, &name_len);
