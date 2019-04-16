@@ -127,13 +127,17 @@ bool ExperimentThroughput::do_work(unsigned core)
       /* random operation is "insert or erase" */
       std::uniform_int_distribution<std::size_t> pos_rnd(pool_element_start(), pool_element_end() - 1);
       auto pos = pos_rnd(_rnd);
-      KV_pair &data = g_data->_data[pos];
+      const KV_pair &data = g_data->_data[pos];
 
-      /* Randomize key for insert so the same keys are not continually reused */
+      /* Randomize key for insert so the same keys are not continually reused
+       * Alas, g_data is shared among threads. Cannot change it.
+       */
+#if 0
       if ( ! _populated[pos] )
       {
         data.key[0] = _k0_rnd(_rnd);
       }
+#endif
       ct = _populated[pos] ? &_op_count_er : &_op_count_in;
       auto new_val = Common::random_string(g_data->value_len());
       StopwatchInterval si(timer);
