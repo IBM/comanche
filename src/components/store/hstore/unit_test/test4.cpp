@@ -429,6 +429,7 @@ TEST_F(KVStore_test, ClosePool)
 
 TEST_F(KVStore_test, OpenPool2)
 {
+  ProfilerStart("reconstruct.prof");
   timer t(
     [] (timer::duration_t d) {
       auto seconds = std::chrono::duration<double>(d).count();
@@ -441,6 +442,7 @@ TEST_F(KVStore_test, OpenPool2)
     pool[i] = _kvstore->open_pool(pool_name(i));
     ASSERT_LT(0, int64_t(pool[i]));
   }
+  ProfilerStop();
 }
 
 TEST_F(KVStore_test, ClosePool2)
