@@ -1,6 +1,7 @@
 #include "memcached.h"
 #include <assert.h>
 #include <string>
+#include <mpi.h>
 
 using namespace ycsb;
 using namespace std;
@@ -14,6 +15,14 @@ void Memcached::init(Properties &props, unsigned core)
   size_t mid      = address.find(":");
   string host     = address.substr(0, mid);
   int    port     = stoi(address.substr(mid + 1));
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  //port+=rank/6;
+  char processor_name[MPI_MAX_PROCESSOR_NAME];
+  int name_len;
+   MPI_Get_processor_name(processor_name, &name_len);
+   cout << "host: " << processor_name << ", address: " << host
+       << ", port: " << port << endl;
   memc            = memcached_create(NULL);
   servers = memcached_server_list_append(servers, host.c_str(), port, &rc);
   assert(rc == MEMCACHED_SUCCESS);
@@ -32,7 +41,7 @@ int Memcached::get(const string &table,
   retrieved_value =
       memcached_get(memc, key.c_str(), key.length(), &value_len, &flags, &rc);
   if (rc != MEMCACHED_SUCCESS) return -1;
-  assert(value_len == strlen(value));
+  //assert(value_len == strlen(value));
   memcpy(value, retrieved_value, value_len);
   free(retrieved_value);
   return 0;
@@ -76,6 +85,8 @@ int Memcached::scan(const string &                table,
 
 void Memcached::clean()
 {
+    memcached_flush(memc, 0);
+    memcached_free(memc);
   delete (servers);
   delete (memc);
 }
