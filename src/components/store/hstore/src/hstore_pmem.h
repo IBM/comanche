@@ -385,10 +385,10 @@ public:
   auto pool_create(const pool_path &path_, std::size_t size_, std::size_t expected_obj_count) -> std::unique_ptr<tracked_pool> override
   {
     open_pool_handle pop = pool_create_or_open(path_, size_);
-  #pragma GCC diagnostic push
-  #pragma GCC diagnostic ignored "-Wold-style-cast"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wold-style-cast"
     TOID(struct store_root_t) root = POBJ_ROOT(pop.get(), struct store_root_t);
-  #pragma GCC diagnostic pop
+#pragma GCC diagnostic pop
     assert(!TOID_IS_NULL(root));
 
     auto pc =
