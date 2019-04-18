@@ -26,10 +26,12 @@
 #include <tbb/scalable_allocator.h>
 #include <forward_list>
 #include <unordered_set>
+#include <map>
+#include <functional>
 #include "mappers.h"
 #include "rc_alloc_avl.h"
 
-#define USED_SANITY_CHECK 0
+#define SANITY_CHECK 0
 namespace nupm
 {
 
@@ -42,10 +44,8 @@ class Region {
 
   static constexpr unsigned _debug_level = 0;
 
-  //  using list_t =
-  //  std::forward_list<void*,tbb::cache_aligned_allocator<void*>>;
   using list_t = std::forward_list<void *, tbb::scalable_allocator<void *>>;
-  // using list_t = std::forward_list<void*>;
+  using set_t  = std::set<void *,std::less<void*>, tbb::scalable_allocator<void *>>;
 
  protected:
   Region(void *region_ptr, const size_t region_size, const size_t object_size)
@@ -67,8 +67,11 @@ class Region {
 
     byte *     rp    = static_cast<byte *>(region_ptr);
     const auto count = region_size / object_size;
+
+    /* add to free map - all slots are free initially */
     for (size_t i = 0; i < count; i++) {
-      _free.push_front(rp);
+      //      _free.push_front(rp);
+      _free_map.insert(rp);
       rp += object_size;
     }
   }
@@ -86,10 +89,18 @@ class Region {
 
   void *allocate()
   {
+    /* migrate any remaining entries on map to list */
+    if(!_free_map.empty()) {
+      for(const auto& i: _free_map) {
+        _free.push_front(i);
+      }
+      _free_map.clear();
+    }
+    
     if (_free.empty()) return nullptr;
     void *p = _free.front();
     _free.pop_front();
-#if USED_SANITY_CHECK
+#if SANITY_CHECK
     _used.push_front(p);
 #endif
     assert(check_aligned(p, _object_size));
@@ -98,7 +109,7 @@ class Region {
 
   bool free(void *p)
   {
-#if USED_SANITY_CHECK
+#if SANITY_CHECK
     auto i = _used.begin();
     if (*i == p) {
       _used.pop_front();
@@ -126,22 +137,37 @@ class Region {
 #endif
   }
 
+  /** 
+   * Allocate at is used during the reconstitution phase. To avoid
+   * linear scans, we use a map instead of list here.  Elements
+   * are then migrated back to the list on free.
+   * 
+   */
   bool allocate_at(void *ptr)
   {
+    if(!_free_map.empty()) { /* after construction, free elements are put on map first */
+      if(_free_map.erase(ptr) != 1)
+        throw Logic_exception("allocate_at failed to remove from map");
+      return true;
+    }
+
+    /* otherwise use the list */
     auto i = _free.begin();
+    
     if (*i == ptr) {
       _free.pop_front();
-#if USED_SANITY_CHECK
+#if SANITY_CHECK
       _used.push_front(ptr);
 #endif
       return true;
     }
     auto last = i;
     i++;
+    
     while (i != _free.end()) {
       if (*i == ptr) {
         _free.erase_after(last);
-#if USED_SANITY_CHECK
+#if SANITY_CHECK
         _used.push_front(ptr);
 #endif
         return true;
@@ -149,14 +175,14 @@ class Region {
       last = i;
       i++;
     }
-    return false;
+    return true;
   }
 
   void debug_dump(std::string *out_log = nullptr)
   {
     std::stringstream ss;
 
-#if USED_SANITY_CHECK
+#if SANITY_CHECK
     for(auto i: _used)
       ss << "u(" << i << ")\n";
 #endif
@@ -170,10 +196,14 @@ class Region {
   }
   
  private:
+
   const size_t _object_size;
-  addr_t _base, _top;
-  list_t _free;
-#if USED_SANITY_CHECK
+  addr_t       _base;
+  addr_t       _top;
+  list_t       _free;
+  set_t        _free_map;
+  
+#if SANITY_CHECK
   list_t _used; /* we could do with this, but it guards against misuse */
 #endif
 };
@@ -240,7 +270,7 @@ class Region_map {
         throw std::out_of_range("object size beyond available buckets");
       /* search regions */
       for (auto &region : _buckets[numa_node][bucket]) {
-        if (region->in_range(p)) {
+        if (region->in_range(p)) { /* simple range check */
           if (region->free(p))
             return;
           else
