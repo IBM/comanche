@@ -224,7 +224,7 @@ namespace impl
 		struct bucket_control
 			: public bucket_control_unlocked<Bucket>
 		{
-			bucket_mutexes<Mutex> *_bucket_mutexes;
+			std::unique_ptr<bucket_mutexes<Mutex>[]> _bucket_mutexes;
 		public:
 			using base = bucket_control_unlocked<Bucket>;
 			using bucket_aligned_t = typename base::bucket_aligned_t;
@@ -235,10 +235,15 @@ namespace impl
 			)
 				: bucket_control_unlocked<Bucket>(index_, buckets_)
 				, _bucket_mutexes(nullptr)
-			{}
+			{
+			}
 			explicit bucket_control()
 				: bucket_control(0U, nullptr)
-			{}
+			{
+			}
+			~bucket_control()
+			{
+			}
 		};
 
 	template <typename Allocator>

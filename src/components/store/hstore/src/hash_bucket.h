@@ -30,9 +30,10 @@ namespace impl
 			, public content<Value>
 		{
 		public:
+			using content_type = content<Value>;
 			explicit hash_bucket(owner owner_)
 				: owner{owner_}
-				, content<Value>()
+				, content_type()
 			{}
 			explicit hash_bucket()
 				: hash_bucket(owner())

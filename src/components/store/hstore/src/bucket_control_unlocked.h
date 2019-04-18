@@ -24,6 +24,7 @@ namespace impl
 		class bucket_control_unlocked
 		{
 		public:
+			using bucket_type = Bucket;
 			using bucket_aligned_t = bucket_aligned<Bucket>;
 			using six_t = std::size_t;
 			using bix_t = std::size_t;
@@ -48,6 +49,34 @@ namespace impl
 			six_t index() const { return _index; }
 			std::size_t segment_size() const { return _buckets_end - _buckets; }
 			bucket_aligned_t &deref(bix_t bi) const { return _buckets[bi]; }
+
+			void deconstitute()
+			{
+				for ( auto it = _buckets; it != _buckets_end; ++it )
+				{
+					typename bucket_type::content_type &c = *it;
+					/* deconsititute key and value */
+					if ( c.state_get() != bucket_type::FREE )
+					{
+						c.value().first.deconstitute();
+						c.value().second.deconstitute();
+					}
+				}
+			}
+			template <typename Allocator>
+				void reconstitute(Allocator av_)
+				{
+					for ( auto it = _buckets; it != _buckets_end; ++it )
+					{
+						typename bucket_type::content_type &c = *it;
+						/* reconsititute key and value */
+						if ( c.state_get() != bucket_type::FREE )
+						{
+							c.value().first.reconstitute(av_);
+							c.value().second.reconstitute(av_);
+						}
+					}
+				}
 		};
 }
 
