@@ -26,6 +26,8 @@ namespace nupm
 {
 Rca_LB::Rca_LB() : _rmap(new Region_map()) {}
 
+Rca_LB::~Rca_LB() {}
+
 void Rca_LB::add_managed_region(void * region_base,
                                 size_t region_length,
                                 int    numa_node)
