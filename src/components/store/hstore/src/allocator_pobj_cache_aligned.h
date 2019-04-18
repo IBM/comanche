@@ -140,7 +140,7 @@ template <typename T, typename Deallocator>
 					<< " " << (why ? why : "(cache aligned no reason)")
 					<< " [" << static_cast<void *>(ptr)
 					<< ".." << static_cast<void *>(ptr + s * sizeof(T))
-					<< ") OID " << std::hex << oid.pool_uuid_lo << "." << oid.off << "\n";
+					<< ") OID " << std::hex << oid.pool_uuid_lo << "." << oid.off << std::dec << "\n";
 			}
 #endif
 			return pointer(oid);
