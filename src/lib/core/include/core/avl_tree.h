@@ -408,13 +408,13 @@ class AVL_tree {
       AVL_node<T> *node = stack.back();
       stack.pop_back();
 
-      func(node, sizeof(AVL_node<T>));
-
       AVL_node<T> *l = node->subtree[LEFT];
       if (l) stack.push_back(l);
 
       AVL_node<T> *r = node->subtree[RIGHT];
       if (r) stack.push_back(r);
+
+      func(node, sizeof(AVL_node<T>));
     }
 
 #endif
