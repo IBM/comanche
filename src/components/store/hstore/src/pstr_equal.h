@@ -11,28 +11,24 @@
    limitations under the License.
 */
 
+#ifndef _COMANCHE_PSTR_EQUAL_H_
+#define _COMANCHE_PSTR_EQUAL_H_
 
-#ifndef COMANCHE_HSTORE_NUPM_REGION_H
-#define COMANCHE_HSTORE_NUPM_REGION_H
+#include <cstring>
 
-/* requires persist_data_t definition */
-#include "persist_data.h"
-
-template <typename PersistData, typename Heap>
-  class region
+template <typename Key>
+  struct pstr_equal
   {
-    static constexpr std::uint64_t magic_value = 0xc74892d72eed493a;
-    std::uint64_t magic;
-  public:
-    using heap_type = Heap;
-    using persist_data_type = PersistData;
-
-    PersistData persist_data;
-    Heap heap;
-
-    void initialize() { magic = magic_value; }
-    bool is_initialized() const noexcept { return magic == magic_value; }
-    /* region used by heap_cc follows */
+    using argument_type = Key;
+    using result_type = bool;
+    result_type operator()(const argument_type &a, const argument_type &b) const
+    {
+      return a == b;
+    }
+    result_type operator()(const argument_type &a, const std::string &b) const
+    {
+      return a.size() == b.size() && 0 == std::memcmp(a.data(), b.data(), a.size());
+    }
   };
 
 #endif

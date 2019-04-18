@@ -15,12 +15,23 @@
 #ifndef COMANCHE_HSTORE_PM_H
 #define COMANCHE_HSTORE_PM_H
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Weffc++"
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+#pragma GCC diagnostic ignored "-Wpedantic"
+#pragma GCC diagnostic ignored "-Wsign-conversion"
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#include <api/kvstore_itf.h> /* status_t */
+#pragma GCC diagnostic pop
+
+#include <cstddef>
 #include <string>
+#include <system_error>
 
 class pool_path;
 
 #pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-parameter"
+// #pragma GCC diagnostic ignored "-Wunused-parameter"
 
 enum class pool_ec
 {
@@ -72,37 +83,38 @@ public:
 
 };
 
-class pool_manager
-{
-  bool _debug;
-public:
-  pool_manager(bool debug_) : _debug(debug_) {}
-  virtual ~pool_manager() {}
-  bool debug() const { return _debug; }
+template <typename Pool>
+  class pool_manager
+  {
+    bool _debug;
+  public:
+    pool_manager(bool debug_) : _debug(debug_) {}
+    virtual ~pool_manager() {}
+    bool debug() const { return _debug; }
 
-  virtual auto pool_create_check(const std::size_t size_) -> status_t = 0;
+    virtual auto pool_create_check(const std::size_t size_) -> status_t = 0;
 
-  virtual void pool_close_check(const std::string &) { }  // = 0;
+    virtual void pool_close_check(const std::string &) { }  // = 0;
 
-  virtual status_t pool_get_regions(void *, std::vector<::iovec>&) = 0;
+    virtual status_t pool_get_regions(void *, std::vector<::iovec>&) = 0;
 
-  /*
-   * throws pool_error if create_region fails
-   */
-  virtual auto pool_create(
-    const pool_path &path_
-    , std::size_t size_
-    , int flags_
-    , std::size_t expected_obj_count_
-  ) -> std::unique_ptr<tracked_pool> = 0;
+    /*
+     * throws pool_error if create_region fails
+     */
+    virtual auto pool_create(
+      const pool_path &path_
+      , std::size_t size_
+      , int flags_
+      , std::size_t expected_obj_count_
+    ) -> std::unique_ptr<Pool> = 0;
 
-  virtual auto pool_open(
-    const pool_path &path_
-    , int flags_
-  ) -> std::unique_ptr<tracked_pool> = 0;
+    virtual auto pool_open(
+      const pool_path &path_
+      , int flags_
+    ) -> std::unique_ptr<Pool> = 0;
 
-  virtual void pool_delete(const pool_path &path) = 0;
-};
+    virtual void pool_delete(const pool_path &path) = 0;
+  };
 #pragma GCC diagnostic pop
 
 #endif
