@@ -33,7 +33,6 @@
  * ===== table_base =====
  */
 
-#include <iostream>
 template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
@@ -73,20 +72,11 @@ template <
 			_bc[ix]._next = &_bc[0];
 			_bc[ix]._prev = &_bc[0];
 			const auto segment_size = base_segment_size;
-			_bc[ix]._bucket_mutexes = new bucket_mutexes_t[segment_size];
+			_bc[ix]._bucket_mutexes.reset(new bucket_mutexes_t[segment_size]);
 			_bc[ix]._buckets_end = _bc[ix]._buckets + segment_size;
 			if ( mode_ == construction_mode::reconstitute )
 			{
-				for ( auto it = _bc[ix]._buckets; it != _bc[ix]._buckets_end; ++it )
-				{
-					content_t &c = *it;
-					/* reconsititute key and value */
-					if ( c.state_get() != bucket_t::FREE )
-					{
-						c.value().first.reconstitute(av_);
-						c.value().second.reconstitute(av_);
-					}
-				}
+				_bc[ix].reconstitute(av_);
 			}
 		}
 
@@ -98,21 +88,11 @@ template <
 			_bc[ix]._next = &_bc[0];
 			_bc[0]._prev = &_bc[ix];
 			const auto segment_size = base_segment_size << (ix-1U);
-			_bc[ix]._bucket_mutexes =
-				new bucket_mutexes_t[segment_size];
+			_bc[ix]._bucket_mutexes.reset(new bucket_mutexes_t[segment_size]);
 			_bc[ix]._buckets_end = _bc[ix]._buckets + segment_size;
 			if ( mode_ == construction_mode::reconstitute )
 			{
-				for ( auto it = _bc[ix]._buckets; it != _bc[ix]._buckets_end; ++it )
-				{
-					/* reconsititute key and value */
-					content_t &c = *it;
-					if ( c.state_get() != bucket_t::FREE )
-					{
-						c.value().first.reconstitute(av_);
-						c.value().second.reconstitute(av_);
-					}
-				}
+				_bc[ix].reconstitute(av_);
 			}
 		}
 #if TRACE_MANY
@@ -136,18 +116,10 @@ template <
 			junior_bucket_control._prev = &_bc[ix-1];
 			junior_bucket_control._index = ix;
 			const auto segment_size = base_segment_size << (ix-1U);
-			junior_bucket_control._bucket_mutexes = new bucket_mutexes_t[segment_size];
+			junior_bucket_control._bucket_mutexes.reset(new bucket_mutexes_t[segment_size]);
 			junior_bucket_control._buckets_end = junior_bucket_control._buckets + segment_size;
 
-			for ( auto jr = junior_bucket_control._buckets; jr != junior_bucket_control._buckets_end ; ++jr )
-			{
-				content_t &c = *jr;
-				if ( c.state_get() != bucket_t::FREE )
-				{
-					c.value().first.reconstitute(av_);
-					c.value().second.reconstitute(av_);
-				}
-			}
+			junior_bucket_control.reconstitute(av_);
 			 
 			resize_pass2();
 			this->persist_controller_t::resize_epilog();
@@ -190,14 +162,16 @@ template <
 
 					/*
 					 * Persists the entire content, although only the size has changed.
-					 * Persisting jus the state would require an additional function
+					 * Persisting only the state would require an additional function
 					 * in persist_controller_t.
 					 */
 					this->persist_controller_t::persist_content(content_lk.ref(), "content state from owner");
 				}
 			}
 			this->persist_controller_t::size_set(s);
+#if TRACE_MANY
 			std::cerr << "Restored size " << size() << "\n";
+#endif
 		}
 	}
 
@@ -207,6 +181,13 @@ template <
 >
 	impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::~table_base()
 	{
+		/* TODO: scan hash entries for "long" keys and values; destuct the deallacator
+		 * items (leading to desctruction of any shared allocation state, if any).
+		 */
+		for ( auto ix = 0U; ix != this->persist_controller_t::segment_count_actual().value(); ++ix )
+		{
+			_bc[ix].deconstitute();
+		}
 		perishable::report();
 	}
 
@@ -582,7 +563,7 @@ template <
 #endif
 		RETRY:
 			/* convert the args to a value_type */
-			auto v = value_type(std::forward<Args>(args)...);
+			value_type v(std::forward<Args>(args)...);
 			/* The bucket in which to place the new entry */
 			auto sbw = make_segment_and_bucket(bucket(v.first));
 			auto owner_lk = make_owner_unique_lock(sbw);
@@ -697,7 +678,7 @@ template <
 		_bc[segment_count()]._prev = &_bc[segment_count()-1];
 		_bc[segment_count()]._index = segment_count();
 		auto segment_size = bucket_count();
-		_bc[segment_count()]._bucket_mutexes = new bucket_mutexes_t[segment_size];
+		_bc[segment_count()]._bucket_mutexes.reset(new bucket_mutexes_t[segment_size]);
 		_bc[segment_count()]._buckets_end = _bc[segment_count()]._buckets + segment_size;
 
 		/* adjust count and everything which depends on it (size, mask) */

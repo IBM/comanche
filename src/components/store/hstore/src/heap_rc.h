@@ -28,6 +28,7 @@ class heap_rc_shared
 	static constexpr std::size_t alignment = 64U;
 	void *_addr;
 	std::size_t _size;
+	unsigned _ref_count;
 	unsigned _numa_node;
 	nupm::Rca_LB _heap;
 	/* The set of reconstituted addresses. Only needed during recovery.
@@ -79,6 +80,7 @@ public:
 	heap_rc_shared(std::size_t sz_, unsigned numa_node_)
 		: _addr(best_aligned(this + 1, sz_ - sizeof *this))
 		, _size((static_cast<char *>(static_cast<void *>(this)) + sz_) - static_cast<char *>(_addr))
+		, _ref_count(1)
 		, _numa_node(numa_node_)
 		, _heap()
 		, _reconstituted()
@@ -92,6 +94,7 @@ public:
 	heap_rc_shared()
 		: _addr(this->_addr)
 		, _size(this->_size)
+		, _ref_count(1)
 		, _numa_node(this->_numa_node)
 		, _heap()
 		, _reconstituted()
@@ -99,6 +102,10 @@ public:
 		_heap.add_managed_region(_addr, _size, _numa_node);
 	}
 #pragma GCC diagnostic pop
+
+	~heap_rc_shared()
+	{
+	}
 
 	heap_rc_shared(const heap_rc_shared &) = delete;
 	heap_rc_shared &operator=(const heap_rc_shared &) = delete;
@@ -133,6 +140,17 @@ public:
 		return contains(_reconstituted, static_cast<alloc_set_t::element_type>(p_));
 	}
 
+	heap_rc_shared &inc_ref()
+	{
+		++_ref_count;
+		return *this;
+	}
+
+	unsigned dec_ref()
+	{
+		return --_ref_count;
+	}
+
 	/* debug */
 	unsigned numa_node() const
 	{
@@ -154,7 +172,19 @@ public:
 	{
 	}
 
-	heap_rc(const heap_rc &) = default;
+	~heap_rc()
+	{
+		auto r = _heap->dec_ref();
+		if ( r == 0 )
+		{
+			_heap->~heap_rc_shared();
+		}
+	}
+
+	heap_rc(const heap_rc &o_) noexcept
+		: _heap(&o_._heap->inc_ref())
+	{
+	}
 
 	heap_rc & operator=(const heap_rc &) = default;
 
