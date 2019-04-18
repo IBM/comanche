@@ -23,6 +23,7 @@
 #define __NUPM_RC_ALLOC_LB__
 
 #include <common/memory.h>
+#include <memory>
 #include <string>
 
 namespace nupm
@@ -90,7 +91,7 @@ class Rca_LB : public Common::Reconstituting_allocator {
   void debug_dump(std::string *out_log = nullptr);
 
  private:
-  Region_map *_rmap;
+  std::unique_ptr<Region_map> _rmap;
 };
 
 }  // namespace nupm
