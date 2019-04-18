@@ -11,28 +11,24 @@
    limitations under the License.
 */
 
+#ifndef _COMANCHE_PSTR_HASH_H_
+#define _COMANCHE_PSTR_HASH_H_
 
-#ifndef COMANCHE_HSTORE_NUPM_REGION_H
-#define COMANCHE_HSTORE_NUPM_REGION_H
+#include <city.h>
 
-/* requires persist_data_t definition */
-#include "persist_data.h"
-
-template <typename PersistData, typename Heap>
-  class region
+template <typename Key>
+  struct pstr_hash
   {
-    static constexpr std::uint64_t magic_value = 0xc74892d72eed493a;
-    std::uint64_t magic;
-  public:
-    using heap_type = Heap;
-    using persist_data_type = PersistData;
-
-    PersistData persist_data;
-    Heap heap;
-
-    void initialize() { magic = magic_value; }
-    bool is_initialized() const noexcept { return magic == magic_value; }
-    /* region used by heap_cc follows */
+    using argument_type = Key;
+    using result_type = std::uint64_t;
+    static result_type hf(const argument_type &s)
+    {
+      return CityHash64(s.data(), s.size());
+    }
+    static result_type hf(const std::string &s)
+    {
+      return CityHash64(s.data(), s.size());
+    }
   };
 
 #endif

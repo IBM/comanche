@@ -17,217 +17,84 @@
 
 #include "hstore_pm.h"
 
+#include "hstore_nupm_types.h"
+#include "hstore_open_pool.h"
 #include "hstore_common.h"
 #include "persister_nupm.h"
 #include "dax_map.h"
 
 #include <cstring> /* strerror */
 
-#include "region.h"
-
-#include "hstore_session.h"
-
 #include <cinttypes> /* PRIx64 */
 #include <cstdlib> /* getenv */
 
-using Persister = persister_nupm;
-
-namespace
-{
-  unsigned name_to_numa_node(const std::string &name)
-  {
-    if ( 0 == name.size() )
-    {
-      throw std::domain_error("cannot determine numa node from null string");
-    }
-    auto c = name[name.size()-1];
-    if ( ! std::isprint(c) )
-    {
-      throw std::domain_error("last character of name (unprintable) does not look like a numa node ID");
-    }
-    if ( c < '0' || '8' < c )
-    {
-#if 0
-      throw std::domain_error(std::string("last character of name '") + name + "' does not look like a numa node ID");
-#else
-      /* current test cases do not always supply a node number - default to 0 */
-      c = '0';
-#endif
-    }
-    return c - '0';
-  }
-}
-
-/* open_pool_handle, ALLOC_T, table_t */
-template <typename Handle, typename Allocator, typename Table>
-  class session;
+template <typename PersistData, typename Heap>
+  class region;
 
 #pragma GCC diagnostic push
+/* Note: making enable_shared_from_this private avoids the non-virtual-dtor error but 
+ * generates a different error with no error text (G++ 5.4.0)
+ */
 #pragma GCC diagnostic ignored "-Wnon-virtual-dtor"
-class hstore_nupm
-  : public pool_manager
-  , public std::enable_shared_from_this<hstore_nupm>
-{
-public:
-  using open_pool_handle = std::unique_ptr<region, region_closer>;
-private:
-  std::unique_ptr<Devdax_manager> _devdax_manager;
-  unsigned _numa_node;
 
-  static std::uint64_t dax_uuid_hash(const pool_path &p)
+/* Region is region<persist_data_t, heap_rc>, Table is hstore::table_t Allocator is table_t::allocator_type, LockType is hstore::locK_type_t */
+template <typename Region, typename Table, typename Allocator, typename LockType>
+  class hstore_nupm
+    : public pool_manager<::open_pool<std::unique_ptr<Region, region_closer<hstore_nupm<Region, Table, Allocator, LockType>>>>>
+    , public std::enable_shared_from_this<hstore_nupm<Region, Table, Allocator, LockType>>
   {
-    std::string s = p.str();
-    return CityHash64(s.data(), s.size());
-  }
+  public:
+    using region_type = Region;
+  private:
+    using table_t = Table;
+    using allocator_t = Allocator;
+    using lock_type_t = LockType;
+    using region_closer_t = region_closer<hstore_nupm<region_type, table_t, allocator_t, lock_type_t>>;
+  public:
+    using open_pool_handle = ::open_pool<std::unique_ptr<region_type, region_closer_t>>;
+  private:
+    std::unique_ptr<Devdax_manager> _devdax_manager;
+    unsigned _numa_node;
 
-  void *delete_and_recreate_pool(const pool_path &path_, std::size_t size_)
-  {
-    auto uuid = dax_uuid_hash(path_);
-    _devdax_manager->erase_region(uuid, _numa_node);
+    static std::uint64_t dax_uuid_hash(const pool_path &p);
 
-    auto pop = _devdax_manager->create_region(uuid, _numa_node, size_);
-    if (not pop) {
-      auto e = errno;
-      throw std::system_error(std::error_code(e, std::system_category()), std::string("failed to create region ") + path_.str());
-    }
-    PLOG(PREFIX "in %s: created region ID %" PRIx64 " at %p:0x%zx", __func__, path_.str().c_str(), uuid, pop, size_);
-    return pop;
-  }
+    void *delete_and_recreate_pool(const pool_path &path_, std::size_t size_);
 
-  void map_create(
-    region *pop_
-    , std::size_t size_
-    , std::size_t expected_obj_count
-  )
-  {
-    if ( debug() )
-    {
-      PLOG(
-           PREFIX "root is empty: new hash required object count %zu"
-           , __func__
-           , expected_obj_count
-           );
-    }
-
-    auto *p = &pop_->persist_data;
-    PLOG(PREFIX "created persist_data ptr at addr %p", __func__, static_cast<const void *>(p));
-    void *a = &pop_->heap;
-    auto actual_size = size_ - sizeof(region);
-    PLOG(PREFIX "created heap at addr %p region size 0x%zx heap size 0x%zx", __func__, static_cast<const void *>(a), size_, actual_size);
-    /* arguments to cc_malloc are the start of the free space (which cc_sbrk uses
-     * for the "state" structure) and the size of the free space
-     */
-#if USE_CC_HEAP == 3
-    auto al = new (a) heap_rc(static_cast<char *>(a) + sizeof(heap_rc), actual_size, _numa_node);
-#else
-    auto al = new (a) heap_cc(static_cast<char *>(a) + sizeof(heap_cc), actual_size);
-#endif
-    new (p) persist_data_t(
-      expected_obj_count
-      , table_t::allocator_type(*al)
+    void map_create(
+      region_type *pop_
+      , std::size_t size_
+      , std::size_t expected_obj_count
     );
-    pop_->initialize();
-    Persister::persist(pop_, sizeof *pop_);
-  }
 
-  bool debug() { return false; }
-public:
-  hstore_nupm(const std::string &, const std::string &name_, std::unique_ptr<Devdax_manager> mgr_, bool debug_)
-    : pool_manager(debug_)
-    , _devdax_manager(std::move(mgr_))
-    , _numa_node(name_to_numa_node(name_))
-  {}
+    bool debug();
+  public:
+    hstore_nupm(const std::string &, const std::string &name_, std::unique_ptr<Devdax_manager> mgr_, bool debug_);
 
-  virtual ~hstore_nupm() {}
+    virtual ~hstore_nupm();
 
-  auto pool_create_check(std::size_t) -> status_t override
-  {
-    return S_OK;
-  }
+    auto pool_create_check(std::size_t) -> status_t override;
 
-  auto pool_create(
-    const pool_path &path_
-    , std::size_t size_
-    , int flags_
-    , std::size_t expected_obj_count_
-  ) -> std::unique_ptr<tracked_pool> override
-  {
-    if ( flags_ != 0 )
-    {
-      throw pool_error("unsupported flags " + std::to_string(flags_), pool_ec::pool_unsupported_mode);
-    }
-    auto uuid = dax_uuid_hash(path_);
-    /* Attempt to create a new pool. */
-    try
-    {
-      auto pop = open_pool_handle(static_cast<region *>(_devdax_manager->create_region(uuid, _numa_node, size_)), region_closer(shared_from_this()));
-      /* Guess that nullptr indicate a failure */
-      if ( ! pop )
-      {
-        throw pool_error("create_region fail: " + path_.str(), pool_ec::region_fail);
-      }
-      PLOG(PREFIX "in %s: created region ID %" PRIx64 " at %p:0x%zx", __func__, path_.str().c_str(), uuid, static_cast<const void *>(pop.get()), size_);
+    auto pool_create(
+      const pool_path &path_
+      , std::size_t size_
+      , int flags_
+      , std::size_t expected_obj_count_
+    ) -> std::unique_ptr<open_pool_handle> override;
 
-      map_create(pop.get(), size_, expected_obj_count_);
-      return std::make_unique<session<open_pool_handle, ALLOC_T, table_t>>(path_, std::move(pop), construction_mode::create);
-    }
-    catch ( const General_exception &e )
-    {
-      throw pool_error("create_region fail: " + path_.str() + " " + e.cause(), pool_ec::region_fail_general_exception);
-    }
-    catch ( const API_exception &e )
-    {
-      throw pool_error("create_region fail: " + path_.str() + " " + e.cause(), pool_ec::region_fail_api_exception);
-    }
-  }
+    auto pool_open(
+      const pool_path &path_
+      , int flags_
+    ) -> std::unique_ptr<open_pool_handle> override;
 
-  auto pool_open(
-    const pool_path &path_
-    , int flags_
-  ) -> std::unique_ptr<tracked_pool> override
-  {
-    if ( flags_ != 0 )
-    {
-      throw pool_error("unsupported flags " + std::to_string(flags_), pool_ec::pool_unsupported_mode);
-    }
-    auto uuid = dax_uuid_hash(path_);
-    auto pop = open_pool_handle(static_cast<region *>(_devdax_manager->open_region(uuid, _numa_node, nullptr)), region_closer(shared_from_this()));
-    if ( ! pop )
-    {
-      throw std::invalid_argument("failed to re-open pool");
-    }
+    void pool_close_check(const std::string &) override;
 
-    void *a = &pop->heap;
+    void pool_delete(const pool_path &path_) override;
 
-#if USE_CC_HEAP == 3
-    /* reconstituted heap */
-    new (a) heap_rc(static_cast<char *>(a) + sizeof(heap_rc));
-#else
-    new (a) heap_cc(static_cast<char *>(a) + sizeof(heap_cc));
-#endif
-
-    PLOG(PREFIX "in %s: opened region ID %" PRIx64 " at %p", __func__, path_.str().c_str(), uuid, static_cast<const void *>(pop.get()));
-    /* open_pool_handle is a managed region *, and pop is a region. */
-    auto s = std::make_unique<session<open_pool_handle, ALLOC_T, table_t>>(path_, std::move(pop), construction_mode::reconstitute);
-    return s;
-  }
-
-  void pool_close_check(const std::string &) override
-  {
-  }
-
-  void pool_delete(const pool_path &path_) override
-  {
-    auto uuid = dax_uuid_hash(path_);
-    _devdax_manager->erase_region(uuid, _numa_node);
-  }
-
-  /* ERROR: want get_pool_regions(<proper type>, std::vector<::iovec>&) */
-  status_t pool_get_regions(void *, std::vector<::iovec>&) override
-  {
-    return E_NOT_SUPPORTED;
-  }
-};
+    /* ERROR: want get_pool_regions(<proper type>, std::vector<::iovec>&) */
+    status_t pool_get_regions(void *, std::vector<::iovec>&) override;
+  };
 #pragma GCC diagnostic pop
+
+#include "hstore_nupm.tcc"
 
 #endif
