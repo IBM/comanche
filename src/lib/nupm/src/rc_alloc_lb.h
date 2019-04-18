@@ -44,6 +44,12 @@ class Rca_LB : public Common::Reconstituting_allocator {
   Rca_LB();
 
   /**
+   * Destructor
+   *
+   */
+  ~Rca_LB();
+
+  /**
    * Add region of memory to be managed
    *
    * @param region_base Base of region
