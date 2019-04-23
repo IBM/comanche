@@ -14,7 +14,6 @@
 
 #include <list>
 #include <common/logging.h>
-
 // static PyObject * bio_relative_complement(ReferenceData * self,
 //                                           PyObject * args,
 //                                           PyObject * kwargs);
@@ -25,13 +24,7 @@
 
 // forward declaration of custom types
 //
-extern PyTypeObject ReferenceDataType;
-extern PyTypeObject KmerMapType;
-extern PyTypeObject KmerMapIteratorType;
-extern PyTypeObject KmerLshType;
-extern PyTypeObject KmerLshIteratorType;
-extern PyTypeObject DebruijnGraphType;
-extern PyTypeObject DebruijnGraphIteratorType;
+extern PyTypeObject ZcStringType;
 
 static PyMethodDef dawn_methods[] = {
   // {"load_set_sorted_hashes",
@@ -46,7 +39,7 @@ static PyMethodDef dawn_methods[] = {
 static PyModuleDef dawn_module = {
     PyModuleDef_HEAD_INIT,
     "dawn",
-    "Dawn client API extension module.",
+    "Dawn client API extension module",
     -1,
     dawn_methods,
     NULL, NULL, NULL, NULL
@@ -61,11 +54,11 @@ PyInit_dawn(void)
 
   import_array(); /* using NumPy C-API */
   
-  // ReferenceDataType.tp_base = 0; // no inheritance
-  // if(PyType_Ready(&ReferenceDataType) < 0) {
-  //   assert(0);
-  //   return NULL;
-  // }
+  ZcStringType.tp_base = 0; // no inheritance
+  if(PyType_Ready(&ZcStringType) < 0) {
+    assert(0);
+    return NULL;
+  }
 
   /* register module */
 #if PY_MAJOR_VERSION >= 3
@@ -78,14 +71,14 @@ PyInit_dawn(void)
     return NULL;
 
   /* add types */
-  // int rc;
+  int rc;
 
-  // Py_INCREF(&ReferenceDataType);
-  // rc = PyModule_AddObject(m, "ReferenceData", (PyObject *) &ReferenceDataType);
-  // if(rc) {
-  //   assert(rc==0);
-  //   return NULL;
-  // }
+  Py_INCREF(&ZcStringType);
+  rc = PyModule_AddObject(m, "ZcString", (PyObject *) &ZcStringType);
+  if(rc) {
+    assert(rc==0);
+    return NULL;
+  }
 
   return m;
 }
