@@ -29,14 +29,16 @@ module_core = Extension('dawn',
                         include_dirs = [include_dir,
                                         '../../../build/dist/include'
                         ],
-                        library_dirs = ['/usr/lib/python3.6/',
+                        library_dirs = ['/usr/lib/python3.6m/',
                                         '../../../dist/lib',
                                         '../../../dist/lib64',
                                         '/usr/local/lib'],
                         libraries = ['common','comanche-core','numa','pthread','z','rt','dl',
                                      'boost_system',
                         ],
-                        sources = ['${CMAKE_CURRENT_SOURCE_DIR}/src/dawn_api_module.cc'],
+                        sources = ['${CMAKE_CURRENT_SOURCE_DIR}/src/dawn_api_module.cc',
+                                   '${CMAKE_CURRENT_SOURCE_DIR}/src/string_type.cc',
+                        ],
                         extra_compile_args = ['-fPIC','-std=c++11','-DCONFIG_DEBUG','-g','-O2']
 )
 
