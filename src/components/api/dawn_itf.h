@@ -230,7 +230,7 @@ public:
 };
 
 
-class IDawn_factory : public Component::IBase
+class IDawn_factory : public IKVStore_factory
 {
 public:
   // clang-format off

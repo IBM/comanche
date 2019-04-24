@@ -31,8 +31,8 @@
 #include "connection.h"
 #include "dawn_client_config.h"
 
-class Dawn_client : public Component::IKVStore,
-                    public Component::IDawn
+class Dawn_client : public virtual Component::IKVStore,
+                    public virtual Component::IDawn
 {
   friend class Dawn_client_factory;
 
@@ -162,8 +162,7 @@ class Dawn_client : public Component::IKVStore,
 };
 
 
-class Dawn_client_factory : public Component::IDawn_factory,
-                            public Component::IKVStore_factory
+class Dawn_client_factory : public Component::IDawn_factory
 {
  public:
   /**
@@ -194,7 +193,8 @@ class Dawn_client_factory : public Component::IDawn_factory,
                                         const std::string& addr,
                                         const std::string& param) override
   {
-    Component::IDawn* obj = static_cast<Component::IDawn*>(new Dawn_client(debug_level, owner, addr, param));
+    Component::IDawn* obj =
+      static_cast<Component::IDawn*>(new Dawn_client(debug_level, owner, addr, param));
     obj->add_ref();
     return obj;
   }
@@ -204,7 +204,8 @@ class Dawn_client_factory : public Component::IDawn_factory,
                                       const std::string& addr,
                                       const std::string& param) override
   {
-    Component::IKVStore* obj = static_cast<Component::IKVStore*>(new Dawn_client(debug_level, owner, addr, param));
+    Component::IKVStore* obj =
+      static_cast<Component::IKVStore*>(new Dawn_client(debug_level, owner, addr, param));
     obj->add_ref();
     return obj;
   }
