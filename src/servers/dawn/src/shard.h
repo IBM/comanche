@@ -142,6 +142,10 @@ class Shard : public Shard_transport {
 
   void process_message_IO_request(Connection_handler* handler,
                                   Protocol::Message_IO_request* msg);
+  
+  void process_info_request(Connection_handler* handler,
+                            Protocol::Message_INFO_request* msg);
+  
 
  private:
   bool                             _thread_exit = false;

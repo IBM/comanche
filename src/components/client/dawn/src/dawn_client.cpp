@@ -250,12 +250,16 @@ std::string Dawn_client::find(const std::string& key_expression,
 extern "C" void* factory_createInstance(Component::uuid_t& component_id)
 {
   if (component_id == Dawn_client_factory::component_id()) {
+    PMAJOR("Creating Dawn_client_factory ...");
     auto fact = new Dawn_client_factory();
-    ((IDawn *)fact)->add_ref();
+    //    ((Component::IBase *)fact)->add_ref();
+    fact->add_ref();
     return static_cast<void*>(fact);
   }
-  else
+  else {
+    PWRN("request for bad factory type");
     return NULL;
+  }
 }
 
 #undef RESET_STATE
