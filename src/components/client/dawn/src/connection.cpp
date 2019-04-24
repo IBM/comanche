@@ -631,6 +631,12 @@ status_t Connection_handler::erase(const pool_t pool,
   return status;
 }
 
+size_t Connection_handler::count(const pool_t pool)
+{
+  API_LOCK();
+  return 99;
+}
+
 
 int Connection_handler::tick()
 {

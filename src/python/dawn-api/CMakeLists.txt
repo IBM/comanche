@@ -15,7 +15,7 @@ if (PYTHON)
   configure_file(${SETUP_PY_IN} ${SETUP_PY})
   configure_file(${CONFIG_H_IN} ${CONFIG_H})
 
-  set(TEST_COMMAND "${LD_PATH}" "PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_CURRENT_BINARY_DIR}/build/${LIBDIR}" gdb --args "${PYTHON}" ${PYTHON_FLAGS} -i "${CMAKE_CURRENT_SOURCE_DIR}/normal_start.py")
+  set(DEBUG_COMMAND "${LD_PATH}" "PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_CURRENT_BINARY_DIR}/build/${LIBDIR}" gdb --args "${PYTHON}" ${PYTHON_FLAGS} -i "${CMAKE_CURRENT_SOURCE_DIR}/normal_start.py")
   set(CHECK_COMMAND "${LD_PATH}" "PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_CURRENT_BINARY_DIR}/build/${LIBDIR}" "${PYTHON}" ${PYTHON_FLAGS} -i "${CMAKE_CURRENT_SOURCE_DIR}/normal_start.py")
   
   add_custom_command(OUTPUT ${OUTPUT}
@@ -27,7 +27,7 @@ if (PYTHON)
   add_custom_target(debug COMMAND ${DEBUG_COMMAND})
   add_custom_target(check COMMAND ${CHECK_COMMAND})
   
-  install(CODE "execute_process(COMMAND ${PYTHON} ${SETUP_PY} install)")
+#  install(CODE "execute_process(COMMAND ${PYTHON} ${SETUP_PY} install)")
 
 endif()
 

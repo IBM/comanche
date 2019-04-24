@@ -220,7 +220,11 @@ status_t Dawn_client::erase(const IKVStore::pool_t pool, const std::string& key)
   return _connection->erase(pool, key);
 }
 
-size_t Dawn_client::count(const IKVStore::pool_t pool) { return 0; }
+size_t Dawn_client::count(const IKVStore::pool_t pool)
+{
+  return _connection->count(pool);
+}
+  
 
 status_t Dawn_client::free_memory(void * p)
 {
@@ -247,7 +251,7 @@ extern "C" void* factory_createInstance(Component::uuid_t& component_id)
 {
   if (component_id == Dawn_client_factory::component_id()) {
     auto fact = new Dawn_client_factory();
-    fact->add_ref();
+    ((IDawn *)fact)->add_ref();
     return static_cast<void*>(fact);
   }
   else

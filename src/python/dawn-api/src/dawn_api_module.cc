@@ -30,6 +30,7 @@ PyDoc_STRVAR(open_connection_doc,"open_connection(ipaddr:port) -> open connectio
 //
 extern PyTypeObject ZcStringType;
 extern PyTypeObject SessionType;
+extern PyTypeObject PoolType;
 
 static PyMethodDef dawn_methods[] = {
   {"open_connection", (PyCFunction) open_connection, METH_VARARGS | METH_KEYWORDS, open_connection_doc},
@@ -68,6 +69,13 @@ PyInit_dawn(void)
     return NULL;
   }
 
+  PoolType.tp_base = 0; // no inheritance
+  if(PyType_Ready(&PoolType) < 0) {
+    assert(0);
+    return NULL;
+  }
+
+
   /* register module */
 #if PY_MAJOR_VERSION >= 3
   m = PyModule_Create(&dawn_module);
@@ -83,13 +91,15 @@ PyInit_dawn(void)
 
   Py_INCREF(&ZcStringType);
   rc = PyModule_AddObject(m, "ZcString", (PyObject *) &ZcStringType);
-  if(rc)
-    return NULL;
+  if(rc) return NULL;
 
-  Py_INCREF(&ZcStringType);
+  Py_INCREF(&SessionType);
   rc = PyModule_AddObject(m, "Session", (PyObject *) &SessionType);
-  if(rc)
-    return NULL;
+  if(rc) return NULL;
+  
+  Py_INCREF(&PoolType);
+  rc = PyModule_AddObject(m, "Pool", (PyObject *) &PoolType);
+  if(rc) return NULL;
 
 
   return m;

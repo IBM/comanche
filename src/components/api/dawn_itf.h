@@ -18,13 +18,15 @@
 
 #include <api/components.h>
 #include <api/kvstore_itf.h>
+#include <api/kvindex_itf.h>
+
 namespace Component
 {
 
 /** 
  * Dawn client interface (this will include both KV and AS capabilities)
  */
-class IDawn
+class IDawn : public Component::IBase
 {
 public:
   // clang-format off
@@ -165,9 +167,9 @@ public:
    * @return Matched key
    */  
   virtual std::string find(const std::string& key_expression,
-                           IKVIndex::offset_t begin_position,
-                           IKVIndex::find_t find_type,
-                           IKVIndex::offset_t& out_end_position) = 0;
+                           Component::IKVIndex::offset_t begin_position,
+                           Component::IKVIndex::find_t find_type,
+                           Component::IKVIndex::offset_t& out_end_position) = 0;
 
   /** 
    * Erase an object
@@ -235,18 +237,18 @@ public:
   DECLARE_INTERFACE_UUID(0xfacf1b99,0xbc51,0x49ff,0xa27b,0xd4,0xe8,0x19,0x03,0xbb,0x02);
   // clang-format on
   
-  virtual IDawn * create(const std::string& owner,
+  virtual IDawn * dawn_create(const std::string& owner,
                             const std::string& param){
     throw API_exception("factory::create(owner,param) not implemented");
   };
 
-  virtual IDawn * create(const std::string& owner,
+  virtual IDawn * dawn_create(const std::string& owner,
                             const std::string& param,
                             const std::string& param2){
     throw API_exception("factory::create(owner,param,param2) not implemented");
   }
 
-  virtual IDawn * create(unsigned debug_level,
+  virtual IDawn * dawn_create(unsigned debug_level,
                             const std::string& owner,
                             const std::string& param,
                             const std::string& param2){
