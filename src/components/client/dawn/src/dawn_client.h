@@ -162,7 +162,9 @@ class Dawn_client : public Component::IKVStore,
 };
 
 
-class Dawn_client_factory : public Component::IKVStore_factory {
+class Dawn_client_factory : public Component::IDawn_factory,
+                            public Component::IKVStore_factory
+{
  public:
   /**
    * Component/interface management
@@ -176,15 +178,27 @@ class Dawn_client_factory : public Component::IKVStore_factory {
 
   void* query_interface(Component::uuid_t& itf_uuid) override
   {
-    if (itf_uuid == Component::IKVStore_factory::iid()) {
+    if (itf_uuid == Component::IDawn_factory::iid()) {
+      return (void*) static_cast<Component::IDawn_factory*>(this);
+    }
+    else if (itf_uuid == Component::IKVStore_factory::iid()) {
       return (void*) static_cast<Component::IKVStore_factory*>(this);
     }
-    else
-      return NULL;  // we don't support this interface
+    else return NULL;  // we don't support this interface
   }
 
   void unload() override { delete this; }
 
+  virtual Component::IDawn* dawn_create(unsigned           debug_level,
+                                        const std::string& owner,
+                                        const std::string& addr,
+                                        const std::string& param) override
+  {
+    Component::IDawn* obj = static_cast<Component::IDawn*>(new Dawn_client(debug_level, owner, addr, param));
+    obj->add_ref();
+    return obj;
+  }
+  
   virtual Component::IKVStore* create(unsigned           debug_level,
                                       const std::string& owner,
                                       const std::string& addr,
@@ -194,6 +208,7 @@ class Dawn_client_factory : public Component::IKVStore_factory {
     obj->add_ref();
     return obj;
   }
+
 };
 
 #endif

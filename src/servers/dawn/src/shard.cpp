@@ -425,8 +425,8 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
        puts for larger data, we use a two-stage operation
     */
     if (option_DEBUG > 2)
-      PLOG("PUT: (%p) key=(%.*s) value=(%.*s)", this, (int) msg->key_len,
-           msg->key(), (int) min(msg->val_len,10), msg->value());
+      PLOG("PUT: (%p) key=(%.*s) value=(%.*s ...) len=(%lu)", this, (int) msg->key_len,
+           msg->key(), (int) min(msg->val_len,20), msg->value(), msg->val_len);
 
     if (unlikely(msg->resvd & Dawn::Protocol::MSG_RESVD_SCBE)) {
       status = S_OK;  // short-circuit backend
@@ -482,8 +482,8 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
                                          value_out_len);
 
       if (option_DEBUG > 2)
-        PLOG("Shard: locked OK: value_out=%p (%.*s) value_out_len=%lu",
-             value_out, (int) min(value_out_len,10), (char*) value_out, value_out_len);
+        PLOG("Shard: locked OK: value_out=%p (%.*s ...) value_out_len=%lu",
+             value_out, (int) min(value_out_len,20), (char*) value_out, value_out_len);
 
       if (key_handle == Component::IKVStore::KEY_NONE) { /* key not found */
         response->status = E_NOT_FOUND;

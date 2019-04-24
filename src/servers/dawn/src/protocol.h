@@ -60,6 +60,7 @@ enum {
   OP_DELETE      = 8,
   OP_ERASE       = 8,
   OP_PREPARE     = 9,  // prepare for immediately following operation
+  OP_COUNT       = 10,
   OP_INVALID     = 0xFE,
   OP_MAX         = 0xFF
 };
