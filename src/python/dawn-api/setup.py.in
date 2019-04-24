@@ -27,19 +27,28 @@ module_core = Extension('dawn',
                                          ('CXX',''),
                                          ('MINOR_VERSION', '0')],
                         include_dirs = [include_dir,
-                                        '../../../build/dist/include'
+                                        '${CMAKE_CURRENT_SOURCE_DIR}/../../../build/dist/include',
+                                        '${CMAKE_CURRENT_BINARY_DIR}/src'
                         ],
                         library_dirs = ['/usr/lib/python3.6m/',
-                                        '../../../dist/lib',
-                                        '../../../dist/lib64',
-                                        '/usr/local/lib'],
+                                        '${CMAKE_INSTALL_PREFIX}/lib',
+                                        '${CMAKE_INSTALL_PREFIX}/lib64',
+                                        '/usr/local/lib',
+                        ],
                         libraries = ['common','comanche-core','numa','pthread','z','rt','dl',
                                      'boost_system',
                         ],
                         sources = ['${CMAKE_CURRENT_SOURCE_DIR}/src/dawn_api_module.cc',
                                    '${CMAKE_CURRENT_SOURCE_DIR}/src/string_type.cc',
+                                   '${CMAKE_CURRENT_SOURCE_DIR}/src/session_type.cc',
                         ],
-                        extra_compile_args = ['-fPIC','-std=c++11','-DCONFIG_DEBUG','-g','-O2']
+                        extra_compile_args = ['-fPIC','-std=c++11','-DCONFIG_DEBUG','-g','-O2'],
+                        runtime_library_dirs = ['/usr/lib/python3.6m/',
+                                                '${CMAKE_INSTALL_PREFIX}/lib',
+                                                '${CMAKE_INSTALL_PREFIX}/lib64',
+                                                '/usr/local/lib',
+                                                '-Wl,--rpath=${CMAKE_INSTALL_PREFIX}/lib'
+                        ]
 )
 
 

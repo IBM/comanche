@@ -5,11 +5,15 @@ find_program(PYTHON "python3.6")
 if (PYTHON)
   set(SETUP_PY_IN "${CMAKE_CURRENT_SOURCE_DIR}/setup.py.in")
   set(SETUP_PY    "${CMAKE_CURRENT_BINARY_DIR}/setup.py")
+  set(CONFIG_H_IN "${CMAKE_CURRENT_SOURCE_DIR}/src/config.h.in")
+  set(CONFIG_H    "${CMAKE_CURRENT_BINARY_DIR}/src/config.h")
+
   set(DEPS        "${CMAKE_CURRENT_SOURCE_DIR}/__init__.py")
   set(OUTPUT      "${CMAKE_CURRENT_BINARY_DIR}/build/timestamp")
   set(LIBDIR      "lib.linux-x86_64-3.6")
   
   configure_file(${SETUP_PY_IN} ${SETUP_PY})
+  configure_file(${CONFIG_H_IN} ${CONFIG_H})
 
   set(TEST_COMMAND "${LD_PATH}" "PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_CURRENT_BINARY_DIR}/build/${LIBDIR}" gdb --args "${PYTHON}" ${PYTHON_FLAGS} -i "${CMAKE_CURRENT_SOURCE_DIR}/normal_start.py")
   set(CHECK_COMMAND "${LD_PATH}" "PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_CURRENT_BINARY_DIR}/build/${LIBDIR}" "${PYTHON}" ${PYTHON_FLAGS} -i "${CMAKE_CURRENT_SOURCE_DIR}/normal_start.py")
