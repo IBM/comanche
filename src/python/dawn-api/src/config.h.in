@@ -1,0 +1,2 @@
+/* config.h */
+const char * COMANCHE_LIB_PATH="${CMAKE_INSTALL_PREFIX}/lib";
