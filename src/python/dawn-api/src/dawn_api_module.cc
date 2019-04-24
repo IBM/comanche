@@ -8,27 +8,31 @@
 #include <numpy/arrayobject.h>
 //#include <numpy/npy_math.h>
 
+#include <api/components.h>
+#include <api/kvstore_itf.h>
+
 #if defined(__linux__)
 #include <execinfo.h>
 #endif
 
 #include <list>
 #include <common/logging.h>
-// static PyObject * bio_relative_complement(ReferenceData * self,
-//                                           PyObject * args,
-//                                           PyObject * kwargs);
+
+static PyObject * open_connection(PyObject * self,
+                                  PyObject * args,
+                                  PyObject * kwargs);
 
 
-// PyDoc_STRVAR(bio_relative_complement_doc,"relative_complement(a,b) -> Returns relative complement of 'a' and 'b'.");
+PyDoc_STRVAR(open_connection_doc,"open_connection(ipaddr:port) -> open connection to Dawn server");
 
 
 // forward declaration of custom types
 //
 extern PyTypeObject ZcStringType;
+extern PyTypeObject SessionType;
 
 static PyMethodDef dawn_methods[] = {
-  // {"load_set_sorted_hashes",
-  //  (PyCFunction) bio_load_set_sorted_hashes, METH_VARARGS | METH_KEYWORDS, bio_load_set_sorted_hashes_doc},
+  {"open_connection", (PyCFunction) open_connection, METH_VARARGS | METH_KEYWORDS, open_connection_doc},
   // {"compare_set_sorted_hashes",
   //  (PyCFunction) bio_compare_set_sorted_hashes, METH_VARARGS | METH_KEYWORDS, bio_compare_set_sorted_hashes_doc},
   // {"parallel_compare_set_sorted_hashes",
@@ -45,17 +49,21 @@ static PyModuleDef dawn_module = {
     NULL, NULL, NULL, NULL
 };
 
-
-
 PyMODINIT_FUNC
 PyInit_dawn(void)
 {  
   PyObject *m;
 
   import_array(); /* using NumPy C-API */
-  
+
   ZcStringType.tp_base = 0; // no inheritance
   if(PyType_Ready(&ZcStringType) < 0) {
+    assert(0);
+    return NULL;
+  }
+
+  SessionType.tp_base = 0; // no inheritance
+  if(PyType_Ready(&SessionType) < 0) {
     assert(0);
     return NULL;
   }
@@ -75,14 +83,24 @@ PyInit_dawn(void)
 
   Py_INCREF(&ZcStringType);
   rc = PyModule_AddObject(m, "ZcString", (PyObject *) &ZcStringType);
-  if(rc) {
-    assert(rc==0);
+  if(rc)
     return NULL;
-  }
+
+  Py_INCREF(&ZcStringType);
+  rc = PyModule_AddObject(m, "Session", (PyObject *) &SessionType);
+  if(rc)
+    return NULL;
+
 
   return m;
 }
 
+static PyObject * open_connection(PyObject * self,
+                                  PyObject * args,
+                                  PyObject * kwargs)
+{
+  Py_RETURN_NONE;
+}
 
 // static PyObject * bio_parallel_compare_set_sorted_hashes(PyObject * self,
 //                                                          PyObject * args,
