@@ -34,7 +34,13 @@ enum {
   MSG_TYPE_POOL_RESPONSE   = 0x11,
   MSG_TYPE_IO_REQUEST      = 0x20,
   MSG_TYPE_IO_RESPONSE     = 0x21,
+  MSG_TYPE_INFO_REQUEST    = 0x30,
+  MSG_TYPE_INFO_RESPONSE   = 0x31,
   MSG_TYPE_MAX             = 0xFF,
+};
+
+enum {
+  INFO_TYPE_COUNT = 0x1,
 };
 
 enum {
@@ -60,6 +66,7 @@ enum {
   OP_DELETE      = 8,
   OP_ERASE       = 8,
   OP_PREPARE     = 9,  // prepare for immediately following operation
+  OP_COUNT       = 10,
   OP_INVALID     = 0xFE,
   OP_MAX         = 0xFF
 };
@@ -361,6 +368,22 @@ struct Message_IO_response : public Message {
   uint64_t request_id; /*< id or sender time stamp counter */
   uint64_t data_len;   /* bit 63 is twostage flag */
   char     data[];
+} __attribute__((packed));
+
+////////////////////////////////////////////////////////////////////////
+// INFO REQUEST/RESPONSE
+struct Message_INFO_request : public Message {
+  Message_INFO_request(uint64_t authid) : Message(auth_id, MSG_TYPE_INFO_REQUEST) { }
+  size_t base_message_size() const { return sizeof(Message_INFO_request); }
+  uint64_t pool_id;
+  uint32_t type;
+} __attribute__((packed));
+
+struct Message_INFO_response : public Message {
+  Message_INFO_response(uint64_t authid) : Message(auth_id, MSG_TYPE_INFO_RESPONSE) { }
+  Message_INFO_response() {}
+  size_t base_message_size() const { return sizeof(Message_INFO_response); }
+  size_t value;
 } __attribute__((packed));
 
 ////////////////////////////////////////////////////////////////////////
