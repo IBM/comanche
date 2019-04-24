@@ -617,9 +617,11 @@ status_t Connection_handler::erase(const pool_t pool,
   sync_recv(iob);
 
   auto response_msg = new (iob->base()) Dawn::Protocol::Message_IO_response();
-  if (response_msg->type_id != Dawn::Protocol::MSG_TYPE_IO_RESPONSE)
-    throw Protocol_exception("expected IO_RESPONSE message - got %x",
-                             response_msg->type_id);
+  if (response_msg->type_id != Dawn::Protocol::MSG_TYPE_IO_RESPONSE) {
+    PWRN("expected IO_RESPONSE message - got %x", response_msg->type_id);
+    free_buffer(iob);
+    return E_FAIL;
+  }
 
   if (option_DEBUG)
     PLOG("got response from ERASE operation: status=%d request_id=%lu data_len=%lu",
@@ -629,6 +631,33 @@ status_t Connection_handler::erase(const pool_t pool,
   auto status = response_msg->status;
   free_buffer(iob);
   return status;
+}
+
+size_t Connection_handler::count(const pool_t pool)
+{
+  API_LOCK();
+
+  const auto iob = allocate();
+  assert(iob);
+  const auto msg = new (iob->base()) Dawn::Protocol::Message_INFO_request(auth_id());
+  msg->pool_id = pool;
+  msg->type = Dawn::Protocol::INFO_TYPE_COUNT;
+  iob->set_length(msg->base_message_size());
+
+  sync_inject_send(iob);
+
+  sync_recv(iob);
+
+  auto response_msg = new (iob->base()) Dawn::Protocol::Message_INFO_response();
+  if (response_msg->type_id != Dawn::Protocol::MSG_TYPE_INFO_RESPONSE) {
+    PWRN("expected INFO_RESPONSE message - got %x", response_msg->type_id);
+    free_buffer(iob);
+    return 0;
+  }
+
+  auto val = response_msg->value;
+  free_buffer(iob);
+  return val;
 }
 
 

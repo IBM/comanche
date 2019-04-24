@@ -150,6 +150,8 @@ class Connection_handler : public Connection_base {
 
   uint64_t auth_id() const { return ((uint64_t) this); }
 
+  size_t count(const pool_t pool);
+
  private:
   /**
    * FSM tick call

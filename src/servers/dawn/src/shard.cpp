@@ -172,10 +172,16 @@ void Shard::main_loop()
           assert(p_msg);
           switch (p_msg->type_id) {
           case MSG_TYPE_IO_REQUEST:
-            process_message_IO_request(handler, static_cast<Protocol::Message_IO_request*>(p_msg));
+            process_message_IO_request(handler,
+                                       static_cast<Protocol::Message_IO_request*>(p_msg));
             break;
           case MSG_TYPE_POOL_REQUEST:
-            process_message_pool_request(handler, static_cast<Protocol::Message_pool_request*>(p_msg));
+            process_message_pool_request(handler,
+                                         static_cast<Protocol::Message_pool_request*>(p_msg));
+            break;
+          case MSG_TYPE_INFO_REQUEST:
+            process_info_request(handler,
+                                 static_cast<Protocol::Message_INFO_request*>(p_msg));
             break;
           default:
             throw General_exception("unrecognizable message type");
@@ -425,8 +431,8 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
        puts for larger data, we use a two-stage operation
     */
     if (option_DEBUG > 2)
-      PLOG("PUT: (%p) key=(%.*s) value=(%.*s)", this, (int) msg->key_len,
-           msg->key(), (int) min(msg->val_len,10), msg->value());
+      PLOG("PUT: (%p) key=(%.*s) value=(%.*s ...) len=(%lu)", this, (int) msg->key_len,
+           msg->key(), (int) min(msg->val_len,20), msg->value(), msg->val_len);
 
     if (unlikely(msg->resvd & Dawn::Protocol::MSG_RESVD_SCBE)) {
       status = S_OK;  // short-circuit backend
@@ -482,8 +488,8 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
                                          value_out_len);
 
       if (option_DEBUG > 2)
-        PLOG("Shard: locked OK: value_out=%p (%.*s) value_out_len=%lu",
-             value_out, (int) min(value_out_len,10), (char*) value_out, value_out_len);
+        PLOG("Shard: locked OK: value_out=%p (%.*s ...) value_out_len=%lu",
+             value_out, (int) min(value_out_len,20), (char*) value_out, value_out_len);
 
       if (key_handle == Component::IKVStore::KEY_NONE) { /* key not found */
         response->status = E_NOT_FOUND;
@@ -596,6 +602,34 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
   iob->set_length(response->msg_len);
   handler->post_response(iob);  // issue IO request response
 }
+
+void Shard::process_info_request(Connection_handler* handler,
+                                 Protocol::Message_INFO_request* msg)
+{
+  if (msg->type == Protocol::INFO_TYPE_COUNT) {
+
+    if(option_DEBUG >=0)
+      PLOG("Shard: INFO request");
+
+    const auto iob = handler->allocate();
+    assert(iob);
+
+    Protocol::Message_INFO_response* response = new (iob->base())
+      Protocol::Message_INFO_response(handler->auth_id());
+    
+    response->value = _i_kvstore->count(msg->pool_id);
+    
+    iob->set_length(response->base_message_size());
+    handler->post_send_buffer(iob);  
+  }
+  else {
+    throw Protocol_exception("info request type not implemented");
+  }
+  return;
+}
+
+
+
 
 void Shard::check_for_new_connections()
 {
