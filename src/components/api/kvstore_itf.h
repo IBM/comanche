@@ -95,6 +95,9 @@ public:
     CAS_UINT64,
   };
 
+  enum Attribute {
+    VALUE_LEN   = 0x1, /* length of a value associated with key */
+  };
 
   class Operation
   {
@@ -339,7 +342,25 @@ public:
                               memory_handle_t handle = HANDLE_NONE) {
     return E_NOT_SUPPORTED;
   }
-  
+
+
+  /** 
+   * Get attribute for key or pool (see enum Attribute)
+   * 
+   * @param pool Pool handle
+   * @param attr Attribute to retrieve
+   * @param out_attr Result
+   * @param key [optiona] Key
+   * 
+   * @return S_OK on success
+   */
+  virtual status_t get_attribute(const pool_t pool,
+                                 const Attribute attr,
+                                 std::vector<uint64_t>& out_attr,
+                                 const std::string* key = nullptr) {
+    return E_NOT_SUPPORTED;
+  }
+                                  
 
   /** 
    * Register memory for zero copy DMA

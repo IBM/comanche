@@ -35,7 +35,6 @@ public:
   
 public:
   
-
   /** 
    * Determine thread safety of the component
    * 
@@ -191,6 +190,21 @@ public:
    */
   virtual size_t count(const IKVStore::pool_t pool) = 0;
 
+  /** 
+   * Get attribute for key or pool (see enum Attribute)
+   * 
+   * @param pool Pool handle
+   * @param attr Attribute to retrieve
+   * @param out_attr Result
+   * @param key [optiona] Key
+   * 
+   * @return S_OK on success
+   */
+  virtual status_t get_attribute(const IKVStore::pool_t pool,
+                                 const IKVStore::Attribute attr,
+                                 std::vector<uint64_t>& out_attr,
+                                 const std::string* key = nullptr) = 0;
+  
   /** 
    * Register memory for zero copy DMA
    * 

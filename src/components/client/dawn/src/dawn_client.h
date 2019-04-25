@@ -128,6 +128,11 @@ class Dawn_client : public virtual Component::IKVStore,
 
   virtual size_t count(const pool_t pool) override;
 
+  virtual status_t get_attribute(const IKVStore::pool_t pool,
+                                 const IKVStore::Attribute attr,
+                                 std::vector<uint64_t>& out_attr,
+                                 const std::string* key) override;
+
   virtual void debug(const pool_t pool, unsigned cmd, uint64_t arg) override;
 
   virtual Component::IKVStore::memory_handle_t register_direct_memory(void*  vaddr,
