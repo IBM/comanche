@@ -30,6 +30,7 @@ namespace impl
 			, public content<Value>
 		{
 		public:
+			using owner_type = owner;
 			using content_type = content<Value>;
 			explicit hash_bucket(owner owner_)
 				: owner{owner_}

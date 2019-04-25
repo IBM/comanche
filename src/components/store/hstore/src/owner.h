@@ -18,7 +18,7 @@
 #include "trace_flags.h"
 
 #include "persistent.h"
-#if TRACE_OWNER
+#if TRACED_OWNER
 #include "hop_hash_debug.h"
 #endif
 
@@ -27,10 +27,6 @@
 #include <cstdint> /* uint64_t */
 #include <limits> /* numeric_limits */
 #include <string>
-
-#if TRACE_OWNER
-#include <iostream>
-#endif
 
 /*
  * The "owner" part of a hash bucket
@@ -51,7 +47,7 @@ namespace impl
 	class owner
 	{
 	public:
-		static constexpr unsigned size = 32U;
+		static constexpr unsigned size = 64U;
 		using value_type = std::uint64_t; /* sufficient for size not over 64U */
 		static constexpr auto pos_undefined = std::numeric_limits<std::size_t>::max();
 	private:
@@ -59,6 +55,7 @@ namespace impl
 #if TRACK_POS
 		std::size_t _pos;
 #endif
+		static value_type mask_from_pos(unsigned pos) { return value_type(1U) << pos; }
 	public:
 		explicit owner()
 			: _value(0)
@@ -66,6 +63,9 @@ namespace impl
 			, _pos(pos_undefined)
 #endif
 		{}
+
+		static value_type mask_all_ones() { return mask_from_pos(size) - 1U; }
+		static unsigned rightmost_one_pos(value_type c) { return __builtin_ctzll(c); };
 
 		template<typename Bucket, typename Referent, typename SharedMutex>
 			void insert(
@@ -82,12 +82,12 @@ namespace impl
 			assert(p_ < size);
 			_pos = pos_;
 #endif
-			_value |= (1U << p_);
+			_value |= mask_from_pos(p_);
 		}
 		template<typename Bucket, typename Referent, typename SharedMutex>
 			void erase(unsigned p, bucket_unique_ref<Bucket, Referent, SharedMutex>)
 			{
-				_value &= ~(1U << p);
+				_value &= ~mask_from_pos(p);
 			}
 		template<typename Bucket, typename Referent, typename SharedMutex>
 			void move(
@@ -98,7 +98,7 @@ namespace impl
 			{
 				assert(dst_ < size);
 				assert(src_ < size);
-				_value = (_value | (1U << dst_)) & ~(1U << src_);
+				_value = (_value | mask_from_pos(dst_)) & ~mask_from_pos(src_);
 			}
 		template <typename Lock>
 			auto value(Lock &) const -> value_type { return _value; }
@@ -115,7 +115,7 @@ namespace impl
 				_value &= ~junior._value;
 			}
 
-#if TRACE_OWNER
+#if TRACED_OWNER
 		template <
 			typename Lock
 		>

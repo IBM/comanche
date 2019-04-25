@@ -17,9 +17,10 @@
 
 #include "trace_flags.h"
 
+#include "hop_hash_log.h"
 #include "perishable.h"
 #include "persistent.h"
-#if TRACE_CONTENT
+#if TRACED_CONTENT
 #include "hop_hash_debug.h"
 #endif
 
@@ -27,10 +28,6 @@
 #include <cstddef> /* size_t */
 #include <limits> /* numeric_limits */
 #include <string>
-
-#if TRACE_CONTENT
-#include <iostream>
-#endif
 
 /*
  * content
@@ -68,7 +65,7 @@ namespace impl
 #if TRACK_OWNER
 			owner_t _owner; /* remember the bucket which owns this content */
 #endif
-#if TRACE_CONTENT
+#if TRACED_CONTENT
 			auto descr() const -> std::string;
 			auto to_string() const -> std::string;
 			auto state_string() const -> std::string;
@@ -119,19 +116,20 @@ namespace impl
 			template <typename Lock, typename Table>
 				void assert_clear(bool b, Lock &lk, Table &t)
 				{
-#if TRACE_CONTENT && 0
+#if TRACED_CONTENT && 0
 					/* NOTE: Disabled. Not reliable if a crash has occurred. A bucket
 					 * may incorrectly appear to have an owner, and therefore content,
 					 * if a crash occurred while it it was being populated.
 					 */
 					if ( ! is_clear() )
 					{
-						std::cerr << __func__
-							<< " assert_clear fail: bucket " << lk.index()
-							<< " has content "
-							<< lk.ref()
-							<< "\n";
-						std::cerr << make_table_dump(t);
+						hop_hash_log::write(__func__
+							, " assert_clear fail: bucket ", lk.index()
+							, " has content "
+							, lk.ref()
+							, "\n"
+							, dump<TRACED_CONTENT && 0>::make_table_dump(t)
+						);
 					}
 					assert(is_clear() == b);
 #else
@@ -146,7 +144,7 @@ namespace impl
 			owner_t owner() const { return _owner; }
 			void owner_update(owner_t owner_delta);
 #endif
-#if TRACE_CONTENT
+#if TRACED_CONTENT
 			friend auto operator<< <>(
 				std::ostream &o
 				, const content<Value> &c
