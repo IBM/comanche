@@ -69,6 +69,11 @@ public:
 
   /* BEGIN Component::IFabric_connection */
   /**
+   * @contig_addr - the address of memory to be registered for RDMA. Restrictions
+   * in "man fi_verbs" apply: the memory must be page aligned. The ibverbs layer
+   * will execute an madvise(MADV_DONTFORK) syscall against the region. Any error
+   * returned from that syscal will cause the register_memory function to fail.
+   *
    * @throw std::range_error - address already registered
    * @throw std::logic_error - inconsistent memory address tables
    * @throw fabric_runtime_error : std::runtime_error : ::fi_mr_reg fail
