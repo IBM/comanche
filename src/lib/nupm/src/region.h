@@ -28,6 +28,7 @@
 #include <unordered_set>
 #include <map>
 #include <functional>
+#include <memory>
 #include "mappers.h"
 #include "rc_alloc_avl.h"
 
@@ -349,11 +350,12 @@ class Region_map {
     size_t region_object_size = region_size == size ?
       region_size : _mapper.rounded_up_object_size(size);
 
-    Region *new_region =
-        new Region(region_base, region_size, region_object_size);
+    std::unique_ptr<Region> new_region(
+      new Region(region_base, region_size, region_object_size)
+    );
     
-    _buckets[numa_node][bucket].push_front(new_region);
     new_region->allocate_at(ptr);
+    _buckets[numa_node][bucket].push_front(std::move(new_region));
   }
 
   void debug_dump(std::string *out_log = nullptr)
@@ -398,14 +400,16 @@ class Region_map {
     assert(region_base);
     assert(check_aligned(region_base, region_object_size));
 
-    Region *new_region = new Region(region_base, region_size, region_object_size);
+    std::unique_ptr<Region> new_region(
+      new Region(region_base, region_size, region_object_size)
+    );
     void *rp = new_region->allocate();
     
     assert(rp);
     // PLOG("allocate from new (object_size=%lu, region_object_size=%lu, allocation=%p)",
     //      object_size, region_object_size, rp);
     /* add region to bucket */
-    _buckets[numa_node][bucket].push_front(new_region);
+    _buckets[numa_node][bucket].push_front(std::move(new_region));
 
     return rp;
   }
@@ -416,7 +420,7 @@ class Region_map {
       for (unsigned i = 0; i < NUM_BUCKETS; i++) {
         auto iter = _buckets[z][i].begin();
         do {
-          if (*iter == region) {
+          if (&**iter == region) {
             _buckets[z][i].erase(iter);
             return;
           }
@@ -430,7 +434,7 @@ class Region_map {
  private:
   Bucket_mapper       _mapper;
   nupm::Rca_AVL       _arena_allocator;
-  std::list<Region *> _buckets[MAX_NUMA_ZONES][NUM_BUCKETS];
+  std::list<std::unique_ptr<Region>> _buckets[MAX_NUMA_ZONES][NUM_BUCKETS];
 };
 
 }  // namespace nupm
