@@ -152,6 +152,12 @@ class Connection_handler : public Connection_base {
 
   size_t count(const pool_t pool);
 
+  status_t get_attribute(const Component::IKVStore::pool_t pool,
+                         const Component::IKVStore::Attribute attr,
+                         std::vector<uint64_t>& out_attr,
+                         const std::string* key);
+
+
  private:
   /**
    * FSM tick call
