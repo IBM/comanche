@@ -203,9 +203,9 @@ status_t Dawn_client::get_direct(const pool_t       pool,
   return _connection->get_direct(pool, key, out_value, out_value_len, handle);
 }
 
-Component::IKVStore::memory_handle_t Dawn_client::register_direct_memory(
-    void*  vaddr,
-    size_t len)
+Component::IKVStore::memory_handle_t
+Dawn_client::register_direct_memory(void*  vaddr,
+                                    size_t len)
 {
   return _connection->register_direct_memory(vaddr, len);
 }
@@ -224,7 +224,15 @@ size_t Dawn_client::count(const IKVStore::pool_t pool)
 {
   return _connection->count(pool);
 }
-  
+
+status_t Dawn_client::get_attribute(const IKVStore::pool_t pool,
+                                    const IKVStore::Attribute attr,
+                                    std::vector<uint64_t>& out_attr,
+                                    const std::string* key)
+{
+  return E_NOT_IMPL;
+}
+
 
 status_t Dawn_client::free_memory(void * p)
 {
