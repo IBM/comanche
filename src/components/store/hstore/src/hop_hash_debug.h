@@ -17,7 +17,7 @@
 
 #include "segment_and_bucket.h"
 #include <cstddef> /* size_t */
-#include <iostream>
+#include <iosfwd>
 
 namespace impl
 {
@@ -67,17 +67,6 @@ namespace impl
 			auto sb() const { return lock().sb(); }
 			std::size_t index() const { return lock().index(); }
 		};
-
-	template <
-		typename Lock
-	>
-		auto make_owner_print(
-			const std::size_t &sz_
-			, Lock &lk_
-		) -> owner_print<Lock>
-		{
-			return owner_print<Lock>(sz_, lk_);
-		}
 
 	template <
 		typename Lock
@@ -151,33 +140,97 @@ namespace impl
 			return table_print<TableBase>(t_);
 		}
 
-	template <
-		typename TableBase
-	>
-		class table_dump
+
+	template <bool>
+		class dump;
+
+	template<>
+		class dump<true>
 		{
-			const TableBase *_t;
 		public:
-			table_dump(const TableBase &t_)
-				: _t(&t_)
-			{}
-			const TableBase &get_table() const { return *_t; }
+			template <
+				typename TableBase
+			>
+				class table_dump
+				{
+					const TableBase *_t;
+				public:
+					table_dump(const TableBase &t_)
+						: _t(&t_)
+					{}
+					const TableBase &get_table() const { return *_t; }
+				};
+
+			template <
+				typename TableBase
+			>
+				static table_dump<TableBase> make_table_dump(const TableBase &t_)
+				{
+					return table_dump<TableBase>(t_);
+				}
+
+			template <
+				typename Lock
+			>
+				static auto make_owner_print(
+					const std::size_t &sz_
+					, Lock &lk_
+				) -> owner_print<Lock>
+				{
+					return owner_print<Lock>(sz_, lk_);
+				}
 		};
 
-	template <
-		typename TableBase
-	>
-		auto make_table_dump(const TableBase &t_)
+	template<>
+		class dump<false>
 		{
-			return table_dump<TableBase>(t_);
-		}
+			template <
+				typename TableBase
+			>
+				class table_dump
+				{
+					const TableBase *_t;
+				public:
+					table_dump(const TableBase &t_)
+						: _t(&t_)
+					{}
+					const TableBase &get_table() const { return *_t; }
+				};
+		public:
+			template <
+				typename TableBase
+			>
+				static table_dump<TableBase> make_table_dump(const TableBase &t_)
+				{
+					return table_dump<TableBase>(t_);
+				}
+
+			template <
+				typename Lock
+			>
+				static auto make_owner_print(
+					const std::size_t &sz_
+					, Lock &lk_
+				) -> owner_print<Lock>
+				{
+					return owner_print<Lock>(sz_, lk_);
+				}
+		};
 
 	template <
 		typename TableBase
 	>
 		auto operator<<(
 			std::ostream &o
-			, const impl::table_dump<TableBase> &
+			, const impl::dump<false>::table_dump<TableBase> &
+		) -> std::ostream &;
+
+	template <
+		typename TableBase
+	>
+		auto operator<<(
+			std::ostream &o
+			, const impl::dump<true>::table_dump<TableBase> &
 		) -> std::ostream &;
 
 	template <

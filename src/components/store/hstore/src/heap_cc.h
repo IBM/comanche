@@ -25,10 +25,6 @@
 #include <sstream> /* ostringstream */
 #include <string>
 
-#if 0
-#include <iostream>
-#endif
-
 class sbrk_alloc
 {
 	struct bound
@@ -87,9 +83,6 @@ public:
 		sz = (sz + 63UL) & ~63UL;
 		if ( static_cast<std::size_t>(_state->_limit - current().end()) < sz )
 		{
-#if 0
-			std::cerr << "Alloc " << sz << " failed, remaining " << _state->_limit - current().end() << "\n";
-#endif
 			return nullptr;
 		}
 		auto p = current().end();
@@ -97,17 +90,6 @@ public:
 		other().set(q);
 		persist(other());
 		swap();
-#if 0
-		if ( (std::uintptr_t(1) << 20) < sz )
-		{
-			std::cerr << "Large alloc " << sz << " remaining " << _state->_limit - current().end() << "\n";
-		}
-		else if ( ( std::uintptr_t(p) >> 20U ) != ( std::uintptr_t(q) >> 20U ) )
-		{
-			/* small alloc, but crossed a 1MB line. */
-			std::cerr << "Sample alloc " << sz << " remaining " << _state->_limit - current().end() << "\n";
-		}
-#endif
 		persist(_state->_sw);
 		return p;
 	}

@@ -160,10 +160,9 @@ auto hstore::create_pool(const std::string & name_,
                          const uint64_t  expected_obj_count_) -> pool_t
 try
 {
-  std::cerr << "create_pool " << name_ << " size " << size_ << "\n";
   if ( option_DEBUG )
   {
-    PLOG(PREFIX "pool_name=%s", __func__, name_.c_str());
+    PLOG(PREFIX "pool_name=%s size %zu", __func__, name_.c_str(), size_);
   }
   {
     auto c = _pool_manager->pool_create_check(size_);

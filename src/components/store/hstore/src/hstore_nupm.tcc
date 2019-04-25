@@ -147,12 +147,21 @@ template <typename Region, typename Table, typename Allocator, typename LockType
       throw pool_error("unsupported flags " + std::to_string(flags_), pool_ec::pool_unsupported_mode);
     }
     auto uuid = dax_uuid_hash(path_);
+    /* The first part of pool space is the header, which is described by a Region.
+     * In order to give the heap a well-aligned space, the size actually allocated
+     * to a heap may be as little as 3/4 of the area provided to the heap.
+     * The constant 3/4 is embedded in the heap_rc_shared class.
+     *
+     * Ask for enough space to contain the header and to compensate for inefficiency
+     * due to heap alignment.
+     */
+    auto size = sizeof(Region) + size_ * 4 / 3;
     /* Attempt to create a new pool. */
     try
     {
       open_pool_handle
         pop(
-          static_cast<region_type *>(_devdax_manager->create_region(uuid, _numa_node, size_))
+          static_cast<region_type *>(_devdax_manager->create_region(uuid, _numa_node, size))
           , region_closer_t(this->shared_from_this())
         );
       /* Guess that nullptr indicate a failure */
@@ -160,9 +169,9 @@ template <typename Region, typename Table, typename Allocator, typename LockType
       {
         throw pool_error("create_region fail: " + path_.str(), pool_ec::region_fail);
       }
-      PLOG(PREFIX "in %s: created region ID %" PRIx64 " at %p:0x%zx", __func__, path_.str().c_str(), uuid, static_cast<const void *>(pop.get()), size_);
+      PLOG(PREFIX "in %s: created region ID %" PRIx64 " at %p:0x%zx", __func__, path_.str().c_str(), uuid, static_cast<const void *>(pop.get()), size);
 
-      map_create(pop.get(), size_, expected_obj_count_);
+      map_create(pop.get(), size, expected_obj_count_);
       return std::make_unique<session<open_pool_handle, allocator_t, table_t, lock_type_t>>(path_, std::move(pop), construction_mode::create);
     }
     catch ( const General_exception &e )

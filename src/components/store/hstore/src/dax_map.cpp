@@ -162,19 +162,20 @@ namespace
 
 		if ( ! doc.Accept(validator) )
 		{
+			std::string why;
 			{
 				rapidjson::StringBuffer sb;
 				validator.GetInvalidSchemaPointer().StringifyUriFragment(sb);
-				std::cerr << "Invalid schema: " << sb.GetString() << "\n";
-				std::cerr << "Invalid keyword: " << validator.GetInvalidSchemaKeyword() << "\n";
+				why += std::string("Invalid schema: ") + sb.GetString() + "\n";
+				why += std::string("Invalid keyword: ") + validator.GetInvalidSchemaKeyword() + "\n";
 			}
 
 			{
 				rapidjson::StringBuffer sb;
 				validator.GetInvalidDocumentPointer().StringifyUriFragment(sb);
-				std::cerr << "Invalid document: " << sb.GetString() << "\n";
+				why += std::string("Invalid document: ") + sb.GetString() + "\n";
 			}
-			throw std::domain_error(error_report("JSON dax_map failed validation", dax_map_, doc));
+			throw std::domain_error(error_report("JSON dax_map failed validation", dax_map_ + " " + why, doc));
 		}
 
 		for ( const auto & it : doc.GetArray() )

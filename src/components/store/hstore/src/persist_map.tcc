@@ -74,7 +74,7 @@ template <typename Allocator>
 		auto av = bucket_allocator_t(av_);
 		if ( ! _segment_count._actual.is_stable() || _segment_count._actual.value() != 0 )
 		{
-			auto ix = 0U;
+			segment_layout::six_t ix = 0U;
 			av.reconstitute(base_segment_size, _sc[ix].bp);
 			++ix;
 

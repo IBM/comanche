@@ -26,9 +26,6 @@
 #endif
 #include <libpmemobj.h> /* PMEMobjpool, PMEMoid, pmemobj_constr */
 #pragma GCC diagnostic pop
-#if TRACE_PALLOC
-#include <iostream> /* cerr */
-#endif
 
 #include <cstddef> /* size_t */
 #include <tuple>
@@ -62,8 +59,9 @@ std::tuple<PMEMoid, std::size_t> palloc_inner(
 #if TRACE_PALLOC
 	{
 		void *ptr = pmemobj_direct(oid);
-		std::cerr << __func__ << " " << use_ << " [" << ptr << ".."
-			<< static_cast<void *>(static_cast<char *>(ptr)+size_max_) << ")\n";
+		hop_hash_log::write(__func__, " " << use_, " [", ptr, ".."
+			, static_cast<void *>(static_cast<char *>(ptr)+size_max_), ")"i
+		);
 	}
 #endif
 	return std::tuple<PMEMoid, std::size_t>(oid, size_max_);
@@ -145,7 +143,7 @@ void zfree(
 #if TRACE_PALLOC
 	{
 		const auto ptr = pmemobj_direct(oid);
-		std::cerr << __func__ << " " << why << " [" << ptr << "..)\n";
+		hop_hash_log::write(__func__, " ", why, " [" <<,r << "..)");
 	}
 #endif
 	pmemobj_free(&oid);
