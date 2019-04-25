@@ -338,6 +338,7 @@ template <typename T, typename Allocator>
 				using reallocator_char_type = typename AL::template rebind<char>::other;
 				if ( ! is_small() )
 				{
+					new (&const_cast<rep *>(this)->large.al()) allocator_char_type(al_);
 					auto alr = reallocator_char_type(al_);
 					if ( alr.is_reconstituted(large.ptr) )
 					{

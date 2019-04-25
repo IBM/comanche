@@ -106,7 +106,7 @@ template <typename Allocator>
 			auto bp = &*sc[0].bp;
 			persist_internal(&bp[0], &bp[base_segment_size], "segment 0");
 		}
-		for ( auto i = 1U; i != segment_count_actual().value_not_stable(); ++i )
+		for ( segment_layout::six_t i = 1U; i != segment_count_actual().value_not_stable(); ++i )
 		{
 			auto bp = &*sc[i].bp;
 			persist_internal(&bp[0], &bp[base_segment_size<<(i-1U)], "segment N");

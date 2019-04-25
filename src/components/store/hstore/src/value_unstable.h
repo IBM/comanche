@@ -34,7 +34,7 @@ namespace impl
 			 * and the lower N bits represents "unstable," not part of the value.
 			 */
 			persistent_atomic_t<T> _value_and_unstable;
-			static constexpr T count_1 = 1U<<N;
+			static constexpr T count_1 = T(1U)<<N;
 			T destable_count() const { return _value_and_unstable & (count_1-1U); }
 		public:
 			value_unstable(T v)

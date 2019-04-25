@@ -433,7 +433,7 @@ class AVL_range_allocator {
       Memory_region* mr = static_cast<Memory_region*>(p);
       _slab.free(mr);
     });
-
+    _slab.free(_tree->root());
     delete _tree;
   }
 

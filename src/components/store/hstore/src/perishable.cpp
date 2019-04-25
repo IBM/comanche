@@ -12,6 +12,7 @@
 */
 
 
+#include "hop_hash_log.h"
 #include "perishable.h"
 #include "perishable_expiry.h"
 
@@ -60,7 +61,7 @@ void perishable::report()
 {
 	if ( _initial != 0 )
 	{
-		std::cerr << "perishable: " << _time_to_live
-			<< " of " << _initial << " ticks left\n";
+		hop_hash_log<true>::write(__func__, " perishable: ", _time_to_live
+			, " of ", _initial, " ticks left");
 	}
 }

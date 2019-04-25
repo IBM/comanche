@@ -16,6 +16,7 @@
 #define COMANCHE_HSTORE_DEALLOCATOR_CO_H
 
 #include "heap_co.h"
+#include "hop_hash_log_.h"
 #include "persister_pmem.h"
 #include "pointer_pobj.h"
 #include "store_root.h"
@@ -30,10 +31,6 @@
 #pragma GCC diagnostic pop
 
 #include <cstdlib> /* size_t, ptrdiff_t */
-
-#if TRACE_PALLOC || TRACE_PERSIST
-#include <iostream> /* cerr */
-#endif
 
 template <typename T, typename Persister = persister_pmem>
 	class deallocator_co;
@@ -126,10 +123,11 @@ template <typename T, typename Persister>
 #if TRACE_PALLOC
 			{
 				auto ptr = static_cast<char *>(pmemobj_direct(oid));
-				std::cerr << __func__
-					<< " [" << ptr
-					<< ".." << static_cast<void *>(ptr + s * sizeof(T))
-					<< ")\n";
+				hop_hash_log::write(__func__
+					, " [", ptr
+					, "..", static_cast<void *>(ptr + s * sizeof(T))
+					, ")"
+				);
 			}
 #endif
 			heap->free(ptr, sizeof(T) * sz_);

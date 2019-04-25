@@ -29,10 +29,6 @@
 
 #include <cstdlib> /* size_t, ptrdiff_t */
 
-#if TRACE_PALLOC || TRACE_PERSIST
-#include <iostream> /* cerr */
-#endif
-
 template <typename T, typename Persister = persister_pmem>
 	class deallocator_pobj;
 
@@ -105,10 +101,11 @@ template <typename T, typename Persister>
 #if TRACE_PALLOC
 			{
 				auto ptr = static_cast<char *>(pmemobj_direct(oid));
-				std::cerr << __func__
-					<< " [" << ptr
-					<< ".." << static_cast<void *>(ptr + s * sizeof(T))
-					<< ")\n";
+				hop_hash_log::write(__func__
+					, " [", ptr
+					, "..", static_cast<void *>(ptr + s * sizeof(T))
+					, ")"
+				);
 			}
 #endif
 			pmemobj_free(&oid);
@@ -129,10 +126,11 @@ template <typename T, typename Persister>
 		) const
 		{
 #if TRACE_PERSIST
-			std::cerr << __func__ << " " << what << " ["
-				<< ptr << ".."
-				<< static_cast<const void *>(static_cast<const char*>(ptr)+len)
-				<< ")\n";
+			hop_hash_log::write(__func__, " ", what, " ["
+				, ptr, ".."
+				, static_cast<const void *>(static_cast<const char*>(ptr)+len)
+				, ")"
+			);
 #endif
 			Persister::persist(ptr, len);
 		}

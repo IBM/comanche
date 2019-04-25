@@ -40,7 +40,7 @@ impl::segment_and_bucket::segment_and_bucket(bix_t ix)
 		(
 			__builtin_expect((ix_high(ix) == 0),false)
 			? 0
-			: ix_high(ix) % (1U << (_si-1))
+			: ix_high(ix) % (bix_t(1U) << (_si-1))
 		)
 		*
 		segment_layout::base_segment_size + ix_low(ix)

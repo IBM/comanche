@@ -21,7 +21,7 @@ template <typename Lock>
 			std::string delim = "";
 			for ( auto v = value(s); v; v>>=1, ++pos %= table_size_ )
 			{
-				if ( v & 1 )
+				if ( v & mask_from_pos(0U) )
 				{
 					st += delim + std::to_string(pos);
 				delim = " ";

@@ -208,6 +208,11 @@ fid_mr * Fabric_memory_control::make_fid_mr_reg_ptr(
   try
   {
     /* Note: this was once observed to return "Cannot allocate memory" when called from JNI code. */
+    /* Note: this was once observed to return an error when the DAX persistent Apache Pass memory
+     * seemed properly aligned. The work-around was to issue a pre-emptive madvise(MADV_DONTFORK)
+     * against the entire memory space of the DAX device.
+     */
+    /* Note: this was once observed to return "Bad address" when the (GPU) memory seemed properly aligned. */
     CHECK_FI_ERR(::fi_mr_reg(&*_domain, buf, len, access, offset, key, flags, &f, context));
   }
   catch ( const fabric_runtime_error &e )

@@ -34,7 +34,7 @@ namespace impl
 		~segment_layout() {}
 	public:
 		static constexpr unsigned log2_base_segment_size = 7U;
-		static constexpr bix_t base_segment_size = (1U << log2_base_segment_size);
+		static constexpr bix_t base_segment_size = (bix_t(1U) << log2_base_segment_size);
 		virtual six_t segment_count() const = 0;
 		static unsigned log2(unsigned long v)
 		{

@@ -27,8 +27,8 @@ template <typename PersistData, typename Heap>
     using heap_type = Heap;
     using persist_data_type = PersistData;
 
-    PersistData persist_data;
-    Heap heap;
+    persist_data_type persist_data;
+    heap_type heap;
 
     void initialize() { magic = magic_value; }
     bool is_initialized() const noexcept { return magic == magic_value; }
