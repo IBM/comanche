@@ -228,78 +228,43 @@ template <typename Handle, typename Allocator, typename Table, typename LockType
 
 		auto get(
 			const std::string &key,
-			void*& out_value,
-			std::size_t& out_value_len
-		) const -> status_t
-		try
+			void* buffer,
+			std::size_t buffer_size
+		) const -> std::size_t
 		{
 			auto &v = map().at_special(key);
+			auto value_len = v.size();
 
-			if ( out_value == nullptr )
+			if ( value_len <= buffer_size )
 			{
-				out_value = ::scalable_malloc(v.size());
-				if ( ! out_value )
-				{
-					throw std::bad_alloc();
-				}
+				std::memcpy(buffer, v.data(), value_len);
 			}
-			else
-			{
-				/* Although not documented, assume that non-zero
-				 * out_value implies that out_value_len holds
-				 * the buffer's size.
-				 *
-				 * It might be reasonable to
-				 *  a) fill the buffer and/or
-				 *  b) return the necessary size in out_value_len,
-				 * but neither action is documented, so we do not.
-				 */
-				if ( out_value_len < v.size() )
-				{
-					return Component::IKVStore::E_INSUFFICIENT_BUFFER;
-				}
-			}
-
-			out_value_len = v.size();
-			memcpy(out_value, v.data(), out_value_len);
-			return Component::IKVStore::S_OK;
+			return value_len;
 		}
-		catch ( std::out_of_range & )
+
+		auto get_alloc(
+			const std::string &key
+		) const -> std::tuple<void *, std::size_t>
 		{
-			return Component::IKVStore::E_KEY_NOT_FOUND;
+			auto &v = map().at_special(key);
+			auto value_len = v.size();
+
+			auto value = ::scalable_malloc(value_len);
+			if ( ! value )
+			{
+				throw std::bad_alloc();
+			}
+
+			std::memcpy(value, v.data(), value_len);
+			return std::pair<void *, std::size_t>(value, value_len);
 		}
 
-		auto get_direct(
+		auto get_value_len(
 			const std::string & key
-			, void* out_value
-			, std::size_t & out_value_len
-		) const -> status_t
-		try
+		) const -> std::size_t
 		{
 			auto &v = this->map().at_special(key);
-
-			auto value_len = v.size();
-			if (out_value_len < value_len)
-			{
-				/* NOTE: it might be helpful to tell the caller how large
-				 * a buffer is needed,
-				 * but that does not seem to be expected.
-				 */
-				return Component::IKVStore::E_INSUFFICIENT_BUFFER;
-			}
-
-			out_value_len = value_len;
-
-			assert(out_value);
-
-			/* memcpy for moment
-			*/
-			memcpy(out_value, v.data(), out_value_len);
-			return Component::IKVStore::S_OK;
-		}
-		catch ( const std::out_of_range & )
-		{
-		        return Component::IKVStore::E_KEY_NOT_FOUND;
+			return v.size();
 		}
 
 		auto lock(

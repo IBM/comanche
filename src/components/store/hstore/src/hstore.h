@@ -204,6 +204,11 @@ public:
                       std::size_t& out_value_len,
                       Component::IKVStore::memory_handle_t handle) override;
 
+  status_t get_attribute(const pool_t pool,
+                                 const Attribute attr,
+                                 std::vector<uint64_t>& out_attr,
+                                 const std::string* key);
+
   key_t lock(pool_t pool,
                 const std::string &key,
                 lock_type_t type,

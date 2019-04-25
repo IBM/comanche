@@ -278,7 +278,7 @@ auto hstore::put(const pool_t pool,
 
       return
         i.second                   ? S_OK
-        : flags & FLAGS_DONT_STOMP ? E_KEY_EXISTS 
+        : flags & FLAGS_DONT_STOMP ? E_KEY_EXISTS
         : session->update_by_issue_41(key, value, value_len, i.first->second.data(), i.first->second.size())
         ;
     }
@@ -318,11 +318,54 @@ auto hstore::get(const pool_t pool,
                  std::size_t& out_value_len) -> status_t
 {
   const auto session = static_cast<const session_t *>(locate_session(pool));
-  return
-    session
-    ? session->get(key, out_value, out_value_len)
-    : E_POOL_NOT_FOUND
-    ;
+  if ( ! session )
+  {
+    return E_POOL_NOT_FOUND;
+  }
+
+  try
+  {
+    /* Although not documented, assume that non-zero
+     * out_value implies that out_value_len holds
+     * the buffer's size.
+     */
+    if ( out_value )
+    {
+      auto buffer_size = out_value_len;
+      out_value_len = session->get(key, out_value, buffer_size);
+      /*
+       * It might be reasonable to
+       *  a) fill the buffer and/or
+       *  b) return the necessary size in out_value_len,
+       * but neither action is documented, so we do not.
+       */
+      if ( buffer_size < out_value_len )
+      {
+        return E_INSUFFICIENT_BUFFER;
+      }
+    }
+    else
+    {
+      try
+      {
+        auto r = session->get_alloc(key);
+        out_value = std::get<0>(r);
+        out_value_len = std::get<1>(r);
+      }
+      catch ( std::bad_alloc & )
+      {
+        /* The interface might have a return code for bad_alloc. Until
+         * we look for it, at least memorialize the exception.
+         */
+        throw;
+      }
+    }
+    return S_OK;
+  }
+  catch ( const std::out_of_range & )
+  {
+    return E_KEY_NOT_FOUND;
+  }
 }
 
 auto hstore::get_direct(const pool_t pool,
@@ -332,12 +375,64 @@ auto hstore::get_direct(const pool_t pool,
                         Component::IKVStore::memory_handle_t) -> status_t
 {
   const auto session = static_cast<const session_t *>(locate_session(pool));
-  return
-    session
-    ? session->get_direct(key, out_value, out_value_len)
-    : E_POOL_NOT_FOUND
-    ;
+  if ( ! session )
+  {
+    return E_POOL_NOT_FOUND;
+  }
+
+  try
+  {
+    const auto buffer_size = out_value_len;
+    out_value_len = session->get(key, out_value, buffer_size);
+    if ( buffer_size < out_value_len )
+    {
+      return E_INSUFFICIENT_BUFFER;
+    }
+    return S_OK;
+  }
+  catch ( const std::out_of_range & )
+  {
+    return E_KEY_NOT_FOUND;
+  }
 }
+
+auto hstore::get_attribute(
+  const pool_t pool,
+  const Attribute attr,
+  std::vector<uint64_t>& out_attr,
+  const std::string* key) -> status_t
+{
+  const auto session = static_cast<const session_t *>(locate_session(pool));
+  if ( ! session )
+  {
+    return E_POOL_NOT_FOUND;
+  }
+
+  if ( ! key )
+  {
+    return E_NOT_SUPPORTED;
+  }
+  switch ( attr )
+  {
+  case VALUE_LEN:
+    try
+    {
+      /* interface does not say what we do to the out_attr vector;
+       * push_back is at least non-destructive.
+       */
+      out_attr.push_back(session->get_value_len(*key));
+      return S_OK;
+    }
+    catch ( const std::out_of_range & )
+    {
+      return E_KEY_NOT_FOUND;
+    }
+  default:
+    ;
+  }
+  return E_NOT_SUPPORTED;
+}
+
 
 auto hstore::lock(const pool_t pool,
                   const std::string &key,
