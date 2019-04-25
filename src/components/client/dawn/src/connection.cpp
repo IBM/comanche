@@ -576,7 +576,7 @@ status_t Connection_handler::get_direct(const pool_t                         poo
   assert(out_value_len >= response_msg->data_length());
   
   /* set out_value_len to receiving length */
-  out_value_len = response_msg->data_len;
+  out_value_len = response_msg->data_length();
 
   if (response_msg->is_set_twostage_bit()) {
     /* two-stage get */

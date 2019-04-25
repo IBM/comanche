@@ -154,7 +154,7 @@ extern "C" void run_cuda_basic_test(Component::IKVStore * store)
     if(rc != S_OK) 
       throw General_exception("get_direct: returned %d", rc);
 
-    assert(rsize == obj_size);
+    if(rsize != obj_size) PWRN("rsize=%lu obj_size=%lu", rsize, obj_size);
   }
   
   end = std::chrono::high_resolution_clock::now();
