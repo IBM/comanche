@@ -201,8 +201,8 @@ class Fabric_transport {
   Component::IKVStore::memory_handle_t register_direct_memory(void * region,
                                                               size_t region_len)
   {
-    if (!check_aligned(region, 64))
-      throw API_exception("register_direct_memory: region should be aligned");
+    // if (!check_aligned(region, 64))
+    //   throw API_exception("register_direct_memory: region should be aligned");
 
     auto mr        = register_memory(region, region_len);
     auto desc      = get_memory_descriptor(mr);

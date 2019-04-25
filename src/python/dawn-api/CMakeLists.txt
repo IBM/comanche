@@ -1,8 +1,11 @@
 cmake_minimum_required(VERSION 3.5) # may work with earlier versions
 
+option(BUILD_PYTHON_SUPPORT "Build Python support" OFF)
+
 find_program(PYTHON "python3.6")
 
-if (PYTHON)
+if (PYTHON AND BUILD_PYTHON_SUPPORT)
+  message("-- Building Python support.")
   set(SETUP_PY_IN "${CMAKE_CURRENT_SOURCE_DIR}/setup.py.in")
   set(SETUP_PY    "${CMAKE_CURRENT_BINARY_DIR}/setup.py")
   set(CONFIG_H_IN "${CMAKE_CURRENT_SOURCE_DIR}/src/config.h.in")
@@ -28,7 +31,8 @@ if (PYTHON)
   add_custom_target(check COMMAND ${CHECK_COMMAND})
   
 #  install(CODE "execute_process(COMMAND ${PYTHON} ${SETUP_PY} install)")
-
+else()
+  message("-- NOT building Python support.")
 endif()
 
 #set(PYTHON "python3.6-dbg")

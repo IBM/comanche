@@ -121,7 +121,7 @@ public:
                               const std::string& key,
                               const void * value,
                               const size_t value_len,
-                              IKVStore::IKVStore::memory_handle_t handle = IKVStore::HANDLE_NONE,
+                              IKVStore::memory_handle_t handle = IKVStore::HANDLE_NONE,
                               unsigned int flags = IKVStore::FLAGS_NONE) = 0;
 
   /** 
