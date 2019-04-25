@@ -7,7 +7,7 @@ set (CMAKE_CXX_STANDARD 14)
 add_subdirectory(./unit_test)
 
 enable_language(CXX)
-set(SOURCES src/dax_map.cpp src/hop_hash_log.cpp src/hstore.cpp src/hstore_factory.cpp src/hop_hash.cpp src/perishable.cpp)
+set(SOURCES src/dax_map.cpp src/heap_rc.cpp src/hop_hash_log.cpp src/hstore.cpp src/hstore_factory.cpp src/hop_hash.cpp src/owner.cpp src/perishable.cpp)
 
 #add_custom_target(format-hstore
 #  COMMAND /usr/bin/clang-format
@@ -15,10 +15,9 @@ set(SOURCES src/dax_map.cpp src/hop_hash_log.cpp src/hstore.cpp src/hstore_facto
 #  -i
 #  ${ALL_SOURCES})
 
-add_compile_options(-g -pedantic -Wall -Werror -Wextra -Wcast-align -Wcast-qual -Wconversion -Weffc++ -Wold-style-cast -Wredundant-decls -Wshadow -Wtype-limits -Wunused-parameter -Wwrite-strings)
-if(TEST_HSTORE_PERISHABLE)
-  add_compile_options(-DTEST_HSTORE_PERISHABLE=1)
-endif()
+# if(TEST_HSTORE_PERISHABLE)
+#  add_compile_options(-DTEST_HSTORE_PERISHABLE=1)
+# endif()
 
 get_property(incdirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
 set(sysincludes "-I/usr/include/c++/5 -I/usr/include/x86_64-linux-gnu/c++/5/ -I/usr/include/linux")
@@ -39,6 +38,9 @@ add_library(${PROJECT_NAME} SHARED ${SOURCES})
 
 set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--no-undefined")
 
+target_compile_options(${PROJECT_NAME} PUBLIC -g -pedantic -Wall -Werror -Wextra -Wcast-align -Wcast-qual -Wconversion -Weffc++ -Wold-style-cast -Wredundant-decls -Wshadow -Wtype-limits -Wunused-parameter -Wwrite-strings)
+target_compile_options(${PROJECT_NAME} PUBLIC "$<$<BOOL:${TEST_HSTORE_PERISHABLE}>:-DTEST_HSTORE_PERISHABLE=1>")
+target_compile_options(${PROJECT_NAME} PUBLIC "$<$<CONFIG:Debug>:-O0>")
 target_link_libraries(${PROJECT_NAME} common comanche-core pthread numa dl rt boost_system boost_filesystem tbb pmem cityhash nupm)
 
 set_target_properties(${PROJECT_NAME} PROPERTIES INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib:${CMAKE_INSTALL_PREFIX}/lib64)
