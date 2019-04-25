@@ -14,10 +14,12 @@ x = pool.get('key0')
 print('>>' + x + '<<')
 print(pool.count())
 
-arr = bytearray(range(0,100))
+arr = bytearray('byte array', 'utf-8')
 pool.put_direct('array0', arr)
 
 y = pool.get_direct('array0')
+#y = pool.get_direct('key1')
+#y = pool.get('array0')
 print(y)
 
 pool.close()
