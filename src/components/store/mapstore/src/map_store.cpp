@@ -67,6 +67,11 @@ public:
                       void* out_value,
                       size_t& out_value_len);
 
+  status_t get_attribute(const IKVStore::pool_t pool,
+                         const IKVStore::Attribute attr,
+                         std::vector<uint64_t>& out_attr,
+                         const std::string* key);
+
   IKVStore::key_t lock(const std::string& key,
                        IKVStore::lock_type_t type,
                        void*& out_value,
@@ -209,6 +214,33 @@ status_t Pool_handle::get_direct(const std::string& key,
   out_value_len = i->second.length; /* update length */
   memcpy(out_value, i->second.ptr, i->second.length);
   
+  return S_OK;
+}
+
+status_t Pool_handle::get_attribute(const IKVStore::pool_t pool,
+                                    const IKVStore::Attribute attr,
+                                    std::vector<uint64_t>& out_attr,
+                                    const std::string* key)
+{
+  switch(attr) {
+  case IKVStore::Attribute::VALUE_LEN: {
+    if(key == nullptr) return E_INVALID_ARG;
+
+    out_attr.clear();
+    {
+#ifndef SINGLE_THREADED
+      RWLock_guard guard(map_lock);
+#endif
+      auto i = map.find(*key);      
+      if(i == map.end()) return IKVStore::E_KEY_NOT_FOUND;
+      out_attr.push_back(i->second.length);
+    }
+    break;
+  }
+  default:
+    return E_INVALID_ARG;
+  }
+    
   return S_OK;
 }
 
@@ -472,6 +504,16 @@ status_t Map_store::put_direct(const pool_t pid,
                                unsigned int flags)
 {
   return Map_store::put(pid, key, value, value_len, flags);
+}
+
+status_t Map_store::get_attribute(const pool_t pool,
+                                  const IKVStore::Attribute attr,
+                                  std::vector<uint64_t>& out_attr,
+                                  const std::string* key)
+{
+  auto session = get_session(pool);
+  assert(session->pool);
+  return session->pool->get_attribute(pool, attr, out_attr, key);
 }
 
 Component::IKVStore::key_t
