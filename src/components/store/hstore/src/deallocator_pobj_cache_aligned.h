@@ -17,6 +17,7 @@
 
 #include "deallocator_pobj.h"
 
+#include "hop_hash_log.h"
 #include "pointer_pobj.h"
 #include "persister_pmem.h"
 #include "pobj_bad_alloc.h"
@@ -31,10 +32,6 @@
 #pragma GCC diagnostic pop
 
 #include <cstdlib> /* size_t, ptrdiff_t */
-
-#if TRACE_PALLOC
-#include <iostream> /* cerr */
-#endif
 
 template <typename T, typename Deallocator = deallocator_pobj<T>>
 	class deallocator_pobj_cache_aligned;
@@ -115,11 +112,11 @@ template <typename T, typename Deallocator>
 #if TRACE_PALLOC
 			{
 				auto ptr = static_cast<char *>(pmemobj_direct(oid)) - cache_align;
-				std::cerr << __func__
-					<< " [" << static_cast<void *>(ptr)
-					<< ".." << static_cast<void *>(ptr + s * sizeof(value_type))
-					<< ") OID " << std::hex << oid.pool_uuid_lo << "." << oid.off << std::dec << "\n"
-					;
+				hop_hash_log::write(__func__
+					, " [", static_cast<void *>(ptr)
+					, "..", static_cast<void *>(ptr + s * sizeof(value_type))
+					, ") OID ", std::hex, oid.pool_uuid_lo, ".", oid.off, std::dec
+				);
 			}
 #endif
 			pmemobj_free(&oid);

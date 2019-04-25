@@ -18,6 +18,7 @@
 #include "deallocator_pobj.h"
 #include "pool_pobj.h"
 
+#include "hop_hash_log.h"
 #include "persister_pmem.h"
 #include "pobj_bad_alloc.h"
 #include "pointer_pobj.h"
@@ -34,10 +35,6 @@
 #include <cerrno>
 #include <cstdlib> /* size_t, ptrdiff_t */
 #include <cstdint> /* uint64_t */
-
-#if TRACE_PALLOC
-#include <iostream> /* cerr */
-#endif
 
 template <typename T, typename Deallocator = deallocator_pobj<T>>
 	class allocator_pobj;
@@ -119,11 +116,12 @@ template <typename T, typename Deallocator>
 #if TRACE_PALLOC
 			{
 				auto ptr = static_cast<char *>(pmemobj_direct(oid));
-				std::cerr << __func__
-					<< " " << (why ? why : "(unaligned no reason)")
-					<< " [" << ptr
-					<< ".." << static_cast<void *>(ptr + s * sizeof(T))
-					<< ")\n";
+				hop_hash_log::write(__func,
+					, " " << (why ? why : "(unaligned no reason)")
+					, " [" << ptr
+					, ".." << static_cast<void *>(ptr + s * sizeof(T))
+					, ")"
+				);
 			}
 #endif
 			return pointer_pobj<T, 0U>(oid);
