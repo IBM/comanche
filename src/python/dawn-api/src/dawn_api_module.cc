@@ -1,11 +1,14 @@
 
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
+#define PY_ARRAY_UNIQUE_SYMBOL DAWN_ARRAY_API
+#include <numpy/arrayobject.h>
 
+//now, everything is setup, just include the numpy-arrays:
+#include <numpy/arrayobject.h>
 #include <Python.h>
 #include <structmember.h>
 #include <objimpl.h>
 #include <pythread.h>
-#include <numpy/arrayobject.h>
 //#include <numpy/npy_math.h>
 
 #include <api/components.h>
@@ -55,8 +58,10 @@ PyInit_dawn(void)
 {  
   PyObject *m;
 
-  import_array(); /* using NumPy C-API */
+  PLOG("Init dawn Python extension");
 
+  import_array();
+  
   ZcStringType.tp_base = 0; // no inheritance
   if(PyType_Ready(&ZcStringType) < 0) {
     assert(0);

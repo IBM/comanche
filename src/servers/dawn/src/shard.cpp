@@ -521,8 +521,8 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
       }
       else {
 
-        if(option_DEBUG > 2)
-          PLOG("Shard: get using two stage get response (value_len=%lu)", value_out_len);
+        if(option_DEBUG > 2||1)
+          PLOG("Shard: get using two stage get response (value_out_len=%lu)", value_out_len);
 
         /* check if client has allocated sufficient space */
         if(client_side_value_len < value_out_len) {
