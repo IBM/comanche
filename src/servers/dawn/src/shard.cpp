@@ -492,7 +492,7 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
              value_out, (int) min(value_out_len,20), (char*) value_out, value_out_len);
 
       if (key_handle == Component::IKVStore::KEY_NONE) { /* key not found */
-        response->status = E_NOT_FOUND;
+        response->status = Component::IKVStore::E_KEY_NOT_FOUND;
         iob->set_length(response->base_message_size());
         handler->post_response(iob, nullptr);
         return;
