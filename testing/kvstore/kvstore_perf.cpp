@@ -56,7 +56,7 @@ namespace
 
   using exp_f = void(*)(cpu_mask_t, const ProgramOptions &);
   using test_element = std::pair<std::string, exp_f>;
-  const std::vector<test_element> test_vector
+  static const std::vector<test_element> test_vector
   {
     { "put", run_exp<ExperimentPut> },
     { "get", run_exp<ExperimentGet> },
