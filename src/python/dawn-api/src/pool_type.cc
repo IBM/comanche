@@ -21,6 +21,7 @@ static PyObject * pool_get(Pool* self, PyObject *args, PyObject *kwds);
 static PyObject * pool_put_direct(Pool* self, PyObject *args, PyObject *kwds);
 static PyObject * pool_get_direct(Pool* self, PyObject *args, PyObject *kwds);
 static PyObject * pool_get_size(Pool* self, PyObject *args, PyObject *kwds);
+static PyObject * pool_erase(Pool* self, PyObject *args, PyObject *kwds);
 
 static PyObject *
 Pool_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
@@ -60,6 +61,7 @@ PyDoc_STRVAR(get_size_doc,"Pool.get_size(key) -> Get size of a value.");
 PyDoc_STRVAR(get_direct_doc,"Pool.get_direct(key) -> Read bytearray value from pool using zero-copy.");
 PyDoc_STRVAR(close_doc,"Pool.close() -> Forces pool closure. Otherwise close happens on deletion.");
 PyDoc_STRVAR(count_doc,"Pool.count() -> Get number of objects in the pool.");
+PyDoc_STRVAR(erase_doc,"Pool.erase(key) -> Erase object from the pool.");
 
 static PyMethodDef Pool_methods[] = {
   {"close",(PyCFunction) pool_close, METH_NOARGS, close_doc},
@@ -69,6 +71,7 @@ static PyMethodDef Pool_methods[] = {
   {"get",(PyCFunction) pool_get, METH_VARARGS | METH_KEYWORDS, get_doc},
   {"get_direct",(PyCFunction) pool_get_direct, METH_VARARGS | METH_KEYWORDS, get_direct_doc},
   {"get_size",(PyCFunction) pool_get_size, METH_VARARGS | METH_KEYWORDS, get_size_doc},
+  {"erase",(PyCFunction) pool_erase, METH_VARARGS | METH_KEYWORDS, erase_doc},
   {NULL}
 };
 
@@ -270,8 +273,11 @@ static PyObject * pool_get(Pool* self, PyObject *args, PyObject *kwds)
                              key,
                              out_p,
                              out_p_len);
-  
-  if(hr != S_OK || out_p == nullptr) {
+
+  if(hr == Component::IKVStore::E_KEY_NOT_FOUND) {
+    Py_RETURN_NONE;
+  }
+  else if(hr != S_OK || out_p == nullptr) {
     std::stringstream ss;
     ss << "pool.get failed [status:" << hr << "]";
     PyErr_SetString(PyExc_RuntimeError,ss.str().c_str());
@@ -423,6 +429,38 @@ static PyObject * pool_count(Pool* self)
   }
 
   return PyLong_FromSize_t(self->_dawn->count(self->_pool));
+}
+
+static PyObject * pool_erase(Pool* self, PyObject *args, PyObject *kwds)
+{
+  static const char *kwlist[] = {"key",
+                                 NULL};
+
+  const char * key = nullptr;
+  
+  if (! PyArg_ParseTupleAndKeywords(args,
+                                    kwds,
+                                    "s",
+                                    const_cast<char**>(kwlist),
+                                    &key)) {
+    PyErr_SetString(PyExc_RuntimeError,"bad arguments");
+    return NULL;
+  }
+
+  assert(self->_pool);
+    
+  std::string k(key);
+  
+  auto hr = self->_dawn->erase(self->_pool, k);
+
+  if(hr != S_OK) {
+    std::stringstream ss;
+    ss << "pool.erase [status:" << hr << "]";
+    PyErr_SetString(PyExc_RuntimeError,ss.str().c_str());    
+    return NULL;
+  }
+
+  Py_RETURN_TRUE;
 }
 
 
