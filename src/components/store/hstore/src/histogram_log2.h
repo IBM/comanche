@@ -25,7 +25,7 @@ namespace util
 			int clz(clz_arg_t);
 
 		template <>
-			int clz(unsigned v)
+			inline int clz(unsigned v)
 			{
 				/* Note: If no builtin clzi/clz/clzll, see deBruijn sequence method,
 				 * or Hacker's Delight section 5-3
@@ -34,13 +34,13 @@ namespace util
 			}
 
 		template <>
-			int clz(unsigned long v)
+			inline int clz(unsigned long v)
 			{
 				return __builtin_clzl(v);
 			}
 
 		template <>
-			int clz(unsigned long long v)
+			inline int clz(unsigned long long v)
 			{
 				return __builtin_clzll(v);
 			}
