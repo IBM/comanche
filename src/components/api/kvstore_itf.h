@@ -1,12 +1,9 @@
 /*
-   Copyright [2017,2018,2019] [IBM Corporation]
-
+   Copyright [2017-2019] [IBM Corporation]
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
-
        http://www.apache.org/licenses/LICENSE-2.0
-
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -15,11 +12,13 @@
 */
 
 
+
 #ifndef __API_KVSTORE_ITF__
 #define __API_KVSTORE_ITF__
 
 #include <sys/uio.h> /* iovec */
 
+#include <cinttypes> /* PRIx64 */
 #include <cstdlib>
 #include <functional>
 #include <vector>
@@ -28,6 +27,9 @@
 #include <api/components.h>
 #include <api/block_itf.h>
 #include <api/block_allocator_itf.h>
+
+/* print format for the pool type */
+#define PRIxIKVSTORE_POOL_T PRIx64
 
 namespace Component
 {
@@ -93,6 +95,9 @@ public:
     CAS_UINT64,
   };
 
+  enum Attribute {
+    VALUE_LEN   = 0x1, /* length of a value associated with key */
+  };
 
   class Operation
   {
@@ -337,7 +342,25 @@ public:
                               memory_handle_t handle = HANDLE_NONE) {
     return E_NOT_SUPPORTED;
   }
-  
+
+
+  /** 
+   * Get attribute for key or pool (see enum Attribute)
+   * 
+   * @param pool Pool handle
+   * @param attr Attribute to retrieve
+   * @param out_attr Result
+   * @param key [optiona] Key
+   * 
+   * @return S_OK on success
+   */
+  virtual status_t get_attribute(const pool_t pool,
+                                 const Attribute attr,
+                                 std::vector<uint64_t>& out_attr,
+                                 const std::string* key = nullptr) {
+    return E_NOT_SUPPORTED;
+  }
+                                  
 
   /** 
    * Register memory for zero copy DMA

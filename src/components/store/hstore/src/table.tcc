@@ -7,6 +7,7 @@
  * Hopscotch hash table - template Key, Value, and allocators
  */
 
+#include "hop_hash_log.h"
 #include "perishable.h"
 #include "perishable_expiry.h"
 #include "persistent.h"
@@ -17,23 +18,13 @@
 #include <algorithm>
 #include <cassert>
 #include <exception>
-#if TRACE_PERISHABLE_EXPIRY
-#include <iostream> /* for perishable_expiry */
-#endif
 #include <utility> /* move */
 
-#if TRACE_MANY
-#include <sstream> /* ostringstream */
-#endif
-#if TEST_HSTORE_PERISHABLE
-#include <sstream> /* cerr */
-#endif
 
 /*
  * ===== table_base =====
  */
 
-#include <iostream>
 template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
@@ -68,29 +59,20 @@ template <
 		);
 
 		{
-			auto ix = 0U;
+			segment_layout::six_t ix = 0U;
 			_bc[ix]._index = ix;
 			_bc[ix]._next = &_bc[0];
 			_bc[ix]._prev = &_bc[0];
 			const auto segment_size = base_segment_size;
-			_bc[ix]._bucket_mutexes = new bucket_mutexes_t[segment_size];
+			_bc[ix]._bucket_mutexes.reset(new bucket_mutexes_t[segment_size]);
 			_bc[ix]._buckets_end = _bc[ix]._buckets + segment_size;
 			if ( mode_ == construction_mode::reconstitute )
 			{
-				for ( auto it = _bc[ix]._buckets; it != _bc[ix]._buckets_end; ++it )
-				{
-					content_t &c = *it;
-					/* reconsititute key and value */
-					if ( c.state_get() != bucket_t::FREE )
-					{
-						c.value().first.reconstitute(av_);
-						c.value().second.reconstitute(av_);
-					}
-				}
+				_bc[ix].reconstitute(av_);
 			}
 		}
 
-		for ( auto ix = 1U; ix != this->persist_controller_t::segment_count_actual().value_not_stable(); ++ix )
+		for ( segment_layout::six_t ix = 1U; ix != this->persist_controller_t::segment_count_actual().value_not_stable(); ++ix )
 		{
 			_bc[ix-1]._next = &_bc[ix];
 			_bc[ix]._prev = &_bc[ix-1];
@@ -98,33 +80,20 @@ template <
 			_bc[ix]._next = &_bc[0];
 			_bc[0]._prev = &_bc[ix];
 			const auto segment_size = base_segment_size << (ix-1U);
-			_bc[ix]._bucket_mutexes =
-				new bucket_mutexes_t[segment_size];
+			_bc[ix]._bucket_mutexes.reset(new bucket_mutexes_t[segment_size]);
 			_bc[ix]._buckets_end = _bc[ix]._buckets + segment_size;
 			if ( mode_ == construction_mode::reconstitute )
 			{
-				for ( auto it = _bc[ix]._buckets; it != _bc[ix]._buckets_end; ++it )
-				{
-					/* reconsititute key and value */
-					content_t &c = *it;
-					if ( c.state_get() != bucket_t::FREE )
-					{
-						c.value().first.reconstitute(av_);
-						c.value().second.reconstitute(av_);
-					}
-				}
+				_bc[ix].reconstitute(av_);
 			}
 		}
-#if TRACE_MANY
-		std::cerr << __func__ << " segment_count " << this->persist_controller_t::segment_count_actual().value_not_stable()
-			<< " segment_count_specified " << this->persist_controller_t::segment_count_specified() << "\n";
-#endif
+		hop_hash_log<TRACE_MANY>::write(__func__, " segment_count ", this->persist_controller_t::segment_count_actual().value_not_stable()
+			, " segment_count_specified ", this->persist_controller_t::segment_count_specified());
 		/* If table allocation incomplete (perhaps in the middle of a resize op), resize until large enough. */
 
-#if TEST_HSTORE_PERISHABLE
-		std::cerr << "Table base constructor: "
-			<< (this->is_size_stable() ? "stable" : "unstable") << " segment_count " << this->segment_count_actual().value_not_stable() << "\n";
-#endif
+		hop_hash_log<TEST_HSTORE_PERISHABLE>::write(__func__, "Table base constructor: "
+			, (this->is_size_stable() ? "stable" : "unstable"), " segment_count ", this->segment_count_actual().value_not_stable());
+
 		if ( ! this->persist_controller_t::segment_count_actual().is_stable() )
 		{
 			/* ERROR: reconstruction code for resize state not written. */
@@ -136,27 +105,17 @@ template <
 			junior_bucket_control._prev = &_bc[ix-1];
 			junior_bucket_control._index = ix;
 			const auto segment_size = base_segment_size << (ix-1U);
-			junior_bucket_control._bucket_mutexes = new bucket_mutexes_t[segment_size];
+			junior_bucket_control._bucket_mutexes.reset(new bucket_mutexes_t[segment_size]);
 			junior_bucket_control._buckets_end = junior_bucket_control._buckets + segment_size;
 
-			for ( auto jr = junior_bucket_control._buckets; jr != junior_bucket_control._buckets_end ; ++jr )
-			{
-				content_t &c = *jr;
-				if ( c.state_get() != bucket_t::FREE )
-				{
-					c.value().first.reconstitute(av_);
-					c.value().second.reconstitute(av_);
-				}
-			}
+			junior_bucket_control.reconstitute(av_);
 			 
 			resize_pass2();
 			this->persist_controller_t::resize_epilog();
 		}
 
-#if TEST_HSTORE_PERISHABLE
-		std::cerr << "Table base constructor: "
-			<< (this->persist_controller_t::is_size_stable() ? "stable" : "unstable") << " size " << this->persist_controller_t::size_unstable() << "\n";
-#endif
+		hop_hash_log<TEST_HSTORE_PERISHABLE>::write(__func__, "Table base constructor: "
+			, (this->persist_controller_t::is_size_stable() ? "stable" : "unstable"), " size ", this->persist_controller_t::size_unstable());
 
 		if ( ! this->persist_controller_t::is_size_stable() )
 		{
@@ -183,21 +142,22 @@ template <
 				/* conditional - to suppress unnecessary persists */
 				if ( content_lk.ref().state_get() != (in_use ? bucket_t::IN_USE : bucket_t::FREE) )
 				{
-#if TEST_HSTORE_PERISHABLE
-					std::cerr << "Element " << sb << " changed to " << (in_use ? "in_use" : "free") << "\n";
-#endif
+					hop_hash_log<TEST_HSTORE_PERISHABLE>::write(__func__, "Element ", sb, " changed to ", (in_use ? "in_use" : "free"));
+
 					content_lk.ref().state_set(in_use ? bucket_t::IN_USE : bucket_t::FREE);
 
 					/*
 					 * Persists the entire content, although only the size has changed.
-					 * Persisting jus the state would require an additional function
+					 * Persisting only the state would require an additional function
 					 * in persist_controller_t.
 					 */
 					this->persist_controller_t::persist_content(content_lk.ref(), "content state from owner");
 				}
 			}
 			this->persist_controller_t::size_set(s);
-			std::cerr << "Restored size " << size() << "\n";
+
+			hop_hash_log<TRACE_MANY>::write(__func__, "Restored size ", size());
+
 		}
 	}
 
@@ -244,9 +204,9 @@ template <
 #if TRACE_PERISHABLE_EXPIRY
 			if ( (c & locate_owner(sbw2).value(owner_lk)) != 0 )
 			{
-				std::cerr << __func__ << " ownership disagreement in range ["
-					<< bucket_ix(a_.index()-owner::size) << ".." << sbw2.index()
-					<< "]\n";
+				hop_hash_log<TRACE_PERISHABLE_EXPIRY>::write(__func__, " ownership disagreement in range ["
+					, bucket_ix(a_.index()-owner::size), "..", sbw2.index()
+					, "]");
 			}
 #else
 			assert( (c & locate_owner(sbw2).value(owner_lk)) == 0 );
@@ -327,10 +287,8 @@ template <
 		const hash_result_t h_
 	) const -> bix_t
 	{
-#if DEBUG_TRACE_BUCKET_IX
-		std::cerr << __func__ << " h_ " << h_
-			<< " mask " << mask() << " -> " << ( h_ & mask() ) << "\n";
-#endif
+		hop_hash_log<TRACE_BUCKET_IX>::write(__func__, " h_ ", h_
+			, " mask ", mask(), " -> ", ( h_ & mask() ));
 		return h_ & mask();
 	}
 
@@ -348,10 +306,8 @@ template <
 	) const -> bix_t
 	{
 		auto mask_expanded = (mask() << 1U) + 1;
-#if DEBUG_TRACE_BUCKET_IX
-		std::cerr << __func__ << " h_ " << h_
-			<< " mask " << mask_expanded << " -> " << ( h_ & mask_expanded ) << "\n";
-#endif
+		hop_hash_log<TRACE_BUCKET_IX>::write(__func__, " h_ ", h_
+			, " mask ", mask_expanded, " -> ", ( h_ & mask_expanded ));
 		return h_ & mask_expanded;
 	}
 
@@ -383,10 +339,10 @@ template <
 				throw table_full{bi_.index(), bucket_count()};
 			}
 		}
-#if TRACE_MANY
-		std::cerr << __func__
-			<< "(" << start.index() << ") => " << content_lk.index() << "\n";
-#endif
+
+		hop_hash_log<TRACE_MANY>::write(__func__
+			, "(", start.index(), ") => ", content_lk.index());
+
 		content_lk.assert_clear(true, *this);
 		return content_lk;
 	}
@@ -412,7 +368,7 @@ template <
 			);
 	}
 
-/* Precondition: holdss owner_unique_lock on bi_.
+/* Precondition: holds owner_unique_lock on bi_.
  *
  * Receives an owner index bi_, and a content unique lock
  * on the free content at b_dst_lock_
@@ -434,16 +390,16 @@ template <
 		auto free_distance = distance_wrapped(bi_, b_dst_lock_.index());
 		while ( owner::size <= free_distance )
 		{
-#if TRACE_MANY
-			std::cerr << __func__
-				<< " owner size " << owner::size
-				<< " < free distance " << free_distance
-				<< "\n"
-				<< make_table_dump(*this);
-#endif
+
+			hop_hash_log<TRACE_MANY>::write(__func__
+				, " owner size ", owner::size
+				, " < free distance ", free_distance
+				, "\n"
+				, dump<TRACE_MANY>::make_table_dump(*this));
+
 			/*
 			 * Relocate an element in some possible owner of the free element, bf,
-			 * to somewhere else in that owner's owner.
+			 * to somewhere else in that owner's range.
 			 *
 			 * The owners to check are, in order,
 			 *   b_dst_lock_-owner::size-1 through b_dst_lock__-1.
@@ -454,7 +410,7 @@ template <
 			/* Any item in bucket owner_lock precedes b_dst_lock_,
 			 * and is eligible for move
 			 */
-			auto eligible_items = ( 1UL << owner::size ) - 1U;
+			owner::value_type eligible_items = owner::mask_all_ones();
 			while (
 				owner_lock.sb() != b_dst_lock_.sb()
 				&&
@@ -485,10 +441,9 @@ template <
 
 			const auto c = owner_lock.ref().value(owner_lock) & eligible_items;
 			assert(c != 0);
-			assert( c == unsigned(c) );
 
 			/* find index of first (rightmost) one in c */
-			const auto p = unsigned(__builtin_ctz(unsigned(c)));
+			const auto p = owner::rightmost_one_pos(c);
 			/* content to relocate */
 			auto b_src_lock = make_content_unique_lock(owner_lock, p);
 
@@ -497,10 +452,10 @@ template <
 #if TRACK_OWNER
 			b_src_lock.ref().owner_verify(owner_lock.index());
 #endif
-#if TRACE_MANY
 			std::ostringstream c_old;
+#if TRACE_MANY
 			{
-				c_old << make_owner_print(this->bucket_count(), owner_lock);
+				c_old << dump<TRACE_MANY>::make_owner_print(this->bucket_count(), owner_lock);
 			}
 #endif
 			b_dst_lock_.ref().content_share(b_src_lock.ref());
@@ -538,16 +493,16 @@ template <
 				b_dst_lock_.assert_clear(false, *this);
 			}
 			/* New free location */
-#if TRACE_MANY
-			std::cerr << __func__
-				<< " bucket " << owner_lock.index()
-				<< " move " << b_src_lock.index() << "->" << b_dst_lock_.index()
-				<< " "
-				<< c_old.str()
-				<< "->"
-				<< make_owner_print(this->bucket_count(), owner_lock)
-				<< "\n";
-#endif
+
+			hop_hash_log<TRACE_MANY>::write(__func__
+				, " bucket ", owner_lock.index()
+				, " move ", b_src_lock.index(), "->", b_dst_lock_.index()
+				, " "
+				, c_old.str()
+				, "->"
+				, dump<TRACE_MANY>::make_owner_print(this->bucket_count(), owner_lock)
+			);
+
 			b_dst_lock_ = std::move(b_src_lock);
 
 			free_distance = distance_wrapped(bi_, b_dst_lock_.index());
@@ -557,10 +512,10 @@ template <
 		 *
 		 * Enter the new item in b_dst_lock_ and update the ownership at bi_
 		 */
-#if TRACE_MANY
-		std::cerr << __func__ << " exit, free distance " << free_distance
-			<< "\n" << make_table_dump(*this);
-#endif
+
+		hop_hash_log<TRACE_MANY>::write(__func__, " exit, free distance ", free_distance
+			, "\n", dump<TRACE_MANY>::make_table_dump(*this));
+
 		b_dst_lock_.assert_clear(true, *this);
 		return b_dst_lock_;
 	}
@@ -575,14 +530,14 @@ template <
 		) -> std::pair<iterator, bool>
 		try
 		{
-#if TRACE_MANY
-			std::cerr << __func__ << " BEGIN LIST\n"
-				<< make_table_dump(*this)
-				<< __func__ << " END LIST\n";
-#endif
+			hop_hash_log<TRACE_MANY>::write(__func__, " BEGIN LIST\n"
+				, dump<TRACE_MANY>::make_table_dump(*this)
+				, __func__, " END LIST"
+			);
+
 		RETRY:
 			/* convert the args to a value_type */
-			auto v = value_type(std::forward<Args>(args)...);
+			value_type v(std::forward<Args>(args)...);
 			/* The bucket in which to place the new entry */
 			auto sbw = make_segment_and_bucket(bucket(v.first));
 			auto owner_lk = make_owner_unique_lock(sbw);
@@ -595,9 +550,7 @@ template <
 				{
 					if ( (cv & 1U) && key_equal()(sbc.deref().key(), v.first) )
 					{
-#if TRACE_MANY
-						std::cerr << __func__ << " (already present)\n";
-#endif
+						hop_hash_log<TRACE_MANY>::write(__func__, " (already present)");
 						return {iterator{sbc}, false};
 					}
 				}
@@ -634,12 +587,10 @@ template <
 						, owner_lk
 					);
 					this->persist_controller_t::persist_owner(owner_lk.ref(), "owner emplace");
-#if TRACE_MANY
-					std::cerr << __func__ << " bucket " << owner_lk.index()
-						<< " store at " << b_dst.index() << " "
-						<< make_owner_print(this->bucket_count(), owner_lk)
-						<< " " << b_dst.ref() << "\n";
-#endif
+					hop_hash_log<TRACE_MANY>::write(__func__, " bucket ", owner_lk.index()
+						, " store at ", b_dst.index(), " "
+						, dump<TRACE_MANY>::make_owner_print(this->bucket_count(), owner_lk)
+						, " ", b_dst.ref());
 				}
 				/* persist_size_change may have failed to due to perishable counter, but the exception
 				 * could not be propagated as an exception because it happened in a destructor.
@@ -651,15 +602,15 @@ template <
 			catch ( const no_near_empty_bucket &e )
 			{
 				owner_lk.unlock();
-#if TRACE_MANY
-				std::cerr << "1. before resize\n" << make_table_dump(*this) << "\n";
-#endif
+
+				hop_hash_log<TRACE_MANY>::write(__func__, "1. before resize\n", dump<TRACE_MANY>::make_table_dump(*this));
+
 				if ( segment_count() < _segment_capacity )
 				{
 					resize();
-#if TRACE_MANY
-					std::cerr << "2. after resize\n" << make_table_dump(*this) << "\n";
-#endif
+
+					hop_hash_log<TRACE_MANY>::write(__func__, "2. after resize\n", dump<TRACE_MANY>::make_table_dump(*this));
+
 					goto RETRY;
 				}
 				throw;
@@ -667,11 +618,11 @@ template <
 		}
 		catch ( const perishable_expiry & )
 		{
-#if TRACE_PERISHABLE_EXPIRY
-			std::cerr << "perishable expiry dump (emplace)\n"
-				<< make_table_dump(*this)
-				<< "\n";
-#endif
+
+			hop_hash_log<TRACE_PERISHABLE_EXPIRY>::write(__func__, "perishable expiry dump\n"
+				, dump<TRACE_PERISHABLE_EXPIRY>::make_table_dump(*this)
+			);
+
 			throw;
 		}
 
@@ -692,12 +643,16 @@ template <
 >
 	void impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::resize()
 	{
+		hop_hash_log<TRACE_RESIZE>::write(__func__
+			, " capacity ", bucket_count()
+			, " size ", size()
+		);
 		_bc[segment_count()]._buckets = this->persist_controller_t::resize_prolog();
 		_bc[segment_count()]._next = &_bc[0];
 		_bc[segment_count()]._prev = &_bc[segment_count()-1];
 		_bc[segment_count()]._index = segment_count();
 		auto segment_size = bucket_count();
-		_bc[segment_count()]._bucket_mutexes = new bucket_mutexes_t[segment_size];
+		_bc[segment_count()]._bucket_mutexes.reset(new bucket_mutexes_t[segment_size]);
 		_bc[segment_count()]._buckets_end = _bc[segment_count()]._buckets + segment_size;
 
 		/* adjust count and everything which depends on it (size, mask) */
@@ -745,12 +700,12 @@ template <
 		bix_t ix_senior = 0U;
 		const auto sb_senior_end =
 			make_segment_and_bucket_at_end();
-#if TRACE_MANY
-			std::cerr << __func__
-				<< " bucket_count " << bucket_count()
-				<< " sb_senior_end " << sb_senior_end.si() << "," << sb_senior_end.bi()
-				<< "\n";
-#endif
+
+			hop_hash_log<TRACE_MANY>::write(__func__
+				, " bucket_count ", bucket_count()
+				, " sb_senior_end ", sb_senior_end.si(), ",", sb_senior_end.bi()
+			);
+
 		for (
 			auto sb_senior = make_segment_and_bucket(0U)
 			; sb_senior != sb_senior_end
@@ -774,11 +729,12 @@ template <
 					/*
 					 * content can stay where it is because bucket index index MSB is 0
 					 */
-#if TRACE_MANY
-					std::cerr << __func__
-						<< " " << ix_senior << " 1a no-relocate, owner " << bucket_ix(hash)
-						<< " -> " << ix_owner << ": content " << ix_senior << "\n";
-#endif
+
+					hop_hash_log<TRACE_MANY>::write(__func__
+						, " ", ix_senior, " 1a no-relocate, owner ", bucket_ix(hash)
+						, " -> ", ix_owner, ": content ", ix_senior
+					);
+
 				}
 				else if (
 					ix_senior < owner::size
@@ -790,30 +746,28 @@ template <
 					 * NOTE: this test is not exact, but is close enough if owner::size
 					 * is equal to or less than half the minimum table size.
 					 */
-#if TRACE_MANY
-					std::cerr << __func__
-						<< " " << ix_senior << " 1b no-relocate, owner " << bucket_ix(hash)
-						<< " -> " << ix_owner << ": content " << ix_senior << "\n";
-#endif
+
+					hop_hash_log<TRACE_MANY>::write(__func__
+						, " ", ix_senior, " 1b no-relocate, owner ", bucket_ix(hash)
+						, " -> ", ix_owner, ": content ", ix_senior);
+
 				}
 				else
 				{
 					/* content must move */
 					junior_content.content_share(senior_content_lk.ref(), ix_owner);
 					junior_content.state_set(bucket_t::IN_USE);
-#if TRACE_MANY
-					std::cerr << __func__
-						<< " " << ix_senior << " 1c relocate, owner " << bucket_ix(hash) << " -> " << ix_owner
-						<< ": content " << ix_senior << " -> "
-						<< ix_senior + bucket_count() << "\n";
-#endif
+
+					hop_hash_log<TRACE_MANY>::write(__func__
+						, " ", ix_senior, " 1c relocate, owner ", bucket_ix(hash), " -> ", ix_owner
+						, ": content ", ix_senior, " -> "
+						, ix_senior + bucket_count());
+
 				}
 			}
 			else
 			{
-#if TRACE_MANY
-				std::cerr << __func__ << " " << ix_senior << " 1d empty\n";
-#endif
+				hop_hash_log<TRACE_MANY>::write(__func__, " ", ix_senior, " 1d empty");
 			}
 		}
 
@@ -825,7 +779,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	void impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::resize_pass2_inner(
+	bool impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::resize_pass2_adjust_owner(
 		bix_t ix_senior
 		, bucket_control_t &junior_bucket_control
 		, content_unique_lock_t &populated_content_lk
@@ -833,14 +787,17 @@ template <
 	{
 		/* examine the key to locate old and new owners (owners) */
 		auto hash = _hasher.hf(populated_content_lk.ref().key());
+		/* Note: the owner needs to be changed iff the ownership range
+		 * of ix_senior_owner + bucket_count() includes populated_content_lk.
+		 */
 		auto ix_senior_owner = bucket_ix(hash);
 		auto ix_junior_owner = bucket_expanded_ix(hash);
-#if TRACE_MANY
-		std::cerr << __func__ << ".2 content "
-			<< ix_senior << " -> " << junior_content_lk.index()
-			<< " owner " << ix_senior_owner << " -> " << ix_junior_owner
-			<< "\n";
-#endif
+
+		hop_hash_log<TRACE_MANY>::write(__func__, ".2 content "
+			, ix_senior, " -> ? "
+			, " owner ", ix_senior_owner, " -> ", ix_junior_owner
+		);
+
 		if ( ix_senior_owner != ix_junior_owner )
 		{
 			auto senior_owner_sb = make_segment_and_bucket(ix_senior_owner);
@@ -852,7 +809,8 @@ template <
 					, junior_bucket_control._bucket_mutexes[ix_senior_owner]._m_owner
 				);
 
-			/* special locate, used before size has been updated
+			/*
+			 * special locate, used before size has been updated,
 			 * to pre-fill new buckets
 			 */
 			auto &junior_owner = junior_bucket_control._buckets[ix_senior_owner];
@@ -862,7 +820,13 @@ template <
 			senior_owner_lk.ref().erase(owner_pos, senior_owner_lk);
 			this->persist_controller_t::persist_owner(junior_owner_lk.ref(), "pass 2 junior owner");
 			this->persist_controller_t::persist_owner(senior_owner_lk.ref(), "pass 2 senior owner");
+			/* 
+			 * If the owner index exceeds the content index (which can only happen due to wrap)
+			 * the owner needs to change (be incremented by the bucket count).
+			 */
+			return ix_senior < ix_junior_owner;
 		}
+		return false;
 	}
 
 template <
@@ -886,7 +850,6 @@ template <
 			; sb_senior.incr_without_wrap(), ++ix_senior
 		)
 		{
-
 			/* get segment count before it was made unstable */
 			/* special locate, used before size has been updated
 			 * to pre-fill new buckets
@@ -902,19 +865,23 @@ template <
 
 			if ( junior_content_lk.ref().state_get() == bucket_t::IN_USE )
 			{
-				resize_pass2_inner(ix_senior, junior_bucket_control, junior_content_lk);
+				/* The content has moved. */
+				resize_pass2_adjust_owner(ix_senior, junior_bucket_control, junior_content_lk);
 				senior_content_lk.ref().erase();
 				senior_content_lk.ref().state_set(bucket_t::FREE);
 			}
 			else if ( senior_content_lk.ref().state_get() == bucket_t::IN_USE )
 			{
-				resize_pass2_inner(ix_senior, junior_bucket_control, senior_content_lk);
+				/* The content has not moved. */
+				auto wrapped_owner = resize_pass2_adjust_owner(ix_senior, junior_bucket_control, senior_content_lk);
+				if ( wrapped_owner )
+				{
+					hop_hash_log<TRACK_OWNER>::write(__func__, ".2b content at "
+						, ix_senior, " wrapped owner adjustment");
 #if TRACK_OWNER
-				/* adjust the owner location (as kept in content) to reflect the
-				 * new owner location
-				 */
-				senior_content_lk.ref().owner_update(bucket_count());
+					senior_content_lk.ref().owner_update(bucket_count());
 #endif
+				}
 			}
 			else
 			{
@@ -955,7 +922,7 @@ template <
 			(
 				__builtin_expect((segment_layout::ix_high(ix_) == 0),false)
 				? 0
-				: ix_high(ix_) % (1U << (si-1))
+				: ix_high(ix_) % (bix_t(1U) << (si-1))
 			)
 			*
 			segment_layout::base_segment_size + segment_layout::ix_low(ix_)
@@ -1001,7 +968,7 @@ template <
 			(
 				__builtin_expect((segment_layout::ix_high(ix_) == 0),false)
 				? 0
-				: ix_high(ix_) % (1U << (si-1))
+				: ix_high(ix_) % (bix_t(1U) << (si-1))
 			)
 			*
 			segment_layout::base_segment_size + segment_layout::ix_low(ix_)
@@ -1116,6 +1083,20 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
+	template < typename K >
+		auto impl::table_base<
+			Key, T, Hash, Pred, Allocator, SharedMutex
+		>::make_owner_shared_lock_special(
+			const K &k_
+		) const -> owner_shared_lock_t
+		{
+			return make_owner_shared_lock(make_segment_and_bucket(bucket(k_)));
+		}
+
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
 	auto impl::table_base<
 		Key, T, Hash, Pred, Allocator, SharedMutex
 	>::make_owner_shared_lock(
@@ -1163,24 +1144,23 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	template <typename Lock>
+	template <typename Lock, typename K>
 		auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::locate_key(
 			Lock &bi_
-			, const key_type &k_
+			, const K &k_
 		) const -> std::tuple<bucket_t *, segment_and_bucket_t>
 		{
 			/* Use the owner to filter key checks, a performance aid
 			 * to reduce the number of key compares.
 			 */
 			auto wv = bi_.ref().value(bi_);
-#if TRACE_MANY
-			std::cerr
-				<< __func__
-				<< " owner "
-				<< make_owner_print(this->bucket_count(), bi_)
-				<< " value " << wv
-				<< "\n";
-#endif
+
+			hop_hash_log<TRACE_MANY>::write(__func__
+				, " owner "
+				, dump<TRACE_MANY>::make_owner_print(this->bucket_count(), bi_)
+				, " value ", wv
+			);
+
 			auto bfp = bi_.sb();
 			auto &t =
 				*const_cast<table_base<Key, T, Hash, Pred, Allocator, SharedMutex> *>(this);
@@ -1198,10 +1178,9 @@ template <
 					if ( key_equal()(c->key(), k_) )
 					{
 						++t._locate_key_match;
-#if TRACE_MANY
-						std::cerr
-							<< __func__ << " returns (success) " << bfp.index() << "\n";
-#endif
+
+						hop_hash_log<TRACE_MANY>::write(__func__, " returns (success) ", bfp.index());
+
 						bucket_t *bb = static_cast<bucket_t *>(c);
 						return std::tuple<bucket_t *, segment_and_bucket_t>(bb, bfp);
 					}
@@ -1216,10 +1195,9 @@ template <
 				bfp.incr_with_wrap();
 				wv >>= 1U;
 			}
-#if TRACE_MANY
-			std::cerr
-				<< __func__ << " returns (failure) " << bfp.index() << "\n";
-#endif
+
+			hop_hash_log<TRACE_MANY>::write(__func__, " returns (failure) ", bfp.index());
+
 			return
 				std::tuple<bucket_t *, segment_and_bucket_t>(
 					nullptr
@@ -1281,10 +1259,8 @@ template <
 	}
 	catch ( const perishable_expiry & )
 	{
-#if TRACE_PERISHABLE_EXPIRY
-		std::cerr << "perishable expiry dump (erase)\n"
-			<< make_table_dump(*this) << "\n";
-#endif
+		hop_hash_log<TRACE_PERISHABLE_EXPIRY>::write(__func__, "perishable expiry dump (erase)\n"
+			, dump<TRACE_PERISHABLE_EXPIRY>::make_table_dump(*this));
 		throw;
 	}
 
@@ -1298,15 +1274,15 @@ template <
 	{
 		auto bi_lk = make_owner_shared_lock(k_);
 		const auto bf = locate_key(bi_lk, k_);
-#if TRACE_MANY
-		std::cerr << __func__
-			<< " " << k_
-			<< " starting at " << bi_lk.index()
-			<< " "
-			<< make_owner_print(this->bucket_count(), bi_lk)
-			<< " found "
-			<< *bf << "\n";
-#endif
+
+		hop_hash_log<TRACE_MANY>::write(__func__
+			, " ", k_
+			, " starting at ", bi_lk.index()
+			, " "
+			, dump<TRACE_MANY>::make_owner_print(this->bucket_count(), bi_lk)
+			, " found "
+			, *bf);
+
 		return bf ? 1U : 0U;
 	}
 
@@ -1334,6 +1310,27 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
+	template <typename K>
+		auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::at_special(
+			const K &k_
+		) const -> const mapped_type &
+		{
+			/* The bucket which owns the entry */
+			auto bi_lk = make_owner_shared_lock_special(k_);
+			const auto bf = std::get<0>(locate_key(bi_lk, k_));
+			if ( ! bf )
+			{
+				/* no such element */
+				throw std::out_of_range("no such element");
+			}
+			/* element found at bf */
+			return bf->mapped();
+		}
+
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
 	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::at(
 		const key_type &k_
 	) -> mapped_type &
@@ -1354,12 +1351,34 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::bucket(
-		const key_type &k_
-	) const -> size_type
-	{
-		return bucket_ix(_hasher.hf(k_));
-	}
+	template < typename K >
+		auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::at_special(
+			const K &k_
+		) -> mapped_type &
+		{
+			/* Lock the entry owner */
+			auto bi_lk = make_owner_shared_lock_special(k_);
+			const auto bf = std::get<0>(locate_key(bi_lk, k_));
+			if ( ! bf )
+			{
+				/* no such element */
+				throw std::out_of_range("no such element");
+			}
+			/* element found at bf */
+			return bf->mapped();
+		}
+
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	template < typename K >
+		auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::bucket(
+			const K &k_
+		) const -> size_type
+		{
+			return bucket_ix(_hasher.hf(k_));
+		}
 
 template <
 	typename Key, typename T, typename Hash, typename Pred

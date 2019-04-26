@@ -1,18 +1,17 @@
 /*
-   Copyright [2017, 2019] [IBM Corporation]
-
+   Copyright [2017-2019] [IBM Corporation]
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
-
        http://www.apache.org/licenses/LICENSE-2.0
-
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
 */
+
+
 
 /*
  * Authors:
@@ -434,7 +433,7 @@ class AVL_range_allocator {
       Memory_region* mr = static_cast<Memory_region*>(p);
       _slab.free(mr);
     });
-
+    _slab.free(_tree->root());
     delete _tree;
   }
 
@@ -631,9 +630,10 @@ class AVL_range_allocator {
     if (region->_addr != addr) {
       assert(addr > region->_addr);
 
-      middle = new (_slab.alloc()) Memory_region(addr, size);
+      auto left_size = addr - region->_addr; // new size for left region
+      middle = new (_slab.alloc()) Memory_region(addr, region->_size - left_size);
       
-      region->_size -= size;  // make the containing region left chunk
+      region->_size = left_size;  // make the containing region left chunk
       middle->_next = region->_next;
       middle->_prev = region;
       region->_next = middle;

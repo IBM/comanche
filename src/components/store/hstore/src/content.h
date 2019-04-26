@@ -1,16 +1,26 @@
 /*
- * (C) Copyright IBM Corporation 2018, 2019. All rights reserved.
- * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
- */
+   Copyright [2017-2019] [IBM Corporation]
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
+
 
 #ifndef _COMANCHE_HSTORE_CONTENT_H
 #define _COMANCHE_HSTORE_CONTENT_H
 
 #include "trace_flags.h"
 
+#include "hop_hash_log.h"
 #include "perishable.h"
 #include "persistent.h"
-#if TRACE_CONTENT
+#if TRACED_CONTENT
 #include "hop_hash_debug.h"
 #endif
 
@@ -18,10 +28,6 @@
 #include <cstddef> /* size_t */
 #include <limits> /* numeric_limits */
 #include <string>
-
-#if TRACE_CONTENT
-#include <iostream>
-#endif
 
 /*
  * content
@@ -42,13 +48,7 @@ namespace impl
 			/* NOTE: Cannot make _value persistent, but the user can make value's
 			 * individual conponents persistent.
 			 */
-			union u
-			{
-				int _n;
-				value_t _value;
-				u() {}
-				~u() {}
-			} _v;
+			value_t _value;
 			using owner_t = std::size_t; /* sufficient for all bucket indexes */
 			void set_owner(owner_t);
 			owner_t get_owner() const
@@ -65,7 +65,7 @@ namespace impl
 #if TRACK_OWNER
 			owner_t _owner; /* remember the bucket which owns this content */
 #endif
-#if TRACE_CONTENT
+#if TRACED_CONTENT
 			auto descr() const -> std::string;
 			auto to_string() const -> std::string;
 			auto state_string() const -> std::string;
@@ -78,7 +78,7 @@ namespace impl
 			{
 				if ( _state != FREE )
 				{
-					_v._value.~value_t();
+					_value.~value_t();
 				}
 			}
 
@@ -95,16 +95,16 @@ namespace impl
 				, std::size_t bi
 			) -> content &;
 
-			const key_t &key() const { return _v._value.first; }
-			const mapped_t &mapped() const { return _v._value.second; }
+			const key_t &key() const { return _value.first; }
+			const mapped_t &mapped() const { return _value.second; }
 			/* PMEM ESCAPE: Uncontrolled access to _value: only used by at(), which is not
 			 * itself used internally
 			 */
-			mapped_t &mapped() { return _v._value.second; }
+			mapped_t &mapped() { return _value.second; }
 			/* PMEM ESCAPE: Uncontrolled access to _value: only used by iterator, which is
 			 * not itself used internally
 			 */
-			value_t &value() { return _v._value; }
+			value_t &value() { return _value; }
 		public:
 			auto erase() -> void;
 			void state_set(state_t state_)
@@ -116,19 +116,20 @@ namespace impl
 			template <typename Lock, typename Table>
 				void assert_clear(bool b, Lock &lk, Table &t)
 				{
-#if TRACE_CONTENT && 0
+#if TRACED_CONTENT && 0
 					/* NOTE: Disabled. Not reliable if a crash has occurred. A bucket
 					 * may incorrectly appear to have an owner, and therefore content,
 					 * if a crash occurred while it it was being populated.
 					 */
 					if ( ! is_clear() )
 					{
-						std::cerr << __func__
-							<< " assert_clear fail: bucket " << lk.index()
-							<< " has content "
-							<< lk.ref()
-							<< "\n";
-						std::cerr << make_table_dump(t);
+						hop_hash_log::write(__func__
+							, " assert_clear fail: bucket ", lk.index()
+							, " has content "
+							, lk.ref()
+							, "\n"
+							, dump<TRACED_CONTENT && 0>::make_table_dump(t)
+						);
 					}
 					assert(is_clear() == b);
 #else
@@ -143,7 +144,7 @@ namespace impl
 			owner_t owner() const { return _owner; }
 			void owner_update(owner_t owner_delta);
 #endif
-#if TRACE_CONTENT
+#if TRACED_CONTENT
 			friend auto operator<< <>(
 				std::ostream &o
 				, const content<Value> &c

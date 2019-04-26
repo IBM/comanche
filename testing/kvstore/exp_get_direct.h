@@ -57,8 +57,9 @@ public:
         {
            size_t data_size = sizeof(KV_pair) * g_data->num_elements();
            Data * data = static_cast<Data*>(aligned_alloc(pool_size(), data_size));
-           madvise(data, data_size, MADV_HUGEPAGE);
+           madvise(data, data_size, MADV_HUGEPAGE | MADV_DONTFORK);
            _direct_memory_handle = store()->register_direct_memory(data, data_size);
+           assert(_direct_memory_handle);
         }
       }
       catch(...)
@@ -154,7 +155,7 @@ public:
 
         ++_i;  // increment after running so all elements get used
 
-       if (_i == std::size_t(pool_element_end()) + 1)
+       if (_i == std::size_t(pool_element_end()))
        {
             _erase_pool_entries_in_range(pool_element_start(), pool_element_end());
            _populate_pool_to_capacity(core, _direct_memory_handle);
@@ -191,33 +192,26 @@ public:
           _debug_print(core, stats_info.str());
         }
 
-       // compute _start_time_stats pre-lock
-       BinStatistics start_time_stats = _compute_bin_statistics_from_vectors(_latencies, _start_time, bin_count(), _start_time.front(), _start_time.at(_i-1), _i);
-
        if ( is_json_reporting() )
        {
-         std::lock_guard<std::mutex> g(g_write_lock);
-
-         // get existing results, read to document variable
-         rapidjson::Document document = _get_report_document();
-
-         // collect latency stats
-         rapidjson::Value latency_object = _add_statistics_to_report("latency", _latency_stats, document);
-         rapidjson::Value timing_object = _add_statistics_to_report("start_time", start_time_stats, document);
-         rapidjson::Value iops_object;
-         rapidjson::Value throughput_object;
-
-         iops_object.SetDouble(iops);
-         throughput_object.SetDouble(throughput);
+         // compute _start_time_stats pre-lock
+         BinStatistics start_time_stats = _compute_bin_statistics_from_vectors(_latencies, _start_time, bin_count(), _start_time.front(), _start_time.at(_i-1), _i);
 
          // save everything
          rapidjson::Value experiment_object(rapidjson::kObjectType);
 
-         experiment_object.AddMember("IOPS", iops_object, document.GetAllocator());
-         experiment_object.AddMember("throughput (MB/s)", throughput_object, document.GetAllocator());
-         experiment_object.AddMember("latency", latency_object, document.GetAllocator());
-         experiment_object.AddMember("start_time", timing_object, document.GetAllocator());
-        _print_highest_count_bin(_latency_stats, core);
+         std::lock_guard<std::mutex> g(g_write_lock);
+         // get existing results, read to document variable
+         rapidjson::Document document = _get_report_document();
+
+         experiment_object
+           .AddMember("IOPS", double(iops), document.GetAllocator())
+           .AddMember("throughput (MB/s)", double(throughput), document.GetAllocator())
+           // collect latency stats
+           .AddMember("latency", _add_statistics_to_report(_latency_stats, document), document.GetAllocator())
+           .AddMember("start_time", _add_statistics_to_report(start_time_stats, document), document.GetAllocator())
+           ;
+         _print_highest_count_bin(_latency_stats, core);
 
          _report_document_save(document, core, experiment_object);
        }

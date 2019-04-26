@@ -1,7 +1,16 @@
 /*
- * (C) Copyright IBM Corporation 2018, 2019. All rights reserved.
- * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
- */
+   Copyright [2017-2019] [IBM Corporation]
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
+
 
 #include "dax_map.h"
 
@@ -153,19 +162,20 @@ namespace
 
 		if ( ! doc.Accept(validator) )
 		{
+			std::string why;
 			{
 				rapidjson::StringBuffer sb;
 				validator.GetInvalidSchemaPointer().StringifyUriFragment(sb);
-				std::cerr << "Invalid schema: " << sb.GetString() << "\n";
-				std::cerr << "Invalid keyword: " << validator.GetInvalidSchemaKeyword() << "\n";
+				why += std::string("Invalid schema: ") + sb.GetString() + "\n";
+				why += std::string("Invalid keyword: ") + validator.GetInvalidSchemaKeyword() + "\n";
 			}
 
 			{
 				rapidjson::StringBuffer sb;
 				validator.GetInvalidDocumentPointer().StringifyUriFragment(sb);
-				std::cerr << "Invalid document: " << sb.GetString() << "\n";
+				why += std::string("Invalid document: ") + sb.GetString() + "\n";
 			}
-			throw std::domain_error(error_report("JSON dax_map failed validation", dax_map_, doc));
+			throw std::domain_error(error_report("JSON dax_map failed validation", dax_map_ + " " + why, doc));
 		}
 
 		for ( const auto & it : doc.GetArray() )

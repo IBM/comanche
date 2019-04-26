@@ -1,3 +1,15 @@
+/*
+   Copyright [2017-2019] [IBM Corporation]
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
 #include <cerrno>
 #include <fcntl.h>
 #include <iostream>
@@ -55,6 +67,11 @@ public:
                       void* out_value,
                       size_t& out_value_len);
 
+  status_t get_attribute(const IKVStore::pool_t pool,
+                         const IKVStore::Attribute attr,
+                         std::vector<uint64_t>& out_attr,
+                         const std::string* key);
+
   IKVStore::key_t lock(const std::string& key,
                        IKVStore::lock_type_t type,
                        void*& out_value,
@@ -75,19 +92,29 @@ struct Pool_session
   const unsigned canary = 0x45450101;
 };
 
+struct tls_cache_t {
+  Pool_session * session;
+};
+
 std::mutex                            _pool_sessions_lock;
 std::set<Pool_session *>              _pool_sessions;
 std::unordered_map<std::string, Pool_handle *>  _pools; /*< existing pools */
+static __thread tls_cache_t tls_cache = { nullptr };
 
 using Std_lock_guard = std::lock_guard<std::mutex>;
 
 Pool_session* get_session(const IKVStore::pool_t pid)
 {
-  Std_lock_guard g(_pool_sessions_lock);
   auto session = reinterpret_cast<Pool_session*>(pid);
 
-  if(_pool_sessions.count(session) == 0)
-    throw API_exception("invalid pool identifier (%p)", pid);
+  if ( session != tls_cache.session)
+  {
+    Std_lock_guard g(_pool_sessions_lock);
+
+    if(_pool_sessions.count(session) == 0)
+      throw API_exception("invalid pool identifier (%p)", pid);
+    tls_cache.session = session;
+  }
 
   assert(session);
   return session;
@@ -190,6 +217,33 @@ status_t Pool_handle::get_direct(const std::string& key,
   return S_OK;
 }
 
+status_t Pool_handle::get_attribute(const IKVStore::pool_t pool,
+                                    const IKVStore::Attribute attr,
+                                    std::vector<uint64_t>& out_attr,
+                                    const std::string* key)
+{
+  switch(attr) {
+  case IKVStore::Attribute::VALUE_LEN: {
+    if(key == nullptr) return E_INVALID_ARG;
+
+    out_attr.clear();
+    {
+#ifndef SINGLE_THREADED
+      RWLock_guard guard(map_lock);
+#endif
+      auto i = map.find(*key);      
+      if(i == map.end()) return IKVStore::E_KEY_NOT_FOUND;
+      out_attr.push_back(i->second.length);
+    }
+    break;
+  }
+  default:
+    return E_INVALID_ARG;
+  }
+    
+  return S_OK;
+}
+
 IKVStore::key_t Pool_handle::lock(const std::string& key,
                                   IKVStore::lock_type_t type,
                                   void*& out_value,
@@ -198,6 +252,7 @@ IKVStore::key_t Pool_handle::lock(const std::string& key,
   void * buffer = nullptr;
   
   /* on-demand create */
+  try
   {
     RWLock_guard guard(map_lock, RWLock_guard::WRITE);
 
@@ -210,7 +265,7 @@ IKVStore::key_t Pool_handle::lock(const std::string& key,
         for(auto& i : map) {
            PLOG("key:(%s) length=%lu", i.first.c_str(), i.first.length());
          }
-        throw General_exception("mapstore: tried to lock object that was not found and object size to create not given (key=%s)", key.c_str());
+        return IKVStore::KEY_NONE; 
       }
 
       buffer = scalable_aligned_malloc(out_value_len, OBJECT_ALIGNMENT);
@@ -223,6 +278,9 @@ IKVStore::key_t Pool_handle::lock(const std::string& key,
       PLOG("lock emplacing key=(%s)", key.c_str());
       map.emplace(key, Value_pair{buffer, out_value_len});
     }   
+  }
+  catch(...) {
+    return IKVStore::KEY_NONE;
   }
   
   if(type == IKVStore::STORE_LOCK_READ)
@@ -360,6 +418,7 @@ status_t Map_store::close_pool(const pool_t pid)
   auto session = get_session(pid);
   assert(session);
 
+  tls_cache.session = nullptr;
   Std_lock_guard g(_pool_sessions_lock);
   delete session;
   _pool_sessions.erase(session);
@@ -445,6 +504,16 @@ status_t Map_store::put_direct(const pool_t pid,
                                unsigned int flags)
 {
   return Map_store::put(pid, key, value, value_len, flags);
+}
+
+status_t Map_store::get_attribute(const pool_t pool,
+                                  const IKVStore::Attribute attr,
+                                  std::vector<uint64_t>& out_attr,
+                                  const std::string* key)
+{
+  auto session = get_session(pool);
+  assert(session->pool);
+  return session->pool->get_attribute(pool, attr, out_attr, key);
 }
 
 Component::IKVStore::key_t

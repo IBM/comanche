@@ -1,13 +1,23 @@
 /*
- * (C) Copyright IBM Corporation 2018, 2019. All rights reserved.
- * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
- */
+   Copyright [2017-2019] [IBM Corporation]
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
+
 
 #ifndef _COMANCHE_HSTORE_DEALLOCATOR_POBJ_CACHE_ALIGNED_H
 #define _COMANCHE_HSTORE_DEALLOCATOR_POBJ_CACHE_ALIGNED_H
 
 #include "deallocator_pobj.h"
 
+#include "hop_hash_log.h"
 #include "pointer_pobj.h"
 #include "persister_pmem.h"
 #include "pobj_bad_alloc.h"
@@ -22,10 +32,6 @@
 #pragma GCC diagnostic pop
 
 #include <cstdlib> /* size_t, ptrdiff_t */
-
-#if TRACE_PALLOC
-#include <iostream> /* cerr */
-#endif
 
 template <typename T, typename Deallocator = deallocator_pobj<T>>
 	class deallocator_pobj_cache_aligned;
@@ -106,11 +112,11 @@ template <typename T, typename Deallocator>
 #if TRACE_PALLOC
 			{
 				auto ptr = static_cast<char *>(pmemobj_direct(oid)) - cache_align;
-				std::cerr << __func__
-					<< " [" << static_cast<void *>(ptr)
-					<< ".." << static_cast<void *>(ptr + s * sizeof(value_type))
-					<< ") OID " << std::hex << oid.pool_uuid_lo << "." << oid.off << std::dec << "\n"
-					;
+				hop_hash_log::write(__func__
+					, " [", static_cast<void *>(ptr)
+					, "..", static_cast<void *>(ptr + s * sizeof(value_type))
+					, ") OID ", std::hex, oid.pool_uuid_lo, ".", oid.off, std::dec
+				);
 			}
 #endif
 			pmemobj_free(&oid);

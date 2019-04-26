@@ -10,7 +10,7 @@
 #include <vector>
 
 class ExperimentGet : public Experiment
-{ 
+{
   std::size_t _i;
   std::vector<double> _start_time;
   std::vector<double> _latencies;
@@ -34,9 +34,9 @@ public:
   bool do_work(unsigned core) override
   {
     // handle first time setup
-    if(_first_iter) 
+    if(_first_iter)
     {
-      _pool_element_end = -1;
+      _pool_element_end = 0;
       // seed the pool with elements from _data
       _populate_pool_to_capacity(core);
 
@@ -45,13 +45,13 @@ public:
       PLOG("[%u] Starting Get experiment...", core);
 
       _first_iter = false;
-    }     
+    }
 
     // end experiment if we've reached the total number of components
     if ( _i + 1 == pool_num_objects() )
     {
       PINF("[%u] reached total number of components. Exiting.", core);
-      return false; 
+      return false;
     }
 
     // check time it takes to complete a single get operation
@@ -67,10 +67,10 @@ public:
         if ( rc != S_OK )
         {
           std::ostringstream e;
-          e << "_pool_element_end = " << pool_element_end() << " get rc != S_OK: " << rc << " @ _i = " << _i;
+          e << "pool_element_end = " << pool_element_end() << " get rc != S_OK: " << rc << " @ _i = " << _i;
           PERR("[%u] %s. Exiting.", core, e.str().c_str());
           throw std::runtime_error(e.str());
-        }  
+        }
       }
       store()->free_memory(pval);
     }
@@ -92,7 +92,7 @@ public:
 
     ++_i;  // increment after running so all elements get used
 
-    if (_i == unsigned(pool_element_end()) + 1)
+    if (_i == pool_element_end())
     {
       try
       {
@@ -115,43 +115,35 @@ public:
     return true;
   }
 
-  void cleanup_custom(unsigned core)  
+  void cleanup_custom(unsigned core)
   {
     double run_time = timer.get_time_in_seconds();
     double iops = double(_i) / run_time;
     PINF("[%u] get: IOPS: %2g in %2g seconds", core, iops, run_time);
     _update_aggregate_iops(iops);
-    
+
     double throughput = _calculate_current_throughput();
     PINF("[%u] get: THROUGHPUT: %.2f MB/s (%ld bytes over %.3f seconds)", core, throughput, total_data_processed(), run_time);
 
-    // compute _start_time_stats pre-lock
-    BinStatistics start_time_stats = _compute_bin_statistics_from_vectors(_latencies, _start_time, bin_count(), _start_time.front(), _start_time.at(_i-1), _i); 
-
     if ( is_json_reporting() )
     {
-      std::lock_guard<std::mutex> g(g_write_lock);
+      // compute _start_time_stats pre-lock
+      BinStatistics start_time_stats = _compute_bin_statistics_from_vectors(_latencies, _start_time, bin_count(), _start_time.front(), _start_time.at(_i-1), _i);
 
       // get existing results, read to document variable
+      std::lock_guard<std::mutex> g(g_write_lock);
+
       rapidjson::Document document = _get_report_document();
-
-      // collect latency stats
-      rapidjson::Value latency_object = _add_statistics_to_report("latency", _latency_stats, document);
-      rapidjson::Value timing_object = _add_statistics_to_report("start_time", start_time_stats, document);
-      rapidjson::Value iops_object;
-      rapidjson::Value throughput_object;
-
-      iops_object.SetDouble(iops);
-      throughput_object.SetDouble(throughput);
-
       // save everything
-      rapidjson::Value experiment_object(rapidjson::kObjectType);
 
-      experiment_object.AddMember("IOPS", iops_object, document.GetAllocator());
-      experiment_object.AddMember("throughput (MB/s)", throughput_object, document.GetAllocator());
-      experiment_object.AddMember("latency", latency_object, document.GetAllocator());
-      experiment_object.AddMember("start_time", timing_object, document.GetAllocator()); 
-       
+      rapidjson::Value experiment_object(rapidjson::kObjectType);
+      experiment_object
+        .AddMember("IOPS", double(iops), document.GetAllocator())
+        .AddMember("throughput (MB/s)", double(throughput), document.GetAllocator())
+        .AddMember("latency", _add_statistics_to_report(_latency_stats, document), document.GetAllocator())
+        .AddMember("start_time", _add_statistics_to_report(start_time_stats, document), document.GetAllocator())
+        ;
+
       _report_document_save(document, core, experiment_object);
       _print_highest_count_bin(_latency_stats, core);
     }

@@ -32,3 +32,6 @@
 [submodule "testing/ycsb/memcached/memcached"]
 	path = testing/ycsb/memcached/memcached
 	url = https://github.com/memcached/memcached.git
+[submodule "testing/ycsb/memcached/memcachedb"]
+	path = testing/ycsb/memcached/memcachedb
+	url = https://github.com/LMDB/memcachedb.git

@@ -1,10 +1,51 @@
 /*
- * (C) Copyright IBM Corporation 2018, 2019. All rights reserved.
- * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
- */
+   Copyright [2017-2019] [IBM Corporation]
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
+
 
 #ifndef _COMANCHE_HSTORE_H_
 #define _COMANCHE_HSTORE_H_
+
+#include "hstore_config.h"
+
+#if THREAD_SAFE_HASH == 1
+/* thread-safe hash */
+#include <mutex>
+#else
+/* not a thread-safe hash */
+#include "dummy_shared_mutex.h"
+#endif
+
+#if USE_CC_HEAP == 1
+#include "allocator_cc.h"
+#elif USE_CC_HEAP == 2 /* offset allocator */
+#include "allocator_co.h"
+#elif USE_CC_HEAP == 3 /* reconstituting allocator */
+#include "allocator_rc.h"
+#endif
+
+#include "hop_hash.h"
+
+#if USE_PMEM
+#include "hstore_pmem.h"
+#else
+#include "hstore_nupm.h"
+#include "region.h"
+#endif
+
+#include "hstore_open_pool.h"
+#include "persist_fixed_string.h"
+#include "pstr_equal.h"
+#include "pstr_hash.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Weffc++"
@@ -18,20 +59,66 @@
 #include <memory>
 #include <string>
 
-class tracked_pool;
-class pool_manager;
+template <typename T>
+  class pool_manager;
 class Devdax_manager;
+template <typename Handle, typename Allocator, typename Table, typename Lock>
+  class session;
 
 class hstore : public Component::IKVStore
 {
+  #if USE_CC_HEAP == 1
+  using ALLOC_T = allocator_cc<char, Persister>;
+  #elif USE_CC_HEAP == 2
+  using ALLOC_T = allocator_co<char, Persister>;
+  #elif USE_CC_HEAP == 3
+  using ALLOC_T = allocator_rc<char, Persister>;
+  #else /* USE_CC_HEAP */
+  using ALLOC_T = allocator_pobj_cache_aligned<char>;
+  #endif /* USE_CC_HEAP */
+  using DEALLOC_T = typename ALLOC_T::deallocator_type;
+  using KEY_T = persist_fixed_string<char, DEALLOC_T>;
+  using MAPPED_T = persist_fixed_string<char, DEALLOC_T>;
+  using allocator_segment_t = ALLOC_T::rebind<std::pair<const KEY_T, MAPPED_T>>::other;
+#if THREAD_SAFE_HASH == 1
+  /* thread-safe hash */
+  using hstore_shared_mutex = std::shared_timed_mutex;
+  static constexpr auto thread_model = Component::IKVStore::THREAD_MODEL_MULTI_PER_POOL;
+  static constexpr auto is_thread_safe = true;
+#else
+/* not a thread-safe hash */
+  using hstore_shared_mutex = dummy::shared_mutex;
+  static constexpr auto thread_model = Component::IKVStore::THREAD_MODEL_SINGLE_PER_POOL;
+  static constexpr auto is_thread_safe = false;
+#endif
+
+  using table_t =
+    table<
+    KEY_T
+    , MAPPED_T
+    , pstr_hash<KEY_T>
+    , pstr_equal<KEY_T>
+    , allocator_segment_t
+    , hstore_shared_mutex
+    >;
+public:
+#if USE_PMEM
+  using pm = hstore_pmem;
+#else
+  using persist_data_t = typename impl::persist_data<allocator_segment_t, table_t::value_type>;
+  using pm = hstore_nupm<region<persist_data_t, heap_rc>, table_t, table_t::allocator_type, lock_type_t>;
+#endif
+  using open_pool_t = pm::open_pool_handle;
 private:
-  std::shared_ptr<pool_manager> _pool_manager;
+  using session_t = session<open_pool_t, ALLOC_T, table_t, lock_type_t>;
+
+  using pool_manager_t = pool_manager<open_pool_t>;
+  std::shared_ptr<pool_manager_t> _pool_manager;
   std::mutex _pools_mutex;
-  using pools_map = std::map<tracked_pool *, std::unique_ptr<tracked_pool>>;
-  pools_map _pools; /* would map sessions, but delete_pool also requires an "open" pool */
-  auto locate_open_pool(const Component::IKVStore::pool_t pid) -> tracked_pool *;
-  auto locate_session(const Component::IKVStore::pool_t pid) -> tracked_pool *;
-  auto move_pool(const IKVStore::pool_t pid) -> std::unique_ptr<tracked_pool>;
+  using pools_map = std::map<open_pool_t *, std::unique_ptr<open_pool_t>>;
+  pools_map _pools;
+  auto locate_session(const Component::IKVStore::pool_t pid) -> open_pool_t *;
+  auto move_pool(const IKVStore::pool_t pid) -> std::unique_ptr<open_pool_t>;
 
 public:
   /**
@@ -117,6 +204,11 @@ public:
                       std::size_t& out_value_len,
                       Component::IKVStore::memory_handle_t handle) override;
 
+  status_t get_attribute(const pool_t pool,
+                                 const Attribute attr,
+                                 std::vector<uint64_t>& out_attr,
+                                 const std::string* key);
+
   key_t lock(pool_t pool,
                 const std::string &key,
                 lock_type_t type,
@@ -141,6 +233,8 @@ public:
                std::function<int(const std::string& key,
                const void * value,
                const size_t value_len)> function) override;
+
+  status_t free_memory(void * p) override;
 
   void debug(pool_t pool, unsigned cmd, uint64_t arg) override;
 

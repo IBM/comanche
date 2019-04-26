@@ -1,27 +1,43 @@
 /*
- * (C) Copyright IBM Corporation 2018, 2019. All rights reserved.
- * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
- */
+   Copyright [2017-2019] [IBM Corporation]
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
+
 
 #ifndef COMANCHE_HSTORE_SESSION_H
 #define COMANCHE_HSTORE_SESSION_H
 
-#include "hstore_tracked_pool.h"
-
+#include "atomic_controller.h"
 #include "construction_mode.h"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+#include <tbb/scalable_allocator.h>
+#pragma GCC diagnostic pop
 #include <utility> /* move */
 #include <vector>
 
 /* open_pool_handle, ALLOC_T, table_t */
-template <typename Handle, typename Allocator, typename Table>
+template <typename Handle, typename Allocator, typename Table, typename LockType>
 	class session
-		: public tracked_pool
+		: public Handle
 	{
-		Handle _pop;
+		using table_t = Table;
+		using lock_type_t = LockType;
+		using KEY_T = typename table_t::key_type;
+		using MAPPED_T = typename table_t::mapped_type;
 		Allocator _heap;
-		Table _map;
-		impl::atomic_controller<Table> _atomic_state;
+		table_t _map;
+		impl::atomic_controller<table_t> _atomic_state;
+		bool _debug;
 
 		class lock_impl
 			: public Component::IKVStore::Opaque_key
@@ -35,7 +51,7 @@ template <typename Handle, typename Allocator, typename Table>
 			const std::string &key() const { return _s; }
 		};
 
-		static bool try_lock(table_t &map, hstore::lock_type_t type, const KEY_T &p_key)
+		static bool try_lock(table_t &map, lock_type_t type, const KEY_T &p_key)
 		{
 			return
 				type == Component::IKVStore::STORE_LOCK_READ
@@ -84,7 +100,7 @@ template <typename Handle, typename Allocator, typename Table>
 		const table_t &map() const noexcept { return _map; }
 
 		auto enter_update(
-			typename Table::key_type &key
+			typename table_t::key_type &key
 			, std::vector<Component::IKVStore::Operation *>::const_iterator first
 			, std::vector<Component::IKVStore::Operation *>::const_iterator last
 			) -> Component::status_t
@@ -93,7 +109,7 @@ template <typename Handle, typename Allocator, typename Table>
 		}
 
 		auto enter_replace(
-			typename Table::key_type &key
+			typename table_t::key_type &key
 			, const void *data
 			, std::size_t data_len
 		) -> Component::status_t
@@ -101,6 +117,7 @@ template <typename Handle, typename Allocator, typename Table>
 			return _atomic_state.enter_replace(allocator(), key, static_cast<const char *>(data), data_len);
 		}
 	public:
+		using handle_t = Handle;
 		/* PMEMoid, persist_data_t */
 		template <typename OID, typename Persist>
 			explicit session(
@@ -109,11 +126,11 @@ template <typename Handle, typename Allocator, typename Table>
 					heap_oid_
 #endif
 				, const pool_path &path_
-				, open_pool_handle &&pop_
+				, Handle &&pop_
 				, Persist *persist_data_
+				, bool debug_ = false
 			)
-			: tracked_pool(path_)
-			, _pop(std::move(pop_))
+			: Handle(std::move(pop_))
 			, _heap(
 				Allocator(
 #if USE_CC_HEAP == 0
@@ -129,19 +146,20 @@ template <typename Handle, typename Allocator, typename Table>
 #else /* USE_CC_HEAP */
 					this->pool() /* not used */
 #endif /* USE_CC_HEAP */
-					)
+				)
 			)
 			, _map(persist_data_, _heap)
 			, _atomic_state(*persist_data_, _map)
+			, _debug(debug_)
 		{}
 
 		explicit session(
-			const pool_path &path_
+			const pool_path &
 			, Handle &&pop_
 			, construction_mode mode_
+			, bool debug_ = false
 		)
-			: tracked_pool(path_)
-			, _pop(std::move(pop_))
+			: Handle(std::move(pop_))
 			, _heap(
 				Allocator(
 					this->pool()->heap
@@ -149,13 +167,21 @@ template <typename Handle, typename Allocator, typename Table>
 			)
 			, _map(&this->pool()->persist_data, mode_, _heap)
 			, _atomic_state(this->pool()->persist_data, _map, mode_)
+			, _debug(debug_)
 		{}
+
+		~session()
+		{
+#if USE_CC_HEAP == 3
+			auto heap = static_cast<heap_rc *>(&this->pool()->heap);
+			heap->~heap_rc();
+#endif
+		}
 
 		session(const session &) = delete;
 		session& operator=(const session &) = delete;
 		/* session constructor and get_pool_regions only */
-		auto *pool() const { return _pop.get(); }
-	public:
+		auto *pool() const { return static_cast<const Handle *>(this)->get(); }
 
 		auto insert(
 			const std::string &key,
@@ -166,20 +192,11 @@ template <typename Handle, typename Allocator, typename Table>
 			auto cvalue = static_cast<const char *>(value);
 
 			return
-#if 1
 				map().emplace(
 					std::piecewise_construct
 					, std::forward_as_tuple(key.begin(), key.end(), this->allocator())
 					, std::forward_as_tuple(cvalue, cvalue + value_len, this->allocator())
 				);
-#else
-				map().insert(
-					table_t::value_type(
-					table_t::key_type(key.begin(), key.end(), this->allocator())
-					, table_t::mapped_type(cvalue, cvalue + value_len, this->allocator())
-					)
-				);
-#endif
 		}
 
 		auto update_by_issue_41(
@@ -211,86 +228,48 @@ template <typename Handle, typename Allocator, typename Table>
 
 		auto get(
 			const std::string &key,
-			void*& out_value,
-			std::size_t& out_value_len
-		) const -> status_t
-		try
+			void* buffer,
+			std::size_t buffer_size
+		) const -> std::size_t
 		{
-			auto p_key = KEY_T(key.begin(), key.end(), this->allocator());
-			auto &v = map().at(p_key);
-
-			if ( out_value == nullptr )
-			{
-				out_value = ::malloc(v.size());
-				if ( ! out_value )
-				{
-					throw std::bad_alloc();
-				}
-			}
-			else
-			{
-				/* Although not documented, assume that non-zero
-				 * out_value implies that out_value_len holds
-				 * the buffer's size.
-				 *
-				 * It might be reaonable to
-				 *  a) fill the buffer and/or
-				 *  b) return the necessary size in out_value_len,
-				 * but neither action is documented, so we do not.
-				 */
-				if ( out_value_len < v.size() )
-				{
-					return Component::IKVStore::E_INSUFFICIENT_BUFFER;
-				}
-			}
-
-			out_value_len = v.size();
-			memcpy(out_value, v.data(), out_value_len);
-			return Component::IKVStore::S_OK;
-		}
-		catch ( std::out_of_range & )
-		{
-			return Component::IKVStore::E_KEY_NOT_FOUND;
-		}
-
-		auto get_direct(
-			const std::string & key
-			, void* out_value
-			, std::size_t & out_value_len
-		) const -> status_t
-		try
-		{
-			auto p_key = KEY_T(key.begin(), key.end(), this->allocator());
-
-			auto &v = this->map().at(p_key);
-
+			auto &v = map().at_special(key);
 			auto value_len = v.size();
-			if (out_value_len < value_len)
+
+			if ( value_len <= buffer_size )
 			{
-				/* NOTE: it might be helpful to tell the caller how large
-				 * a buffer is needed,
-				 * but that does not seem to be expected.
-				 */
-				return Component::IKVStore::E_INSUFFICIENT_BUFFER;
+				std::memcpy(buffer, v.data(), value_len);
+			}
+			return value_len;
+		}
+
+		auto get_alloc(
+			const std::string &key
+		) const -> std::tuple<void *, std::size_t>
+		{
+			auto &v = map().at_special(key);
+			auto value_len = v.size();
+
+			auto value = ::scalable_malloc(value_len);
+			if ( ! value )
+			{
+				throw std::bad_alloc();
 			}
 
-			out_value_len = value_len;
-
-			assert(out_value);
-
-			/* memcpy for moment
-			*/
-			memcpy(out_value, v.data(), out_value_len);
-			return Component::IKVStore::S_OK;
+			std::memcpy(value, v.data(), value_len);
+			return std::pair<void *, std::size_t>(value, value_len);
 		}
-		catch ( const std::out_of_range & )
+
+		auto get_value_len(
+			const std::string & key
+		) const -> std::size_t
 		{
-		        return Component::IKVStore::E_KEY_NOT_FOUND;
+			auto &v = this->map().at_special(key);
+			return v.size();
 		}
 
 		auto lock(
 			const std::string &key
-			, hstore::lock_type_t type
+			, lock_type_t type
 			, void *& out_value
 			, std::size_t & out_value_len
 		) -> Component::IKVStore::key_t
@@ -312,9 +291,9 @@ template <typename Handle, typename Allocator, typename Table>
 				/* if the key is not found, we create it and
 				* allocate value space equal in size to out_value_len
 				*/
-				if ( option_DEBUG )
+				if ( _debug )
 				{
-					PLOG(PREFIX "allocating object %lu bytes", __func__, out_value_len);
+					PLOG(PREFIX "allocating object %zu bytes", __func__, out_value_len);
 				}
 
 				auto r =
@@ -377,9 +356,9 @@ template <typename Handle, typename Allocator, typename Table>
 				allocate value space equal in size to out_value_len
 				*/
 
-				if ( option_DEBUG )
+				if ( _debug )
 				{
-					PLOG(PREFIX "allocating object %lu bytes", __func__, object_size);
+					PLOG(PREFIX "allocating object %zu bytes", __func__, object_size);
 				}
 
 				auto r =
@@ -456,7 +435,7 @@ template <typename Handle, typename Allocator, typename Table>
 
 		auto bucket_count() const -> std::size_t
 		{
-			table_t::size_type count = 0;
+			typename table_t::size_type count = 0;
 			/* bucket counter */
 			for (
 				auto n = this->map().bucket_count()

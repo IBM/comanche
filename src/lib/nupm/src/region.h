@@ -1,18 +1,16 @@
 /*
-   Copyright [2019] [IBM Corporation]
-
+   Copyright [2017-2019] [IBM Corporation]
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
-
        http://www.apache.org/licenses/LICENSE-2.0
-
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
 */
+
 
 /*
  * Authors:
@@ -28,9 +26,13 @@
 #include <tbb/scalable_allocator.h>
 #include <forward_list>
 #include <unordered_set>
+#include <map>
+#include <functional>
+#include <memory>
 #include "mappers.h"
 #include "rc_alloc_avl.h"
 
+#define SANITY_CHECK 0
 namespace nupm
 {
 
@@ -43,10 +45,8 @@ class Region {
 
   static constexpr unsigned _debug_level = 0;
 
-  //  using list_t =
-  //  std::forward_list<void*,tbb::cache_aligned_allocator<void*>>;
   using list_t = std::forward_list<void *, tbb::scalable_allocator<void *>>;
-  // using list_t = std::forward_list<void*>;
+  using set_t  = std::set<void *,std::less<void*>, tbb::scalable_allocator<void *>>;
 
  protected:
   Region(void *region_ptr, const size_t region_size, const size_t object_size)
@@ -68,8 +68,11 @@ class Region {
 
     byte *     rp    = static_cast<byte *>(region_ptr);
     const auto count = region_size / object_size;
+
+    /* add to free map - all slots are free initially */
     for (size_t i = 0; i < count; i++) {
-      _free.push_front(rp);
+      //      _free.push_front(rp);
+      _free_map.insert(rp);
       rp += object_size;
     }
   }
@@ -87,16 +90,27 @@ class Region {
 
   void *allocate()
   {
+    /* migrate any remaining entries on map to list */
+    if(!_free_map.empty()) {
+      for(const auto& i: _free_map) {
+        _free.push_front(i);
+      }
+      _free_map.clear();
+    }
+    
     if (_free.empty()) return nullptr;
     void *p = _free.front();
     _free.pop_front();
+#if SANITY_CHECK
     _used.push_front(p);
+#endif
     assert(check_aligned(p, _object_size));
     return p;
   }
 
   bool free(void *p)
   {
+#if SANITY_CHECK
     auto i = _used.begin();
     if (*i == p) {
       _used.pop_front();
@@ -106,7 +120,8 @@ class Region {
 
     auto last = i;
     i++;
-    while (i != _used.end()) {
+    const auto e = _used.end();
+    while (i != e) {
       if (*i == p) {
         _used.erase_after(last);
         _free.push_front(p);
@@ -114,40 +129,64 @@ class Region {
         return true;
       }
       last = i;
-      i++;
+      ++i;
     }
     return false;
+#else
+    _free.push_front(p);
+    return true;
+#endif
   }
 
+  /** 
+   * Allocate at is used during the reconstitution phase. To avoid
+   * linear scans, we use a map instead of list here.  Elements
+   * are then migrated back to the list on free.
+   * 
+   */
   bool allocate_at(void *ptr)
   {
+    if(!_free_map.empty()) { /* after construction, free elements are put on map first */
+      if(_free_map.erase(ptr) != 1)
+        throw Logic_exception("allocate_at failed to remove from map");
+      return true;
+    }
+
+    /* otherwise use the list */
     auto i = _free.begin();
+    
     if (*i == ptr) {
       _free.pop_front();
+#if SANITY_CHECK
       _used.push_front(ptr);
+#endif
       return true;
     }
     auto last = i;
     i++;
+    
     while (i != _free.end()) {
       if (*i == ptr) {
         _free.erase_after(last);
+#if SANITY_CHECK
         _used.push_front(ptr);
+#endif
         return true;
       }
       last = i;
       i++;
     }
-    return false;
+    return true;
   }
 
   void debug_dump(std::string *out_log = nullptr)
   {
     std::stringstream ss;
 
+#if SANITY_CHECK
     for(auto i: _used)
       ss << "u(" << i << ")\n";
-
+#endif
     for(auto i: _free)
       ss << "f(" << i << ")\n";
     ss << "\n";
@@ -158,10 +197,16 @@ class Region {
   }
   
  private:
+
   const size_t _object_size;
-  addr_t _base, _top;
-  list_t _free;
+  addr_t       _base;
+  addr_t       _top;
+  list_t       _free;
+  set_t        _free_map;
+  
+#if SANITY_CHECK
   list_t _used; /* we could do with this, but it guards against misuse */
+#endif
 };
 
 /**
@@ -226,7 +271,7 @@ class Region_map {
         throw std::out_of_range("object size beyond available buckets");
       /* search regions */
       for (auto &region : _buckets[numa_node][bucket]) {
-        if (region->in_range(p)) {
+        if (region->in_range(p)) { /* simple range check */
           if (region->free(p))
             return;
           else
@@ -305,11 +350,12 @@ class Region_map {
     size_t region_object_size = region_size == size ?
       region_size : _mapper.rounded_up_object_size(size);
 
-    Region *new_region =
-        new Region(region_base, region_size, region_object_size);
+    std::unique_ptr<Region> new_region(
+      new Region(region_base, region_size, region_object_size)
+    );
     
-    _buckets[numa_node][bucket].push_front(new_region);
     new_region->allocate_at(ptr);
+    _buckets[numa_node][bucket].push_front(std::move(new_region));
   }
 
   void debug_dump(std::string *out_log = nullptr)
@@ -354,14 +400,16 @@ class Region_map {
     assert(region_base);
     assert(check_aligned(region_base, region_object_size));
 
-    Region *new_region = new Region(region_base, region_size, region_object_size);
+    std::unique_ptr<Region> new_region(
+      new Region(region_base, region_size, region_object_size)
+    );
     void *rp = new_region->allocate();
     
     assert(rp);
     // PLOG("allocate from new (object_size=%lu, region_object_size=%lu, allocation=%p)",
     //      object_size, region_object_size, rp);
     /* add region to bucket */
-    _buckets[numa_node][bucket].push_front(new_region);
+    _buckets[numa_node][bucket].push_front(std::move(new_region));
 
     return rp;
   }
@@ -372,7 +420,7 @@ class Region_map {
       for (unsigned i = 0; i < NUM_BUCKETS; i++) {
         auto iter = _buckets[z][i].begin();
         do {
-          if (*iter == region) {
+          if (&**iter == region) {
             _buckets[z][i].erase(iter);
             return;
           }
@@ -386,7 +434,7 @@ class Region_map {
  private:
   Bucket_mapper       _mapper;
   nupm::Rca_AVL       _arena_allocator;
-  std::list<Region *> _buckets[MAX_NUMA_ZONES][NUM_BUCKETS];
+  std::list<std::unique_ptr<Region>> _buckets[MAX_NUMA_ZONES][NUM_BUCKETS];
 };
 
 }  // namespace nupm

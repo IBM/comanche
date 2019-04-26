@@ -1,7 +1,16 @@
 /*
- * (C) Copyright IBM Corporation 2018, 2019. All rights reserved.
- * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
- */
+   Copyright [2017-2019] [IBM Corporation]
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
+
 
 #ifndef COMANCHE_HSTORE_PERSIST_FIXED_STRING_H
 #define COMANCHE_HSTORE_PERSIST_FIXED_STRING_H
@@ -121,12 +130,13 @@ template <typename T, typename Allocator>
 				{
 					auto data_size =
 						static_cast<std::size_t>(last_ - first_) * sizeof(T);
+					using local_allocator_char_type = typename AL::template rebind<char>::other;
 					new (&large.al()) allocator_char_type(al_);
 					new (&large.ptr)
 						ptr_t(
 							static_cast<typename allocator_type::pointer>(
 								typename allocator_void_type::pointer(
-									al_.allocate(sizeof(element_type) + data_size)
+									local_allocator_char_type(al_).allocate(sizeof(element_type) + data_size)
 								)
 							)
 						);
@@ -290,25 +300,45 @@ template <typename T, typename Allocator>
 
 		~rep()
 		{
-			if ( ! is_small() && large.ptr )
+			if ( is_small() )
 			{
-				if ( large.ptr->dec_ref(access{}) == 0 )
+			}
+			else
+			{
+				if ( large.ptr && large.ptr->dec_ref(access{}) == 0 )
 				{
 					auto sz = sizeof *large.ptr + large.ptr->size(access());
 					large.ptr->~element_type();
 					large.al().deallocate(static_cast<typename allocator_char_type::pointer>(static_cast<typename allocator_void_type::pointer>(large.ptr)), sz);
 				}
+				large.al().~allocator_char_type();
 			}
 		}
 
 		static constexpr uint8_t large_kind = sizeof small.value + 1;
 
+		void deconstitute() const
+		{
+			if ( ! is_small() )
+			{
+				/* used only by the table_base destructor, at which time
+				 * the reference count should be 1. There is not much point
+				 * in decreasing the reference count except to mirror
+				 * reconstitute.
+				 */
+				if ( large.ptr->dec_ref(access()) == 0 )
+				{
+					large.al().~allocator_char_type();
+				}
+			}
+		}
 		template <typename AL>
 			void reconstitute(AL al_) const
 			{
 				using reallocator_char_type = typename AL::template rebind<char>::other;
 				if ( ! is_small() )
 				{
+					new (&const_cast<rep *>(this)->large.al()) allocator_char_type(al_);
 					auto alr = reallocator_char_type(al_);
 					if ( alr.is_reconstituted(large.ptr) )
 					{
@@ -319,7 +349,7 @@ template <typename T, typename Allocator>
 					{
 						/* The data is not yet reconstituted. Reconstitute it.
 						 * Although the original may have had a refcount
-						 * greater than one, we have not yet seene the
+						 * greater than one, we have not yet seen the
 						 * second reference, so the recount must be set to one.
 						 */
 						alr.reconstitute(sizeof *large.ptr + size(), large.ptr);
@@ -426,6 +456,7 @@ template <typename T, typename Allocator>
 
 		T *data() { return _rep.data(); }
 
+		void deconstitute() const { return _rep.deconstitute(); }
 		template <typename AL>
 			void reconstitute(AL al_) const { return _rep.reconstitute(al_); }
 	};

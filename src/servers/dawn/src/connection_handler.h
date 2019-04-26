@@ -1,3 +1,15 @@
+/*
+   Copyright [2017-2019] [IBM Corporation]
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
 #ifndef __SHARD_CONNECTION_H__
 #define __SHARD_CONNECTION_H__
 
@@ -34,7 +46,7 @@ class Connection_handler
     , public Pool_manager {
  private:
 
-  bool option_DEBUG = Dawn::Global::debug_level > 1;
+  unsigned option_DEBUG = Dawn::Global::debug_level;
   static constexpr uint64_t STALL_TICKS = 20; /*< number of ticks to stall after post */
   
   /* Adaptor point for different transports */
@@ -63,6 +75,7 @@ class Connection_handler
     POST_MSG_RECV,
     WAIT_NEW_MSG_RECV,
     WAIT_RECV_VALUE,
+    WAIT_SEND_VALUE,
   };
 
   State _state = State::INITIALIZE;
@@ -194,6 +207,8 @@ class Connection_handler
                          size_t target_len,
                          Component::IFabric_connection::memory_region_t region);
 
+  void set_pending_send_value();
+
   inline uint64_t auth_id() const { return (uint64_t) this; /* temp */ }
 
   inline size_t max_message_size() const { return _max_message_size; }
@@ -212,6 +227,7 @@ class Connection_handler
   struct {
     uint64_t response_count               = 0;
     uint64_t recv_msg_count               = 0;
+    uint64_t send_msg_count               = 0;
     uint64_t wait_recv_value_misses       = 0;
     uint64_t wait_msg_recv_misses         = 0;
     uint64_t wait_respond_complete_misses = 0;
@@ -227,6 +243,7 @@ class Connection_handler
     PINF("Ticks                       : %lu", _tick_count);
     PINF("NEW_MSG_RECV misses         : %lu", _stats.wait_msg_recv_misses);
     PINF("Recv message count          : %lu", _stats.recv_msg_count);
+    PINF("Send message count          : %lu", _stats.send_msg_count);
     PINF("Response count              : %lu", _stats.response_count);
     PINF("WAIT_RECV_VALUE misses      : %lu", _stats.wait_recv_value_misses);
     PINF("WAIT_RESPOND_COMPLETE misses: %lu", _stats.wait_respond_complete_misses);

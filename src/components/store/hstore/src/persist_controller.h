@@ -1,12 +1,22 @@
 /*
- * (C) Copyright IBM Corporation 2018, 2019. All rights reserved.
- * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
- */
+   Copyright [2017-2019] [IBM Corporation]
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
+
 
 #ifndef _COMANCHE_HSTORE_PERSIST_CONTROLLER_H
 #define _COMANCHE_HSTORE_PERSIST_CONTROLLER_H
 
 #include "construction_mode.h"
+#include "hop_hash_log.h"
 #include "persist_data.h"
 #include "test_flags.h" /* TEST_HSTORE_PERISHABLE */
 
@@ -22,9 +32,7 @@
  * goes through this class. Ideally this should also get writes to persist_data::_sc.
  */
 
-#if TEST_HSTORE_PERISHABLE
-#include <iostream>
-#endif
+#include "hop_hash_log.h"
 
 class perishable_expiry;
 
@@ -55,7 +63,7 @@ namespace impl
 				catch ( const perishable_expiry & )
 				{
 #if TEST_HSTORE_PERISHABLE
-					std::cerr << "perishable_expiry in " << __func__ << "\n";
+					hop_hash_log::write(__func__, " perishable_expiry");
 #endif
 				}
 			}
@@ -129,12 +137,12 @@ namespace impl
 			{
 				return _persist->_segment_count._specified;
 			}
-#if TEST_HSTORE_PERISHABLE
-			auto size_unstable() const /* debugging */
+
+			auto size_unstable() const /* debugging only */
 			{
 				return _persist->_size_control.value_not_stable();
 			}
-#endif
+
 			std::size_t size() const
 			{
 				return _persist->_size_control.value();

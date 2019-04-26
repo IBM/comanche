@@ -1,3 +1,15 @@
+/*
+   Copyright [2017-2019] [IBM Corporation]
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
 #ifndef __FABRIC_CONNECTION_BASE_H__
 #define __FABRIC_CONNECTION_BASE_H__
 
@@ -62,7 +74,8 @@ class Fabric_connection_base {
      * a connection after you close it. In particular, you cannot deregister
      * memory. So close_connection is the *last" operation on "_transport."
      */
-    _factory->close_connection(_transport);
+    // See BUG DAWN-134
+    //    _factory->close_connection(_transport);
   }
 
   static void completion_callback(void *        context,
@@ -72,8 +85,8 @@ class Fabric_connection_base {
                                   void *        error_data,
                                   void *        param)
   {
-    Fabric_connection_base *pThis =
-        static_cast<Fabric_connection_base *>(param);
+    Fabric_connection_base *pThis = static_cast<Fabric_connection_base *>(param);
+    
     /* set callback debugging here */
     static constexpr bool option_DEBUG = false;
 
@@ -83,6 +96,7 @@ class Fabric_connection_base {
 
     if (context == pThis->_posted_recv_buffer) {
       assert(pThis->_posted_recv_buffer_outstanding);
+      assert(pThis->_posted_recv_buffer);
       if (option_DEBUG) PLOG("Posted recv complete (%p).", context);
       pThis->_posted_recv_buffer_outstanding = false; /* signal recv completion */
       return;
@@ -107,7 +121,7 @@ class Fabric_connection_base {
     }
   }
 
-  inline bool check_for_posted_send_complete()
+  bool check_for_posted_send_complete()
   {
     if (_posted_send_buffer_outstanding) return false;
 
@@ -133,11 +147,12 @@ class Fabric_connection_base {
       assert(_deferred_unlock == nullptr);
       _deferred_unlock = _posted_value_buffer->base();
       if (added_deferred_unlock) *added_deferred_unlock = true;
-      _posted_value_buffer = nullptr;
+      //_posted_value_buffer = nullptr;
     }
 
     return true;
   }
+
 
   void free_recv_buffer()
   {
@@ -166,11 +181,10 @@ class Fabric_connection_base {
     const auto iov = buffer->iov;
 
     if (!val_buffer) {
-      /* if packet is small enough use inject */
-      if (iov->iov_len <= _transport->max_inject_size()) {
+      /* BUG: if packet is small enough use inject */
+      if (iov->iov_len <= 128) {  // _transport->max_inject_size()) {
         _transport->inject_send(iov->iov_base, iov->iov_len);
-        free_buffer(
-            buffer); /* buffer can be immediately freed; see fi_inject */
+        free_buffer(buffer); /* buffer can be immediately freed; see fi_inject */
       }
       else {
         _posted_send_buffer             = buffer;
@@ -206,29 +220,33 @@ class Fabric_connection_base {
     _posted_value_buffer_outstanding = true;
     _transport->post_send(_posted_value_buffer->iov,
                           _posted_value_buffer->iov + 1,
-                          &_posted_value_buffer->desc, _posted_value_buffer);
+                          &_posted_value_buffer->desc, _posted_value_buffer);    
   }
 
   void post_recv_value_buffer(buffer_t *buffer = nullptr)
   {
     if (buffer) {
       _posted_value_buffer = buffer;
-      /* PLOG("posting recv value buffer (%p)(base=%p,len=%lu)", */
-      /* 	   buffer, */
-      /* 	   _posted_value_buffer->iov->iov_base, */
-      /* 	   _posted_value_buffer->iov->iov_len); */
+
+      if(option_DEBUG)
+        PLOG("posting recv value buffer (%p)(base=%p,len=%lu,desc=%p)",
+             buffer,
+             _posted_value_buffer->iov->iov_base,
+             _posted_value_buffer->iov->iov_len,
+             _posted_value_buffer->desc);
     }
     assert(_posted_value_buffer);
     _posted_value_buffer_outstanding = true;
     _transport->post_recv(_posted_value_buffer->iov,
                           _posted_value_buffer->iov + 1,
-                          &_posted_value_buffer->desc, _posted_value_buffer);
+                          &_posted_value_buffer->desc,
+                          _posted_value_buffer);
   }
 
   inline buffer_t *posted_recv() const { return _posted_recv_buffer; }
   inline buffer_t *posted_send() const { return _posted_send_buffer; }
 
-  inline Completion_state poll_completions()
+  Completion_state poll_completions()
   {
     if( _posted_recv_buffer_outstanding ||
         _posted_send_buffer_outstanding ||
@@ -237,8 +255,11 @@ class Fabric_connection_base {
         bool added_deferred_unlock = false;
         try {
           _transport->poll_completions(completion_callback, this);
-          check_for_posted_send_complete();
-          check_for_posted_value_complete(&added_deferred_unlock);
+          if(_posted_send_buffer_outstanding)
+            check_for_posted_send_complete();
+
+          if(_posted_value_buffer_outstanding)
+            check_for_posted_value_complete(&added_deferred_unlock);
         }
         catch (std::logic_error e) {
           return Completion_state::CLIENT_DISCONNECT;
@@ -278,6 +299,9 @@ class Fabric_connection_base {
     return Buffer_manager<Component::IFabric_server>::BUFFER_LEN;
   }
 
+  auto transport() const { return _transport; }
+
+  
  private:
   Buffer_manager<Component::IFabric_server> _bm;
 

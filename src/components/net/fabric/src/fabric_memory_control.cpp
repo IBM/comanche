@@ -1,18 +1,16 @@
 /*
-   Copyright [2018, 2019] [IBM Corporation]
-
+   Copyright [2017-2019] [IBM Corporation]
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
-
        http://www.apache.org/licenses/LICENSE-2.0
-
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
 */
+
 
 /*
  * Authors:
@@ -210,6 +208,11 @@ fid_mr * Fabric_memory_control::make_fid_mr_reg_ptr(
   try
   {
     /* Note: this was once observed to return "Cannot allocate memory" when called from JNI code. */
+    /* Note: this was once observed to return an error when the DAX persistent Apache Pass memory
+     * seemed properly aligned. The work-around was to issue a pre-emptive madvise(MADV_DONTFORK)
+     * against the entire memory space of the DAX device.
+     */
+    /* Note: this was once observed to return "Bad address" when the (GPU) memory seemed properly aligned. */
     CHECK_FI_ERR(::fi_mr_reg(&*_domain, buf, len, access, offset, key, flags, &f, context));
   }
   catch ( const fabric_runtime_error &e )

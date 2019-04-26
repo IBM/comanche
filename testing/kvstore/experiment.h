@@ -47,6 +47,10 @@ private:
   std::vector<int> _core_list;
   int _execution_time;
   boost::optional<std::chrono::system_clock::time_point> _start_time; // default behavior: start now
+public:
+  boost::optional<std::chrono::high_resolution_clock::duration> _duration_directed; // default behavior: number of elements determines duration
+  boost::optional<std::chrono::high_resolution_clock::time_point> _end_time_directed;
+private:
   int _debug_level;
   std::string _component;
   std::string _results_path;
@@ -77,9 +81,9 @@ private:
   long _element_size_on_disk = -1; // floor: filesystem block size
   long _element_size = -1; // raw amount of file data (bytes)
   long _elements_in_use = 0;
-  long _pool_element_start = 0;
+  unsigned long _pool_element_start;
 public:
-  long _pool_element_end = -1;
+  unsigned long _pool_element_end;
 private:
   long _elements_stored = 0;
   unsigned long _total_data_processed = 0;  // for use with throughput calculation
@@ -94,7 +98,7 @@ private:
   core_to_device_map_t _core_to_device_map;
 
   static core_to_device_map_t make_core_to_device_map(const std::string &cores, const std::string &devices);
-  
+
 public:
   static Data * g_data;
   static std::mutex g_write_lock;
@@ -120,8 +124,8 @@ public:
   bool is_summary() const { return _summary; }
   unsigned long total_data_processed() const { return _total_data_processed; }
   bool is_json_reporting() const { return _do_json_reporting; }
-  long pool_element_start() const { return _pool_element_start; }
-  long pool_element_end() const { return _pool_element_end; }
+  unsigned long pool_element_start() const { return _pool_element_start; }
+  unsigned long pool_element_end() const { return _pool_element_end; }
   bool component_is(const std::string &c) const { return _component == c; }
   unsigned long long pool_size() const { return _pool_size; }
   Component::IKVStore::memory_handle_t memory_handle() const { return _memory_handle; }
@@ -182,7 +186,7 @@ public:
 
   void _print_highest_count_bin(BinStatistics& stats, unsigned core);
 
-  rapidjson::Value _add_statistics_to_report(std::string /* name */, BinStatistics& stats, rapidjson::Document& document) ;
+  rapidjson::Value _add_statistics_to_report(BinStatistics& stats, rapidjson::Document& document) ;
 
   BinStatistics _compute_bin_statistics_from_vectors(std::vector<double> data, std::vector<double> data_bins, int bin_count, double bin_min, double bin_max, std::size_t elements) ;
 

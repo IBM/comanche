@@ -1,18 +1,16 @@
 /*
-   Copyright [2018] [IBM Corporation]
-
+   Copyright [2017-2019] [IBM Corporation]
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
-
        http://www.apache.org/licenses/LICENSE-2.0
-
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
 */
+
 
 #ifndef __API_FABRIC_ITF__
 #define __API_FABRIC_ITF__
@@ -111,6 +109,9 @@ public:
    * events not belonging to group (stall them).  This method will
    * BOTH service the completion queues and service those events
    * stalled previously
+   *
+   *  completion_flags, FI_{SEND,RECV,RMA,ATOMIC,MSG,TAGGED,MULTICAST,(REMOTE_)?READ,(REMOTE_)?WRITE,REMOTE_CQ_DATA,MULTI_RECV},
+   *  are described in "man fi_cq" and defined in libfabric/include/rdma/fabric.h
    *
    * @param completion_callback (context_t, completion_flags, std::size_t len, status_t status, void* error_data)
    *
