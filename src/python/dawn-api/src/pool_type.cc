@@ -20,8 +20,7 @@ static PyObject * pool_put(Pool* self, PyObject *args, PyObject *kwds);
 static PyObject * pool_get(Pool* self, PyObject *args, PyObject *kwds);
 static PyObject * pool_put_direct(Pool* self, PyObject *args, PyObject *kwds);
 static PyObject * pool_get_direct(Pool* self, PyObject *args, PyObject *kwds);
-
-
+static PyObject * pool_get_size(Pool* self, PyObject *args, PyObject *kwds);
 
 static PyObject *
 Pool_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
@@ -57,6 +56,7 @@ static PyMemberDef Pool_members[] = {
 PyDoc_STRVAR(put_doc,"Pool.put(key,value) -> Write key-value pair to pool.");
 PyDoc_STRVAR(put_direct_doc,"Pool.put_direct(key,value) -> Write bytearray value to pool using zero-copy.");
 PyDoc_STRVAR(get_doc,"Pool.get(key) -> Read value from pool.");
+PyDoc_STRVAR(get_size_doc,"Pool.get_size(key) -> Get size of a value.");
 PyDoc_STRVAR(get_direct_doc,"Pool.get_direct(key) -> Read bytearray value from pool using zero-copy.");
 PyDoc_STRVAR(close_doc,"Pool.close() -> Forces pool closure. Otherwise close happens on deletion.");
 PyDoc_STRVAR(count_doc,"Pool.count() -> Get number of objects in the pool.");
@@ -68,6 +68,7 @@ static PyMethodDef Pool_methods[] = {
   {"put_direct",(PyCFunction) pool_put_direct, METH_VARARGS | METH_KEYWORDS, put_direct_doc},
   {"get",(PyCFunction) pool_get, METH_VARARGS | METH_KEYWORDS, get_doc},
   {"get_direct",(PyCFunction) pool_get_direct, METH_VARARGS | METH_KEYWORDS, get_direct_doc},
+  {"get_size",(PyCFunction) pool_get_size, METH_VARARGS | METH_KEYWORDS, get_size_doc},
   {NULL}
 };
 
@@ -196,14 +197,6 @@ static PyObject * pool_put_direct(Pool* self, PyObject *args, PyObject *kwds)
     return NULL;
   }
 
-  // if (PyArray_Check(ndvalue) &&
-  //     PyArray_CHKFLAGS(ndvalue,  NPY_ARRAY_C_CONTIGUOUS)) { /* must be contiguous memory */
-    
-  //   PLOG("ndarray dims:%d ",PyArray_NDIM(ndvalue));
-  //   void * p = PyArray_DATA(ndvalue);
-  //   size_t p_len = 
-  //   Py_RETURN_NONE;
-  // }
   void * p = nullptr;
   size_t p_len = 0;
   
@@ -309,35 +302,87 @@ static PyObject * pool_get_direct(Pool* self, PyObject *args, PyObject *kwds)
     return NULL;
   }
 
-  PLOG("Not implemented");
-  Py_RETURN_NONE;
-  // assert(self->_kvstore);
-  // assert(self->_pool != IKVStore::POOL_ERROR);
-
-  // if(self->_pool == 0) {
-  //   PyErr_SetString(PyExc_RuntimeError,"already closed");
-  //   return NULL;
-  // }
-
-  // void * out_p = nullptr;
-  // size_t out_p_len = 0;
-  // auto hr = self->_dawn->get(self->_pool,
-  //                            key,
-  //                            out_p,
-  //                            out_p_len);
+  assert(self->_pool);
+    
+  std::vector<uint64_t> v;
+  std::string k(key);
   
-  // if(hr != S_OK || out_p == nullptr) {
-  //   std::stringstream ss;
-  //   ss << "pool.get failed [status:" << hr << "]";
-  //   PyErr_SetString(PyExc_RuntimeError,ss.str().c_str());
-  //   return NULL;
-  // }
+  auto hr = self->_dawn->get_attribute(self->_pool,
+                                       Component::IKVStore::Attribute::VALUE_LEN,
+                                       v,
+                                       &k);
 
-  // /* copy value string */
-  // auto result = PyUnicode_FromString(static_cast<const char*>(out_p));
-  // self->_dawn->free_memory(out_p);
+  if(hr != S_OK || v.size() != 1) {
+    std::stringstream ss;
+    ss << "pool.get_direct failed [status:" << hr << "]";
+    PyErr_SetString(PyExc_RuntimeError,ss.str().c_str());
+    return NULL;
+  }
+  
+  /* now we have the buffer size, we can allocate accordingly */
+  size_t p_len = v[0];
+  PyObject * result = PyBytes_FromStringAndSize(NULL, p_len);
 
-  // return result;
+  void * p = (void *) PyBytes_AsString(result);
+
+  /* register memory */
+  Component::IKVStore::memory_handle_t handle = self->_dawn->register_direct_memory(p, p_len);
+
+  if(handle == nullptr) {
+    PyErr_SetString(PyExc_RuntimeError,"RDMA memory registration failed");
+    return NULL;
+  }
+  
+  /* now perform get_direct */
+  hr = self->_dawn->get_direct(self->_pool, k, p, p_len, handle);
+  if(hr != S_OK) {
+    std::stringstream ss;
+    ss << "pool.get_direct failed [status:" << hr << "]";
+    PyErr_SetString(PyExc_RuntimeError,ss.str().c_str());
+    return NULL;
+  }
+
+  self->_dawn->unregister_direct_memory(handle);
+  
+  return result;
+}
+
+
+
+static PyObject * pool_get_size(Pool* self, PyObject *args, PyObject *kwds)
+{
+  static const char *kwlist[] = {"key",
+                                 NULL};
+
+  const char * key = nullptr;
+  
+  if (! PyArg_ParseTupleAndKeywords(args,
+                                    kwds,
+                                    "s",
+                                    const_cast<char**>(kwlist),
+                                    &key)) {
+    PyErr_SetString(PyExc_RuntimeError,"bad arguments");
+    return NULL;
+  }
+
+  assert(self->_pool);
+    
+  std::vector<uint64_t> v;
+  std::string k(key);
+  
+  auto hr = self->_dawn->get_attribute(self->_pool,
+                                       Component::IKVStore::Attribute::VALUE_LEN,
+                                       v,
+                                       &k);
+
+  if(hr != S_OK || v.size() != 1) {
+    std::stringstream ss;
+    ss << "pool.get_size failed [status:" << hr << "]";
+    PyErr_SetString(PyExc_RuntimeError,ss.str().c_str());
+    return NULL;
+  }
+  
+  return PyLong_FromSize_t(v[0]);
 }
 
 
