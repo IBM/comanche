@@ -1,12 +1,9 @@
 /*
-   Copyright [2018] [IBM Corporation]
-
+   Copyright [2017-2019] [IBM Corporation]
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
-
        http://www.apache.org/licenses/LICENSE-2.0
-
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -14,17 +11,25 @@
    limitations under the License.
 */
 
+
 #include "fabric_connection_client.h"
 
 #include "bad_dest_addr_alloc.h"
 #include "event_producer.h"
 #include "fabric_check.h" /* CHECK_FI_ERR */
-#include "fabric_error.h"
+#include "fabric_runtime_error.h"
 #include "fabric_str.h" /* tostr */
 #include "fabric_types.h"
 #include "fd_control.h"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#pragma GCC diagnostic ignored "-Wcast-align"
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+#pragma GCC diagnostic ignored "-Wshadow"
 #include <rdma/fi_cm.h> /* fi_connect, fi_shutdown */
+#pragma GCC diagnostic pop
 
 #include <algorithm> /* copy */
 #include <cstdint> /* size_t */
@@ -41,6 +46,9 @@ namespace
    *
    * (This is a work-around for what looks like a bug in the verbs provider.
    * It should probably accept addr, as the sockets provider does.)
+   *
+   * @throw bad_dest_addr_alloc
+   * @throw std::system_error (receiving fabric server name)
    */
   fabric_types::addr_ep_t set_peer_early(std::unique_ptr<Fd_control> control_, ::fi_info &ep_info_)
   {
@@ -64,12 +72,15 @@ namespace
     return remote_addr;
   }
 
+  /*
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_connect fail
+   */
   void fi_void_connect(::fid_ep &ep_, const ::fi_info &ep_info_, const void *addr_, const void *param_, size_t paramlen_)
   try
   {
     CHECK_FI_ERR(::fi_connect(&ep_, addr_, param_, paramlen_));
   }
-  catch ( const fabric_error &e )
+  catch ( const fabric_runtime_error &e )
   {
     throw e.add(tostr(ep_info_));
   }
@@ -94,7 +105,7 @@ try
     expect_event_sync(FI_CONNECTED);
   }
 }
-catch ( fabric_error &e )
+catch ( fabric_runtime_error &e )
 {
   throw e.add("in Fabric_connection_client constuctor");
 }

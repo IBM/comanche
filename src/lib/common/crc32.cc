@@ -123,11 +123,11 @@ uint32_t mul_table1_672[256] = {
     0x606c8304, 0x847b708e, 0xadaf12e1, 0x49b8e16b};
 
 /* WARNING: this could be patented by Intel */
-uint32_t crc_1024_c(uint8_t* buffer, uint32_t initval) {
+uint32_t crc_1024_c(uint8_t *buffer, uint32_t initval) {
   uint64_t crc0, crc1, crc2, tmp;
-  uint64_t* p_buffer;
+  uint64_t *p_buffer;
 
-  p_buffer = (uint64_t*)buffer;
+  p_buffer = (uint64_t *) buffer;
   crc1 = crc2 = 0;
 
   // Do first 8 bytes here for better pipelining
@@ -142,17 +142,17 @@ uint32_t crc_1024_c(uint8_t* buffer, uint32_t initval) {
   // merge in crc1
   tmp = p_buffer[127];
   tmp ^= mul_table1_336[crc1 & 0xFF];
-  tmp ^= ((uint64_t)mul_table1_336[(crc1 >> 8) & 0xFF]) << 8;
-  tmp ^= ((uint64_t)mul_table1_336[(crc1 >> 16) & 0xFF]) << 16;
-  tmp ^= ((uint64_t)mul_table1_336[(crc1 >> 24) & 0xFF]) << 24;
+  tmp ^= ((uint64_t) mul_table1_336[(crc1 >> 8) & 0xFF]) << 8;
+  tmp ^= ((uint64_t) mul_table1_336[(crc1 >> 16) & 0xFF]) << 16;
+  tmp ^= ((uint64_t) mul_table1_336[(crc1 >> 24) & 0xFF]) << 24;
 
   // merge in crc0
   tmp ^= mul_table1_672[crc0 & 0xFF];
-  tmp ^= ((uint64_t)mul_table1_672[(crc0 >> 8) & 0xFF]) << 8;
-  tmp ^= ((uint64_t)mul_table1_672[(crc0 >> 16) & 0xFF]) << 16;
-  tmp ^= ((uint64_t)mul_table1_672[(crc0 >> 24) & 0xFF]) << 24;
+  tmp ^= ((uint64_t) mul_table1_672[(crc0 >> 8) & 0xFF]) << 8;
+  tmp ^= ((uint64_t) mul_table1_672[(crc0 >> 16) & 0xFF]) << 16;
+  tmp ^= ((uint64_t) mul_table1_672[(crc0 >> 24) & 0xFF]) << 24;
 
-  return (uint32_t)_mm_crc32_u64(crc2, tmp);
+  return (uint32_t) _mm_crc32_u64(crc2, tmp);
 }
 
 #ifndef bit_SSE4_2

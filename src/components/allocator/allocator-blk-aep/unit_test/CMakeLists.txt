@@ -1,13 +1,17 @@
-add_executable(test-bitmap test-bitmap.cpp ../src/bitmap-tx.cpp)
-add_executable(test-blk-alloc-aep test-blk-alloc-aep.cpp)
+cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
-find_library(GTEST_LIB NAMES GTEST PATHS /usr/local/lib,/usr/lib)
+project(allocator-blk-aep-tests)
+
+include_directories(./src)
+include_directories(${CMAKE_INSTALL_PREFIX}/include)
+link_directories(${CMAKE_INSTALL_PREFIX}/lib)
+link_directories(/usr/local/lib64)
+
 add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 
+add_executable(test-bitmap test-bitmap.cpp ../src/bitmap-tx.cpp)
+target_link_libraries(test-bitmap ${ASAN_LIB} common comanche-core numa pthread dl comanche-allocblock pmem pmempool pmemobj tbb profiler gtest )
 
-target_link_libraries(test-bitmap  ${ASAN_LIB}  common comanche-core numa gtest pthread dl comanche-allocblock  ${LIB_PMEM} ${LIB_PMEM_POOL} ${LIB_PMEM_OBJ})
+add_executable(test-blk-alloc-aep test-blk-alloc-aep.cpp)
+target_link_libraries(test-blk-alloc-aep ${ASAN_LIB} common comanche-core numa pthread dl comanche-allocblock pmem pmempool pmemobj tbb profiler gtest )
 
-target_link_libraries(test-blk-alloc-aep ${comanche-blkalloc-aep} ${LIB_PMEM} ${LIB_PMEMOBJ} ${ASAN_LIB}  common comanche-core numa gtest pthread dl comanche-allocblock profiler ${TBB_LIBRARIES})
-
-#file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/check_leaks.sh
-#DESTINATION ${CMAKE_CURRENT_BINARY_DIR})

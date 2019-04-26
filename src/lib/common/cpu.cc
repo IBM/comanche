@@ -44,23 +44,6 @@ int set_cpu_affinity_mask(cpu_mask_t& mask) {
 #endif
 }
 
-int set_cpu_affinity(unsigned long mask) {
-#if defined(unix)
-  cpu_mask_t cpumask;
-  cpumask.set_mask(mask);
-
-  int rc;
-  if ((rc = set_cpu_affinity_mask(cpumask)) != 0) {
-    PWRN("unable to set CPU affinity. mask=%lx", mask);
-  }
-  return rc;
-
-#else
-  PWRN("set_cpu_affinity: not implemented");
-  return -1;
-#endif
-}
-
 /**
  * Convert comma separated list to cpu mask
  *
@@ -69,7 +52,7 @@ int set_cpu_affinity(unsigned long mask) {
  *
  * @return
  */
-status_t string_to_mask(std::string def, cpu_mask_t& mask) {
+status_t string_to_mask(std::string def, cpu_mask_t &mask) {
   using namespace std;
   using namespace boost;
 
@@ -87,7 +70,7 @@ status_t string_to_mask(std::string def, cpu_mask_t& mask) {
   boost::tokenizer<boost::char_separator<char>> tok(def, sep);
 
   try {
-    for_each(tok.begin(), tok.end(), [&](const string& s) {
+    for_each(tok.begin(), tok.end(), [&](const string &s) {
       try {
         mask.add_core(stoi(s));
       } catch (std::invalid_argument e) {

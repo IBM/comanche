@@ -1,12 +1,9 @@
 /*
-   Copyright [2017] [IBM Corporation]
-
+   Copyright [2017-2019] [IBM Corporation]
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
-
        http://www.apache.org/licenses/LICENSE-2.0
-
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -14,9 +11,11 @@
    limitations under the License.
 */
 
-/* 
- * Authors: 
- * 
+
+
+/*
+ * Authors:
+ *
  * Daniel G. Waddington (daniel.waddington@ibm.com)
  *
  */
@@ -32,23 +31,23 @@ extern "C" void spdk_vtophys_init(void);
 
 /* hack to fix build */
 extern "C" uint32_t rte_net_get_ptype(const struct rte_mbuf *m,
-                                      struct rte_net_hdr_lens *hdr_lens, uint32_t layers) __attribute__((weak));
+                                      struct rte_net_hdr_lens *hdr_lens,
+                                      uint32_t layers) __attribute__((weak));
 extern "C" uint32_t rte_net_get_ptype(const struct rte_mbuf *m,
-                                      struct rte_net_hdr_lens *hdr_lens, uint32_t layers)
-{
+                                      struct rte_net_hdr_lens *hdr_lens,
+                                      uint32_t layers) {
   asm("int3");
   return 0;
-} 
+}
 
 namespace DPDK
 {
-
 bool _g_eal_initialized = false;
 
-void eal_init(size_t memory_limit_MB, unsigned master_core, bool primary)
-{
-  std::string proc_type_option  = primary ? "--proc-type=primary" : "--proc-type=secondary";
-  
+void eal_init(size_t memory_limit_MB, unsigned master_core, bool primary) {
+  std::string proc_type_option =
+      primary ? "--proc-type=primary" : "--proc-type=secondary";
+
   if (!DPDK::_g_eal_initialized) {
     int rc;
 
@@ -61,15 +60,15 @@ void eal_init(size_t memory_limit_MB, unsigned master_core, bool primary)
 
     strcpy(fprefix_, "--file-prefix=");
 
-    char* wl0    = getenv("SPDK_DEVICE0");
-    char* mlimit = getenv("SPDK_MEMLIMIT");
+    char *wl0 = getenv("SPDK_DEVICE0");
+    char *mlimit = getenv("SPDK_MEMLIMIT");
 
     if (wl0) { /* multi-device */
       strcpy(wl0_, "-w ");
       strcat(wl0_, wl0);
       strcat(fprefix_, wl0);
 
-      /* if we specify a device, we're going to bound memory for 
+      /* if we specify a device, we're going to bound memory for
          multiple instances */
       if (mlimit) { /* SPDK_MEMLIMIT defined */
         sprintf(memory_option, "-m %s", mlimit);
@@ -82,7 +81,8 @@ void eal_init(size_t memory_limit_MB, unsigned master_core, bool primary)
         }
         else {
           sprintf(memory_option, "-m %u", CONFIG_MAX_MEMORY_PER_INSTANCE_MB);
-          PLOG("Using default multi-instance limit %u MB", CONFIG_MAX_MEMORY_PER_INSTANCE_MB);
+          PLOG("Using default multi-instance limit %u MB",
+               CONFIG_MAX_MEMORY_PER_INSTANCE_MB);
         }
       }
     }
@@ -117,24 +117,17 @@ void eal_init(size_t memory_limit_MB, unsigned master_core, bool primary)
 
     std::string lcores = "0-" + std::to_string(num_cores - 1);
 
-    static const char* ealargs[] = {"comanche",
-                                    "-c",
-                                    core_mask.str().c_str(),
-                                    "-l",
-                                    lcores.c_str(),  // cores to run on
-                                    "-n",
-                                    "4",  // number of memory channels
-                                    "--master-lcore",
-                                    std::to_string(master_core).c_str(),
-                                    memory_option,
-                                    proc_type_option.c_str(),
-                                    "--log-level=5",
-                                    fprefix_,
-                                    wl0_,
-                                    wl1_,
-                                    wl2_,
-                                    wl3_};
-
+    static const char *ealargs[] = {
+        "comanche",
+        // "-c",
+        // core_mask.str().c_str(),
+        "-l",
+        lcores.c_str(),  // cores to run on
+        "-n",
+        "4",  // number of memory channels
+        "--master-lcore", std::to_string(master_core).c_str(), memory_option,
+        proc_type_option.c_str(), "--log-level=5", fprefix_, wl0_, wl1_, wl2_,
+        wl3_};
 
     /* Save thread affinity. (rte_eal_init will reset it) */
     cpu_set_t cpuset;
@@ -149,7 +142,8 @@ void eal_init(size_t memory_limit_MB, unsigned master_core, bool primary)
      *  never target swapped out memory.
      *
      */
-    rc = rte_eal_init(sizeof(ealargs) / sizeof(ealargs[0]), (char**) (ealargs));
+    rc =
+        rte_eal_init(sizeof(ealargs) / sizeof(ealargs[0]), (char **) (ealargs));
     if (rc < 0) {
       throw new API_exception("could not initialize DPDK EAL");
     }
@@ -170,20 +164,14 @@ void eal_init(size_t memory_limit_MB, unsigned master_core, bool primary)
     PINF("# DPDK already initialized");
   }
   //  meminfo_display();
-
 }
 
-void eal_show_info(void)
-{
-  rte_malloc_dump_stats(stderr, NULL);
-}
+void eal_show_info(void) { rte_malloc_dump_stats(stderr, NULL); }
 
-void meminfo_display(void)
-{
+void meminfo_display(void) {
   printf("----------- MEMORY_SEGMENTS -----------\n");
   rte_dump_physmem_layout(stdout);
   printf("--------- END_MEMORY_SEGMENTS ---------\n");
 }
 
-
-}
+}  // namespace DPDK

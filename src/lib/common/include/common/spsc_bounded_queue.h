@@ -54,36 +54,35 @@
 #define __SPSC_BOUNDED_QUEUE__
 
 #include <assert.h>
-#include <atomic>
-#include <boost/thread.hpp>
+#include <fcntl.h> /* For O_* constants */
 #include <semaphore.h>
 #include <sys/mman.h>
 #include <sys/stat.h> /* For mode constants */
-#include <fcntl.h>    /* For O_* constants */
+#include <atomic>
+#include <boost/thread.hpp>
 
-#include "memory.h"
 #include <common/logging.h>
 #include <common/utils.h>
+#include "memory.h"
 
-namespace Common {
-
+namespace Common
+{
 /**
  * Single-producer, single-consumer class based on Vyukov's algorithm.
  * This version requires polling during empty conditions.
  *
  */
 template <typename T, unsigned QSIZE = 32>
-class Spsc_bounded_lfq
-{
+class Spsc_bounded_lfq {
  public:
   /**
    * Constructor
    *
    */
-  Spsc_bounded_lfq() : _size(QSIZE), _mask(QSIZE - 1), _head(0), _tail(0)
-  {
+  Spsc_bounded_lfq() : _size(QSIZE), _mask(QSIZE - 1), _head(0), _tail(0) {
     // make sure it's a power of 2
-    static_assert((QSIZE != 0) && ((QSIZE & (~QSIZE + 1)) == QSIZE), "bad QSIZE");
+    static_assert((QSIZE != 0) && ((QSIZE & (~QSIZE + 1)) == QSIZE),
+                  "bad QSIZE");
     // clear buffer
     __builtin_memset(_buffer, 0, sizeof(_buffer));
   }
@@ -92,9 +91,7 @@ class Spsc_bounded_lfq
    * Destructor. Will clear up shared memory.
    *
    */
-  virtual ~Spsc_bounded_lfq()
-  {
-  }
+  virtual ~Spsc_bounded_lfq() {}
 
   /**
    * Enqueue an item
@@ -103,8 +100,7 @@ class Spsc_bounded_lfq
    *
    * @return True if enqueued OK. False if blocked, or full.
    */
-  bool enqueue(T& elem)
-  {
+  bool enqueue(T &elem) {
     const size_t head = _head.load(std::memory_order_relaxed);
 
     if (((_tail.load(std::memory_order_acquire) - (head + 1)) & _mask) >= 1) {
@@ -122,8 +118,7 @@ class Spsc_bounded_lfq
    *
    * @return True on success. False on blocked, or empty.
    */
-  bool dequeue(T& output)
-  {
+  bool dequeue(T &output) {
     const size_t tail = _tail.load(std::memory_order_relaxed);
 
     if (((_head.load(std::memory_order_acquire) - tail) & _mask) >= 1) {
@@ -140,106 +135,90 @@ class Spsc_bounded_lfq
    *
    * @return
    */
-  void* buffer_base() const
-  {
-    return (void*)_buffer;
-  }
+  void *buffer_base() const { return (void *) _buffer; }
 
  private:
   typedef char cache_line_pad_t[128];
 
   cache_line_pad_t _pad0;
-  const size_t     _size;
-  const size_t     _mask;
+  const size_t _size;
+  const size_t _mask;
 
-  cache_line_pad_t    _pad1;
+  cache_line_pad_t _pad1;
   std::atomic<size_t> _head;
 
-  cache_line_pad_t    _pad2;
+  cache_line_pad_t _pad2;
   std::atomic<size_t> _tail;
 
   cache_line_pad_t _pad3;
-  T                _buffer[QSIZE] __attribute__((aligned(sizeof(T))));
+  T _buffer[QSIZE] __attribute__((aligned(sizeof(T))));
 };
 
-
-/** 
- * Single-producer, single-consumer class based on Vyukov's algorithm.  This version
- * implements a sleep on the consumer when the queue is empty. 
- * 
+/**
+ * Single-producer, single-consumer class based on Vyukov's algorithm.  This
+ * version
+ * implements a sleep on the consumer when the queue is empty.
+ *
  */
 template <typename T, unsigned QSIZE = 32>
-class Spsc_bounded_lfq_sleeping
-{
+class Spsc_bounded_lfq_sleeping {
  private:
   enum ConsumerState {
     SLEEPING = 1,
-    AWAKE    = 2,
+    AWAKE = 2,
   };
 
-  static const int  RETRY_THRESHOLD = 5000000;
-  static const long TIMEOUT_NS      = 10000000;  // 10ms
+  static const int RETRY_THRESHOLD = 5000000;
+  static const long TIMEOUT_NS = 10000000;  // 10ms
 
   Spsc_bounded_lfq<T, QSIZE> _queue __attribute__((aligned(8)));
-  bool                   _exit;
+  bool _exit;
   volatile ConsumerState _consumer_state;
-  sem_t                  _sem;
+  sem_t _sem;
 
  public:
-  Spsc_bounded_lfq_sleeping() : _queue(), _exit(false), _consumer_state(AWAKE)
-  {
+  Spsc_bounded_lfq_sleeping() : _queue(), _exit(false), _consumer_state(AWAKE) {
     sem_init(&_sem, 1, 0);  // shared, 0 count
   }
 
-
-  /** 
+  /**
    * Destructor.  Clears up waker thread.
-   * 
+   *
    */
-  ~Spsc_bounded_lfq_sleeping()
-  {
-    sem_destroy(&_sem);
-  }
+  ~Spsc_bounded_lfq_sleeping() { sem_destroy(&_sem); }
 
-
-  /** 
+  /**
    * Enqueue an item
-   * 
+   *
    * @param data Item to enqueue
-   * 
+   *
    * @return True if enqueued OK. False if blocked, or full.
    */
-  bool enqueue(T& elem)
-  {
+  bool enqueue(T &elem) {
     if (_consumer_state == SLEEPING) {
       sem_post(&_sem);  // wake up waker thread
     }
     return _queue.enqueue(elem); /* we don't sleep on the producer side */
   }
 
-
-  /** 
+  /**
    * Blocking dequeue
-   * 
-   * @param elem 
-   * 
-   * @return 
+   *
+   * @param elem
+   *
+   * @return
    */
-  bool dequeue(T& elem)
-  {
-    return _queue.dequeue(elem);
-  }
+  bool dequeue(T &elem) { return _queue.dequeue(elem); }
 
-  /** 
-   * Dequeue an object. When the queue is empty, calling threads sleeps 
+  /**
+   * Dequeue an object. When the queue is empty, calling threads sleeps
    * until an item is available.
-   * 
-   * @param data Item to copy-dequeue to. 
-   * 
+   *
+   * @param data Item to copy-dequeue to.
+   *
    * @return Return true on success. False on empty queue.
    */
-  bool dequeue_sleeping(T& elem)
-  {
+  bool dequeue_sleeping(T &elem) {
     unsigned retries = 0;
     while (!_queue.dequeue(elem)) {
       retries++;
@@ -260,7 +239,8 @@ class Spsc_bounded_lfq_sleeping
           assert(0);
           return false;
         }
-        ts.tv_nsec += TIMEOUT_NS;  // lets not worry about wrap arounds, shorter timeout is ok
+        ts.tv_nsec += TIMEOUT_NS;  // lets not worry about wrap arounds, shorter
+                                   // timeout is ok
 
         int s;
         while ((s = sem_timedwait(&_sem, &ts)) == -1 && errno == EINTR)
@@ -273,26 +253,22 @@ class Spsc_bounded_lfq_sleeping
     return true;
   }
 
-  /** 
+  /**
    * Signal deque threads to return even without element
-   * 
+   *
    */
-  void _exitthreads()
-  {
+  void _exitthreads() {
     _exit = true;
     sem_post(&_sem);
   }
 
-  /** 
+  /**
    * Debug helper to get base address of queue
-   * 
-   * 
+   *
+   *
    * @return Base address of queue
    */
-  void* buffer_base() const
-  {
-    return (void*)_queue.buffer_base();
-  }
+  void *buffer_base() const { return (void *) _queue.buffer_base(); }
 
  private:
 };
@@ -462,6 +438,6 @@ private:
 
 };
 #endif
-}
+}  // namespace Common
 
 #endif

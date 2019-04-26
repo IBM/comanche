@@ -4,4 +4,9 @@ set(CMAKE_CXX_STANDARD 11)
 
 add_subdirectory (block-perf)
 add_subdirectory (paging-tracker)
-#add_subdirectory(cuda-dma)
+
+find_package(CUDA)
+if(CUDA_FOUND AND CUDA_VERSION GREATER 7.5)
+  add_subdirectory(cuda-dma)
+  add_subdirectory(gpu-direct)
+endif()

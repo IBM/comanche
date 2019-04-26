@@ -26,7 +26,6 @@
    in files containing the exception.
 */
 
-
 /*
   Authors:
   Copyright (C) 2013, Daniel G. Waddington <d.waddington@samsung.com>
@@ -36,9 +35,9 @@
 #define __COMMON_SPIN_LOCKS_H__
 
 #include <common/cpu.h>
-#include <common/utils.h>
-#include <common/types.h>
 #include <common/logging.h>
+#include <common/types.h>
+#include <common/utils.h>
 
 #include "atomic.h"
 #include "errors.h"
@@ -60,17 +59,19 @@
 #define atomic_set_bit(P, V) __sync_or_and_fetch((P), 1 << (V))
 #define atomic_clear_bit(P, V) __sync_and_and_fetch((P), ~(1 << (V)))
 
-static inline void *xchg(void *ptr, void *x)
-{
+static inline void *xchg(void *ptr, void *x) {
 #ifdef __amd64__
   __asm__ __volatile__("xchgq %0,%1"
                        : "=r"(x)
-                       : "m"(*(volatile long long *)ptr), "0"((unsigned long long)x)
+                       : "m"(*(volatile long long *) ptr),
+                         "0"((unsigned long long) x)
                        : "memory");
 #elif defined(__i386__)
-  return (void *)__atomic_exchange_n((unsigned long *)ptr, (unsigned long *)x, __ATOMIC_RELAXED);
+  return (void *) __atomic_exchange_n((unsigned long *) ptr,
+                                      (unsigned long *) x, __ATOMIC_RELAXED);
 #elif defined(__arm__)
-  return (void *)__atomic_exchange_n((unsigned long *)ptr, (unsigned long *)x, __ATOMIC_RELAXED);
+  return (void *) __atomic_exchange_n((unsigned long *) ptr,
+                                      (unsigned long *) x, __ATOMIC_RELAXED);
 #else
 #error Unsupported platform
 #endif
@@ -78,16 +79,18 @@ static inline void *xchg(void *ptr, void *x)
   return x;
 }
 
-
-namespace Common {
-/** 
-   * Ticket lock spin-lock.  This type of lock is used in the Linux kernel.  It is 
-   * fast and fair, but may not scale to large number of cores.  The performance of
-   * this lock can collapse (see Non-scalable Lock ar Dangerous, Boyd-Wickizer et al.)
-   * 
-   */
-class Ticket_lock
+namespace Common
 {
+/**
+ * Ticket lock spin-lock.  This type of lock is used in the Linux kernel.  It
+ * is
+ * fast and fair, but may not scale to large number of cores.  The performance
+ * of
+ * this lock can collapse (see Non-scalable Lock ar Dangerous, Boyd-Wickizer
+ * et al.)
+ *
+ */
+class Ticket_lock {
  private:
   union {
     unsigned u;
@@ -98,73 +101,61 @@ class Ticket_lock
   };
 
  public:
-  Ticket_lock() : u(0)
-  {
-  }
+  Ticket_lock() : u(0) {}
 
-  INLINE void lock()
-  {
+  INLINE void lock() {
     unsigned short me = atomic_xadd(&s.users, 1);
     while (s.ticket != me) cpu_relax();
   }
 
-  INLINE void unlock()
-  {
+  INLINE void unlock() {
     xdk_barrier();
     s.ticket++;
   }
 
-  int trylock()
-  {
-    unsigned short me     = s.users;
-    unsigned short menew  = me + 1;
-    unsigned       cmp    = ((unsigned)me << 16) + me;
-    unsigned       cmpnew = ((unsigned)menew << 16) + me;
+  int trylock() {
+    unsigned short me = s.users;
+    unsigned short menew = me + 1;
+    unsigned cmp = ((unsigned) me << 16) + me;
+    unsigned cmpnew = ((unsigned) menew << 16) + me;
 
     if (cmpxchg(&u, cmp, cmpnew) == cmp) return 0;
 
     return E_BUSY;
   }
 
-  int lockable()
-  {
+  int lockable() {
     xdk_barrier();
     return (s.ticket == s.users);
   }
 } __attribute__((packed));
 
-
-/** 
-   * Basic spinlock.  This lock is not fair or truly scalable.
-   * 
-   * 
-   * @return 
-   */
-class Spin_lock
-{
+/**
+ * Basic spinlock.  This lock is not fair or truly scalable.
+ *
+ *
+ * @return
+ */
+class Spin_lock {
  private:
   /* pad to x2 cache line size */
-  byte              _padding0[2 * CACHE_LINE_SIZE];
+  byte _padding0[2 * CACHE_LINE_SIZE];
   volatile atomic_t _l __attribute__((aligned(sizeof(atomic_t))));
-  byte              _padding1[2 * CACHE_LINE_SIZE - sizeof(atomic_t)];
+  byte _padding1[2 * CACHE_LINE_SIZE - sizeof(atomic_t)];
 
   enum {
     UNLOCKED = 0,
-    LOCKED   = 1,
+    LOCKED = 1,
   };
 
  public:
-  Spin_lock() : _l(UNLOCKED)
-  {
-  }
+  Spin_lock() : _l(UNLOCKED) {}
 
-
-  /** 
-     * Take lock
-     * 
-     */
-  INLINE void lock()
-  {
+  /**
+   * Take lock
+   *
+   */
+  INLINE void lock() {
     while (!__sync_bool_compare_and_swap(&_l, UNLOCKED, LOCKED)) {
       while (_l) cpu_relax(); /* unsafe spin to help reduce coherency traffic */
     }
@@ -176,48 +167,40 @@ class Spin_lock
   //   }
   // }
 
-  INLINE void unlock()
-  {
-    _l = UNLOCKED;
-  }
+  INLINE void unlock() { _l = UNLOCKED; }
 
-  /** 
-     * Try to take lock.  Do not block.
-     * 
-     * 
-     * @return 
-     */
-  INLINE bool try_lock()
-  {
+  /**
+   * Try to take lock.  Do not block.
+   *
+   *
+   * @return
+   */
+  INLINE bool try_lock() {
     return __sync_bool_compare_and_swap(&_l, UNLOCKED, LOCKED);
   }
 
 } __attribute__((packed));
 
-
-/** 
-   * Reentrant locks can be locked multiple times by the same thread.  This
-   * is useful when using lock guards on nest/recursive code.
-   * 
-   */
+/**
+ * Reentrant locks can be locked multiple times by the same thread.  This
+ * is useful when using lock guards on nest/recursive code.
+ *
+ */
 template <class T>
-class Reentrant_lock_tmpl : public T
-{
+class Reentrant_lock_tmpl : public T {
  private:
   /* owner field can only be written by the lock holder,
        but can be ready by many
     */
-  pthread_t         _owner __attribute__((aligned(sizeof(pthread_t))));
+  pthread_t _owner __attribute__((aligned(sizeof(pthread_t))));
   volatile unsigned _ref_count;
 
  public:
-  Reentrant_lock_tmpl() : _ref_count(0)
-  {
-  }
+  Reentrant_lock_tmpl() : _ref_count(0) {}
 
-  INLINE void lock()
-  {
-    if (_owner == pthread_self()) { /* made atomic read because we aligned above */
+  INLINE void lock() {
+    if (_owner ==
+        pthread_self()) { /* made atomic read because we aligned above */
       _ref_count++;
       return;
     }
@@ -226,8 +209,7 @@ class Reentrant_lock_tmpl : public T
     assert(_ref_count == 0);
   }
 
-  INLINE status_t unlock()
-  {
+  INLINE status_t unlock() {
     /* call on unlock without owner owning the lock! */
     if (_owner != pthread_self()) return E_INVAL;
 
@@ -240,37 +222,29 @@ class Reentrant_lock_tmpl : public T
   }
 };
 
-/** 
-   * Lock guard class for auto lock management
-   * 
-   * @param lock Lock instance
-   * 
-   */
+/**
+ * Lock guard class for auto lock management
+ *
+ * @param lock Lock instance
+ *
+ */
 template <class T>
-class Lock_guard_tmpl : public T
-{
+class Lock_guard_tmpl : public T {
  private:
   T &_lock;
 
  public:
-  Lock_guard_tmpl(T &lock) : _lock(lock)
-  {
-    _lock.lock();
-  }
-  ~Lock_guard_tmpl()
-  {
-    _lock.unlock();
-  }
+  Lock_guard_tmpl(T &lock) : _lock(lock) { _lock.lock(); }
+  ~Lock_guard_tmpl() { _lock.unlock(); }
 };
 
-
 /*
-   * Typedef helpers and defaults
-   */
-typedef Reentrant_lock_tmpl<Spin_lock>       Reentrant_spin_lock;
+ * Typedef helpers and defaults
+ */
+typedef Reentrant_lock_tmpl<Spin_lock> Reentrant_spin_lock;
 typedef Lock_guard_tmpl<Reentrant_spin_lock> Reentrant_lock_guard;
-typedef Lock_guard_tmpl<Spin_lock>           Spin_lock_guard;
-typedef Lock_guard_tmpl<Ticket_lock>         Ticket_lock_guard;
-}
+typedef Lock_guard_tmpl<Spin_lock> Spin_lock_guard;
+typedef Lock_guard_tmpl<Ticket_lock> Ticket_lock_guard;
+}  // namespace Common
 
 #endif  // __COMMON_SPIN_LOCKS_H__

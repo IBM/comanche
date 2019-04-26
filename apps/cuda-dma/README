@@ -1,3 +1,11 @@
+gdrcpy
+-------------
+
+Gdrcopy is built during make bootstrap, but to run the application you need to install the corresponding kernel module(one time):
+```
+Comancheroot/src/deps/gdrcopy/insmod.sh
+```
+
 # Block device performance test using optionally shared polling thread.  Client threads
 # only access a single device.
 #

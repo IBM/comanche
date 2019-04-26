@@ -14,10 +14,9 @@
    limitations under the License.
 */
 
-
-/* 
- * Authors: 
- * 
+/*
+ * Authors:
+ *
  * Daniel G. Waddington (daniel.waddington@ibm.com)
  *
  */
@@ -26,120 +25,100 @@
 #define __COMANCHE_TYPES_H__
 
 #include <common/exceptions.h>
-#include <rapidjson/document.h>
-#include <rapidjson/writer.h>
-#include <rapidjson/stringbuffer.h>
 #include <infiniband/verbs.h>
+#include <rapidjson/document.h>
+#include <rapidjson/stringbuffer.h>
+#include <rapidjson/writer.h>
+#include <rte_errno.h>
 #include <rte_memory.h>
 #include <rte_mempool.h>
 #include <rte_ring.h>
-#include <rte_errno.h>
 
 #include "config.h"
 
 typedef rapidjson::Document json_document_t;
-typedef struct ibv_mr *     channel_memory_t;
-typedef uint64_t            io_memory_t;
+typedef struct ibv_mr* channel_memory_t;
+typedef uint64_t io_memory_t;
 
-typedef void (*io_callback_t)(uint64_t,void*,void*);
+typedef void (*io_callback_t)(uint64_t, void*, void*);
 
 enum {
-  COMANCHE_OP_READ = 0x2, // do not modify (see Nvme_queue.h)
+  COMANCHE_OP_READ = 0x2,  // do not modify (see Nvme_queue.h)
   COMANCHE_OP_WRITE = 0x4,
   COMANCHE_OP_CHECK_COMPLETION = 0x8,
 };
 
 enum {
-  IO_STATUS_UNKNOWN  = 0,
+  IO_STATUS_UNKNOWN = 0,
   IO_STATUS_COMPLETE = 1,
-  IO_STATUS_PENDING  = 2,
-  IO_STATUS_FAILED   = 3,
+  IO_STATUS_PENDING = 2,
+  IO_STATUS_FAILED = 3,
 };
 
- 
 class Nvme_queue;
 
 class IO_descriptor;
 
-class IO_descriptor
-{
-public:
+class IO_descriptor {
+ public:
+  IO_descriptor() : prev(nullptr), next(nullptr) {}
 
-  IO_descriptor() : prev(nullptr), next(nullptr)
-  {
-  }
-  
-  IO_descriptor * prev;      // 8
-  IO_descriptor * next;      // 16
-  void * buffer;             // 24
-  union {                    // 32
-    uint64_t          lba;
+  IO_descriptor* prev;  // 8
+  IO_descriptor* next;  // 16
+  void* buffer;         // 24
+  union {               // 32
+    uint64_t lba;
     volatile uint64_t status;
   };
-  uint64_t       lba_count;  // 40
-  io_callback_t  cb;         // 48
-  void *         arg0;       // 56
-  void *         arg1;       // 64
-  uint64_t       tag;        // 72
-  Nvme_queue *   queue;      // 80
-  int            op;         // 88
+  uint64_t lba_count;  // 40
+  io_callback_t cb;    // 48
+  void* arg0;          // 56
+  void* arg1;          // 64
+  uint64_t tag;        // 72
+  Nvme_queue* queue;   // 80
+  int op;              // 88
 #ifdef CONFIG_QUEUE_STATS
-  cpu_time_t     time_stamp; // 92
-  byte           padding[128-92];
+  cpu_time_t time_stamp;  // 92
+  byte padding[128 - 92];
 #else
-  byte           padding[128-84];
+  byte padding[128 - 84];
 #endif
-} __attribute__((packed,aligned(64)));
+} __attribute__((packed, aligned(64)));
 
-static_assert(sizeof(IO_descriptor) == 128,"not cacheline aligned");
+static_assert(sizeof(IO_descriptor) == 128, "not cacheline aligned");
 
 namespace DPDK
 {
-
 template <typename T>
-class Memory_pool
-{
-public:
-  Memory_pool(const char * name, size_t n_elements, int flags=0) {
+class Memory_pool {
+ public:
+  Memory_pool(const char* name, size_t n_elements, int flags = 0) {
+    if (flags == 0) flags = MEMPOOL_F_SP_PUT | MEMPOOL_F_SC_GET;
 
-    if(flags == 0)
-      flags = MEMPOOL_F_SP_PUT | MEMPOOL_F_SC_GET;
-    
-    _mem_pool = rte_mempool_create(name,
-                                   n_elements,
-                                   sizeof(T),
-                                   0,
-                                   0,
-                                   NULL, NULL, NULL, NULL,
-                                   SOCKET_ID_ANY,
-                                   flags);
-    if(!_mem_pool)
+    _mem_pool = rte_mempool_create(name, n_elements, sizeof(T), 0, 0, NULL,
+                                   NULL, NULL, NULL, SOCKET_ID_ANY, flags);
+    if (!_mem_pool)
       throw Constructor_exception("Memory_pool: rte_mempool_create failed");
   }
 
-  ~Memory_pool() {
-    rte_mempool_free(_mem_pool);
-  }
+  ~Memory_pool() { rte_mempool_free(_mem_pool); }
 
   inline T* alloc() {
     T* p = nullptr;
-    int rc = rte_mempool_get(_mem_pool,(void**)&p);
-    if(rc) {
+    int rc = rte_mempool_get(_mem_pool, (void**) &p);
+    if (rc) {
       PWRN("Memory_pool::alloc underflow");
       return nullptr;
     }
     return p;
   }
 
-  inline void free(T* element) {
-    rte_mempool_put(_mem_pool, element);
-  }
-  
-private:
-  struct rte_mempool * _mem_pool;
+  inline void free(T* element) { rte_mempool_put(_mem_pool, element); }
+
+ private:
+  struct rte_mempool* _mem_pool;
 };
 
-
-}
+}  // namespace DPDK
 
 #endif

@@ -26,7 +26,6 @@
    in files containing the exception.
 */
 
-
 /*
   Author(s):
   Copyright (C) 2016, Daniel G. Waddington <daniel.waddington@ibm.com>
@@ -81,45 +80,55 @@
 #undef TRACE
 
 #ifdef CONFIG_DEBUG
-#define PDBG(f, ...) fprintf(stderr, "%s[DBG]:%s: " f "%s\n", ESC_DBG, __FUNCTION__, ##__VA_ARGS__, ESC_END);
-#define PLOG(f, ...) fprintf(stderr, "%s[LOG]:" f "%s\n", ESC_LOG, ##__VA_ARGS__, ESC_END)
+#define PDBG(f, ...)                                              \
+  fprintf(stderr, "%s[DBG]:%s: " f "%s\n", ESC_DBG, __FUNCTION__, \
+          ##__VA_ARGS__, ESC_END);
+#define PLOG(f, ...) \
+  fprintf(stderr, "%s[LOG]:" f "%s\n", ESC_LOG, ##__VA_ARGS__, ESC_END)
 
 #else  //--------------
 #define PDBG(f, ...) \
-  {                   \
-  }
+  do {} while (0)
 #define PLOG(f, ...) \
-  {                   \
-  }
+  do {} while (0)
 #endif
 
-#define PTEST(f, ...) fprintf(stdout, "[TEST]: %s:" f "\n", __FUNCTION__, ##__VA_ARGS__)
+#define PTEST(f, ...) \
+  fprintf(stdout, "[TEST]: %s:" f "\n", __FUNCTION__, ##__VA_ARGS__)
 
-#define PINF(f, ...) fprintf(stderr, "%s" f "%s\n", ESC_INF, ##__VA_ARGS__, ESC_END)
-#define PWRN(f, ...) fprintf(stderr, "%s[WRN]:" f "%s\n", ESC_WRN, ##__VA_ARGS__, ESC_END)
-#define PERR(f, ...) fprintf(stderr, "%sERROR %s:" f "%s\n", ESC_ERR, __FUNCTION__, ##__VA_ARGS__, ESC_END);
-#define PNOTICE(f, ...) \
-  fprintf(stderr, "%sNOTICE %s:" f "%s\n", BRIGHT_RED, __FUNCTION__, ##__VA_ARGS__, ESC_END);
+#define PINF(f, ...) \
+  fprintf(stderr, "%s" f "%s\n", ESC_INF, ##__VA_ARGS__, ESC_END)
+#define PWRN(f, ...) \
+  fprintf(stderr, "%s[WRN]:" f "%s\n", ESC_WRN, ##__VA_ARGS__, ESC_END)
+#define PERR(f, ...)                                             \
+  fprintf(stderr, "%sERROR %s:" f "%s\n", ESC_ERR, __FUNCTION__, \
+          ##__VA_ARGS__, ESC_END);
+#define PNOTICE(f, ...)                                              \
+  fprintf(stderr, "%sNOTICE %s:" f "%s\n", BRIGHT_RED, __FUNCTION__, \
+          ##__VA_ARGS__, ESC_END);
 #define PMAJOR(f, ...) \
-  fprintf(stderr, "%s[+] %s:" f "%s\n", NORMAL_BLUE, __FUNCTION__, ##__VA_ARGS__, ESC_END);
-#define POK(f, ...) \
-  fprintf(stderr, "%sOK %s:" f "%s\n", NORMAL_MAGENTA, __FUNCTION__, ##__VA_ARGS__, ESC_END);
+  fprintf(stdout, "%s[+] " f "%s\n", NORMAL_BLUE, ##__VA_ARGS__, ESC_END);
+#define POK(f, ...)                                                  \
+  fprintf(stderr, "%sOK %s:" f "%s\n", NORMAL_MAGENTA, __FUNCTION__, \
+          ##__VA_ARGS__, ESC_END);
 
-#define PEXCEP(f, ...) fprintf(stderr, "%sException:" f "%s\n", ESC_ERR, ##__VA_ARGS__, ESC_END)
+#define PEXCEP(f, ...) \
+  fprintf(stderr, "%sException:" f "%s\n", ESC_ERR, ##__VA_ARGS__, ESC_END)
 
 #ifdef CONFIG_DEBUG
-#define PASSERT(cond, f, ...)                                                                    \
-  if (!cond) {                                                                                    \
-    fprintf(stderr, "%s[KIVATI]: ASSERT FAIL %s:" f "\n%s", ESC_ERR, __FUNCTION__, ##__VA_ARGS__, ESC_END); \
-    assert(cond);                                                                                 \
-  }
+#define PASSERT(cond, f, ...)                                        \
+  do { if (!cond) {                                                  \
+    fprintf(stderr, "%s[COMANCHE]: ASSERT FAIL %s:" f "\n%s", ESC_ERR, \
+            __FUNCTION__, ##__VA_ARGS__, ESC_END);                   \
+    assert(cond);                                                    \
+  } } while (0)
 #else
 #define PASSERT(cond, f, ...) \
-  {                            \
-  }
+  do {} while (0)
 #endif
 
 #define TRACE() fprintf(stderr, "[TRACE]: %s\n", __FUNCTION__)
-#define THREAD_ROLE(ROLE) PLOG("thread (%p) role:%s", (void*)pthread_self(), ROLE)
+#define THREAD_ROLE(ROLE) \
+  PLOG("thread (%p) role:%s", (void *) pthread_self(), ROLE)
 
 #endif  // __COMMON_LOGGING_H__

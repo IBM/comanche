@@ -15,3 +15,8 @@ Doxyfile*
 cscope*
 tags
 doc/html*
+/src/ppl/pcj/pcj-helloworld/target/
+/src/ppl/pcj/pcj-helloworld-mvn/target/
+/src/ppl/pcj/pcj-helloworld/nbproject/private/
+/src/ppl/pcj/pcj-helloworld/dist/
+*.swp

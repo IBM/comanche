@@ -26,7 +26,6 @@
    in files containing the exception.
 */
 
-
 #ifndef __KIVATI_RAND_H__
 #define __KIVATI_RAND_H__
 
@@ -37,7 +36,8 @@
 #define LM 0x7FFFFFFFULL         /* Least significant 31 bits */
 
 void init_genrand64(unsigned long long seed);
-void init_by_array64(unsigned long long init_key[], unsigned long long key_length);
+void init_by_array64(unsigned long long init_key[],
+                     unsigned long long key_length);
 unsigned long long genrand64_int64();
 
 // Example code

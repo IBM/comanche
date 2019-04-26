@@ -1,0 +1,10 @@
+project(kvfs-simple)
+pkg_check_modules(FUSE REQUIRED fuse)
+if(FUSE_FOUND)
+  include_directories(${FUSE_INCLUDE_DIRS})
+  add_definitions(${FUSE_CFLAGS}) # FILE_OFFSET_BITS
+  add_executable(${PROJECT_NAME} src/kvfs_simple.cpp)
+  target_link_libraries(${PROJECT_NAME} ${ASAN_LIB} comanche-core common numa dl ${FUSE_LIBRARIES} )
+else(FUSE_FOUND)
+  message("FUSE not found!")
+endif(FUSE_FOUND)

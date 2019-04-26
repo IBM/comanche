@@ -1,4 +1,17 @@
-/* note: we do not include component source, only the API definition */
+/*
+   Copyright [2017-2019] [IBM Corporation]
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
+
+
 #include <gtest/gtest.h>
 #include <common/utils.h>
 #include <api/components.h>
@@ -53,10 +66,10 @@ TEST_F(KVStore_test, OpenPool)
 {
   ASSERT_TRUE(_kvstore);
   try {
-    pool = _kvstore->create_pool("./", "test1.pool", MB(32));
+    pool = _kvstore->create_pool("/tmp/test1.pool", MB(32));
   }
   catch(...) {
-    pool = _kvstore->open_pool("./", "test1.pool");
+    pool = _kvstore->open_pool("/tmp/test1.pool");
   }
   ASSERT_TRUE(pool != 0);
 }
@@ -99,13 +112,18 @@ TEST_F(KVStore_test, ClosePool)
 
 TEST_F(KVStore_test, ReopenPool)
 {
-  pool = _kvstore->open_pool("./", "test1.pool");
+  pool = _kvstore->open_pool("/tmp/test1.pool");
   ASSERT_TRUE(pool != 0);
+}
+
+TEST_F(KVStore_test, ClosePoolAgain)
+{
+  _kvstore->close_pool(pool);
 }
 
 TEST_F(KVStore_test, DeletePool)
 {
-  _kvstore->delete_pool(pool);
+  _kvstore->delete_pool("/tmp/test1.pool");
 }
 
 

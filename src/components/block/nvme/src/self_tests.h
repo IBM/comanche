@@ -14,7 +14,6 @@
    limitations under the License.
 */
 
-
 /* Copyright (C) 2016, IBM Research
  *
  * Authors:
@@ -45,8 +44,9 @@
  * @param iterations Number of iterations to perform
  * @param write_flag True for write, false for read.
  */
-void test_random_block(struct spdk_nvme_ns *ns, struct spdk_nvme_qpair *qpair, void *buffer, size_t lba_max,
-                       size_t iterations, bool write_flag);
+void test_random_block(struct spdk_nvme_ns *ns, struct spdk_nvme_qpair *qpair,
+                       void *buffer, size_t lba_max, size_t iterations,
+                       bool write_flag);
 
 /**
  * Perform sequential IO operations from block 0 to lba_max
@@ -59,8 +59,10 @@ void test_random_block(struct spdk_nvme_ns *ns, struct spdk_nvme_qpair *qpair, v
  * @param iterations Number of iterations to perform
  * @param write_flag True for write, false for read
  */
-void test_sequential_block(struct spdk_nvme_ns *ns, struct spdk_nvme_qpair *qpair, void *buffer, size_t num_blocks,
-                           size_t lba_max, size_t iterations, bool write_flag);
+void test_sequential_block(struct spdk_nvme_ns *ns,
+                           struct spdk_nvme_qpair *qpair, void *buffer,
+                           size_t num_blocks, size_t lba_max, size_t iterations,
+                           bool write_flag);
 
 /**
  * Perform IO operations which increment offsets (stride) N times.
@@ -74,8 +76,9 @@ void test_sequential_block(struct spdk_nvme_ns *ns, struct spdk_nvme_qpair *qpai
  * @param iterations Number of iterations
  * @param write_flag True for write, false for read
  */
-void test_skip_block(struct spdk_nvme_ns *ns, struct spdk_nvme_qpair *qpair, void *buffer, size_t lba_max,
-                     size_t stride, size_t num_strides, size_t iterations, bool write_flag);
+void test_skip_block(struct spdk_nvme_ns *ns, struct spdk_nvme_qpair *qpair,
+                     void *buffer, size_t lba_max, size_t stride,
+                     size_t num_strides, size_t iterations, bool write_flag);
 
 /**
  * Perform IO operations on randomly placed "strips" (i.e. contiguous blocks)
@@ -89,8 +92,11 @@ void test_skip_block(struct spdk_nvme_ns *ns, struct spdk_nvme_qpair *qpair, voi
  * @param iterations Number of iterations to perform
  * @param write_flag True for write, false for read
  */
-void test_rand_sequential_block(struct spdk_nvme_ns *ns, struct spdk_nvme_qpair *qpair, void *buffer, size_t lba_min,
-                                size_t lba_max, size_t block_count, size_t iterations, bool write_flag);
+void test_rand_sequential_block(struct spdk_nvme_ns *ns,
+                                struct spdk_nvme_qpair *qpair, void *buffer,
+                                size_t lba_min, size_t lba_max,
+                                size_t block_count, size_t iterations,
+                                bool write_flag);
 
 /**
  * Mixed r/w paging style
@@ -104,15 +110,15 @@ void test_rand_sequential_block(struct spdk_nvme_ns *ns, struct spdk_nvme_qpair 
  * @param iterations
  */
 void test_sequential_block_mixed(struct spdk_nvme_ns *ns,
-                                 struct spdk_nvme_qpair *qpair, void *buffer, void *buffer2,
-                                 size_t block_count, size_t lba_max, size_t iterations);
+                                 struct spdk_nvme_qpair *qpair, void *buffer,
+                                 void *buffer2, size_t block_count,
+                                 size_t lba_max, size_t iterations);
 
-/** 
+/**
  * Metadata support (extended LBA)
- * 
- * @param ns 
- * @param qpair 
+ *
+ * @param ns
+ * @param qpair
  */
-void test_metadata(struct spdk_nvme_ns *ns,
-                   struct spdk_nvme_qpair *qpair);
+void test_metadata(struct spdk_nvme_ns *ns, struct spdk_nvme_qpair *qpair);
 #endif

@@ -1,12 +1,9 @@
 /*
-   Copyright [2018] [IBM Corporation]
-
+   Copyright [2017-2019] [IBM Corporation]
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
-
        http://www.apache.org/licenses/LICENSE-2.0
-
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -14,18 +11,26 @@
    limitations under the License.
 */
 
-#ifndef _FABRIC_OP_COMPLETER_H_
-#define _FABRIC_OP_COMPLETER_H_
 
-#include <api/fabric_itf.h> /* Component::IFabric_op_completer */
+#ifndef _FABRIC_OP_CONTROL_H_
+#define _FABRIC_OP_CONTROL_H_
+
+#include <api/fabric_itf.h> /* Component::IFabric_op_completer, ::status_t */
 #include "fabric_memory_control.h"
 #include "event_consumer.h"
 
+#include "fabric_cq.h"
 #include "fabric_ptr.h" /* fid_unique_ptr */
 #include "fabric_types.h" /* addr_ep_t */
 #include "fd_pair.h"
 
-#include <rdma/fi_domain.h> /* fi_cq_attr */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+#pragma GCC diagnostic ignored "-Wshadow"
+#include <rdma/fi_domain.h> /* fi_cq_attr, fi_cq_err_entry, fi_cq_data_entry */
+#pragma GCC diagnostic pop
 
 #include <unistd.h> /* ssize_t */
 
@@ -33,8 +38,8 @@
 #include <cstdint> /* uint{64,64}_t */
 #include <memory> /* shared_ptr, unique_ptr */
 #include <mutex>
+#include <queue>
 #include <set>
-#include <vector>
 
 struct fi_info;
 struct fi_cq_err_entry;
@@ -46,6 +51,11 @@ class event_registration;
 class Fabric;
 class Fabric_comm_grouped;
 class Fd_control;
+
+#pragma GCC diagnostic push
+#if defined __GNUC__ && 6 < __GNUC__
+#pragma GCC diagnostic ignored "-Wnoexcept-type"
+#endif
 
 class Fabric_op_control
   : public Component::IFabric_op_completer
@@ -62,7 +72,9 @@ class Fabric_op_control
    * Not sure why; perhaps it was for accounting.
    */
   ::fi_cq_attr _cq_attr;
-  fid_unique_ptr<::fid_cq> _cq;
+  Fabric_cq _rxcq;
+  Fabric_cq _txcq;
+
   std::shared_ptr<::fi_info> _ep_info;
   fabric_types::addr_ep_t _peer_addr;
   std::shared_ptr<::fid_ep> _ep;
@@ -82,10 +94,19 @@ class Fabric_op_control
   /* END IFabric_op_completer */
 
   /* BEGIN event_consumer */
+  /*
+   * @throw std::system_error - writing event pipe
+   */
   void cb(std::uint32_t event, ::fi_eq_cm_entry &entry) noexcept override;
+  /*
+   * @throw std::system_error - writing event pipe
+   */
   void err(::fi_eq_err_entry &entry) noexcept override;
   /* END event_consumer */
 
+  /*
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_endpoint fail (make_fid_aep)
+   */
   std::shared_ptr<::fid_ep> make_fid_aep(::fi_info &info, void *context) const;
 
   fid_mr *make_fid_mr_reg_ptr(
@@ -96,48 +117,169 @@ class Fabric_op_control
     , std::uint64_t flags
   ) const;
 
+  /*
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_cq_open fail (make_fid_cq)
+   */
   fid_unique_ptr<::fid_cq> make_fid_cq(::fi_cq_attr &attr, void *context) const;
 
 public:
-
   const ::fi_info &ep_info() const { return *_ep_info; }
+  Fabric_cq &rxcq() { return _rxcq; }
+  Fabric_cq &txcq() { return _txcq; }
   ::fid_ep &ep() { return *_ep; }
+  /*
+   * @throw std::system_error : pselect fail
+   * @throw fabric_bad_alloc : std::bad_alloc - libfabric out of memory (creating a new server)
+   * @throw std::system_error - writing event pipe (normal callback)
+   * @throw std::system_error - writing event pipe (readerr_eq)
+   */
   void ensure_event() const;
+  /**
+   * @throw fabric_bad_alloc : std::bad_alloc - libfabric out of memory (creating a new server)
+   * @throw std::system_error - writing event pipe (normal callback)
+   * @throw std::system_error - writing event pipe (readerr_eq)
+   */
   virtual void solicit_event() const = 0;
+  /*
+   * @throw std::system_error : pselect fail
+   */
   virtual void wait_event() const = 0;
 
-  std::size_t poll_completions(std::function<void(void *context, status_t)> completion_callback) override;
-  std::size_t stalled_completion_count() override { return 0U; }
+  /*
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
+   * @throw std::logic_error - called on closed connection
+   */
+  std::size_t poll_completions(const Component::IFabric_op_completer::complete_old &completion_callback) override;
+  /*
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
+   * @throw std::logic_error - called on closed connection
+   */
+  std::size_t poll_completions(const Component::IFabric_op_completer::complete_definite &completion_callback) override;
+  /*
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
+   * @throw std::logic_error - called on closed connection
+   */
+  std::size_t poll_completions_tentative(const Component::IFabric_op_completer::complete_tentative &completion_callback) override;
+  /*
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
+   * @throw std::logic_error - called on closed connection
+   */
+  std::size_t poll_completions(const Component::IFabric_op_completer::complete_param_definite &completion_callback, void *callback_param) override;
+  /*
+   * @throw fabric_runtime_error : std::runtime_error - cq_read unhandled error
+   * @throw std::logic_error - called on closed connection
+   */
+  std::size_t poll_completions_tentative(const Component::IFabric_op_completer::complete_param_tentative &completion_callback, void *callback_param) override;
+  std::size_t stalled_completion_count() override
+  {
+    return _rxcq.stalled_completion_count() + _txcq.stalled_completion_count();
+  }
+  /*
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_control fail
+   * @throw std::system_error : pselect fail
+   */
   void wait_for_next_completion(unsigned polls_limit) override;
+  /*
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_control fail
+   * @throw std::system_error : pselect fail
+   */
   void wait_for_next_completion(std::chrono::milliseconds timeout) override;
   void unblock_completions() override;
 
   std::string get_peer_addr() override;
   std::string get_local_addr() override;
 
-  void  post_send(
-    const std::vector<iovec>& buffers
+  /*
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_sendv fail
+   */
+  void post_send(
+    const ::iovec *first
+    , const ::iovec *last
+    , void **desc
     , void *context
   );
-  void  post_recv(
-    const std::vector<iovec>& buffers
+
+  void post_send(
+    const ::iovec *first
+    , const ::iovec *last
     , void *context
   );
+
+  /*
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_recvv fail
+   */
+  void post_recv(
+    const ::iovec *first
+    , const ::iovec *last
+    , void **desc
+    , void *context
+  );
+
+  void post_recv(
+    const ::iovec *first
+    , const ::iovec *last
+    , void *context
+  );
+
+  /*
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_readv fail
+   */
   void post_read(
-    const std::vector<iovec>& buffers
+    const ::iovec *first
+    , const ::iovec *last
+    , void **desc
     , std::uint64_t remote_addr
     , std::uint64_t key
     , void *context
   );
+
+  void post_read(
+    const ::iovec *first
+    , const ::iovec *last
+    , std::uint64_t remote_addr
+    , std::uint64_t key
+    , void *context
+  );
+
+  /*
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_writev fail
+   */
   void post_write(
-    const std::vector<iovec>& buffers
+    const ::iovec *first
+    , const ::iovec *last
+    , void **desc
     , std::uint64_t remote_addr
     , std::uint64_t key
     , void *context
   );
-  void inject_send(const std::vector<iovec>& buffers);
+
+  void post_write(
+    const ::iovec *first
+    , const ::iovec *last
+    , std::uint64_t remote_addr
+    , std::uint64_t key
+    , void *context
+  );
+
+  /*
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_inject fail
+   */
+  void inject_send(const void *buf, std::size_t len);
 
 public:
+  /*
+   * @throw fabric_bad_alloc : std::bad_alloc - out of memory
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_domain fail
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_ep_bind fail
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_enable fail
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_ep_bind fail (event registration)
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_endpoint fail (make_fid_aep)
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_wait_open fail
+   * @throw fabric_runtime_error : std::runtime_error : ::fi_cq_open fail (make_fid_cq)
+   * @throw bad_dest_addr_alloc
+   * @throw std::system_error (receiving fabric server name)
+   * @throw std::system_error - creating event pipe fd pair
+   */
   explicit Fabric_op_control(
     Fabric &fabric
     , event_producer &ev
@@ -150,16 +292,17 @@ public:
 
   fabric_types::addr_ep_t get_name() const;
 
-  void poll_completions_for_comm(Fabric_comm_grouped *, std::function<void(void *context, status_t)> completion_callback);
-
-  void *get_cq_comp_err() const;
-  std::size_t process_cq_comp_err(std::function<void(void *connection, status_t st)> completion_callback);
-
-  ssize_t cq_sread(void *buf, std::size_t count, const void *cond, int timeout) noexcept;
-  ssize_t cq_readerr(::fi_cq_err_entry *buf, std::uint64_t flags) const noexcept;
-  void queue_completion(Fabric_comm_grouped *comm, void *context, status_t status);
+  /*
+   * @throw std::logic_error : unexpected event
+   * @throw std::system_error : read error on event pipe
+   */
   void expect_event(std::uint32_t) const;
   bool is_shut_down() const { return _shut_down; }
+
+  std::size_t max_message_size() const noexcept override;
+  std::size_t max_inject_size() const noexcept override;
 };
+
+#pragma GCC diagnostic pop
 
 #endif
