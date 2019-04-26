@@ -230,7 +230,7 @@ status_t Dawn_client::get_attribute(const IKVStore::pool_t pool,
                                     std::vector<uint64_t>& out_attr,
                                     const std::string* key)
 {
-  return E_NOT_IMPL;
+  return _connection->get_attribute(pool, attr, out_attr, key);
 }
 
 

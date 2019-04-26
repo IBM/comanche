@@ -349,7 +349,7 @@ status_t Connection_handler::put_direct(const pool_t                         poo
                                 flags);
   }
 
-  if (option_DEBUG) {
+  if (option_DEBUG ||1) {
     PLOG("put_direct: key=(%.*s) key_len=%lu value=(%.20s...) value_len=%lu",
          (int) key_len, (char*) key.c_str(), key_len, (char*) value, value_len);
 
@@ -659,6 +659,47 @@ size_t Connection_handler::count(const pool_t pool)
   free_buffer(iob);
   return val;
 }
+
+status_t Connection_handler::get_attribute(const IKVStore::pool_t pool,
+                                           const IKVStore::Attribute attr,
+                                           std::vector<uint64_t>& out_attr,
+                                           const std::string* key)
+{
+  if((attr == IKVStore::Attribute::VALUE_LEN) && key) {}
+  else return E_INVALID_ARG;
+
+  API_LOCK();
+  
+  const auto iob = allocate();
+  assert(iob);
+  const auto msg = new (iob->base()) Dawn::Protocol::Message_INFO_request(auth_id());
+  msg->pool_id = pool;
+
+  if(attr == IKVStore::Attribute::VALUE_LEN) {
+    msg->type = Dawn::Protocol::INFO_TYPE_VALUE_LEN;
+    msg->set_key(iob->length(), *key);
+    iob->set_length(msg->message_size());
+  }
+  else throw Logic_exception("unexpected attr");
+
+  sync_inject_send(iob);
+
+  sync_recv(iob);
+
+  auto response_msg = new (iob->base()) Dawn::Protocol::Message_INFO_response();
+  if (response_msg->type_id != Dawn::Protocol::MSG_TYPE_INFO_RESPONSE) {
+    PWRN("expected INFO_RESPONSE message - got %x", response_msg->type_id);
+    free_buffer(iob);
+    return 0;
+  }
+
+  out_attr.clear();
+  out_attr.push_back(response_msg->value);
+  
+  free_buffer(iob);
+  return S_OK;
+}
+
 
 
 int Connection_handler::tick()

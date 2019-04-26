@@ -606,25 +606,45 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
 void Shard::process_info_request(Connection_handler* handler,
                                  Protocol::Message_INFO_request* msg)
 {
+  const auto iob = handler->allocate();
+  assert(iob);
+
+  if(option_DEBUG > 1)
+    PLOG("Shard: INFO request type:%u", msg->type);
+
+
+  Protocol::Message_INFO_response* response = new (iob->base())
+    Protocol::Message_INFO_response(handler->auth_id());
+    
   if (msg->type == Protocol::INFO_TYPE_COUNT) {
 
-    if(option_DEBUG >=0)
-      PLOG("Shard: INFO request");
-
-    const auto iob = handler->allocate();
-    assert(iob);
-
-    Protocol::Message_INFO_response* response = new (iob->base())
-      Protocol::Message_INFO_response(handler->auth_id());
+    response->value = _i_kvstore->count(msg->pool_id);    
+  }
+  else if (msg->type == Protocol::INFO_TYPE_VALUE_LEN) {
+    std::vector<uint64_t> v;
+    std::string key = msg->key();
+    auto hr = _i_kvstore->get_attribute(msg->pool_id,
+                                        Component::IKVStore::Attribute::VALUE_LEN,
+                                        v,
+                                        &key);
+    response->status = hr;
     
-    response->value = _i_kvstore->count(msg->pool_id);
-    
-    iob->set_length(response->base_message_size());
-    handler->post_send_buffer(iob);  
+    if(hr == S_OK && v.size() == 1) {
+      response->value = v[0];
+    }
+    else {
+      PWRN("_i_kvstore->get_attribute failed");
+      response->value = 0;
+    }
+    if(option_DEBUG > 1)
+      PLOG("Shard: INFO reqeust INFO_TYPE_VALUE_LEN rc=%u val=%lu", hr, response->value);
   }
   else {
     throw Protocol_exception("info request type not implemented");
   }
+
+  iob->set_length(response->base_message_size());
+  handler->post_send_buffer(iob);  
   return;
 }
 
