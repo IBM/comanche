@@ -12,14 +12,18 @@
 #   TBB_LIBRARIES 
 
 find_path(TBB_INCLUDE_DIR
-  PATHS ${CMAKE_INSTALL_PREFIX}/tbb/include
+  PATHS ${CMAKE_INSTALL_PREFIX}/include
   NAMES tbb/tbb.h
 )
 
 # installed libraries
 find_library(LIB_TBB
-  PATHS ${CMAKE_INSTALL_PREFIX}/tbb/lib/
+  PATHS ${CMAKE_INSTALL_PREFIX}/lib/
   NAMES tbb)
+
+find_library(LIB_TBB_MALLOC
+  PATHS ${CMAKE_INSTALL_PREFIX}/lib/
+  NAMES tbbmalloc)
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(TBB

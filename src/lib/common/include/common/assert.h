@@ -26,7 +26,6 @@
    in files containing the exception.
 */
 
-
 /*
   Authors:
   Copyright (C) 2016, Daniel G. Waddington <daniel.waddington@ibm.com>
@@ -37,14 +36,14 @@
 #ifndef __COMMON_ASSERT_H__
 #define __COMMON_ASSERT_H__
 
-#include "logging.h"
 #include <stdio.h>
+#include "logging.h"
 
 #if defined(__cplusplus)
 extern "C"
 #endif
-  void
-  panic(const char* format, ...) __attribute__((format(printf, 1, 2)));
+    void
+    panic(const char *format, ...) __attribute__((format(printf, 1, 2)));
 
 #ifdef CONFIG_DEBUG
 #if defined(__i386__) || defined(__x86_64__)
@@ -67,7 +66,8 @@ extern "C"
 #endif
 
 #ifdef CONFIG_DEBUG
-#define assert_aligned(X, ALIGNMENT) assert(!(((unsigned long)X) & (ALIGNMENT - 1UL)))
+#define assert_aligned(X, ALIGNMENT) \
+  assert(!(((unsigned long) X) & (ALIGNMENT - 1UL)))
 #else
 #define assert_aligned(X, ALIGNMENT)
 #endif
@@ -85,10 +85,10 @@ extern "C"
 #endif
 
 #ifdef CONFIG_DEBUG
-bool check_ptr_valid(void * ptr, size_t len);
-#define CHECK_PTR_VALID(PTR,LEN) assert(check_ptr_valid(PTR,LEN))
+bool check_ptr_valid(void *ptr, size_t len);
+#define CHECK_PTR_VALID(PTR, LEN) assert(check_ptr_valid(PTR, LEN))
 #else
-#define CHECK_PTR_VALID(PTR,LEN)
+#define CHECK_PTR_VALID(PTR, LEN)
 #endif
 
 #endif

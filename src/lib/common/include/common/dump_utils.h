@@ -26,7 +26,6 @@
    in files containing the exception.
 */
 
-
 /*
   Authors:
   Copyright (C) 2013, Daniel G. Waddington <d.waddington@samsung.com>
@@ -35,7 +34,7 @@
 #ifndef __DUMP_UTILS_H__
 #define __DUMP_UTILS_H__
 
-void hexdump(void* data, unsigned len);
-void asciidump(void* data, unsigned len);
+void hexdump(void *data, unsigned len);
+void asciidump(void *data, unsigned len);
 
 #endif

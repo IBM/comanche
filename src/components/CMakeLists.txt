@@ -11,7 +11,7 @@ add_subdirectory (store)
 add_subdirectory (metadata)
 add_subdirectory (net)
 add_subdirectory (examples)
+add_subdirectory (client)
+add_subdirectory (index)
 #add_subdirectory (cluster)
 
-install(DIRECTORY "api" DESTINATION include FILES_MATCHING PATTERN "*.h*")
-      

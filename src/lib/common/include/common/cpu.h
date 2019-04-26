@@ -26,7 +26,6 @@
    in files containing the exception.
 */
 
-
 /*
   Author(s):
   Copyright (C) 2016, Daniel G. Waddington <daniel.waddington@ibm.com>
@@ -36,6 +35,7 @@
 #ifndef __COMMON_CPU_UTILS_H__
 #define __COMMON_CPU_UTILS_H__
 
+#include <common/exceptions.h>
 #include <common/logging.h>
 #include <common/types.h>
 #include <pthread.h>
@@ -52,34 +52,29 @@
 #endif
 
 #if defined(__unix__)
-class cpu_mask_t
-{
+class cpu_mask_t {
  private:
   cpu_set_t cpu_set_;
 
  public:
-  cpu_mask_t()
-  {
-    __builtin_memset(&cpu_set_, 0, sizeof(cpu_set_t));
-  }
+  cpu_mask_t() { __builtin_memset(&cpu_set_, 0, sizeof(cpu_set_t)); }
 
-  cpu_mask_t(const cpu_mask_t& inst)
-  {
+  cpu_mask_t(const cpu_mask_t &inst) {
     __builtin_memcpy(&cpu_set_, &inst, sizeof(cpu_set_t));
   }
 
-  void add_core(int cpu)
-  {
-    CPU_SET(cpu, &cpu_set_);
+  void add_core(int cpu) { CPU_SET(cpu, &cpu_set_); }
+
+  bool check_core(int cpu) { return CPU_ISSET(cpu, &cpu_set_); }
+
+  int first_core() {
+    if (!is_something_set()) throw General_exception("nothing set");
+    int i = 0;
+    while (!check_core(i)) i++;
+    return i;
   }
 
-  bool check_core(int cpu)
-  {
-    return CPU_ISSET(cpu, &cpu_set_);
-  }
-
-  void set_mask(uint64_t mask)
-  {
+  void set_mask(uint64_t mask) {
     int current = 0;
     while (mask > 0) {
       if (mask & 0x1ULL) {
@@ -90,28 +85,15 @@ class cpu_mask_t
     }
   }
 
-  void clear()
-  {
-    CPU_ZERO(&cpu_set_);
-  }
-  
-  size_t size()
-  {
-    return sizeof(cpu_set_t);
-  }
+  void clear() { CPU_ZERO(&cpu_set_); }
 
-  bool is_something_set()
-  {
-    return (CPU_COUNT(&cpu_set_) > 0);
-  }
+  size_t size() { return sizeof(cpu_set_t); }
 
-  int count()
-  {
-    return CPU_COUNT(&cpu_set_);
-  }
-  
-  void dump()
-  {
+  bool is_something_set() { return (CPU_COUNT(&cpu_set_) > 0); }
+
+  int count() { return CPU_COUNT(&cpu_set_); }
+
+  void dump() {
     for (unsigned i = 0; i < 64; i++) {
       if (CPU_ISSET(i, &cpu_set_))
         printf("1");
@@ -121,53 +103,36 @@ class cpu_mask_t
     printf("\n");
   }
 
-  const cpu_set_t* cpu_set()
-  {
-    return &cpu_set_;
-  }
+  const cpu_set_t *cpu_set() { return &cpu_set_; }
 };
 #elif defined(__MACH__)
 
-class cpu_mask_t
-{
+class cpu_mask_t {
  private:
  public:
-  cpu_mask_t()
-  {
+  cpu_mask_t() { PWRN("thread affinity not implemented for Mac OS"); }
+
+  cpu_mask_t(const cpu_mask_t &inst) {
     PWRN("thread affinity not implemented for Mac OS");
   }
 
-  cpu_mask_t(const cpu_mask_t& inst)
-  {
+  void set_bit(int cpu) { PWRN("thread affinity not implemented for Mac OS"); }
+
+  void set_mask(uint64_t mask) {
     PWRN("thread affinity not implemented for Mac OS");
   }
 
-  void set_bit(int cpu)
-  {
-    PWRN("thread affinity not implemented for Mac OS");
-  }
-
-  void set_mask(uint64_t mask)
-  {
-    PWRN("thread affinity not implemented for Mac OS");
-  }
-
-  size_t size()
-  {
+  size_t size() {
     PWRN("thread affinity not implemented for Mac OS");
     return 0;
   }
 
-  bool is_set()
-  {
+  bool is_set() {
     PWRN("thread affinity (is_set) not implemented for Mac OS");
     return false;
   }
 
-  void dump()
-  {
-    PWRN("thread affinity not implemented for Mac OS");
-  }
+  void dump() { PWRN("thread affinity not implemented for Mac OS"); }
 };
 
 #else
@@ -175,8 +140,7 @@ class cpu_mask_t
 #endif
 
 int set_cpu_affinity_mask(cpu_mask_t& mask);
-int set_cpu_affinity(unsigned long mask);
-status_t string_to_mask(std::string def, cpu_mask_t& mask);
+status_t string_to_mask(std::string def, cpu_mask_t &mask);
 
 #endif
 

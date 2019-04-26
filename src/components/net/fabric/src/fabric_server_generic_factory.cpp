@@ -1,18 +1,16 @@
 /*
-   Copyright [2018] [IBM Corporation]
-
+   Copyright [2017-2019] [IBM Corporation]
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
-
        http://www.apache.org/licenses/LICENSE-2.0
-
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
 */
+
 
 #include "fabric_server_generic_factory.h"
 
@@ -26,7 +24,14 @@
 #include "pointer_cast.h"
 #include "system_fail.h"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#pragma GCC diagnostic ignored "-Wcast-align"
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+#pragma GCC diagnostic ignored "-Wshadow"
 #include <rdma/fi_cm.h> /* fi_listen */
+#pragma GCC diagnostic pop
 
 #include <netinet/in.h> /* sockaddr_in */
 #include <sys/select.h> /* fd_set, pselect */
@@ -41,23 +46,19 @@
 #include <string> /* to_string */
 #include <thread> /* sleep_for */
 
-Fabric_server_generic_factory::Fabric_server_generic_factory(Fabric &fabric_, event_producer &eq_, ::fi_info &info_, std::uint16_t port_)
+Fabric_server_generic_factory::Fabric_server_generic_factory(Fabric &fabric_, event_producer &eq_, ::fi_info &info_, std::uint32_t addr_, std::uint16_t port_)
   : _info(info_)
   , _fabric(fabric_)
-
-  /*
-   * "this" is context for events occuring on the passive endpoint.
-   * Not really necessary, as the expected event so far is a CONNREQ
-   * which is handled synchronously by server_control.
-   */
   , _pep(fabric_.make_fid_pep(_info, this))
   /* register as an event consumer */
   , _event_registration(eq_, *this, *_pep)
+  , _m_pending{}
   , _pending{}
   , _open{}
   , _end{}
   , _eq{eq_}
-  , _th{&Fabric_server_generic_factory::listen, this, port_, _end.fd_read(), std::ref(*_pep), get_name(&_pep->fid)}
+  , _th{&Fabric_server_generic_factory::listen, this, addr_, port_, _end.fd_read(), std::ref(*_pep)
+  }
 {
 }
 
@@ -74,7 +75,7 @@ catch ( const std::exception &e )
   std::cerr << "SERVER connection shutdown error " << e.what();
 }
 
-size_t Fabric_server_generic_factory::max_message_size() const
+size_t Fabric_server_generic_factory::max_message_size() const noexcept
 {
   return _info.ep_attr->max_msg_size;
 }
@@ -92,6 +93,7 @@ try
   case FI_CONNREQ:
     {
       auto conn = new_server(_fabric, _eq, *entry_.info);
+      std::lock_guard<std::mutex> g{_m_pending};
       _pending.push(conn);
     }
     break;
@@ -102,7 +104,6 @@ try
 catch ( const std::exception &e )
 {
   std::cerr << __func__ << " (Fabric_server_factory) " << e.what() << "\n";
-  throw;
 }
 
 void Fabric_server_generic_factory::err(::fi_eq_err_entry &) noexcept
@@ -110,7 +111,12 @@ void Fabric_server_generic_factory::err(::fi_eq_err_entry &) noexcept
   /* The passive endpoint receives an error. As it is not a connection request, ignore it. */
 }
 
-Fd_socket Fabric_server_generic_factory::make_listener(std::uint16_t port)
+/*
+ * @throw std::system_error - ::setsockopt
+ * @throw std::system_error - ::bind
+ * @throw std::system_error - ::listem
+ */
+Fd_socket Fabric_server_generic_factory::make_listener(std::uint32_t ip_addr, std::uint16_t port)
 {
   constexpr int domain = AF_INET;
   Fd_socket fd(::socket(domain, SOCK_STREAM, 0));
@@ -131,7 +137,7 @@ Fd_socket Fabric_server_generic_factory::make_listener(std::uint16_t port)
     sockaddr_in addr{};
     addr.sin_family = domain;
     addr.sin_port = htons(port);
-    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr.sin_addr.s_addr = htonl(ip_addr);
 
     if ( -1 == ::bind(fd.fd(), pointer_cast<sockaddr>(&addr), sizeof addr) )
     {
@@ -158,25 +164,38 @@ Fd_socket Fabric_server_generic_factory::make_listener(std::uint16_t port)
  */
 
 void Fabric_server_generic_factory::listen(
-  std::uint16_t port_
+  std::uint32_t ip_addr_
+  , std::uint16_t port_
   , int end_fd_
   , ::fid_pep &pep_
-  , fabric_types::addr_ep_t pep_name_
 )
 {
-  Fd_socket listen_fd(make_listener(port_));
+  Fd_socket listen_fd(make_listener(ip_addr_, port_));
+
+  /* The endpoint now has a name, which we can advertise. */
   CHECK_FI_ERR(::fi_listen(&pep_));
 
+  fabric_types::addr_ep_t pep_name(get_name(&_pep->fid));
+
+  listen_loop(end_fd_, pep_name, listen_fd);
+}
+
+void Fabric_server_generic_factory::listen_loop(
+  int end_fd_
+  , const fabric_types::addr_ep_t &pep_name_
+  , const Fd_socket &listen_fd_
+) noexcept
+{
   auto run = true;
   while ( run )
   {
     fd_set fds_read;
     FD_ZERO(&fds_read);
-    FD_SET(listen_fd.fd(), &fds_read);
+    FD_SET(listen_fd_.fd(), &fds_read);
     FD_SET(_eq.fd(), &fds_read);
     FD_SET(end_fd_, &fds_read);
 
-    auto n = ::pselect(std::max(std::max(_eq.fd(), listen_fd.fd()), end_fd_)+1, &fds_read, nullptr, nullptr, nullptr, nullptr);
+    auto n = ::pselect(std::max(std::max(_eq.fd(), listen_fd_.fd()), end_fd_)+1, &fds_read, nullptr, nullptr, nullptr, nullptr);
     if ( n < 0 )
     {
       auto e = errno;
@@ -195,29 +214,27 @@ void Fabric_server_generic_factory::listen(
     else
     {
       run = ! FD_ISSET(end_fd_, &fds_read);
-      if ( FD_ISSET(listen_fd.fd(), &fds_read) )
+      if ( FD_ISSET(listen_fd_.fd(), &fds_read) )
       {
         try
         {
-          auto r = ::accept(listen_fd.fd(), nullptr, nullptr);
+          auto r = ::accept(listen_fd_.fd(), nullptr, nullptr);
           if ( r == -1 )
           {
             auto e = errno;
-            system_fail(e, (" in accept fd " + std::to_string(listen_fd.fd())));
+            system_fail(e, (" in accept fd " + std::to_string(listen_fd_.fd())));
           }
           Fd_control conn_fd(r);
           /* NOTE: Fd_control needs a timeout. */
 
-          /* we have a "control connection". Send the name of the server passive endpoint to the client */
-          /* send the name to the client */
+          /* We have a "control connection". Send the name of the server passive endpoint to the client */
           conn_fd.send_name(pep_name_);
         }
         catch ( const std::exception &e )
         {
           std::cerr << "exception establishing connection: " << e.what() << "\n";
-#if 1
           std::this_thread::sleep_for(std::chrono::seconds(1));
-#else
+#if 0
           throw;
           /* An exception may not cause the loop to exit; only the destructor may do that. */
 #endif
@@ -230,12 +247,16 @@ void Fabric_server_generic_factory::listen(
           /* There may be something in the event queue. Go see what it is. */
           _eq.read_eq();
         }
+        catch ( const std::bad_alloc &e )
+        {
+          std::cerr << "bad_alloc in event queue: " << e.what() << "\n";
+          std::this_thread::sleep_for(std::chrono::seconds(1));
+        }
         catch ( const std::exception &e )
         {
           std::cerr << "exception handling event queue: " << e.what() << "\n";
-#if 1
           std::this_thread::sleep_for(std::chrono::seconds(1));
-#else
+#if 0
           throw;
           /* An exception may not cause the loop to exit; only the destructor may do that. */
 #endif
@@ -247,7 +268,12 @@ void Fabric_server_generic_factory::listen(
 
 Fabric_memory_control * Fabric_server_generic_factory::get_new_connection()
 {
-  auto c = _pending.remove();
+  /* clumsy way to limit the scope of a lock_guard: immediate call of a lambda */
+  auto c = [this] () {
+    std::lock_guard<std::mutex> g{_m_pending};
+    return _pending.remove();
+  }();
+
   if ( c )
   {
     std::static_pointer_cast<Fabric_op_control>(

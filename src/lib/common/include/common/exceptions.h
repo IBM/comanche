@@ -26,7 +26,6 @@
    in files containing the exception.
 */
 
-
 /*
   Authors:
   Copyright (C) 2017, Daniel G. Waddington <daniel.waddington@ibm.com>
@@ -35,38 +34,33 @@
 #ifndef __COMMON_EXCEPTIONS_H__
 #define __COMMON_EXCEPTIONS_H__
 
-#include "errors.h"
-#include "logging.h"
 #include <assert.h>
 #include <common/types.h>
 #include <cstdarg>
 #include <string>
+#include "errors.h"
+#include "logging.h"
 
+#ifndef STRINGIFY
 #define STRINGIFY(x) #x
+#endif
+
 #define TOSTRING(x) STRINGIFY(x)
 #define ADD_LOC(X) X __FILE__ ":" TOSTRING(__LINE__)
 
-class Exception
-{
+class Exception {
  public:
-  Exception()
-  {
-  }
+  Exception() {}
 
-  Exception(const char* cause)
-  {
+  Exception(const char *cause) {
     __builtin_strncpy(_cause, cause, 256);
     PEXCEP("%s", cause);
     asm("int3");
   }
 
-  const char* cause() const
-  {
-    return _cause;
-  }
+  const char *cause() const { return _cause; }
 
-  void set_cause(const char* cause)
-  {
+  void set_cause(const char *cause) {
     __builtin_strncpy(_cause, cause, 256);
     PEXCEP("%s", cause);
   }
@@ -75,20 +69,17 @@ class Exception
   char _cause[256];
 };
 
-class Constructor_exception : public Exception
-{
+class Constructor_exception : public Exception {
  public:
-  Constructor_exception() : Exception("Constructor failed"), _err_code(E_FAIL)
-  {
-  }
+  Constructor_exception()
+      : Exception("Constructor failed"), _err_code(E_FAIL) {}
 
-  Constructor_exception(int err) : Exception("Constructor failed"), _err_code(err)
-  {
-  }
+  Constructor_exception(int err)
+      : Exception("Constructor failed"), _err_code(err) {}
 
-  __attribute__((__format__(__printf__, 2, 0))) Constructor_exception(const char* fmt, ...)
-    : Exception()
-  {
+  __attribute__((__format__(__printf__, 2, 0)))
+  Constructor_exception(const char *fmt, ...)
+      : Exception() {
     va_list args;
     va_start(args, fmt);
     char msg[255] = {0};
@@ -96,57 +87,42 @@ class Constructor_exception : public Exception
     set_cause(msg);
   }
 
-  status_t error_code()
-  {
-    return _err_code;
-  }
+  status_t error_code() { return _err_code; }
 
  private:
   status_t _err_code;
 };
 
-class General_exception : public Exception
-{
+class General_exception : public Exception {
  public:
-  General_exception() : Exception("General exception"), _err_code(E_FAIL)
-  {
-  }
+  General_exception() : Exception("General exception"), _err_code(E_FAIL) {}
 
-  General_exception(int err) : Exception("General exception"), _err_code(err)
-  {
-  }
+  General_exception(int err) : Exception("General exception"), _err_code(err) {}
 
-  __attribute__((__format__(__printf__, 2, 0))) General_exception(const char* fmt, ...)
-    : Exception()
-  {
+  __attribute__((__format__(__printf__, 2, 0)))
+  General_exception(const char *fmt, ...)
+      : Exception() {
     va_list args;
     va_start(args, fmt);
     char msg[255] = {0};
     vsnprintf(msg, 254, fmt, args);
     set_cause(msg);
   }
-  status_t error_code()
-  {
-    return _err_code;
-  }
+  status_t error_code() { return _err_code; }
 
  private:
   status_t _err_code;
 };
 
-class API_exception : public Exception
-{
+class API_exception : public Exception {
  public:
-  API_exception() : Exception("API error"), _err_code(E_FAIL)
-  {
-  }
+  API_exception() : Exception("API error"), _err_code(E_FAIL) {}
 
-  API_exception(int err) : Exception("API error"), _err_code(err)
-  {
-  }
+  API_exception(int err) : Exception("API error"), _err_code(err) {}
 
-  __attribute__((__format__(__printf__, 2, 0))) API_exception(const char* fmt, ...) : Exception()
-  {
+  __attribute__((__format__(__printf__, 2, 0)))
+  API_exception(const char *fmt, ...)
+      : Exception() {
     va_list args;
     va_start(args, fmt);
     char msg[255] = {0};
@@ -154,28 +130,21 @@ class API_exception : public Exception
     set_cause(msg);
   }
 
-  status_t error_code()
-  {
-    return _err_code;
-  }
+  status_t error_code() { return _err_code; }
 
  private:
   status_t _err_code;
 };
 
-class Logic_exception : public Exception
-{
+class Logic_exception : public Exception {
  public:
-  Logic_exception() : Exception("Logic error"), _err_code(E_FAIL)
-  {
-  }
+  Logic_exception() : Exception("Logic error"), _err_code(E_FAIL) {}
 
-  Logic_exception(int err) : Exception("Logic error"), _err_code(err)
-  {
-  }
+  Logic_exception(int err) : Exception("Logic error"), _err_code(err) {}
 
-  __attribute__((__format__(__printf__, 2, 0))) Logic_exception(const char* fmt, ...) : Exception()
-  {
+  __attribute__((__format__(__printf__, 2, 0)))
+  Logic_exception(const char *fmt, ...)
+      : Exception() {
     va_list args;
     va_start(args, fmt);
     char msg[255] = {0};
@@ -183,28 +152,21 @@ class Logic_exception : public Exception
     set_cause(msg);
   }
 
-  status_t error_code()
-  {
-    return _err_code;
-  }
+  status_t error_code() { return _err_code; }
 
  private:
   status_t _err_code;
 };
 
-class IO_exception : public Exception
-{
+class IO_exception : public Exception {
  public:
-  IO_exception() : Exception("IO error"), _err_code(E_FAIL)
-  {
-  }
+  IO_exception() : Exception("IO error"), _err_code(E_FAIL) {}
 
-  IO_exception(int err) : Exception("IO error"), _err_code(err)
-  {
-  }
+  IO_exception(int err) : Exception("IO error"), _err_code(err) {}
 
-  __attribute__((__format__(__printf__, 2, 0))) IO_exception(const char* fmt, ...) : Exception()
-  {
+  __attribute__((__format__(__printf__, 2, 0)))
+  IO_exception(const char *fmt, ...)
+      : Exception() {
     va_list args;
     va_start(args, fmt);
     char msg[255] = {0};
@@ -212,28 +174,21 @@ class IO_exception : public Exception
     set_cause(msg);
   }
 
-  status_t error_code()
-  {
-    return _err_code;
-  }
+  status_t error_code() { return _err_code; }
 
  private:
   status_t _err_code;
 };
 
-class Program_exception : public Exception
-{
+class Program_exception : public Exception {
  public:
-  Program_exception() : Exception("Program error"), _err_code(E_FAIL)
-  {
-  }
+  Program_exception() : Exception("Program error"), _err_code(E_FAIL) {}
 
-  Program_exception(int err) : Exception("Program error"), _err_code(err)
-  {
-  }
+  Program_exception(int err) : Exception("Program error"), _err_code(err) {}
 
-  __attribute__((__format__(__printf__, 2, 0))) Program_exception(const char* fmt, ...) : Exception()
-  {
+  __attribute__((__format__(__printf__, 2, 0)))
+  Program_exception(const char *fmt, ...)
+      : Exception() {
     va_list args;
     va_start(args, fmt);
     char msg[255] = {0};
@@ -241,28 +196,21 @@ class Program_exception : public Exception
     set_cause(msg);
   }
 
-  status_t error_code()
-  {
-    return _err_code;
-  }
+  status_t error_code() { return _err_code; }
 
  private:
   status_t _err_code;
 };
 
-class Data_exception : public Exception
-{
+class Data_exception : public Exception {
  public:
-  Data_exception() : Exception("Data error"), _err_code(E_FAIL)
-  {
-  }
+  Data_exception() : Exception("Data error"), _err_code(E_FAIL) {}
 
-  Data_exception(int err) : Exception("Data error"), _err_code(err)
-  {
-  }
+  Data_exception(int err) : Exception("Data error"), _err_code(err) {}
 
-  __attribute__((__format__(__printf__, 2, 0))) Data_exception(const char* fmt, ...) : Exception()
-  {
+  __attribute__((__format__(__printf__, 2, 0)))
+  Data_exception(const char *fmt, ...)
+      : Exception() {
     va_list args;
     va_start(args, fmt);
     char msg[255] = {0};
@@ -270,29 +218,21 @@ class Data_exception : public Exception
     set_cause(msg);
   }
 
-  status_t error_code()
-  {
-    return _err_code;
-  }
+  status_t error_code() { return _err_code; }
 
  private:
   status_t _err_code;
 };
 
-
-class Protocol_exception : public Exception
-{
+class Protocol_exception : public Exception {
  public:
-  Protocol_exception() : Exception("Protocol error"), _err_code(E_FAIL)
-  {
-  }
+  Protocol_exception() : Exception("Protocol error"), _err_code(E_FAIL) {}
 
-  Protocol_exception(int err) : Exception("Protocol error"), _err_code(err)
-  {
-  }
+  Protocol_exception(int err) : Exception("Protocol error"), _err_code(err) {}
 
-  __attribute__((__format__(__printf__, 2, 0))) Protocol_exception(const char* fmt, ...) : Exception()
-  {
+  __attribute__((__format__(__printf__, 2, 0)))
+  Protocol_exception(const char *fmt, ...)
+      : Exception() {
     va_list args;
     va_start(args, fmt);
     char msg[255] = {0};
@@ -300,14 +240,10 @@ class Protocol_exception : public Exception
     set_cause(msg);
   }
 
-  status_t error_code()
-  {
-    return _err_code;
-  }
+  status_t error_code() { return _err_code; }
 
  private:
   status_t _err_code;
 };
-
 
 #endif

@@ -26,7 +26,6 @@
    in files containing the exception.
 */
 
-
 /*
   Authors:
   Copyright (C) 2013, Juan A. Colmenares <juan.col@samsung.com>
@@ -38,6 +37,8 @@
 
 #include <bitset>
 
-typedef std::bitset<64> Cpu_bitset;
+static constexpr unsigned COMMON_MAX_CORES = 256;
+
+typedef std::bitset<COMMON_MAX_CORES> Cpu_bitset;
 
 #endif

@@ -1,9 +1,13 @@
 cmake_minimum_required(VERSION 3.5)
 
+set(GCC_COVERAGE_COMPILE_FLAGS "-g -shared-libgcc -DTBB_USE_THREADING_TOOLS")
+
 # force out-of-tree build
 option(FORCE_OTT_BUILD "force out of tree build" ON)
 
 option(BOOTSTRAP_DEPS "bootstrap to build deps" ON)
+
+option(TEST_HSTORE_PERISHABLE "hstore perishable testing enabled" OFF)
 
 if(CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR AND FORCE_OTT_BUILD)
     message(FATAL_ERROR "Cannot use in-source build ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR}. You should delete any CMakeCache.txt and CMakeFiles and then try out-of-tree build")
@@ -36,32 +40,42 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 install (FILES "${CMAKE_CURRENT_BINARY_DIR}/config_comanche.h"
     DESTINATION include)
 
+# CMAKE_PREFIX_PATH doesn't work as expected..
+if(CMAKE_PREFIX_PATH)
+  include_directories(${CMAKE_PREFIX_PATH}/include)
+  link_directories(${CMAKE_PREFIX_PATH}/lib)
+endif(CMAKE_PREFIX_PATH)
+
 # this flag is only for GNU compiler version number smaller than 8 and clang compilers
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" AND NOT CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 8.0)
   set(FLAG_DUMP_CLASS "-fdump-class-hierarchy")
 endif()
 
-# run 'make components' to trigger compoents build,
-# it's requireqd to wrap compoents targets with BOOTSTRAP_DEPS in the parent projects
-add_custom_target(components
-  ${CMAKE_COMMAND} -DBOOTSTRAP_DEPS=off ${CMAKE_SOURCE_DIR}
-  COMMAND make all
+# run 'make bootstrap' to  make comanche deps and core
+# then run 'make' to build components/tests
+add_custom_target(bootstrap
+  bash ${CMAKE_SOURCE_DIR}/mk/bootstrap.sh ${CMAKE_SOURCE_DIR}
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   )
 
 # default make will only build core and dependencies
 if(BOOTSTRAP_DEPS)
-  add_subdirectory(src/lib)
-  message("\n[IMPORTANT]: first run 'make' to build core and dependencies")
-  message("             then run 'make components' to build components")
+  
+  add_subdirectory(src/lib) # contains a BOOTSTRAP_DEPS filter
+  
+  message("[IMPORTANT]: first run 'make bootstrap' to build core and dependencies")
+  message("             then run 'make' to build components, apps, etc.")
 
 else(BOOTSTRAP_DEPS)
-  set(PMDK_PREFIX ${CONF_COMANCHE_HOME}/src/lib/pmdk)
-  #find_package(PMDK REQUIRED)
-  find_package(TBB REQUIRED)
-  set(PMDK_INCLUDE_DIRS  ${PMDK_PREFIX}/src/include)
 
-  add_subdirectory(src)
+  link_directories(${CMAKE_INSTALL_PREFIX}/lib) # all dependencies are installed here
+
+  add_subdirectory(src/lib) # contains a BOOTSTRAP_DEPS filter
+  add_subdirectory(src/components/api)
+  add_subdirectory(src/kernel/modules)
+  add_subdirectory(src/components)
+  add_subdirectory(src/servers)
+  add_subdirectory(src/python)
   add_subdirectory(apps)
   add_subdirectory(testing)
 

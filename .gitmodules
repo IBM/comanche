@@ -5,23 +5,33 @@
 [submodule "src/components/cluster/zyre/lib/zyre"]
   path = src/components/cluster/zyre/lib/zyre
   url = https://github.com/zeromq/zyre.git
-[submodule "src/lib/libfabric"]
-  path = src/lib/libfabric
-  url = https://github.com/ofiwg/libfabric.git
-  branch = master
 [submodule "src/lib/cppzmq"]
   path = src/lib/cppzmq
   url = https://github.com/zeromq/cppzmq.git
 [submodule "src/components/store/rockstore/rocksdb"]
   path = src/components/store/rockstore/rocksdb
   url = https://github.com/facebook/rocksdb.git
-[submodule "src/lib/ndctl"]
-  path = src/lib/ndctl
-  url = https://github.com/pmem/ndctl
 [submodule "src/lib/tbb"]
   path = src/lib/tbb
   url = https://github.com/dwaddington/tbb.git
-[submodule "src/lib/pmdk"]
-  path = src/lib/pmdk
-  url = https://github.com/pmem/pmdk
-  branch = stable-1.4
+[submodule "src/lib/nanomsg"]
+  path = src/lib/nanomsg
+  url = https://github.com/nanomsg/nanomsg.git
+[submodule "src/lib/flatbuffers"]
+  path = src/lib/flatbuffers
+  url = https://github.com/google/flatbuffers.git
+[submodule "src/lib/gdrcopy"]
+  path = src/lib/gdrcopy
+  url = https://github.com/NVIDIA/gdrcopy.git
+[submodule "src/lib/rapidjson"]
+	path = src/lib/rapidjson
+	url = https://github.com/dwaddington/rapidjson.git
+[submodule "testing/ycsb/ycsb-c"]
+	path = testing/ycsb/ycsb-c
+	url = https://github.com/basicthinker/YCSB-C.git
+[submodule "testing/ycsb/memcached/memcached"]
+	path = testing/ycsb/memcached/memcached
+	url = https://github.com/memcached/memcached.git
+[submodule "testing/ycsb/memcached/memcachedb"]
+	path = testing/ycsb/memcached/memcachedb
+	url = https://github.com/LMDB/memcachedb.git

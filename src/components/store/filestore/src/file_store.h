@@ -1,7 +1,17 @@
 /*
- * (C) Copyright IBM Corporation 2018. All rights reserved.
- *
- */
+   Copyright [2017-2019] [IBM Corporation]
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
+
+
 
 /* 
  * Authors: 
@@ -27,7 +37,7 @@ public:
    * @param block_device Block device interface
    * 
    */
-  FileStore(const std::string owner, const std::string name);
+  FileStore(const std::string& owner, const std::string& name);
 
   /** 
    * Destructor
@@ -57,39 +67,48 @@ public:
 
   /* IKVStore */
   virtual int thread_safety() const { return THREAD_MODEL_MULTI_PER_POOL; }
+
+  virtual int get_capability(Capability cap) const;
   
-  virtual pool_t create_pool(const std::string path,
-                             const std::string name,
+  virtual pool_t create_pool(const std::string& name,
                              const size_t size,
                              unsigned int flags = 0,
                              uint64_t expected_obj_count = 0) override;
   
-  virtual pool_t open_pool(const std::string path,
-                           const std::string name,
-                           unsigned int flags = 0) override;
+  virtual pool_t open_pool(const std::string& name,
+                           unsigned int flags = FLAGS_NONE) override;
   
-  virtual void close_pool(const pool_t pid) override;
+  virtual status_t close_pool(const pool_t pid) override;
 
-  virtual void delete_pool(const pool_t pid) override;
+  virtual status_t delete_pool(const std::string &name) override;
 
   virtual status_t put(const pool_t pool,
-                       const std::string key,
+                       const std::string& key,
                        const void * value,
-                       const size_t value_len) override;
+                       const size_t value_len,
+                       unsigned int flags = FLAGS_NONE) override;
+
+  virtual status_t put_direct(const pool_t pool,
+                              const std::string& key,
+                              const void * value,
+                              const size_t value_len,
+                              IKVStore::memory_handle_t handle = HANDLE_NONE,
+                              unsigned int flags = FLAGS_NONE) override;
 
   virtual status_t get(const pool_t pool,
-                       const std::string key,
+                       const std::string& key,
                        void*& out_value,
                        size_t& out_value_len) override;
   
   virtual status_t get_direct(const pool_t pool,
-                              const std::string key,
+                              const std::string& key,
                               void* out_value,
                               size_t& out_value_len,
-                              size_t offset) override;
-  
+                              Component::IKVStore::memory_handle_t handle) override;
+ 
+
   virtual status_t erase(const pool_t pool,
-                         const std::string key) override;
+                         const std::string& key) override;
   
   virtual size_t count(const pool_t pool) override;
 
@@ -122,8 +141,8 @@ public:
     delete this;
   }
 
-  virtual Component::IKVStore * create(const std::string owner,
-                                       const std::string name) override
+  virtual Component::IKVStore * create(const std::string& owner,
+                                       const std::string& name) override
   {    
     Component::IKVStore * obj = static_cast<Component::IKVStore*>(new FileStore(owner, name));    
     obj->add_ref();

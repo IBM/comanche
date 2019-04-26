@@ -1,141 +1,156 @@
 /* note: we do not include component source, only the API definition */
-#include <common/utils.h>
-#include <common/str_utils.h>
-#include <core/task.h>
-#include <api/components.h>
-#include <api/kvstore_itf.h>
-#include <boost/program_options.hpp>
-#include <chrono>
-#include <iostream>
-#include <gperftools/profiler.h>
-#define PATH "/mnt/pmem0/"
-//#define PATH "/dev/dax0.0"
-#define POOL_NAME "test.pool"
-
-#define PMSTORE_PATH "libcomanche-pmstore.so"
-#define FILESTORE_PATH "libcomanche-storefile.so"
-#define NVMESTORE_PATH "libcomanche-nvmestore.so"
-#define ROCKSTORE_PATH "libcomanche-rocksdb.so"
-#define DEFAULT_COMPONENT "pmstore"
-
-using namespace Component;
 
 #include "data.h"
 #include "exp_put.h"
 #include "exp_get.h"
+#include "exp_get_direct.h"
+#include "exp_erase.h"
+#include "exp_put_direct.h"
+#include "exp_throughput.h"
+#include "exp_update.h"
+#include "get_cpu_mask_from_string.h"
+#include "get_vector_from_string.h"
+#include "program_options.h"
 
-Data * _data;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Weffc++"
+#include <common/utils.h>
+#pragma GCC diagnostic pop
+#include "task.h"
+#include <api/components.h>
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Weffc++"
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+#pragma GCC diagnostic ignored "-Wpedantic"
+#pragma GCC diagnostic ignored "-Wsign-conversion"
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#include <api/kvstore_itf.h>
+#pragma GCC diagnostic pop
+#include <boost/program_options.hpp>
 
-static Component::IKVStore * g_store;
-static void initialize();
-static void cleanup();
+#undef PROFILE
 
-struct {
-  std::string test;
-  std::string component;
-  unsigned cores;
-  unsigned time_secs;
-} Options;
+#ifdef PROFILE
+#include <gperftools/profiler.h>
+#endif
 
+#include <algorithm>
+#include <chrono>
+#include <iostream>
+#include <mutex>
+#include <thread>
+
+using namespace Component;
+
+namespace
+{
+  boost::program_options::options_description po_desc("Options");
+  boost::program_options::positional_options_description g_pos;
+
+  template <typename Exp>
+    void run_exp(cpu_mask_t cpus, const ProgramOptions &options)
+  {
+    Core::Per_core_tasking<Exp, ProgramOptions> exp(cpus, options, options.pin);
+    exp.wait_for_all();
+    auto first_exp = exp.tasklet(cpus.first_core());
+    first_exp->summarize();
+  }
+
+  using exp_f = void(*)(cpu_mask_t, const ProgramOptions &);
+  using test_element = std::pair<std::string, exp_f>;
+  const std::vector<test_element> test_vector
+  {
+    { "put", run_exp<ExperimentPut> },
+    { "get", run_exp<ExperimentGet> },
+    { "get_direct", run_exp<ExperimentGetDirect> },
+    { "put_direct", run_exp<ExperimentPutDirect> },
+    { "throughput", run_exp<ExperimentThroughput> },
+    { "erase", run_exp<ExperimentErase> },
+    { "update", run_exp<ExperimentUpdate> },
+  };
+}
 
 int main(int argc, char * argv[])
 {
+#ifdef PROFILE
   ProfilerDisable();
-  
+#endif
+
   namespace po = boost::program_options; 
-  po::options_description desc("Options"); 
-  desc.add_options()
-    ("help", "Show help")
-    ("test", po::value<std::string>(), "Test name <all|Put|Get>")
-    ("component", po::value<std::string>(), "Implementation selection <pmstore|nvmestore|filestore>")
-    ("cores", po::value<int>(), "Number of threads/cores")
-    ("time", po::value<int>(), "Duration to run in seconds")
-    ;
 
-  try {
-    po::variables_map vm; 
-    po::store(po::parse_command_line(argc, argv, desc),  vm);
+  try
+  {
+    std::vector<std::string> test_names;
+    std::transform(
+      test_vector.begin()
+      , test_vector.end()
+      , std::back_inserter(test_names)
+      , [] ( const test_element &e ) { return e.first; }
+    );
+    ProgramOptions::add_program_options(po_desc, test_names);
 
-    if(vm.count("help")) {
-      std::cout << desc;
+    boost::program_options::variables_map vm; 
+    po::store(po::command_line_parser(argc, argv).options(po_desc).positional(g_pos).run(), vm);
+
+    if ( vm.count("help") )
+    {
+      std::cout << po_desc;
       return 0;
     }
 
-    Options.test = vm.count("test") > 0 ? vm["test"].as<std::string>() : "all";
-    vm.count("component") > 0 ? vm["component"].as<std::string>() : DEFAULT_COMPONENT;
+    ProgramOptions Options(vm);
 
-    if(vm.count("component"))
-      Options.component = vm["component"].as<std::string>();
+    bool use_direct_memory = Options.component == "dawn";
+    Experiment::g_data = new Data(Options.elements, Options.key_length, Options.value_length, use_direct_memory);
+
+    Options.report_file_name = Options.do_json_reporting ? Experiment::create_report(Options.component) : "";
+
+    cpu_mask_t cpus;
+
+    try
+    {
+      cpus = get_cpu_mask_from_string(Options.cores);
+    }
+    catch (...)
+    {
+      PERR("%s", "couldn't create CPU mask. Exiting.");
+      return 1;
+    }
+
+#ifdef PROFILE
+    ProfilerStart("cpu.profile");
+#endif
+
+    if ( Options.test == "all" )
+    {
+      for ( const auto &e : test_vector )
+      {
+        e.second(cpus, Options);
+      }
+    }
     else
-      Options.component = DEFAULT_COMPONENT;
-    
-    Options.cores  = vm.count("cores") > 0 ? vm["cores"].as<int>() : 1;
-    Options.time_secs  = vm.count("time") > 0 ? vm["time"].as<int>() : 4;
+    {
+      const auto it =
+        std::find_if(
+          test_vector.begin()
+          , test_vector.end()
+          , [&Options] (const test_element &a) { return a.first == Options.test; }
+        );
+      if ( it == test_vector.end() )
+      {
+        PERR("No such test: %s.", Options.test.c_str());
+        return 1;
+      }
+      it->second(cpus, Options);
+    }
+#ifdef PROFILE
+    ProfilerStop();
+#endif
   }
-  catch (const po::error &ex)
-  {
+  catch (const po::error &ex) {
     std::cerr << ex.what() << '\n';
+    return -1;
   }
-
-  _data = new Data();
-  initialize();
-
-  cpu_mask_t cpus;
-  unsigned core = 1;
-  for(unsigned core = 0; core < Options.cores; core++)
-    cpus.add_core(core);
-
-  ProfilerStart("cpu.profile");
-
-  if(Options.test == "all" || Options.test == "Put") {
-    Core::Per_core_tasking<Experiment_Put, Component::IKVStore*> exp(cpus, g_store);
-    sleep(Options.time_secs);
-  }
-
-  if(Options.test == "all" || Options.test == "Get") {
-    Core::Per_core_tasking<Experiment_Get, Component::IKVStore*> exp(cpus, g_store);
-    //    sleep(Options.time_secs + 8);
-    exp.wait_for_all();
-  }
-
-  
-  ProfilerStop();
-  
-  cleanup();
   
   return 0;
 }
-
-
-static void initialize()
-{
-  Component::IBase * comp;
-  
-  if(Options.component == "pmstore") {
-    comp = Component::load_component(PMSTORE_PATH, Component::pmstore_factory);
-  }
-  else if(Options.component == "filestore") {
-    comp = Component::load_component(FILESTORE_PATH, Component::filestore_factory);
-  }
-  else if(Options.component == "nvmestore") {
-    comp = Component::load_component(NVMESTORE_PATH, Component::nvmestore_factory);
-  }
-  else if(Options.component == "rockstore") {
-    comp = Component::load_component(ROCKSTORE_PATH, Component::rocksdb_factory);
-  }
-  else throw General_exception("unknown --component option (%s)", Options.component.c_str());
-
-  assert(comp);
-  IKVStore_factory * fact = (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
-
-  g_store = fact->create("owner","name");
-  fact->release_ref();
-}
-
-static void cleanup()
-{
-  g_store->release_ref();
-}
-
-
-

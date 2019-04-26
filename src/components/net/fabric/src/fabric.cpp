@@ -1,18 +1,16 @@
 /*
-   Copyright [2018] [IBM Corporation]
-
+   Copyright [2017-2019] [IBM Corporation]
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
-
        http://www.apache.org/licenses/LICENSE-2.0
-
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
 */
+
 
 /*
  * Authors:
@@ -21,20 +19,34 @@
 
 #include "fabric.h"
 
+#include "addrinfo.h" /* getaddrinfo_ptr */
 #include "fabric_check.h" /* FI_CHECK_ERR */
 #include "fabric_client.h"
 #include "fabric_client_grouped.h"
+#include "fabric_json.h"
+#include "fabric_runtime_error.h"
 #include "fabric_server_factory.h"
 #include "fabric_server_grouped_factory.h"
-#include "fabric_error.h"
-#include "fabric_json.h"
 #include "fabric_str.h" /* tostr */
 #include "fabric_util.h"
+#include "hints.h"
 #include "system_fail.h"
 
-#include <rdma/fabric.h> /* fi_info */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshadow"
+#include <rdma/fabric.h> /* fi_info, FI_VERSION */
+#pragma GCC diagnostic pop
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#pragma GCC diagnostic ignored "-Wcast-align"
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+#pragma GCC diagnostic ignored "-Wshadow"
 #include <rdma/fi_endpoint.h> /* fi_ep_bind, fi_pep_bind */
+#pragma GCC diagnostic pop
 
+#include <netdb.h> /* addrinfo */
+#include <netinet/in.h> /* sockaddr_in */
 #include <sys/select.h> /* pselect */
 
 #include <chrono> /* seconds */
@@ -73,6 +85,59 @@ namespace
     attr_.wait_obj = FI_WAIT_FD;
     return attr_;
   }
+
+  std::shared_ptr<::fid_fabric> make_fid_fabric(::fi_fabric_attr &attr_, void *context_)
+  try
+  {
+    ::fid_fabric *f(nullptr);
+    CHECK_FI_ERR(::fi_fabric(&attr_, &f, context_));
+    FABRIC_TRACE_FID(f);
+    return fid_ptr(f);
+  }
+  catch ( const fabric_runtime_error &e )
+  {
+    throw e.add(tostr(attr_));
+  }
+
+  std::shared_ptr<::fi_info> make_fi_info(
+    std::uint32_t version_
+    , const char *node_
+    , const char *service_
+    , const ::fi_info *hints_
+  )
+  try
+  {
+    ::fi_info *f;
+    CHECK_FI_ERR(::fi_getinfo(version_, node_, service_, 0, hints_, &f));
+    return std::shared_ptr<::fi_info>(f,::fi_freeinfo);
+  }
+  catch ( const fabric_runtime_error &e_ )
+  {
+    if ( hints_ )
+    {
+      throw e_.add(tostr(*hints_));
+    }
+    throw;
+  }
+
+  std::shared_ptr<::fi_info> make_fi_info(const ::fi_info &hints)
+  {
+    return make_fi_info(FI_VERSION(FI_MAJOR_VERSION,FI_MINOR_VERSION), nullptr, nullptr, &hints);
+  }
+
+  std::shared_ptr<::fi_info> make_fi_info(const std::string& json_configuration)
+  {
+    auto h = hints(parse_info(json_configuration));
+
+    const auto default_provider = "verbs";
+    if ( h.prov_name() == nullptr )
+    {
+      h.prov_name(default_provider);
+    }
+
+    return
+      make_fi_info(h.mode(FI_CONTEXT | FI_CONTEXT2).data());
+  }
 }
 
 Fabric::Fabric(const std::string& json_configuration_)
@@ -89,23 +154,48 @@ Fabric::Fabric(const std::string& json_configuration_)
   CHECK_FI_ERR(::fi_control(&_eq->fid, FI_GETWAIT, &_fd));
 }
 
+namespace
+{
+  std::uint32_t listen_addr(std::uint16_t port_ )
+  {
+    auto server_addr_env = "FABRIC_SERVER_ADDR";
+    if ( auto addr_str = getenv(server_addr_env) )
+    {
+      auto results = getaddrinfo_ptr(addr_str, port_);
+      if ( auto rp = results.get() )
+      {
+        auto addr_num = ntohl(static_cast<sockaddr_in *>(static_cast<void *>(rp->ai_addr))->sin_addr.s_addr);
+        std::cerr << "fabric_server_factory (specified by " << server_addr_env << "=" << addr_str
+          << ") listens on "
+          << (addr_num >> 24 & 0xff) << "."
+          << (addr_num >> 16 & 0xff) << "."
+          << (addr_num >> 8 & 0xff) << "."
+          << (addr_num & 0xff) << ":" << port_ << "\n";
+        return addr_num;
+      }
+    }
+    std::cerr << "fabric_server_factory (not specified by " << server_addr_env << ") listens on *:" << port_ << "\n";
+    return INADDR_ANY;
+  }
+}
+
 Component::IFabric_server_factory * Fabric::open_server_factory(const std::string& json_configuration_, std::uint16_t control_port_)
 {
   _info = parse_info(json_configuration_, _info);
-  return new Fabric_server_factory(*this, *this, *_info, control_port_);
+  return new Fabric_server_factory(*this, *this, *_info, listen_addr(control_port_), control_port_);
 }
 
 Component::IFabric_server_grouped_factory * Fabric::open_server_grouped_factory(const std::string& json_configuration_, std::uint16_t control_port_)
 {
   _info = parse_info(json_configuration_, _info);
-  return new Fabric_server_grouped_factory(*this, *this, *_info, control_port_);
+  return new Fabric_server_grouped_factory(*this, *this, *_info, listen_addr(control_port_), control_port_);
 }
 
 void Fabric::readerr_eq()
 {
   ::fi_eq_err_entry entry{};
   auto flags = 0U;
-  ::fi_eq_readerr(&*_eq, &entry, flags);
+  CHECK_FI_EQ(::fi_eq_readerr(&*_eq, &entry, flags), sizeof entry);
 
   {
     std::lock_guard<std::mutex> g{_m_eq_dispatch_pep};
@@ -176,6 +266,11 @@ void Fabric::wait_eq()
   }
 }
 
+/*
+ * @throw fabric_bad_alloc : std::bad_alloc - libfabric out of memory
+ * @throw std::system_error - writing event pipe (normal callback)
+ * @throw std::system_error - writing event pipe (readerr_eq)
+ */
 void Fabric::read_eq()
 try
 {
@@ -198,7 +293,7 @@ try
         std::cerr << __func__ << ": fabric error " << e << " (" << ::fi_strerror(int(e)) << ")\n";
         std::this_thread::sleep_for(std::chrono::seconds(1));
 #if 0
-        throw fabric_error(e, __FILE__, __LINE__);
+        throw fabric_runtime_error(e, __FILE__, __LINE__);
 #endif
         break;
       }
@@ -226,6 +321,11 @@ try
         found = true;
       }
     }
+    catch ( const std::bad_alloc &e )
+    {
+      std::cerr << __func__ << " (aep event path): bad_alloc: " << e.what() << "\n";
+      throw;
+    }
     catch ( const std::exception &e )
     {
       std::cerr << __func__ << " (aep event path): exception: " << e.what() << "\n";
@@ -244,12 +344,22 @@ try
         found = true;
       }
     }
+    catch ( const std::bad_alloc &e )
+    {
+      std::cerr << __func__ << " (pep event path): bad_alloc: " << e.what() << "\n";
+      throw;
+    }
     catch ( const std::exception &e )
     {
       std::cerr << __func__ << " (pep event path): exception: " << e.what() << "\n";
       throw;
     }
   }
+}
+catch ( const std::bad_alloc &e )
+{
+  std::cerr << __func__ << ": bad_alloc: " << e.what() << "\n";
+  throw;
 }
 catch ( const std::exception &e )
 {
@@ -271,7 +381,7 @@ try
   _info = parse_info(json_configuration_, _info);
   return new Fabric_client(*this, *this, *_info, remote_, control_port_);
 }
-catch ( const fabric_error &e )
+catch ( const fabric_runtime_error &e )
 {
   throw e.add(while_in(__func__));
 }
@@ -286,7 +396,7 @@ try
   _info = parse_info(json_configuration_, _info);
   return static_cast<Component::IFabric_client_grouped *>(new Fabric_client_grouped(*this, *this, *_info, remote_, control_port_));
 }
-catch ( const fabric_error &e )
+catch ( const fabric_runtime_error &e )
 {
   throw e.add(while_in(__func__));
 }
@@ -345,7 +455,7 @@ try
   FABRIC_TRACE_FID(f);
   return fid_ptr(f);
 }
-catch ( const fabric_error &e )
+catch ( const fabric_runtime_error &e )
 {
   throw e.add(tostr(info_));
 }
@@ -359,7 +469,7 @@ try
   FABRIC_TRACE_FID(f);
   return fid_ptr(f);
 }
-catch ( const fabric_error &e )
+catch ( const fabric_runtime_error &e )
 {
   throw e.add(tostr(info_));
 }

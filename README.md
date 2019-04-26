@@ -10,19 +10,11 @@ NOTE: Comanche is in its early stages of development and while we welcome collab
 HowTo
 -----
 
-* DPDK/SPDK
-
-Comanche currently uses DPDK/SPDK.  You should install and test this
-first (see [dpdk/usertools/dpdksetup.sh](https://github.com/spdk/dpdk/blob/spdk-17.05/usertools/dpdk-setup.sh)).  Note, it is possible to run
-in a virtual machine (using UIO) but you will need to run your
-programs as root.
-
 * Prepare (one time - although it may change across checkouts)
 
 ```bash
 ( cd deps
   sudo ./install-apts.sh # use ./install-yum.sh for fedora
-  sudo ./fetch-deps.sh
 )
 ```
 
@@ -38,16 +30,11 @@ git submodule update --init --recursive
 ```bash
 mkdir build
 cd build
-cmake ..
-make   # build the core and dependencies
-make components # build comanche components & tests, etc
-```
-
-To override the install destination:
-
-```bash
 cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX:PATH=`pwd`/dist ..
+make bootstrap  # build the core and dependencies
+make # build comanche components & tests, etc
 ```
+
 
 * Install libs into cmake installation prefix
 
@@ -60,8 +47,8 @@ make install
 sudo ./load-module.sh
 sudo ./tools/nvme_setup.sh /* optionally attach ALL Nvme devices to VFIO */
 cmake .
+make bootstrap
 make
-make components
 ```
 
 * Build components in debug mode (e.g., with asan)

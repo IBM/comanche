@@ -5,13 +5,13 @@ add_subdirectory(./unit_test)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -D_BSD_SOURCE -D_FILE_OFFSET_BITS=64 -MD -MP")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -D_BSD_SOURCE -D_FILE_OFFSET_BITS=64 -MD -MP")
-set(DPDK_DIR "$ENV{COMANCHE_HOME}/deps/dpdk/")
-set(SPDK_DIR "$ENV{COMANCHE_HOME}/deps/spdk/")
 
 project(comanche-blknvme CXX)
+include (../../../../mk/clang-dev-tools.cmake)
 
-include_directories(${DPDK_DIR}/include/dpdk)
-include_directories(${SPDK_DIR}/include)
+include_directories(${CMAKE_INSTALL_PREFIX}/include)
+include_directories(${CMAKE_INSTALL_PREFIX}/include/dpdk)
+link_directories(${CMAKE_INSTALL_PREFIX}/lib)
 
 add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 
@@ -19,7 +19,7 @@ file(GLOB SOURCES ./src/*.c*)
 
 add_library(${PROJECT_NAME} SHARED ${SOURCES})
 
-target_link_libraries(${PROJECT_NAME} ${ASAN_LIB} common comanche-core dl rt pthread numa rdmacm ibverbs pcap uuid)
+target_link_libraries(${PROJECT_NAME} ${ASAN_LIB} common cityhash comanche-core dl rt pthread numa rdmacm ibverbs pcap uuid)
 
 # set the linkage in the install/lib
 set_target_properties(${PROJECT_NAME} PROPERTIES 

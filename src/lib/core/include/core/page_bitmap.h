@@ -1,12 +1,9 @@
 /*
-   Copyright [2017] [IBM Corporation]
-
+   Copyright [2017-2019] [IBM Corporation]
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
-
        http://www.apache.org/licenses/LICENSE-2.0
-
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -14,9 +11,11 @@
    limitations under the License.
 */
 
-/* 
- * Authors: 
- * 
+
+
+/*
+ * Authors:
+ *
  * Daniel G. Waddington (daniel.waddington@ibm.com)
  *
  */
@@ -24,24 +23,23 @@
 #ifndef __PAGE_BITMAP_H__
 #define __PAGE_BITMAP_H__
 
-#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/ioctl.h>
-#include <stdint.h>
-#include <inttypes.h>
 #include <common/exceptions.h>
 #include <common/utils.h>
+#include <fcntl.h>
+#include <inttypes.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 #include <vector>
 
 namespace Core
 {
-class Page_state_bitmap
-{
+class Page_state_bitmap {
  private:
   static constexpr bool option_DEBUG = false;
 
@@ -51,17 +49,17 @@ class Page_state_bitmap
   };
 
   typedef struct {
-    void *   region_ptr;
-    size_t   region_size;
+    void *region_ptr;
+    size_t region_size;
     uint32_t flags;
-    void *   out_data;
-    size_t   out_size;
+    void *out_data;
+    size_t out_size;
   } __attribute__((packed)) IOCTL_param;
 
   typedef struct {
     uint32_t magic;
     uint32_t bitmap_size;
-    char     bitmap[0];
+    char bitmap[0];
   } __attribute__((packed)) IOCTL_out_param;
 
   enum {
@@ -74,36 +72,34 @@ class Page_state_bitmap
   typedef std::pair<addr_t, size_t> range_t;
   typedef std::vector<range_t> range_map_t;
 
-  /** 
+  /**
    * Constructor
-   * 
+   *
    */
-  Page_state_bitmap()
-  {
+  Page_state_bitmap() {
     _fd = open("/dev/xms", O_RDWR);  // requires XMS kernel module
-    if (_fd == -1) throw Constructor_exception("unable to open /dev/xms - check module is loaded.");
+    if (_fd == -1)
+      throw Constructor_exception(
+          "unable to open /dev/xms - check module is loaded.");
   }
 
-  virtual ~Page_state_bitmap()
-  {
-    close(_fd);
-  }
+  virtual ~Page_state_bitmap() { close(_fd); }
 
-  void get_process_dirty_pages_compacted(void *region, size_t region_size, range_map_t &range_map)
-  {
+  void get_process_dirty_pages_compacted(void *region, size_t region_size,
+                                         range_map_t &range_map) {
     range_map.clear();
 
     /* flush cache */
     clflush_area(region, region_size);
 
     IOCTL_param ioparam;
-    ioparam.region_ptr  = region;
+    ioparam.region_ptr = region;
     ioparam.region_size = region_size;
-    ioparam.flags       = 0;
-    ioparam.out_size    = bitmap_size(region_size);
-    ioparam.out_data    = malloc(ioparam.out_size);
+    ioparam.flags = 0;
+    ioparam.out_size = bitmap_size(region_size);
+    ioparam.out_data = malloc(ioparam.out_size);
 
-    ioctl(_fd, IOCTL_CMD_GETBITMAP, &ioparam);  //ioctl call
+    ioctl(_fd, IOCTL_CMD_GETBITMAP, &ioparam);  // ioctl call
 
     IOCTL_out_param *outparam = (IOCTL_out_param *) ioparam.out_data;
 
@@ -118,21 +114,21 @@ class Page_state_bitmap
     free(ioparam.out_data);
   }
 
-  void get_process_dirty_pages(void *region, size_t region_size, std::vector<addr_t> &dirty_vector)
-  {
+  void get_process_dirty_pages(void *region, size_t region_size,
+                               std::vector<addr_t> &dirty_vector) {
     dirty_vector.clear();
 
     /* flush cache */
     clflush_area(region, region_size);
 
     IOCTL_param ioparam;
-    ioparam.region_ptr  = region;
+    ioparam.region_ptr = region;
     ioparam.region_size = region_size;
-    ioparam.flags       = 0;
-    ioparam.out_size    = bitmap_size(region_size) + 8;
-    ioparam.out_data    = malloc(ioparam.out_size);
+    ioparam.flags = 0;
+    ioparam.out_size = bitmap_size(region_size) + 8;
+    ioparam.out_data = malloc(ioparam.out_size);
 
-    ioctl(_fd, IOCTL_CMD_GETBITMAP, &ioparam);  //ioctl call
+    ioctl(_fd, IOCTL_CMD_GETBITMAP, &ioparam);  // ioctl call
 
     IOCTL_out_param *outparam = (IOCTL_out_param *) ioparam.out_data;
 
@@ -142,22 +138,23 @@ class Page_state_bitmap
       print_binary(outparam->bitmap, outparam->bitmap_size);
     }
 
-    parse_bitmap_individual(region, outparam->bitmap, outparam->bitmap_size, dirty_vector);
+    parse_bitmap_individual(region, outparam->bitmap, outparam->bitmap_size,
+                            dirty_vector);
 
     free(ioparam.out_data);
   }
 
  private:
-  static void parse_bitmap(void *base, char *data, size_t length, range_map_t &range_map)
-  {
+  static void parse_bitmap(void *base, char *data, size_t length,
+                           range_map_t &range_map) {
     assert(length > 0);
 
-    size_t   qwords       = length / sizeof(uint64_t);
-    size_t   remaining    = length % sizeof(uint64_t);
-    unsigned curr_bit     = 0;
-    addr_t   base_addr    = reinterpret_cast<addr_t>(base);
-    unsigned segment_len  = 0;
-    addr_t   segment_base = 0;
+    size_t qwords = length / sizeof(uint64_t);
+    size_t remaining = length % sizeof(uint64_t);
+    unsigned curr_bit = 0;
+    addr_t base_addr = reinterpret_cast<addr_t>(base);
+    unsigned segment_len = 0;
+    addr_t segment_base = 0;
 
     assert(base_addr % PAGE_SIZE == 0);
 
@@ -168,7 +165,7 @@ class Page_state_bitmap
           // contiguous with current segment
           if (segment_base == 0) {
             segment_base = base_addr + (curr_bit * PAGE_SIZE);
-            segment_len  = 1;
+            segment_len = 1;
           }
           else {  // extends current segment
             segment_len++;
@@ -179,7 +176,7 @@ class Page_state_bitmap
             if (option_DEBUG) printf("0x%lx - %d\n", segment_base, segment_len);
 
             range_map.push_back(range_t{segment_base, segment_len});
-            segment_len  = 0;
+            segment_len = 0;
             segment_base = 0;
           }
         }
@@ -203,7 +200,7 @@ class Page_state_bitmap
           // contiguous with current segment
           if (segment_base == 0) {
             segment_base = base_addr + (curr_bit * PAGE_SIZE);
-            segment_len  = 1;
+            segment_len = 1;
           }
           else {  // extends current segment
             segment_len++;
@@ -213,7 +210,7 @@ class Page_state_bitmap
           if (segment_base) {
             if (option_DEBUG) printf("0x%lx - %d\n", segment_base, segment_len);
             range_map.push_back(range_t{segment_base, segment_len});
-            segment_len  = 0;
+            segment_len = 0;
             segment_base = 0;
           }
         }
@@ -236,14 +233,14 @@ class Page_state_bitmap
     }
   }
 
-  static void parse_bitmap_individual(void *base, char *data, size_t length, std::vector<addr_t> &dirty_vector)
-  {
+  static void parse_bitmap_individual(void *base, char *data, size_t length,
+                                      std::vector<addr_t> &dirty_vector) {
     assert(length > 0);
 
-    size_t   qwords    = length / sizeof(uint64_t);
-    size_t   remaining = length % sizeof(uint64_t);
-    unsigned curr_bit  = 0;
-    addr_t   base_addr = reinterpret_cast<addr_t>(base);
+    size_t qwords = length / sizeof(uint64_t);
+    size_t remaining = length % sizeof(uint64_t);
+    unsigned curr_bit = 0;
+    addr_t base_addr = reinterpret_cast<addr_t>(base);
 
     assert(base_addr % PAGE_SIZE == 0);
 
@@ -252,7 +249,8 @@ class Page_state_bitmap
     uint64_t *qptr = (uint64_t *) data;
     while (qwords > 0) {
       for (unsigned i = 0; i < 64; i++) {
-        if (*qptr & 0x1) dirty_vector.push_back(base_addr + (curr_bit * PAGE_SIZE));
+        if (*qptr & 0x1)
+          dirty_vector.push_back(base_addr + (curr_bit * PAGE_SIZE));
 
         *qptr = *qptr >> 1;
         curr_bit++;
@@ -269,7 +267,8 @@ class Page_state_bitmap
 
     while (remaining > 0) {
       for (unsigned i = 0; i < 8; i++) {
-        if (*bptr & 0x1) dirty_vector.push_back(base_addr + (curr_bit * PAGE_SIZE));
+        if (*bptr & 0x1)
+          dirty_vector.push_back(base_addr + (curr_bit * PAGE_SIZE));
 
         *bptr = *bptr >> 1;
         curr_bit++;
@@ -284,8 +283,7 @@ class Page_state_bitmap
     }
   }
 
-  static void print_binary(char *data, size_t length)
-  {
+  static void print_binary(char *data, size_t length) {
     for (unsigned i = 0; i < length; i++) {
       char byte = data[i];
       for (unsigned j = 0; j < 8; j++) {
@@ -300,14 +298,13 @@ class Page_state_bitmap
     printf("\n");
   }
 
-  static size_t bitmap_size(size_t data_len)
-  {
+  static size_t bitmap_size(size_t data_len) {
     size_t size = data_len / 8;
     if (data_len % 8) size++;
     return size;
   }
 };
 
-}  // Core namespace
+}  // namespace Core
 
 #endif  // __PAGE_BITMAP_H__

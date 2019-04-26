@@ -1,3 +1,15 @@
+/*
+   Copyright [2017-2019] [IBM Corporation]
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
 #include "registration.h"
 
 #include "eyecatcher.h"
@@ -9,13 +21,36 @@ registration::registration(Component::IFabric_connection &cnxn_, const void *con
   : _cnxn(cnxn_)
   , _region(_cnxn.register_memory(contig_addr_, size_, key_, flags_))
   , _key(_cnxn.get_memory_remote_key(_region))
+  , _desc(_cnxn.get_memory_descriptor(_region))
 {
+}
+
+registration::registration(registration &&r_)
+  : _cnxn(r_._cnxn)
+  , _region(std::move(r_._region))
+  , _key(std::move(r_._key))
+  , _desc(std::move(r_._desc))
+{
+  r_._desc = nullptr;
+}
+
+registration &registration::operator=(registration &&r_)
+{
+  _cnxn = r_._cnxn;
+  _region = std::move(r_._region);
+  _key = std::move(r_._key);
+  _desc = std::move(r_._desc);
+  r_._desc = nullptr;
+  return *this;
 }
 
 registration::~registration()
 try
 {
-  _cnxn.deregister_memory(_region);
+  if ( _desc )
+  {
+    _cnxn.deregister_memory(_region);
+  }
 }
 catch ( std::exception &e )
 {

@@ -1,18 +1,16 @@
 /*
-   Copyright [2017] [IBM Corporation]
-
+   Copyright [2017-2019] [IBM Corporation]
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
-
        http://www.apache.org/licenses/LICENSE-2.0
-
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
 */
+
 #include <sstream>
 #include <core/physical_memory.h>
 #include "append_store.h"
@@ -193,9 +191,7 @@ Append_store::~Append_store()
 
   g_tls_db_vector_lock.lock();
   for(auto& handle: g_tls_db_vector) {
-    //PLOG("closing db handle %p", handle);
-    if(sqlite3_close(handle) != SQLITE_OK)
-      throw General_exception("failed to close sqlite3 db (%s)", _db_filename.c_str());
+    sqlite3_close(handle);
   }
   g_tls_db_vector_lock.unlock();
 
