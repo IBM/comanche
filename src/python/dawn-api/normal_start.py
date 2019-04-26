@@ -14,13 +14,17 @@ x = pool.get('key0')
 print('>>' + x + '<<')
 print(pool.count())
 
-arr = bytearray('byte array', 'utf-8')
+#arr = bytearray('byte array', 'utf-8')
+arr = bytearray(int(1e9))
 pool.put_direct('array0', arr)
 
 y = pool.get_direct('array0')
 #y = pool.get_direct('key1')
 #y = pool.get('array0')
-print(y)
+print('First part...')
+print(y[0:20])
 
+print('Size enquiry:%d' % pool.get_size('array0'))
+      
 pool.close()
 session.delete_pool(pool_name)

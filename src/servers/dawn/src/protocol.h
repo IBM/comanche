@@ -267,7 +267,7 @@ struct Message_IO_request : public Message {
                          const size_t key_len,
                          const size_t value_len)
   {
-    if (unlikely((value_len + key_len + 1 + sizeof(Message_IO_request)) > buffer_size))
+    if (unlikely((key_len + 1 + sizeof(Message_IO_request)) > buffer_size))
       throw API_exception(
           "Message_IO_request::set_key_value_len - insufficient buffer for "
           "key-value_len pair (key_len=%lu) (val_len=%lu)",
