@@ -18,6 +18,9 @@
  *   USE_CC_HEAP 2: simple allocation using offsets from a large region obtained from dax_map (NOT TESTED)
  *   USE_CC_HEAP 3: AVL-based allocation using actual addresses from a large region obtained from dax_map 
  *
+ * To run hstore without PM, use variables USE_DRAM and NO_CLFLUSHOPT:
+ *   USE_DRAM=24 NO_CLFLUSHOPT=1 DAX_RESET=1 ./dist/bin/kvstore-perf --test put --component hstore --path pools --pool_name foo --device_name /tmp/ --elements 1000000 --size 5000000000 --devices 0.0
+
  */
 #if USE_PMEM
 /* with PMEM, choose the CC_HEAP version: 0, 1, 2, 3 */
