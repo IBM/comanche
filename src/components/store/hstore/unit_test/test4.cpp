@@ -36,6 +36,27 @@ void ProfilerStop() {}
 #include <tuple>
 #include <vector>
 
+class profiler
+{
+	bool _run;
+public:
+	profiler(const std::string &s)
+		: _run(bool(std::getenv("PROFILE")))
+	{
+		if ( _run )
+		{
+			ProfilerStart(s.c_str());
+		}
+	}
+	~profiler()
+	{
+		if ( _run )
+		{
+			ProfilerStop();
+		}
+	}
+};
+
 class timer
 {
 public:
@@ -220,6 +241,12 @@ TEST_F(KVStore_test, RemoveOldPool)
 
 TEST_F(KVStore_test, CreatePools)
 {
+  /* Note: when using USE_DRAM=n, the memory system takes 1 GB for overhead,
+   * Test which require the sum of all regions to be m require specifying m+1
+   * for USE_DRAM.
+   * Example: 4 threads, each requiring a 15GB region, require USE_DRAM=61.
+   */
+
   /* time to create pools, in estimate objects / second */
   std::cerr << "many_count_target " << many_count_target << "\n";
   std::cerr << "estimated_object_count " << estimated_object_count << "\n";
@@ -228,6 +255,13 @@ TEST_F(KVStore_test, CreatePools)
   std::size_t large_values_size = 0 + string_length_and_overhead(many_value_length_long) + string_length_and_overhead(many_value_length_long);
   /* index requirement is estimated_object_count * size of index object / index efficiency rounded up to power of 2. */
   auto index_alloc = round_up_to_pow2(( estimated_object_count * 64 * 5 ) / 5);
+  /* The largest segment, which consumes half the space, will be require
+   * that double its size be availabe during allocation. (nupm::Region_map
+   * requires size bytes aligned by alignment, where alignment == size.
+   * The strategy for doing that is to ask for size+alignment bytes and
+   * from that carve out size bytes properly aligned.
+   */
+  index_alloc = index_alloc * 3 / 2;
   auto key_alloc = large_keys_size * many_count_target;
   auto value_alloc = large_values_size * many_count_target;
   std::cerr << "index alloc " << index_alloc << "\n";
@@ -319,7 +353,7 @@ long unsigned KVStore_test::put_many_threaded(const kvv_t &kvv, const std::strin
 {
 
   std::vector<std::future<long unsigned>> v;
-  ProfilerStart(("test4-put-" + descr + "-cpu-" + store_map::impl->name + ".profile").c_str());
+  profiler p("test4-put-" + descr + "-cpu-" + store_map::impl->name + ".profile");
   for ( auto p : pool )
   {
     v.emplace_back(std::async(std::launch::async, put_many, p, kvv, descr));
@@ -327,7 +361,6 @@ long unsigned KVStore_test::put_many_threaded(const kvv_t &kvv, const std::strin
 
   long unsigned count_actual = 0;
   for ( auto &e : v ) { count_actual += e.get(); }
-  ProfilerStop();
   return count_actual;
 }
 
@@ -419,13 +452,12 @@ void KVStore_test::get_many(Component::IKVStore::pool_t pool, const kvv_t &kvv, 
 void KVStore_test::get_many_threaded(const kvv_t &kvv, const std::string &descr)
 {
   std::vector<std::future<void>> v;
-  ProfilerStart(("test4-get-" + descr + "-cpu-" + store_map::impl->name + ".profile").c_str());
+  profiler p("test4-get-" + descr + "-cpu-" + store_map::impl->name + ".profile");
   for ( auto p : pool )
   {
     v.emplace_back(std::async(std::launch::async, get_many, p, kvv, descr));
   }
   for ( auto &e : v ) { e.get(); }
-  ProfilerStop();
 }
 
 TEST_F(KVStore_test, GetManyShortShort)
@@ -474,7 +506,7 @@ TEST_F(KVStore_test, ClosePool)
 
 TEST_F(KVStore_test, OpenPool2)
 {
-  ProfilerStart(("test4-open-pool-2-cpu-" + store_map::impl->name + ".profile").c_str());
+  profiler p("test4-open-pool-2-cpu-" + store_map::impl->name + ".profile");
   timer t(
     [] (timer::duration_t d) {
       auto seconds = std::chrono::duration<double>(d).count();
@@ -487,7 +519,6 @@ TEST_F(KVStore_test, OpenPool2)
     pool[i] = _kvstore->open_pool(pool_name(i));
     ASSERT_LT(0, int64_t(pool[i]));
   }
-  ProfilerStop();
 }
 
 TEST_F(KVStore_test, ClosePool2)
