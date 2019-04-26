@@ -342,6 +342,8 @@ TEST_F(KVStore_test, BasicGetAttribute)
   std::vector<uint64_t> attr;
   auto r = _kvstore->get_attribute(pool, IKVStore::VALUE_LEN, attr, &single_key);
   EXPECT_EQ(r, S_OK);
+  ASSERT_EQ(attr.size(), 1);
+  ASSERT_EQ(attr[0], single_value_updated_different_size.length());
   r = _kvstore->get_attribute(pool, Component::IKVStore::Attribute(0), attr, &single_key);
   EXPECT_EQ(IKVStore::E_NOT_SUPPORTED, r);
   r = _kvstore->get_attribute(pool, IKVStore::VALUE_LEN, attr, nullptr);
