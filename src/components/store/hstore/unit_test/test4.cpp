@@ -1,3 +1,15 @@
+/*
+   Copyright [2017-2019] [IBM Corporation]
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
 #include "store_map.h"
 
 #include <gtest/gtest.h>
@@ -14,7 +26,7 @@ void ProfilerStop() {}
 #endif
 
 #include <chrono>
-#include <cstdlib>
+#include <cstdlib> /* getenv */
 #include <functional> /* function */
 #include <future>
 #include <iostream>
@@ -23,6 +35,27 @@ void ProfilerStop() {}
 #include <sstream>
 #include <tuple>
 #include <vector>
+
+class profiler
+{
+	bool _run;
+public:
+	profiler(const std::string &s)
+		: _run(bool(std::getenv("PROFILE")))
+	{
+		if ( _run )
+		{
+			ProfilerStart(s.c_str());
+		}
+	}
+	~profiler()
+	{
+		if ( _run )
+		{
+			ProfilerStop();
+		}
+	}
+};
 
 class timer
 {
@@ -57,7 +90,7 @@ public:
  *    MB(2048UL)   918925    16        32
  *    MB(4096UL) >2000000    16        32
  *
- * (this table obsoleted, or at least made harder to generate, but use of multiple key and data sizes)
+ * (this table obsoleted, or at least made harder to generate, by use of multiple key and data sizes)
  */
 
 using namespace Component;
@@ -68,13 +101,13 @@ namespace {
 class KVStore_test
   : public ::testing::Test
 {
-  static constexpr std::size_t estimated_object_count_large = 6000000;
+
+  static const std::size_t many_count_target_large;
+  static const std::size_t estimated_object_count_large;
+  /* Shorter test: use when PMEM_IS_PMEM_FORCE=0 */
+  static const std::size_t many_count_target_small;
   /* More testing of table splits, at a performance cost */
   static constexpr std::size_t estimated_object_count_small = 1;
-
-  static constexpr std::size_t many_count_target_large = 2000000;
-  /* Shorter test: use when PMEM_IS_PMEM_FORCE=0 */
-  static constexpr std::size_t many_count_target_small = 400;
 
  protected:
 
@@ -91,7 +124,8 @@ class KVStore_test
     // before the destructor).
   }
 
-  using poolv_t = std::array<Component::IKVStore::pool_t, 4>;
+  static constexpr std::size_t threads = 4;
+  using poolv_t = std::array<Component::IKVStore::pool_t, threads>;
 
   // Objects declared here can be used by all tests in the test case
 
@@ -116,6 +150,10 @@ class KVStore_test
   static kvv_t kvv_short_long;
   static kvv_t kvv_long_long;
 
+  static bool short_short_put;
+  static bool short_long_put;
+  static bool long_long_put;
+
   static std::size_t multi_count_actual;
   static std::size_t estimated_object_count;
   static std::size_t many_count_target;
@@ -130,12 +168,25 @@ class KVStore_test
     return "test-" + store_map::impl->name + store_map::numa_zone() + "-" + std::to_string(i) + ".pool";
   }
   static poolv_t pool;
+  static std::size_t string_length_and_overhead(std::size_t length)
+  {
+    return round_up_to_pow2(length + 16);
+  }
+  static std::size_t round_up_to_pow2(std::size_t n)
+  {
+    n = (n - 1) | 1;
+    while ( n & (n-1) )
+    {
+      n &= (n - 1);
+    }
+    return n << 1;
+  }
 };
 
-constexpr std::size_t KVStore_test::estimated_object_count_large;
 constexpr std::size_t KVStore_test::estimated_object_count_small;
-constexpr std::size_t KVStore_test::many_count_target_large;
-constexpr std::size_t KVStore_test::many_count_target_small;
+const std::size_t KVStore_test::many_count_target_large = std::getenv("COUNT_TARGET") ? std::stoul(std::getenv("COUNT_TARGET")) : 2000000;
+const std::size_t KVStore_test::estimated_object_count_large = many_count_target_large * 3; /* there are three test, each of which uses many_count_target objects */
+const std::size_t KVStore_test::many_count_target_small = std::getenv("COUNT_TARGET") ? std::stoul(std::getenv("COUNT_TARGET")) : 400;
 
 bool KVStore_test::pmem_simulated = getenv("PMEM_IS_PMEM_FORCE");
 Component::IKVStore *KVStore_test::_kvstore;
@@ -148,6 +199,9 @@ constexpr unsigned KVStore_test::many_value_length_long;
 KVStore_test::kvv_t KVStore_test::kvv_short_short;
 KVStore_test::kvv_t KVStore_test::kvv_short_long;
 KVStore_test::kvv_t KVStore_test::kvv_long_long;
+bool KVStore_test::short_short_put = false;
+bool KVStore_test::short_long_put = false;
+bool KVStore_test::long_long_put = false;
 
 std::size_t KVStore_test::multi_count_actual = 0;
 std::size_t KVStore_test::estimated_object_count = KVStore_test::pmem_simulated ? estimated_object_count_small : estimated_object_count_large;
@@ -187,10 +241,49 @@ TEST_F(KVStore_test, RemoveOldPool)
 
 TEST_F(KVStore_test, CreatePools)
 {
+  /* Note: when using USE_DRAM=n, the memory system takes 1 GB for overhead,
+   * Test which require the sum of all regions to be m require specifying m+1
+   * for USE_DRAM.
+   * Example: 4 threads, each requiring a 15GB region, require USE_DRAM=61.
+   */
+
+  /* time to create pools, in estimate objects / second */
+  std::cerr << "many_count_target " << many_count_target << "\n";
+  std::cerr << "estimated_object_count " << estimated_object_count << "\n";
+  /* the three values are for small/small, samm/large, and large/large */
+  std::size_t large_keys_size = 0 + 0 + string_length_and_overhead(many_key_length_long);
+  std::size_t large_values_size = 0 + string_length_and_overhead(many_value_length_long) + string_length_and_overhead(many_value_length_long);
+  /* index requirement is estimated_object_count * size of index object / index efficiency rounded up to power of 2. */
+  auto index_alloc = round_up_to_pow2(( estimated_object_count * 64 * 5 ) / 5);
+  /* The largest segment, which consumes half the space, will be require
+   * that double its size be availabe during allocation. (nupm::Region_map
+   * requires size bytes aligned by alignment, where alignment == size.
+   * The strategy for doing that is to ask for size+alignment bytes and
+   * from that carve out size bytes properly aligned.
+   */
+  index_alloc = index_alloc * 3 / 2;
+  auto key_alloc = large_keys_size * many_count_target;
+  auto value_alloc = large_values_size * many_count_target;
+  std::cerr << "index alloc " << index_alloc << "\n";
+  std::cerr << "key alloc " << key_alloc << "\n";
+  std::cerr << "value alloc " << value_alloc << "\n";
+  auto pool_alloc_needed = index_alloc + key_alloc + value_alloc;
+  auto pool_header_size = 0x4d0;
+  auto pool_alloc = pool_header_size + pool_alloc_needed * 4 / 3;
   ASSERT_TRUE(_kvstore);
+  timer t(
+    [] (timer::duration_t d) {
+      auto seconds = std::chrono::duration<double>(d).count();
+      std::cerr << "create pool" << " " << estimated_object_count * pool.size() / seconds << " estimated objects per second\n";
+    }
+  );
   for ( auto i = 0; i != pool.size(); ++i )
   {
-    pool[i] = _kvstore->create_pool(pool_name(i), GB(12UL), 0, estimated_object_count);
+#if 0
+    pool[i] = _kvstore->create_pool(pool_name(i), GB(1) + pool_alloc, 0, estimated_object_count);
+#else
+    pool[i] = _kvstore->create_pool(pool_name(i), pool_alloc, 0, 1);
+#endif
     ASSERT_LT(0, int64_t(pool[i]));
   }
 }
@@ -260,7 +353,7 @@ long unsigned KVStore_test::put_many_threaded(const kvv_t &kvv, const std::strin
 {
 
   std::vector<std::future<long unsigned>> v;
-  ProfilerStart(("test4-put-" + descr + "-cpu-" + store_map::impl->name + ".profile").c_str());
+  profiler p("test4-put-" + descr + "-cpu-" + store_map::impl->name + ".profile");
   for ( auto p : pool )
   {
     v.emplace_back(std::async(std::launch::async, put_many, p, kvv, descr));
@@ -268,7 +361,6 @@ long unsigned KVStore_test::put_many_threaded(const kvv_t &kvv, const std::strin
 
   long unsigned count_actual = 0;
   for ( auto &e : v ) { count_actual += e.get(); }
-  ProfilerStop();
   return count_actual;
 }
 
@@ -283,6 +375,7 @@ TEST_F(KVStore_test, PutManyShortShort)
   EXPECT_LE(many_count_target*pool.size() * 0.99, double(count_actual));
 
   multi_count_actual += count_actual;
+  short_short_put = true;
 }
 
 TEST_F(KVStore_test, PutManyShortLong)
@@ -296,6 +389,7 @@ TEST_F(KVStore_test, PutManyShortLong)
   EXPECT_LE(many_count_target*pool.size() * 0.99, double(count_actual));
 
   multi_count_actual += count_actual;
+  short_long_put = true;
 }
 
 TEST_F(KVStore_test, PutManyLongLong)
@@ -309,6 +403,7 @@ TEST_F(KVStore_test, PutManyLongLong)
   EXPECT_LE(many_count_target*pool.size() * 0.99, double(count_actual));
 
   multi_count_actual += count_actual;
+  long_long_put = true;
 }
 
 TEST_F(KVStore_test, Size1)
@@ -357,18 +452,18 @@ void KVStore_test::get_many(Component::IKVStore::pool_t pool, const kvv_t &kvv, 
 void KVStore_test::get_many_threaded(const kvv_t &kvv, const std::string &descr)
 {
   std::vector<std::future<void>> v;
-  ProfilerStart(("test4-get-" + descr + "-cpu-" + store_map::impl->name + ".profile").c_str());
+  profiler p("test4-get-" + descr + "-cpu-" + store_map::impl->name + ".profile");
   for ( auto p : pool )
   {
     v.emplace_back(std::async(std::launch::async, get_many, p, kvv, descr));
   }
   for ( auto &e : v ) { e.get(); }
-  ProfilerStop();
 }
 
 TEST_F(KVStore_test, GetManyShortShort)
 {
   ASSERT_NE(nullptr, _kvstore);
+  ASSERT_EQ(short_short_put, true);
   for ( auto p : pool ) { ASSERT_LT(0, int64_t(p)); }
 
   get_many_threaded(kvv_short_short, "short_short");
@@ -377,6 +472,7 @@ TEST_F(KVStore_test, GetManyShortShort)
 TEST_F(KVStore_test, GetManyShortLong)
 {
   ASSERT_NE(nullptr, _kvstore);
+  ASSERT_EQ(short_long_put, true);
   for ( auto p : pool ) { ASSERT_LT(0, int64_t(p)); }
 
   get_many_threaded(kvv_short_long, "short_long");
@@ -385,12 +481,47 @@ TEST_F(KVStore_test, GetManyShortLong)
 TEST_F(KVStore_test, GetManyLongLong)
 {
   ASSERT_NE(nullptr, _kvstore);
+  ASSERT_EQ(long_long_put, true);
   for ( auto p : pool ) { ASSERT_LT(0, int64_t(p)); }
 
   get_many_threaded(kvv_long_long, "long_long");
 }
 
 TEST_F(KVStore_test, ClosePool)
+{
+  timer t(
+    [] (timer::duration_t d) {
+      auto seconds = std::chrono::duration<double>(d).count();
+      std::cerr << "close pool" << " " << multi_count_actual / seconds << " objects per second\n";
+    }
+  );
+  for ( auto p : pool )
+  {
+    if ( _kvstore && 0 < int64_t(p) )
+    {
+      _kvstore->close_pool(p);
+    }
+  }
+}
+
+TEST_F(KVStore_test, OpenPool2)
+{
+  profiler p("test4-open-pool-2-cpu-" + store_map::impl->name + ".profile");
+  timer t(
+    [] (timer::duration_t d) {
+      auto seconds = std::chrono::duration<double>(d).count();
+      std::cerr << "open pool" << " " << multi_count_actual << "/" << seconds << " = " << multi_count_actual / seconds << " objects per second\n";
+    }
+  );
+  ASSERT_TRUE(_kvstore);
+  for ( auto i = 0; i != pool.size(); ++i )
+  {
+    pool[i] = _kvstore->open_pool(pool_name(i));
+    ASSERT_LT(0, int64_t(pool[i]));
+  }
+}
+
+TEST_F(KVStore_test, ClosePool2)
 {
   for ( auto p : pool )
   {

@@ -35,7 +35,16 @@ template <typename TableBase>
 template <typename TableBase>
 	auto impl::operator<<(
 		std::ostream &o_
-		, const table_dump<TableBase> &t_
+		, const dump<false>::table_dump<TableBase> &t_
+	) -> std::ostream &
+	{
+		return o_;
+	}
+
+template <typename TableBase>
+	auto impl::operator<<(
+		std::ostream &o_
+		, const dump<true>::table_dump<TableBase> &t_
 	) -> std::ostream &
 	{
 		auto &tbl_base = t_.get_table();

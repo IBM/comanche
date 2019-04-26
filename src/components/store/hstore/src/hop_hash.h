@@ -1,7 +1,16 @@
 /*
- * (C) Copyright IBM Corporation 2018, 2019. All rights reserved.
- * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
- */
+   Copyright [2017-2019] [IBM Corporation]
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
+
 
 #ifndef _COMANCHE_HSTORE_HOP_HASH_H
 #define _COMANCHE_HSTORE_HOP_HASH_H
@@ -10,6 +19,7 @@
 
 #include "bucket_control_unlocked.h"
 #include "construction_mode.h"
+#include "hop_hash_log.h"
 #include "trace_flags.h"
 #include "persist_controller.h"
 #include "segment_and_bucket.h"
@@ -32,11 +42,9 @@
  * http://mcg.cs.tau.ac.il/papers/disc2008-hopscotch.pdf
  */
 
-#if TRACE_CONTENT || TRACE_OWNER || TRACE_BUCKET
 #include "hop_hash_debug.h"
-#endif
 
-#if TRACE_TABLE
+#if TRACED_TABLE
 template <
 	typename Key
 	, typename T
@@ -122,29 +130,23 @@ namespace impl
 				: bucket_ref<Bucket, Owner>(&b_, i_)
 				, std::unique_lock<SharedMutex>(m_)
 			{
-#if TRACE_LOCK
-				std::cerr << __func__ << " " << this->index() << "\n";
-#endif
+				hop_hash_log<TRACE_LOCK>::write(__func__, " ", this->index());
 			}
 			bucket_unique_lock(bucket_unique_lock &&) = default;
 			bucket_unique_lock &operator=(bucket_unique_lock &&other_)
 			{
-#if TRACE_LOCK
-				std::cerr << __func__ << " " << this->index()
-					<< "->" << other_.index() << "\n";
-#endif
+				hop_hash_log<TRACE_LOCK>::write(__func__, " ", this->index()
+					, "->", other_.index());
 				std::unique_lock<SharedMutex>::operator=(std::move(other_));
 				base_ref::operator=(std::move(other_));
 				return *this;
 			}
 			~bucket_unique_lock()
 			{
-#if TRACE_LOCK
 				if ( this->owns_lock() )
 				{
-					std::cerr << __func__ << " " << this->index() << "\n";
+					hop_hash_log<TRACE_LOCK>::write(__func__, " ", this->index());
 				}
-#endif
 			}
 			template <typename Table>
 				void assert_clear(bool b, Table &t)
@@ -169,29 +171,22 @@ namespace impl
 				: base_ref(&b_, i_)
 				, base_lock(m_)
 			{
-#if TRACE_LOCK
-				std::cerr << __func__ << " " << this->index() << "\n";
-#endif
+				hop_hash_log<TRACE_LOCK>::write( __func__, " ", this->index());
 			}
 			bucket_shared_lock(bucket_shared_lock &&) = default;
 			auto operator=(bucket_shared_lock &&other_) -> bucket_shared_lock &
 			{
-#if TRACE_LOCK
-				std::cerr << __func__ << " " << this->index()
-					<< "->" << other_.index() << "\n";
-#endif
+				hop_hash_log<TRACE_LOCK>::write(__func__, " ", this->index(), "->", other_.index());
 				base_lock::operator=(std::move(other_));
 				base_ref::operator=(std::move(other_));
 				return *this;
 			}
 			~bucket_shared_lock()
 			{
-#if TRACE_LOCK
 				if ( this->owns_lock() )
 				{
-					std::cerr << __func__ << " " << this->index() << "\n";
+					hop_hash_log<TRACE_LOCK>::write(__func__, " ", this->index());
 				}
-#endif
 			}
 		};
 
@@ -215,7 +210,7 @@ namespace impl
 		struct bucket_control
 			: public bucket_control_unlocked<Bucket>
 		{
-			bucket_mutexes<Mutex> *_bucket_mutexes;
+			std::unique_ptr<bucket_mutexes<Mutex>[]> _bucket_mutexes;
 		public:
 			using base = bucket_control_unlocked<Bucket>;
 			using bucket_aligned_t = typename base::bucket_aligned_t;
@@ -226,10 +221,15 @@ namespace impl
 			)
 				: bucket_control_unlocked<Bucket>(index_, buckets_)
 				, _bucket_mutexes(nullptr)
-			{}
+			{
+			}
 			explicit bucket_control()
 				: bucket_control(0U, nullptr)
-			{}
+			{
+			}
+			~bucket_control()
+			{
+			}
 		};
 
 	template <typename Allocator>
@@ -343,16 +343,16 @@ namespace impl
 				, content_unique_lock_t bf
 			) -> content_unique_lock_t;
 
-			template <typename Lock>
+			template <typename Lock, typename K>
 				auto locate_key(
 					Lock &bi
-					, const key_type &k
+					, const K &k
 				) const -> std::tuple<bucket_t *, segment_and_bucket_t>;
 
 			void resize();
 			void resize_pass1();
 			void resize_pass2();
-			void resize_pass2_inner(
+			bool resize_pass2_adjust_owner(
 				bix_t ix_senior
 				, bucket_control_t &junior_bucket_control
 				, content_unique_lock_t &populated_content_lk
@@ -372,6 +372,8 @@ namespace impl
 			) const -> owner_unique_lock_t;
 
 			auto make_owner_shared_lock(const key_type &k) const -> owner_shared_lock_t;
+			template <typename K>
+				auto make_owner_shared_lock_special(const K &k) const -> owner_shared_lock_t;
 			auto make_owner_shared_lock(
 				const segment_and_bucket_t &
 			) const -> owner_shared_lock_t;
@@ -403,7 +405,8 @@ namespace impl
 
 			static auto locate_owner(const segment_and_bucket_t &a) -> const owner &;
 
-			auto bucket(const key_type &) const -> size_type;
+			template <typename K>
+				auto bucket(const K &) const -> size_type;
 			auto bucket_size(const size_type n) const -> size_type;
 
 			auto owned_by_owner_mask(const segment_and_bucket_t &a) const -> owner::value_type;
@@ -444,6 +447,10 @@ namespace impl
 			auto erase(const key_type &key) -> size_type;
 			auto at(const key_type &key) -> mapped_type &;
 			auto at(const key_type &key) const -> const mapped_type &;
+			template <typename K>
+				auto at_special(const K &key) -> mapped_type &;
+			template <typename K>
+				auto at_special(const K &key) const -> const mapped_type &;
 			auto count(const key_type &k) const -> size_type;
 			auto begin() -> iterator
 			{
@@ -512,7 +519,7 @@ namespace impl
 			void unlock(const key_type &key);
 			auto size() const -> size_type;
 
-#if TRACE_TABLE
+#if TRACED_TABLE
 			friend
 				auto operator<< <>(
 					std::ostream &
@@ -524,10 +531,10 @@ namespace impl
 			friend
 				auto operator<< <>(
 					std::ostream &
-					, const impl::table_dump<table_base> &
+					, const impl::dump<true>::table_dump<table_base> &
 				) -> std::ostream &;
 #endif
-#if TRACE_OWNER
+#if TRACED_OWNER
 			template <typename Lock>
 				friend
 					auto operator<<(
@@ -544,7 +551,7 @@ namespace impl
 						> &
 					) -> std::ostream &;
 #endif
-#if TRACE_BUCKET
+#if TRACEE_BUCKET
 			template<
 				typename TableBase
 				, typename LockOwner
@@ -631,7 +638,7 @@ template <
 		using base::bucket_count;
 		auto max_size() const noexcept -> size_type
 		{
-			return (1U << (base::_segment_capacity-1U));
+			return (size_type(1U) << (base::_segment_capacity-1U));
 		}
 		/* iterators */
 
@@ -671,6 +678,19 @@ template <
 		{
 			return base::count(key);
 		}
+
+		/* lookup special */
+		template <typename K>
+			auto at_special(const K &key) const -> const mapped_type &
+			{
+				return base::at_special(key);
+			}
+
+		template <typename K>
+			auto at_special(const K &key) -> mapped_type &
+			{
+				return base::at_special(key);
+			}
 
 		/* locking */
 		auto lock_shared(const key_type &k) -> bool
@@ -1018,7 +1038,7 @@ namespace impl
 #include "persist_controller.tcc"
 #include "table.tcc"
 
-#if TRACE_CONTENT || TRACE_OWNER || TRACE_BUCKET
+#if TRACED_CONTENT || TRACED_OWNER || TRACED_BUCKET
 #include "hop_hash_debug.tcc"
 #endif
 

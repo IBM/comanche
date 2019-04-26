@@ -1,7 +1,16 @@
 /*
- * (C) Copyright IBM Corporation 2018, 2019. All rights reserved.
- * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
- */
+   Copyright [2017-2019] [IBM Corporation]
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
+
 
 #ifndef COMANCHE_HSTORE_ALLOCATOR_CC_H
 #define COMANCHE_HSTORE_ALLOCATOR_CC_H
@@ -15,10 +24,6 @@
 #include <cstddef> /* size_t, ptrdiff_t */
 #include <sstream> /* ostringstream */
 #include <string>
-
-#if 0
-#include <iostream>
-#endif
 
 class sbrk_alloc
 {
@@ -78,9 +83,6 @@ public:
 		sz = (sz + 63UL) & ~63UL;
 		if ( static_cast<std::size_t>(_state->_limit - current().end()) < sz )
 		{
-#if 0
-			std::cerr << "Alloc " << sz << " failed, remaining " << _state->_limit - current().end() << "\n";
-#endif
 			return nullptr;
 		}
 		auto p = current().end();
@@ -88,21 +90,10 @@ public:
 		other().set(q);
 		persist(other());
 		swap();
-#if 0
-		if ( (std::uintptr_t(1) << 20) < sz )
-		{
-			std::cerr << "Large alloc " << sz << " remaining " << _state->_limit - current().end() << "\n";
-		}
-		else if ( ( std::uintptr_t(p) >> 20U ) != ( std::uintptr_t(q) >> 20U ) )
-		{
-			/* small alloc, but crossed a 1MB line. */
-			std::cerr << "Sample alloc " << sz << " remaining " << _state->_limit - current().end() << "\n";
-		}
-#endif
 		persist(_state->_sw);
 		return p;
 	}
-	void free(const void *) {}
+	void free(const void *, std::size_t) {}
 	void *area() const { return _state; }
 };
 

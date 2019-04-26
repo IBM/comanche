@@ -1,7 +1,16 @@
 /*
- * (C) Copyright IBM Corporation 2018. All rights reserved.
- *
- */
+   Copyright [2017-2019] [IBM Corporation]
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
+
 
 /*
  * Authors:
@@ -22,8 +31,8 @@
 #include "connection.h"
 #include "dawn_client_config.h"
 
-class Dawn_client : public Component::IKVStore,
-                    public Component::IDawn
+class Dawn_client : public virtual Component::IKVStore,
+                    public virtual Component::IDawn
 {
   friend class Dawn_client_factory;
 
@@ -119,6 +128,11 @@ class Dawn_client : public Component::IKVStore,
 
   virtual size_t count(const pool_t pool) override;
 
+  virtual status_t get_attribute(const IKVStore::pool_t pool,
+                                 const IKVStore::Attribute attr,
+                                 std::vector<uint64_t>& out_attr,
+                                 const std::string* key) override;
+
   virtual void debug(const pool_t pool, unsigned cmd, uint64_t arg) override;
 
   virtual Component::IKVStore::memory_handle_t register_direct_memory(void*  vaddr,
@@ -153,7 +167,8 @@ class Dawn_client : public Component::IKVStore,
 };
 
 
-class Dawn_client_factory : public Component::IKVStore_factory {
+class Dawn_client_factory : public Component::IDawn_factory
+{
  public:
   /**
    * Component/interface management
@@ -167,24 +182,39 @@ class Dawn_client_factory : public Component::IKVStore_factory {
 
   void* query_interface(Component::uuid_t& itf_uuid) override
   {
-    if (itf_uuid == Component::IKVStore_factory::iid()) {
+    if (itf_uuid == Component::IDawn_factory::iid()) {
+      return (void*) static_cast<Component::IDawn_factory*>(this);
+    }
+    else if (itf_uuid == Component::IKVStore_factory::iid()) {
       return (void*) static_cast<Component::IKVStore_factory*>(this);
     }
-    else
-      return NULL;  // we don't support this interface
+    else return NULL;  // we don't support this interface
   }
 
   void unload() override { delete this; }
 
+  virtual Component::IDawn* dawn_create(unsigned           debug_level,
+                                        const std::string& owner,
+                                        const std::string& addr,
+                                        const std::string& param) override
+  {
+    Component::IDawn* obj =
+      static_cast<Component::IDawn*>(new Dawn_client(debug_level, owner, addr, param));
+    obj->add_ref();
+    return obj;
+  }
+  
   virtual Component::IKVStore* create(unsigned           debug_level,
                                       const std::string& owner,
                                       const std::string& addr,
                                       const std::string& param) override
   {
-    Component::IKVStore* obj = static_cast<Component::IKVStore*>(new Dawn_client(debug_level, owner, addr, param));
+    Component::IKVStore* obj =
+      static_cast<Component::IKVStore*>(new Dawn_client(debug_level, owner, addr, param));
     obj->add_ref();
     return obj;
   }
+
 };
 
 #endif

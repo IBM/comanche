@@ -38,7 +38,7 @@ template <typename LockOwner, typename LockContent>
 		const auto &b = p_.sb().deref();
 		return o_
 			<< "( "
-			<< make_owner_print(p_.bucket_count(), p_.lock_owner())
+			<< dump<true>::make_owner_print(p_.bucket_count(), p_.lock_owner())
 			<< " "
 			<< b
 			<< " )";
@@ -58,7 +58,7 @@ template <typename TableBase>
 		auto lk_shared_owner = bypass_lock<typename TableBase::bucket_t, owner>(p_.index());
 		return o_
 			<< "( "
-			<< make_owner_print(p_.bucket_count(), lk_shared_owner)
+			<< dump<true>::make_owner_print(p_.bucket_count(), lk_shared_owner)
 			<< " "
 			<< b
 			<< " )";

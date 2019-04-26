@@ -1,12 +1,9 @@
 /*
-   Copyright [2019] [IBM Corporation]
-
+   Copyright [2017-2019] [IBM Corporation]
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
-
        http://www.apache.org/licenses/LICENSE-2.0
-
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -14,19 +11,22 @@
    limitations under the License.
 */
 
+
 #ifndef __API_DAWN_ITF__
 #define __API_DAWN_ITF__
 
 
 #include <api/components.h>
 #include <api/kvstore_itf.h>
+#include <api/kvindex_itf.h>
+
 namespace Component
 {
 
 /** 
  * Dawn client interface (this will include both KV and AS capabilities)
  */
-class IDawn
+class IDawn : public Component::IBase
 {
 public:
   // clang-format off
@@ -35,7 +35,6 @@ public:
   
 public:
   
-
   /** 
    * Determine thread safety of the component
    * 
@@ -121,7 +120,7 @@ public:
                               const std::string& key,
                               const void * value,
                               const size_t value_len,
-                              IKVStore::IKVStore::memory_handle_t handle = IKVStore::HANDLE_NONE,
+                              IKVStore::memory_handle_t handle = IKVStore::HANDLE_NONE,
                               unsigned int flags = IKVStore::FLAGS_NONE) = 0;
 
   /** 
@@ -167,9 +166,9 @@ public:
    * @return Matched key
    */  
   virtual std::string find(const std::string& key_expression,
-                           IKVIndex::offset_t begin_position,
-                           IKVIndex::find_t find_type,
-                           IKVIndex::offset_t& out_end_position) = 0;
+                           Component::IKVIndex::offset_t begin_position,
+                           Component::IKVIndex::find_t find_type,
+                           Component::IKVIndex::offset_t& out_end_position) = 0;
 
   /** 
    * Erase an object
@@ -191,6 +190,21 @@ public:
    */
   virtual size_t count(const IKVStore::pool_t pool) = 0;
 
+  /** 
+   * Get attribute for key or pool (see enum Attribute)
+   * 
+   * @param pool Pool handle
+   * @param attr Attribute to retrieve
+   * @param out_attr Result
+   * @param key [optiona] Key
+   * 
+   * @return S_OK on success
+   */
+  virtual status_t get_attribute(const IKVStore::pool_t pool,
+                                 const IKVStore::Attribute attr,
+                                 std::vector<uint64_t>& out_attr,
+                                 const std::string* key = nullptr) = 0;
+  
   /** 
    * Register memory for zero copy DMA
    * 
@@ -230,25 +244,25 @@ public:
 };
 
 
-class IDawn_factory : public Component::IBase
+class IDawn_factory : public IKVStore_factory
 {
 public:
   // clang-format off
   DECLARE_INTERFACE_UUID(0xfacf1b99,0xbc51,0x49ff,0xa27b,0xd4,0xe8,0x19,0x03,0xbb,0x02);
   // clang-format on
   
-  virtual IDawn * create(const std::string& owner,
+  virtual IDawn * dawn_create(const std::string& owner,
                             const std::string& param){
     throw API_exception("factory::create(owner,param) not implemented");
   };
 
-  virtual IDawn * create(const std::string& owner,
+  virtual IDawn * dawn_create(const std::string& owner,
                             const std::string& param,
                             const std::string& param2){
     throw API_exception("factory::create(owner,param,param2) not implemented");
   }
 
-  virtual IDawn * create(unsigned debug_level,
+  virtual IDawn * dawn_create(unsigned debug_level,
                             const std::string& owner,
                             const std::string& param,
                             const std::string& param2){

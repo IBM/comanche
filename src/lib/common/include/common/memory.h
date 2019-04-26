@@ -94,11 +94,11 @@ class Base_slab_allocator {
    * @return Pointer to first element.
    */
   virtual void *get_first_element() {
-    PWRN("get_first_element not implemented");
+    PWRN("%s get_first_element not implemented", __FILE__);
     return nullptr;
   }
 
-  virtual void dump_info() { PWRN("dump_info not implemented"); }
+  virtual void dump_info() { PWRN("%s dump_info not implemented", __FILE__); }
 };
 
 /**

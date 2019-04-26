@@ -1,18 +1,16 @@
 /*
-   Copyright [2018] [IBM Corporation]
-
+   Copyright [2017-2019] [IBM Corporation]
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
-
        http://www.apache.org/licenses/LICENSE-2.0
-
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
 */
+
 
 #include "fabric_server_generic_factory.h"
 
@@ -54,6 +52,7 @@ Fabric_server_generic_factory::Fabric_server_generic_factory(Fabric &fabric_, ev
   , _pep(fabric_.make_fid_pep(_info, this))
   /* register as an event consumer */
   , _event_registration(eq_, *this, *_pep)
+  , _m_pending{}
   , _pending{}
   , _open{}
   , _end{}
@@ -94,6 +93,7 @@ try
   case FI_CONNREQ:
     {
       auto conn = new_server(_fabric, _eq, *entry_.info);
+      std::lock_guard<std::mutex> g{_m_pending};
       _pending.push(conn);
     }
     break;
@@ -268,7 +268,12 @@ void Fabric_server_generic_factory::listen_loop(
 
 Fabric_memory_control * Fabric_server_generic_factory::get_new_connection()
 {
-  auto c = _pending.remove();
+  /* clumsy way to limit the scope of a lock_guard: immediate call of a lambda */
+  auto c = [this] () {
+    std::lock_guard<std::mutex> g{_m_pending};
+    return _pending.remove();
+  }();
+
   if ( c )
   {
     std::static_pointer_cast<Fabric_op_control>(

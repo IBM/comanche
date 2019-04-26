@@ -1,11 +1,21 @@
 /*
- * (C) Copyright IBM Corporation 2018, 2019. All rights reserved.
- * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
- */
+   Copyright [2017-2019] [IBM Corporation]
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
+
 
 #ifndef COMANCHE_HSTORE_HEAD_CO_H
 #define COMANCHE_HSTORE_HEAD_CO_H
 
+#include "hop_hash_log.h"
 #include "persister_cc.h"
 
 #include <libpmemobj.h> /* PMEMoid */
@@ -14,10 +24,6 @@
 #include <cstddef> /* size_t, ptrdiff_t */
 #include <sstream> /* ostringstream */
 #include <string>
-
-#if 0
-#include <iostream>
-#endif
 
 class sbrk_offset_heap
 {
@@ -63,28 +69,20 @@ public:
 		{
 			/* one-time initialization; assumes that initial bytes in area are zeros/nullptr */
 			assert(start_ <= sz_); /* else not enough space to construct, let alone malloc */
-#if 0
-			std::cerr << "Create " << this << "." << _sw << " start_ " << start_ << " oid off " << oid_.off << "\n";
-#endif
+			hop_hash_log::no_write(__func__, " Create ", this, ".", _sw, " start_ ", start_, " oid off ", oid_.off);
 			_start = start_ + oid_.off;
-#if 0
-			std::cerr << "Create " << this << "." << _sw << " _start " << _start << " oid off " << oid_.off << "\n";
-#endif
+			hop_hash_log::no_write(__func__, " Create ", this, ".", _sw, " _start ", _start, " oid off ", oid_.off);
 			_size = sz_;
 			_bounds[0]._end = _start;
 			_sw = 0;
 			_oid = oid_;
 			persist(*this);
-#if 0
-			std::cerr << "Create " << this << "." << _sw << " start " << _start << " size " << _size << " limit " << limit() << " end " << current()._end << "\n";
-#endif
+			hop_hash_log::no_write(__func__, " Create ", this, ".", _sw, " start ", _start, " size ", _size, " limit ", limit(), " end ", current()._end);
 		}
 		else
 		{
 			restore(oid_);
-#if 0
-			std::cerr << "Restore  in create" << this << "." << _sw << " start " << _start << " size " << _size << " limit " << limit() << " end " << current()._end << "\n";
-#endif
+			hop_hash_log::no_write(__func__, " Restore  in create", this, ".", _sw, " start ", _start, " size ", _size, " limit ", limit(), " end ", current()._end);
 		}
 	}
 
@@ -96,14 +94,12 @@ public:
 		, _bounds{_bounds}
 	{
 		restore(oid_);
-#if 0
-		std::cerr << "Restore " << this << "." << _sw << " start " << _start << " size " << _size << " limit " << limit() << " end " << current()._end << "\n";
-#endif
+		hop_hash_log::no_write(__func__, " Restore ", this, ".", _sw, " start ", _start, " size ", _size, " limit ", limit(), " end ", current()._end);
 	}
 
 	PMEMoid malloc(std::size_t sz)
 	{
-		std::cerr << "Malloc " << this << "." << _sw << " start " << _start << " sz " << sz << " limit " << limit() << " end " << current()._end << "\n";
+		hop_hash_log::no_write(__func__, " ", this, ".", _sw, " start ", _start, " sz ", sz, " limit ", limit(), " end ", current()._end, "\n";
 		/* round to double word */
 		sz = (sz + 7UL) & ~7UL;
 		if ( static_cast<std::size_t>(limit() - current()._end) < sz ) { return PMEMoid{}; }
@@ -114,11 +110,11 @@ public:
 		swap();
 		persist(_sw);
 		assert(_start + p < 16382ULL << 20ULL);
-		std::cerr << "Malloc " << this << "." << _sw << " start " << _start << " sz " << sz << " limit " << limit() << " end " << current()._end << "\n";
+		hop_hash_log::no_write(__func__, " ", this, ".", _sw, " start ", _start, " sz ", sz, " limit ", limit(), " end ", current()._end, "\n";
 		return PMEMoid { _oid.pool_uuid_lo, _start + p };
 	}
 
-	void free(PMEMoid) {}
+	void free(PMEMoid, std::size_t) {}
 };
 
 class heap_co

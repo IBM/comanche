@@ -1,18 +1,16 @@
 /*
-   Copyright [2018] [IBM Corporation]
-
+   Copyright [2017-2019] [IBM Corporation]
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
-
        http://www.apache.org/licenses/LICENSE-2.0
-
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
 */
+
 
 #ifndef _FABRIC_SERVER_GENERIC_FACTORY_H_
 #define _FABRIC_SERVER_GENERIC_FACTORY_H_
@@ -29,6 +27,7 @@
 
 #include <cstdint> /* uint16_t */
 #include <memory> /* shared_ptr */
+#include <mutex> /* mutex */
 #include <thread>
 
 struct fi_info;
@@ -46,7 +45,10 @@ class Fabric_server_generic_factory
   std::shared_ptr<::fid_pep> _pep;
   event_registration _event_registration;
 
+  /* pending connections: inserts by polling thread, removes by user thread */
+  std::mutex _m_pending;
   Pending_cnxns _pending;
+
   Open_cnxns _open;
   /* a write tells the listener thread to exit */
   Fd_pair _end;

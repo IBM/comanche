@@ -1,3 +1,15 @@
+/*
+   Copyright [2017-2019] [IBM Corporation]
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
 #include "dawn_client.h"
 #include "connection.h"
 #include "protocol.h"
@@ -191,9 +203,9 @@ status_t Dawn_client::get_direct(const pool_t       pool,
   return _connection->get_direct(pool, key, out_value, out_value_len, handle);
 }
 
-Component::IKVStore::memory_handle_t Dawn_client::register_direct_memory(
-    void*  vaddr,
-    size_t len)
+Component::IKVStore::memory_handle_t
+Dawn_client::register_direct_memory(void*  vaddr,
+                                    size_t len)
 {
   return _connection->register_direct_memory(vaddr, len);
 }
@@ -208,7 +220,19 @@ status_t Dawn_client::erase(const IKVStore::pool_t pool, const std::string& key)
   return _connection->erase(pool, key);
 }
 
-size_t Dawn_client::count(const IKVStore::pool_t pool) { return 0; }
+size_t Dawn_client::count(const IKVStore::pool_t pool)
+{
+  return _connection->count(pool);
+}
+
+status_t Dawn_client::get_attribute(const IKVStore::pool_t pool,
+                                    const IKVStore::Attribute attr,
+                                    std::vector<uint64_t>& out_attr,
+                                    const std::string* key)
+{
+  return _connection->get_attribute(pool, attr, out_attr, key);
+}
+
 
 status_t Dawn_client::free_memory(void * p)
 {
@@ -234,12 +258,16 @@ std::string Dawn_client::find(const std::string& key_expression,
 extern "C" void* factory_createInstance(Component::uuid_t& component_id)
 {
   if (component_id == Dawn_client_factory::component_id()) {
+    PMAJOR("Creating Dawn_client_factory ...");
     auto fact = new Dawn_client_factory();
+    //    ((Component::IBase *)fact)->add_ref();
     fact->add_ref();
     return static_cast<void*>(fact);
   }
-  else
+  else {
+    PWRN("request for bad factory type");
     return NULL;
+  }
 }
 
 #undef RESET_STATE

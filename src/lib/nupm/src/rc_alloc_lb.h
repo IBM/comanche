@@ -1,18 +1,16 @@
 /*
-   Copyright [2019] [IBM Corporation]
-
+   Copyright [2017-2019] [IBM Corporation]
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
-
        http://www.apache.org/licenses/LICENSE-2.0
-
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
 */
+
 
 /*
  * Authors:
@@ -25,6 +23,7 @@
 #define __NUPM_RC_ALLOC_LB__
 
 #include <common/memory.h>
+#include <memory>
 #include <string>
 
 namespace nupm
@@ -43,6 +42,12 @@ class Rca_LB : public Common::Reconstituting_allocator {
    *
    */
   Rca_LB();
+
+  /**
+   * Destructor
+   *
+   */
+  ~Rca_LB();
 
   /**
    * Add region of memory to be managed
@@ -92,7 +97,7 @@ class Rca_LB : public Common::Reconstituting_allocator {
   void debug_dump(std::string *out_log = nullptr);
 
  private:
-  Region_map *_rmap;
+  std::unique_ptr<Region_map> _rmap;
 };
 
 }  // namespace nupm

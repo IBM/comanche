@@ -1,18 +1,16 @@
 /*
-   Copyright [2019] [IBM Corporation]
-
+   Copyright [2017-2019] [IBM Corporation]
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
-
        http://www.apache.org/licenses/LICENSE-2.0
-
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
 */
+
 
 #include <common/exceptions.h>
 #include <common/logging.h>
@@ -81,11 +79,17 @@ class Rca_AVL_internal {
 
   void *alloc(size_t size, int numa_node, size_t alignment)
   {
-    auto mr = _allocators[numa_node]->alloc(size, alignment);
-    if (_debug_level > 1) PLOG("allocated: 0x%lx size=%lu", mr->addr(), size);
+    try {
+      auto mr = _allocators[numa_node]->alloc(size, alignment);
+      if (_debug_level > 1) PLOG("AVL allocated: 0x%lx size=%lu", mr->addr(), size);
 
-    assert(mr);
-    return mr->paddr();
+      assert(mr);
+      return mr->paddr();
+    }
+    catch(...) {
+      throw General_exception("region allocation out-of-space");
+    }
+    return nullptr;
   }
 
   void free(void *ptr, int numa_node)
@@ -106,6 +110,7 @@ class Rca_AVL_internal {
   }
 
  private:
+
   Core::Slab::CRuntime<Core::Memory_region> _slab; /* use C runtime for slab? */
   std::vector<Core::AVL_range_allocator *>  _allocators;
 };

@@ -7,7 +7,7 @@ enable_language(CXX C ASM)
 set(GCC_COVERAGE_COMPILE_FLAGS "-std=c++14 -g -O2 -fPIC -msse3")
 
 find_library(GTEST_LIB NAMES GTEST PATHS /usr/local/lib,/usr/lib)
-find_library(PROFILER_LIB NAMES profiler PATHS /usr/local/lib,/usr/lib)
+find_library(PROFILER_LIB NAMES profiler PATHS /usr/local/lib,/usr/local/lib64,/usr/lib,/usr/lib64)
 if ("${PROFILER_LIB}" STREQUAL "PROFILER_LIB-NOTFOUND")
 set(PROFILER "")
 else()

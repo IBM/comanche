@@ -1,14 +1,23 @@
 /*
- * (C) Copyright IBM Corporation 2018, 2019. All rights reserved.
- * US Government Users Restricted Rights - Use, duplication or disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
- */
+   Copyright [2017-2019] [IBM Corporation]
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
+
 
 #ifndef _COMANCHE_HSTORE_HOP_HASH_DEBUG_H
 #define _COMANCHE_HSTORE_HOP_HASH_DEBUG_H
 
 #include "segment_and_bucket.h"
 #include <cstddef> /* size_t */
-#include <iostream>
+#include <iosfwd>
 
 namespace impl
 {
@@ -58,17 +67,6 @@ namespace impl
 			auto sb() const { return lock().sb(); }
 			std::size_t index() const { return lock().index(); }
 		};
-
-	template <
-		typename Lock
-	>
-		auto make_owner_print(
-			const std::size_t &sz_
-			, Lock &lk_
-		) -> owner_print<Lock>
-		{
-			return owner_print<Lock>(sz_, lk_);
-		}
 
 	template <
 		typename Lock
@@ -142,33 +140,97 @@ namespace impl
 			return table_print<TableBase>(t_);
 		}
 
-	template <
-		typename TableBase
-	>
-		class table_dump
+
+	template <bool>
+		class dump;
+
+	template<>
+		class dump<true>
 		{
-			const TableBase *_t;
 		public:
-			table_dump(const TableBase &t_)
-				: _t(&t_)
-			{}
-			const TableBase &get_table() const { return *_t; }
+			template <
+				typename TableBase
+			>
+				class table_dump
+				{
+					const TableBase *_t;
+				public:
+					table_dump(const TableBase &t_)
+						: _t(&t_)
+					{}
+					const TableBase &get_table() const { return *_t; }
+				};
+
+			template <
+				typename TableBase
+			>
+				static table_dump<TableBase> make_table_dump(const TableBase &t_)
+				{
+					return table_dump<TableBase>(t_);
+				}
+
+			template <
+				typename Lock
+			>
+				static auto make_owner_print(
+					const std::size_t &sz_
+					, Lock &lk_
+				) -> owner_print<Lock>
+				{
+					return owner_print<Lock>(sz_, lk_);
+				}
 		};
 
-	template <
-		typename TableBase
-	>
-		auto make_table_dump(const TableBase &t_)
+	template<>
+		class dump<false>
 		{
-			return table_dump<TableBase>(t_);
-		}
+			template <
+				typename TableBase
+			>
+				class table_dump
+				{
+					const TableBase *_t;
+				public:
+					table_dump(const TableBase &t_)
+						: _t(&t_)
+					{}
+					const TableBase &get_table() const { return *_t; }
+				};
+		public:
+			template <
+				typename TableBase
+			>
+				static table_dump<TableBase> make_table_dump(const TableBase &t_)
+				{
+					return table_dump<TableBase>(t_);
+				}
+
+			template <
+				typename Lock
+			>
+				static auto make_owner_print(
+					const std::size_t &sz_
+					, Lock &lk_
+				) -> owner_print<Lock>
+				{
+					return owner_print<Lock>(sz_, lk_);
+				}
+		};
 
 	template <
 		typename TableBase
 	>
 		auto operator<<(
 			std::ostream &o
-			, const impl::table_dump<TableBase> &
+			, const impl::dump<false>::table_dump<TableBase> &
+		) -> std::ostream &;
+
+	template <
+		typename TableBase
+	>
+		auto operator<<(
+			std::ostream &o
+			, const impl::dump<true>::table_dump<TableBase> &
 		) -> std::ostream &;
 
 	template <
