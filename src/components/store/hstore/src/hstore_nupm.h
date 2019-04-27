@@ -15,7 +15,7 @@
 #ifndef COMANCHE_HSTORE_NUPM_H
 #define COMANCHE_HSTORE_NUPM_H
 
-#include "hstore_pm.h"
+#include "hstore_pool_manager.h"
 
 #include "hstore_nupm_types.h"
 #include "hstore_open_pool.h"
@@ -32,7 +32,7 @@ template <typename PersistData, typename Heap>
   class region;
 
 #pragma GCC diagnostic push
-/* Note: making enable_shared_from_this private avoids the non-virtual-dtor error but 
+/* Note: making enable_shared_from_this private avoids the non-virtual-dtor error but
  * generates a different error with no error text (G++ 5.4.0)
  */
 #pragma GCC diagnostic ignored "-Wnon-virtual-dtor"
@@ -40,7 +40,7 @@ template <typename PersistData, typename Heap>
 /* Region is region<persist_data_t, heap_rc>, Table is hstore::table_t Allocator is table_t::allocator_type, LockType is hstore::locK_type_t */
 template <typename Region, typename Table, typename Allocator, typename LockType>
   class hstore_nupm
-    : public pool_manager<::open_pool<std::unique_ptr<Region, region_closer<hstore_nupm<Region, Table, Allocator, LockType>>>>>
+    : public pool_manager<::open_pool<std::unique_ptr<Region, region_closer<hstore_nupm<Region, Table, Allocator, LockType>, Region>>>>
     , public std::enable_shared_from_this<hstore_nupm<Region, Table, Allocator, LockType>>
   {
   public:
@@ -49,7 +49,7 @@ template <typename Region, typename Table, typename Allocator, typename LockType
     using table_t = Table;
     using allocator_t = Allocator;
     using lock_type_t = LockType;
-    using region_closer_t = region_closer<hstore_nupm<region_type, table_t, allocator_t, lock_type_t>>;
+    using region_closer_t = region_closer<hstore_nupm<region_type, table_t, allocator_t, lock_type_t>, Region>;
   public:
     using open_pool_handle = ::open_pool<std::unique_ptr<region_type, region_closer_t>>;
   private:
@@ -91,7 +91,7 @@ template <typename Region, typename Table, typename Allocator, typename LockType
     void pool_delete(const pool_path &path_) override;
 
     /* ERROR: want get_pool_regions(<proper type>, std::vector<::iovec>&) */
-    status_t pool_get_regions(void *, std::vector<::iovec>&) override;
+    std::vector<::iovec> pool_get_regions(const open_pool_handle &) const override;
   };
 #pragma GCC diagnostic pop
 

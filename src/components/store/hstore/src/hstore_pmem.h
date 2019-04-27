@@ -15,7 +15,7 @@
 #ifndef COMANCHE_HSTORE_PMEM_H
 #define COMANCHE_HSTORE_PMEM_H
 
-#include "hstore_pm.h"
+#include "hstore_pool_manager.h"
 
 #include <api/kvstore_itf.h> /* E_TOO_LARGE, E_BAD_PARAM */
 
@@ -467,24 +467,22 @@ public:
     }
   }
 
-  status_t pool_get_regions(void *pool_, std::vector<::iovec>& out_regions) override
+  std::vector<::iovec> pool_get_regions(void *pool_) override
   {
     PMEMobjpool *pool = static_cast<PMEMobjpool *>(pool_);
     /* calls pmemobj extensions in modified version of PMDK */
-    unsigned idx = 0;
     void * base = nullptr;
     size_t len = 0;
 
-    while ( pmemobj_ex_pool_get_region(pool, idx, &base, &len) == 0 ) {
+    std::vector<::iovec> resions;
+    for ( unsigned idx = 0; pmemobj_ex_pool_get_region(pool, idx, &base, &len) == 0, ++idx )
+    {
       assert(base);
       assert(len);
-      out_regions.push_back(::iovec{base,len});
-      base = nullptr;
-      len = 0;
-      idx++;
+      regions.push_back(::iovec{base,len});
     }
 
-    return S_OK;
+    return regions;
   }
 };
 

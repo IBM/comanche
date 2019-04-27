@@ -234,7 +234,7 @@ long unsigned KVStore_test::put_many(const kvv_t &kvv, const std::string &descr)
   {
     timer t(
       [&count, &descr] (timer::duration_t d) {
-        double seconds = std::chrono::duration_cast<std::chrono::microseconds>(d).count() / 1e6;
+        double seconds = std::chrono::duration_cast<std::chrono::duration<double>>(d).count();
         std::cerr << descr << " " << count << " in " << seconds << " seconds -> " << count / seconds << " per second\n";
       }
     );
@@ -315,7 +315,7 @@ void KVStore_test::get_many(const kvv_t &kvv, const std::string &descr)
 	auto ct = amplification * kvv.size();
     timer t(
 		[&descr,ct] (timer::duration_t d) {
-			double seconds = std::chrono::duration_cast<std::chrono::microseconds>(d).count() / 1e6;
+			double seconds = std::chrono::duration_cast<std::chrono::duration<double>>(d).count() / 1e6;
 			std::cerr << descr << " " << ct << " in " << seconds << " => " << ct / seconds << " per second\n";
 		}
 	);
