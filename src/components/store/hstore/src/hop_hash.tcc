@@ -22,19 +22,19 @@
 
 
 /*
- * ===== table_base =====
+ * ===== hop_hash_base =====
  */
 
 template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::table_base(
+	impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::hop_hash_base(
 		persist_data_t *pc_
 		, construction_mode mode_
 		, const Allocator &av_
 	)
-		: table_allocator<Allocator>{av_}
+		: hop_hash_allocator<Allocator>{av_}
 		, persist_controller_t(av_, pc_, mode_)
 		, _hasher{}
 		, _locate_key_call(0)
@@ -91,7 +91,7 @@ template <
 			, " segment_count_specified ", this->persist_controller_t::segment_count_specified());
 		/* If table allocation incomplete (perhaps in the middle of a resize op), resize until large enough. */
 
-		hop_hash_log<TEST_HSTORE_PERISHABLE>::write(__func__, "Table base constructor: "
+		hop_hash_log<TEST_HSTORE_PERISHABLE>::write(__func__, "HopHash base constructor: "
 			, (this->is_size_stable() ? "stable" : "unstable"), " segment_count ", this->segment_count_actual().value_not_stable());
 
 		if ( ! this->persist_controller_t::segment_count_actual().is_stable() )
@@ -109,12 +109,12 @@ template <
 			junior_bucket_control._buckets_end = junior_bucket_control._buckets + segment_size;
 
 			junior_bucket_control.reconstitute(av_);
-			 
+
 			resize_pass2();
 			this->persist_controller_t::resize_epilog();
 		}
 
-		hop_hash_log<TEST_HSTORE_PERISHABLE>::write(__func__, "Table base constructor: "
+		hop_hash_log<TEST_HSTORE_PERISHABLE>::write(__func__, "HopHash base constructor: "
 			, (this->persist_controller_t::is_size_stable() ? "stable" : "unstable"), " size ", this->persist_controller_t::size_unstable());
 
 		if ( ! this->persist_controller_t::is_size_stable() )
@@ -165,7 +165,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::~table_base()
+	impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::~hop_hash_base()
 	{
 		perishable::report();
 	}
@@ -174,7 +174,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<
+	auto impl::hop_hash_base<
 		Key, T, Hash, Pred, Allocator, SharedMutex
 	>::owned_by_owner_mask(
 		const segment_and_bucket_t &a_
@@ -224,7 +224,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<
+	auto impl::hop_hash_base<
 		Key, T, Hash, Pred, Allocator, SharedMutex
 	>::is_free_by_owner(
 		const segment_and_bucket_t &a_
@@ -238,7 +238,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::is_free(
+	auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::is_free(
 		const segment_and_bucket_t &a_
 	) const -> bool
 	{
@@ -258,7 +258,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::is_free(
+	auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::is_free(
 		const segment_and_bucket_t &a_
 	) -> bool
 	{
@@ -283,7 +283,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::bucket_ix(
+	auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::bucket_ix(
 		const hash_result_t h_
 	) const -> bix_t
 	{
@@ -299,7 +299,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<
+	auto impl::hop_hash_base<
 		Key, T, Hash, Pred, Allocator, SharedMutex
 	>::bucket_expanded_ix(
 		const hash_result_t h_
@@ -320,7 +320,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<
+	auto impl::hop_hash_base<
 		Key, T, Hash, Pred, Allocator, SharedMutex
 	>::nearest_free_bucket(
 		segment_and_bucket_t bi_
@@ -336,7 +336,7 @@ template <
 			content_lk = make_content_unique_lock(bi_);
 			if ( content_lk.sb() == start )
 			{
-				throw table_full{bi_.index(), bucket_count()};
+				throw hop_hash_full{bi_.index(), bucket_count()};
 			}
 		}
 
@@ -351,7 +351,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<
+	auto impl::hop_hash_base<
 		Key, T, Hash, Pred, Allocator, SharedMutex
 	>::distance_wrapped(
 		bix_t first, bix_t last
@@ -380,7 +380,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<
+	auto impl::hop_hash_base<
 		Key, T, Hash, Pred, Allocator, SharedMutex
 	>::make_space_for_insert(
 		bix_t bi_
@@ -395,7 +395,7 @@ template <
 				, " owner size ", owner::size
 				, " < free distance ", free_distance
 				, "\n"
-				, dump<TRACE_MANY>::make_table_dump(*this));
+				, dump<TRACE_MANY>::make_hop_hash_dump(*this));
 
 			/*
 			 * Relocate an element in some possible owner of the free element, bf,
@@ -514,7 +514,7 @@ template <
 		 */
 
 		hop_hash_log<TRACE_MANY>::write(__func__, " exit, free distance ", free_distance
-			, "\n", dump<TRACE_MANY>::make_table_dump(*this));
+			, "\n", dump<TRACE_MANY>::make_hop_hash_dump(*this));
 
 		b_dst_lock_.assert_clear(true, *this);
 		return b_dst_lock_;
@@ -525,13 +525,13 @@ template <
 	, typename Allocator, typename SharedMutex
 >
 	template <typename ... Args>
-		auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::emplace(
+		auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::emplace(
 			Args && ... args
 		) -> std::pair<iterator, bool>
 		try
 		{
 			hop_hash_log<TRACE_MANY>::write(__func__, " BEGIN LIST\n"
-				, dump<TRACE_MANY>::make_table_dump(*this)
+				, dump<TRACE_MANY>::make_hop_hash_dump(*this)
 				, __func__, " END LIST"
 			);
 
@@ -603,13 +603,13 @@ template <
 			{
 				owner_lk.unlock();
 
-				hop_hash_log<TRACE_MANY>::write(__func__, "1. before resize\n", dump<TRACE_MANY>::make_table_dump(*this));
+				hop_hash_log<TRACE_MANY>::write(__func__, "1. before resize\n", dump<TRACE_MANY>::make_hop_hash_dump(*this));
 
 				if ( segment_count() < _segment_capacity )
 				{
 					resize();
 
-					hop_hash_log<TRACE_MANY>::write(__func__, "2. after resize\n", dump<TRACE_MANY>::make_table_dump(*this));
+					hop_hash_log<TRACE_MANY>::write(__func__, "2. after resize\n", dump<TRACE_MANY>::make_hop_hash_dump(*this));
 
 					goto RETRY;
 				}
@@ -620,7 +620,7 @@ template <
 		{
 
 			hop_hash_log<TRACE_PERISHABLE_EXPIRY>::write(__func__, "perishable expiry dump\n"
-				, dump<TRACE_PERISHABLE_EXPIRY>::make_table_dump(*this)
+				, dump<TRACE_PERISHABLE_EXPIRY>::make_hop_hash_dump(*this)
 			);
 
 			throw;
@@ -630,7 +630,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::insert(
+	auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::insert(
 		const value_type &v_
 	) -> std::pair<iterator, bool>
 	{
@@ -641,7 +641,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	void impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::resize()
+	void impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::resize()
 	{
 		hop_hash_log<TRACE_RESIZE>::write(__func__
 			, " capacity ", bucket_count()
@@ -693,7 +693,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	void impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::resize_pass1()
+	void impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::resize_pass1()
 	{
 		/* PASS 1: copy content */
 
@@ -779,7 +779,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	bool impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::resize_pass2_adjust_owner(
+	bool impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::resize_pass2_adjust_owner(
 		bix_t ix_senior
 		, bucket_control_t &junior_bucket_control
 		, content_unique_lock_t &populated_content_lk
@@ -833,7 +833,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	void impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::resize_pass2()
+	void impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::resize_pass2()
 	{
 		/* PASS 2: remove old content, update owners. Some old content mave have been
 		 * removed if pass 2 was restarted, so use the new (junior) content to drive
@@ -902,7 +902,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<
+	auto impl::hop_hash_base<
 		Key, T, Hash, Pred, Allocator, SharedMutex
 	>::make_segment_and_bucket(
 		bix_t ix_
@@ -936,7 +936,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<
+	auto impl::hop_hash_base<
 		Key, T, Hash, Pred, Allocator, SharedMutex
 	>::make_segment_and_bucket_prev(
 		segment_and_bucket_t a
@@ -951,7 +951,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<
+	auto impl::hop_hash_base<
 		Key, T, Hash, Pred, Allocator, SharedMutex
 	>::make_segment_and_bucket_for_iterator(
 		bix_t ix_
@@ -988,7 +988,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<
+	auto impl::hop_hash_base<
 		Key, T, Hash, Pred, Allocator, SharedMutex
 	>::make_segment_and_bucket_at_begin() const -> segment_and_bucket_t
 	{
@@ -999,7 +999,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<
+	auto impl::hop_hash_base<
 		Key, T, Hash, Pred, Allocator, SharedMutex
 	>::make_segment_and_bucket_at_end() const -> segment_and_bucket_t
 	{
@@ -1017,7 +1017,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<
+	auto impl::hop_hash_base<
 		Key, T, Hash, Pred, Allocator, SharedMutex
 	>::locate_bucket_mutexes(
 		const segment_and_bucket_t &a_
@@ -1030,7 +1030,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::locate_owner(
+	auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::locate_owner(
 		const segment_and_bucket_t &a_
 	) -> const owner &
 	{
@@ -1041,7 +1041,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<
+	auto impl::hop_hash_base<
 		Key, T, Hash, Pred, Allocator, SharedMutex
 	>::make_owner_unique_lock(
 		const segment_and_bucket_t &a_
@@ -1054,7 +1054,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<
+	auto impl::hop_hash_base<
 		Key, T, Hash, Pred, Allocator, SharedMutex
 	>::make_owner_unique_lock(
 		const content_unique_lock_t &cl_
@@ -1070,7 +1070,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<
+	auto impl::hop_hash_base<
 		Key, T, Hash, Pred, Allocator, SharedMutex
 	>::make_owner_shared_lock(
 		const key_type &k_
@@ -1084,7 +1084,7 @@ template <
 	, typename Allocator, typename SharedMutex
 >
 	template < typename K >
-		auto impl::table_base<
+		auto impl::hop_hash_base<
 			Key, T, Hash, Pred, Allocator, SharedMutex
 		>::make_owner_shared_lock_special(
 			const K &k_
@@ -1097,7 +1097,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<
+	auto impl::hop_hash_base<
 		Key, T, Hash, Pred, Allocator, SharedMutex
 	>::make_owner_shared_lock(
 		const segment_and_bucket_t &a_
@@ -1110,7 +1110,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<
+	auto impl::hop_hash_base<
 		Key, T, Hash, Pred, Allocator, SharedMutex
 	>::make_content_unique_lock(
 		const segment_and_bucket_t &a_
@@ -1128,7 +1128,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<
+	auto impl::hop_hash_base<
 		Key, T, Hash, Pred, Allocator, SharedMutex
 	>::make_content_unique_lock(
 		const owner_unique_lock_t &wl_
@@ -1145,7 +1145,7 @@ template <
 	, typename Allocator, typename SharedMutex
 >
 	template <typename Lock, typename K>
-		auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::locate_key(
+		auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::locate_key(
 			Lock &bi_
 			, const K &k_
 		) const -> std::tuple<bucket_t *, segment_and_bucket_t>
@@ -1163,7 +1163,7 @@ template <
 
 			auto bfp = bi_.sb();
 			auto &t =
-				*const_cast<table_base<Key, T, Hash, Pred, Allocator, SharedMutex> *>(this);
+				*const_cast<hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex> *>(this);
 			++t._locate_key_call;
 			for (
 				auto content_offset = 0U
@@ -1209,7 +1209,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::erase(
+	auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::erase(
 		const key_type &k_
 	) -> size_type
 	try
@@ -1260,7 +1260,7 @@ template <
 	catch ( const perishable_expiry & )
 	{
 		hop_hash_log<TRACE_PERISHABLE_EXPIRY>::write(__func__, "perishable expiry dump (erase)\n"
-			, dump<TRACE_PERISHABLE_EXPIRY>::make_table_dump(*this));
+			, dump<TRACE_PERISHABLE_EXPIRY>::make_hop_hash_dump(*this));
 		throw;
 	}
 
@@ -1268,7 +1268,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::count(
+	auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::count(
 		const key_type &k_
 	) const -> size_type
 	{
@@ -1290,7 +1290,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::at(
+	auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::at(
 		const key_type &k_
 	) const -> const mapped_type &
 	{
@@ -1311,7 +1311,7 @@ template <
 	, typename Allocator, typename SharedMutex
 >
 	template <typename K>
-		auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::at_special(
+		auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::at_special(
 			const K &k_
 		) const -> const mapped_type &
 		{
@@ -1331,7 +1331,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::at(
+	auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::at(
 		const key_type &k_
 	) -> mapped_type &
 	{
@@ -1352,7 +1352,7 @@ template <
 	, typename Allocator, typename SharedMutex
 >
 	template < typename K >
-		auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::at_special(
+		auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::at_special(
 			const K &k_
 		) -> mapped_type &
 		{
@@ -1373,7 +1373,7 @@ template <
 	, typename Allocator, typename SharedMutex
 >
 	template < typename K >
-		auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::bucket(
+		auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::bucket(
 			const K &k_
 		) const -> size_type
 		{
@@ -1384,7 +1384,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::bucket_size(
+	auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::bucket_size(
 		size_type n_
 	) const -> size_type
 	{
@@ -1402,7 +1402,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::lock_shared(
+	auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::lock_shared(
 		const key_type &k_
 	) -> bool
 	{
@@ -1429,7 +1429,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::lock_unique(
+	auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::lock_unique(
 		const key_type &k_
 	) -> bool
 	{
@@ -1456,7 +1456,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::unlock(
+	auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::unlock(
 		const key_type &k_
 	) -> void
 	{
@@ -1484,7 +1484,7 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>::size(
+	auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::size(
 	) const -> size_type
 	{
 		return this->persist_controller_t::size();
