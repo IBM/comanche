@@ -820,7 +820,7 @@ template <
 			senior_owner_lk.ref().erase(owner_pos, senior_owner_lk);
 			this->persist_controller_t::persist_owner(junior_owner_lk.ref(), "pass 2 junior owner");
 			this->persist_controller_t::persist_owner(senior_owner_lk.ref(), "pass 2 senior owner");
-			/* 
+			/*
 			 * If the owner index exceeds the content index (which can only happen due to wrap)
 			 * the owner needs to change (be incremented by the bucket count).
 			 */
@@ -1070,23 +1070,10 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::hop_hash_base<
-		Key, T, Hash, Pred, Allocator, SharedMutex
-	>::make_owner_shared_lock(
-		const key_type &k_
-	) const -> owner_shared_lock_t
-	{
-		return make_owner_shared_lock(make_segment_and_bucket(bucket(k_)));
-	}
-
-template <
-	typename Key, typename T, typename Hash, typename Pred
-	, typename Allocator, typename SharedMutex
->
 	template < typename K >
 		auto impl::hop_hash_base<
 			Key, T, Hash, Pred, Allocator, SharedMutex
-		>::make_owner_shared_lock_special(
+		>::make_owner_shared_lock(
 			const K &k_
 		) const -> owner_shared_lock_t
 		{
@@ -1290,33 +1277,13 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::at(
-		const key_type &k_
-	) const -> const mapped_type &
-	{
-		/* The bucket which owns the entry */
-		auto bi_lk = make_owner_shared_lock(k_);
-		const auto bf = std::get<0>(locate_key(bi_lk, k_));
-		if ( ! bf )
-		{
-			/* no such element */
-			throw std::out_of_range("no such element");
-		}
-		/* element found at bf */
-		return bf->mapped();
-	}
-
-template <
-	typename Key, typename T, typename Hash, typename Pred
-	, typename Allocator, typename SharedMutex
->
 	template <typename K>
-		auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::at_special(
+		auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::at(
 			const K &k_
 		) const -> const mapped_type &
 		{
 			/* The bucket which owns the entry */
-			auto bi_lk = make_owner_shared_lock_special(k_);
+			auto bi_lk = make_owner_shared_lock(k_);
 			const auto bf = std::get<0>(locate_key(bi_lk, k_));
 			if ( ! bf )
 			{
@@ -1331,33 +1298,13 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::at(
-		const key_type &k_
-	) -> mapped_type &
-	{
-		/* Lock the entry owner */
-		auto bi_lk = make_owner_shared_lock(k_);
-		const auto bf = std::get<0>(locate_key(bi_lk, k_));
-		if ( ! bf )
-		{
-			/* no such element */
-			throw std::out_of_range("no such element");
-		}
-		/* element found at bf */
-		return bf->mapped();
-	}
-
-template <
-	typename Key, typename T, typename Hash, typename Pred
-	, typename Allocator, typename SharedMutex
->
 	template < typename K >
-		auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::at_special(
+		auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::at(
 			const K &k_
 		) -> mapped_type &
 		{
 			/* Lock the entry owner */
-			auto bi_lk = make_owner_shared_lock_special(k_);
+			auto bi_lk = make_owner_shared_lock(k_);
 			const auto bf = std::get<0>(locate_key(bi_lk, k_));
 			if ( ! bf )
 			{

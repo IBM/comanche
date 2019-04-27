@@ -371,9 +371,8 @@ namespace impl
 				, unsigned bkwd
 			) const -> owner_unique_lock_t;
 
-			auto make_owner_shared_lock(const key_type &k) const -> owner_shared_lock_t;
 			template <typename K>
-				auto make_owner_shared_lock_special(const K &k) const -> owner_shared_lock_t;
+				auto make_owner_shared_lock(const K &k) const -> owner_shared_lock_t;
 			auto make_owner_shared_lock(
 				const segment_and_bucket_t &
 			) const -> owner_shared_lock_t;
@@ -445,12 +444,12 @@ namespace impl
 				auto emplace(Args && ... args) -> std::pair<iterator, bool>;
 			auto insert(const value_type &value) -> std::pair<iterator, bool>;
 			auto erase(const key_type &key) -> size_type;
-			auto at(const key_type &key) -> mapped_type &;
-			auto at(const key_type &key) const -> const mapped_type &;
+
 			template <typename K>
-				auto at_special(const K &key) -> mapped_type &;
+				auto at(const K &key) -> mapped_type &;
 			template <typename K>
-				auto at_special(const K &key) const -> const mapped_type &;
+				auto at(const K &key) const -> const mapped_type &;
+
 			auto count(const key_type &k) const -> size_type;
 			auto begin() -> iterator
 			{
@@ -664,6 +663,7 @@ template <
 		}
 
 		/* lookup */
+#if 0
 		auto at(const key_type &key) const -> const mapped_type &
 		{
 			return base::at(key);
@@ -673,7 +673,7 @@ template <
 		{
 			return base::at(key);
 		}
-
+#endif
 		auto count(const key_type &key) const -> size_type
 		{
 			return base::count(key);
@@ -681,15 +681,15 @@ template <
 
 		/* lookup special */
 		template <typename K>
-			auto at_special(const K &key) const -> const mapped_type &
+			auto at(const K &key) const -> const mapped_type &
 			{
-				return base::at_special(key);
+				return base::at(key);
 			}
 
 		template <typename K>
-			auto at_special(const K &key) -> mapped_type &
+			auto at(const K &key) -> mapped_type &
 			{
-				return base::at_special(key);
+				return base::at(key);
 			}
 
 		/* locking */
