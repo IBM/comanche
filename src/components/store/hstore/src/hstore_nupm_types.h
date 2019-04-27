@@ -43,7 +43,7 @@ template <typename Store, typename Region>
 		void operator()(Region *) noexcept
 		{
 #if 0
-			/* Note: There is not yet a way to close a region.  And when there is,
+			/* Note: There is not yet a way to close a region. And when there is,
 			 * the name may be close_region rather than region_close.
 			 */
 			_mgr->region_close(r);

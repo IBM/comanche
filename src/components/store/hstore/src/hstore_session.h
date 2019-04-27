@@ -233,7 +233,7 @@ template <typename Handle, typename Allocator, typename Table, typename LockType
 			std::size_t buffer_size
 		) const -> std::size_t
 		{
-			auto &v = map().at_special(key);
+			auto &v = map().at(key);
 			auto value_len = v.size();
 
 			if ( value_len <= buffer_size )
@@ -247,7 +247,7 @@ template <typename Handle, typename Allocator, typename Table, typename LockType
 			const std::string &key
 		) const -> std::tuple<void *, std::size_t>
 		{
-			auto &v = map().at_special(key);
+			auto &v = map().at(key);
 			auto value_len = v.size();
 
 			auto value = ::scalable_malloc(value_len);
@@ -264,7 +264,7 @@ template <typename Handle, typename Allocator, typename Table, typename LockType
 			const std::string & key
 		) const -> std::size_t
 		{
-			auto &v = this->map().at_special(key);
+			auto &v = this->map().at(key);
 			return v.size();
 		}
 

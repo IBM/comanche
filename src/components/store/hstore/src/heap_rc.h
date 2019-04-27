@@ -173,7 +173,7 @@ public:
 			for ( unsigned i = std::max(0U, log_alignment); i != std::min(std::size_t(hist_report_upper_bound), _hist_alloc.data().size()); ++i )
 			{
 				const std::size_t upper_bound = 1ULL << i;
-				hop_hash_log<B>::write(__func__, " [", lower_bound, "..", upper_bound, "): ", _hist_alloc.data()[i], " ", _hist_inject.data()[i], " ", _hist_free.data()[i], " "); 
+				hop_hash_log<B>::write(__func__, " [", lower_bound, "..", upper_bound, "): ", _hist_alloc.data()[i], " ", _hist_inject.data()[i], " ", _hist_free.data()[i], " ");
 				lower_bound = upper_bound;
 			}
 		}
