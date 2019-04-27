@@ -12,8 +12,8 @@
 */
 
 
-#ifndef COMANCHE_HSTORE_PM_H
-#define COMANCHE_HSTORE_PM_H
+#ifndef COMANCHE_HSTORE_POOL_MANAGER_H
+#define COMANCHE_HSTORE_POOL_MANAGER_H
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Weffc++"
@@ -24,6 +24,7 @@
 #include <api/kvstore_itf.h> /* status_t */
 #pragma GCC diagnostic pop
 
+#include <sys/uio.h>
 #include <cstddef>
 #include <string>
 #include <system_error>
@@ -78,7 +79,7 @@ class pool_error
 public:
   pool_error(const std::string &msg_, pool_ec val_)
     : std::error_condition(int(val_), pool_error_category)
-    , _msg(msg_) 
+    , _msg(msg_)
   {}
 
 };
@@ -96,7 +97,7 @@ template <typename Pool>
 
     virtual void pool_close_check(const std::string &) { }  // = 0;
 
-    virtual status_t pool_get_regions(void *, std::vector<::iovec>&) = 0;
+    virtual std::vector<::iovec> pool_get_regions(const Pool &) const = 0;
 
     /*
      * throws pool_error if create_region fails
