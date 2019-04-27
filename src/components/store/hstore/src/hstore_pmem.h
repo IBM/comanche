@@ -433,7 +433,7 @@ public:
       throw General_exception("failed to re-open pool (not initialized)");
     }
 
-    /* open_pool returns  a ::session.
+    /* open_pool returns a ::session.
      * If the session constructor throws an exception opening an pool you wish to delete,
      * use the form of delete_pool which does not require an open pool.
      */

@@ -95,7 +95,7 @@ template <typename Pool>
 
     virtual auto pool_create_check(const std::size_t size_) -> status_t = 0;
 
-    virtual void pool_close_check(const std::string &) { }  // = 0;
+    virtual void pool_close_check(const std::string &) = 0;
 
     virtual std::vector<::iovec> pool_get_regions(const Pool &) const = 0;
 

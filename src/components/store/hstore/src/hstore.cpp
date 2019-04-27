@@ -162,7 +162,7 @@ int hstore::get_capability(const Capability cap) const
 auto hstore::create_pool(const std::string & name_,
                          const std::size_t size_,
                          std::uint32_t flags_,
-                         const uint64_t  expected_obj_count_) -> pool_t
+                         const uint64_t expected_obj_count_) -> pool_t
 try
 {
   if ( option_DEBUG )
@@ -171,7 +171,7 @@ try
   }
   {
     auto c = _pool_manager->pool_create_check(size_);
-    if ( c != S_OK )  { return c; }
+    if ( c != S_OK ) { return c; }
   }
 
   auto path = pool_path(name_);

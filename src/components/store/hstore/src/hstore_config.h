@@ -18,13 +18,13 @@
 /*
  * USE_PMEM 1
  *   USE_CC_HEAP 0: allocation from pmemobj pool
- *   USE_CC_HEAP 1: simple allocation using actual addresses from a large region obtained from pmemobj 
- *   USE_CC_HEAP 2: simple allocation using offsets from a large region obtained from pmemobj 
- *   USE_CC_HEAP 3: AVL-based allocation using actual addresses from a large region obtained from pmemobj 
+ *   USE_CC_HEAP 1: simple allocation using actual addresses from a large region obtained from pmemobj
+ *   USE_CC_HEAP 2: simple allocation using offsets from a large region obtained from pmemobj
+ *   USE_CC_HEAP 3: AVL-based allocation using actual addresses from a large region obtained from pmemobj
  * USE_PMEM 0
- *   USE_CC_HEAP 1: simple allocation using actual addresses from a large region obtained from dax_map 
+ *   USE_CC_HEAP 1: simple allocation using actual addresses from a large region obtained from dax_map
  *   USE_CC_HEAP 2: simple allocation using offsets from a large region obtained from dax_map (NOT TESTED)
- *   USE_CC_HEAP 3: AVL-based allocation using actual addresses from a large region obtained from dax_map 
+ *   USE_CC_HEAP 3: AVL-based allocation using actual addresses from a large region obtained from dax_map
  *
  */
 
