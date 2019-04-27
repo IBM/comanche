@@ -181,7 +181,8 @@ template <typename Handle, typename Allocator, typename Table, typename LockType
 		session(const session &) = delete;
 		session& operator=(const session &) = delete;
 		/* session constructor and get_pool_regions only */
-		auto *pool() const { return static_cast<const Handle *>(this)->get(); }
+		const Handle &handle() const { return *this; }
+		auto *pool() const { return handle().get(); }
 
 		auto insert(
 			const std::string &key,
@@ -207,10 +208,10 @@ template <typename Handle, typename Allocator, typename Table, typename LockType
 			const std::size_t old_value_len
 		) -> status_t
 		{
-		  /* hstore issue 41: "a put should replace any existing k,v pairs that match.
-		   * If the new put is a different size, then the object should be reallocated.
-		   * If the new put is the same size, then it should be updated in place."
-		   */
+			/* hstore issue 41: "a put should replace any existing k,v pairs that match.
+			 * If the new put is a different size, then the object should be reallocated.
+			 * If the new put is the same size, then it should be updated in place."
+			 */
 			if ( value_len != old_value_len )
 			{
 				auto p_key = KEY_T(key.begin(), key.end(), this->allocator());

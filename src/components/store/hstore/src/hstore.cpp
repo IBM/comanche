@@ -301,10 +301,12 @@ auto hstore::put(const pool_t pool,
 auto hstore::get_pool_regions(const pool_t pool, std::vector<::iovec>& out_regions) -> status_t
 {
   const auto session = static_cast<session_t *>(locate_session(pool));
-  return session
-    ? _pool_manager->pool_get_regions(session->pool(), out_regions)
-    : E_POOL_NOT_FOUND
-    ;
+  if ( ! session )
+  {
+    return E_POOL_NOT_FOUND;
+  }
+  out_regions = _pool_manager->pool_get_regions(session->handle());
+  return S_OK;
 }
 
 auto hstore::put_direct(const pool_t pool,
