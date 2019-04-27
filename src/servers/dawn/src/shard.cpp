@@ -269,6 +269,15 @@ void Shard::process_message_pool_request(Connection_handler* handler,
       }
 
       if (option_DEBUG > 2) PLOG("OP_CREATE: new pool id: %lx", pool);
+
+      std::vector<::iovec> regions;
+      status_t hr;
+      if ((hr = _i_kvstore->get_pool_regions(pool, regions)) == S_OK) {
+        PLOG("POOL regions supported!");
+      }
+      else {
+        PLOG("POOL regions NOT supported! (%d)",hr);
+      }
     }
   }
   else if (msg->op == Dawn::Protocol::OP_OPEN) {
