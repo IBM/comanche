@@ -37,6 +37,9 @@
 #pragma GCC diagnostic ignored "-Weffc++"
 #include <common/exceptions.h> /* General_exception */
 #pragma GCC diagnostic pop
+
+#include <sys/uio.h> /* iovec */
+
 #include <algorithm>
 #include <cassert>
 #include <cstddef> /* size_t, ptrdiff_t */
@@ -123,7 +126,7 @@ public:
 		, _allocated(0)
 		, _used(0)
 	{
-		/* cursor now locates the best-aligned region in  */
+		/* cursor now locates the best-aligned region */
 		_heap.add_managed_region(_pool, _size, _numa_node);
 		hop_hash_log<TRACE_HEAP>::write(__func__, " this ", this, " size ", _size, " new");
 		VALGRIND_CREATE_MEMPOOL(_pool, 0, false);
@@ -256,6 +259,11 @@ public:
 	{
 		return _numa_node;
 	}
+
+    ::iovec region() const
+    {
+      return ::iovec{_pool, _size};
+    }
 };
 
 class heap_rc
@@ -307,6 +315,11 @@ public:
 	{
 		return _heap->is_reconstituted(p_);
 	}
+
+    ::iovec region() const
+    {
+      return _heap->region();
+    }
 };
 
 #endif

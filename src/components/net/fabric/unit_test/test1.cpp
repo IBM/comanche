@@ -273,10 +273,11 @@ void write_read_sequential(const std::string &fabric_spec_, uint16_t control_por
   }
 }
 
-double double_seconds(std::chrono::high_resolution_clock::duration d_)
-{
-  return double(std::chrono::duration_cast<std::chrono::milliseconds>(d_).count()) / 1000.0;
-}
+template <typename D>
+  double double_seconds(D d_)
+  {
+    return std::chrono::duration_cast<std::chrono::duration<double>>(d_).count();
+  }
 
 std::pair<timeval, timeval> cpu_time()
 {

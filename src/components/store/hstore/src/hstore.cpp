@@ -53,6 +53,11 @@
 
 #define PREFIX "HSTORE : %s: "
 
+/*
+ * To run hstore without PM, use variables USE_DRAM and NO_CLFLUSHOPT:
+ *   USE_DRAM=24 NO_CLFLUSHOPT=1 DAX_RESET=1 ./dist/bin/kvstore-perf --test put --component hstore --path pools --pool_name foo --device_name /tmp/ --elements 1000000 --size 5000000000 --devices 0.0
+ */
+
 template<typename T>
   struct type_number;
 
@@ -296,10 +301,12 @@ auto hstore::put(const pool_t pool,
 auto hstore::get_pool_regions(const pool_t pool, std::vector<::iovec>& out_regions) -> status_t
 {
   const auto session = static_cast<session_t *>(locate_session(pool));
-  return session
-    ? _pool_manager->pool_get_regions(session->pool(), out_regions)
-    : E_POOL_NOT_FOUND
-    ;
+  if ( ! session )
+  {
+    return E_POOL_NOT_FOUND;
+  }
+  out_regions = _pool_manager->pool_get_regions(session->handle());
+  return S_OK;
 }
 
 auto hstore::put_direct(const pool_t pool,
