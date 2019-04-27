@@ -103,7 +103,7 @@ namespace impl
 		template <typename Lock>
 			auto value(Lock &) const -> value_type { return _value; }
 		template <typename Lock>
-			auto owned(std::size_t table_size, Lock &) const -> std::string;
+			auto owned(std::size_t hop_hash_size, Lock &) const -> std::string;
 		/* clear the senior owner of all the bits set in its new junior owner. */
 		template <typename Bucket, typename Referent, typename SharedMutex>
 			void clear_from(

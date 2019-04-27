@@ -103,15 +103,15 @@ namespace impl
 	template <
 		typename TableBase
 	>
-		class table_print
+		class hop_hash_print
 		{
 			const TableBase *_t;
 		public:
-			table_print(const TableBase &t_)
+			hop_hash_print(const TableBase &t_)
 				: _t(&t_)
 			{
 			}
-			const TableBase &get_table() const { return *_t; }
+			const TableBase &get_hop_hash() const { return *_t; }
 		};
 
 	template <
@@ -135,9 +135,9 @@ namespace impl
 	template <
 		typename TableBase
 	>
-		auto make_table_print(const TableBase &t_)
+		auto make_hop_hash_print(const TableBase &t_)
 		{
-			return table_print<TableBase>(t_);
+			return hop_hash_print<TableBase>(t_);
 		}
 
 
@@ -151,22 +151,22 @@ namespace impl
 			template <
 				typename TableBase
 			>
-				class table_dump
+				class hop_hash_dump
 				{
 					const TableBase *_t;
 				public:
-					table_dump(const TableBase &t_)
+					hop_hash_dump(const TableBase &t_)
 						: _t(&t_)
 					{}
-					const TableBase &get_table() const { return *_t; }
+					const TableBase &get_hop_hash() const { return *_t; }
 				};
 
 			template <
 				typename TableBase
 			>
-				static table_dump<TableBase> make_table_dump(const TableBase &t_)
+				static hop_hash_dump<TableBase> make_hop_hash_dump(const TableBase &t_)
 				{
-					return table_dump<TableBase>(t_);
+					return hop_hash_dump<TableBase>(t_);
 				}
 
 			template <
@@ -187,22 +187,22 @@ namespace impl
 			template <
 				typename TableBase
 			>
-				class table_dump
+				class hop_hash_dump
 				{
 					const TableBase *_t;
 				public:
-					table_dump(const TableBase &t_)
+					hop_hash_dump(const TableBase &t_)
 						: _t(&t_)
 					{}
-					const TableBase &get_table() const { return *_t; }
+					const TableBase &get_hop_hash() const { return *_t; }
 				};
 		public:
 			template <
 				typename TableBase
 			>
-				static table_dump<TableBase> make_table_dump(const TableBase &t_)
+				static hop_hash_dump<TableBase> make_hop_hash_dump(const TableBase &t_)
 				{
-					return table_dump<TableBase>(t_);
+					return hop_hash_dump<TableBase>(t_);
 				}
 
 			template <
@@ -222,7 +222,7 @@ namespace impl
 	>
 		auto operator<<(
 			std::ostream &o
-			, const impl::dump<false>::table_dump<TableBase> &
+			, const impl::dump<false>::hop_hash_dump<TableBase> &
 		) -> std::ostream &;
 
 	template <
@@ -230,7 +230,7 @@ namespace impl
 	>
 		auto operator<<(
 			std::ostream &o
-			, const impl::dump<true>::table_dump<TableBase> &
+			, const impl::dump<true>::hop_hash_dump<TableBase> &
 		) -> std::ostream &;
 
 	template <
@@ -247,7 +247,7 @@ namespace impl
 	>
 		auto operator<<(
 			std::ostream &o
-			, const impl::table_print<TableBase> &t
+			, const impl::hop_hash_print<TableBase> &t
 		) -> std::ostream &;
 }
 
