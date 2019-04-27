@@ -422,6 +422,19 @@ TEST_F(KVStore_test, GetDirectMany)
   }
 }
 
+TEST_F(KVStore_test, GetRegions)
+{
+  std::vector<::iovec> v;
+  auto r = _kvstore->get_pool_regions(pool, v);
+  EXPECT_EQ(r, S_OK);
+  ASSERT_EQ(v.size(), 1);
+  std::cerr << "Pool region at " << v[0].iov_base << " len " << v[0].iov_len << "\n";
+  auto iov_base = reinterpret_cast<std::uintptr_t>(v[0].iov_base);
+  EXPECT_EQ(iov_base & 0xfff, 0);
+  EXPECT_GT(v[0].iov_len, many_count_target * 64U * 3U * 2U);
+  EXPECT_LT(v[0].iov_len, GB(512));
+}
+
 TEST_F(KVStore_test, LockMany)
 {
   unsigned ct = 0;
@@ -505,7 +518,7 @@ TEST_F(KVStore_test, BasicUpdate)
     size_t value_len = 0;
     auto r = _kvstore->get(pool, single_key, value, value_len);
     EXPECT_EQ(r, S_OK);
-    PINF("Value=(%.50s) %zu", static_cast<char *>(value), value_len);
+    PINF("Value=(%.*s) %zu", static_cast<int>(value_len), static_cast<char *>(value), value_len);
     EXPECT_EQ(single_value_updated_different_size.size(), value_len);
     EXPECT_EQ(0, memcmp(single_value_updated3.data(), value, single_value_updated3.size()));
     _kvstore->free_memory(value);
