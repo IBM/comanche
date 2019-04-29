@@ -412,10 +412,8 @@ static PyObject * pool_close(Pool* self)
     PyErr_SetString(PyExc_RuntimeError,ss.str().c_str());
     return NULL;
   }
-  
-  PLOG("dawn::pool_close OK!");
-  Py_INCREF(self);
-  return (PyObject *) self;
+
+  Py_RETURN_NONE;
 }
 
 static PyObject * pool_count(Pool* self)
