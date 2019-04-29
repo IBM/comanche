@@ -11,8 +11,6 @@
    limitations under the License.
 */
 
-#include "hstore_pm.h"
-
 #include "hstore_common.h"
 #include "hstore_session.h"
 #include "persister_nupm.h"
@@ -20,7 +18,7 @@
 #include "pool_path.h"
 #include "region.h"
 
-#include <city.h> /* Cithhash */
+#include <city.h> /* CityHash */
 
 #include <cinttypes> /* PRIx64 */
 #include <cstdlib> /* getenv */
@@ -231,7 +229,10 @@ template <typename Region, typename Table, typename Allocator, typename LockType
 
 /* ERROR: want get_pool_regions(<proper type>, std::vector<::iovec>&) */
 template <typename Region, typename Table, typename Allocator, typename LockType>
-  status_t hstore_nupm<Region, Table, Allocator, LockType>::pool_get_regions(void *, std::vector<::iovec>&)
+  auto hstore_nupm<Region, Table, Allocator, LockType>::pool_get_regions(const open_pool_handle & pool_) const
+  -> std::vector<::iovec>
   {
-    return E_NOT_SUPPORTED;
+    std::vector<::iovec> regions;
+    regions.push_back(pool_->heap.region());
+    return regions;
   }

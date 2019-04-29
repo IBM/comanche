@@ -31,11 +31,6 @@ template <typename Handle>
 				: Handle(std::forward<Args>(args_)...)
 			{}
 
-		explicit open_pool(
-			Handle &&pop_
-		)
-			: Handle(std::move(pop_))
-		{}
 		open_pool(const open_pool &) = delete;
 		virtual ~open_pool() {}
 		open_pool& operator=(const open_pool &) = delete;
