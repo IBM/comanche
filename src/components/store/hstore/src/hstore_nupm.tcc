@@ -175,7 +175,11 @@ template <typename Region, typename Table, typename Allocator, typename LockType
     catch ( const General_exception &e )
     {
       throw pool_error("create_region fail: " + path_.str() + " " + e.cause(), pool_ec::region_fail_general_exception);
-      }
+    }
+    catch ( const std::bad_alloc& e)
+    {
+      throw pool_error("create_region fail: " + path_.str(), pool_ec::region_fail_general_exception);
+    }
     catch ( const API_exception &e )
     {
       throw pool_error("create_region fail: " + path_.str() + " " + e.cause(), pool_ec::region_fail_api_exception);

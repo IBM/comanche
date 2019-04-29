@@ -65,7 +65,8 @@ class Connection_handler : public Connection_base {
    */
   Connection_handler(Connection_base::Transport* connection);
 
-  ~Connection_handler() { PLOG("Connection_handler::dtor (%p)", this); }
+  ~Connection_handler();
+  
 
  private:
   enum State {
@@ -157,7 +158,6 @@ class Connection_handler : public Connection_base {
                          std::vector<uint64_t>& out_attr,
                          const std::string* key);
 
-
  private:
   /**
    * FSM tick call
@@ -202,10 +202,10 @@ class Connection_handler : public Connection_base {
   std::mutex _api_lock;
 #endif
 
-  bool     _exit             = false;
-  uint64_t _request_id       = 0;
-  size_t   _max_message_size = 0;
-  size_t   _max_inject_size  = 0;
+  bool     _exit                = false;
+  uint64_t _request_id          = 0;
+  size_t   _max_message_size    = 0;
+  size_t   _max_inject_size     = 0;
 
   struct {
     bool short_circuit_backend = false;
