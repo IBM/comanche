@@ -15,6 +15,7 @@
 #ifndef __NUPM_DAX_DATA_H__
 #define __NUPM_DAX_DATA_H__
 
+#include <stdexcept>
 #include <common/types.h>
 #include <common/utils.h>
 #include <libpmem.h>
@@ -196,7 +197,7 @@ class DM_region_header {
     for (uint16_t r = 0; r < _region_count; r++) {
       auto reg = _regions[r];
       if (reg.region_id == region_id)
-        throw API_exception("region_id already exists");
+        throw std::bad_alloc();
     }
     // TODO make crash-consistent
     uint32_t new_offset;

@@ -209,6 +209,17 @@ class Connection_handler
 
   void set_pending_send_value();
 
+  void add_memory_handle(Component::IKVStore::memory_handle_t handle) {
+    _mr_vector.push_back(handle);
+  }
+
+  Component::IKVStore::memory_handle_t pop_memory_handle() {
+    if(_mr_vector.empty()) return nullptr;
+    auto mr = _mr_vector.back();
+    _mr_vector.pop_back();
+    return mr;
+  }  
+
   inline uint64_t auth_id() const { return (uint64_t) this; /* temp */ }
 
   inline size_t max_message_size() const { return _max_message_size; }
@@ -219,10 +230,8 @@ class Connection_handler
     return _stall_tick;
   }
 
-  inline void stall() {
-    _stall_tick = STALL_TICKS;
-  }
-  
+  inline void stall() {  _stall_tick = STALL_TICKS;  }
+
  private:
   struct {
     uint64_t response_count               = 0;
@@ -251,6 +260,10 @@ class Connection_handler
   }
 
  private:
+
+  /* list of pre-registered memory regions; normally one region */
+  std::vector<Component::IKVStore::memory_handle_t> _mr_vector;
+  
   uint64_t               _tick_count __attribute((aligned(8))) = 0;
   uint64_t               _stall_tick __attribute((aligned(8))) = 0;  
   std::vector<buffer_t*> _pending_msgs;

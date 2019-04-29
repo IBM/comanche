@@ -270,13 +270,21 @@ void Shard::process_message_pool_request(Connection_handler* handler,
 
       if (option_DEBUG > 2) PLOG("OP_CREATE: new pool id: %lx", pool);
 
+      /* check for ability to pre-register memory with RDMA stack */
       std::vector<::iovec> regions;
       status_t hr;
       if ((hr = _i_kvstore->get_pool_regions(pool, regions)) == S_OK) {
-        PLOG("POOL regions supported!");
+        if(option_DEBUG > 1)
+          PLOG("pool region query supported.");
+        for(auto& r: regions) {
+          if(option_DEBUG > 1)
+            PLOG("region: %p %lu MiB", r.iov_base, REDUCE_MB(r.iov_len));
+          /* pre-register memory region with RDMA */
+          handler->ondemand_register(r.iov_base, r.iov_len);
+        }
       }
       else {
-        PLOG("POOL regions NOT supported! (%d)",hr);
+        PLOG("pool region query NOT supported. (%d)",hr);
       }
     }
   }
