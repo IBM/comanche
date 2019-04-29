@@ -256,7 +256,7 @@ public:
   
 
   /** 
-   * Get mapped memory regions for pool
+   * Get mapped memory regions for pool.  This is used for pre-registration with DMA engines.
    * 
    * @param pool Pool handle
    * @param out_regions Mapped memory regions
@@ -269,7 +269,22 @@ public:
   }
 
   /** 
-   * Write or overwrite an object value. If there already exists a
+   * Dynamically expand a pool.
+   * 
+   * @param pool Pool handle
+   * @param increment_size Size in bytes to expand by
+   * @param reconfigured_size [out] new size of pool
+   * 
+   * @return S_OK on success. Components that do not support this return E_NOT_SUPPORTED.
+   */
+  virtual status_t grow_pool(const pool_t pool,
+                             const size_t increment_size,
+                             size_t& reconfigured_size ) {
+    return E_NOT_SUPPORTED;
+  }
+
+  /** 
+   * Write or overwrite an object value. If there already exists an
    * object with matching key, then it should be replaced
    * (i.e. reallocated) or overwritten. 
    * 
@@ -430,7 +445,6 @@ public:
                          bool take_lock = true) { return E_NOT_SUPPORTED; }
 
 
-
   /** 
    * Update an existing value by applying a series of operations.
    * Together the set of operations make up an atomic transaction.
@@ -459,7 +473,7 @@ public:
    * @return S_OK or error code
    */
   virtual status_t erase(const pool_t pool,
-                         const std::string& key)= 0;
+                         const std::string& key) = 0;
 
 
   /** 
