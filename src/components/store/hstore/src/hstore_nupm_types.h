@@ -31,7 +31,7 @@
 template <typename Region, typename Table, typename Allocator, typename LockType>
 	class hstore_nupm;
 
-template <typename Store>
+template <typename Store, typename Region>
 	class region_closer
 	{
 		std::shared_ptr<Store> _mgr;
@@ -40,7 +40,7 @@ template <typename Store>
 			: _mgr(mgr_)
 		{}
 
-		void operator()(typename Store::region_type *) noexcept
+		void operator()(Region *) noexcept
 		{
 #if 0
 			/* Note: There is not yet a way to close a region.  And when there is,
