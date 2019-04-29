@@ -34,6 +34,11 @@ Connection_handler::Connection_handler(Connection_base::Transport* connection)
   _max_inject_size = connection->max_inject_size();
 }
 
+Connection_handler::~Connection_handler()
+{
+  PLOG("Connection_handler::dtor (%p)", this);
+}
+
 Connection_handler::pool_t Connection_handler::open_pool(const std::string name,
                                                          uint32_t flags)
 {

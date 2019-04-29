@@ -56,8 +56,6 @@ IBase *load_component(const char *dllname, Component::uuid_t component_id) {
   void *(*factory_createInstance)(Component::uuid_t &);
   char *error;
 
-  PLOG("Loading component: %s", dllname);
-
   void *dll = dlopen(dllname, RTLD_NOW);
 
   if (!dll) {
@@ -92,6 +90,7 @@ IBase *load_component(const char *dllname, Component::uuid_t component_id) {
   comp->set_dll_handle(dll); /* record so we can call dlclose() */
   comp->add_ref();
 
+  PLOG("Loaded component: %s", dllname);
   return comp;
 }
 

@@ -25,8 +25,17 @@ class Region_manager {
   static constexpr bool option_DEBUG = false;
 
  public:
-  Region_manager(Connection* conn) : _conn(conn) { assert(conn); }
+  Region_manager(Connection* conn) : _conn(conn) {
+    assert(conn);
+  }
 
+  ~Region_manager() {
+    /* deregister memory regions */
+    for(auto& r : _reg) {
+      _conn->deregister_memory(r.second);
+    }
+  }
+  
   /**
    * Register memory with network transport for direct IO.  Cache in map.
    *

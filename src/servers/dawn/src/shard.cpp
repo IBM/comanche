@@ -269,6 +269,23 @@ void Shard::process_message_pool_request(Connection_handler* handler,
       }
 
       if (option_DEBUG > 2) PLOG("OP_CREATE: new pool id: %lx", pool);
+
+      /* check for ability to pre-register memory with RDMA stack */
+      std::vector<::iovec> regions;
+      status_t hr;
+      if ((hr = _i_kvstore->get_pool_regions(pool, regions)) == S_OK) {
+        if(option_DEBUG > 1)
+          PLOG("pool region query supported.");
+        for(auto& r: regions) {
+          if(option_DEBUG > 1)
+            PLOG("region: %p %lu MiB", r.iov_base, REDUCE_MB(r.iov_len));
+          /* pre-register memory region with RDMA */
+          handler->ondemand_register(r.iov_base, r.iov_len);
+        }
+      }
+      else {
+        PLOG("pool region query NOT supported. (%d)",hr);
+      }
     }
   }
   else if (msg->op == Dawn::Protocol::OP_OPEN) {
@@ -492,7 +509,7 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
              value_out, (int) min(value_out_len,20), (char*) value_out, value_out_len);
 
       if (key_handle == Component::IKVStore::KEY_NONE) { /* key not found */
-        response->status = E_NOT_FOUND;
+        response->status = Component::IKVStore::E_KEY_NOT_FOUND;
         iob->set_length(response->base_message_size());
         handler->post_response(iob, nullptr);
         return;
