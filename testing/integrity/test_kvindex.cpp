@@ -50,7 +50,9 @@ TEST_F(IndexTest, Get_NoValidKey)
     const std::string key = Common::random_string(key_length);
     IKVIndex::offset_t end        = _g_index->count() - 1;
 
-    std::string rc = _g_index->find(key, 0, IKVIndex::FIND_TYPE_EXACT, end);
+    std::string rc;
+    status_t hr = _g_index->find(key, 0, IKVIndex::FIND_TYPE_EXACT, end, rc);
+    ASSERT_TRUE(hr == S_OK);
     ASSERT_STREQ(rc.c_str(), "");
 }
 
@@ -75,8 +77,9 @@ TEST_F(IndexTest, Put_Erase)
 
   _g_index->insert(key);
   _g_index->erase(key);
-  std::string rc = _g_index->find(key, 0, IKVIndex::FIND_TYPE_EXACT, end);
-
+  std::string rc;
+  status_t hr = _g_index->find(key, 0, IKVIndex::FIND_TYPE_EXACT, end, rc);
+  ASSERT_TRUE(hr == S_OK);
   ASSERT_STREQ(rc.c_str(), "");
 }
 
@@ -88,8 +91,9 @@ TEST_F(IndexTest, Put_EraseInvalid)
     const std::string key = Common::random_string(key_length);
     int                count = _g_index->count();
     IKVIndex::offset_t end   = count - 1;
-    std::string rc = _g_index->find(key, 0, IKVIndex::FIND_TYPE_EXACT, end);
-
+    std::string rc;
+    status_t hr = _g_index->find(key, 0, IKVIndex::FIND_TYPE_EXACT, end, rc);
+    ASSERT_TRUE(hr == S_OK);
     ASSERT_STREQ(rc.c_str(), "");
 
     _g_index->erase(key);
