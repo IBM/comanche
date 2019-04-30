@@ -40,26 +40,34 @@ string RamRBTree::get(offset_t position) const
 
 size_t RamRBTree::count() const { return m_index.size(); }
 
-string RamRBTree::find(const std::string& key_expression,
-                       offset_t           begin_position,
-                       find_t             find_type,
-                       offset_t&          out_end_position)
+status_t RamRBTree::find(const std::string& key_expression,
+                         offset_t           begin_position,
+                         find_t             find_type,
+                         offset_t&          out_end_position,
+                         std::string&       out_matched_key,
+                         unsigned           max_comparisons)
 {
   std::regex r(key_expression);
   if (begin_position >= m_index.size()) {
-    throw out_of_range("Position out of range");
+    return E_BAD_PARAM;
   }
 
   if (out_end_position >= m_index.size()) {
-    throw out_of_range("Position out of range");
+    return E_BAD_PARAM;
   }
 
+  unsigned attempts =0;
   switch (find_type) {
     case FIND_TYPE_REGEX:
       for (int i = begin_position; i <= out_end_position; i++) {
         string key = RamRBTree::get(i);
         if (regex_match(key, r)) {
-          return key;
+          out_matched_key = key;
+          return S_OK;
+        }
+        else {
+          if(++attempts > max_comparisons)
+            return E_MAX_REACHED;
         }
       }
       break;
@@ -67,7 +75,12 @@ string RamRBTree::find(const std::string& key_expression,
       for (int i = begin_position; i <= out_end_position; i++) {
         string key = RamRBTree::get(i);
         if (key.compare(key_expression) == 0) {
-          return key;
+          out_matched_key = key;
+          return S_OK;
+        }
+        else {
+          if(++attempts > max_comparisons)
+            return E_MAX_REACHED;
         }
       }
       break;
@@ -75,17 +88,18 @@ string RamRBTree::find(const std::string& key_expression,
       for (int i = begin_position; i <= out_end_position; i++) {
         string key = RamRBTree::get(i);
         if (key.find(key_expression) != string::npos) {
-          return key;
+          out_matched_key = key;
+          return S_OK;
         }
       }
       break;
     case FIND_TYPE_NEXT:
-      string key = get(begin_position + 1);
-      return key;
+      out_matched_key = get(begin_position + 1);
+      return S_OK;
       break;
   }
 
-  return "";
+  return E_FAIL;
 }
 
 /**
