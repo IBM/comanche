@@ -287,7 +287,7 @@ template <typename Handle, typename Allocator, typename Table, typename LockType
 				out_value = val.data();
 				out_value_len = val.size();
 			}
-			catch ( std::out_of_range & )
+			catch ( const std::out_of_range & )
 			{
 				/* if the key is not found, we create it and
 				* allocate value space equal in size to out_value_len
