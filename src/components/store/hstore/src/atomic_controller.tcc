@@ -97,7 +97,7 @@ template <typename Table>
 				);
 			}
 		}
-		catch ( std::out_of_range & )
+		catch ( const std::out_of_range & )
 		{
 			/* no such key */
 		}
