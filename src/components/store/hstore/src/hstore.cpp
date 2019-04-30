@@ -162,7 +162,7 @@ int hstore::get_capability(const Capability cap) const
 auto hstore::create_pool(const std::string & name_,
                          const std::size_t size_,
                          std::uint32_t flags_,
-                         const uint64_t  expected_obj_count_) -> pool_t
+                         const uint64_t expected_obj_count_) -> pool_t
 try
 {
   if ( option_DEBUG )
@@ -171,7 +171,7 @@ try
   }
   {
     auto c = _pool_manager->pool_create_check(size_);
-    if ( c != S_OK )  { return c; }
+    if ( c != S_OK ) { return c; }
   }
 
   auto path = pool_path(name_);
@@ -287,9 +287,9 @@ auto hstore::put(const pool_t pool,
         : session->update_by_issue_41(key, value, value_len, i.first->second.data(), i.first->second.size())
         ;
     }
-    catch ( std::bad_alloc & )
+    catch ( const std::bad_alloc & )
     {
-      return E_FAIL;
+      return E_NO_MEM;
     }
   }
   else
@@ -359,12 +359,9 @@ auto hstore::get(const pool_t pool,
         out_value = std::get<0>(r);
         out_value_len = std::get<1>(r);
       }
-      catch ( std::bad_alloc & )
+      catch ( const std::bad_alloc & )
       {
-        /* The interface might have a return code for bad_alloc. Until
-         * we look for it, at least memorialize the exception.
-         */
-        throw;
+        return E_NO_MEM;
       }
     }
     return S_OK;
@@ -434,6 +431,10 @@ auto hstore::get_attribute(
     {
       return E_KEY_NOT_FOUND;
     }
+    catch ( const std::bad_alloc & )
+    {
+      return E_NO_MEM;
+    }
   default:
     ;
   }
@@ -445,7 +446,7 @@ auto hstore::lock(const pool_t pool,
                   const std::string &key,
                   lock_type_t type,
                   void *& out_value,
-                  std::size_t & out_value_len) -> key_t
+                  std::size_t & out_value_len) -> Component::IKVStore::key_t
 {
   const auto session = static_cast<session_t *>(locate_session(pool));
   return
@@ -457,7 +458,7 @@ auto hstore::lock(const pool_t pool,
 
 
 auto hstore::unlock(const pool_t pool,
-                    key_t key_) -> status_t
+                    Component::IKVStore::key_t key_) -> status_t
 {
   const auto session = static_cast<session_t *>(locate_session(pool));
   return
@@ -561,11 +562,11 @@ try
       : E_POOL_NOT_FOUND
       ;
 }
-catch ( std::bad_alloc & )
+catch ( const std::bad_alloc & )
 {
-  return E_FAIL;
+  return E_NO_MEM;
 }
-catch ( std::system_error & )
+catch ( const std::system_error & )
 {
   return E_FAIL;
 }

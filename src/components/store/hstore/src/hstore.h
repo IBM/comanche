@@ -68,18 +68,18 @@ template <typename Handle, typename Allocator, typename Table, typename Lock>
 class hstore : public Component::IKVStore
 {
   #if USE_CC_HEAP == 1
-  using ALLOC_T = allocator_cc<char, Persister>;
+  using alloc_t = allocator_cc<char, Persister>;
   #elif USE_CC_HEAP == 2
-  using ALLOC_T = allocator_co<char, Persister>;
+  using alloc_t = allocator_co<char, Persister>;
   #elif USE_CC_HEAP == 3
-  using ALLOC_T = allocator_rc<char, Persister>;
+  using alloc_t = allocator_rc<char, Persister>;
   #else /* USE_CC_HEAP */
-  using ALLOC_T = allocator_pobj_cache_aligned<char>;
+  using alloc_t = allocator_pobj_cache_aligned<char>;
   #endif /* USE_CC_HEAP */
-  using DEALLOC_T = typename ALLOC_T::deallocator_type;
-  using KEY_T = persist_fixed_string<char, DEALLOC_T>;
-  using MAPPED_T = persist_fixed_string<char, DEALLOC_T>;
-  using allocator_segment_t = ALLOC_T::rebind<std::pair<const KEY_T, MAPPED_T>>::other;
+  using dealloc_t = typename alloc_t::deallocator_type;
+  using key_t = persist_fixed_string<char, dealloc_t>;
+  using mapped_t = persist_fixed_string<char, dealloc_t>;
+  using allocator_segment_t = alloc_t::rebind<std::pair<const key_t, mapped_t>>::other;
 #if THREAD_SAFE_HASH == 1
   /* thread-safe hash */
   using hstore_shared_mutex = std::shared_timed_mutex;
@@ -93,11 +93,11 @@ class hstore : public Component::IKVStore
 #endif
 
   using table_t =
-    table<
-    KEY_T
-    , MAPPED_T
-    , pstr_hash<KEY_T>
-    , pstr_equal<KEY_T>
+    hop_hash<
+    key_t
+    , mapped_t
+    , pstr_hash<key_t>
+    , pstr_equal<key_t>
     , allocator_segment_t
     , hstore_shared_mutex
     >;
@@ -110,7 +110,7 @@ public:
 #endif
   using open_pool_t = pm::open_pool_handle;
 private:
-  using session_t = session<open_pool_t, ALLOC_T, table_t, lock_type_t>;
+  using session_t = session<open_pool_t, alloc_t, table_t, lock_type_t>;
 
   using pool_manager_t = pool_manager<open_pool_t>;
   std::shared_ptr<pool_manager_t> _pool_manager;
@@ -209,14 +209,14 @@ public:
                                  std::vector<uint64_t>& out_attr,
                                  const std::string* key);
 
-  key_t lock(pool_t pool,
+  Component::IKVStore::key_t lock(pool_t pool,
                 const std::string &key,
                 lock_type_t type,
                 void*& out_value,
                 std::size_t& out_value_len) override;
 
   status_t unlock(pool_t pool,
-                  key_t key_handle) override;
+                  Component::IKVStore::key_t key_handle) override;
 
   status_t apply(const pool_t pool,
                  const std::string& key,
