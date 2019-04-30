@@ -78,6 +78,7 @@ class KVStore_test : public ::testing::Test {
   static std::vector<kv_t> kvv;
   static const std::size_t many_count_target;
   static std::size_t many_count_actual;
+  static constexpr unsigned get_expand = 2;
 
   /* NOTE: ignoring the remote possibility of a random number collision in the first lock_count entries */
   static const std::size_t lock_count;
@@ -170,7 +171,7 @@ TEST_F(KVStore_test, BasicGet0)
   size_t value_len = 0;
 
   auto r = _kvstore->get(pool, single_key, value, value_len);
-  EXPECT_NE(r, S_OK);
+  EXPECT_NE(S_OK, r);
   if( r == S_OK )
   {
     ASSERT_EQ("Key already exists", "Did you forget to delete the pool before running the test?");
@@ -183,7 +184,7 @@ TEST_F(KVStore_test, BasicPut)
   single_value.resize(single_value_size);
 
   auto r = _kvstore->put(pool, single_key, single_value.data(), single_value.length());
-  EXPECT_EQ(r, S_OK);
+  EXPECT_EQ(S_OK, r);
 }
 
 TEST_F(KVStore_test, BasicGet1)
@@ -191,10 +192,13 @@ TEST_F(KVStore_test, BasicGet1)
   void * value = nullptr;
   size_t value_len = 0;
   auto r = _kvstore->get(pool, single_key, value, value_len);
-  EXPECT_EQ(r, S_OK);
-  PINF("Value=(%.*s) %zu", static_cast<int>(value_len), static_cast<char *>(value), value_len);
-  EXPECT_EQ(0, memcmp(single_value.data(), value, single_value.size()));
-  _kvstore->free_memory(value);
+  EXPECT_EQ(S_OK, r);
+  if ( S_OK == r )
+  {
+    PINF("Value=(%.*s) %zu", static_cast<int>(value_len), static_cast<char *>(value), value_len);
+    EXPECT_EQ(0, memcmp(single_value.data(), value, single_value.size()));
+    _kvstore->free_memory(value);
+  }
 }
 
 /* hstore issue 41 specifies different implementations for same-size replace vs different-size replace. */
@@ -203,30 +207,36 @@ TEST_F(KVStore_test, BasicReplaceSameSize)
   {
     single_value_updated_same_size.resize(single_value_size);
     auto r = _kvstore->put(pool, single_key, single_value_updated_same_size.data(), single_value_updated_same_size.length());
-    EXPECT_EQ(r, S_OK);
+    EXPECT_EQ(S_OK, r);
   }
   void * value = nullptr;
   size_t value_len = 0;
   auto r = _kvstore->get(pool, single_key, value, value_len);
-  EXPECT_EQ(r, S_OK);
-  PINF("Value=(%.*s) %zu", static_cast<int>(value_len), static_cast<char *>(value), value_len);
-  EXPECT_EQ(0, memcmp(single_value_updated_same_size.data(), value, single_value_updated_same_size.size()));
-  _kvstore->free_memory(value);
+  EXPECT_EQ(S_OK, r);
+  if ( S_OK == r )
+  {
+    PINF("Value=(%.*s) %zu", static_cast<int>(value_len), static_cast<char *>(value), value_len);
+    EXPECT_EQ(0, memcmp(single_value_updated_same_size.data(), value, single_value_updated_same_size.size()));
+    _kvstore->free_memory(value);
+  }
 }
 
 TEST_F(KVStore_test, BasicReplaceDifferentSize)
 {
   {
     auto r = _kvstore->put(pool, single_key, single_value_updated_different_size.data(), single_value_updated_different_size.length());
-    EXPECT_EQ(r, S_OK);
+    EXPECT_EQ(S_OK, r);
   }
   void * value = nullptr;
   size_t value_len = 0;
   auto r = _kvstore->get(pool, single_key, value, value_len);
-  EXPECT_EQ(r, S_OK);
-  PINF("Value=(%.*s) %zu", static_cast<int>(value_len), static_cast<char *>(value), value_len);
-  EXPECT_EQ(0, memcmp(single_value_updated_different_size.data(), value, single_value_updated_different_size.size()));
-  _kvstore->free_memory(value);
+  EXPECT_EQ(S_OK, r);
+  if ( S_OK == r )
+  {
+    PINF("Value=(%.*s) %zu", static_cast<int>(value_len), static_cast<char *>(value), value_len);
+    EXPECT_EQ(0, memcmp(single_value_updated_different_size.data(), value, single_value_updated_different_size.size()));
+    _kvstore->free_memory(value);
+  }
 }
 
 TEST_F(KVStore_test, PopulateMany)
@@ -263,7 +273,7 @@ TEST_F(KVStore_test, PutMany)
     else
     {
       auto r = _kvstore->put(pool, key, value.data(), value.length());
-      EXPECT_EQ(r, S_OK);
+      EXPECT_EQ(S_OK, r);
       if ( r == S_OK )
       {
         ++many_count_actual;
@@ -332,18 +342,27 @@ TEST_F(KVStore_test, BasicGet2)
   void * value = nullptr;
   size_t value_len = 0;
   auto r = _kvstore->get(pool, single_key, value, value_len);
-  EXPECT_EQ(r, S_OK);
-  PINF("Value=(%.*s) %zu", static_cast<int>(value_len), static_cast<char *>(value), value_len);
-  _kvstore->free_memory(value);
+  EXPECT_EQ(S_OK, r);
+  if ( S_OK == r )
+  {
+    PINF("Value=(%.*s) %zu", static_cast<int>(value_len), static_cast<char *>(value), value_len);
+    _kvstore->free_memory(value);
+  }
 }
 
 TEST_F(KVStore_test, BasicGetAttribute)
 {
   std::vector<uint64_t> attr;
   auto r = _kvstore->get_attribute(pool, IKVStore::VALUE_LEN, attr, &single_key);
-  EXPECT_EQ(r, S_OK);
-  ASSERT_EQ(attr.size(), 1);
-  ASSERT_EQ(attr[0], single_value_updated_different_size.length());
+  EXPECT_EQ(S_OK, r);
+  if ( S_OK == r )
+  {
+    EXPECT_EQ(1, attr.size());
+    if ( 1 == attr.size() )
+    {
+      EXPECT_EQ(attr[0], single_value_updated_different_size.length());
+    }
+  }
   r = _kvstore->get_attribute(pool, Component::IKVStore::Attribute(0), attr, &single_key);
   EXPECT_EQ(IKVStore::E_NOT_SUPPORTED, r);
   r = _kvstore->get_attribute(pool, IKVStore::VALUE_LEN, attr, nullptr);
@@ -361,7 +380,7 @@ TEST_F(KVStore_test, Size2b)
 
 TEST_F(KVStore_test, GetMany)
 {
-  for ( auto i = 0; i != 10; ++i )
+  for ( auto i = 0; i != get_expand; ++i )
   {
     std::size_t mismatch_count = 0;
     for ( auto &kv : kvv )
@@ -372,10 +391,13 @@ TEST_F(KVStore_test, GetMany)
       std::size_t value_len = many_value_length * 2;
       void *vp = value;
       auto r = _kvstore->get(pool, key, vp, value_len);
-      EXPECT_EQ(r, S_OK);
-      EXPECT_EQ(vp, (void *)value);
-      EXPECT_EQ(ev.size(), value_len);
-      mismatch_count += ( ev.size() != value_len || 0 != memcmp(ev.data(), value, ev.size()) );
+      EXPECT_EQ(S_OK, r);
+      if ( S_OK == r )
+      {
+        EXPECT_EQ(vp, (void *)value);
+        EXPECT_EQ(ev.size(), value_len);
+        mismatch_count += ( ev.size() != value_len || 0 != memcmp(ev.data(), value, ev.size()) );
+      }
     }
     EXPECT_EQ(extant_count, mismatch_count);
   }
@@ -383,7 +405,7 @@ TEST_F(KVStore_test, GetMany)
 
 TEST_F(KVStore_test, GetManyAllocating)
 {
-  for ( auto i = 0; i != 10; ++i )
+  for ( auto i = 0; i != get_expand; ++i )
   {
     std::size_t mismatch_count = 0;
     for ( auto &kv : kvv )
@@ -393,10 +415,13 @@ TEST_F(KVStore_test, GetManyAllocating)
       void * value = nullptr;
       std::size_t value_len = 0;
       auto r = _kvstore->get(pool, key, value, value_len);
-      EXPECT_EQ(r, S_OK);
-      EXPECT_EQ(ev.size(), value_len);
-      mismatch_count += ( ev.size() != value_len || 0 != memcmp(ev.data(), value, ev.size()) );
-      _kvstore->free_memory(value);
+      EXPECT_EQ(S_OK, r);
+      if ( S_OK == r )
+      {
+        EXPECT_EQ(ev.size(), value_len);
+        mismatch_count += ( ev.size() != value_len || 0 != memcmp(ev.data(), value, ev.size()) );
+        _kvstore->free_memory(value);
+      }
     }
     EXPECT_EQ(extant_count, mismatch_count);
   }
@@ -404,7 +429,7 @@ TEST_F(KVStore_test, GetManyAllocating)
 
 TEST_F(KVStore_test, GetDirectMany)
 {
-  for ( auto i = 0; i != 10; ++i )
+  for ( auto i = 0; i != get_expand; ++i )
   {
     std::size_t mismatch_count = 0;
     for ( auto &kv : kvv )
@@ -414,9 +439,12 @@ TEST_F(KVStore_test, GetDirectMany)
       char value[many_value_length * 2];
       size_t value_len = many_value_length * 2;
       auto r = _kvstore->get_direct(pool, key, value, value_len);
-      EXPECT_EQ(r, S_OK);
-      EXPECT_EQ(ev.size(), value_len);
-      mismatch_count += ( ev.size() != value_len || 0 != memcmp(ev.data(), value, ev.size()) );
+      EXPECT_EQ(S_OK, r);
+      if ( S_OK == r )
+      {
+        EXPECT_EQ(ev.size(), value_len);
+        mismatch_count += ( ev.size() != value_len || 0 != memcmp(ev.data(), value, ev.size()) );
+      }
     }
     EXPECT_EQ(extant_count, mismatch_count);
   }
@@ -426,13 +454,19 @@ TEST_F(KVStore_test, GetRegions)
 {
   std::vector<::iovec> v;
   auto r = _kvstore->get_pool_regions(pool, v);
-  EXPECT_EQ(r, S_OK);
-  ASSERT_EQ(v.size(), 1);
-  std::cerr << "Pool region at " << v[0].iov_base << " len " << v[0].iov_len << "\n";
-  auto iov_base = reinterpret_cast<std::uintptr_t>(v[0].iov_base);
-  EXPECT_EQ(iov_base & 0xfff, 0);
-  EXPECT_GT(v[0].iov_len, many_count_target * 64U * 3U * 2U);
-  EXPECT_LT(v[0].iov_len, GB(512));
+  EXPECT_EQ(S_OK, r);
+  if ( S_OK == r )
+  {
+    EXPECT_EQ(1, v.size());
+    if ( 1 == v.size() )
+    {
+      std::cerr << "Pool region at " << v[0].iov_base << " len " << v[0].iov_len << "\n";
+      auto iov_base = reinterpret_cast<std::uintptr_t>(v[0].iov_base);
+      EXPECT_EQ(iov_base & 0xfff, 0);
+      EXPECT_GT(v[0].iov_len, many_count_target * 64U * 3U * 2U);
+      EXPECT_LT(v[0].iov_len, GB(512));
+    }
+  }
 }
 
 TEST_F(KVStore_test, LockMany)
@@ -447,15 +481,21 @@ TEST_F(KVStore_test, LockMany)
     void *value0 = nullptr;
     std::size_t value0_len = 0;
     auto r0 = _kvstore->lock(pool, key, IKVStore::STORE_LOCK_READ, value0, value0_len);
-    EXPECT_NE(r0, nullptr);
-    EXPECT_EQ(many_value_length, value0_len);
-    EXPECT_EQ(0, memcmp(ev.data(), value0, ev.size()));
+    EXPECT_NE(nullptr, r0);
+    if ( nullptr != r0 )
+    {
+      EXPECT_EQ(many_value_length, value0_len);
+      EXPECT_EQ(0, memcmp(ev.data(), value0, ev.size()));
+    }
     void * value1 = nullptr;
     std::size_t value1_len = 0;
     auto r1 = _kvstore->lock(pool, key, IKVStore::STORE_LOCK_READ, value1, value1_len);
-    EXPECT_NE(r1, nullptr);
-    EXPECT_EQ(many_value_length, value1_len);
-    EXPECT_EQ(0, memcmp(ev.data(), value1, ev.size()));
+    EXPECT_NE(nullptr, r1);
+    if ( nullptr != r1 )
+    {
+      EXPECT_EQ(many_value_length, value1_len);
+      EXPECT_EQ(0, memcmp(ev.data(), value1, ev.size()));
+    }
     /* Exclusive locking test. Skip if the library is built without locking. */
     if ( _kvstore->thread_safety() == IKVStore::THREAD_MODEL_MULTI_PER_POOL )
     {
@@ -467,16 +507,28 @@ TEST_F(KVStore_test, LockMany)
     void * value3 = nullptr;
     std::size_t value3_len = many_value_length;
     auto r3 = _kvstore->lock(pool, key_new, IKVStore::STORE_LOCK_WRITE, value3, value3_len);
-    EXPECT_NE(r3, nullptr);
-    EXPECT_EQ(many_value_length, value3_len);
-    EXPECT_NE(value3, nullptr);
+    EXPECT_NE(nullptr, r3);
+    if ( nullptr != r3 )
+    {
+      EXPECT_EQ(many_value_length, value3_len);
+      EXPECT_NE(nullptr, value3);
+    }
 
-    auto r0x = _kvstore->unlock(pool, r0);
-    EXPECT_EQ(r0x, S_OK);
-    auto r1x = _kvstore->unlock(pool, r1);
-    EXPECT_EQ(r1x, S_OK);
-    auto r3x = _kvstore->unlock(pool, r3);
-    EXPECT_EQ(r3x, S_OK);
+    if ( nullptr != r0 )
+    {
+      auto r0x = _kvstore->unlock(pool, r0);
+      EXPECT_EQ(S_OK, r0x);
+    }
+    if ( nullptr != r1 )
+    {
+      auto r1x = _kvstore->unlock(pool, r1);
+      EXPECT_EQ(S_OK, r1x);
+    }
+    if ( nullptr != r3 )
+    {
+      auto r3x = _kvstore->unlock(pool, r3);
+      EXPECT_EQ(S_OK, r3x);
+    }
 
     ++ct;
   }
@@ -510,18 +562,21 @@ TEST_F(KVStore_test, BasicUpdate)
       , single_key
       , v2
     );
-    EXPECT_EQ(r, S_OK);
+    EXPECT_EQ(S_OK, r);
   }
 
   {
     void * value = nullptr;
     size_t value_len = 0;
     auto r = _kvstore->get(pool, single_key, value, value_len);
-    EXPECT_EQ(r, S_OK);
-    PINF("Value=(%.*s) %zu", static_cast<int>(value_len), static_cast<char *>(value), value_len);
-    EXPECT_EQ(single_value_updated_different_size.size(), value_len);
-    EXPECT_EQ(0, memcmp(single_value_updated3.data(), value, single_value_updated3.size()));
-    _kvstore->free_memory(value);
+    EXPECT_EQ(S_OK, r);
+    if ( S_OK == r )
+    {
+      PINF("Value=(%.*s) %zu", static_cast<int>(value_len), static_cast<char *>(value), value_len);
+      EXPECT_EQ(single_value_updated_different_size.size(), value_len);
+      EXPECT_EQ(0, memcmp(single_value_updated3.data(), value, single_value_updated3.size()));
+      _kvstore->free_memory(value);
+    }
   }
 
   auto count = _kvstore->count(pool);
@@ -532,7 +587,7 @@ TEST_F(KVStore_test, BasicErase)
 {
   {
     auto r = _kvstore->erase(pool, single_key);
-    EXPECT_EQ(r, S_OK);
+    EXPECT_EQ(S_OK, r);
   }
 
   auto count = _kvstore->count(pool);
