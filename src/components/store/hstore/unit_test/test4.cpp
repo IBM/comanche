@@ -155,6 +155,7 @@ class KVStore_test
   static bool long_long_put;
 
   static std::size_t multi_count_actual;
+  static constexpr unsigned get_expand = 2;
   static std::size_t estimated_object_count;
   static std::size_t many_count_target;
   static auto populate_many(char tag, std::size_t key_length, std::size_t value_length) -> kvv_t;
@@ -270,6 +271,11 @@ TEST_F(KVStore_test, CreatePools)
   auto pool_alloc_needed = index_alloc + key_alloc + value_alloc;
   auto pool_header_size = 0x4d0;
   auto pool_alloc = pool_header_size + pool_alloc_needed * 4 / 3;
+  if ( std::getenv("POOL_ALLOCATE_FACTOR") )
+  {
+    double af = std::stod(getenv("POOL_ALLOCATE_FACTOR"));
+    pool_alloc *= af;
+  }
   ASSERT_TRUE(_kvstore);
   timer t(
     [] (timer::duration_t d) {
@@ -425,15 +431,14 @@ void KVStore_test::get_many(Component::IKVStore::pool_t pool, const kvv_t &kvv, 
 {
   /* get is quick; run 10 for better profiling */
   {
-    unsigned amplification = 10;
-	auto ct = amplification * kvv.size();
+	auto ct = get_expand * kvv.size();
     timer t(
 		[&descr,ct] (timer::duration_t d) {
 			double seconds = std::chrono::duration_cast<std::chrono::duration<double>>(d).count();
 			std::cerr << descr << " " << ct << " in " << seconds << " => " << ct / seconds << " per second\n";
 		}
 	);
-    for ( auto i = 0; i != amplification; ++i )
+    for ( auto i = 0; i != get_expand; ++i )
     {
       for ( auto &kv : kvv )
       {
@@ -442,7 +447,10 @@ void KVStore_test::get_many(Component::IKVStore::pool_t pool, const kvv_t &kvv, 
         size_t value_len = 0;
         auto r = _kvstore->get(pool, key, value, value_len);
         EXPECT_EQ(S_OK, r);
-        EXPECT_EQ(std::get<1>(kv).size(), value_len);
+        if ( S_OK == r )
+        {
+          EXPECT_EQ(std::get<1>(kv).size(), value_len);
+        }
         _kvstore->free_memory(value);
       }
     }
