@@ -100,6 +100,9 @@ class Dawn_client : public virtual Component::IKVStore,
 
   virtual status_t delete_pool(const std::string& name) override;
 
+  virtual status_t configure_pool(const Component::IKVStore::pool_t pool,
+                                  const std::string& json) override;
+
   virtual status_t put(const pool_t       pool,
                        const std::string& key,
                        const void*        value,
@@ -143,10 +146,10 @@ class Dawn_client : public virtual Component::IKVStore,
   virtual status_t free_memory(void * p) override;
 
   /* IDawn specific methods */
-  virtual std::string find(const std::string& key_expression,
-                           Component::IKVIndex::offset_t begin_position,
-                           Component::IKVIndex::find_t find_type,
-                           Component::IKVIndex::offset_t& out_end_position) override;
+  virtual status_t find(const IKVStore::pool_t pool,
+                        const std::string& key_expression,
+                        std::vector<std::string>& out_keys,
+                        unsigned limit = 0) override;
 
   
  private:

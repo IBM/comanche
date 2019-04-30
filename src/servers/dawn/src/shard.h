@@ -24,6 +24,7 @@
 #include <common/exceptions.h>
 #include <common/logging.h>
 #include <map>
+#include <unordered_map>
 #include <thread>
 #include "connection_handler.h"
 #include "dawn_config.h"
@@ -42,7 +43,8 @@ class Shard : public Shard_transport {
  private:
   using buffer_t = Shard_transport::buffer_t;
   using pool_t   = Component::IKVStore::pool_t;
-
+  using index_map_t = std::unordered_map<pool_t, Component::IKVIndex*>;
+  
   unsigned option_DEBUG;
 
  public:
@@ -81,6 +83,14 @@ class Shard : public Shard_transport {
 
     if (_index_factory)
       _index_factory->release_ref();
+
+    if (_index_map) {
+      for(auto i : *_index_map) {
+        assert(i.second);
+        i.second->release_ref();
+      }
+      delete _index_map;
+    }
   }
 
   bool exited() const { return _thread_exit; }
@@ -145,9 +155,36 @@ class Shard : public Shard_transport {
   
   void process_info_request(Connection_handler* handler,
                             Protocol::Message_INFO_request* msg);
-  
+
+  status_t process_configure(Protocol::Message_IO_request* msg);
+
+  Component::IKVIndex * lookup_index(const pool_t pool_id) {
+    if(_index_map) {
+      auto search = _index_map->find(pool_id);
+      if(search == _index_map->end()) return nullptr;
+      return search->second;
+    }
+    else return nullptr;
+  }
+
+  void add_index_key(const pool_t pool_id,
+                     const std::string& k) {
+    auto index = lookup_index(pool_id);
+    if(index)
+      index->insert(k);
+  }
+
+  void remove_index_key(const pool_t pool_id,
+                        const std::string& k) {
+    auto index = lookup_index(pool_id);
+    if(index)
+      index->erase(k);
+  }
+
 
  private:
+  index_map_t*                     _index_map = nullptr;
+  
   bool                             _thread_exit = false;
   bool                             _forced_exit;
   unsigned                         _core;

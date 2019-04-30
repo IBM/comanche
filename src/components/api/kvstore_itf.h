@@ -97,7 +97,9 @@ public:
 
   enum Attribute {
     VALUE_LEN   = 0x1, /* length of a value associated with key */
+    AUTO_HASHTABLE_EXPANSION = 0x2, /* set to true if the hash table should expand */
   };
+
 
   class Operation
   {
@@ -364,18 +366,36 @@ public:
    * 
    * @param pool Pool handle
    * @param attr Attribute to retrieve
-   * @param out_attr Result
-   * @param key [optiona] Key
+   * @param out_value Vector of attribute values
+   * @param key [optional] Key
    * 
    * @return S_OK on success
    */
   virtual status_t get_attribute(const pool_t pool,
                                  const Attribute attr,
-                                 std::vector<uint64_t>& out_attr,
+                                 std::vector<uint64_t>& out_value,
                                  const std::string* key = nullptr) {
     return E_NOT_SUPPORTED;
   }
-                                  
+
+
+  /** 
+   * Set attribute on a pool.  
+   * 
+   * @param pool Pool handle
+   * @param attr Attribute to set
+   * @param value Vector of values to set (for boolean 0=false, 1=true)
+   * @param key [optional] key
+   * 
+   * @return S_OK, E_INVAL on attribute that cannot be set
+   */
+  virtual status_t set_attribute(const pool_t pool,
+                                 const Attribute attr,
+                                 const std::vector<uint64_t>& value,
+                                 const std::string* key = nullptr) {
+    return E_NOT_SUPPORTED;
+  }
+
 
   /** 
    * Register memory for zero copy DMA

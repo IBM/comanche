@@ -42,11 +42,12 @@ enum {
 enum {
   INFO_TYPE_COUNT     = 0x1,
   INFO_TYPE_VALUE_LEN = 0x2,
+  INFO_TYPE_FIND_KEYS = 0x3,
 };
 
 enum {
-  PROTOCOL_KV = 0x0, /*< Key-Value Store */
-  PROTOCOL_AS = 0x1, /*< Active Storage */
+  PROTOCOL_V1 = 0x1, /*< Key-Value Store */
+  PROTOCOL_V2 = 0x2, /*< Active Storage */
 };
 
 enum {
@@ -68,6 +69,7 @@ enum {
   OP_ERASE       = 8,
   OP_PREPARE     = 9,  // prepare for immediately following operation
   OP_COUNT       = 10,
+  OP_CONFIGURE   = 11,
   OP_INVALID     = 0xFE,
   OP_MAX         = 0xFF
 };
@@ -230,6 +232,20 @@ struct Message_IO_request : public Message {
     msg_len = sizeof(Message_IO_request) + key_len + 1; /* we don't add value len, this will be in next buffer */
   }
 
+  /*< version used for configure_pool command */
+  Message_IO_request(size_t       buffer_size,
+                     uint64_t     auth_id,
+                     uint64_t     request_id,
+                     uint64_t     pool_id,
+                     uint8_t      op,
+                     const std::string& data)
+      : Message(auth_id, MSG_TYPE_IO_REQUEST, op), request_id(request_id),
+        pool_id(pool_id), flags(0)
+  {
+    set_key_value_len(buffer_size, data, 0);
+    msg_len = sizeof(Message_IO_request) + key_len + 1;
+  }
+
   Message_IO_request(size_t      buffer_size,
                      uint64_t    auth_id,
                      uint64_t    request_id,
@@ -250,6 +266,7 @@ struct Message_IO_request : public Message {
   Message_IO_request() { assert(version == PROTOCOL_VERSION); }
 
   const char* key() const { return &data[0]; }
+  const char* cmd() const { return &data[0]; }
   const char* value() const { return &data[key_len + 1]; }
 
   const size_t get_key_len() const { return key_len; }
@@ -387,6 +404,7 @@ struct Message_INFO_response : public Message {
   Message_INFO_response() {}
   size_t base_message_size() const { return sizeof(Message_INFO_response); }
   size_t value;
+  char   data[0];
 } __attribute__((packed));
 
 ////////////////////////////////////////////////////////////////////////
@@ -395,7 +413,7 @@ struct Message_INFO_response : public Message {
 struct Message_handshake : public Message {
   Message_handshake(uint64_t auth_id, uint64_t sequence)
       : Message(auth_id, MSG_TYPE_HANDSHAKE), seq(sequence),
-        protocol(PROTOCOL_KV)
+        protocol(PROTOCOL_V1)
   {
     msg_len = sizeof(Message_handshake);
   }
@@ -405,7 +423,7 @@ struct Message_handshake : public Message {
   uint64_t seq;
   uint8_t  protocol;
 
-  void set_as_protocol() { protocol = PROTOCOL_AS; }
+  void set_as_protocol() { protocol = PROTOCOL_V2; }
 
 } __attribute__((packed));
 

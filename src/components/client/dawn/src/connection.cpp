@@ -169,6 +169,47 @@ status_t Connection_handler::delete_pool(const std::string& name)
   return status;
 }
 
+status_t Connection_handler::configure_pool(const Component::IKVStore::pool_t pool,
+                                            const std::string& json)
+{
+  API_LOCK();
+
+  const auto iob = allocate();
+    
+  const auto msg = new (iob->base()) Dawn::Protocol::Message_IO_request(iob->length(),
+                                                                        auth_id(),
+                                                                        ++_request_id,
+                                                                        pool,
+                                                                        Dawn::Protocol::OP_CONFIGURE,  // op
+                                                                        json);
+  if ((json.length() + sizeof(Dawn::Protocol::Message_IO_request)) >
+      Buffer_manager<Component::IFabric_client>::BUFFER_LEN) {
+    PWRN("Dawn_client::configure_pool, command too long.");
+    return IKVStore::E_TOO_LARGE;
+  }
+
+  iob->set_length(msg->msg_len);
+
+  sync_send(iob);
+
+  sync_recv(iob);
+
+  const auto response_msg =
+    new (iob->base()) Dawn::Protocol::Message_IO_response();
+
+  if (response_msg->type_id != Dawn::Protocol::MSG_TYPE_IO_RESPONSE)
+    throw Protocol_exception("expected IO_RESPONSE message - got %x",
+                             response_msg->type_id);
+
+  if (option_DEBUG)
+    PLOG("got response from CONFIGURE operation: status=%d request_id=%lu",
+         response_msg->status, response_msg->request_id);
+
+  auto status = response_msg->status;
+  free_buffer(iob);
+  return status;
+}
+
 /**
  * Memcpy version; both key and value are copied
  *
@@ -702,6 +743,47 @@ status_t Connection_handler::get_attribute(const IKVStore::pool_t pool,
   out_attr.push_back(response_msg->value);
   
   free_buffer(iob);
+  return S_OK;
+}
+
+status_t Connection_handler::find(const IKVStore::pool_t pool,
+                                  const std::string& key_expression,
+                                  std::vector<std::string>& out_keys,
+                                  unsigned limit)
+{
+  API_LOCK();
+
+  const auto iob = allocate();
+  assert(iob);
+  const auto msg = new (iob->base()) Dawn::Protocol::Message_INFO_request(auth_id());
+  msg->pool_id = pool;
+  msg->type = Dawn::Protocol::INFO_TYPE_FIND_KEYS;
+
+  msg->set_key(iob->length(), key_expression);
+  iob->set_length(msg->message_size());
+
+  sync_inject_send(iob);
+
+  sync_recv(iob);
+
+  auto response_msg = new (iob->base()) Dawn::Protocol::Message_INFO_response();
+  if (response_msg->type_id != Dawn::Protocol::MSG_TYPE_INFO_RESPONSE) {
+    PWRN("expected INFO_RESPONSE message - got %x", response_msg->type_id);
+    free_buffer(iob);
+    return 0;
+  }
+
+  if(response_msg->status == S_OK) {
+    auto val = response_msg->value;
+    free_buffer(iob);
+    return S_OK;
+  }
+  else {
+    auto status = response_msg->status;
+    free_buffer(iob);
+    return status;
+  }
+
   return S_OK;
 }
 

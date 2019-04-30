@@ -110,6 +110,8 @@ class Connection_handler : public Connection_base {
 
   status_t delete_pool(const std::string& name);
 
+  status_t configure_pool(const Component::IKVStore::pool_t pool,
+                          const std::string& json);
 
   status_t put(const pool_t      pool,
                const std::string key,
@@ -157,6 +159,11 @@ class Connection_handler : public Connection_base {
                          const Component::IKVStore::Attribute attr,
                          std::vector<uint64_t>& out_attr,
                          const std::string* key);
+
+  status_t find(const Component::IKVStore::pool_t pool,
+                const std::string& key_expression,
+                std::vector<std::string>& out_keys,
+                unsigned limit);
 
  private:
   /**

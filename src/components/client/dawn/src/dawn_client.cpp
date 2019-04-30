@@ -165,6 +165,12 @@ status_t Dawn_client::delete_pool(const std::string& name)
   return _connection->delete_pool(name);
 }
 
+status_t Dawn_client::configure_pool(const IKVStore::pool_t pool,
+                                     const std::string& json)
+{
+  return _connection->configure_pool(pool, json);
+}
+
 
 status_t Dawn_client::put(const IKVStore::pool_t pool,
                           const std::string&     key,
@@ -244,11 +250,12 @@ void Dawn_client::debug(const IKVStore::pool_t pool, unsigned cmd, uint64_t arg)
 {
 }
 
-std::string Dawn_client::find(const std::string& key_expression,
-                              IKVIndex::offset_t begin_position,
-                              IKVIndex::find_t find_type,
-                              IKVIndex::offset_t& out_end_position) {
-  return std::string("");
+status_t Dawn_client::find(const IKVStore::pool_t pool,
+                           const std::string& key_expression,
+                           std::vector<std::string>& out_keys,
+                           unsigned limit)
+{
+  return _connection->find(pool, key_expression, out_keys, limit);
 }
 
 /**
@@ -260,7 +267,6 @@ extern "C" void* factory_createInstance(Component::uuid_t& component_id)
   if (component_id == Dawn_client_factory::component_id()) {
     PMAJOR("Creating Dawn_client_factory ...");
     auto fact = new Dawn_client_factory();
-    //    ((Component::IBase *)fact)->add_ref();
     fact->add_ref();
     return static_cast<void*>(fact);
   }

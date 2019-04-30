@@ -160,8 +160,10 @@ int Connection_handler::tick()
         auto reply_iob = allocate();
         assert(reply_iob);
         auto reply_msg =
-          new (reply_iob->base()) Dawn::Protocol::Message_handshake_reply(
-                                                                          auth_id(), 1 /* seq */, max_message_size(), (uint64_t) this);
+          new (reply_iob->base()) Dawn::Protocol::Message_handshake_reply(auth_id(),
+                                                                          1 /* seq */,
+                                                                          max_message_size(),
+                                                                          (uint64_t) this);
         /* post response */
         reply_iob->set_length(reply_msg->msg_len);
         post_send_buffer(reply_iob);

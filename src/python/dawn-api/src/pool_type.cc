@@ -6,7 +6,6 @@
 #define PY_ARRAY_UNIQUE_SYMBOL DAWN_ARRAY_API
 
 #include <common/logging.h>
-#include <api/kvstore_itf.h>
 #include <Python.h>
 #include <structmember.h>
 #include <numpy/arrayobject.h>
@@ -22,6 +21,8 @@ static PyObject * pool_put_direct(Pool* self, PyObject *args, PyObject *kwds);
 static PyObject * pool_get_direct(Pool* self, PyObject *args, PyObject *kwds);
 static PyObject * pool_get_size(Pool* self, PyObject *args, PyObject *kwds);
 static PyObject * pool_erase(Pool* self, PyObject *args, PyObject *kwds);
+static PyObject * pool_configure(Pool* self, PyObject *args, PyObject *kwds);
+static PyObject * pool_find(Pool* self, PyObject *args, PyObject *kwds);
 
 static PyObject *
 Pool_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
@@ -62,6 +63,8 @@ PyDoc_STRVAR(get_direct_doc,"Pool.get_direct(key) -> Read bytearray value from p
 PyDoc_STRVAR(close_doc,"Pool.close() -> Forces pool closure. Otherwise close happens on deletion.");
 PyDoc_STRVAR(count_doc,"Pool.count() -> Get number of objects in the pool.");
 PyDoc_STRVAR(erase_doc,"Pool.erase(key) -> Erase object from the pool.");
+PyDoc_STRVAR(configure_doc,"Pool.configure(jsoncmd) -> Configure pool.");
+PyDoc_STRVAR(find_doc,"Pool.find(expr, [limit]) -> Find keys using expression.");
 
 static PyMethodDef Pool_methods[] = {
   {"close",(PyCFunction) pool_close, METH_NOARGS, close_doc},
@@ -72,6 +75,8 @@ static PyMethodDef Pool_methods[] = {
   {"get_direct",(PyCFunction) pool_get_direct, METH_VARARGS | METH_KEYWORDS, get_direct_doc},
   {"get_size",(PyCFunction) pool_get_size, METH_VARARGS | METH_KEYWORDS, get_size_doc},
   {"erase",(PyCFunction) pool_erase, METH_VARARGS | METH_KEYWORDS, erase_doc},
+  {"configure",(PyCFunction) pool_configure, METH_VARARGS | METH_KEYWORDS, configure_doc},
+  {"find",(PyCFunction) pool_find, METH_VARARGS | METH_KEYWORDS, find_doc},
   {NULL}
 };
 
@@ -461,5 +466,79 @@ static PyObject * pool_erase(Pool* self, PyObject *args, PyObject *kwds)
   Py_RETURN_TRUE;
 }
 
+
+static PyObject * pool_configure(Pool* self, PyObject *args, PyObject *kwds)
+{
+  static const char *kwlist[] = {"command",
+                                 NULL};
+
+  const char * command = nullptr;
+  
+  if (! PyArg_ParseTupleAndKeywords(args,
+                                    kwds,
+                                    "s",
+                                    const_cast<char**>(kwlist),
+                                    &command)) {
+    PyErr_SetString(PyExc_RuntimeError,"bad arguments");
+    return NULL;
+  }
+
+  assert(self->_pool);
+    
+  const std::string cmd(command);
+  
+  auto hr = self->_dawn->configure_pool(self->_pool, cmd);
+
+  if(hr != S_OK) {
+    std::stringstream ss;
+    ss << "pool.configure [status:" << hr << "]";
+    PyErr_SetString(PyExc_RuntimeError,ss.str().c_str());    
+    return NULL;
+  }
+
+  Py_RETURN_TRUE;
+}
+
+
+
+static PyObject * pool_find(Pool* self, PyObject *args, PyObject *kwds)
+{
+  static const char *kwlist[] = {"expr",
+                                 "limit",
+                                 NULL};
+
+  const char * expr_param = nullptr;
+  int limit_param = 0;
+  
+  if (! PyArg_ParseTupleAndKeywords(args,
+                                    kwds,
+                                    "s|i",
+                                    const_cast<char**>(kwlist),
+                                    &expr_param,
+                                    &limit_param)) {
+    PyErr_SetString(PyExc_RuntimeError,"bad arguments");
+    return NULL;
+  }
+
+  assert(self->_pool);
+    
+  const std::string expr(expr_param);
+
+  std::vector<std::string> out_keys;
+
+  auto hr = self->_dawn->find(self->_pool,
+                              expr,
+                              out_keys,
+                              limit_param);
+
+  if(hr != S_OK) {
+    std::stringstream ss;
+    ss << "pool.configure [status:" << hr << "]";
+    PyErr_SetString(PyExc_RuntimeError,ss.str().c_str());    
+    return NULL;
+  }
+
+  Py_RETURN_TRUE;
+}
 
 #endif

@@ -13,8 +13,10 @@
 //#define PROFILE
 
 #include <api/components.h>
+#include <api/kvindex_itf.h>
 #include <common/dump_utils.h>
 #include <common/utils.h>
+#include <rapidjson/document.h>
 
 #ifdef PROFILE
 #include <gperftools/profiler.h>
@@ -370,7 +372,6 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
 
   const auto iob = handler->allocate();
   assert(iob);
-  
 
   /////////////////////////////////////////////////////////////////////////////
   //   PUT ADVANCE   //
@@ -391,7 +392,7 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
     /* can't support dont stomp flag */
     if(msg->flags & IKVStore::FLAGS_DONT_STOMP) {
       status = E_INVAL;
-      PWRN("PUT_ADVANCE failed IVStore::FLAGS_DONT_STOMP not viable");
+      PWRN("PUT_ADVANCE failed IKVStore::FLAGS_DONT_STOMP not viable");
       goto send_response;
     }
 
@@ -423,6 +424,9 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
     /* set up value memory to receive value from network */
     handler->set_pending_value(target, target_len, region);
 
+    /* update index ; position OK? */
+    add_index_key(msg->pool_id, k);
+    
     Protocol::Message_IO_response* response = new (iob->base())
       Protocol::Message_IO_response(iob->length(), handler->auth_id());
     response->request_id = msg->request_id;
@@ -470,6 +474,8 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
         else
           PLOG("kvstore->put returned %d", status);
       }
+      
+      add_index_key(msg->pool_id, k);
     }
   }
   /////////////////////////////////////////////////////////////////////////////
@@ -547,7 +553,7 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
           response->status = E_INSUFFICIENT_SPACE;
           iob->set_length(response->base_message_size());
           handler->post_response(iob, nullptr);
-          PWRN("client posted insufficient space.");
+          PWRN("Client posted insufficient space.");
           return;
         }
         
@@ -608,6 +614,15 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
     std::string k(msg->key(), msg->key_len);
     
     status = _i_kvstore->erase(msg->pool_id, k);
+    remove_index_key(msg->pool_id, k);
+  }
+  /////////////////////////////////////////////////////////////////////////////
+  //   CONFIGURE     //
+  /////////////////////  
+  else if (msg->op == Protocol::OP_CONFIGURE) {
+    if (option_DEBUG > 1)
+      PMAJOR("Shard: pool CONFIGURE (%s)", msg->cmd());
+    status = process_configure(msg);
   }
   else {
     throw Protocol_exception("operation not implemented");
@@ -626,7 +641,7 @@ void Shard::process_info_request(Connection_handler* handler,
   const auto iob = handler->allocate();
   assert(iob);
 
-  if(option_DEBUG > 1)
+  if (option_DEBUG > 1)
     PLOG("Shard: INFO request type:%u", msg->type);
 
 
@@ -656,6 +671,11 @@ void Shard::process_info_request(Connection_handler* handler,
     if(option_DEBUG > 1)
       PLOG("Shard: INFO reqeust INFO_TYPE_VALUE_LEN rc=%u val=%lu", hr, response->value);
   }
+  else if (msg->type == Protocol::INFO_TYPE_FIND_KEYS) {
+    PLOG("Shard: INFO request INFO_TYPE_FIND_KEYS");
+    response->status = Component::IKVStore::E_NOT_SUPPORTED;
+    response->value = 0;
+  }
   else {
     throw Protocol_exception("info request type not implemented");
   }
@@ -664,9 +684,6 @@ void Shard::process_info_request(Connection_handler* handler,
   handler->post_send_buffer(iob);  
   return;
 }
-
-
-
 
 void Shard::check_for_new_connections()
 {
@@ -679,6 +696,68 @@ void Shard::check_for_new_connections()
       PMAJOR("Shard: processing new connection (%p)", handler);
     _handlers.push_back(handler);
   }
+}
+
+
+status_t Shard::process_configure(Protocol::Message_IO_request* msg)
+{
+  using namespace rapidjson;
+  using namespace Component;
+  
+  Document doc;
+  
+  try {
+    doc.Parse(msg->cmd());
+    const char* index_str = doc["index"].GetString();
+
+    /* TODO: use shard configuration */
+    if(strncmp(index_str,"volatile_rbtree",15)==0) {
+
+      if(_index_map == nullptr)
+        _index_map = new index_map_t();
+
+      /* create index component and put into shard index map */
+      IBase* comp = load_component("libcomanche-indexrbtree.so", rbtreeindex_factory);
+      if (!comp)
+        throw General_exception("unable to load libcomanche-indexrbtree.so");
+      auto factory = static_cast<IKVIndex_factory*>(comp->query_interface(IKVIndex_factory::iid()));
+      assert(factory);
+
+      std::stringstream ss;
+      ss << "auth_id:" << msg->auth_id;
+      auto index = factory->create(ss.str(), "");
+      assert(index);
+      
+      _index_map->insert(std::make_pair((IKVStore::pool_t)msg->pool_id, index));
+
+      factory->release_ref();
+
+      if (option_DEBUG > 1) {
+        PLOG("Rebuilding volatile index ...");
+        _i_kvstore->map(msg->pool_id,
+                        [&index](const std::string& key,
+                           const void * value,
+                           const size_t value_len) {
+                          index->insert(key);
+                          return 0;
+                        });
+                        
+      }
+        
+      return S_OK;
+    }
+    else {
+      PWRN("unknown index (%s)", index_str);
+      return E_BAD_PARAM;
+    }
+  }
+  catch(...) {
+    PWRN("bad JSON configuration command");
+    return E_BAD_PARAM;
+  }
+    
+  return S_OK;
+
 }
 
 }  // namespace Dawn
