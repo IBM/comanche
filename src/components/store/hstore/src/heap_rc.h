@@ -168,13 +168,18 @@ public:
 	template <bool B>
 		void write_hist() const
 		{
-			hop_hash_log<B>::write(__func__, " pool ", _pool);
-			std::size_t lower_bound = 0;
-			for ( unsigned i = std::max(0U, log_alignment); i != std::min(std::size_t(hist_report_upper_bound), _hist_alloc.data().size()); ++i )
+			static bool suppress = false;
+			if ( ! suppress )
 			{
-				const std::size_t upper_bound = 1ULL << i;
-				hop_hash_log<B>::write(__func__, " [", lower_bound, "..", upper_bound, "): ", _hist_alloc.data()[i], " ", _hist_inject.data()[i], " ", _hist_free.data()[i], " ");
-				lower_bound = upper_bound;
+				hop_hash_log<B>::write(__func__, " pool ", _pool);
+				std::size_t lower_bound = 0;
+				for ( unsigned i = std::max(0U, log_alignment); i != std::min(std::size_t(hist_report_upper_bound), _hist_alloc.data().size()); ++i )
+				{
+					const std::size_t upper_bound = 1ULL << i;
+					hop_hash_log<B>::write(__func__, " [", lower_bound, "..", upper_bound, "): ", _hist_alloc.data()[i], " ", _hist_inject.data()[i], " ", _hist_free.data()[i], " ");
+					lower_bound = upper_bound;
+				}
+				suppress = true;
 			}
 		}
 
@@ -199,11 +204,18 @@ public:
 		catch ( const std::bad_alloc & )
 		{
 			write_hist<true>();
+			/* Sometimes lack of space will cause heap to throw a bad_alloc. */
 			throw;
 		}
-		catch ( const General_exception & )
+		catch ( const General_exception &e )
 		{
 			write_hist<true>();
+			/* Sometimes lack of space will cause heap to throw a General_exception with this explanation. */
+			/* Convert to bad_alloc. */
+			if ( e.cause() == std::string("region allocation out-of-space") )
+			{
+				throw std::bad_alloc();
+			}
 			throw;
 		}
 	}
@@ -260,10 +272,10 @@ public:
 		return _numa_node;
 	}
 
-    ::iovec region() const
-    {
-      return ::iovec{_pool, _size};
-    }
+	::iovec region() const
+	{
+		return ::iovec{_pool, _size};
+	}
 };
 
 class heap_rc
@@ -316,10 +328,10 @@ public:
 		return _heap->is_reconstituted(p_);
 	}
 
-    ::iovec region() const
-    {
-      return _heap->region();
-    }
+	::iovec region() const
+	{
+		return _heap->region();
+	}
 };
 
 #endif
