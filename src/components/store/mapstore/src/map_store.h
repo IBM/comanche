@@ -125,7 +125,12 @@ public:
   virtual size_t count(const pool_t pool) override;
 
   virtual status_t free_memory(void * p) override;
-  
+
+  virtual status_t map(const pool_t pool,
+                       std::function<int(const std::string& key,
+                                         const void * value,
+                                         const size_t value_len)> function) override;
+
   virtual void debug(const pool_t pool, unsigned cmd, uint64_t arg) override;
 
 private:

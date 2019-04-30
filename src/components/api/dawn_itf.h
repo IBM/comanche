@@ -47,7 +47,7 @@ public:
    * Create an object pool
    * 
    * @param ppol_name Unique pool name
-   * @param size Size of pool in bytes
+   * @param size Size of pool in bytes (for keys,values and metadata)
    * @param flags Creation flags
    * @param expected_obj_count Expected maximum object count (optimization)
    * 
@@ -83,6 +83,18 @@ public:
    */
   virtual status_t delete_pool(const std::string& pool_name) = 0;
 
+
+  /** 
+   * Configure a pool
+   * 
+   * @param json JSON formatted configuration request (e.g., { "index" : "volatile_binary_tree" } )
+
+   * 
+   * @return S_OK on success
+   */
+  virtual status_t configure_pool(const IKVStore::pool_t pool,
+                                  const std::string& json) = 0;
+  
   /** 
    * Write or overwrite an object value. If there already exists a
    * object with matching key, then it should be replaced
@@ -157,18 +169,19 @@ public:
                               IKVStore::memory_handle_t handle = IKVStore::HANDLE_NONE) = 0;
   
   /** 
-   * Perform a key search
+   * Perform key search based on regex or prefix
    * 
-   * @param key_expression Key expression to match on
-   * @param begin_position Position from which to start from. Counting from 0.
-   * @param out_end_position [out] Position of the match
+   * @param pool Pool handle
+   * @param key_expression Regular expression or prefix (e.g. "prefix:carKey")
+   * @param out_keys Out vector of matching keys
+   * @param limit Maximum number of keys to return
    * 
-   * @return Matched key
-   */  
-  virtual std::string find(const std::string& key_expression,
-                           Component::IKVIndex::offset_t begin_position,
-                           Component::IKVIndex::find_t find_type,
-                           Component::IKVIndex::offset_t& out_end_position) = 0;
+   * @return S_OK on success
+   */
+  virtual status_t find(const IKVStore::pool_t pool,
+                        const std::string& key_expression,
+                        std::vector<std::string>& out_keys,
+                        unsigned limit = 0) = 0;
 
   /** 
    * Erase an object
