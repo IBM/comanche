@@ -96,8 +96,10 @@ public:
   };
 
   enum Attribute {
-    VALUE_LEN   = 0x1, /* length of a value associated with key */
-    AUTO_HASHTABLE_EXPANSION = 0x2, /* set to true if the hash table should expand */
+    VALUE_LEN                = 1, /* length of a value associated with key */
+    COUNT                    = 2,
+    CRC32                    = 3, /* get CRC32 of a value */
+    AUTO_HASHTABLE_EXPANSION = 4, /* set to true if the hash table should expand */
   };
 
 
@@ -446,24 +448,6 @@ public:
    */
   virtual status_t unlock(const pool_t pool,
                           key_t key_handle) { return E_NOT_SUPPORTED; }
-
-  /** 
-   * Apply a functor to an object as a transaction
-   * 
-   * @param pool Pool handle
-   * @param key Object key
-   * @param functor Functor to apply to object
-   * @param object_size Size of object if creation is needed
-   * @param take_lock Set to true to implicitly take the lock (otherwise lock/unlock should be called explicitly)
-   * 
-   * @return S_OK or error code
-   */
-  virtual status_t apply(const pool_t pool,
-                         const std::string& key,
-                         std::function<void(void*,const size_t)> functor,
-                         size_t object_size,
-                         bool take_lock = true) { return E_NOT_SUPPORTED; }
-
 
   /** 
    * Update an existing value by applying a series of operations.

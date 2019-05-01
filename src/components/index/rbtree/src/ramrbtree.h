@@ -7,12 +7,13 @@
  * Authors:
  *
  * Luna Xu
- *
+ * Daniel Waddington
  */
 
 #ifndef __RAMRBTREE_COMPONENT_H__
 #define __RAMRBTREE_COMPONENT_H__
 
+#include <set>
 #include <api/kvindex_itf.h>
 
 using namespace std;
@@ -49,6 +50,8 @@ class RamRBTree : public Component::IKVIndex {
                            offset_t&          out_end_position,
                            std::string&       out_matched_key,
                            unsigned           max_comparisons = 0) override;
+private:
+  std::set<string> _index;
 };
 
 class RamRBTree_factory : public Component::IKVIndex_factory {

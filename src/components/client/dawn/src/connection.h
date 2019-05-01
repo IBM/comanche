@@ -162,10 +162,13 @@ class Connection_handler : public Connection_base {
 
   status_t find(const Component::IKVStore::pool_t pool,
                 const std::string& key_expression,
-                std::vector<std::string>& out_keys,
-                unsigned limit);
+                const offset_t offset,
+                offset_t& out_matched_offset,
+                std::string& out_matched_key);
+
 
  private:
+  
   /**
    * FSM tick call
    *
