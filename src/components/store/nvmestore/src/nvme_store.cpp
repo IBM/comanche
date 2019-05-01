@@ -135,6 +135,9 @@ NVME_store::NVME_store(const std::string& owner,
                        const std::string& pci,
                        const std::string& pm_path) : _pm_path(pm_path)
 {
+  if(_pm_path.back() != '/')
+    _pm_path += "/";
+  
   PLOG("NVMESTORE: chunk size in blocks: %lu", CHUNK_SIZE_IN_BLOCKS);
   PLOG("PMEMOBJ_MAX_ALLOC_SIZE: %lu MB", REDUCE_MB(PMEMOBJ_MAX_ALLOC_SIZE));
 
@@ -175,7 +178,7 @@ IKVStore::pool_t NVME_store::create_pool(const std::string& name,
 
   // TODO: need to check size
   // TODO: pass prefix (pm_path) into nvmestore component config
-  const std::string& fullpath = name;
+  const std::string& fullpath = _pm_path + name;
   
   PINF("NVME_store::create_pool fullpath=%s name=%s", fullpath.c_str(), name.c_str());
   
@@ -239,7 +242,7 @@ IKVStore::pool_t NVME_store::open_pool(const std::string& name,
 
   PINF("NVME_store::open_pool name=%s", name.c_str());
 
-  const std::string& fullpath = name;
+  const std::string& fullpath = _pm_path + name;
 
   /* if trying to open a unclosed pool!*/
   for(auto iter : g_sessions){
@@ -813,25 +816,20 @@ void NVME_store_factory::unload() {
   delete this;
 }
 
-auto NVME_store_factory::create(const std::string& owner,
-                                const std::string& name,
-                                const std::string& pci) -> Component::IKVStore *
+IKVStore * NVME_store_factory::create(unsigned debug_level,
+				      std::map<std::string,std::string>& params)
 {
-  if ( pci.size() != 7 || pci[2] != ':' || pci[5] != '.' )
-  {
-    PWRN("Parameter '%s' does not look like a PCI address", pci.c_str());
-  }
-  /* TODO, 3rd parameter to create should be a JSON string including pci address and pmem path */
+  auto& pci = params["pci"];
 
-  Component::IKVStore * obj = static_cast<Component::IKVStore*>(new NVME_store(owner, name, pci, "/mnt/pmem0"));
+  if ( pci.size() != 7 || pci[2] != ':' || pci[5] != '.' ) { 
+    throw Constructor_exception("Parameter '%s' does not look like a PCI address", pci.c_str());
+  }
+
+  Component::IKVStore * obj = static_cast<Component::IKVStore*>(new NVME_store(params["owner"],
+									       params["name"],
+									       params["pci"],
+									       params["pm_path"]));
   obj->add_ref();
   return obj;
-}
 
-auto NVME_store_factory::create(unsigned,
-                                const std::string& owner,
-                                const std::string& name,
-                                const std::string& pci) -> Component::IKVStore *
-{
-  return create(owner, name, pci);
 }
