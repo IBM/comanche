@@ -42,7 +42,7 @@ enum {
 enum {
   INFO_TYPE_COUNT     = 0x1,
   INFO_TYPE_VALUE_LEN = 0x2,
-  INFO_TYPE_FIND_KEYS = 0x3,
+  INFO_TYPE_FIND_KEY  = 0x3,
 };
 
 enum {
@@ -377,16 +377,16 @@ struct Message_INFO_request : public Message {
                                           key_len(0) {  }
 
   const char* key() const { return data; }
+  const char* c_str() const { return data; }
   size_t base_message_size() const { return sizeof(Message_INFO_request); }
-  size_t message_size() const { return sizeof(Message_INFO_request) + key_len; }
+  size_t message_size() const { return sizeof(Message_INFO_request) + key_len + 1; }
 
   void set_key(const size_t buffer_size,
                const std::string& key) {
     key_len = key.length();
     if((key_len + base_message_size() + 1) > buffer_size)
-      throw API_exception(
-          "Message_INFOO_request::set_key - insufficient buffer for key (len=%lu)",
-          key_len);
+      throw API_exception("Message_INFO_request::set_key - insufficient buffer for key (len=%lu)",
+                          key_len);
 
     memcpy(data, key.c_str(), key_len);
     data[key_len] = '\0';
@@ -395,6 +395,7 @@ struct Message_INFO_request : public Message {
   uint64_t pool_id;
   uint32_t type;
   uint32_t pad;
+  uint64_t offset;
   uint64_t key_len;
   char     data[0];  
 } __attribute__((packed));
@@ -403,7 +404,23 @@ struct Message_INFO_response : public Message {
   Message_INFO_response(uint64_t authid) : Message(auth_id, MSG_TYPE_INFO_RESPONSE) { }
   Message_INFO_response() {}
   size_t base_message_size() const { return sizeof(Message_INFO_response); }
-  size_t value;
+  size_t message_size() const { return sizeof(Message_INFO_response) + value_len + 1; }
+  const char * c_str() const { return static_cast<const char*>(data); }
+
+  void set_value(size_t buffer_size, const void * value, size_t len) {
+    if (unlikely((len + 1 + sizeof(Message_INFO_response)) > buffer_size))
+      throw API_exception("Message_INFO_response::set_value - insufficient buffer");
+
+    memcpy(data, value, len); /* only copy key and set value length */
+    data[len] = '\0';
+    value_len = len; 
+  }
+  
+  union {
+    size_t value;
+    size_t value_len;
+  };
+  offset_t offset;
   char   data[0];
 } __attribute__((packed));
 

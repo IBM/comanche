@@ -87,13 +87,13 @@ public:
   /** 
    * Configure a pool
    * 
-   * @param json JSON formatted configuration request (e.g., { "index" : "volatile_binary_tree" } )
+   * @param setting Configuration request (e.g., AddIndex::VolatileTree)
 
    * 
    * @return S_OK on success
    */
   virtual status_t configure_pool(const IKVStore::pool_t pool,
-                                  const std::string& json) = 0;
+                                  const std::string& setting) = 0;
   
   /** 
    * Write or overwrite an object value. If there already exists a
@@ -173,15 +173,17 @@ public:
    * 
    * @param pool Pool handle
    * @param key_expression Regular expression or prefix (e.g. "prefix:carKey")
+   * @param offset Offset from which to search
+   * @param out_matched_offset Out offset of match
    * @param out_keys Out vector of matching keys
-   * @param limit Maximum number of keys to return
    * 
    * @return S_OK on success
    */
   virtual status_t find(const IKVStore::pool_t pool,
                         const std::string& key_expression,
-                        std::vector<std::string>& out_keys,
-                        unsigned limit = 0) = 0;
+                        const offset_t offset,
+                        offset_t& out_matched_offset,
+                        std::string& out_matched_key) = 0;
 
   /** 
    * Erase an object

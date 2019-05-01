@@ -16,7 +16,7 @@ file(GLOB SOURCES src/*.c*)
 add_library(${PROJECT_NAME} SHARED ${SOURCES})
 
 set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--no-undefined")
-target_link_libraries(${PROJECT_NAME} common comanche-core numa dl rt boost_system  pthread tbb tbbmalloc)
+target_link_libraries(${PROJECT_NAME} common comanche-core numa dl rt boost_system pthread)
 
 # set the linkage in the install/lib
 set_target_properties(${PROJECT_NAME} PROPERTIES

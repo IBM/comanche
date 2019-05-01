@@ -25,13 +25,14 @@
 #include <common/logging.h>
 #include <map>
 #include <unordered_map>
+#include <list>
 #include <thread>
 #include "connection_handler.h"
 #include "dawn_config.h"
 #include "fabric_transport.h"
 #include "pool_manager.h"
 #include "types.h"
-
+#include "task_key_find.h"
 namespace Dawn
 {
 class Connection_handler;
@@ -40,10 +41,14 @@ class Connection_handler;
 using Shard_transport = Fabric_transport;
 
 class Shard : public Shard_transport {
+  
  private:
-  using buffer_t = Shard_transport::buffer_t;
-  using pool_t   = Component::IKVStore::pool_t;
-  using index_map_t = std::unordered_map<pool_t, Component::IKVIndex*>;
+  using buffer_t           = Shard_transport::buffer_t;
+  using pool_t             = Component::IKVStore::pool_t;
+  using index_map_t        = std::unordered_map<pool_t, Component::IKVIndex*>;
+  using pool_key_pair_t    = std::pair<pool_t, Component::IKVStore::key_t>;
+  using locked_value_map_t = std::map<const void*, pool_key_pair_t>;
+  using task_list_t        = std::list<Shard_task*>;
   
   unsigned option_DEBUG;
 
@@ -158,6 +163,8 @@ class Shard : public Shard_transport {
 
   status_t process_configure(Protocol::Message_IO_request* msg);
 
+  void process_tasks();
+  
   Component::IKVIndex * lookup_index(const pool_t pool_id) {
     if(_index_map) {
       auto search = _index_map->find(pool_id);
@@ -181,8 +188,12 @@ class Shard : public Shard_transport {
       index->erase(k);
   }
 
+  inline void add_task_list(Shard_task *  task) {
+    _tasks.push_back(task);
+  }
 
  private:
+  
   index_map_t*                     _index_map = nullptr;
   
   bool                             _thread_exit = false;
@@ -193,10 +204,10 @@ class Shard : public Shard_transport {
   Component::IKVStore*             _i_kvstore;
   Component::IKVIndex_factory*     _index_factory;
   std::vector<Connection_handler*> _handlers;
-
-  std::map<const void*, std::pair<pool_t, Component::IKVStore::key_t>>
-      _locked_values;
+  locked_value_map_t               _locked_values;
+  task_list_t                      _tasks;
 };
+
 
 }  // namespace Dawn
 
