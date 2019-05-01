@@ -467,22 +467,24 @@ auto hstore::unlock(const pool_t pool,
     ;
 }
 
-auto hstore::apply(
-                   const pool_t pool,
-                   const std::string &key,
-                   std::function<void(void*,std::size_t)> functor,
-                   std::size_t object_size,
-                   bool take_lock
-                   ) -> status_t
-{
-  const auto apply_method = take_lock ? &session_t::lock_and_apply : &session_t::apply;
-  const auto session = static_cast<session_t *>(locate_session(pool));
-  return
-    session
-    ? (session->*apply_method)(key, functor, object_size)
-    : E_POOL_NOT_FOUND
-    ;
-}
+// DEPRECATED --
+
+// auto hstore::apply(
+//                    const pool_t pool,
+//                    const std::string &key,
+//                    std::function<void(void*,std::size_t)> functor,
+//                    std::size_t object_size,
+//                    bool take_lock
+//                    ) -> status_t
+// {
+//   const auto apply_method = take_lock ? &session_t::lock_and_apply : &session_t::apply;
+//   const auto session = static_cast<session_t *>(locate_session(pool));
+//   return
+//     session
+//     ? (session->*apply_method)(key, functor, object_size)
+//     : E_POOL_NOT_FOUND
+//     ;
+// }
 
 auto hstore::erase(const pool_t pool,
                    const std::string &key

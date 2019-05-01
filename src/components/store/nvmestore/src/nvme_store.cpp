@@ -748,31 +748,6 @@ status_t NVME_store::unlock(const pool_t pool,
   return S_OK;
 }
 
-status_t NVME_store::apply(const pool_t pool,
-                           const std::string& key,
-                           std::function<void(void*,const size_t)> functor,
-                           size_t object_size,
-                           bool take_lock)
-{
-
-  void * data;
-  size_t value_len = 0;
-  key_t obj_key;
-
-  if(take_lock){
-    obj_key = lock(pool, key, IKVStore::STORE_LOCK_WRITE, data, object_size);
-  }
-  /* TODO FIX: for take_lock. if take_lock == TRUE then use a lock here */
-  //  lock(pool, CityHash64(key.c_str(), key.length()),IKVStore::STORE_LOCK_READ, data, value_len);
-  functor(data, object_size);
-
-  if(take_lock){
-    unlock(pool, obj_key);
-  }
-  return S_OK;
-
-}
-
 
 status_t NVME_store::erase(const pool_t pool,
                            const std::string& key)

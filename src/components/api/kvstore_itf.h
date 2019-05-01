@@ -450,24 +450,6 @@ public:
                           key_t key_handle) { return E_NOT_SUPPORTED; }
 
   /** 
-   * Apply a functor to an object as a transaction
-   * 
-   * @param pool Pool handle
-   * @param key Object key
-   * @param functor Functor to apply to object
-   * @param object_size Size of object if creation is needed
-   * @param take_lock Set to true to implicitly take the lock (otherwise lock/unlock should be called explicitly)
-   * 
-   * @return S_OK or error code
-   */
-  virtual status_t apply(const pool_t pool,
-                         const std::string& key,
-                         std::function<void(void*,const size_t)> functor,
-                         size_t object_size,
-                         bool take_lock = true) { return E_NOT_SUPPORTED; }
-
-
-  /** 
    * Update an existing value by applying a series of operations.
    * Together the set of operations make up an atomic transaction.
    * If the operation requires a result the operation type may provide
