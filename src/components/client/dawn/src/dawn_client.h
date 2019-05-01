@@ -148,9 +148,9 @@ class Dawn_client : public virtual Component::IKVStore,
   /* IDawn specific methods */
   virtual status_t find(const IKVStore::pool_t pool,
                         const std::string& key_expression,
-                        std::vector<std::string>& out_keys,
-                        unsigned limit = 0) override;
-
+                        const offset_t offset,
+                        offset_t& out_matched_offset,
+                        std::string& out_matched_key) override;
   
  private:
 

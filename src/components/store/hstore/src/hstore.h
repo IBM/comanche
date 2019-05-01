@@ -222,7 +222,7 @@ public:
                  const std::string& key,
                  std::function<void(void*, size_t)> functor,
                  size_t object_size,
-                 bool take_lock) override;
+                 bool take_lock);
 
   status_t erase(pool_t pool,
                  const std::string &key) override;
@@ -237,13 +237,6 @@ public:
   status_t free_memory(void * p) override;
 
   void debug(pool_t pool, unsigned cmd, uint64_t arg) override;
-
-  status_t _apply(pool_t pool,
-    const std::string& key,
-    std::function<void(void*,size_t)> functor,
-    std::size_t offset,
-    std::size_t size,
-    bool take_lock);
 
   status_t atomic_update(
     pool_t pool,
