@@ -106,7 +106,7 @@ public:
   using pm = hstore_pmem;
 #else
   using persist_data_t = typename impl::persist_data<allocator_segment_t, table_t::value_type>;
-  using pm = hstore_nupm<region<persist_data_t, heap_rc>, table_t, table_t::allocator_type, lock_type_t>;
+  using pm = hstore_nupm<region<persist_data_t, heap_rc_shared>, table_t, table_t::allocator_type, lock_type_t>;
 #endif
   using open_pool_t = pm::open_pool_handle;
 private:
@@ -117,8 +117,8 @@ private:
   std::mutex _pools_mutex;
   using pools_map = std::map<open_pool_t *, std::unique_ptr<open_pool_t>>;
   pools_map _pools;
-  auto locate_session(const Component::IKVStore::pool_t pid) -> open_pool_t *;
-  auto move_pool(const IKVStore::pool_t pid) -> std::unique_ptr<open_pool_t>;
+  auto locate_session(Component::IKVStore::pool_t pid) -> open_pool_t *;
+  auto move_pool(IKVStore::pool_t pid) -> std::unique_ptr<open_pool_t>;
 
 public:
   /**
@@ -180,6 +180,10 @@ public:
 
   status_t close_pool(pool_t pid) override;
 
+  status_t grow_pool(pool_t pool,
+                             size_t increment_size,
+                             size_t& reconfigured_size ) override;
+
   status_t put(pool_t pool,
                const std::string &key,
                const void * value,
@@ -204,10 +208,15 @@ public:
                       std::size_t& out_value_len,
                       Component::IKVStore::memory_handle_t handle) override;
 
-  status_t get_attribute(const pool_t pool,
-                                 const Attribute attr,
+  status_t get_attribute(pool_t pool,
+                                 Attribute attr,
                                  std::vector<uint64_t>& out_attr,
-                                 const std::string* key);
+                                 const std::string* key) override;
+
+  status_t set_attribute(const pool_t pool,
+                                 Attribute attr,
+                                 const std::vector<uint64_t>& value,
+                                 const std::string* key) override;
 
   Component::IKVStore::key_t lock(pool_t pool,
                 const std::string &key,
@@ -218,7 +227,7 @@ public:
   status_t unlock(pool_t pool,
                   Component::IKVStore::key_t key_handle) override;
 
-  status_t apply(const pool_t pool,
+  status_t apply(pool_t pool,
                  const std::string& key,
                  std::function<void(void*, size_t)> functor,
                  size_t object_size,
@@ -229,10 +238,10 @@ public:
 
   std::size_t count(pool_t pool) override;
 
-  status_t map(const pool_t pool,
+  status_t map(pool_t pool,
                std::function<int(const std::string& key,
                const void * value,
-               const size_t value_len)> function) override;
+               size_t value_len)> function) override;
 
   status_t free_memory(void * p) override;
 

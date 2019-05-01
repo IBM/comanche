@@ -73,45 +73,6 @@ template <typename Region, typename Table, typename Allocator, typename LockType
   }
 
 template <typename Region, typename Table, typename Allocator, typename LockType>
-  void hstore_nupm<Region, Table, Allocator, LockType>::map_create(
-    region_type *pop_
-    , std::size_t size_
-    , std::size_t expected_obj_count
-  )
-  {
-    if ( debug() )
-    {
-      PLOG(
-         PREFIX "root is empty: new hash required object count %zu"
-         , __func__
-         , expected_obj_count
-         );
-    }
-
-    auto *p = &pop_->persist_data;
-    PLOG(PREFIX "created persist_data ptr at addr %p", __func__, static_cast<const void *>(p));
-    void *a = &pop_->heap;
-    auto actual_size = size_ - sizeof(region_type);
-    PLOG(PREFIX "created heap at addr %p region size 0x%zx heap size 0x%zx", __func__, static_cast<const void *>(a), size_, actual_size);
-    /* arguments to cc_malloc are the start of the free space (which cc_sbrk uses
-     * for the "state" structure) and the size of the free space
-     */
-#if USE_CC_HEAP == 3
-    using heap_type = typename Region::heap_type;
-    auto al = new (a) heap_type(static_cast<char *>(a) + sizeof(heap_type), actual_size, _numa_node);
-#else
-    auto al = new (a) heap_type(static_cast<char *>(a) + sizeof(heap_type), actual_size);
-#endif
-    using persist_data_type = typename Region::persist_data_type;
-    new (p) persist_data_type(
-      expected_obj_count
-      , Allocator(*al)
-    );
-    pop_->initialize();
-    persister_nupm::persist(pop_, sizeof *pop_);
-  }
-
-template <typename Region, typename Table, typename Allocator, typename LockType>
   bool hstore_nupm<Region, Table, Allocator, LockType>::debug() { return false; }
 
 template <typename Region, typename Table, typename Allocator, typename LockType>
@@ -157,20 +118,16 @@ template <typename Region, typename Table, typename Allocator, typename LockType
     /* Attempt to create a new pool. */
     try
     {
-      open_pool_handle
-        pop(
-          static_cast<region_type *>(_devdax_manager->create_region(uuid, _numa_node, size))
-          , region_closer_t(this->shared_from_this())
-        );
+      void *pop = _devdax_manager->create_region(uuid, _numa_node, size);
       /* Guess that nullptr indicate a failure */
       if ( ! pop )
       {
         throw pool_error("create_region fail: " + path_.str(), pool_ec::region_fail);
       }
-      PLOG(PREFIX "in %s: created region ID %" PRIx64 " at %p:0x%zx", __func__, path_.str().c_str(), uuid, static_cast<const void *>(pop.get()), size);
+      PLOG(PREFIX "in %s: created region ID %" PRIx64 " at %p:0x%zx", __func__, path_.str().c_str(), uuid, pop, size);
 
-      map_create(pop.get(), size, expected_obj_count_);
-      return std::make_unique<session<open_pool_handle, allocator_t, table_t, lock_type_t>>(path_, std::move(pop), construction_mode::create);
+      open_pool_handle h(new (pop) Region(size, expected_obj_count_, _numa_node), region_closer_t(this->shared_from_this()));
+      return std::make_unique<session<open_pool_handle, allocator_t, table_t, lock_type_t>>(path_, std::move(h), construction_mode::create);
     }
     catch ( const General_exception &e )
     {
@@ -208,10 +165,7 @@ template <typename Region, typename Table, typename Allocator, typename LockType
       throw std::invalid_argument("failed to re-open pool");
     }
 
-    void *a = &pop->heap;
-
-    using heap_type = typename Region::heap_type;
-    new (a) heap_type(static_cast<char *>(a) + sizeof(heap_type));
+    pop->animate();
 
     PLOG(PREFIX "in %s: opened region ID %" PRIx64 " at %p", __func__, path_.str().c_str(), uuid, static_cast<const void *>(pop.get()));
     /* open_pool_handle is a managed region *, and pop is a region. */
@@ -231,12 +185,9 @@ template <typename Region, typename Table, typename Allocator, typename LockType
     _devdax_manager->erase_region(uuid, _numa_node);
   }
 
-/* ERROR: want get_pool_regions(<proper type>, std::vector<::iovec>&) */
 template <typename Region, typename Table, typename Allocator, typename LockType>
   auto hstore_nupm<Region, Table, Allocator, LockType>::pool_get_regions(const open_pool_handle & pool_) const
   -> std::vector<::iovec>
   {
-    std::vector<::iovec> regions;
-    regions.push_back(pool_->heap.region());
-    return regions;
+    return pool_->get_regions();
   }
