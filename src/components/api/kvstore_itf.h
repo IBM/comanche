@@ -96,8 +96,10 @@ public:
   };
 
   enum Attribute {
-    VALUE_LEN   = 0x1, /* length of a value associated with key */
-    AUTO_HASHTABLE_EXPANSION = 0x2, /* set to true if the hash table should expand */
+    VALUE_LEN                = 1, /* length of a value associated with key */
+    COUNT                    = 2,
+    CRC32                    = 3, /* get CRC32 of a value */
+    AUTO_HASHTABLE_EXPANSION = 4, /* set to true if the hash table should expand */
   };
 
 

@@ -40,9 +40,10 @@ enum {
 };
 
 enum {
-  INFO_TYPE_COUNT     = 0x1,
-  INFO_TYPE_VALUE_LEN = 0x2,
-  INFO_TYPE_FIND_KEY  = 0x3,
+//   INFO_TYPE_VALUE_LEN = 0x1,
+//   INFO_TYPE_COUNT     = 0x1,
+  /* must be above IKVStore::Attributes */
+  INFO_TYPE_FIND_KEY  = 0xF0, 
 };
 
 enum {

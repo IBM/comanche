@@ -52,7 +52,7 @@ print(pool.count())
 pool.erase('key2')
 
 #arr = bytearray('byte array', 'utf-8')
-arr = bytearray(int(1e6))
+arr = bytearray(int(1e3))
 arr[0] = 3;
 arr[1] = 2;
 arr[2] = 1;
@@ -63,6 +63,9 @@ y = pool.get_direct('array0')
 #y = pool.get('array0')
 print('First part...')
 print(y[0:20])
+
+print('Len: %d' % pool.get_attribute('array0','length'))
+print('Crc: %x' % pool.get_attribute('array0','crc32'))
 
 print('Size enquiry:%d' % pool.get_size('array0'))
 

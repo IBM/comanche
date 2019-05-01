@@ -12,6 +12,7 @@
 */
 //#define PROFILE
 
+#include <zlib.h>
 #include <api/components.h>
 #include <api/kvindex_itf.h>
 #include <common/dump_utils.h>
@@ -661,11 +662,10 @@ void Shard::process_info_request(Connection_handler* handler,
   Protocol::Message_INFO_response* response = new (iob->base())
     Protocol::Message_INFO_response(handler->auth_id());
     
-  if (msg->type == Protocol::INFO_TYPE_COUNT) {
-
+  if (msg->type == Component::IKVStore::Attribute::COUNT) {
     response->value = _i_kvstore->count(msg->pool_id);    
   }
-  else if (msg->type == Protocol::INFO_TYPE_VALUE_LEN) {
+  else if (msg->type == Component::IKVStore::Attribute::VALUE_LEN) {
     std::vector<uint64_t> v;
     std::string key = msg->key();
     auto hr = _i_kvstore->get_attribute(msg->pool_id,
@@ -685,7 +685,50 @@ void Shard::process_info_request(Connection_handler* handler,
       PLOG("Shard: INFO reqeust INFO_TYPE_VALUE_LEN rc=%d val=%lu", hr, response->value);
   }
   else {
-    throw Protocol_exception("info request type not implemented");
+    std::vector<uint64_t> v;
+    std::string key = msg->key();
+    auto hr = _i_kvstore->get_attribute(msg->pool_id,
+                                        static_cast<Component::IKVStore::Attribute>(msg->type),
+                                        v,
+                                        &key);
+    response->status = hr;
+    
+    if (hr == S_OK && v.size() == 1) {
+      response->value = v[0];
+    }
+    else {
+      /* crc32 we can do here also */
+      if(msg->type == Component::IKVStore::Attribute::CRC32) {
+        response->status = S_OK;
+        void *p = nullptr;
+        size_t p_len = 0;
+        auto key_handle = _i_kvstore->lock(msg->pool_id,
+                                           key,
+                                           Component::IKVStore::STORE_LOCK_READ,
+                                           p,
+                                           p_len);
+
+        if(key_handle == Component::IKVStore::KEY_NONE) {
+          response->status = E_FAIL;
+          response->value = 0;        
+        }
+        else {
+          /* do CRC */
+          uint32_t crc = crc32(0,static_cast<const Bytef*>(p),p_len);
+          response->status = S_OK;
+          response->value = crc;
+          
+          _i_kvstore->unlock(msg->pool_id, key_handle);          
+        }
+      }
+      else {
+        PWRN("_i_kvstore->get_attribute failed");
+        response->status = E_FAIL;
+        response->value = 0;
+      }
+    }
+    if (option_DEBUG > 1)
+      PLOG("Shard: INFO reqeust INFO_TYPE_VALUE_LEN rc=%d val=%lu", hr, response->value);
   }
 
   iob->set_length(response->base_message_size());
