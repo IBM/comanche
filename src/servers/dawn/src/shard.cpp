@@ -12,11 +12,11 @@
 */
 //#define PROFILE
 
+#include <zlib.h>
 #include <api/components.h>
 #include <api/kvindex_itf.h>
 #include <common/dump_utils.h>
 #include <common/utils.h>
-#include <rapidjson/document.h>
 
 #ifdef PROFILE
 #include <gperftools/profiler.h>
@@ -120,7 +120,7 @@ void Shard::main_loop()
   uint64_t                  tick __attribute__((aligned(8))) = 0;
   static constexpr uint64_t CHECK_CONNECTION_INTERVAL        = 10000000;
 
-  Connection_handler::action_t                            action;
+  Connection_handler::action_t     action;
   std::vector<Connection_handler*> pending_close;
 
   while (_thread_exit == false) {
@@ -208,6 +208,9 @@ void Shard::main_loop()
         }
         pending_close.clear();
       }
+
+      /* handle tasks */
+      process_tasks();
     }
 
     tick++;
@@ -220,6 +223,7 @@ void Shard::main_loop()
   ProfilerFlush();
 #endif
 }
+
 
 void Shard::process_message_pool_request(Connection_handler* handler,
                                          Protocol::Message_pool_request* msg)
@@ -638,6 +642,16 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
 void Shard::process_info_request(Connection_handler* handler,
                                  Protocol::Message_INFO_request* msg)
 {
+  if (msg->type == Protocol::INFO_TYPE_FIND_KEY) {
+    if (option_DEBUG > 1)
+      PLOG("Shard: INFO request INFO_TYPE_FIND_KEY (%s)", msg->c_str());
+    add_task_list(new Key_find_task(msg->c_str(),
+                                    msg->offset,
+                                    handler,
+                                    _index_map->at(msg->pool_id)));
+    return; /* response is not issued straight away */
+  }
+  
   const auto iob = handler->allocate();
   assert(iob);
 
@@ -648,11 +662,10 @@ void Shard::process_info_request(Connection_handler* handler,
   Protocol::Message_INFO_response* response = new (iob->base())
     Protocol::Message_INFO_response(handler->auth_id());
     
-  if (msg->type == Protocol::INFO_TYPE_COUNT) {
-
+  if (msg->type == Component::IKVStore::Attribute::COUNT) {
     response->value = _i_kvstore->count(msg->pool_id);    
   }
-  else if (msg->type == Protocol::INFO_TYPE_VALUE_LEN) {
+  else if (msg->type == Component::IKVStore::Attribute::VALUE_LEN) {
     std::vector<uint64_t> v;
     std::string key = msg->key();
     auto hr = _i_kvstore->get_attribute(msg->pool_id,
@@ -661,29 +674,110 @@ void Shard::process_info_request(Connection_handler* handler,
                                         &key);
     response->status = hr;
     
-    if(hr == S_OK && v.size() == 1) {
+    if (hr == S_OK && v.size() == 1) {
       response->value = v[0];
     }
     else {
       PWRN("_i_kvstore->get_attribute failed");
       response->value = 0;
     }
-    if(option_DEBUG > 1)
-      PLOG("Shard: INFO reqeust INFO_TYPE_VALUE_LEN rc=%u val=%lu", hr, response->value);
-  }
-  else if (msg->type == Protocol::INFO_TYPE_FIND_KEYS) {
-    PLOG("Shard: INFO request INFO_TYPE_FIND_KEYS");
-    response->status = Component::IKVStore::E_NOT_SUPPORTED;
-    response->value = 0;
+    if (option_DEBUG > 1)
+      PLOG("Shard: INFO reqeust INFO_TYPE_VALUE_LEN rc=%d val=%lu", hr, response->value);
   }
   else {
-    throw Protocol_exception("info request type not implemented");
+    std::vector<uint64_t> v;
+    std::string key = msg->key();
+    auto hr = _i_kvstore->get_attribute(msg->pool_id,
+                                        static_cast<Component::IKVStore::Attribute>(msg->type),
+                                        v,
+                                        &key);
+    response->status = hr;
+    
+    if (hr == S_OK && v.size() == 1) {
+      response->value = v[0];
+    }
+    else {
+      /* crc32 we can do here also */
+      if(msg->type == Component::IKVStore::Attribute::CRC32) {
+        response->status = S_OK;
+        void *p = nullptr;
+        size_t p_len = 0;
+        auto key_handle = _i_kvstore->lock(msg->pool_id,
+                                           key,
+                                           Component::IKVStore::STORE_LOCK_READ,
+                                           p,
+                                           p_len);
+
+        if(key_handle == Component::IKVStore::KEY_NONE) {
+          response->status = E_FAIL;
+          response->value = 0;        
+        }
+        else {
+          /* do CRC */
+          uint32_t crc = crc32(0,static_cast<const Bytef*>(p),p_len);
+          response->status = S_OK;
+          response->value = crc;
+          
+          _i_kvstore->unlock(msg->pool_id, key_handle);          
+        }
+      }
+      else {
+        PWRN("_i_kvstore->get_attribute failed");
+        response->status = E_FAIL;
+        response->value = 0;
+      }
+    }
+    if (option_DEBUG > 1)
+      PLOG("Shard: INFO reqeust INFO_TYPE_VALUE_LEN rc=%d val=%lu", hr, response->value);
   }
 
   iob->set_length(response->base_message_size());
   handler->post_send_buffer(iob);  
   return;
 }
+
+void Shard::process_tasks()
+{
+ retry:
+  for(task_list_t::iterator i = _tasks.begin();
+      i != _tasks.end() ; i++ )  {
+    auto t = *i;
+    assert(t);
+
+    status_t s = t->do_work();
+    if(s != Component::IKVStore::S_MORE) {
+      
+      auto handler = t->handler();
+      auto response_iob = handler->allocate();
+      assert(response_iob);
+      Protocol::Message_INFO_response* response = new (response_iob->base())
+        Protocol::Message_INFO_response(handler->auth_id());
+
+      if(s == S_OK) {
+        response->set_value(response_iob->length(),
+                            t->get_result(),
+                            t->get_result_length());
+        response->offset = t->matched_position();
+
+        response->status = S_OK;
+        response_iob->set_length(response->message_size());
+      }
+      else if(s == E_FAIL) {
+        response_iob->set_length(response->base_message_size());
+        response->status = E_FAIL;
+      }
+      else {
+        throw Logic_exception("unexpected task condition");
+      }
+
+      handler->post_send_buffer(response_iob);
+      _tasks.erase(i);
+
+      goto retry;
+    }
+  }
+}
+
 
 void Shard::check_for_new_connections()
 {
@@ -701,17 +795,15 @@ void Shard::check_for_new_connections()
 
 status_t Shard::process_configure(Protocol::Message_IO_request* msg)
 {
-  using namespace rapidjson;
   using namespace Component;
   
-  Document doc;
-  
-  try {
-    doc.Parse(msg->cmd());
-    const char* index_str = doc["index"].GetString();
+  std::string command(msg->cmd());
+
+  if(command.substr(0,10) == "AddIndex::") {
+    std::string index_str = command.substr(10);
 
     /* TODO: use shard configuration */
-    if(strncmp(index_str,"volatile_rbtree",15)==0) {
+    if(index_str == "VolatileTree") {
 
       if(_index_map == nullptr)
         _index_map = new index_map_t();
@@ -732,27 +824,41 @@ status_t Shard::process_configure(Protocol::Message_IO_request* msg)
 
       factory->release_ref();
 
-      if (option_DEBUG > 1) {
-        PLOG("Rebuilding volatile index ...");
-        _i_kvstore->map(msg->pool_id,
-                        [&index](const std::string& key,
-                           const void * value,
-                           const size_t value_len) {
-                          index->insert(key);
-                          return 0;
-                        });
+      if (option_DEBUG > 1)
+        PLOG("Shard: rebuilding volatile index ...");
+        
+      _i_kvstore->map(msg->pool_id,
+                      [&index](const std::string& key,
+                               const void * value,
+                               const size_t value_len) {
+                        index->insert(key);
+                        return 0;
+                      });
                         
-      }
         
       return S_OK;
     }
     else {
-      PWRN("unknown index (%s)", index_str);
+      PWRN("unknown index (%s)", index_str.c_str());
       return E_BAD_PARAM;
     }
   }
-  catch(...) {
-    PWRN("bad JSON configuration command");
+  else if(command == "RemoveIndex::") {
+    try {
+      auto index = _index_map->at(msg->pool_id);     
+      _index_map->erase(msg->pool_id);
+      delete index;
+      if (option_DEBUG > 1)
+        PLOG("Shard: removed index on pool (%lx)", msg->pool_id);
+    }
+    catch(...) {
+      return E_BAD_PARAM;
+    }
+    
+    return S_OK;
+  }
+  else {
+    PWRN("unknown configure command (%s)", command.c_str());
     return E_BAD_PARAM;
   }
     
