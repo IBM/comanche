@@ -25,6 +25,7 @@ int ProfilerStart(const char *) {}
 void ProfilerStop() {}
 #endif
 
+#include <algorithm>
 #include <chrono>
 #include <cstdlib> /* getenv */
 #include <functional> /* function */
@@ -522,11 +523,18 @@ TEST_F(KVStore_test, OpenPool2)
     }
   );
   ASSERT_TRUE(_kvstore);
+  using fv = std::vector<std::future<Component::IKVStore::pool_t>>;
+  fv v;
   for ( auto i = 0; i != pool.size(); ++i )
   {
-    pool[i] = _kvstore->open_pool(pool_name(i));
-    ASSERT_LT(0, int64_t(pool[i]));
+    v.emplace_back(std::async(std::launch::async, [&] (unsigned i_) { return _kvstore->open_pool(pool_name(i_)); }, i ));
   }
+  std::transform(
+    v.begin()
+    , v.end()
+    , pool.begin()
+    , [] (fv::value_type &f) { auto r = f.get(); EXPECT_LT(0, r); return r; }
+  );
 }
 
 TEST_F(KVStore_test, ClosePool2)
