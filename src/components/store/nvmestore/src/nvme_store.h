@@ -151,12 +151,6 @@ public:
   virtual status_t unlock(const pool_t pool,
                           key_t key_hash) override;
 
-  virtual status_t apply(const pool_t pool,
-                         const std::string& key,
-                         std::function<void(void*,const size_t)> functor,
-                         size_t object_size,
-                         bool take_lock = true) override;
-
   virtual status_t erase(const pool_t pool,
                          const std::string& key) override;
 
