@@ -115,12 +115,6 @@ public:
   virtual status_t unlock(const pool_t pool,
                           Component::IKVStore::key_t key_handle) override;
 
-  virtual status_t apply(const pool_t pool,
-                         const std::string& key,
-                         std::function<void(void*,const size_t)> functor,
-                         size_t object_size,
-                         bool use_lock = true) override;
-
   virtual status_t erase(const pool_t pool,
                          const std::string& key) override;
 
@@ -132,14 +126,6 @@ public:
   //                                        const size_t value_len)> function) P
 
   virtual void debug(const pool_t pool, unsigned cmd, uint64_t arg) override;
-
-private:
-
-  virtual status_t __apply(const pool_t pool,
-                           uint64_t key_hash,
-                           std::function<void(void*,const size_t)> functor,
-                           size_t object_size,
-                           bool take_lock);
 
 private:
 

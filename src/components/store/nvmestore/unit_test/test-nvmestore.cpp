@@ -273,25 +273,6 @@ TEST_F(KVStore_test, BasicErase)
   _kvstore->erase(_pool, "MyKey");
 }
 
-TEST_F(KVStore_test, BasicApply)
-{
-  void * data;
-  size_t data_len = 0;
-  std::string key = "Elephant";
-  PLOG("Allocate: key_hash=%s", key.c_str());
-
-  PLOG("test 1");
-  ASSERT_TRUE(_kvstore->apply(_pool, key,
-                              [](void*p, const size_t plen) { memset(p,0xE,plen); },
-                              MB(8),
-                              true) == S_OK);
-
-  _kvstore->get(_pool, key, data, data_len);
-  EXPECT_EQ(MB(8), data_len);
-  EXPECT_EQ(0xE, *(char *)data);
-  EXPECT_EQ(0xE, *((char *)data+5));
-}
-
 #endif
 
 #ifdef DO_ERASE

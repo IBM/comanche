@@ -40,6 +40,9 @@ namespace Dawn
 {
 using Connection_base = Fabric_connection_base;
 
+/** 
+ * Connection handler is instantiated for each "connected" client
+ */
 class Connection_handler
     : public Connection_base
     , public Region_manager

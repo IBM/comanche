@@ -252,10 +252,11 @@ void Dawn_client::debug(const IKVStore::pool_t pool, unsigned cmd, uint64_t arg)
 
 status_t Dawn_client::find(const IKVStore::pool_t pool,
                            const std::string& key_expression,
-                           std::vector<std::string>& out_keys,
-                           unsigned limit)
+                           const offset_t offset,
+                           offset_t& out_matched_offset,
+                           std::string& out_matched_key)
 {
-  return _connection->find(pool, key_expression, out_keys, limit);
+  return _connection->find(pool, key_expression, offset, out_matched_offset, out_matched_key);
 }
 
 /**
