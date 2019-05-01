@@ -687,7 +687,7 @@ size_t Connection_handler::count(const pool_t pool)
   assert(iob);
   const auto msg = new (iob->base()) Dawn::Protocol::Message_INFO_request(auth_id());
   msg->pool_id = pool;
-  msg->type = Dawn::Protocol::INFO_TYPE_COUNT;
+  msg->type = Component::IKVStore::Attribute::COUNT;
   iob->set_length(msg->base_message_size());
 
   sync_inject_send(iob);
@@ -711,8 +711,6 @@ status_t Connection_handler::get_attribute(const IKVStore::pool_t pool,
                                            std::vector<uint64_t>& out_attr,
                                            const std::string* key)
 {
-  if((attr == IKVStore::Attribute::VALUE_LEN) && key) {}
-  else return E_INVALID_ARG;
 
   API_LOCK();
   
@@ -721,12 +719,19 @@ status_t Connection_handler::get_attribute(const IKVStore::pool_t pool,
   const auto msg = new (iob->base()) Dawn::Protocol::Message_INFO_request(auth_id());
   msg->pool_id = pool;
 
-  if(attr == IKVStore::Attribute::VALUE_LEN) {
-    msg->type = Dawn::Protocol::INFO_TYPE_VALUE_LEN;
-    msg->set_key(iob->length(), *key);
-    iob->set_length(msg->message_size());
-  }
-  else throw Logic_exception("unexpected attr");
+  msg->type = attr;
+  msg->set_key(iob->length(), *key);
+  iob->set_length(msg->message_size());
+  // }
+  // else if(attr == IKVStore::Attribute::CRC32 && key) {
+  //   msg->type = Dawn::Protocol::INFO_TYPE_VALUE_LEN;
+  //   msg->set_key(iob->length(), *key);
+  //   iob->set_length(msg->message_size());    
+  // }
+  // else {
+  //   free_buffer(iob);
+  //   return E_INVALID_ARG;
+  // }
 
   sync_inject_send(iob);
 
