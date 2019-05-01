@@ -117,7 +117,7 @@ template <typename T, typename Persister = persister>
 			, const char * = nullptr
 		) -> pointer
 		{
-			auto ptr = this->pool().alloc(s * sizeof(T));
+			auto ptr = this->pool()->alloc(s * sizeof(T));
 			if ( ptr == 0 )
 			{
 				throw bad_alloc_cc(0, s, sizeof(T));
@@ -131,14 +131,14 @@ template <typename T, typename Persister = persister>
 			, const char * = nullptr
 		)
 		{
-			this->pool().inject_allocation(location, s * sizeof(T));
+			this->pool()->inject_allocation(location, s * sizeof(T));
 		}
 
 		bool is_reconstituted(
 			typename allocator_rc<void, Persister>::const_pointer location
 		)
 		{
-			return this->pool().is_reconstituted(location);
+			return this->pool()->is_reconstituted(location);
 		}
 	};
 

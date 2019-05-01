@@ -52,12 +52,12 @@ class heap_rc_shared
 	static constexpr std::size_t alignment = 64U;
 	void *_pool;
 	std::size_t _size;
-	unsigned _ref_count;
 	unsigned _numa_node;
 	nupm::Rca_LB _heap;
-	util::histogram_log2<std::size_t> _hist_alloc;
-	util::histogram_log2<std::size_t> _hist_inject;
-	util::histogram_log2<std::size_t> _hist_free;
+	using hist_type = util::histogram_log2<std::size_t>;
+	hist_type _hist_alloc;
+	hist_type _hist_inject;
+	hist_type _hist_free;
 	/* Rca_LB seems not to allocate at or above about 2GiB. Limit reporting to 16 GiB. */
 	static constexpr unsigned hist_report_upper_bound = 34U;
 	/* The set of reconstituted addresses. Only needed during recovery.
@@ -113,10 +113,9 @@ class heap_rc_shared
 		return reinterpret_cast<void *>(cursor);
 	}
 public:
-	heap_rc_shared(std::size_t sz_, unsigned numa_node_)
-		: _pool(best_aligned(this + 1, sz_ - sizeof *this))
+	heap_rc_shared(void *pool_, std::size_t sz_, unsigned numa_node_)
+		: _pool(best_aligned(pool_, sz_))
 		, _size((static_cast<char *>(static_cast<void *>(this)) + sz_) - static_cast<char *>(_pool))
-		, _ref_count(1)
 		, _numa_node(numa_node_)
 		, _heap()
 		, _hist_alloc()
@@ -132,34 +131,37 @@ public:
 		VALGRIND_CREATE_MEMPOOL(_pool, 0, false);
 	}
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Winit-self"
-	heap_rc_shared()
-		: _pool(this->_pool)
-		, _size(this->_size)
-		, _ref_count(1)
-		, _numa_node(this->_numa_node)
-		, _heap()
-		, _hist_alloc()
-		, _hist_inject()
-		, _hist_free()
-		, _reconstituted()
-		, _allocated(0)
-		, _used(0)
+	~heap_rc_shared()
 	{
+		quiesce();
+	}
+
+	void animate()
+	{
+		new ( &_heap ) nupm::Rca_LB{};
+		new ( &_hist_alloc ) hist_type{};
+		new ( &_hist_inject ) hist_type{};
+		new ( &_hist_free ) hist_type{};
+		new ( &_reconstituted ) alloc_set_t{};
+		_allocated = 0;
+		_used = 0;
 		_heap.add_managed_region(_pool, _size, _numa_node);
 		hop_hash_log<TRACE_HEAP>::write(__func__, " this ", this, " size ", _size, " reconstituting");
 		VALGRIND_MAKE_MEM_DEFINED(_pool, _size);
 		VALGRIND_CREATE_MEMPOOL(_pool, 0, true);
 	}
-#pragma GCC diagnostic pop
 
-	~heap_rc_shared()
+	void quiesce()
 	{
 		hop_hash_log<TRACE_HEAP>::write(__func__, " this ", this, " size ", _size, " allocated ", _allocated, " used ", _used);
 		VALGRIND_DESTROY_MEMPOOL(_pool);
 		VALGRIND_MAKE_MEM_UNDEFINED(_pool, _size);
 		write_hist<TRACE_HEAP_SUMMARY>();
+		_reconstituted.~alloc_set_t();
+		_hist_free.~hist_type();
+		_hist_inject.~hist_type();
+		_hist_alloc.~hist_type();
+		_heap.~Rca_LB();
 	}
 
 	heap_rc_shared(const heap_rc_shared &) = delete;
@@ -253,19 +255,6 @@ public:
 		return contains(_reconstituted, static_cast<alloc_set_t::element_type>(p_));
 	}
 
-	heap_rc_shared &inc_ref()
-	{
-		++_ref_count;
-		assert(_ref_count != 0 );
-		return *this;
-	}
-
-	unsigned dec_ref()
-	{
-		assert(_ref_count != 0 );
-		return --_ref_count;
-	}
-
 	/* debug */
 	unsigned numa_node() const
 	{
@@ -281,56 +270,24 @@ public:
 class heap_rc
 {
 	heap_rc_shared *_heap;
-public:
-	explicit heap_rc(void *area, std::size_t sz_, unsigned numa_node_)
-		: _heap(new (area) heap_rc_shared(sz_, numa_node_))
-	{
-	}
 
-	explicit heap_rc(void *area)
-		: _heap(new (area) heap_rc_shared())
+public:
+	explicit heap_rc(heap_rc_shared *area)
+		: _heap(area)
 	{
 	}
 
 	~heap_rc()
 	{
-		auto r = _heap->dec_ref();
-		if ( r == 0 )
-		{
-			_heap->~heap_rc_shared();
-		}
 	}
 
-	heap_rc(const heap_rc &o_) noexcept
-		: _heap(&o_._heap->inc_ref())
-	{
-	}
+	heap_rc(const heap_rc &) noexcept = default;
 
 	heap_rc & operator=(const heap_rc &) = default;
 
-	void *alloc(std::size_t sz_)
+	heap_rc_shared *operator->() const
 	{
-		return _heap->alloc(sz_);
-	}
-
-	void inject_allocation(const void * p_, std::size_t sz_)
-	{
-		return _heap->inject_allocation(p_, sz_);
-	}
-
-	void free(void *p_, std::size_t sz_)
-	{
-		return _heap->free(p_, sz_);
-	}
-
-	bool is_reconstituted(const void *p_)
-	{
-		return _heap->is_reconstituted(p_);
-	}
-
-	::iovec region() const
-	{
-		return _heap->region();
+		return _heap;
 	}
 };
 

@@ -162,19 +162,18 @@ template <typename Handle, typename Allocator, typename Table, typename LockType
 			: Handle(std::move(pop_))
 			, _heap(
 				Allocator(
-					this->pool()->heap
+					this->pool()->heap()
 				)
 			)
-			, _map(&this->pool()->persist_data, mode_, _heap)
-			, _atomic_state(this->pool()->persist_data, _map, mode_)
+			, _map(&this->pool()->persist_data(), mode_, _heap)
+			, _atomic_state(this->pool()->persist_data(), _map, mode_)
 			, _debug(debug_)
 		{}
 
 		~session()
 		{
 #if USE_CC_HEAP == 3
-			auto heap = static_cast<heap_rc *>(&this->pool()->heap);
-			heap->~heap_rc();
+			this->pool()->quiesce();
 #endif
 		}
 

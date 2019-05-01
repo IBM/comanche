@@ -235,6 +235,19 @@ status_t hstore::close_pool(const pool_t pid)
   return S_OK;
 }
 
+auto hstore::grow_pool(
+  const pool_t pool
+  , const std::size_t /*increment_size*/
+  , std::size_t & /*reconfigured_size*/ ) -> status_t
+{
+  const auto session = static_cast<session_t *>(locate_session(pool));
+  if ( ! session )
+  {
+    return E_POOL_NOT_FOUND;
+  }
+  return E_NOT_SUPPORTED;
+}
+
 status_t hstore::delete_pool(const std::string &name_)
 {
   auto path = pool_path(name_);
@@ -412,13 +425,13 @@ auto hstore::get_attribute(
     return E_POOL_NOT_FOUND;
   }
 
-  if ( ! key )
-  {
-    return E_NOT_SUPPORTED;
-  }
   switch ( attr )
   {
   case VALUE_LEN:
+    if ( ! key )
+    {
+      return E_INVALID_ARG;
+    }
     try
     {
       /* interface does not say what we do to the out_attr vector;
@@ -441,6 +454,35 @@ auto hstore::get_attribute(
   return E_NOT_SUPPORTED;
 }
 
+auto hstore::set_attribute(
+  const pool_t pool,
+  const Attribute attr
+  , const std::vector<uint64_t> & value
+  , const std::string *) -> status_t
+{
+  const auto session = static_cast<const session_t *>(locate_session(pool));
+  if ( ! session )
+  {
+    return E_POOL_NOT_FOUND;
+  }
+  switch ( attr )
+  {
+  case AUTO_HASHTABLE_EXPANSION:
+    if ( value.size() < 1 )
+    {
+      return E_INVALID_ARG;
+    }
+    if ( value[0] == 0 )
+    {
+      return E_NOT_SUPPORTED;
+    }
+    return S_OK;
+  default:
+    ;
+  }
+
+  return E_NOT_SUPPORTED;
+}
 
 auto hstore::lock(const pool_t pool,
                   const std::string &key,

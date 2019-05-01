@@ -18,20 +18,47 @@
 /* requires persist_data_t definition */
 #include "persist_data.h"
 
+#include <sys/uio.h>
+
 template <typename PersistData, typename Heap>
   class region
   {
     static constexpr std::uint64_t magic_value = 0xc74892d72eed493a;
-    std::uint64_t magic;
   public:
     using heap_type = Heap;
     using persist_data_type = PersistData;
 
-    persist_data_type persist_data;
-    heap_type heap;
+  private:
+    std::uint64_t magic;
+    heap_type _heap;
+    persist_data_type _persist_data;
 
-    void initialize() { magic = magic_value; }
+  public:
+
+    region(
+      std::size_t size_
+      , std::size_t expected_obj_count
+      , unsigned numa_node_
+    )
+      : magic(0)
+      , _heap(this+1, size_ - sizeof(*this), numa_node_)
+      , _persist_data(expected_obj_count, typename PersistData::allocator_type(heap()))
+    {
+      magic = magic_value;
+      persister_nupm::persist(this, sizeof *this);
+    }
+
+	heap_rc heap() { return heap_rc(&_heap); }
+	persist_data_type &persist_data() { return _persist_data; }
     bool is_initialized() const noexcept { return magic == magic_value; }
+	void animate() { _heap.animate(); }
+	void quiesce() { _heap.quiesce(); }
+    std::vector<::iovec> get_regions()
+    {
+      std::vector<::iovec> regions;
+      regions.push_back(_heap.region());
+      return regions;
+    }
     /* region used by heap_cc follows */
   };
 
