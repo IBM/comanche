@@ -22,7 +22,7 @@ static PyObject * pool_get_direct(Pool* self, PyObject *args, PyObject *kwds);
 static PyObject * pool_get_size(Pool* self, PyObject *args, PyObject *kwds);
 static PyObject * pool_erase(Pool* self, PyObject *args, PyObject *kwds);
 static PyObject * pool_configure(Pool* self, PyObject *args, PyObject *kwds);
-static PyObject * pool_find(Pool* self, PyObject *args, PyObject *kwds);
+static PyObject * pool_find_key(Pool* self, PyObject *args, PyObject *kwds);
 
 static PyObject *
 Pool_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
@@ -64,7 +64,7 @@ PyDoc_STRVAR(close_doc,"Pool.close() -> Forces pool closure. Otherwise close hap
 PyDoc_STRVAR(count_doc,"Pool.count() -> Get number of objects in the pool.");
 PyDoc_STRVAR(erase_doc,"Pool.erase(key) -> Erase object from the pool.");
 PyDoc_STRVAR(configure_doc,"Pool.configure(jsoncmd) -> Configure pool.");
-PyDoc_STRVAR(find_doc,"Pool.find(expr, [limit]) -> Find keys using expression.");
+PyDoc_STRVAR(find_key_doc,"Pool.find(expr, [limit]) -> Find keys using expression.");
 
 static PyMethodDef Pool_methods[] = {
   {"close",(PyCFunction) pool_close, METH_NOARGS, close_doc},
@@ -76,7 +76,7 @@ static PyMethodDef Pool_methods[] = {
   {"get_size",(PyCFunction) pool_get_size, METH_VARARGS | METH_KEYWORDS, get_size_doc},
   {"erase",(PyCFunction) pool_erase, METH_VARARGS | METH_KEYWORDS, erase_doc},
   {"configure",(PyCFunction) pool_configure, METH_VARARGS | METH_KEYWORDS, configure_doc},
-  {"find",(PyCFunction) pool_find, METH_VARARGS | METH_KEYWORDS, find_doc},
+  {"find_key",(PyCFunction) pool_find_key, METH_VARARGS | METH_KEYWORDS, find_key_doc},
   {NULL}
 };
 
@@ -501,21 +501,21 @@ static PyObject * pool_configure(Pool* self, PyObject *args, PyObject *kwds)
 
 
 
-static PyObject * pool_find(Pool* self, PyObject *args, PyObject *kwds)
+static PyObject * pool_find_key(Pool* self, PyObject *args, PyObject *kwds)
 {
   static const char *kwlist[] = {"expr",
-                                 "limit",
+                                 "offset",
                                  NULL};
 
   const char * expr_param = nullptr;
-  int limit_param = 0;
+  int offset_param = 0;
   
   if (! PyArg_ParseTupleAndKeywords(args,
                                     kwds,
                                     "s|i",
                                     const_cast<char**>(kwlist),
                                     &expr_param,
-                                    &limit_param)) {
+                                    &offset_param)) {
     PyErr_SetString(PyExc_RuntimeError,"bad arguments");
     return NULL;
   }
@@ -524,21 +524,34 @@ static PyObject * pool_find(Pool* self, PyObject *args, PyObject *kwds)
     
   const std::string expr(expr_param);
 
-  std::vector<std::string> out_keys;
-
+  std::string out_key;
+  offset_t out_pos = 0;
   auto hr = self->_dawn->find(self->_pool,
-                              expr,
-                              out_keys,
-                              limit_param);
+                              expr,                              
+                              offset_param,
+                              out_pos,
+                              out_key);
 
-  if(hr != S_OK) {
+  if(hr == S_OK) {
+    auto tuple = PyTuple_New(2);
+    PyTuple_SetItem(tuple, 0, PyUnicode_FromString(out_key.c_str()));
+    PyTuple_SetItem(tuple, 1, PyLong_FromUnsignedLong(out_pos));
+    return tuple;
+  }
+  else if(hr == E_FAIL) {
+    auto tuple = PyTuple_New(2);
+    PyTuple_SetItem(tuple, 0, Py_None);
+    PyTuple_SetItem(tuple, 1, Py_None);
+    return tuple;
+  }
+  else {
     std::stringstream ss;
-    ss << "pool.configure [status:" << hr << "]";
+    ss << "pool.find [status:" << hr << "]";
     PyErr_SetString(PyExc_RuntimeError,ss.str().c_str());    
     return NULL;
   }
 
-  Py_RETURN_TRUE;
+  return NULL;
 }
 
 #endif

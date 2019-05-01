@@ -748,8 +748,9 @@ status_t Connection_handler::get_attribute(const IKVStore::pool_t pool,
 
 status_t Connection_handler::find(const IKVStore::pool_t pool,
                                   const std::string& key_expression,
-                                  std::vector<std::string>& out_keys,
-                                  unsigned limit)
+                                  const offset_t offset,
+                                  offset_t& out_matched_offset,
+                                  std::string& out_matched_key)
 {
   API_LOCK();
 
@@ -757,8 +758,9 @@ status_t Connection_handler::find(const IKVStore::pool_t pool,
   assert(iob);
   const auto msg = new (iob->base()) Dawn::Protocol::Message_INFO_request(auth_id());
   msg->pool_id = pool;
-  msg->type = Dawn::Protocol::INFO_TYPE_FIND_KEYS;
-
+  msg->type = Dawn::Protocol::INFO_TYPE_FIND_KEY;
+  msg->offset = offset;
+  
   msg->set_key(iob->length(), key_expression);
   iob->set_length(msg->message_size());
 
@@ -774,9 +776,9 @@ status_t Connection_handler::find(const IKVStore::pool_t pool,
   }
 
   if(response_msg->status == S_OK) {
-    auto val = response_msg->value;
+    out_matched_key = response_msg->c_str();
+    out_matched_offset = response_msg->offset;
     free_buffer(iob);
-    return S_OK;
   }
   else {
     auto status = response_msg->status;
