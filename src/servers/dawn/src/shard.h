@@ -88,9 +88,6 @@ class Shard : public Shard_transport {
     assert(_i_kvstore);
     _i_kvstore->release_ref();
 
-    if (_index_factory)
-      _index_factory->release_ref();
-
     if (_index_map) {
       for(auto i : *_index_map) {
         assert(i.second);
@@ -206,7 +203,6 @@ class Shard : public Shard_transport {
   std::thread                      _thread;
   size_t                           _max_message_size;
   Component::IKVStore*             _i_kvstore;
-  Component::IKVIndex_factory*     _index_factory;
   std::vector<Connection_handler*> _handlers;
   locked_value_map_t               _locked_values;
   task_list_t                      _tasks;

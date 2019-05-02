@@ -40,7 +40,7 @@ void Shard::initialize_components(const std::string& backend,
                                   const std::string& index,
                                   const std::string& pci_addr,
                                   const std::string& dax_config,
-				  const std::string& pm_path,
+                                  const std::string& pm_path,
                                   unsigned           debug_level)
 {
   using namespace Component;
@@ -93,21 +93,16 @@ void Shard::initialize_components(const std::string& backend,
     else if (backend == "pmstore") { /* components that support debug level */
       _i_kvstore = fact->create(debug_level, "owner", "name", "");
     }
+    else if (backend == "filestore") {
+      std::map<std::string,std::string> params;
+      params["pm_path"] = pm_path;
+
+      _i_kvstore = fact->create(debug_level, params);
+    }
     else {
       _i_kvstore = fact->create("owner", "name");
     }
     fact->release_ref();
-  }
-  /* INDEX */
-  {
-    IBase* comp;
-    if (index == "rbtree") {
-      comp = load_component("libcomanche-indexrbtree.so", rbtreeindex_factory);
-      if (!comp)
-        throw General_exception("unable to load libcomanche-indexrbtree.so");
-      _index_factory = static_cast<IKVIndex_factory*>(comp->query_interface(IKVIndex_factory::iid()));
-      assert(_index_factory);
-    }    
   }
 }
 
@@ -294,7 +289,7 @@ void Shard::process_message_pool_request(Connection_handler* handler,
         }
       }
       else {
-        PLOG("pool region query NOT supported. (%d)",hr);
+        PLOG("pool region query NOT supported, using on-demand");
       }
     }
   }

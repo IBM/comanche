@@ -25,7 +25,7 @@
 
 #include <api/kvstore_itf.h>
 
-class FileStore : public Component::IKVStore /* generic Key-Value store interface */
+class File_store : public Component::IKVStore /* generic Key-Value store interface */
 {  
 private:
   static constexpr bool option_DEBUG = false;
@@ -37,13 +37,13 @@ public:
    * @param block_device Block device interface
    * 
    */
-  FileStore(const std::string& owner, const std::string& name);
+  File_store(const std::string& path);
 
   /** 
    * Destructor
    * 
    */
-  virtual ~FileStore();
+  virtual ~File_store();
 
   /** 
    * Component/interface management
@@ -121,11 +121,11 @@ public:
 
   
 private:
-  
+  std::string _root_path;
 };
 
 
-class FileStore_factory : public Component::IKVStore_factory
+class File_store_factory : public Component::IKVStore_factory
 {  
 public:
 
@@ -147,10 +147,10 @@ public:
     delete this;
   }
 
-  virtual Component::IKVStore * create(const std::string& owner,
-                                       const std::string& name) override
-  {    
-    Component::IKVStore * obj = static_cast<Component::IKVStore*>(new FileStore(owner, name));    
+  virtual Component::IKVStore * create(unsigned debug_level,
+                                       std::map<std::string,std::string>& params) {
+    assert(params.find("pm_path") != params.end());
+    Component::IKVStore * obj = static_cast<Component::IKVStore*>(new File_store(params["pm_path"]));
     obj->add_ref();
     return obj;
   }
