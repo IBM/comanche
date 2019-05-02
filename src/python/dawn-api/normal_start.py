@@ -70,6 +70,3 @@ print('Crc: %x' % pool.get_attribute('array0','crc32'))
 print('Size enquiry:%d' % pool.get_size('array0'))
 
 
-
-#pool.close()
-#session.delete_pool(pool_name)
