@@ -452,7 +452,7 @@ status_t Map_store::delete_pool(const std::string& poolname)
 {
   Std_lock_guard g(_pool_sessions_lock);
 
-  return S_OK;
+  // return S_OK;
   Pool_handle * ph = nullptr;
   /* see if a pool exists that matches the poolname */
   for(auto& h: _pools) {
@@ -477,7 +477,7 @@ status_t Map_store::delete_pool(const std::string& poolname)
   /* delete pool too */
   if(_pools.find(poolname) == _pools.end())
     throw Logic_exception("unable to delete pool session");
-  
+
   _pools.erase(poolname);
   delete ph;
   return S_OK;
