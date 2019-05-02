@@ -34,6 +34,19 @@ using namespace Component;
 
 namespace fs=boost::filesystem;
 
+class Simulated_locked_item
+{
+public:
+  Simulated_locked_item(size_t size) {
+    p = ::malloc(size);
+    p_len = size;
+  }
+  ~Simulated_locked_item() {
+    ::free(p);
+  }
+  void * p;
+  size_t p_len;
+};
 
 struct Pool_handle
 {
@@ -59,6 +72,13 @@ struct Pool_handle
   status_t get_attribute(const IKVStore::Attribute attr,
                          std::vector<uint64_t>& out_value,
                          const std::string* key);
+
+  IKVStore::key_t lock(const std::string& key,
+                       IKVStore::lock_type_t type,
+                       void*& out_value,
+                       size_t& out_value_len);
+
+  status_t unlock(IKVStore::key_t key_handle);
 
   size_t count() const;
 
@@ -178,6 +198,43 @@ status_t Pool_handle::get_direct(const std::string& key,
   return S_OK;
 }
 
+IKVStore::key_t Pool_handle::lock(const std::string& key,
+                                  IKVStore::lock_type_t type,
+                                  void*& out_value,
+                                  size_t& out_value_len)
+{
+  std::string full_path = path.string() + "/" + key;
+  if(!fs::exists(full_path))
+    return IKVStore::KEY_NONE;
+
+  struct stat info;
+  if(stat(full_path.c_str(), &info))
+    throw General_exception("stat failed on file (%s)", full_path.c_str());
+
+  auto sl = new Simulated_locked_item(info.st_size);
+  assert(sl);
+  
+  /* this component doesn't really lock, we simulate it though */
+  int fd = ::open(full_path.c_str(), O_RDONLY, 0644);
+  out_value_len = info.st_size;
+  out_value = sl->p;
+  ssize_t rs = read(fd, out_value, out_value_len);
+
+  if(rs != out_value_len)
+    throw General_exception("file read failed (rs=%lu)", rs);
+
+  ::close(fd);
+
+  return reinterpret_cast<IKVStore::key_t>(sl);
+}
+
+status_t Pool_handle::unlock(IKVStore::key_t key_handle)
+{
+  Simulated_locked_item * li = reinterpret_cast<Simulated_locked_item*>(key_handle);  
+  delete li;
+}
+
+
 
 status_t Pool_handle::erase(const std::string& key)
 {
@@ -205,10 +262,10 @@ status_t Pool_handle::get_attribute(const IKVStore::Attribute attr,
         
         std::string full_path = path.string() + "/" + *key;
       
-        struct stat buffer;
-        if(stat(full_path.c_str(), &buffer))
+        struct stat info;
+        if(stat(full_path.c_str(), &info))
           throw General_exception("stat failed on file (%s)", full_path.c_str());
-        out_value.push_back(buffer.st_size);
+        out_value.push_back(info.st_size);
         return S_OK;
       }
     case IKVStore::Attribute::COUNT:
@@ -257,6 +314,28 @@ File_store::~File_store()
 {
 }
 
+IKVStore::key_t File_store::lock(const pool_t pool,
+                                 const std::string& key,
+                                 IKVStore::lock_type_t type,
+                                 void*& out_value,
+                                 size_t& out_value_len)
+{
+  auto handle = reinterpret_cast<Pool_handle*>(pool);
+  if(_pool_sessions.count(handle) != 1)
+    return KEY_NONE;
+  return handle->lock(key,type,out_value,out_value_len);
+}
+
+status_t File_store::unlock(const pool_t pool,
+                            IKVStore::key_t key_handle)
+{
+  auto handle = reinterpret_cast<Pool_handle*>(pool);
+  if(_pool_sessions.count(handle) != 1)
+    return E_POOL_NOT_FOUND;
+  return handle->unlock(key_handle);
+}
+
+
 int File_store::get_capability(Capability cap) const
 {
   switch(cap) {
@@ -273,8 +352,13 @@ IKVStore::pool_t File_store::create_pool(const std::string& name,
                                          uint64_t args)
 {
   fs::path p = _root_path + name;
-  if(!fs::create_directory(p))
-    throw API_exception("filestore: failed to create directory (%s)", p.string().c_str());
+
+  if(fs::exists(p)) {
+    if(flags & IKVStore::FLAGS_CREATE_ONLY) return POOL_ERROR;
+  }
+  else if(!fs::create_directory(p)) {
+    throw General_exception("filestore unable to create dir (%s)", p.string().c_str());
+  }
 
   if(option_DEBUG)
     PLOG("created pool OK: %s", p.string().c_str());
@@ -370,7 +454,7 @@ status_t File_store::get(const pool_t pool,
 {
   auto handle = reinterpret_cast<Pool_handle*>(pool);
   if(_pool_sessions.count(handle) != 1)
-    throw API_exception("bad pool handle");
+    return E_POOL_NOT_FOUND;
     
   return handle->get(key, out_value, out_value_len);
 }
@@ -383,7 +467,7 @@ status_t File_store::get_direct(const pool_t pool,
 {
   auto pool_handle = reinterpret_cast<Pool_handle*>(pool);
   if(_pool_sessions.count(pool_handle) != 1)
-    throw API_exception("bad pool handle");
+    return E_POOL_NOT_FOUND;
   
   return pool_handle->get_direct(key, out_value, out_value_len);
 }
