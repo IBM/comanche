@@ -58,8 +58,6 @@ template <typename Region, typename Table, typename Allocator, typename LockType
 
     static std::uint64_t dax_uuid_hash(const pool_path &p);
 
-    void *delete_and_recreate_pool(const pool_path &path_, std::size_t size_);
-
     void map_create(
       region_type *pop_
       , std::size_t size_
@@ -72,6 +70,7 @@ template <typename Region, typename Table, typename Allocator, typename LockType
 
     virtual ~hstore_nupm();
 
+    const std::unique_ptr<Devdax_manager> & devdax_manager() const override { return _devdax_manager; }
     auto pool_create_check(std::size_t) -> status_t override;
 
     auto pool_create(
