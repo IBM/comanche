@@ -22,8 +22,11 @@
 #pragma GCC diagnostic ignored "-Wold-style-cast"
 #include <tbb/scalable_allocator.h>
 #pragma GCC diagnostic pop
+#include <memory>
 #include <utility> /* move */
 #include <vector>
+
+class Devdax_manager;
 
 /* open_pool_handle, alloc_t, table_t */
 template <typename Handle, typename Allocator, typename Table, typename LockType>
@@ -267,6 +270,14 @@ template <typename Handle, typename Allocator, typename Table, typename LockType
 			return v.size();
 		}
 
+		auto pool_grow(
+			const std::unique_ptr<Devdax_manager> &dax_mgr_
+			, const std::size_t increment_
+		) const -> std::size_t
+		{
+			return this->pool()->grow(dax_mgr_, increment_);
+		}
+
 		auto lock(
 			const std::string &key
 			, lock_type_t type
@@ -446,7 +457,7 @@ template <typename Handle, typename Allocator, typename Table, typename LockType
 				auto last = this->map().end(n-1);
 				for ( auto first = this->map().begin(n-1); first != last; ++first )
 				{
-			                ++count;
+					++count;
 				}
 			}
 			return count;

@@ -125,7 +125,7 @@ public:
    * Constructor
    *
    */
-  hstore(const std::string &owner, const std::string &name, std::unique_ptr<Devdax_manager> mgr);
+  hstore(const std::string &owner, const std::string &name, std::unique_ptr<Devdax_manager> &&mgr);
 
   /**
    * Destructor
