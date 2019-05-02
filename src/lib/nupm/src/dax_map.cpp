@@ -155,8 +155,7 @@ void *Devdax_manager::open_region(uint64_t uuid,
   if (hdr == nullptr)
     throw General_exception("no region header for device (%s)", device);
 
-  size_t region_length = 0;
-  return hdr->get_region(uuid, &region_length);
+  return hdr->get_region(uuid, out_length);
 }
 
 void *Devdax_manager::create_region(uint64_t uuid, unsigned region_id, const size_t size)
