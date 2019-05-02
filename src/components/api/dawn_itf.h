@@ -266,24 +266,24 @@ public:
   DECLARE_INTERFACE_UUID(0xfacf1b99,0xbc51,0x49ff,0xa27b,0xd4,0xe8,0x19,0x03,0xbb,0x02);
   // clang-format on
   
-  virtual IDawn * dawn_create(const std::string& owner,
-                            const std::string& param){
-    throw API_exception("factory::create(owner,param) not implemented");
-  };
+  // virtual IDawn * dawn_create(const std::string& owner,
+  //                           const std::string& param){
+  //   throw API_exception("factory::dawn_create(owner,param) not implemented");
+  // };
 
-  virtual IDawn * dawn_create(const std::string& owner,
-                            const std::string& param,
-                            const std::string& param2){
-    throw API_exception("factory::create(owner,param,param2) not implemented");
-  }
+  // virtual IDawn * dawn_create(const std::string& owner,
+  //                           const std::string& param,
+  //                           const std::string& param2){
+  //   throw API_exception("factory::dawn_create(owner,param,param2) not implemented");
+  // }
 
   virtual IDawn * dawn_create(unsigned debug_level,
-                            const std::string& owner,
-                            const std::string& param,
-                            const std::string& param2){
-    throw API_exception("factory::create(debug_level,owner,param,param2) not implemented");
+                              const std::string& owner,
+                              const std::string& param,
+                              const std::string& param2) {
+    throw API_exception("IDawn_factory::dawn_create(debug_level,owner,param,param2) not implemented");
   }
-
+ 
 
 };
 

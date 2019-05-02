@@ -544,25 +544,25 @@ public:
   
   virtual IKVStore * create(const std::string& owner,
                             const std::string& param){
-    throw API_exception("factory::create(owner,param) not implemented");
+    throw API_exception("IKVstore_factory::create(owner,param) not implemented");
   };
 
   virtual IKVStore * create(const std::string& owner,
                             const std::string& param,
                             const std::string& param2){
-    throw API_exception("factory::create(owner,param,param2) not implemented");
+    throw API_exception("IKVstore_factory::create(owner,param,param2) not implemented");
   }
 
   virtual IKVStore * create(unsigned debug_level,
                             const std::string& owner,
                             const std::string& param,
                             const std::string& param2){
-    throw API_exception("factory::create(debug_level,owner,param,param2) not implemented");
+    throw API_exception("IKVstore_factory::create(debug_level,owner,param,param2) not implemented");
   }
 
   virtual IKVStore * create(unsigned debug_level,
 			    std::map<std::string,std::string>& params) {
-    throw API_exception("factory::create(debug_level,param-map) not implemented");
+    throw API_exception("IKVstore_factory::create(debug_level,param-map) not implemented");
   }
 
 
