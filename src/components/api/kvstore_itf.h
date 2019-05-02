@@ -22,6 +22,7 @@
 #include <cstdlib>
 #include <functional>
 #include <vector>
+#include <map>
 #include <assert.h>
 
 #include <api/components.h>
@@ -557,6 +558,11 @@ public:
                             const std::string& param,
                             const std::string& param2){
     throw API_exception("factory::create(debug_level,owner,param,param2) not implemented");
+  }
+
+  virtual IKVStore * create(unsigned debug_level,
+			    std::map<std::string,std::string>& params) {
+    throw API_exception("factory::create(debug_level,param-map) not implemented");
   }
 
 

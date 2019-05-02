@@ -73,6 +73,7 @@ class Shard : public Shard_transport {
                                            index,
                                            pci_addr,
                                            dax_config,
+					   pm_path,
                                            debug_level)
   {
     option_DEBUG = Dawn::Global::debug_level = debug_level;
@@ -106,6 +107,7 @@ class Shard : public Shard_transport {
                     const std::string& index,
                     const std::string& pci_addr,
                     const std::string& dax_config,
+		    const std::string& pm_path,
                     unsigned           debug_level)
   {
     if (option_DEBUG > 2) PLOG("shard:%u worker thread entered.", _core);
@@ -115,7 +117,7 @@ class Shard : public Shard_transport {
     mask.add_core(_core);
     set_cpu_affinity_mask(mask);
 
-    initialize_components(backend, index, pci_addr, dax_config, debug_level);
+    initialize_components(backend, index, pci_addr, dax_config, pm_path, debug_level);
 
     main_loop();
 
@@ -147,6 +149,7 @@ class Shard : public Shard_transport {
                              const std::string& index,
                              const std::string& pci_addr,
                              const std::string& dax_config,
+			     const std::string& pm_path,
                              unsigned           debug_level);
 
   void check_for_new_connections();

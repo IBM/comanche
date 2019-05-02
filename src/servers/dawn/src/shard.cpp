@@ -40,6 +40,7 @@ void Shard::initialize_components(const std::string& backend,
                                   const std::string& index,
                                   const std::string& pci_addr,
                                   const std::string& dax_config,
+				  const std::string& pm_path,
                                   unsigned           debug_level)
 {
   using namespace Component;
@@ -81,10 +82,13 @@ void Shard::initialize_components(const std::string& backend,
     }
     else if (backend == "nvmestore") {
       if (pci_addr.empty())
-        throw General_exception(
-            "nvmestore backend needs pci device configuration");
-
-      _i_kvstore = fact->create("owner", "name", pci_addr);
+        throw General_exception("nvmestore backend needs pci device configuration");
+      std::map<std::string,std::string> params;
+      params["owner"] = "unknown-owner";
+      params["name"] = "unknown-name";
+      params["pci"] = pci_addr;
+      params["pm_path"] = pm_path;
+      _i_kvstore = fact->create(debug_level, params);
     }
     else if (backend == "pmstore") { /* components that support debug level */
       _i_kvstore = fact->create(debug_level, "owner", "name", "");
