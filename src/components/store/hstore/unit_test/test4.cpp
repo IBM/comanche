@@ -276,6 +276,7 @@ TEST_F(KVStore_test, CreatePools)
   {
     double af = std::stod(getenv("POOL_ALLOCATE_FACTOR"));
     pool_alloc *= af;
+    std::cerr << "pool allocatin extimate: " << pool_alloc << "\n";
   }
   ASSERT_TRUE(_kvstore);
   timer t(
@@ -289,7 +290,14 @@ TEST_F(KVStore_test, CreatePools)
 #if 0
     pool[i] = _kvstore->create_pool(pool_name(i), GB(1) + pool_alloc, 0, estimated_object_count);
 #else
-    pool[i] = _kvstore->create_pool(pool_name(i), pool_alloc, 0, 1);
+    pool[i] = _kvstore->create_pool(pool_name(i), GB(1), 0, 1);
+    if ( GB(1) < pool_alloc )
+    {
+      std::size_t sz = 0;
+      auto rc = _kvstore->grow_pool(pool[i], pool_alloc - GB(1), sz);
+      ASSERT_EQ(S_OK, rc);
+      std::cerr << "grow pool" << " size " << sz << "\n";
+    }
 #endif
     ASSERT_LT(0, int64_t(pool[i]));
   }
