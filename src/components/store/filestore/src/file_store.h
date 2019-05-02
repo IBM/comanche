@@ -113,6 +113,12 @@ public:
   virtual size_t count(const pool_t pool) override;
 
   virtual void debug(const pool_t pool, unsigned cmd, uint64_t arg) override;
+
+  virtual status_t get_attribute(const pool_t pool,
+                                 const Attribute attr,
+                                 std::vector<uint64_t>& out_value,
+                                 const std::string* key = nullptr) override;
+
   
 private:
   
