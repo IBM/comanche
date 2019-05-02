@@ -1,14 +1,14 @@
 /*
-   Copyright [2017-2019] [IBM Corporation]
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
-       http://www.apache.org/licenses/LICENSE-2.0
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
+  Copyright [2017-2019] [IBM Corporation]
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+  http://www.apache.org/licenses/LICENSE-2.0
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
 */
 
 #include <cerrno>
@@ -42,23 +42,25 @@ struct Pool_handle
   int use_cache = 1;
 
   status_t put(const std::string& key,
-          const void * value,
-          const size_t value_len,
-          unsigned int flags);
+               const void * value,
+               const size_t value_len,
+               unsigned int flags);
   
   status_t get(const std::string& key,
-          void*& out_value,
-          size_t& out_value_len);
+               void*& out_value,
+               size_t& out_value_len);
   
   status_t get_direct(const std::string& key,
-                 void* out_value,
-                 size_t& out_value_len);
+                      void* out_value,
+                      size_t& out_value_len);
 
   status_t erase(const std::string& key);
 
   status_t get_attribute(const IKVStore::Attribute attr,
                          std::vector<uint64_t>& out_value,
                          const std::string* key);
+
+  size_t count() const;
 
 };
 
@@ -69,9 +71,9 @@ using lock_guard = std::lock_guard<std::mutex>;
 
 
 status_t Pool_handle::put(const std::string& key,
-                     const void * value,
-                     const size_t value_len,
-                     unsigned int flags)
+                          const void * value,
+                          const size_t value_len,
+                          unsigned int flags)
 {
   std::string full_path = path.string() + "/" + key;
 
@@ -88,7 +90,7 @@ status_t Pool_handle::put(const std::string& key,
   int fd = open(full_path.c_str(), O_WRONLY | O_APPEND | O_CREAT, 0644);
   if(fd == -1) {
     //assert(0);
-      std::perror("open in put call returned -1");
+    std::perror("open in put call returned -1");
     return E_FAIL;
   }
   
@@ -98,9 +100,9 @@ status_t Pool_handle::put(const std::string& key,
 
   /*Turn on to avoid the effect of file cache*/
   if (!use_cache)
-  {
-    fsync(fd);
-  }
+    {
+      fsync(fd);
+    }
 
   close(fd);
   return S_OK;
@@ -138,8 +140,8 @@ status_t Pool_handle::get(const std::string& key,
 }
 
 status_t Pool_handle::get_direct(const std::string& key,
-                            void* out_value,
-                            size_t& out_value_len)
+                                 void* out_value,
+                                 size_t& out_value_len)
 {
   PLOG("get: key=(%s) path=(%s)", key.c_str(), path.string().c_str());
   
@@ -163,10 +165,10 @@ status_t Pool_handle::get_direct(const std::string& key,
   ssize_t rs = read(fd, out_value, out_value_len);
 
   if(rs != out_value_len)
-  {
-    perror("get_direct read size didn't match expected out_value_len");
-    throw General_exception("file read failed");
-  }
+    {
+      perror("get_direct read size didn't match expected out_value_len");
+      throw General_exception("file read failed");
+    }
 
 #ifdef FORCE_FLUSH
   clflush_area(out_value, out_value_len);
@@ -231,17 +233,31 @@ status_t Pool_handle::get_attribute(const IKVStore::Attribute attr,
   return E_NOT_IMPL;
 }
 
+size_t Pool_handle::count() const
+{
+  using namespace boost::filesystem;
+  std::string dir = path.string() + "/";
+  fs::path p(dir);
+  if(is_directory(dir)) {
+    size_t count = 0;
+    for(auto& entry : boost::make_iterator_range(directory_iterator(p), {}))
+      count ++;
+    return count;
+  }
+  else throw Logic_exception("not dir");
+}
 
+File_store::File_store(const std::string& path) : _root_path(path)
+{
+  if(_root_path.back() != '/')
+    _root_path += "/";
+}
 
-FileStore::FileStore(const std::string& owner, const std::string& name)
+File_store::~File_store()
 {
 }
 
-FileStore::~FileStore()
-{
-}
-
-int FileStore::get_capability(Capability cap) const
+int File_store::get_capability(Capability cap) const
 {
   switch(cap) {
   case Capability::POOL_DELETE_CHECK: return 1;
@@ -251,12 +267,12 @@ int FileStore::get_capability(Capability cap) const
   }
 }
 
-IKVStore::pool_t FileStore::create_pool(const std::string& name,
-                                        const size_t size,
-                                        unsigned int flags,
-                                        uint64_t args)
+IKVStore::pool_t File_store::create_pool(const std::string& name,
+                                         const size_t size,
+                                         unsigned int flags,
+                                         uint64_t args)
 {
-  fs::path p = name;
+  fs::path p = _root_path + name;
   if(!fs::create_directory(p))
     throw API_exception("filestore: failed to create directory (%s)", p.string().c_str());
 
@@ -267,16 +283,16 @@ IKVStore::pool_t FileStore::create_pool(const std::string& name,
   handle->path = p;
   handle->flags = flags;
   {
-     lock_guard g(_pool_sessions_lock);
+    lock_guard g(_pool_sessions_lock);
     _pool_sessions.insert(handle);
   }
   return reinterpret_cast<IKVStore::pool_t>(handle);
 }
 
-IKVStore::pool_t FileStore::open_pool(const std::string& name,
-                                      unsigned int flags)
+IKVStore::pool_t File_store::open_pool(const std::string& name,
+                                       unsigned int flags)
 {
-  fs::path p = name;
+  fs::path p = _root_path + name;
   if(!fs::exists(name))
     return POOL_ERROR;
 
@@ -287,113 +303,115 @@ IKVStore::pool_t FileStore::open_pool(const std::string& name,
   handle->path = p;
 
   {
-     lock_guard g(_pool_sessions_lock);
+    lock_guard g(_pool_sessions_lock);
     _pool_sessions.insert(handle);
   }
   
   return reinterpret_cast<IKVStore::pool_t>(handle);
 }
 
-status_t FileStore::close_pool(pool_t pid)
+status_t File_store::close_pool(pool_t pool)
 {
-  auto handle = reinterpret_cast<Pool_handle*>(pid);
+  auto handle = reinterpret_cast<Pool_handle*>(pool);
   if(_pool_sessions.count(handle) != 1)
     return E_INVAL;
 
   {
-     lock_guard g(_pool_sessions_lock);
+    lock_guard g(_pool_sessions_lock);
     _pool_sessions.erase(handle);
   }
   return S_OK;
 }
 
-status_t FileStore::delete_pool(const std::string &name)
+status_t File_store::delete_pool(const std::string &name)
 {
-  if(!fs::exists(name))
+  std::string fullpath = _root_path + name;
+  if(!fs::exists(fullpath))
     return E_POOL_NOT_FOUND;
 
   lock_guard g(_pool_sessions_lock);
   for(auto& s: _pool_sessions) {
-    if(s->path == name)
+    if(s->path == fullpath)
       return E_ALREADY_OPEN;
   }
     
-  boost::filesystem::remove_all(name);
+  boost::filesystem::remove_all(fullpath);
   return S_OK;
 }
 
-status_t FileStore::put(IKVStore::pool_t pid,
-                        const std::string& key,
-                        const void * value,
-                        size_t value_len,
-                        unsigned int flags)
+status_t File_store::put(IKVStore::pool_t pool,
+                         const std::string& key,
+                         const void * value,
+                         size_t value_len,
+                         unsigned int flags)
 {
-  auto handle = reinterpret_cast<Pool_handle*>(pid);
+  auto handle = reinterpret_cast<Pool_handle*>(pool);
   if(_pool_sessions.count(handle) != 1)
     throw API_exception("bad pool handle");
 
   return handle->put(key, value, value_len, flags);
 }
 
-status_t FileStore::put_direct(const pool_t pool,
-                               const std::string& key,
-                               const void * value,
-                               const size_t value_len,
-                               memory_handle_t memory_handle,
-                               unsigned int flags)
+status_t File_store::put_direct(const pool_t pool,
+                                const std::string& key,
+                                const void * value,
+                                const size_t value_len,
+                                memory_handle_t memory_handle,
+                                unsigned int flags)
 {
-  return FileStore::put(pool, key, value, value_len, flags);
+  return File_store::put(pool, key, value, value_len, flags);
 }
 
 
-status_t FileStore::get(const pool_t pid,
-                        const std::string& key,
-                        void*& out_value,
-                   size_t& out_value_len)
+status_t File_store::get(const pool_t pool,
+                         const std::string& key,
+                         void*& out_value,
+                         size_t& out_value_len)
 {
-  auto handle = reinterpret_cast<Pool_handle*>(pid);
+  auto handle = reinterpret_cast<Pool_handle*>(pool);
   if(_pool_sessions.count(handle) != 1)
     throw API_exception("bad pool handle");
     
   return handle->get(key, out_value, out_value_len);
 }
 
-status_t FileStore::get_direct(const pool_t pid,
-                               const std::string& key,
-                               void* out_value,
-                               size_t& out_value_len,
-                               Component::IKVStore::memory_handle_t handle)
+status_t File_store::get_direct(const pool_t pool,
+                                const std::string& key,
+                                void* out_value,
+                                size_t& out_value_len,
+                                Component::IKVStore::memory_handle_t handle)
 {
-  auto pool_handle = reinterpret_cast<Pool_handle*>(pid);
+  auto pool_handle = reinterpret_cast<Pool_handle*>(pool);
   if(_pool_sessions.count(pool_handle) != 1)
     throw API_exception("bad pool handle");
   
   return pool_handle->get_direct(key, out_value, out_value_len);
 }
 
-
-
-status_t FileStore::erase(const pool_t pid,
-                          const std::string& key)
+status_t File_store::erase(const pool_t pool,
+                           const std::string& key)
 {
-  auto handle = reinterpret_cast<Pool_handle*>(pid);
+  auto handle = reinterpret_cast<Pool_handle*>(pool);
   return handle->erase(key);
 }
 
-size_t FileStore::count(const pool_t pool)
+size_t File_store::count(const pool_t pool)
 {
-  assert(0);
-  return 0; // not implemented
+  auto pool_handle = reinterpret_cast<Pool_handle*>(pool);
+  if(_pool_sessions.count(pool_handle) != 1)
+    throw API_exception("bad pool handle");
+    
+  return pool_handle->count();
 }
 
-void FileStore::debug(const pool_t pool, unsigned cmd, uint64_t arg)
+void File_store::debug(const pool_t pool, unsigned cmd, uint64_t arg)
 {
 }
 
-status_t FileStore::get_attribute(const pool_t pool,
-                                  const IKVStore::Attribute attr,
-                                  std::vector<uint64_t>& out_value,
-                                  const std::string* key)
+status_t File_store::get_attribute(const pool_t pool,
+                                   const IKVStore::Attribute attr,
+                                   std::vector<uint64_t>& out_value,
+                                   const std::string* key)
 {
   if(attr == IKVStore::Attribute::VALUE_LEN) {
     auto handle = reinterpret_cast<Pool_handle*>(pool);
@@ -409,8 +427,8 @@ status_t FileStore::get_attribute(const pool_t pool,
  */
 extern "C" void * factory_createInstance(Component::uuid_t& component_id)
 {
-  if(component_id == FileStore_factory::component_id()) {
-    return static_cast<void*>(new FileStore_factory());
+  if(component_id == File_store_factory::component_id()) {
+    return static_cast<void*>(new File_store_factory());
   }
   else return NULL;
 }

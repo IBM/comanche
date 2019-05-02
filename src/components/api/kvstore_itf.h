@@ -220,7 +220,7 @@ public:
    * @param name Name of object pool
    * @param flags Open flags e.g., FLAGS_READ_ONLY
    * 
-   * @return Pool handle or POOL_ERROR if pool cannot be opened, or flags supported
+   * @return Pool handle or POOL_ERROR if pool cannot be opened, or flags unsupported
    */
   virtual pool_t open_pool(const std::string& name,
                            uint32_t flags = 0) {
@@ -239,7 +239,7 @@ public:
    * 
    * @param pool Pool handle 
    *
-   * @return S_OK on success, E_ALREADY_OPEN if pool cannot be closed due to open session.
+   * @return S_OK on success, E_POOL_NOT_FOUND, E_ALREADY_OPEN if pool cannot be closed due to open session.
    */
   virtual status_t close_pool(const pool_t pool) = 0;
 
@@ -249,7 +249,7 @@ public:
    * 
    * @param name Name of object pool
    * 
-   * @return S_OK on success, E_ALREADY_OPEN if pool cannot be deleted
+   * @return S_OK on success, E_POOL_NOT_FOUND, E_ALREADY_OPEN if pool cannot be deleted
    */
   virtual status_t delete_pool(const std::string &name) {
     return E_NOT_IMPL;
@@ -266,7 +266,7 @@ public:
    * @param pool Pool handle
    * @param out_regions Mapped memory regions
    *
-   * @return S_OK on success.  Components that do not support this return E_NOT_SUPPORTED.
+   * @return S_OK on success or E_POOL_NOT_FOUND.  Components that do not support this return E_NOT_SUPPORTED.
    */  
   virtual status_t get_pool_regions(const pool_t pool,
                                     std::vector<::iovec>& out_regions) {
@@ -280,7 +280,7 @@ public:
    * @param increment_size Size in bytes to expand by
    * @param reconfigured_size [out] new size of pool
    * 
-   * @return S_OK on success. Components that do not support this return E_NOT_SUPPORTED.
+   * @return S_OK on success or E_POOL_NOT_FOUND. Components that do not support this return E_NOT_SUPPORTED.
    */
   virtual status_t grow_pool(const pool_t pool,
                              const size_t increment_size,
@@ -298,7 +298,7 @@ public:
    * @param value Value data
    * @param value_len Size of value in bytes
    * 
-   * @return S_OK or error code
+   * @return S_OK or E_POOL_NOT_FOUND, E_KEY_EXISTS
    */
   virtual status_t put(const pool_t pool,
                        const std::string& key,
@@ -317,7 +317,7 @@ public:
    * @param value_len Value length in bytes
    * @param handle Memory registration handle 
    *
-   * @return S_OK or error code
+   * @return S_OK or E_POOL_NOT_FOUND, E_KEY_EXISTS
    */
   virtual status_t put_direct(const pool_t pool,
                               const std::string& key,
@@ -336,7 +336,7 @@ public:
    * @param out_value Value data (if null, component will allocate memory)
    * @param out_value_len Size of value in bytes
    * 
-   * @return S_OK or E_KEY_NOT_FOUND if key not found
+   * @return S_OK or E_POOL_NOT_FOUND, E_KEY_NOT_FOUND if key not found
    */
   virtual status_t get(const pool_t pool,
                        const std::string& key,
@@ -353,7 +353,9 @@ public:
    * @param out_value_len [in] size of value memory in bytes [out] size of value
    * @param handle Memory registration handle
    * 
-   * @return S_OK, S_MORE if only a portion of value is read, E_BAD_ALIGNMENT on invalid alignment, or other error code
+   * @return S_OK, S_MORE if only a portion of value is read,
+   * E_BAD_ALIGNMENT on invalid alignment, E_POOL_NOT_FOUND, or other
+   * error code
    */
   virtual status_t get_direct(const pool_t pool,
                               const std::string& key,
@@ -372,7 +374,7 @@ public:
    * @param out_value Vector of attribute values
    * @param key [optional] Key
    * 
-   * @return S_OK on success
+   * @return S_OK on success, E_POOL_NOT_FOUND, E_INVALID_ARG, E_KEY_NOT_FOUND
    */
   virtual status_t get_attribute(const pool_t pool,
                                  const Attribute attr,
@@ -390,7 +392,7 @@ public:
    * @param value Vector of values to set (for boolean 0=false, 1=true)
    * @param key [optional] key
    * 
-   * @return S_OK, E_INVAL on attribute that cannot be set
+   * @return S_OK, E_INVALID_ARG (e.g. key==nullptr), E_POOL_NOT_FOUND
    */
   virtual status_t set_attribute(const pool_t pool,
                                  const Attribute attr,
@@ -431,7 +433,7 @@ public:
    * @param out_value [out] Pointer to data
    * @param out_value_len [in-out] Size of data in bytes
    * 
-   * @return Handle to key for unlock or KEY_NONE if unsupported
+   * @return Handle to key for unlock or KEY_NONE if unsupported or other error occurred.
    */
   virtual key_t lock(const pool_t pool,
                      const std::string& key,
@@ -560,6 +562,7 @@ public:
     throw API_exception("IKVstore_factory::create(debug_level,owner,param,param2) not implemented");
   }
 
+  /* this is the preferred create method - the others will be deprecated */
   virtual IKVStore * create(unsigned debug_level,
 			    std::map<std::string,std::string>& params) {
     throw API_exception("IKVstore_factory::create(debug_level,param-map) not implemented");
