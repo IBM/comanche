@@ -22,6 +22,7 @@
 #include <common/exceptions.h>
 #include <common/utils.h>
 #include <boost/filesystem.hpp>
+#include <boost/range/iterator_range.hpp>
 #include <sys/stat.h>
 #include <tbb/concurrent_hash_map.h>
 #include <tbb/concurrent_unordered_set.h>
@@ -40,20 +41,24 @@ struct Pool_handle
   unsigned int flags;
   int use_cache = 1;
 
-  int put(const std::string& key,
+  status_t put(const std::string& key,
           const void * value,
           const size_t value_len,
           unsigned int flags);
   
-  int get(const std::string& key,
+  status_t get(const std::string& key,
           void*& out_value,
           size_t& out_value_len);
   
-  int get_direct(const std::string& key,
+  status_t get_direct(const std::string& key,
                  void* out_value,
                  size_t& out_value_len);
 
-  int erase(const std::string& key);
+  status_t erase(const std::string& key);
+
+  status_t get_attribute(const IKVStore::Attribute attr,
+                         std::vector<uint64_t>& out_value,
+                         const std::string* key);
 
 };
 
@@ -63,7 +68,7 @@ std::set<Pool_handle *> _pool_sessions;
 using lock_guard = std::lock_guard<std::mutex>;
 
 
-int Pool_handle::put(const std::string& key,
+status_t Pool_handle::put(const std::string& key,
                      const void * value,
                      const size_t value_len,
                      unsigned int flags)
@@ -102,9 +107,9 @@ int Pool_handle::put(const std::string& key,
 }
 
 
-int Pool_handle::get(const std::string& key,
-                     void*& out_value,
-                     size_t& out_value_len)
+status_t Pool_handle::get(const std::string& key,
+                          void*& out_value,
+                          size_t& out_value_len)
 {
   PLOG("get: key=(%s) path=(%s)", key.c_str(), path.string().c_str());
   
@@ -132,7 +137,7 @@ int Pool_handle::get(const std::string& key,
   return S_OK;
 }
 
-int Pool_handle::get_direct(const std::string& key,
+status_t Pool_handle::get_direct(const std::string& key,
                             void* out_value,
                             size_t& out_value_len)
 {
@@ -172,7 +177,7 @@ int Pool_handle::get_direct(const std::string& key,
 }
 
 
-int Pool_handle::erase(const std::string& key)
+status_t Pool_handle::erase(const std::string& key)
 {
   std::string full_path = path.string() + "/" + key;
   if(!fs::exists(full_path))
@@ -185,6 +190,47 @@ int Pool_handle::erase(const std::string& key)
 
   return S_OK;
 }
+
+status_t Pool_handle::get_attribute(const IKVStore::Attribute attr,
+                                    std::vector<uint64_t>& out_value,
+                                    const std::string* key)
+{
+  switch(attr)
+    {
+    case IKVStore::Attribute::VALUE_LEN:
+      {
+        if(key == nullptr) return E_FAIL;
+        
+        std::string full_path = path.string() + "/" + *key;
+      
+        struct stat buffer;
+        if(stat(full_path.c_str(), &buffer))
+          throw General_exception("stat failed on file (%s)", full_path.c_str());
+        out_value.push_back(buffer.st_size);
+        return S_OK;
+      }
+    case IKVStore::Attribute::COUNT:
+      {
+        using namespace boost::filesystem;
+        std::string dir = path.string() + "/";
+        fs::path p(dir);
+        if(is_directory(dir)) {
+          size_t count = 0;
+          for(auto& entry : boost::make_iterator_range(directory_iterator(p), {}))
+            count ++;
+          out_value.push_back(count);
+          return S_OK;
+        }
+        else throw Logic_exception("iterating dir");
+        return S_OK;
+      }
+    default:
+      return IKVStore::E_BAD_PARAM;
+    }
+  
+  return E_NOT_IMPL;
+}
+
 
 
 FileStore::FileStore(const std::string& owner, const std::string& name)
@@ -342,6 +388,18 @@ size_t FileStore::count(const pool_t pool)
 
 void FileStore::debug(const pool_t pool, unsigned cmd, uint64_t arg)
 {
+}
+
+status_t FileStore::get_attribute(const pool_t pool,
+                                  const IKVStore::Attribute attr,
+                                  std::vector<uint64_t>& out_value,
+                                  const std::string* key)
+{
+  if(attr == IKVStore::Attribute::VALUE_LEN) {
+    auto handle = reinterpret_cast<Pool_handle*>(pool);
+    return handle->get_attribute(attr, out_value, key);
+  }
+  return E_NOT_IMPL;
 }
 
 
