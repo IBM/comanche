@@ -84,6 +84,8 @@ public:
 
 };
 
+class Devdax_manager;
+
 template <typename Pool>
   class pool_manager
   {
@@ -115,6 +117,7 @@ template <typename Pool>
     ) -> std::unique_ptr<Pool> = 0;
 
     virtual void pool_delete(const pool_path &path) = 0;
+    virtual const std::unique_ptr<Devdax_manager> & devdax_manager() const = 0;
   };
 #pragma GCC diagnostic pop
 

@@ -58,21 +58,6 @@ template <typename Region, typename Table, typename Allocator, typename LockType
   }
 
 template <typename Region, typename Table, typename Allocator, typename LockType>
-  void *hstore_nupm<Region, Table, Allocator, LockType>::delete_and_recreate_pool(const pool_path &path_, std::size_t size_)
-  {
-    auto uuid = dax_uuid_hash(path_);
-    _devdax_manager->erase_region(uuid, _numa_node);
-
-    auto pop = _devdax_manager->create_region(uuid, _numa_node, size_);
-    if (not pop) {
-      auto e = errno;
-      throw std::system_error(std::error_code(e, std::system_category()), std::string("failed to create region ") + path_.str());
-    }
-    PLOG(PREFIX "in %s: created region ID %" PRIx64 " at %p:0x%zx", __func__, path_.str().c_str(), uuid, pop, size_);
-    return pop;
-  }
-
-template <typename Region, typename Table, typename Allocator, typename LockType>
   bool hstore_nupm<Region, Table, Allocator, LockType>::debug() { return false; }
 
 template <typename Region, typename Table, typename Allocator, typename LockType>
@@ -115,6 +100,10 @@ template <typename Region, typename Table, typename Allocator, typename LockType
      * due to heap alignment.
      */
     auto size = sizeof(Region) + size_ * 4 / 3;
+    /* _devdax_manager will allocate 1GiB-aligned regions. But there is no mechanism for it to
+     * tell us that. Round request up to 1 GiB to avoid wasting space.
+     */
+	size = ((size_ - 1) / (1U<<30) + 1 ) * (1U<<30);
     /* Attempt to create a new pool. */
     try
     {
@@ -126,7 +115,7 @@ template <typename Region, typename Table, typename Allocator, typename LockType
       }
       PLOG(PREFIX "in %s: created region ID %" PRIx64 " at %p:0x%zx", __func__, path_.str().c_str(), uuid, pop, size);
 
-      open_pool_handle h(new (pop) Region(size, expected_obj_count_, _numa_node), region_closer_t(this->shared_from_this()));
+      open_pool_handle h(new (pop) Region(uuid, size, expected_obj_count_, _numa_node), region_closer_t(this->shared_from_this()));
       return std::make_unique<session<open_pool_handle, allocator_t, table_t, lock_type_t>>(path_, std::move(h), construction_mode::create);
     }
     catch ( const General_exception &e )
@@ -165,7 +154,7 @@ template <typename Region, typename Table, typename Allocator, typename LockType
       throw std::invalid_argument("failed to re-open pool");
     }
 
-    pop->animate();
+    pop->animate(_devdax_manager);
 
     PLOG(PREFIX "in %s: opened region ID %" PRIx64 " at %p", __func__, path_.str().c_str(), uuid, static_cast<const void *>(pop.get()));
     /* open_pool_handle is a managed region *, and pop is a region. */

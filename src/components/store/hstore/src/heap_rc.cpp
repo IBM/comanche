@@ -13,5 +13,6 @@
 
 #include "heap_rc.h"
 
-constexpr unsigned heap_rc_shared::log_alignment;
+constexpr unsigned heap_rc_shared_ephemeral::log_alignment;
+
 constexpr std::size_t heap_rc_shared::alignment;

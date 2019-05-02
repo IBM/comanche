@@ -122,7 +122,7 @@ auto hstore::move_pool(const Component::IKVStore::pool_t pid) -> std::unique_ptr
   return s2;
 }
 
-hstore::hstore(const std::string &owner, const std::string &name, std::unique_ptr<Devdax_manager> mgr_)
+hstore::hstore(const std::string &owner, const std::string &name, std::unique_ptr<Devdax_manager> &&mgr_)
 #if USE_PMEM
   : _pool_manager(std::make_shared<pm>(owner, name, option_DEBUG))
 #else
@@ -235,19 +235,6 @@ status_t hstore::close_pool(const pool_t pid)
   return S_OK;
 }
 
-auto hstore::grow_pool(
-  const pool_t pool
-  , const std::size_t /*increment_size*/
-  , std::size_t & /*reconfigured_size*/ ) -> status_t
-{
-  const auto session = static_cast<session_t *>(locate_session(pool));
-  if ( ! session )
-  {
-    return E_POOL_NOT_FOUND;
-  }
-  return E_NOT_SUPPORTED;
-}
-
 status_t hstore::delete_pool(const std::string &name_)
 {
   auto path = pool_path(name_);
@@ -256,6 +243,27 @@ status_t hstore::delete_pool(const std::string &name_)
   if ( option_DEBUG )
   {
     PLOG("pool deleted: %s", name_.c_str());
+  }
+  return S_OK;
+}
+
+auto hstore::grow_pool(
+  const pool_t pool
+  , const std::size_t increment_size
+  , std::size_t & reconfigured_size ) -> status_t
+{
+  const auto session = static_cast<session_t *>(locate_session(pool));
+  if ( ! session )
+  {
+    return E_POOL_NOT_FOUND;
+  }
+  try
+  {
+    reconfigured_size = session->pool_grow(_pool_manager->devdax_manager(), increment_size);
+  }
+  catch ( const std::bad_alloc & )
+  {
+    return E_NO_MEM;
   }
   return S_OK;
 }
