@@ -24,6 +24,7 @@ static PyObject * pool_erase(Pool* self, PyObject *args, PyObject *kwds);
 static PyObject * pool_configure(Pool* self, PyObject *args, PyObject *kwds);
 static PyObject * pool_find_key(Pool* self, PyObject *args, PyObject *kwds);
 static PyObject * pool_get_attribute(Pool* self, PyObject* args, PyObject* kwds);
+static PyObject * pool_type(Pool* self);
 
 static PyObject *
 Pool_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
@@ -56,6 +57,7 @@ static PyMemberDef Pool_members[] = {
   {NULL}
 };
 
+PyDoc_STRVAR(type_doc,"Pool.type() -> Return type object.");
 PyDoc_STRVAR(put_doc,"Pool.put(key,value) -> Write key-value pair to pool.");
 PyDoc_STRVAR(put_direct_doc,"Pool.put_direct(key,value) -> Write bytearray value to pool using zero-copy.");
 PyDoc_STRVAR(get_doc,"Pool.get(key) -> Read value from pool.");
@@ -69,6 +71,7 @@ PyDoc_STRVAR(find_key_doc,"Pool.find(expr, [limit]) -> Find keys using expressio
 PyDoc_STRVAR(get_attribute_doc,"Pool.get_attribute(key, attribute_name) -> Attribute value(s).");
 
 static PyMethodDef Pool_methods[] = {
+  {"type",(PyCFunction) pool_type, METH_NOARGS, type_doc},
   {"close",(PyCFunction) pool_close, METH_NOARGS, close_doc},
   {"count",(PyCFunction) pool_count, METH_NOARGS, count_doc},
   {"put",(PyCFunction) pool_put, METH_VARARGS | METH_KEYWORDS, put_doc},
@@ -399,6 +402,10 @@ static PyObject * pool_get_size(Pool* self, PyObject *args, PyObject *kwds)
   return PyLong_FromSize_t(v[0]);
 }
 
+static PyObject * pool_type(Pool* self)
+{
+  return PyUnicode_FromString(PoolType.tp_name);
+}
 
 static PyObject * pool_close(Pool* self)
 {

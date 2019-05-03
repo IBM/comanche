@@ -21,6 +21,7 @@
 #include <api/kvstore_itf.h>
 #include <common/exceptions.h>
 #include <common/utils.h>
+#include <common/dump_utils.h>
 #include <boost/filesystem.hpp>
 #include <boost/range/iterator_range.hpp>
 #include <sys/stat.h>
@@ -37,8 +38,8 @@ namespace fs=boost::filesystem;
 class Simulated_locked_item
 {
 public:
-  Simulated_locked_item(size_t size) {
-    p = ::malloc(size);
+  Simulated_locked_item(int filehandle, size_t size) : fd(filehandle)  {
+    p = ::aligned_alloc(KiB(4),size);
     p_len = size;
   }
   ~Simulated_locked_item() {
@@ -46,6 +47,7 @@ public:
   }
   void * p;
   size_t p_len;
+  int fd;
 };
 
 struct Pool_handle
@@ -79,6 +81,12 @@ struct Pool_handle
                        size_t& out_value_len);
 
   status_t unlock(IKVStore::key_t key_handle);
+
+  status_t map(std::function<int(const std::string& key,
+                                 const void * value,
+                                 const size_t value_len)> function);
+
+  status_t map_keys(std::function<int(const std::string& key)> function);
 
   size_t count() const;
 
@@ -116,14 +124,12 @@ status_t Pool_handle::put(const std::string& key,
   
   ssize_t ws = write(fd, value, value_len);
   if(ws != value_len)
-    throw General_exception("file write failed, value=%p, len =%lu", value, value_len);
+    throw General_exception("file write failed (%s)", strerror(errno));
 
   /*Turn on to avoid the effect of file cache*/
   if (!use_cache)
-    {
-      fsync(fd);
-    }
-
+    fsync(fd);
+  
   close(fd);
   return S_OK;
 }
@@ -204,34 +210,66 @@ IKVStore::key_t Pool_handle::lock(const std::string& key,
                                   size_t& out_value_len)
 {
   std::string full_path = path.string() + "/" + key;
-  if(!fs::exists(full_path))
-    return IKVStore::KEY_NONE;
+  bool created = false;
+  
+  if(!fs::exists(full_path)) {
+    /* on-demand create */
+    if(out_value_len == 0) {
+      PWRN("file_store::lock on-demand has no value len");
+      return IKVStore::KEY_NONE;
+    }
+    PMAJOR("allocating space (%s,%lu)", full_path.c_str(), out_value_len);
+    int fd = open(full_path.c_str(), O_WRONLY | O_APPEND | O_CREAT, 0644);
+    if(fd == -1)
+      throw General_exception("file_store::lock ::open failed %s", strerror(errno));
+    int rc = ::ftruncate(fd, out_value_len);
+    if(rc != 0)
+      throw General_exception("file_store::lock ::ftruncate failed %s", strerror(errno));
+    ::close(fd);
+    created = true;
+  }
 
   struct stat info;
   if(stat(full_path.c_str(), &info))
     throw General_exception("stat failed on file (%s)", full_path.c_str());
 
-  auto sl = new Simulated_locked_item(info.st_size);
-  assert(sl);
   
   /* this component doesn't really lock, we simulate it though */
-  int fd = ::open(full_path.c_str(), O_RDONLY, 0644);
+  int fd = ::open(full_path.c_str(), O_RDWR, 0644);
+
+  auto sl = new Simulated_locked_item(fd, info.st_size);
+  assert(sl);
+  
   out_value_len = info.st_size;
   out_value = sl->p;
-  ssize_t rs = read(fd, out_value, out_value_len);
 
-  if(rs != out_value_len)
-    throw General_exception("file read failed (rs=%lu)", rs);
+  if(!created) { /* reload from file */
+    ssize_t rs = read(fd, out_value, out_value_len);
 
-  ::close(fd);
+    if(rs != out_value_len)
+      throw General_exception("file read failed (rs=%lu)", rs);
+  }
 
+  /* fd will be closed on unlock */
   return reinterpret_cast<IKVStore::key_t>(sl);
 }
 
 status_t Pool_handle::unlock(IKVStore::key_t key_handle)
 {
-  Simulated_locked_item * li = reinterpret_cast<Simulated_locked_item*>(key_handle);  
-  delete li;
+  Simulated_locked_item * item = reinterpret_cast<Simulated_locked_item*>(key_handle);
+  assert(item);
+
+  /* write out the content on unlock */
+  ssize_t ws = write(item->fd, item->p, item->p_len);
+  if(ws != item->p_len)
+    throw General_exception("file write failed (%s) in Pool_handle::unlock", strerror(errno));
+
+  /* turn on to avoid the effect of file cache*/
+  if (!use_cache)
+    fsync(item->fd);
+  
+  close(item->fd);
+  delete item;
 }
 
 
@@ -304,8 +342,55 @@ size_t Pool_handle::count() const
   else throw Logic_exception("not dir");
 }
 
+status_t Pool_handle::map(std::function<int(const std::string& key,
+                                            const void * value,
+                                            const size_t value_len)> function)
+{
+  using namespace boost::filesystem;
+  std::string dir = path.string() + "/";
+  fs::path p(dir);
+  
+  if(is_directory(dir)) {
+    for(directory_entry& entry : boost::make_iterator_range(directory_iterator(p), {})) {
+      std::string key = entry.path().filename().string();
+      void * value = nullptr;
+      size_t value_len = 0;
+      auto lh = lock(key,IKVStore::STORE_LOCK_READ,value,value_len);
+      assert(value);
+      assert(value_len > 0);
+      function(key, value, value_len);
+      unlock(lh);
+    }
+    return S_OK;
+  }
+
+  return E_FAIL;
+}
+
+
+status_t Pool_handle::map_keys(std::function<int(const std::string& key)> function)
+{
+  using namespace boost::filesystem;
+  std::string dir = path.string() + "/";
+  fs::path p(dir);
+  
+  if(is_directory(dir)) {
+    for(directory_entry& entry : boost::make_iterator_range(directory_iterator(p), {})) {
+      std::string fn = entry.path().filename().string();
+      function(fn);
+    }
+    return S_OK;
+  }
+
+  return E_FAIL;
+}
+
+
+/* File_store methods */
+
 File_store::File_store(const std::string& path) : _root_path(path)
 {
+  PMAJOR("File_store:: init(%s)", path.c_str());
   if(_root_path.back() != '/')
     _root_path += "/";
 }
@@ -364,7 +449,7 @@ IKVStore::pool_t File_store::create_pool(const std::string& name,
     PLOG("created pool OK: %s", p.string().c_str());
 
   auto handle = new Pool_handle;
-  handle->path = p;
+  handle->path = p;  
   handle->flags = flags;
   {
     lock_guard g(_pool_sessions_lock);
@@ -376,8 +461,10 @@ IKVStore::pool_t File_store::create_pool(const std::string& name,
 IKVStore::pool_t File_store::open_pool(const std::string& name,
                                        unsigned int flags)
 {
+  PLOG("file_store::open_pool (%s,%u)", name.c_str(), flags);
+  
   fs::path p = _root_path + name;
-  if(!fs::exists(name))
+  if(!fs::exists(p))
     return POOL_ERROR;
 
   if(option_DEBUG)
@@ -502,6 +589,26 @@ status_t File_store::get_attribute(const pool_t pool,
     return handle->get_attribute(attr, out_value, key);
   }
   return E_NOT_IMPL;
+}
+
+status_t File_store::map(const pool_t pool,
+                         std::function<int(const std::string& key,
+                                           const void * value,
+                                           const size_t value_len)> function)
+{
+  auto pool_handle = reinterpret_cast<Pool_handle*>(pool);
+  if(_pool_sessions.count(pool_handle) != 1)
+    throw API_exception("bad pool handle");
+  return pool_handle->map(function);
+}
+
+status_t File_store::map_keys(const pool_t pool,
+                              std::function<int(const std::string& key)> function)
+{
+  auto pool_handle = reinterpret_cast<Pool_handle*>(pool);
+  if(_pool_sessions.count(pool_handle) != 1)
+    throw API_exception("bad pool handle");
+  return pool_handle->map_keys(function);
 }
 
 

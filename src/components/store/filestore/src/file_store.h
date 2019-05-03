@@ -127,6 +127,13 @@ public:
                                  std::vector<uint64_t>& out_value,
                                  const std::string* key = nullptr) override;
 
+  virtual status_t map(const pool_t pool,
+                       std::function<int(const std::string& key,
+                                         const void * value,
+                                         const size_t value_len)> function) override;
+
+  virtual status_t map_keys(const pool_t pool,
+                            std::function<int(const std::string& key)> function) override;
   
 private:
   std::string _root_path;

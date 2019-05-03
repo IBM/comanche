@@ -30,7 +30,7 @@ if (PYTHON AND BUILD_PYTHON_SUPPORT)
   add_custom_target(debug COMMAND ${DEBUG_COMMAND})
   add_custom_target(check COMMAND ${CHECK_COMMAND})
   
-#  install(CODE "execute_process(COMMAND ${PYTHON} ${SETUP_PY} install)")
+  install(CODE "execute_process(COMMAND ${PYTHON} ${SETUP_PY} install --home=${CMAKE_INSTALL_PREFIX})")
 else()
   message("-- NOT building Python support.")
 endif()
