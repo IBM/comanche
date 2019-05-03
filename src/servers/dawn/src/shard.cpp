@@ -256,6 +256,7 @@ void Shard::process_message_pool_request(Connection_handler* handler,
       handler->add_reference(pool);
     }
     else {
+      
       pool = _i_kvstore->create_pool(msg->pool_name(),
                                      msg->pool_size,
                                      msg->flags,
@@ -829,17 +830,24 @@ status_t Shard::process_configure(Protocol::Message_IO_request* msg)
 
       if (option_DEBUG > 1)
         PLOG("Shard: rebuilding volatile index ...");
+
+      status_t hr;
+      if((hr = _i_kvstore->map_keys(msg->pool_id,
+                                    [&index](const std::string& key) {
+                                      index->insert(key);
+                                      return 0;
+                                    })) != S_OK) {
         
-      _i_kvstore->map(msg->pool_id,
-                      [&index](const std::string& key,
-                               const void * value,
-                               const size_t value_len) {
-                        index->insert(key);
-                        return 0;
-                      });
-                        
+        hr = _i_kvstore->map(msg->pool_id,
+                             [&index](const std::string& key,
+                                      const void * value,
+                                      const size_t value_len) {
+                               index->insert(key);
+                               return 0;
+                             });
+      }
         
-      return S_OK;
+      return hr;
     }
     else {
       PWRN("unknown index (%s)", index_str.c_str());

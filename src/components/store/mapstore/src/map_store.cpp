@@ -83,11 +83,11 @@ public:
 
   size_t count();
 
-  status_t map(const IKVStore::pool_t pool,
-               std::function<int(const std::string& key,
+  status_t map(std::function<int(const std::string& key,
                                  const void * value,
                                  const size_t value_len)> function);
 
+  status_t map_keys(std::function<int(const std::string& key)> function);
 };
 
 struct Pool_session
@@ -336,8 +336,7 @@ size_t Pool_handle::count() {
   return _map.size();
 }
 
-status_t Pool_handle::map(const IKVStore::pool_t pool,
-                          std::function<int(const std::string& key,
+status_t Pool_handle::map(std::function<int(const std::string& key,
                                             const void * value,
                                             const size_t value_len)> function)
 {  
@@ -345,6 +344,14 @@ status_t Pool_handle::map(const IKVStore::pool_t pool,
     auto val = pair.second;
     function(pair.first, val.ptr, val.length);
   }
+  
+  return S_OK;
+}
+
+status_t Pool_handle::map_keys(std::function<int(const std::string& key)> function)
+{
+  for(auto& pair : _map)
+    function(pair.first);
   
   return S_OK;
 }
@@ -612,7 +619,16 @@ status_t Map_store::map(const IKVStore::pool_t pool,
   auto session = get_session(pool);
   if(!session) return IKVStore::E_POOL_NOT_FOUND;
 
-  return session->pool->map(pool, function);
+  return session->pool->map(function);
+}
+
+status_t Map_store::map_keys(const IKVStore::pool_t pool,
+                             std::function<int(const std::string& key)> function)
+{
+  auto session = get_session(pool);
+  if(!session) return IKVStore::E_POOL_NOT_FOUND;
+
+  return session->pool->map_keys(function);  
 }
 
 /** 

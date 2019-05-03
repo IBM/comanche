@@ -425,7 +425,7 @@ public:
 
   /** 
    * Take a lock on an object. If the object does not exist, create it with
-   * value space according to out_value_len
+   * value space according to out_value_len (this is very important for Dawn context)
    * 
    * @param pool Pool handle
    * @param key Key
@@ -499,12 +499,27 @@ public:
    * @param pool Pool handle
    * @param function Functor
    * 
-   * @return S_OK or error code
+   * @return S_OK, E_POOL_NOT_FOUND
    */
   virtual status_t map(const pool_t pool,
                        std::function<int(const std::string& key,
                                          const void * value,
-                                         const size_t value_len)> function) { return E_NOT_SUPPORTED; }
+                                         const size_t value_len)> function) {
+    return E_NOT_SUPPORTED;
+  }
+
+  /** 
+   * Apply functor to all keys only
+   * 
+   * @param pool Pool handle
+   * @param function Functor
+   * 
+   * @return S_OK, E_POOL_NOT_FOUND
+   */
+  virtual status_t map_keys(const pool_t pool,
+                            std::function<int(const std::string& key)> function) {
+    return E_NOT_SUPPORTED;
+  }
 
   /**
    * Free server-side allocated memory
