@@ -194,9 +194,9 @@ class Shard : public Shard_transport {
   }
 
  private:
+  static Pool_manager              pool_manager; /* instance shared across connections */
   
   index_map_t*                     _index_map = nullptr;
-  
   bool                             _thread_exit = false;
   bool                             _forced_exit;
   unsigned                         _core;
