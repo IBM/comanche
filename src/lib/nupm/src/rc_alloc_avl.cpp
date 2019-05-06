@@ -126,6 +126,7 @@ void Rca_AVL::add_managed_region(void * region_base,
   if (numa_node > Rca::max_numa_node)
     throw std::invalid_argument("numa node out of range");
 
+  assert(_rca);
   _rca->add_managed_region(region_base, region_length, numa_node);
 }
 
