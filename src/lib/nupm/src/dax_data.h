@@ -199,7 +199,7 @@ class DM_region_header {
       if (reg.region_id == region_id)
         throw std::bad_alloc();
     }
-    // TODO make crash-consistent
+
     uint32_t new_offset;
     bool     found = false;
     for (uint16_t r = 0; r < _region_count; r++) {
@@ -210,7 +210,6 @@ class DM_region_header {
           void *rp =
               (void *) ((((uintptr_t) reg->offset_GB) << 30) + arena_base());
           // zero region
-          // pmem_memset_persist(rp, 0, GB(((uintptr_t)size_in_GB)));
           tx_atomic_write(reg, region_id);
           return rp;
         }
@@ -226,7 +225,6 @@ class DM_region_header {
             if (reg_n->region_id == 0 && reg_n->length_GB == 0) {
               void *rp =
                   (void *) ((((uintptr_t) new_offset) << 30) + arena_base());
-              //pmem_memset_persist(rp, 0, GB(((uintptr_t) size_in_GB)));
               tx_atomic_write(reg_n, changed_offset, changed_length, reg,
                               new_offset, size_in_GB, region_id);
               return rp;
