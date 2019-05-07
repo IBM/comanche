@@ -464,6 +464,16 @@ auto hstore::get_attribute(
     {
       return Component::IKVStore::E_TOO_LARGE; /* would be E_NO_MEM, if it were in the interface */
     }
+  case AUTO_HASHTABLE_EXPANSION:
+    try
+    {
+      out_attr.push_back(session->get_auto_resize());
+      return Component::IKVStore::S_OK;
+    }
+    catch ( const std::bad_alloc & )
+    {
+      return Component::IKVStore::E_TOO_LARGE; /* would be E_NO_MEM, if it were in the interface */
+    }
   default:
     ;
   }
@@ -476,7 +486,7 @@ auto hstore::set_attribute(
   , const std::vector<uint64_t> & value
   , const std::string *) -> status_t
 {
-  const auto session = static_cast<const session_t *>(locate_session(pool));
+  auto session = static_cast<session_t *>(locate_session(pool));
   if ( ! session )
   {
     return Component::IKVStore::E_POOL_NOT_FOUND;
@@ -488,10 +498,7 @@ auto hstore::set_attribute(
     {
       return Component::IKVStore::E_BAD_PARAM;
     }
-    if ( value[0] == 0 )
-    {
-      return Component::IKVStore::E_NOT_SUPPORTED;
-    }
+    session->set_auto_resize(bool(value[0]));
     return Component::IKVStore::S_OK;
   default:
     ;

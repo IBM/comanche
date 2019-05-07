@@ -37,6 +37,7 @@ template <
 		: hop_hash_allocator<Allocator>{av_}
 		, persist_controller_t(av_, pc_, mode_)
 		, _hasher{}
+		, _auto_resize{true}
 		, _locate_key_call(0)
 		, _locate_key_owned(0)
 		, _locate_key_unowned(0)
@@ -601,17 +602,18 @@ template <
 			}
 			catch ( const no_near_empty_bucket &e )
 			{
-				owner_lk.unlock();
-
-				hop_hash_log<TRACE_MANY>::write(__func__, "1. before resize\n", dump<TRACE_MANY>::make_hop_hash_dump(*this));
-
-				if ( segment_count() < _segment_capacity )
+				if ( _auto_resize )
 				{
-					resize();
+					owner_lk.unlock();
 
-					hop_hash_log<TRACE_MANY>::write(__func__, "2. after resize\n", dump<TRACE_MANY>::make_hop_hash_dump(*this));
+					hop_hash_log<TRACE_MANY>::write(__func__, "1. before resize\n", dump<TRACE_MANY>::make_hop_hash_dump(*this));
 
-					goto RETRY;
+					if ( segment_count() < _segment_capacity )
+					{
+						resize();
+						hop_hash_log<TRACE_MANY>::write(__func__, "2. after resize\n", dump<TRACE_MANY>::make_hop_hash_dump(*this));
+						goto RETRY;
+					}
 				}
 				throw;
 			}

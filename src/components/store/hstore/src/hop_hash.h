@@ -296,6 +296,7 @@ namespace impl
 			using bucket_mutexes_t = bucket_mutexes<SharedMutex>;
 			using bucket_control_t = bucket_control<bucket_t, SharedMutex>;
 			using bucket_aligned_t = typename bucket_control_t::bucket_aligned_t;
+			static_assert(sizeof(bucket_aligned_t) <= 64, "Bucket size exceeds presumed cache line size (64)");
 			using bucket_allocator_t =
 				typename Allocator::template rebind<bucket_aligned_t>::other;
 			using owner_unique_lock_t = bucket_unique_lock<bucket_t, owner, SharedMutex>;
@@ -325,6 +326,8 @@ namespace impl
 			* That memory can be recovered the next time _b is extended.
 			*/
 			hasher _hasher;
+
+			bool _auto_resize;
 
 			bucket_control_t _bc[_segment_capacity];
 
@@ -518,6 +521,9 @@ namespace impl
 			void unlock(const key_type &key);
 			auto size() const -> size_type;
 
+			bool set_auto_resize(bool v1) { auto v0 = _auto_resize; _auto_resize = v1; return v0; }
+			bool get_auto_resize() const { return _auto_resize; }
+
 #if TRACED_TABLE
 			friend
 				auto operator<< <>(
@@ -634,6 +640,8 @@ template <
 			return size() == 0;
 		}
 		using base::size;
+		using base::get_auto_resize;
+		using base::set_auto_resize;
 		using base::bucket_count;
 		auto max_size() const noexcept -> size_type
 		{
