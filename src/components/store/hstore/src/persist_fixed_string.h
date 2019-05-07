@@ -21,17 +21,17 @@
 #include <cstddef> /* size_t */
 #include <tuple>
 
-template <typename T, typename Allocator>
+template <typename T, std::size_t SmallSize, typename Allocator>
 	class persist_fixed_string;
 
-template <typename T, typename Allocator>
+template <typename T, std::size_t SmallSize, typename Allocator>
 	union rep;
 
 class fixed_string_access
 {
 	fixed_string_access() {}
 public:
-	template <typename T, typename Allocator>
+	template <typename T, std::size_t SmallSize, typename Allocator>
 		friend union rep;
 };
 
@@ -70,7 +70,7 @@ template <typename T>
 		unsigned dec_ref(access) noexcept { return --_ref_count; }
 	};
 
-template <typename T, typename Allocator>
+template <typename T, std::size_t SmallSize, typename Allocator>
 	union rep
 	{
 		using element_type = fixed_string<T>;
@@ -82,7 +82,7 @@ template <typename T, typename Allocator>
 
 		struct small_t
 		{
-			char value[23];
+			char value[SmallSize];
 			std::uint8_t _size; /* discriminant */
 			static constexpr uint8_t large_kind = sizeof value + 1;
 			/* note: as of C++17, can use std::clamp */
@@ -391,7 +391,7 @@ template <typename T, typename Allocator>
 
 	};
 
-template <typename T, typename Allocator>
+template <typename T, std::size_t SmallSize, typename Allocator>
 	class persist_fixed_string
 	{
 		using access = fixed_string_access;
@@ -402,13 +402,14 @@ template <typename T, typename Allocator>
 		 * It does not directly replace persist_fixed_string only to preserve the
 		 * declaration of persist_fixed_string as a class, not a union
 		 */
-		rep<T, Allocator> _rep;
+		rep<T, SmallSize, Allocator> _rep;
 		/* NOTE: allocating the data string adjacent to the header of a fixed_string
 		 * precludes use of a standard allocator
 		 */
 
 	public:
 		using allocator_type = Allocator;
+		static constexpr std::size_t small_size = SmallSize;
 		persist_fixed_string()
 			: _rep()
 		{
@@ -461,10 +462,10 @@ template <typename T, typename Allocator>
 			void reconstitute(AL al_) const { return _rep.reconstitute(al_); }
 	};
 
-template <typename T, typename Allocator>
+template <typename T, std::size_t SmallSize, typename Allocator>
 	bool operator==(
-		const persist_fixed_string<T, Allocator> &a
-		, const persist_fixed_string<T, Allocator> &b
+		const persist_fixed_string<T, SmallSize, Allocator> &a
+		, const persist_fixed_string<T, SmallSize, Allocator> &b
 	)
 	{
 		return
