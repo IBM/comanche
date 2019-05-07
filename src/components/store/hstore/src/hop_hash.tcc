@@ -714,7 +714,7 @@ template <
 		{
 			auto senior_content_lk = make_content_unique_lock(sb_senior);
 
-			/* special locate, used to pre-fill new buckets */
+			/* special locate, used to access junior new buckets */
 			content<value_type> &junior_content = _bc[segment_count()]._buckets[ix_senior];
 			if ( ! is_free(senior_content_lk.sb()) )
 			{
@@ -775,6 +775,16 @@ template <
 		this->persist_controller_t::persist_new_segment("pass 1 copied content");
 	}
 
+/* Returns true iff ownership wraps the table, i.e. the owner is near the end of the table
+ * and the content index is near the beginning.
+ *
+ * ix_senior: index of content before move
+ * junior_bucket_control: access to the new "junior" segment, to which content may move
+ * populated_content_lk: lock providing access to the new location for the content (which
+ *   may be the same as the old location).
+ *
+ * If the owning location changes, the old and new owner masks need to be updated.
+ */
 template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
@@ -791,6 +801,13 @@ template <
 		 * of ix_senior_owner + bucket_count() includes populated_content_lk.
 		 */
 		auto ix_senior_owner = bucket_ix(hash);
+		if ( ! ( distance_wrapped(ix_senior_owner, ix_senior) < owner::size) )
+		{
+			hop_hash_log<true>::write(__func__, ":", __LINE__, " senior owner ", ix_senior_owner
+				, " at invalid distance from senior content ", ix_senior
+				, " with bucket count ", bucket_count());
+		}
+		assert(distance_wrapped(ix_senior_owner, ix_senior) < owner::size);
 		auto ix_junior_owner = bucket_expanded_ix(hash);
 
 		hop_hash_log<TRACE_MANY>::write(__func__, ".2 content "
@@ -811,10 +828,16 @@ template <
 
 			/*
 			 * special locate, used before size has been updated,
-			 * to pre-fill new buckets
+			 * to access junior buckets
 			 */
 			auto &junior_owner = junior_bucket_control._buckets[ix_senior_owner];
 			auto owner_pos = distance_wrapped(ix_senior_owner, ix_senior);
+			if ( ! ( owner_pos < owner::size) )
+			{
+				hop_hash_log<true>::write(__func__, ":", __LINE__, " senior owner ", ix_senior_owner
+					, " at invalid distance from senior content ", ix_senior
+					, " with bucket count ", bucket_count());
+			}
 			assert(owner_pos < owner::size);
 			junior_owner.insert(ix_junior_owner, owner_pos, junior_owner_lk);
 			senior_owner_lk.ref().erase(owner_pos, senior_owner_lk);
@@ -852,7 +875,7 @@ template <
 		{
 			/* get segment count before it was made unstable */
 			/* special locate, used before size has been updated
-			 * to pre-fill new buckets
+			 * to access junior buckets
 			 */
 			content_unique_lock_t
 				junior_content_lk(
