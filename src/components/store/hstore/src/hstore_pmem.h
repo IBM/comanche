@@ -379,7 +379,7 @@ public:
       return uint64_t(Component::IKVStore::E_BAD_PARAM);
 #pragma GCC diagnostic pop
     }
-    return S_OK;
+    return Component::IKVStore::S_OK;
   }
 
   auto pool_create(const pool_path &path_, std::size_t size_, std::size_t expected_obj_count) -> std::unique_ptr<tracked_pool> override

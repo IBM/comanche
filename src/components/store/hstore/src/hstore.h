@@ -243,6 +243,9 @@ public:
                const void * value,
                size_t value_len)> function) override;
 
+  status_t map_keys(pool_t pool,
+               std::function<int(const std::string& key)> function) override;
+
   status_t free_memory(void * p) override;
 
   void debug(pool_t pool, unsigned cmd, uint64_t arg) override;

@@ -71,7 +71,7 @@ template <typename Region, typename Table, typename Allocator, typename LockType
     virtual ~hstore_nupm();
 
     const std::unique_ptr<Devdax_manager> & devdax_manager() const override { return _devdax_manager; }
-    auto pool_create_check(std::size_t) -> status_t override;
+    void pool_create_check(std::size_t) override;
 
     auto pool_create(
       const pool_path &path_

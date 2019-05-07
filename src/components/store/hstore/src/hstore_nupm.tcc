@@ -73,9 +73,8 @@ template <typename Region, typename Table, typename Allocator, typename LockType
   }
 
 template <typename Region, typename Table, typename Allocator, typename LockType>
-  auto hstore_nupm<Region, Table, Allocator, LockType>::pool_create_check(std::size_t) -> status_t
+  void hstore_nupm<Region, Table, Allocator, LockType>::pool_create_check(std::size_t)
   {
-    return S_OK;
   }
 
 template <typename Region, typename Table, typename Allocator, typename LockType>
