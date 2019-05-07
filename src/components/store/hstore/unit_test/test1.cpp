@@ -384,6 +384,38 @@ TEST_F(KVStore_test, BasicGetAttribute)
   EXPECT_EQ(IKVStore::E_KEY_NOT_FOUND, r);
 }
 
+TEST_F(KVStore_test, ResizeAttribute)
+{
+  std::vector<uint64_t> attr;
+
+  auto r = _kvstore->get_attribute(pool, IKVStore::AUTO_HASHTABLE_EXPANSION, attr, nullptr);
+  EXPECT_EQ(IKVStore::S_OK, r);
+  ASSERT_EQ(1, attr.size());
+  EXPECT_EQ(1, attr[0]);
+
+  attr[0] = false;
+  r = _kvstore->set_attribute(pool, IKVStore::AUTO_HASHTABLE_EXPANSION, attr, nullptr);
+  EXPECT_EQ(IKVStore::S_OK, r);
+  EXPECT_EQ(1, attr.size());
+
+  attr.clear();
+  r = _kvstore->get_attribute(pool, IKVStore::AUTO_HASHTABLE_EXPANSION, attr, nullptr);
+  EXPECT_EQ(IKVStore::S_OK, r);
+  ASSERT_EQ(1, attr.size());
+  EXPECT_EQ(0, attr[0]);
+
+  attr[0] = 34;
+  r = _kvstore->set_attribute(pool, IKVStore::AUTO_HASHTABLE_EXPANSION, attr, nullptr);
+  EXPECT_EQ(IKVStore::S_OK, r);
+  EXPECT_EQ(1, attr.size());
+
+  attr.clear();
+  r = _kvstore->get_attribute(pool, IKVStore::AUTO_HASHTABLE_EXPANSION, attr, nullptr);
+  EXPECT_EQ(IKVStore::S_OK, r);
+  ASSERT_EQ(1, attr.size());
+  EXPECT_EQ(1, attr[0]);
+}
+
 TEST_F(KVStore_test, Size2b)
 {
   auto count = _kvstore->count(pool);
