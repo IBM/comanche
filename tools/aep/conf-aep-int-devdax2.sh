@@ -4,13 +4,14 @@ then
     sudo ndctl destroy-namespace all -f
     REGIONS=`ndctl list -R | egrep -oh 'region[0-9]+' | egrep -oh '[0-9]+'`
     echo "Creating namespaces... this will take a while!"
-    for r in $REGIONS
-    do
-	      for p in {0..56}
-	      do
-	          sudo ndctl create-namespace -m devdax --align 2M -r $r -s 54G
-	      done
-    done
+    # region 0
+	  for p in {0..27}
+	  do
+	      sudo ndctl create-namespace -m devdax --align 2M -r region0 -s 96G
+	  done
+    # region 1
+    sudo ndctl create-namespace -m devdax --align 2M -r region1 -s 2688G
+    
     sudo chmod a+rwx /dev/dax*
     ls -l /dev/dax*
 else
