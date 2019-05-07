@@ -34,7 +34,11 @@ namespace Dawn
 namespace Global
 {
 unsigned debug_level = 0;
+
 }
+
+/* statics */
+Pool_manager Shard::pool_manager;
 
 void Shard::initialize_components(const std::string& backend,
                                   const std::string& index,
@@ -252,8 +256,8 @@ void Shard::process_message_pool_request(Connection_handler* handler,
 
     Component::IKVStore::pool_t pool;
 
-    if (handler->check_for_open_pool(pool_name, pool)) {
-      handler->add_reference(pool);
+    if (Shard::pool_manager.check_for_open_pool(pool_name, pool)) {
+      Shard::pool_manager.add_reference(pool);
     }
     else {
       
@@ -269,7 +273,7 @@ void Shard::process_message_pool_request(Connection_handler* handler,
       }
       else {
         /* register pool handle */
-        handler->register_pool(pool_name, pool);
+        Shard::pool_manager.register_pool(pool_name, pool);
         response->pool_id = pool;
         response->status  = S_OK;
       }
@@ -302,10 +306,10 @@ void Shard::process_message_pool_request(Connection_handler* handler,
     const std::string pool_name(msg->pool_name());
     
     /* check that pool is not already open */
-    if (handler->check_for_open_pool(pool_name, pool)) {
+    if (Shard::pool_manager.check_for_open_pool(pool_name, pool)) {
       PLOG("reusing existing open pool (%p)", (void*) pool);
       /* pool exists, increment reference */
-      handler->add_reference(pool);
+      Shard::pool_manager.add_reference(pool);
       response->pool_id = pool;
     }
     else {
@@ -318,7 +322,7 @@ void Shard::process_message_pool_request(Connection_handler* handler,
       }
       else {
         /* register pool handle */
-        handler->register_pool(pool_name, pool);
+        Shard::pool_manager.register_pool(pool_name, pool);
         response->pool_id = pool;
       }
     }
@@ -328,7 +332,7 @@ void Shard::process_message_pool_request(Connection_handler* handler,
     if (option_DEBUG > 1) PMAJOR("POOL CLOSE: pool_id=%lx", msg->pool_id);
 
     /* release reference, if its zero, we can close pool for real */
-    if(handler->release_pool_reference(msg->pool_id)) {
+    if(Shard::pool_manager.release_pool_reference(msg->pool_id)) {
       PLOG("actually closing pool %p", (void*) msg->pool_id);
       response->status = _i_kvstore->close_pool(msg->pool_id);
       assert(response->status == S_OK);
@@ -345,7 +349,7 @@ void Shard::process_message_pool_request(Connection_handler* handler,
     const std::string pool_name = msg->pool_name();
 
     /* check if pool is still open; return error if it is */
-    if (handler->check_for_open_pool(pool_name, pool)) {
+    if (Shard::pool_manager.check_for_open_pool(pool_name, pool)) {
       response->pool_id = 0;
       response->status = Component::IKVStore::E_ALREADY_OPEN;
     }
@@ -622,7 +626,9 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
     std::string k(msg->key(), msg->key_len);
     
     status = _i_kvstore->erase(msg->pool_id, k);
-    remove_index_key(msg->pool_id, k);
+
+    if(status == S_OK)
+      remove_index_key(msg->pool_id, k);
   }
   /////////////////////////////////////////////////////////////////////////////
   //   CONFIGURE     //

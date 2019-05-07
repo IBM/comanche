@@ -110,6 +110,10 @@ class Fabric_transport {
     _transport->post_recv(first, last, descriptors, context);
   }
 
+  inline size_t max_message_size() const {
+    return _transport->max_message_size();
+  }
+
   /**
    * Post send (one or two buffers) and wait for completion.
    *

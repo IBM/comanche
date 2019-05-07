@@ -166,6 +166,7 @@ class Connection_handler : public Connection_base {
                 offset_t& out_matched_offset,
                 std::string& out_matched_key);
 
+  bool check_message_size(size_t size) const { return size > _max_message_size; }
 
  private:
   
