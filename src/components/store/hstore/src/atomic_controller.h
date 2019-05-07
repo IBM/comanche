@@ -52,18 +52,18 @@ namespace impl
 
 			void persist_range(const void *first_, const void *last_, const char *what_);
 
-			auto enter_update(
+			void enter_update(
 				typename Table::allocator_type al_
 				, typename Table::key_type &key
 				, std::vector<Component::IKVStore::Operation *>::const_iterator first
 				, std::vector<Component::IKVStore::Operation *>::const_iterator last
-			) -> Component::status_t;
-			auto enter_replace(
+			);
+			void enter_replace(
 				typename Table::allocator_type al_
 				, typename Table::key_type &key
 				, const char *data_
 				, std::size_t data_len_
-			) -> Component::status_t;
+			);
 	};
 }
 

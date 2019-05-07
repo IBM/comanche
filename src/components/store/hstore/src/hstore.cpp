@@ -169,9 +169,13 @@ try
   {
     PLOG(PREFIX "pool_name=%s size %zu", __func__, name_.c_str(), size_);
   }
+  try
   {
-    auto c = _pool_manager->pool_create_check(size_);
-    if ( c != S_OK ) { return c; }
+    _pool_manager->pool_create_check(size_);
+  }
+  catch ( const std::exception & )
+  {
+    return Component::IKVStore::E_FAIL;
   }
 
   auto path = pool_path(name_);
@@ -226,13 +230,13 @@ status_t hstore::close_pool(const pool_t pid)
     {
       PLOG(PREFIX "closed pool (%" PRIxIKVSTORE_POOL_T ")", __func__, pid);
     }
+    _pool_manager->pool_close_check(path);
   }
   catch ( const API_exception &e )
   {
-    return E_INVAL;
+    return Component::IKVStore::E_FAIL;
   }
-  _pool_manager->pool_close_check(path);
-  return S_OK;
+  return Component::IKVStore::S_OK;
 }
 
 status_t hstore::delete_pool(const std::string &name_)
@@ -244,7 +248,7 @@ status_t hstore::delete_pool(const std::string &name_)
   {
     PLOG("pool deleted: %s", name_.c_str());
   }
-  return S_OK;
+  return Component::IKVStore::S_OK;
 }
 
 auto hstore::grow_pool(
@@ -255,7 +259,7 @@ auto hstore::grow_pool(
   const auto session = static_cast<session_t *>(locate_session(pool));
   if ( ! session )
   {
-    return E_POOL_NOT_FOUND;
+    return Component::IKVStore::E_POOL_NOT_FOUND;
   }
   try
   {
@@ -263,9 +267,9 @@ auto hstore::grow_pool(
   }
   catch ( const std::bad_alloc & )
   {
-    return E_NO_MEM;
+    return Component::IKVStore::E_TOO_LARGE; /* would be E_NO_MEM, if it were in the interface */
   }
-  return S_OK;
+  return Component::IKVStore::S_OK;
 }
 
 auto hstore::put(const pool_t pool,
@@ -287,11 +291,11 @@ auto hstore::put(const pool_t pool,
 
   if ( (flags & ~FLAGS_DONT_STOMP) != 0 )
   {
-    return E_BAD_PARAM;
+    return Component::IKVStore::E_BAD_PARAM;
   }
   if ( value == nullptr )
   {
-    return E_BAD_PARAM;
+    return Component::IKVStore::E_BAD_PARAM;
   }
 
   const auto session = static_cast<session_t *>(locate_session(pool));
@@ -303,19 +307,23 @@ auto hstore::put(const pool_t pool,
       auto i = session->insert(key, value, value_len);
 
       return
-        i.second                   ? S_OK
-        : flags & FLAGS_DONT_STOMP ? E_KEY_EXISTS
-        : session->update_by_issue_41(key, value, value_len, i.first->second.data(), i.first->second.size())
+        i.second                   ? Component::IKVStore::S_OK
+        : flags & FLAGS_DONT_STOMP ? Component::IKVStore::E_KEY_EXISTS
+        : ( session->update_by_issue_41(key, value, value_len, i.first->second.data(), i.first->second.size()), Component::IKVStore::S_OK )
         ;
     }
     catch ( const std::bad_alloc & )
     {
-      return E_NO_MEM;
+      return Component::IKVStore::E_TOO_LARGE; /* would be E_NO_MEM, if it were in the interface */
+    }
+    catch ( const std::invalid_argument & )
+    {
+      return Component::IKVStore::E_NOT_SUPPORTED;
     }
   }
   else
   {
-    return E_POOL_NOT_FOUND;
+    return Component::IKVStore::E_POOL_NOT_FOUND;
   }
 }
 
@@ -324,10 +332,10 @@ auto hstore::get_pool_regions(const pool_t pool, std::vector<::iovec>& out_regio
   const auto session = static_cast<session_t *>(locate_session(pool));
   if ( ! session )
   {
-    return E_POOL_NOT_FOUND;
+    return Component::IKVStore::E_POOL_NOT_FOUND;
   }
   out_regions = _pool_manager->pool_get_regions(session->handle());
-  return S_OK;
+  return Component::IKVStore::S_OK;
 }
 
 auto hstore::put_direct(const pool_t pool,
@@ -348,7 +356,7 @@ auto hstore::get(const pool_t pool,
   const auto session = static_cast<const session_t *>(locate_session(pool));
   if ( ! session )
   {
-    return E_POOL_NOT_FOUND;
+    return Component::IKVStore::E_POOL_NOT_FOUND;
   }
 
   try
@@ -369,7 +377,7 @@ auto hstore::get(const pool_t pool,
        */
       if ( buffer_size < out_value_len )
       {
-        return E_INSUFFICIENT_BUFFER;
+        return Component::IKVStore::E_INSUFFICIENT_BUFFER;
       }
     }
     else
@@ -382,14 +390,14 @@ auto hstore::get(const pool_t pool,
       }
       catch ( const std::bad_alloc & )
       {
-        return E_NO_MEM;
+        return Component::IKVStore::E_TOO_LARGE; /* would be E_NO_MEM, if it were in the interface */
       }
     }
-    return S_OK;
+    return Component::IKVStore::S_OK;
   }
   catch ( const std::out_of_range & )
   {
-    return E_KEY_NOT_FOUND;
+    return Component::IKVStore::E_KEY_NOT_FOUND;
   }
 }
 
@@ -402,7 +410,7 @@ auto hstore::get_direct(const pool_t pool,
   const auto session = static_cast<const session_t *>(locate_session(pool));
   if ( ! session )
   {
-    return E_POOL_NOT_FOUND;
+    return Component::IKVStore::E_POOL_NOT_FOUND;
   }
 
   try
@@ -411,13 +419,13 @@ auto hstore::get_direct(const pool_t pool,
     out_value_len = session->get(key, out_value, buffer_size);
     if ( buffer_size < out_value_len )
     {
-      return E_INSUFFICIENT_BUFFER;
+      return Component::IKVStore::E_INSUFFICIENT_BUFFER;
     }
-    return S_OK;
+    return Component::IKVStore::S_OK;
   }
   catch ( const std::out_of_range & )
   {
-    return E_KEY_NOT_FOUND;
+    return Component::IKVStore::E_KEY_NOT_FOUND;
   }
 }
 
@@ -430,7 +438,7 @@ auto hstore::get_attribute(
   const auto session = static_cast<const session_t *>(locate_session(pool));
   if ( ! session )
   {
-    return E_POOL_NOT_FOUND;
+    return Component::IKVStore::E_POOL_NOT_FOUND;
   }
 
   switch ( attr )
@@ -438,7 +446,7 @@ auto hstore::get_attribute(
   case VALUE_LEN:
     if ( ! key )
     {
-      return E_INVALID_ARG;
+      return Component::IKVStore::E_BAD_PARAM;
     }
     try
     {
@@ -446,20 +454,20 @@ auto hstore::get_attribute(
        * push_back is at least non-destructive.
        */
       out_attr.push_back(session->get_value_len(*key));
-      return S_OK;
+      return Component::IKVStore::S_OK;
     }
     catch ( const std::out_of_range & )
     {
-      return E_KEY_NOT_FOUND;
+      return Component::IKVStore::E_KEY_NOT_FOUND;
     }
     catch ( const std::bad_alloc & )
     {
-      return E_NO_MEM;
+      return Component::IKVStore::E_TOO_LARGE; /* would be E_NO_MEM, if it were in the interface */
     }
   default:
     ;
   }
-  return E_NOT_SUPPORTED;
+  return Component::IKVStore::E_NOT_SUPPORTED;
 }
 
 auto hstore::set_attribute(
@@ -471,25 +479,25 @@ auto hstore::set_attribute(
   const auto session = static_cast<const session_t *>(locate_session(pool));
   if ( ! session )
   {
-    return E_POOL_NOT_FOUND;
+    return Component::IKVStore::E_POOL_NOT_FOUND;
   }
   switch ( attr )
   {
   case AUTO_HASHTABLE_EXPANSION:
     if ( value.size() < 1 )
     {
-      return E_INVALID_ARG;
+      return Component::IKVStore::E_BAD_PARAM;
     }
     if ( value[0] == 0 )
     {
-      return E_NOT_SUPPORTED;
+      return Component::IKVStore::E_NOT_SUPPORTED;
     }
-    return S_OK;
+    return Component::IKVStore::S_OK;
   default:
     ;
   }
 
-  return E_NOT_SUPPORTED;
+  return Component::IKVStore::E_NOT_SUPPORTED;
 }
 
 auto hstore::lock(const pool_t pool,
@@ -514,28 +522,9 @@ auto hstore::unlock(const pool_t pool,
   return
     session
     ? session->unlock(key_)
-    : E_POOL_NOT_FOUND
+    : Component::IKVStore::E_POOL_NOT_FOUND
     ;
 }
-
-// DEPRECATED --
-
-// auto hstore::apply(
-//                    const pool_t pool,
-//                    const std::string &key,
-//                    std::function<void(void*,std::size_t)> functor,
-//                    std::size_t object_size,
-//                    bool take_lock
-//                    ) -> status_t
-// {
-//   const auto apply_method = take_lock ? &session_t::lock_and_apply : &session_t::apply;
-//   const auto session = static_cast<session_t *>(locate_session(pool));
-//   return
-//     session
-//     ? (session->*apply_method)(key, functor, object_size)
-//     : E_POOL_NOT_FOUND
-//     ;
-// }
 
 auto hstore::erase(const pool_t pool,
                    const std::string &key
@@ -543,19 +532,20 @@ auto hstore::erase(const pool_t pool,
 {
   const auto session = static_cast<session_t *>(locate_session(pool));
   return session
-    ? session->erase(key)
-    : E_POOL_NOT_FOUND
+    ? ( session->erase(key) == 0 ? Component::IKVStore::E_KEY_NOT_FOUND : Component::IKVStore::S_OK )
+    : Component::IKVStore::E_POOL_NOT_FOUND
     ;
 }
 
 std::size_t hstore::count(const pool_t pool)
 {
   const auto session = static_cast<session_t *>(locate_session(pool));
-  return
-    session
-    ? session->count()
-    : 0
-    ;
+  if ( ! session )
+  {
+    return Component::IKVStore::E_POOL_NOT_FOUND;
+  }
+
+  return session->count();
 }
 
 void hstore::debug(const pool_t, const unsigned cmd, const uint64_t arg)
@@ -581,22 +571,38 @@ auto hstore::map(
                  pool_t pool,
                  std::function
                  <
-                 int(const std::string &key, const void *val, std::size_t val_len)
-                 > function
+                   int(const std::string &key, const void *val, std::size_t val_len)
+                 > f_
                  ) -> status_t
 {
   const auto session = static_cast<session_t *>(locate_session(pool));
 
   return session
-    ? ( session->map(function), S_OK )
-    : E_POOL_NOT_FOUND
+    ? ( session->map(f_), Component::IKVStore::S_OK )
+    : Component::IKVStore::E_POOL_NOT_FOUND
+    ;
+}
+
+auto hstore::map_keys(
+                 pool_t pool,
+                 std::function
+                 <
+                   int(const std::string &key)
+                 > f_
+                 ) -> status_t
+{
+  const auto session = static_cast<session_t *>(locate_session(pool));
+
+  return session
+    ? ( session->map([&f_] (const std::string &key, const void *, std::size_t) -> int { f_(key); return 0; }), Component::IKVStore::S_OK )
+    : Component::IKVStore::E_POOL_NOT_FOUND
     ;
 }
 
 auto hstore::free_memory(void * p) -> status_t
 {
   scalable_free(p);
-  return S_OK;
+  return Component::IKVStore::S_OK;
 }
 
 auto hstore::atomic_update(
@@ -610,16 +616,20 @@ try
   const auto session = static_cast<session_t *>(locate_session(pool));
     return
       session
-      ? (session->*update_method)(key, op_vector)
-      : E_POOL_NOT_FOUND
+      ? ( (session->*update_method)(key, op_vector), Component::IKVStore::S_OK )
+      : Component::IKVStore::E_POOL_NOT_FOUND
       ;
 }
 catch ( const std::bad_alloc & )
 {
-  return E_NO_MEM;
+  return Component::IKVStore::E_TOO_LARGE; /* would be E_NO_MEM, if it were in the interface */
+}
+catch ( const std::invalid_argument & )
+{
+  return Component::IKVStore::E_NOT_SUPPORTED;
 }
 catch ( const std::system_error & )
 {
-  return E_FAIL;
+  return Component::IKVStore::E_FAIL;
 }
 
