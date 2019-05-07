@@ -336,6 +336,16 @@ template <typename Handle, typename Allocator, typename Table, typename LockType
 			}
 			return Component::IKVStore::S_OK;
 		}
+
+		bool get_auto_resize() const
+		{
+			return this->map().get_auto_resize();
+		}
+
+		void set_auto_resize(bool auto_resize)
+		{
+			this->map().set_auto_resize(auto_resize);
+		}
 #if 0
 		auto locate_apply(
 			const key_t &p_key
