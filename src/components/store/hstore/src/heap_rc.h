@@ -18,6 +18,7 @@
 #include "dax_map.h"
 #include "histogram_log2.h"
 #include "hop_hash_log.h"
+#include "persister_nupm.h"
 #include "rc_alloc_wrapper_lb.h"
 #include "trace_flags.h"
 
@@ -246,9 +247,20 @@ public:
 				{
 					try
 					{
+						/* Note: crash between here and "Slot persist done" may cause devdax_manager_
+						 * to leak the region.
+						 */
 						::iovec r { devdax_manager_->create_region(uuid_next, _numa_node, size), size };
-						_more_region_uuids[_more_region_uuids_size] = uuid_next;
-						++_more_region_uuids_size;
+						{
+							auto &slot = _more_region_uuids[_more_region_uuids_size];
+							slot = uuid_next;
+							persister_nupm::persist(&slot, sizeof slot);
+							/* Slot persist done */
+						}
+						{
+							++_more_region_uuids_size;
+							persister_nupm::persist(&_more_region_uuids_size, _more_region_uuids_size);
+						}
 						_eph->_heap.add_managed_region(r.iov_base, r.iov_len, _numa_node);
 						_eph->_capacity += size;
 						hop_hash_log<TRACE_HEAP_SUMMARY>::write(
