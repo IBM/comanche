@@ -626,7 +626,9 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
     std::string k(msg->key(), msg->key_len);
     
     status = _i_kvstore->erase(msg->pool_id, k);
-    remove_index_key(msg->pool_id, k);
+
+    if(status == S_OK)
+      remove_index_key(msg->pool_id, k);
   }
   /////////////////////////////////////////////////////////////////////////////
   //   CONFIGURE     //
