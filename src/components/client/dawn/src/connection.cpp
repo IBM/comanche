@@ -291,11 +291,6 @@ status_t Connection_handler::two_stage_put_direct(const pool_t                  
 
   assert(pool);
 
-  if (option_DEBUG) {
-    PINF("two_stage_put_direct: key=(%.*s) key_len=%lu value=(%.20s...) value_len=%lu handle=%p",
-         (int) key_len, (char*) key, key_len, (char*) value, value_len, handle);
-  }
-
   assert(value_len <= _max_message_size);
   assert(value_len > 0);
   
