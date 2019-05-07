@@ -45,8 +45,7 @@ using Connection_base = Fabric_connection_base;
  */
 class Connection_handler
     : public Connection_base
-    , public Region_manager
-    , public Pool_manager {
+    , public Region_manager {
  private:
 
   unsigned option_DEBUG = Dawn::Global::debug_level;

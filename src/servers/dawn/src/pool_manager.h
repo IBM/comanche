@@ -22,7 +22,7 @@ namespace Dawn
 using Connection_base = Fabric_connection_base;
 
 /**
-   Pool_manager tracks open pool handles on a per-shard (single thread) basis
+   Pool_manager tracks open pool handles on a per-shard basis
  */
 class Pool_manager {
 private:
@@ -96,7 +96,9 @@ public:
       throw Logic_exception("release_pool_reference on invalid pool");
 
     _open_pools[pool] -= 1;
-    if(option_DEBUG) PLOG("pool (%p) ref:%u", (void*) pool, _open_pools[pool]);
+    
+    if(option_DEBUG)
+      PLOG("pool (%p) ref:%u", (void*) pool, _open_pools[pool]);
     
     if(_open_pools[pool] == 0) {
       _open_pools.erase(pool);
