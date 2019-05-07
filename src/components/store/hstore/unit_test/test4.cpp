@@ -295,7 +295,7 @@ TEST_F(KVStore_test, CreatePools)
     {
       std::size_t sz = 0;
       auto rc = _kvstore->grow_pool(pool[i], pool_alloc - GB(1), sz);
-      ASSERT_EQ(S_OK, rc);
+      ASSERT_EQ(IKVStore::S_OK, rc);
       std::cerr << "grow pool" << " size " << sz << "\n";
     }
 #endif
@@ -351,7 +351,7 @@ long unsigned KVStore_test::put_many(Component::IKVStore::pool_t pool, const kvv
       const auto &key = std::get<0>(kv);
       const auto &value = std::get<1>(kv);
       auto r = _kvstore->put(pool, key, value.data(), value.length());
-      if ( r == S_OK )
+      if ( r == IKVStore::S_OK )
       {
           ++count;
       }
@@ -455,8 +455,8 @@ void KVStore_test::get_many(Component::IKVStore::pool_t pool, const kvv_t &kvv, 
         void * value = nullptr;
         size_t value_len = 0;
         auto r = _kvstore->get(pool, key, value, value_len);
-        EXPECT_EQ(S_OK, r);
-        if ( S_OK == r )
+        EXPECT_EQ(IKVStore::S_OK, r);
+        if ( IKVStore::S_OK == r )
         {
           EXPECT_EQ(std::get<1>(kv).size(), value_len);
         }
