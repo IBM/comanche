@@ -1221,82 +1221,84 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::erase(
-		const key_type &k_
-	) -> size_type
-	try
-	{
-		/* The bucket which owns the entry */
-		auto sbw = make_segment_and_bucket(bucket(k_));
-		auto owner_lk = make_owner_unique_lock(sbw);
-		const auto erase_ix = locate_key(owner_lk, k_);
-		if ( std::get<0>(erase_ix) == nullptr )
+	template <typename K>
+		auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::erase(
+			const K &k_
+		) -> size_type
+		try
 		{
-			/* no such element */
-			return 0U;
-		}
-		else /* element found at bf */
-		{
-			auto erase_src = make_content_unique_lock(std::get<1>(erase_ix));
-			/* 4-step owner erase:
-			 *
-			 * 1. mark size unstable
-			 *  persist
-			 * 2. disclaim owner ownership atomically
-			 *  persist
-			 * 3. mark content FREE (in erase)
-			 *  persist
-			 * 4. mark size stable
-			 *  persist
-			 */
-
-			this->persist_controller_t::persist_content(erase_src.ref(), "content erase exiting");
+			/* The bucket which owns the entry */
+			auto sbw = make_segment_and_bucket(bucket(k_));
+			auto owner_lk = make_owner_unique_lock(sbw);
+			const auto erase_ix = locate_key(owner_lk, k_);
+			if ( std::get<0>(erase_ix) == nullptr )
 			{
-				persist_size_change<Allocator, size_decr> s(*this);
-				owner_lk.ref().erase(
-					static_cast<unsigned>(erase_src.index()-owner_lk.index())
-					, owner_lk
-				);
-				this->persist_controller_t::persist_owner(owner_lk.ref(), "owner erase");
-				erase_src.ref().erase(); /* leaves a "FREE" mark in content */
-				this->persist_controller_t::persist_content(erase_src.ref(), "content erase free");
+				/* no such element */
+				return 0U;
 			}
-			/* persist_size_change may have failed to due to perishable counter, but the exception
-			 * could not be propagated as an exception because it happened in a destructor.
-			 * Throw the exception here.
-			 */
-			perishable::test();
-			return 1U;
+			else /* element found at bf */
+			{
+				auto erase_src = make_content_unique_lock(std::get<1>(erase_ix));
+				/* 4-step owner erase:
+				 *
+				 * 1. mark size unstable
+				 *  persist
+				 * 2. disclaim owner ownership atomically
+				 *  persist
+				 * 3. mark content FREE (in erase)
+				 *  persist
+				 * 4. mark size stable
+				 *  persist
+				 */
+
+				this->persist_controller_t::persist_content(erase_src.ref(), "content erase exiting");
+				{
+					persist_size_change<Allocator, size_decr> s(*this);
+					owner_lk.ref().erase(
+						static_cast<unsigned>(erase_src.index()-owner_lk.index())
+						, owner_lk
+					);
+					this->persist_controller_t::persist_owner(owner_lk.ref(), "owner erase");
+					erase_src.ref().erase(); /* leaves a "FREE" mark in content */
+					this->persist_controller_t::persist_content(erase_src.ref(), "content erase free");
+				}
+				/* persist_size_change may have failed to due to perishable counter, but the exception
+				 * could not be propagated as an exception because it happened in a destructor.
+				 * Throw the exception here.
+				 */
+				perishable::test();
+				return 1U;
+			}
 		}
-	}
-	catch ( const perishable_expiry & )
-	{
-		hop_hash_log<TRACE_PERISHABLE_EXPIRY>::write(__func__, "perishable expiry dump (erase)\n"
-			, dump<TRACE_PERISHABLE_EXPIRY>::make_hop_hash_dump(*this));
-		throw;
-	}
+		catch ( const perishable_expiry & )
+		{
+			hop_hash_log<TRACE_PERISHABLE_EXPIRY>::write(__func__, "perishable expiry dump (erase)\n"
+				, dump<TRACE_PERISHABLE_EXPIRY>::make_hop_hash_dump(*this));
+			throw;
+		}
 
 template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::count(
-		const key_type &k_
-	) const -> size_type
-	{
-		auto bi_lk = make_owner_shared_lock(k_);
-		const auto bf = locate_key(bi_lk, k_);
+	template < typename K >
+		auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::count(
+			const K &k_
+		) const -> size_type
+		{
+			auto bi_lk = make_owner_shared_lock(k_);
+			const auto bf = locate_key(bi_lk, k_);
 
-		hop_hash_log<TRACE_MANY>::write(__func__
-			, " ", k_
-			, " starting at ", bi_lk.index()
-			, " "
-			, dump<TRACE_MANY>::make_owner_print(this->bucket_count(), bi_lk)
-			, " found "
-			, *bf);
+			hop_hash_log<TRACE_MANY>::write(__func__
+				, " ", k_
+				, " starting at ", bi_lk.index()
+				, " "
+				, dump<TRACE_MANY>::make_owner_print(this->bucket_count(), bi_lk)
+				, " found "
+				, *bf);
 
-		return bf ? 1U : 0U;
-	}
+			return bf ? 1U : 0U;
+		}
 
 template <
 	typename Key, typename T, typename Hash, typename Pred
@@ -1374,83 +1376,86 @@ template <
 	typename Key, typename T, typename Hash, typename Pred
 	, typename Allocator, typename SharedMutex
 >
-	auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::lock_shared(
-		const key_type &k_
-	) -> bool
-	{
-		/* Lock the entry owner */
-		auto bi_lk = make_owner_shared_lock(k_);
-		const auto bf = locate_key(bi_lk, k_);
-
-		if ( std::get<0>(bf) == nullptr )
+	template <typename K>
+		auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::lock_shared(
+			const K &k_
+		) -> bool
 		{
-			/* no such element */
-			return false;
-		}
+			/* Lock the entry owner */
+			auto bi_lk = make_owner_shared_lock(k_);
+			const auto bf = locate_key(bi_lk, k_);
 
-		auto &m = locate_bucket_mutexes(std::get<1>(bf));
-		auto b = m._m_content.try_lock_shared();
-		if ( b )
-		{
-			m._state = bucket_mutexes_t::SHARED;
-		}
-		return b;
-	}
+			if ( std::get<0>(bf) == nullptr )
+			{
+				/* no such element */
+				return false;
+			}
 
-template <
-	typename Key, typename T, typename Hash, typename Pred
-	, typename Allocator, typename SharedMutex
->
-	auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::lock_unique(
-		const key_type &k_
-	) -> bool
-	{
-		/* Lock the entry owner */
-		auto bi_lk = make_owner_shared_lock(k_);
-		const auto bf = locate_key(bi_lk, k_);
-
-		if ( std::get<0>(bf) == nullptr )
-		{
-			/* no such element */
-			return false;
-		}
-
-		auto &m = locate_bucket_mutexes(std::get<1>(bf));
-		auto b = m._m_content.try_lock();
-		if ( b )
-		{
-			m._state = bucket_mutexes_t::UNIQUE;
-		}
-		return b;
-	}
-
-template <
-	typename Key, typename T, typename Hash, typename Pred
-	, typename Allocator, typename SharedMutex
->
-	auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::unlock(
-		const key_type &k_
-	) -> void
-	{
-		/* Lock the entry owner */
-		auto bi_lk = make_owner_shared_lock(k_);
-		const auto bf = locate_key(bi_lk, k_);
-
-		if ( std::get<0>(bf) != nullptr )
-		{
-			/* found an element */
 			auto &m = locate_bucket_mutexes(std::get<1>(bf));
-			if ( m._state == bucket_mutexes_t::UNIQUE )
+			auto b = m._m_content.try_lock_shared();
+			if ( b )
 			{
 				m._state = bucket_mutexes_t::SHARED;
-				m._m_content.unlock();
 			}
-			else
+			return b;
+		}
+
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	template <typename K>
+		auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::lock_unique(
+			const K &k_
+		) -> bool
+		{
+			/* Lock the entry owner */
+			auto bi_lk = make_owner_shared_lock(k_);
+			const auto bf = locate_key(bi_lk, k_);
+
+			if ( std::get<0>(bf) == nullptr )
 			{
-				m._m_content.unlock_shared();
+				/* no such element */
+				return false;
+			}
+
+			auto &m = locate_bucket_mutexes(std::get<1>(bf));
+			auto b = m._m_content.try_lock();
+			if ( b )
+			{
+				m._state = bucket_mutexes_t::UNIQUE;
+			}
+			return b;
+		}
+
+template <
+	typename Key, typename T, typename Hash, typename Pred
+	, typename Allocator, typename SharedMutex
+>
+	template <typename K>
+		auto impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>::unlock(
+			const K &k_
+		) -> void
+		{
+			/* Lock the entry owner */
+			auto bi_lk = make_owner_shared_lock(k_);
+			const auto bf = locate_key(bi_lk, k_);
+
+			if ( std::get<0>(bf) != nullptr )
+			{
+				/* found an element */
+				auto &m = locate_bucket_mutexes(std::get<1>(bf));
+				if ( m._state == bucket_mutexes_t::UNIQUE )
+				{
+					m._state = bucket_mutexes_t::SHARED;
+					m._m_content.unlock();
+				}
+				else
+				{
+					m._m_content.unlock_shared();
+				}
 			}
 		}
-	}
 
 template <
 	typename Key, typename T, typename Hash, typename Pred
