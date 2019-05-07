@@ -320,6 +320,10 @@ auto hstore::put(const pool_t pool,
     {
       return Component::IKVStore::E_NOT_SUPPORTED;
     }
+    catch ( const std::range_error & )
+    {
+      return Component::IKVStore::E_ALREADY_EXISTS; /* ... and is locked, so cannot be updated */
+    }
   }
   else
   {
@@ -634,6 +638,10 @@ catch ( const std::bad_alloc & )
 catch ( const std::invalid_argument & )
 {
   return Component::IKVStore::E_NOT_SUPPORTED;
+}
+catch ( const std::range_error & )
+{
+  return Component::IKVStore::E_ALREADY_EXISTS; /* ... and is locked, so cannot be updated */
 }
 catch ( const std::system_error & )
 {
