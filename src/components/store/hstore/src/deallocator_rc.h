@@ -117,7 +117,7 @@ template <typename T, typename Persister = persister>
 			return 8; /* reminder to provide a proper max size value */
 		}
 
-		void persist(const void *ptr, size_type len, const char * = nullptr)
+		void persist(const void *ptr, size_type len, const char * = nullptr) const
 		{
 			Persister::persist(ptr, len);
 		}
