@@ -144,7 +144,7 @@ template <typename Region, typename Table, typename Allocator, typename LockType
     auto uuid = dax_uuid_hash(path_);
     open_pool_handle pop(
       std::unique_ptr<region_type, region_closer_t>(
-        static_cast<region_type *>(_devdax_manager->open_region(uuid, _numa_node, nullptr))
+        new (_devdax_manager->open_region(uuid, _numa_node, nullptr)) region_type(_devdax_manager)
         , region_closer_t(this->shared_from_this())
       )
     );
@@ -152,8 +152,6 @@ template <typename Region, typename Table, typename Allocator, typename LockType
     {
       throw std::invalid_argument("failed to re-open pool");
     }
-
-    pop->animate(_devdax_manager);
 
     PLOG(PREFIX "in %s: opened region ID %" PRIx64 " at %p", __func__, path_.str().c_str(), uuid, static_cast<const void *>(pop.get()));
     /* open_pool_handle is a managed region *, and pop is a region. */

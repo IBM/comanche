@@ -54,10 +54,25 @@ template <typename PersistData, typename Heap>
       persister_nupm::persist(this, sizeof *this);
     }
 
+    /* The "reanimate" constructor */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Winit-self"
+    region(
+      const std::unique_ptr<Devdax_manager> & devdax_manager_
+    )
+      : magic(0)
+      , _uuid(this->_uuid)
+      , _heap(devdax_manager_)
+      , _persist_data(std::move(this->_persist_data))
+    {
+      magic = magic_value;
+      persister_nupm::persist(this, sizeof *this);
+    }
+#pragma GCC diagnostic pop
+
 	heap_rc heap() { return heap_rc(&_heap); }
 	persist_data_type &persist_data() { return _persist_data; }
     bool is_initialized() const noexcept { return magic == magic_value; }
-	void animate(const std::unique_ptr<Devdax_manager> & devdax_manager) { _heap.animate(devdax_manager); }
 	void quiesce() { _heap.quiesce(); }
     std::vector<::iovec> get_regions()
     {

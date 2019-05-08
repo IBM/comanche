@@ -62,14 +62,13 @@ template <typename Table>
 template <typename Table>
 	auto impl::atomic_controller<Table>::redo_replace() -> void
 	{
-		_map->erase(_persist->mod_key);
-		const auto *data_begin = _persist->mod_mapped.data();
-		const auto *data_end = data_begin + _persist->mod_mapped.size();
-                _map->emplace(
-			std::piecewise_construct
-			, std::forward_as_tuple(std::move(_persist->mod_key))
-			, std::forward_as_tuple(data_begin, data_end, allocator_type(*this))
-		);
+		/*
+		 * Note: relies on the Table::mapped_type::operator=(Table::mapped_type &)
+		 * being restartable after a crash.
+		 */
+		auto &v = _map->at(_persist->mod_key);
+		v = _persist->mod_mapped;
+		this->persist(&v, sizeof v);
 		redo_finish();
 	}
 

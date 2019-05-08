@@ -48,8 +48,8 @@ template <typename Handle, typename Allocator, typename Table, typename LockType
 			std::string _s;
 		public:
 			lock_impl(const std::string &s_)
-			: Component::IKVStore::Opaque_key{}
-			, _s(s_)
+				: Component::IKVStore::Opaque_key{}
+				, _s(s_)
 			{}
 			const std::string &key() const { return _s; }
 		};
@@ -63,25 +63,26 @@ template <typename Handle, typename Allocator, typename Table, typename LockType
 				;
 		}
 
-		class definite_lock
-		{
-			table_t &_map;
-			const key_t &_key;
-		public:
-			definite_lock(table_t &map_, const key_t &pkey_)
-				: _map(map_)
-				, _key(pkey_)
+		template <typename K>
+			class definite_lock
 			{
-				if ( ! _map.lock_unique(_key) )
+				table_t &_map;
+				const K &_key;
+			public:
+				definite_lock(table_t &map_, const K &pkey_)
+					: _map(map_)
+					, _key(pkey_)
 				{
-					throw General_exception("unable to get write lock");
+					if ( ! _map.lock_unique(_key) )
+					{
+						throw std::range_error("unable to get unique lock");
+					}
 				}
-			}
-			~definite_lock()
-			{
-				_map.unlock(_key); /* release lock */
-			}
-		};
+				~definite_lock()
+				{
+					_map.unlock(_key); /* release lock */
+				}
+			};
 
 		auto allocator() const { return _heap; }
 		table_t &map() noexcept { return _map; }
@@ -195,6 +196,8 @@ template <typename Handle, typename Allocator, typename Table, typename LockType
 			const std::size_t old_value_len
 		)
 		{
+			definite_lock<std::string> dl(this->map(), key);
+
 			/* hstore issue 41: "a put should replace any existing k,v pairs that match.
 			 * If the new put is a different size, then the object should be reallocated.
 			 * If the new put is the same size, then it should be updated in place."
@@ -306,6 +309,12 @@ template <typename Handle, typename Allocator, typename Table, typename LockType
 
 				out_value = r.first->second.data();
 				out_value_len = r.first->second.size();
+
+				if ( ! try_lock(this->map(), type, p_key) )
+				{
+					assert(nullptr == "try_lock should always return true for a new key");
+					return Component::IKVStore::KEY_NONE;
+				}
 			}
 			return new lock_impl(key);
 		}
@@ -346,82 +355,7 @@ template <typename Handle, typename Allocator, typename Table, typename LockType
 		{
 			this->map().set_auto_resize(auto_resize);
 		}
-#if 0
-		auto locate_apply(
-			const key_t &p_key
-			, std::size_t object_size
-		) -> mapped_t *
-		{
-			try
-			{
-				return &this->map().at(p_key);
-			}
-			catch ( const std::out_of_range & )
-			{
-				/* if the key is not found, we create it and
-				allocate value space equal in size to out_value_len
-				*/
 
-				if ( _debug )
-				{
-					PLOG(PREFIX "allocating object %zu bytes", __func__, object_size);
-				}
-
-				auto r =
-					this->map().emplace(
-						std::piecewise_construct
-							, std::forward_as_tuple(p_key)
-						, std::forward_as_tuple(object_size, this->allocator())
-					);
-				return
-					r.second
-					? &(*r.first).second
-					: nullptr
-					;
-			}
-		}
-
-		auto apply(
-			const std::string &key
-			, std::function<void(void*,std::size_t)> functor
-			, std::size_t object_size
-		) -> status_t
-		{
-			auto p_key = key_t(key.begin(), key.end(), this->allocator());
-			if ( auto val = locate_apply(p_key, object_size) )
-			{
-				auto data = static_cast<char *>(val->data());
-				auto data_len = val->size();
-				functor(data, data_len);
-				return Component::IKVStore::S_OK;
-			}
-			else
-			{
-				return Component::IKVStore::E_KEY_NOT_FOUND;
-			}
-		}
-
-		auto lock_and_apply(
-			const std::string &key
-			, std::function<void(void*,std::size_t)> functor
-			, std::size_t object_size
-		) -> status_t
-		{
-			auto p_key = key_t(key.begin(), key.end(), this->allocator());
-			if ( auto val = locate_apply(p_key, object_size) )
-			{
-				auto data = static_cast<char *>(val->data());
-				auto data_len = val->size();
-				definite_lock m(this->map(), p_key);
-				functor(data, data_len);
-				return Component::IKVStore::S_OK;
-			}
-			else
-			{
-				return Component::IKVStore::E_KEY_NOT_FOUND;
-			}
-		}
-#endif
 		auto erase(
 			const std::string &key
 		) -> std::size_t
@@ -495,7 +429,7 @@ template <typename Handle, typename Allocator, typename Table, typename LockType
 		)
 		{
 			auto p_key = key_t(key.begin(), key.end(), this->allocator());
-			definite_lock m(this->map(), p_key);
+			definite_lock<key_t> m(this->map(), p_key);
 			this->atomic_update_inner(p_key, op_vector);
 		}
 	};
