@@ -75,6 +75,7 @@ namespace impl
 			{
 			}
 			persist_atomic(const persist_atomic &) = delete;
+			persist_atomic(persist_atomic &&) = default;
 			persist_atomic& operator=(const persist_atomic &) = delete;
 #if 0
 			friend class atomic_controller<Allocator>;
