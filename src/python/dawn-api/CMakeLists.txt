@@ -5,6 +5,7 @@ option(BUILD_PYTHON_SUPPORT "Build Python support" OFF)
 find_program(PYTHON "python3.6")
 
 if (PYTHON AND BUILD_PYTHON_SUPPORT)
+  
   message("-- Building Python support.")
   set(SETUP_PY_IN "${CMAKE_CURRENT_SOURCE_DIR}/setup.py.in")
   set(SETUP_PY    "${CMAKE_CURRENT_BINARY_DIR}/setup.py")
@@ -29,7 +30,7 @@ if (PYTHON AND BUILD_PYTHON_SUPPORT)
   add_custom_target(target ALL DEPENDS ${OUTPUT})
   add_custom_target(debug COMMAND ${DEBUG_COMMAND})
   add_custom_target(check COMMAND ${CHECK_COMMAND})
-  
+
   install(CODE "execute_process(COMMAND ${PYTHON} ${SETUP_PY} install --home=${CMAKE_INSTALL_PREFIX})")
 else()
   message("-- NOT building Python support.")
