@@ -189,6 +189,19 @@ TEST_F(KVStore_test, BasicPut)
   EXPECT_EQ(IKVStore::S_OK, r);
 }
 
+TEST_F(KVStore_test, BasicPutLocked)
+{
+  single_value.resize(single_value_size);
+  void *value0 = nullptr;
+  std::size_t value0_len = 0;
+  auto *lk = _kvstore->lock(pool, single_key, IKVStore::STORE_LOCK_READ, value0, value0_len);
+  EXPECT_NE(nullptr, lk);
+  auto r = _kvstore->put(pool, single_key, single_value.data(), single_value.length());
+  EXPECT_EQ(IKVStore::E_ALREADY_EXISTS, r);
+  r = _kvstore->unlock(pool, lk);
+  EXPECT_EQ(IKVStore::S_OK, r);
+}
+
 TEST_F(KVStore_test, BasicGet1)
 {
   void * value = nullptr;
@@ -516,6 +529,13 @@ TEST_F(KVStore_test, GetRegions)
 
 TEST_F(KVStore_test, LockMany)
 {
+  /* Lock for read (should succeed)
+   * Lock again for read (should succeed).
+   * Lock for write (should fail).
+   * Lock a non-exisetent key for write (should succeed, creating the key).
+   *
+   * Undo the three successful locks.
+   */
   unsigned ct = 0;
   for ( auto &kv : kvv )
   {
@@ -541,14 +561,13 @@ TEST_F(KVStore_test, LockMany)
       EXPECT_EQ(many_value_length, value1_len);
       EXPECT_EQ(0, memcmp(ev.data(), value1, ev.size()));
     }
-    /* Exclusive locking test. Skip if the library is built without locking. */
-    if ( _kvstore->thread_safety() == IKVStore::THREAD_MODEL_MULTI_PER_POOL )
-    {
-      void * value2 = nullptr;
-      std::size_t value2_len = 0;
-      auto r2 = _kvstore->lock(pool, key, IKVStore::STORE_LOCK_WRITE, value2, value2_len);
-      EXPECT_EQ(nullptr, r2);
-    }
+    /* Exclusive locking test. */
+
+    void * value2 = nullptr;
+    std::size_t value2_len = 0;
+    auto r2 = _kvstore->lock(pool, key, IKVStore::STORE_LOCK_WRITE, value2, value2_len);
+    EXPECT_EQ(nullptr, r2);
+
     void * value3 = nullptr;
     std::size_t value3_len = many_value_length;
     auto r3 = _kvstore->lock(pool, key_new, IKVStore::STORE_LOCK_WRITE, value3, value3_len);
