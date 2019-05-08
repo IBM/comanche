@@ -46,10 +46,6 @@ public:
     FIND_TYPE_PREFIX = 0x4, /*< match prefix only */
   } find_t;
 
-  enum {
-    E_MAX_REACHED = -20,
-  };
-  
   using offset_t = uint64_t;
   
   /** 

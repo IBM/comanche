@@ -232,7 +232,7 @@ TEST_F(KVStore_test, PutMany)
         const auto &value = std::get<1>(kv);
         void * old_value = nullptr;
         size_t old_value_len = 0;
-        if ( IKVStore::S_OK == _kvstore->get(p.pool(), key, old_value, old_value_len) )
+        if ( S_OK == _kvstore->get(p.pool(), key, old_value, old_value_len) )
         {
           _kvstore->free_memory(old_value);
           ++extant_count;
@@ -240,8 +240,8 @@ TEST_F(KVStore_test, PutMany)
         else
         {
           auto r = _kvstore->put(p.pool(), key, value.c_str(), value.length());
-          EXPECT_EQ(IKVStore::S_OK, r);
-          if ( r == IKVStore::S_OK )
+          EXPECT_EQ(S_OK, r);
+          if ( r == S_OK )
           {
             ++succeed_count;
           }
@@ -287,8 +287,8 @@ TEST_F(KVStore_test, GetMany)
         void * value = nullptr;
         size_t value_len = 0;
         auto r = _kvstore->get(p.pool(), key, value, value_len);
-        EXPECT_EQ(IKVStore::S_OK, r);
-        if ( IKVStore::S_OK == r )
+        EXPECT_EQ(S_OK, r);
+        if ( S_OK == r )
         {
           EXPECT_EQ(ev.size(), value_len);
           mismatch_count += ( ev.size() != value_len || 0 != memcmp(ev.data(), value, ev.size()) );
@@ -344,8 +344,8 @@ TEST_F(KVStore_test, UpdateMany)
         const auto update_value = value + ((key[0] & 1) ? "X" : "");
         {
           auto r = _kvstore->put(p.pool(), key, update_value.c_str(), update_value.length());
-          EXPECT_EQ(IKVStore::S_OK, r);
-          if ( r == IKVStore::S_OK )
+          EXPECT_EQ(S_OK, r);
+          if ( r == S_OK )
           {
             ++succeed_count;
           }
@@ -393,8 +393,8 @@ TEST_F(KVStore_test, GetManyUpdates)
         void * value = nullptr;
         size_t value_len = 0;
         auto r = _kvstore->get(p.pool(), key, value, value_len);
-        EXPECT_EQ(IKVStore::S_OK, r);
-        if ( IKVStore::S_OK == r )
+        EXPECT_EQ(S_OK, r);
+        if ( S_OK == r )
         {
           if ( update_ev.size() != value_len )
           {
@@ -438,7 +438,7 @@ TEST_F(KVStore_test, EraseMany)
         {
           const auto &key = std::get<0>(kv);
           auto r = _kvstore->erase(p.pool(), key);
-          if ( r == IKVStore::IKVStore::S_OK )
+          if ( r == S_OK )
           {
             ++erase_count;
           }
