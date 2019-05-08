@@ -67,6 +67,7 @@ auto Fabric_memory_control::register_memory(const void * addr_, size_t size_, st
                                 std::uint64_t(FI_SEND|FI_RECV|FI_READ|FI_WRITE|FI_REMOTE_READ|FI_REMOTE_WRITE),
                                 key_,
                                 flags_);
+  assert(mr);
 
   /* operations which access local memory will need the memory "descriptor." Record it here. */
   auto desc = ::fi_mr_desc(mr);
@@ -79,7 +80,7 @@ auto Fabric_memory_control::register_memory(const void * addr_, size_t size_, st
       std::ostringstream err;
       err << __func__
         << " address " << addr_ << " " << (exists_a_to_d ? "already" : "not") << " registered"
-        << ", descriptor " << desc << " " << (exists_d_to_a ? " already" : "not") << "registered";
+        << ", descriptor " << desc << " " << (exists_d_to_a ? " already" : "not") << " registered";
 
       throw std::range_error(err.str());
     }
