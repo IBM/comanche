@@ -404,8 +404,6 @@ status_t Connection_handler::put_direct(const pool_t                         poo
     PWRN("put_direct: memory handle is invalid");
     return E_INVAL;
   }
-
-  const auto iob = allocate();
     
   status_t status;
 
@@ -417,7 +415,6 @@ status_t Connection_handler::put_direct(const pool_t                         poo
 
       /* check value is not too large for underlying transport */
       if(value_len > _max_message_size) {
-        free_buffer(iob);
         return IKVStore::E_TOO_LARGE;
       }
       
@@ -431,6 +428,8 @@ status_t Connection_handler::put_direct(const pool_t                         poo
                                   handle,
                                   flags);
     }
+
+    const auto iob = allocate();
 
     if (option_DEBUG ||1) {
       PLOG("put_direct: key=(%.*s) key_len=%lu value=(%.20s...) value_len=%lu",
@@ -469,12 +468,13 @@ status_t Connection_handler::put_direct(const pool_t                         poo
       PLOG("got response from PUT_DIRECT operation: status=%d", msg->status);
 
     status = response_msg->status;
+
+    free_buffer(iob);
   }
   catch(...) {
     status = E_FAIL;
   }
   
-  free_buffer(iob);
   return status;
 }
 
