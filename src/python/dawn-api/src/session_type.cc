@@ -44,6 +44,7 @@ Session_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 static void
 Session_dealloc(Session *self)
 {
+  assert(self);
   assert(_dawn);
   self->_dawn->release_ref();
   
@@ -55,7 +56,7 @@ Session_dealloc(Session *self)
 
 static int Session_init(Session *self, PyObject *args, PyObject *kwds)
 {
-  PLOG("Session init");
+  PLOG("Session: init");
   static const char *kwlist[] = {"ip",
                                  "port",
                                  "device",
@@ -69,7 +70,7 @@ static int Session_init(Session *self, PyObject *args, PyObject *kwds)
   
   if (! PyArg_ParseTupleAndKeywords(args,
                                     kwds,
-                                    "s|is",
+                                    "s|isi",
                                     const_cast<char**>(kwlist),
                                     &p_ip,
                                     &port,
@@ -78,6 +79,8 @@ static int Session_init(Session *self, PyObject *args, PyObject *kwds)
     PyErr_SetString(PyExc_RuntimeError, "bad arguments");
     return -1;
   }
+
+  PLOG("Session: debug_level=%d", debug_level);
 
   std::string device = DEFAULT_DEVICE;
   if(p_device)
