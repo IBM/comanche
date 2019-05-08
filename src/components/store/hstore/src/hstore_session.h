@@ -309,6 +309,12 @@ template <typename Handle, typename Allocator, typename Table, typename LockType
 
 				out_value = r.first->second.data();
 				out_value_len = r.first->second.size();
+
+				if ( ! try_lock(this->map(), type, p_key) )
+				{
+					assert(nullptr == "try_lock should always return true for a new key");
+					return Component::IKVStore::KEY_NONE;
+				}
 			}
 			return new lock_impl(key);
 		}
