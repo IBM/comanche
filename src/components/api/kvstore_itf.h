@@ -101,6 +101,7 @@ public:
     COUNT                    = 2,
     CRC32                    = 3, /* get CRC32 of a value */
     AUTO_HASHTABLE_EXPANSION = 4, /* set to true if the hash table should expand */
+    PERCENT_USED             = 5, /* get percent used pool capacity at current size */
   };
 
 
@@ -149,20 +150,14 @@ public:
   };
 
   enum {
-    S_OK = 0,
+    /* see common/errors.h */
     S_MORE = 1,
-    E_FAIL = -1,
-    E_KEY_EXISTS = -2,
-    E_KEY_NOT_FOUND = -3,
-    E_POOL_NOT_FOUND = -4,
-    E_NOT_SUPPORTED = -5,
-    E_ALREADY_EXISTS = -6,
-    E_TOO_LARGE = -7,
-    E_BAD_PARAM = -8,
-    E_BAD_ALIGNMENT = -9,
-    E_INSUFFICIENT_BUFFER = -10,
-    E_BAD_OFFSET = -11,
-    E_ALREADY_OPEN = -12,
+    E_KEY_EXISTS = E_ERROR_BASE - 1,
+    E_KEY_NOT_FOUND = E_ERROR_BASE - 2,
+    E_POOL_NOT_FOUND = E_ERROR_BASE - 3,
+    E_BAD_ALIGNMENT = E_ERROR_BASE - 4,
+    E_TOO_LARGE = E_ERROR_BASE - 5,
+    E_ALREADY_OPEN = E_ERROR_BASE - 6,
   };
 
   /** 

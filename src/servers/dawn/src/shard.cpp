@@ -477,7 +477,7 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
                                msg->flags);
 
       if (option_DEBUG > 2) {
-        if (status == Component::IKVStore::E_ALREADY_EXISTS)
+        if (status == E_ALREADY_EXISTS)
           PLOG("kvstore->put returned E_ALREADY_EXISTS");
         else
           PLOG("kvstore->put returned %d", status);

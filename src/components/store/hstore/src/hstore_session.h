@@ -340,10 +340,10 @@ template <typename Handle, typename Allocator, typename Table, typename LockType
 				}
 				else
 				{
-					return Component::IKVStore::S_OK; /* not really OK - was not one of our locks */
+					return S_OK; /* not really OK - was not one of our locks */
 				}
 			}
-			return Component::IKVStore::S_OK;
+			return S_OK;
 		}
 
 		bool get_auto_resize() const

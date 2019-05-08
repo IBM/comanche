@@ -244,7 +244,7 @@ long unsigned KVStore_test::put_many(const kvv_t &kvv, const std::string &descr)
       const auto &key = std::get<0>(kv);
       const auto &value = std::get<1>(kv);
       auto r = _kvstore->put(pool, key, value.data(), value.length());
-      if ( r == IKVStore::S_OK )
+      if ( r == S_OK )
       {
           ++count;
       }
@@ -327,8 +327,8 @@ void KVStore_test::get_many(const kvv_t &kvv, const std::string &descr)
         void * value = nullptr;
         size_t value_len = 0;
         auto r = _kvstore->get(pool, key, value, value_len);
-        EXPECT_EQ(IKVStore::S_OK, r);
-        if ( IKVStore::S_OK == r )
+        EXPECT_EQ(S_OK, r);
+        if ( S_OK == r )
         {
           EXPECT_EQ(value_len, std::get<1>(kv).size());
           _kvstore->free_memory(value);
