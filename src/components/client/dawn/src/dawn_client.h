@@ -40,10 +40,20 @@ class Dawn_client : public virtual Component::IKVStore,
   static constexpr bool option_DEBUG = true;
 
  protected:
+  
   /**
    * Constructor
    *
    *
+   */
+  /** 
+   * Constructor
+   * 
+   * @param debug_level Debug level (e.g., 0-3)
+   * @param owner Owner information (not used)
+   * @param addr_port_str Address and port info (e.g. 10.0.0.22:11911)
+   * @param device NIC device (e.g., mlnx5_0)
+   * 
    */
   Dawn_client(unsigned           debug_level,
               const std::string& owner,
@@ -197,12 +207,12 @@ class Dawn_client_factory : public Component::IDawn_factory
   void unload() override { delete this; }
 
   Component::IDawn * dawn_create(unsigned           debug_level,
-                                         const std::string& owner,
-                                         const std::string& addr,
-                                         const std::string& param) override
+                                 const std::string& owner,
+                                 const std::string& addr,
+                                 const std::string& device) override
   {
     Component::IDawn* obj =
-      static_cast<Component::IDawn*>(new Dawn_client(debug_level, owner, addr, param));
+      static_cast<Component::IDawn*>(new Dawn_client(debug_level, owner, addr, device));
     obj->add_ref();
     return obj;
   }
@@ -210,10 +220,10 @@ class Dawn_client_factory : public Component::IDawn_factory
   Component::IKVStore * create(unsigned           debug_level,
                                const std::string& owner,
                                const std::string& addr,
-                               const std::string& param) override
+                               const std::string& device) override
   {
     Component::IKVStore* obj =
-      static_cast<Component::IKVStore*>(new Dawn_client(debug_level, owner, addr, param));
+      static_cast<Component::IKVStore*>(new Dawn_client(debug_level, owner, addr, device));
     obj->add_ref();
     return obj;
   }
