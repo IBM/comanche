@@ -234,7 +234,8 @@ status_t hstore::close_pool(const pool_t pid)
   }
   catch ( const API_exception &e )
   {
-    return E_FAIL;
+    PLOG(PREFIX " exception %s", __func__, e.cause());
+    return e.error_code();
   }
   return S_OK;
 }
