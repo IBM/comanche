@@ -51,8 +51,8 @@ Fabric_memory_control::Fabric_memory_control(
    */
   , _domain(_fabric.make_fid_domain(*_domain_info, this))
   , _m{}
-  , _mr_addr_to_desc{}
-  , _mr_desc_to_addr{}
+  , _mr_addr_to_fimr{}
+  , _mr_fimr_to_addr{}
 {
 }
 
@@ -69,30 +69,26 @@ auto Fabric_memory_control::register_memory(const void * addr_, size_t size_, st
                                 flags_);
   assert(mr);
 
-  /* operations which access local memory will need the memory "descriptor." Record it here. */
-  auto desc = ::fi_mr_desc(mr);
   {
+    /* operations which access local memory will need the "mr." Record it here. */
     guard g{_m};
-    auto exists_a_to_d = _mr_addr_to_desc.find(addr_) != _mr_addr_to_desc.end();
-    auto exists_d_to_a = _mr_desc_to_addr.find(desc) != _mr_desc_to_addr.end();
-    if ( exists_a_to_d || exists_d_to_a )
+    auto exists_a_to_f = _mr_addr_to_fimr.find(addr_) != _mr_addr_to_fimr.end();
+    if ( exists_a_to_f )
     {
       std::ostringstream err;
-      err << __func__
-        << " address " << addr_ << " " << (exists_a_to_d ? "already" : "not") << " registered"
-        << ", descriptor " << desc << " " << (exists_d_to_a ? " already" : "not") << " registered";
+      err << __func__ << " address " << addr_ << " already registered";
 
       throw std::range_error(err.str());
     }
-    _mr_addr_to_desc.insert({addr_, desc});
-    _mr_desc_to_addr.insert({desc, addr_});
+    _mr_addr_to_fimr.emplace(addr_, mr);
+    _mr_fimr_to_addr.emplace(mr, addr_);
 
-    auto size_a_to_d = _mr_addr_to_desc.size();
-    auto size_d_to_a = _mr_desc_to_addr.size();
-    if ( size_a_to_d != size_d_to_a )
+    auto size_a_to_f = _mr_addr_to_fimr.size();
+    auto size_f_to_a = _mr_fimr_to_addr.size();
+    if ( size_a_to_f != size_f_to_a )
     {
       std::ostringstream err;
-      err << __func__ << " mismatch: addr_to_desc size " << size_a_to_d << ", desc_to_addr size " << size_d_to_a;
+      err << __func__ << " mismatch: addr_to_fimr size " << size_a_to_f << ", fimr_to_addr size " << size_f_to_a;
       throw std::logic_error(err.str());
     }
   }
@@ -110,35 +106,34 @@ void Fabric_memory_control::deregister_memory(const memory_region_t mr_)
   auto mr = fid_ptr(pointer_cast<::fid_mr>(mr_));
 
   {
-    auto desc = ::fi_mr_desc(&*mr);
     guard g{_m};
-    auto size_a_to_d = _mr_addr_to_desc.size();
-    auto size_d_to_a = _mr_desc_to_addr.size();
-    if ( size_a_to_d != size_d_to_a )
+    auto size_a_to_f = _mr_addr_to_fimr.size();
+    auto size_f_to_a = _mr_fimr_to_addr.size();
+    if ( size_a_to_f != size_f_to_a )
     {
       std::ostringstream err;
-      err << __func__ << " mismatch: addr_to_desc size " << size_a_to_d << ", desc_to_addr size " << size_d_to_a;
+      err << __func__ << " mismatch: addr_to_fimr size " << size_a_to_f << ", fimr_to_addr size " << size_f_to_a;
       throw std::logic_error(err.str());
     }
 
-    auto itr_d_to_a = _mr_desc_to_addr.find(desc);
-    if ( itr_d_to_a == _mr_desc_to_addr.end() )
+    auto itr_f_to_a = _mr_fimr_to_addr.find(&*mr);
+    if ( itr_f_to_a == _mr_fimr_to_addr.end() )
     {
       std::ostringstream err;
-      err << __func__ << " descriptor " << desc << " not found in registry";
+      err << __func__ << " fi_mr " << mr << " not found in registry";
       throw std::range_error(err.str());
     }
 
-    auto addr = itr_d_to_a->second;
-    auto itr_a_to_d = _mr_addr_to_desc.find(addr);
-    if ( itr_a_to_d == _mr_addr_to_desc.end() )
+    auto addr = itr_f_to_a->second;
+    auto itr_a_to_f = _mr_addr_to_fimr.find(addr);
+    if ( itr_a_to_f == _mr_addr_to_fimr.end() )
     {
       std::ostringstream err;
-      err << __func__ << " descriptor " << desc << " in registry but address " << addr << " not found in registry";
+      err << __func__ << " mr " << mr << " in registry but address " << addr << " not found in registry";
       throw std::logic_error(err.str());
     }
-    _mr_addr_to_desc.erase(itr_a_to_d);
-    _mr_desc_to_addr.erase(itr_d_to_a);
+    _mr_addr_to_fimr.erase(itr_a_to_f);
+    _mr_fimr_to_addr.erase(itr_f_to_a);
   }
 }
 
@@ -172,14 +167,14 @@ std::vector<void *> Fabric_memory_control::populated_desc(const ::iovec *first, 
     {
       guard g{_m};
       /* find a key equal to k or, if none, the largest key less than k */
-      auto dit = _mr_addr_to_desc.lower_bound(cursor->iov_base);
+      auto dit = _mr_addr_to_fimr.lower_bound(cursor->iov_base);
       /* If not at k, lower_bound has left us with an iterator beyond k. Back up */
-      if ( dit->first != cursor->iov_base && dit != _mr_addr_to_desc.begin() )
+      if ( dit->first != cursor->iov_base && dit != _mr_addr_to_fimr.begin() )
       {
         --dit;
       }
 
-      desc.emplace_back(dit->second);
+      desc.emplace_back(::fi_mr_desc(dit->second));
     }
   }
   return desc;
