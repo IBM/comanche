@@ -652,7 +652,7 @@ try
     if (rc != S_OK)
     {
       PERR("close_pool returned error code %d", rc);
-      throw;
+      throw std::runtime_error("close_pool returned error code " + std::to_string(rc));
     }
   }
   catch(...)
