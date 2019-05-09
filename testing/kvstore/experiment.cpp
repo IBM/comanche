@@ -467,6 +467,11 @@ void Experiment::initialize(unsigned core)
   try
   {
     _pool = _store->create_pool(_pool_path + _pool_name_local, _pool_size, _pool_flags, _pool_num_objects * HT_SIZE_FACTOR);
+    if ( _pool == Component::IKVStore::POOL_ERROR )
+    {
+      PERR("create_pool failed");
+      throw std::runtime_error("create_pool failed: returned IKVStore::POOL_ERROR. Aborting experiment.");
+    }
   }
   catch ( const Exception &e )
   {
@@ -1161,7 +1166,7 @@ void Experiment::_populate_pool_to_capacity(unsigned core, Component::IKVStore::
     {
       std::cerr << "current = " << current << std::endl;
       PERR("%s", "_populate_pool_to_capacity failed at put call");
-        throw;
+      throw;
     }
 
     // calculate maximum number of elements we can put in pool at one time
