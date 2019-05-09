@@ -28,6 +28,8 @@ struct fid_domain;
 struct fid_mr;
 class Fabric;
 
+struct mr_and_address;
+
 class Fabric_memory_control
   : public Component::IFabric_connection
 {
@@ -36,18 +38,12 @@ class Fabric_memory_control
   std::shared_ptr<::fid_domain> _domain;
   std::mutex _m; /* protects _mr_addr_to_desc, _mr_desc_to_addr */
   /*
-   * Map of [starts of] registered memory regions to fi_mr objects.
+   * Map of [starts of] registered memory regions to mr_and_address objects.
    * The map is maintained because no other layer provides fi_mr values for
    * the addresses in an iovec.
-   * descriptors.
    */
-  std::map<const void *, ::fid_mr * const> _mr_addr_to_fimr;
-  /* since fi_mr_attr_raw may not be implemented, add map from fi_mr * to address.
-   *
-   * Note: "man fi_mr" says "it is safe to use this call with any memory region",
-   * so no longer sure from whence the "may not be implemented" concern came.
-   */
-  std::map<const ::fid_mr *, const void * const> _mr_fimr_to_addr;
+  using map_addr_to_mra = std::multimap<const void *, std::unique_ptr<mr_and_address>>;
+  map_addr_to_mra _mr_addr_to_mra;
 
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_mr_reg fail
@@ -59,6 +55,8 @@ class Fabric_memory_control
     , std::uint64_t key
     , std::uint64_t flags
   ) const;
+
+  ::fid_mr *covering_mr(const ::iovec &v);
 
 public:
   /*
