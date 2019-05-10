@@ -8,8 +8,9 @@ enum {
 
 typedef struct
 {
-   void* vaddr;
-   size_t 
+  uint64_t auth_token; /* token that must be used with the mmap call */
+  void*    vaddr; /* address of memory to share (from calling process perspective) */
+  size_t   vaddr_size; /* size of region to share */
 }
  __attribute__((packed)) IOCTL_EXPOSE_in;
 

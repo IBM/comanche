@@ -39,7 +39,7 @@ MODULE_DESCRIPTION("MCAS support module.");  ///< The description -- see modinfo
 MODULE_VERSION("0.1");              ///< The version of the module
 
 
-static int fop_mmap(struct file *file, struct vm_area_struct *vma);
+static int mcas_mmap(struct file *file, struct vm_area_struct *vma);
 
 inline static bool check_aligned(void* p, unsigned alignment)
 {
@@ -62,8 +62,17 @@ static long mcas_dev_ioctl(struct file *filp,
 #ifdef DEBUG
   printk(KERN_INFO "mcas: dev_ioctl (%d) (arg=%lx)\n", ioctl, arg);
 #endif
-             
-  return r;
+
+  switch(ioctl) {
+  case IOCTL_CMD_EXPOSE:
+    {
+      break;
+    }
+  default:
+    return -EINVAL;
+  }
+  
+  return 0;
 }
 
 static int mcas_dev_release(struct inode *inode, struct file *file)
@@ -81,7 +90,7 @@ static const struct file_operations mcas_chardev_ops = {
 #endif
   .llseek         = noop_llseek,
   .release        = mcas_dev_release,
-  .mmap           = fop_mmap,
+  .mmap           = mcas_mmap,
 };
 
 static struct miscdevice mcas_dev = {
@@ -119,7 +128,7 @@ static struct vm_operations_struct mmap_fops = {
  * physical address
  * 
  */
-static int fop_mmap(struct file *file, struct vm_area_struct *vma)
+static int mcas_mmap(struct file *file, struct vm_area_struct *vma)
 {
   unsigned long type;
   addr_t phys;
@@ -130,24 +139,24 @@ static int fop_mmap(struct file *file, struct vm_area_struct *vma)
   /* TODO: PRIV check!!!! */
 
 #ifdef DEBUG
-  printk(KERN_DEBUG "fop_mmap: flags=%lx offset=%lx\n", vma->vm_flags, vma->vm_pgoff);
+  printk(KERN_DEBUG "mcas_mmap: flags=%lx offset=%lx\n", vma->vm_flags, vma->vm_pgoff);
 #endif
 
 /*   type = (vma->vm_pgoff >> 48); */
 /*   phys = (vma->vm_pgoff & 0xffffffffffffULL); */
 
 /* #ifdef DEBUG */
-/*   printk(KERN_DEBUG "fop_mmap: type=%lx phys=%lx\n", type, phys); */
+/*   printk(KERN_DEBUG "mcas_mmap: type=%lx phys=%lx\n", type, phys); */
 /* #endif */
 /*   //  unsigned long offset = vma->vm_pgoff * PAGE_SIZE; */
 
 /*   if(type == 1) { */
 /*     vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot); /\* uncached *\/ */
-/*     printk(KERN_DEBUG "fop_mmap: set non-cached\n"); */
+/*     printk(KERN_DEBUG "mcas_mmap: set non-cached\n"); */
 /*   } */
 /*   else if(type == 2) { */
 /*     vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot); /\* uncached *\/ */
-/*     printk(KERN_DEBUG "fop_mmap: set write-combined\n"); */
+/*     printk(KERN_DEBUG "mcas_mmap: set write-combined\n"); */
 /*   } */
 /*   /\* PDBG("file->private_data = %p",file->private_data); *\/ */
 
