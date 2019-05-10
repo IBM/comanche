@@ -326,7 +326,7 @@ TEST_F(PoolTest, Put_DuplicateKey)
     // now try to add another value to that key
     rc = _g_store->put(_pool, key, value.c_str(), value_length);
 
-    ASSERT_TRUE(rc == IKVStore::E_KEY_EXISTS || rc == IKVStore::E_ALREADY_EXISTS);  // TODO: figure out why this isn't consistent across store components
+    ASSERT_TRUE(rc == IKVStore::E_KEY_EXISTS || rc == E_ALREADY_EXISTS);  // TODO: figure out why this isn't consistent across store components
 }
 
 TEST_F(PoolTest, Put_Erase)

@@ -18,6 +18,7 @@
 #include "dax_map.h"
 #include "histogram_log2.h"
 #include "hop_hash_log.h"
+#include "persister_nupm.h"
 #include "rc_alloc_wrapper_lb.h"
 #include "trace_flags.h"
 
@@ -97,9 +98,10 @@ class heap_rc_shared
 	static constexpr std::size_t alignment = 64U;
 	::iovec _pool0;
 	unsigned _numa_node;
-	std::unique_ptr<heap_rc_shared_ephemeral> _eph;
 	std::size_t _more_region_uuids_size;
 	std::array<std::uint64_t, 1024U> _more_region_uuids;
+	std::unique_ptr<heap_rc_shared_ephemeral> _eph;
+
 	/* Rca_LB seems not to allocate at or above about 2GiB. Limit reporting to 16 GiB. */
 	/* The set of reconstituted addresses. Only needed during recovery.
 	 * Potentially large, so should be erased after recovery. But there
@@ -162,9 +164,9 @@ public:
 	heap_rc_shared(void *pool_, std::size_t sz_, unsigned numa_node_)
 		: _pool0(align(pool_, sz_))
 		, _numa_node(numa_node_)
-		, _eph(std::make_unique<heap_rc_shared_ephemeral>(_pool0.iov_len))
 		, _more_region_uuids_size(0)
 		, _more_region_uuids()
+		, _eph(std::make_unique<heap_rc_shared_ephemeral>(_pool0.iov_len))
 	{
 		/* cursor now locates the best-aligned region */
 		_eph->_heap.add_managed_region(_pool0.iov_base, _pool0.iov_len, _numa_node);
@@ -176,6 +178,35 @@ public:
 		);
 		VALGRIND_CREATE_MEMPOOL(_pool0.iov_base, 0, false);
 	}
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Winit-self"
+	heap_rc_shared(const std::unique_ptr<Devdax_manager> &devdax_manager_)
+		: _pool0(this->_pool0)
+		, _numa_node(this->_numa_node)
+		, _more_region_uuids_size(this->_more_region_uuids_size)
+		, _more_region_uuids(this->_more_region_uuids)
+		, _eph(std::make_unique<heap_rc_shared_ephemeral>(_pool0.iov_len))
+	{
+		_eph->_heap.add_managed_region(_pool0.iov_base, _pool0.iov_len, _numa_node);
+		hop_hash_log<TRACE_HEAP_SUMMARY>::write(
+			__func__, " this ", this
+			, " pool ", _pool0.iov_base, " .. ", iov_limit(_pool0)
+			, " size ", _pool0.iov_len
+			, " reconstituting"
+		);
+		VALGRIND_MAKE_MEM_DEFINED(_pool0.iov_base, _pool0.iov_len);
+		VALGRIND_CREATE_MEMPOOL(_pool0.iov_base, 0, true);
+		for ( std::size_t i = 0; i != _more_region_uuids_size; ++i )
+		{
+			auto r = open_region(devdax_manager_, _more_region_uuids[i], _numa_node);
+			_eph->_heap.add_managed_region(r.iov_base, r.iov_len, _numa_node);
+			_eph->_capacity += r.iov_len;
+			VALGRIND_MAKE_MEM_DEFINED(r.iov_base, r.iov_len);
+			VALGRIND_CREATE_MEMPOOL(r.iov_base, 0, true);
+		}
+	}
+#pragma GCC diagnostic pop
 
 	~heap_rc_shared()
 	{
@@ -191,33 +222,6 @@ public:
 			throw std::range_error("failed to re-open region " + std::to_string(uuid_));
 		}
 		return iov;
-	}
-
-	void animate(const std::unique_ptr<Devdax_manager> &devdax_manager_)
-	{
-		_eph = std::make_unique<heap_rc_shared_ephemeral>(_pool0.iov_len);
-		_eph->_heap.add_managed_region(_pool0.iov_base, _pool0.iov_len, _numa_node);
-		hop_hash_log<TRACE_HEAP_SUMMARY>::write(
-			__func__, " this ", this
-			, " pool ", _pool0.iov_base, " .. ", iov_limit(_pool0)
-			, " size ", _pool0.iov_len
-			, " reconstituting"
-		);
-		VALGRIND_MAKE_MEM_DEFINED(_pool0.iov_base, _pool0.iov_len);
-		VALGRIND_CREATE_MEMPOOL(_pool0.iov_base, 0, true);
-		for ( std::size_t i = 0; i != _more_region_uuids_size; ++i )
-		{
-#if 0
-			_eph._more_regions.push_back(open_region(devdax_manager_, _more_region_uuids[i], _numa_node));
-			auto &r = _eph._more_regions.back();
-#else
-			auto r = open_region(devdax_manager_, _more_region_uuids[i], _numa_node);
-#endif
-			_eph->_heap.add_managed_region(r.iov_base, r.iov_len, _numa_node);
-			_eph->_capacity += r.iov_len;
-			VALGRIND_MAKE_MEM_DEFINED(r.iov_base, r.iov_len);
-			VALGRIND_CREATE_MEMPOOL(r.iov_base, 0, true);
-		}
 	}
 
 	static void *iov_limit(const ::iovec &r)
@@ -246,9 +250,20 @@ public:
 				{
 					try
 					{
+						/* Note: crash between here and "Slot persist done" may cause devdax_manager_
+						 * to leak the region.
+						 */
 						::iovec r { devdax_manager_->create_region(uuid_next, _numa_node, size), size };
-						_more_region_uuids[_more_region_uuids_size] = uuid_next;
-						++_more_region_uuids_size;
+						{
+							auto &slot = _more_region_uuids[_more_region_uuids_size];
+							slot = uuid_next;
+							persister_nupm::persist(&slot, sizeof slot);
+							/* Slot persist done */
+						}
+						{
+							++_more_region_uuids_size;
+							persister_nupm::persist(&_more_region_uuids_size, _more_region_uuids_size);
+						}
 						_eph->_heap.add_managed_region(r.iov_base, r.iov_len, _numa_node);
 						_eph->_capacity += size;
 						hop_hash_log<TRACE_HEAP_SUMMARY>::write(

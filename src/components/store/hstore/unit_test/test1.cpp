@@ -13,7 +13,9 @@
 #include "store_map.h"
 
 #include <gtest/gtest.h>
+#if 0
 #include <common/utils.h>
+#endif
 #include <api/components.h>
 /* note: we do not include component source, only the API definition */
 #include <api/kvstore_itf.h>
@@ -187,6 +189,19 @@ TEST_F(KVStore_test, BasicPut)
   EXPECT_EQ(S_OK, r);
 }
 
+TEST_F(KVStore_test, BasicPutLocked)
+{
+  single_value.resize(single_value_size);
+  void *value0 = nullptr;
+  std::size_t value0_len = 0;
+  auto *lk = _kvstore->lock(pool, single_key, IKVStore::STORE_LOCK_READ, value0, value0_len);
+  EXPECT_NE(nullptr, lk);
+  auto r = _kvstore->put(pool, single_key, single_value.data(), single_value.length());
+  EXPECT_EQ(E_ALREADY_EXISTS, r);
+  r = _kvstore->unlock(pool, lk);
+  EXPECT_EQ(S_OK, r);
+}
+
 TEST_F(KVStore_test, BasicGet1)
 {
   void * value = nullptr;
@@ -286,15 +301,26 @@ TEST_F(KVStore_test, PutMany)
 
 TEST_F(KVStore_test, BasicMap)
 {
-  _kvstore->map(pool,[](const std::string &key,
+  auto value_len_sum = 0;
+  _kvstore->map(pool,[&value_len_sum](const std::string &key,
                         const void * value,
                         const size_t value_len) -> int
                 {
-#if 0
-                    PINF("key:%lx value@%p value_len=%lu", key, value, value_len);
-#endif
+					value_len_sum += value_len;
                     return 0;
                   });
+  EXPECT_EQ(single_value_updated_different_size.length() + many_count_actual * many_value_length, value_len_sum);
+}
+
+TEST_F(KVStore_test, BasicMapKeys)
+{
+  auto key_len_sum = 0;
+  _kvstore->map_keys(pool,[&key_len_sum](const std::string &key) -> int
+                {
+					key_len_sum += key.size();
+                    return 0;
+                  });
+  EXPECT_EQ(single_key.size() + many_count_actual * many_key_length, key_len_sum);
 }
 
 TEST_F(KVStore_test, Count1)
@@ -364,11 +390,43 @@ TEST_F(KVStore_test, BasicGetAttribute)
     }
   }
   r = _kvstore->get_attribute(pool, Component::IKVStore::Attribute(0), attr, &single_key);
-  EXPECT_EQ(IKVStore::E_NOT_SUPPORTED, r);
+  EXPECT_EQ(E_NOT_SUPPORTED, r);
   r = _kvstore->get_attribute(pool, IKVStore::VALUE_LEN, attr, nullptr);
-  EXPECT_EQ(IKVStore::E_NOT_SUPPORTED, r);
+  EXPECT_EQ(E_BAD_PARAM, r);
   r = _kvstore->get_attribute(pool, IKVStore::VALUE_LEN, attr, &missing_key);
   EXPECT_EQ(IKVStore::E_KEY_NOT_FOUND, r);
+}
+
+TEST_F(KVStore_test, ResizeAttribute)
+{
+  std::vector<uint64_t> attr;
+
+  auto r = _kvstore->get_attribute(pool, IKVStore::AUTO_HASHTABLE_EXPANSION, attr, nullptr);
+  EXPECT_EQ(S_OK, r);
+  ASSERT_EQ(1, attr.size());
+  EXPECT_EQ(1, attr[0]);
+
+  attr[0] = false;
+  r = _kvstore->set_attribute(pool, IKVStore::AUTO_HASHTABLE_EXPANSION, attr, nullptr);
+  EXPECT_EQ(S_OK, r);
+  EXPECT_EQ(1, attr.size());
+
+  attr.clear();
+  r = _kvstore->get_attribute(pool, IKVStore::AUTO_HASHTABLE_EXPANSION, attr, nullptr);
+  EXPECT_EQ(S_OK, r);
+  ASSERT_EQ(1, attr.size());
+  EXPECT_EQ(0, attr[0]);
+
+  attr[0] = 34;
+  r = _kvstore->set_attribute(pool, IKVStore::AUTO_HASHTABLE_EXPANSION, attr, nullptr);
+  EXPECT_EQ(S_OK, r);
+  EXPECT_EQ(1, attr.size());
+
+  attr.clear();
+  r = _kvstore->get_attribute(pool, IKVStore::AUTO_HASHTABLE_EXPANSION, attr, nullptr);
+  EXPECT_EQ(S_OK, r);
+  ASSERT_EQ(1, attr.size());
+  EXPECT_EQ(1, attr[0]);
 }
 
 TEST_F(KVStore_test, Size2b)
@@ -471,6 +529,13 @@ TEST_F(KVStore_test, GetRegions)
 
 TEST_F(KVStore_test, LockMany)
 {
+  /* Lock for read (should succeed)
+   * Lock again for read (should succeed).
+   * Lock for write (should fail).
+   * Lock a non-exisetent key for write (should succeed, creating the key).
+   *
+   * Undo the three successful locks.
+   */
   unsigned ct = 0;
   for ( auto &kv : kvv )
   {
@@ -496,14 +561,13 @@ TEST_F(KVStore_test, LockMany)
       EXPECT_EQ(many_value_length, value1_len);
       EXPECT_EQ(0, memcmp(ev.data(), value1, ev.size()));
     }
-    /* Exclusive locking test. Skip if the library is built without locking. */
-    if ( _kvstore->thread_safety() == IKVStore::THREAD_MODEL_MULTI_PER_POOL )
-    {
-      void * value2 = nullptr;
-      std::size_t value2_len = 0;
-      auto r2 = _kvstore->lock(pool, key, IKVStore::STORE_LOCK_WRITE, value2, value2_len);
-      EXPECT_EQ(nullptr, r2);
-    }
+    /* Exclusive locking test. */
+
+    void * value2 = nullptr;
+    std::size_t value2_len = 0;
+    auto r2 = _kvstore->lock(pool, key, IKVStore::STORE_LOCK_WRITE, value2, value2_len);
+    EXPECT_EQ(nullptr, r2);
+
     void * value3 = nullptr;
     std::size_t value3_len = many_value_length;
     auto r3 = _kvstore->lock(pool, key_new, IKVStore::STORE_LOCK_WRITE, value3, value3_len);

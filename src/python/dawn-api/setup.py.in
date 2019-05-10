@@ -27,17 +27,18 @@ module_core = Extension('dawn',
                                          ('CXX',''),
                                          ('MINOR_VERSION', '0')],
                         include_dirs = [include_dir,
-                                        '${CMAKE_CURRENT_SOURCE_DIR}/../../../build/dist/include',
                                         '${CMAKE_CURRENT_SOURCE_DIR}/../../../src/components',
                                         '${CMAKE_CURRENT_SOURCE_DIR}/../../../src/lib/common/include',
                                         '${CMAKE_CURRENT_BINARY_DIR}/src',
 					'${PYTHON_NUMPY_INCLUDE_DIR}'
+                                        '${CMAKE_CURRENT_SOURCE_DIR}/../../../src/lib/core/include',
+                                        '${CMAKE_CURRENT_BINARY_DIR}/src'
                         ],
-                        library_dirs = ['/usr/lib/python3.5m/',
+                        library_dirs = ['/usr/lib/python3.6m/',
+                                        '${CMAKE_INSTALL_PREFIX}/../src/lib/common',
+                                        '${CMAKE_INSTALL_PREFIX}/../src/lib/core',
                                         '${CMAKE_INSTALL_PREFIX}/lib',
                                         '${CMAKE_INSTALL_PREFIX}/lib64',
-                                        '${CMAKE_BINARY_DIR}/src/lib/common',
-                                        '${CMAKE_BINARY_DIR}/src/lib/core',
                                         '/usr/local/lib',
                         ],
                         libraries = ['common','comanche-core','numa','pthread','z','rt','dl',
@@ -66,6 +67,4 @@ setup (name = 'DawnApiPackage',
        package_dir={ '': '${CMAKE_CURRENT_SOURCE_DIR}' },
        ext_modules = [module_core]
 )
-
-
 

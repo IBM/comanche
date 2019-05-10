@@ -1,10 +1,12 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
-add_compile_options(-g -pedantic -Wall -Wextra -Wcast-align -Wcast-qual -Wconversion -Weffc++ -Wold-style-cast -Wredundant-decls -Wshadow -Wtype-limits -Wunused-parameter -Wwrite-strings)
+project(comanche-fabric CXX)
+
+set (CMAKE_CXX_STANDARD 14)
 
 add_subdirectory(./unit_test)
 
-project(comanche-fabric CXX)
+add_compile_options(-g -pedantic -Wall -Wextra -Wcast-align -Wcast-qual -Wconversion -Weffc++ -Wold-style-cast -Wredundant-decls -Wshadow -Wtype-limits -Wunused-parameter -Wwrite-strings)
 
 include_directories(${CMAKE_INSTALL_PREFIX}/include)
 link_directories(${CMAKE_INSTALL_PREFIX}/lib)

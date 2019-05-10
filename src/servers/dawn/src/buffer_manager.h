@@ -82,7 +82,7 @@ class Buffer_manager {
 
   buffer_t *allocate()
   {
-    if (unlikely(_free.empty())) throw Program_exception("no buffers");
+    if (unlikely(_free.empty())) throw Program_exception("buffer_manager.h: no shard buffers remaining");
     auto iob = _free.back();
     assert(iob->flags == 0);
     _free.pop_back();

@@ -77,8 +77,8 @@ class hstore : public Component::IKVStore
   using alloc_t = allocator_pobj_cache_aligned<char>;
   #endif /* USE_CC_HEAP */
   using dealloc_t = typename alloc_t::deallocator_type;
-  using key_t = persist_fixed_string<char, dealloc_t>;
-  using mapped_t = persist_fixed_string<char, dealloc_t>;
+  using key_t = persist_fixed_string<char, 23, dealloc_t>;
+  using mapped_t = persist_fixed_string<char, 23, dealloc_t>;
   using allocator_segment_t = alloc_t::rebind<std::pair<const key_t, mapped_t>>::other;
 #if THREAD_SAFE_HASH == 1
   /* thread-safe hash */
@@ -242,6 +242,9 @@ public:
                std::function<int(const std::string& key,
                const void * value,
                size_t value_len)> function) override;
+
+  status_t map_keys(pool_t pool,
+               std::function<int(const std::string& key)> function) override;
 
   status_t free_memory(void * p) override;
 
