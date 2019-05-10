@@ -95,7 +95,7 @@ static const struct file_operations mcas_chardev_ops = {
 
 static struct miscdevice mcas_dev = {
   MCAS_MINOR,
-  "mcase",
+  "mcas",
   &mcas_chardev_ops,
 };
 
