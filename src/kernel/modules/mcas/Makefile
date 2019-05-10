@@ -6,7 +6,7 @@ ccflags-y := -g -Wall
 
 obj-m += mcas.o
 
-mcasmod-objs := mcas.o
+mcasmod-objs := mcas.o page_walk.o
 
 all: mcas.ko
 
