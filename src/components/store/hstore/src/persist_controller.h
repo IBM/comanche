@@ -16,6 +16,7 @@
 #define _COMANCHE_HSTORE_PERSIST_CONTROLLER_H
 
 #include "construction_mode.h"
+#include "hop_hash_log.h"
 #include "persist_data.h"
 #include "test_flags.h" /* TEST_HSTORE_PERISHABLE */
 
@@ -31,9 +32,7 @@
  * goes through this class. Ideally this should also get writes to persist_data::_sc.
  */
 
-#if TEST_HSTORE_PERISHABLE
-#include <iostream>
-#endif
+#include "hop_hash_log.h"
 
 class perishable_expiry;
 
@@ -64,7 +63,7 @@ namespace impl
 				catch ( const perishable_expiry & )
 				{
 #if TEST_HSTORE_PERISHABLE
-					std::cerr << "perishable_expiry in " << __func__ << "\n";
+					hop_hash_log::write(__func__, " perishable_expiry");
 #endif
 				}
 			}
@@ -138,12 +137,12 @@ namespace impl
 			{
 				return _persist->_segment_count._specified;
 			}
-#if TEST_HSTORE_PERISHABLE
-			auto size_unstable() const /* debugging */
+
+			auto size_unstable() const /* debugging only */
 			{
 				return _persist->_size_control.value_not_stable();
 			}
-#endif
+
 			std::size_t size() const
 			{
 				return _persist->_size_control.value();

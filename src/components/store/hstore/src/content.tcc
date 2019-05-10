@@ -16,8 +16,6 @@
  * ===== content =====
  */
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Weffc++"
 template <typename Value>
 	impl::content<Value>::content()
 		: _state(FREE)
@@ -26,7 +24,6 @@ template <typename Value>
 		, _owner(owner_undefined)
 #endif
 	{}
-#pragma GCC diagnostic pop
 
 template <typename Value>
 	void impl::content<Value>::set_owner(owner_t

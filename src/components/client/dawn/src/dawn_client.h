@@ -31,8 +31,8 @@
 #include "connection.h"
 #include "dawn_client_config.h"
 
-class Dawn_client : public Component::IKVStore,
-                    public Component::IDawn
+class Dawn_client : public virtual Component::IKVStore,
+                    public virtual Component::IDawn
 {
   friend class Dawn_client_factory;
 
@@ -40,10 +40,20 @@ class Dawn_client : public Component::IKVStore,
   static constexpr bool option_DEBUG = true;
 
  protected:
+  
   /**
    * Constructor
    *
    *
+   */
+  /** 
+   * Constructor
+   * 
+   * @param debug_level Debug level (e.g., 0-3)
+   * @param owner Owner information (not used)
+   * @param addr_port_str Address and port info (e.g. 10.0.0.22:11911)
+   * @param device NIC device (e.g., mlnx5_0)
+   * 
    */
   Dawn_client(unsigned           debug_level,
               const std::string& owner,
@@ -100,6 +110,9 @@ class Dawn_client : public Component::IKVStore,
 
   virtual status_t delete_pool(const std::string& name) override;
 
+  virtual status_t configure_pool(const Component::IKVStore::pool_t pool,
+                                  const std::string& json) override;
+
   virtual status_t put(const pool_t       pool,
                        const std::string& key,
                        const void*        value,
@@ -128,6 +141,11 @@ class Dawn_client : public Component::IKVStore,
 
   virtual size_t count(const pool_t pool) override;
 
+  virtual status_t get_attribute(const IKVStore::pool_t pool,
+                                 const IKVStore::Attribute attr,
+                                 std::vector<uint64_t>& out_attr,
+                                 const std::string* key) override;
+
   virtual void debug(const pool_t pool, unsigned cmd, uint64_t arg) override;
 
   virtual Component::IKVStore::memory_handle_t register_direct_memory(void*  vaddr,
@@ -138,11 +156,11 @@ class Dawn_client : public Component::IKVStore,
   virtual status_t free_memory(void * p) override;
 
   /* IDawn specific methods */
-  virtual std::string find(const std::string& key_expression,
-                           Component::IKVIndex::offset_t begin_position,
-                           Component::IKVIndex::find_t find_type,
-                           Component::IKVIndex::offset_t& out_end_position) override;
-
+  virtual status_t find(const IKVStore::pool_t pool,
+                        const std::string& key_expression,
+                        const offset_t offset,
+                        offset_t& out_matched_offset,
+                        std::string& out_matched_key) override;
   
  private:
 
@@ -162,7 +180,8 @@ class Dawn_client : public Component::IKVStore,
 };
 
 
-class Dawn_client_factory : public Component::IKVStore_factory {
+class Dawn_client_factory : public Component::IDawn_factory
+{
  public:
   /**
    * Component/interface management
@@ -176,24 +195,39 @@ class Dawn_client_factory : public Component::IKVStore_factory {
 
   void* query_interface(Component::uuid_t& itf_uuid) override
   {
-    if (itf_uuid == Component::IKVStore_factory::iid()) {
+    if (itf_uuid == Component::IDawn_factory::iid()) {
+      return (void*) static_cast<Component::IDawn_factory*>(this);
+    }
+    else if (itf_uuid == Component::IKVStore_factory::iid()) {
       return (void*) static_cast<Component::IKVStore_factory*>(this);
     }
-    else
-      return NULL;  // we don't support this interface
+    else return NULL;  // we don't support this interface
   }
 
   void unload() override { delete this; }
 
-  virtual Component::IKVStore* create(unsigned           debug_level,
-                                      const std::string& owner,
-                                      const std::string& addr,
-                                      const std::string& param) override
+  Component::IDawn * dawn_create(unsigned           debug_level,
+                                 const std::string& owner,
+                                 const std::string& addr,
+                                 const std::string& device) override
   {
-    Component::IKVStore* obj = static_cast<Component::IKVStore*>(new Dawn_client(debug_level, owner, addr, param));
+    Component::IDawn* obj =
+      static_cast<Component::IDawn*>(new Dawn_client(debug_level, owner, addr, device));
     obj->add_ref();
     return obj;
   }
+  
+  Component::IKVStore * create(unsigned           debug_level,
+                               const std::string& owner,
+                               const std::string& addr,
+                               const std::string& device) override
+  {
+    Component::IKVStore* obj =
+      static_cast<Component::IKVStore*>(new Dawn_client(debug_level, owner, addr, device));
+    obj->add_ref();
+    return obj;
+  }
+
 };
 
 #endif

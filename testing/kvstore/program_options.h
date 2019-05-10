@@ -26,6 +26,7 @@ public:
   bool verbose;
   bool summary;
   unsigned read_pct;
+  unsigned insert_erase_pct;
   /* finalized later */
   std::string devices;
   unsigned time_secs;
@@ -40,6 +41,7 @@ public:
   int debug_level;
   boost::optional<std::chrono::system_clock::time_point> start_time;
   boost::optional<unsigned> duration;
+  unsigned report_interval;
   std::string owner;
   std::string server_address;
   unsigned port;

@@ -62,14 +62,13 @@ template <typename Table>
 template <typename Table>
 	auto impl::atomic_controller<Table>::redo_replace() -> void
 	{
-		_map->erase(_persist->mod_key);
-		const auto *data_begin = _persist->mod_mapped.data();
-		const auto *data_end = data_begin + _persist->mod_mapped.size();
-                _map->emplace(
-			std::piecewise_construct
-			, std::forward_as_tuple(std::move(_persist->mod_key))
-			, std::forward_as_tuple(data_begin, data_end, allocator_type(*this))
-		);
+		/*
+		 * Note: relies on the Table::mapped_type::operator=(Table::mapped_type &)
+		 * being restartable after a crash.
+		 */
+		auto &v = _map->at(_persist->mod_key);
+		v = _persist->mod_mapped;
+		this->persist(&v, sizeof v);
 		redo_finish();
 	}
 
@@ -97,7 +96,7 @@ template <typename Table>
 				);
 			}
 		}
-		catch ( std::out_of_range & )
+		catch ( const std::out_of_range & )
 		{
 			/* no such key */
 		}
@@ -117,12 +116,12 @@ template <typename Table>
 	}
 
 template <typename Table>
-	auto impl::atomic_controller<Table>::enter_replace(
+	void impl::atomic_controller<Table>::enter_replace(
 		typename Table::allocator_type al_
 		, typename Table::key_type &key
 		, const char *data_
 		, std::size_t data_len_
-	) -> typename Component::status_t
+	)
 	{
 		_persist->mod_key = key;
 		_persist->mod_mapped = typename Table::mapped_type(data_, data_ + data_len_, al_);
@@ -130,16 +129,15 @@ template <typename Table>
 		_persist->mod_size = -1;
 		this->persist(&_persist->mod_size, sizeof _persist->mod_size);
 		redo();
-		return S_OK;
 	}
 
 template <typename Table>
-	auto impl::atomic_controller<Table>::enter_update(
+	void impl::atomic_controller<Table>::enter_update(
 		typename Table::allocator_type al_
 		, typename Table::key_type &key
 		, std::vector<Component::IKVStore::Operation *>::const_iterator first
 		, std::vector<Component::IKVStore::Operation *>::const_iterator last
-	) -> typename Component::status_t
+	)
 	{
 		std::vector<char> src;
 		std::vector<mod_control> mods;
@@ -163,7 +161,7 @@ template <typename Table>
 				}
 				break;
 			default:
-				return E_NOT_SUPPORTED;
+				throw std::invalid_argument("Unknown update code " + std::to_string(int((*first)->type())));
 			};
 		}
 		_persist->mod_key = key;
@@ -198,5 +196,4 @@ template <typename Table>
 		_persist->mod_size = mods.size();
 		this->persist(&_persist->mod_size, sizeof _persist->mod_size);
 		redo();
-		return S_OK;
 	}

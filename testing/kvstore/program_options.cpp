@@ -70,6 +70,7 @@ try
   , verbose( vm_.count("verbose") )
   , summary( vm_.count("summary") )
   , read_pct( clamp(vm_["read_pct"].as<unsigned>(), 0U, 100U) )
+  , insert_erase_pct( clamp(vm_["insert_erase_pct"].as<unsigned>(), 0U, 100U) )
   , devices(vm_.count("devices") ? vm_["devices"].as<std::string>() : cores)
   , time_secs()
   , path( vm_.count("path") ? vm_["path"].as<std::string>() : boost::optional<std::string>() )
@@ -83,6 +84,7 @@ try
   , debug_level(vm_["debug_level"].as<int>())
   , start_time(vm_.count("start_time") ? parse_local_hh_mm(vm_["start_time"].as<std::string>()) : boost::optional<std::chrono::system_clock::time_point>() )
   , duration(vm_.count("duration") ? vm_["duration"].as<unsigned>() : boost::optional<unsigned>() )
+  , report_interval(vm_["report_interval"].as<unsigned>())
   , owner(vm_["owner"].as<std::string>())
   , server_address(vm_["server"].as<std::string>())
   , port(vm_["port"].as<unsigned>())
@@ -144,6 +146,7 @@ void ProgramOptions::add_program_options(
     ("latency_range_max", po::value<double>()->default_value(0.001), "Highest latency bin threshold. Default: 1e-3.")
     ("debug_level", po::value<int>()->default_value(0), "Debug level. Default: 0.")
     ("read_pct", po::value<unsigned>()->default_value(0) , "Read percentage in throughput test. Default: 0.")
+    ("insert_erase_pct", po::value<unsigned>()->default_value(0) , "Insert/erase percentage in throughput test. Default: 0.")
     ("owner", po::value<std::string>()->default_value("owner"), "Owner name for component registration")
     ("server", po::value<std::string>()->default_value("127.0.0.1"), "Dawn server IP address. Default: 127.0.0.1")
     ("port", po::value<unsigned>()->default_value(11911), "Dawn server port. Default 11911")
@@ -157,5 +160,6 @@ void ProgramOptions::add_program_options(
     ("skip_json_reporting", "disables creation of json report file")
     ("continuous", "enables never-ending execution, if possible")
     ("duration", po::value<unsigned>(), "throughput test duration, in seconds")
+    ("report_interval", po::value<unsigned>()->default_value(5), "throughput test report interval, in seconds. Default: 5")
     ;
 }

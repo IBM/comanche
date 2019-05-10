@@ -288,9 +288,12 @@ TEST_F(KVStore_test, GetMany)
         size_t value_len = 0;
         auto r = _kvstore->get(p.pool(), key, value, value_len);
         EXPECT_EQ(S_OK, r);
-        EXPECT_EQ(ev.size(), value_len);
-        mismatch_count += ( ev.size() != value_len || 0 != memcmp(ev.data(), value, ev.size()) );
-        _kvstore->free_memory(value);
+        if ( S_OK == r )
+        {
+          EXPECT_EQ(ev.size(), value_len);
+          mismatch_count += ( ev.size() != value_len || 0 != memcmp(ev.data(), value, ev.size()) );
+          _kvstore->free_memory(value);
+        }
       }
       /* We do not know exactly now many mismatches (caused by duplicates) to expcect,
        * because "extant_count" counts both extant items due to duplicate keys in the
@@ -391,13 +394,16 @@ TEST_F(KVStore_test, GetManyUpdates)
         size_t value_len = 0;
         auto r = _kvstore->get(p.pool(), key, value, value_len);
         EXPECT_EQ(S_OK, r);
-        if ( update_ev.size() != value_len )
+        if ( S_OK == r )
         {
-          std::cerr << "Length mismatch, key length " << key.size() << " key " << key << " expected value " << update_ev << " actual value " << std::string(static_cast<char *>(value), value_len) << " key[0] " << key[0] << " selector " << (key[0] & 1) << "\n";
+          if ( update_ev.size() != value_len )
+          {
+            std::cerr << "Length mismatch, key length " << key.size() << " key " << key << " expected value " << update_ev << " actual value " << std::string(static_cast<char *>(value), value_len) << " key[0] " << key[0] << " selector " << (key[0] & 1) << "\n";
+          }
+          EXPECT_EQ(update_ev.size(), value_len);
+          mismatch_count += ( update_ev.size() != value_len || 0 != memcmp(update_ev.data(), value, update_ev.size()) );
+          _kvstore->free_memory(value);
         }
-        EXPECT_EQ(update_ev.size(), value_len);
-        mismatch_count += ( update_ev.size() != value_len || 0 != memcmp(update_ev.data(), value, update_ev.size()) );
-        _kvstore->free_memory(value);
       }
       /* We do not know exactly now many mismatches (caused by duplicates) to expcect,
        * because "extant_count" counts both extant items due to duplicate keys in the

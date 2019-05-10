@@ -47,7 +47,7 @@
     E_INSUFFICIENT_RESOURCES = -5,                                      \
     E_NO_RESOURCES = -6,                                                \
     E_INSUFFICIENT_SPACE = -7,                                          \
-    E_USER_ERROR = -8, /*used as the base for in-class defined errors*/ \
+    E_INSUFFICIENT_BUFFER = -7,                                         \
     E_BUSY = -9,                                                        \
     E_TAKEN = -10,                                                      \
     E_LENGTH_EXCEEDED = -11,                                            \
@@ -66,10 +66,12 @@
     E_EMPTY = -24,                                                      \
     E_INVALID_ARG = -25,                                                \
     E_BAD_SEMANTICS = -26,                                              \
-    S_EOF = -27,                                                        \
+    E_EOF = -27,                                                        \
     E_ALREADY = -28,                                                    \
+    E_ALREADY_EXISTS = -28,                                             \
     E_NO_RESPONSE = -29,                                                \
     E_TIMEOUT = -30,                                                    \
+    E_MAX_REACHED = -31,                                                \
     E_ERROR_BASE = -50,                                                 \
   }
 #endif

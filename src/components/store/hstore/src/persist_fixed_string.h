@@ -21,17 +21,17 @@
 #include <cstddef> /* size_t */
 #include <tuple>
 
-template <typename T, typename Allocator>
+template <typename T, std::size_t SmallSize, typename Allocator>
 	class persist_fixed_string;
 
-template <typename T, typename Allocator>
+template <typename T, std::size_t SmallSize, typename Allocator>
 	union rep;
 
 class fixed_string_access
 {
 	fixed_string_access() {}
 public:
-	template <typename T, typename Allocator>
+	template <typename T, std::size_t SmallSize, typename Allocator>
 		friend union rep;
 };
 
@@ -61,16 +61,17 @@ template <typename T>
 		{
 		}
 		template <typename Allocator>
-			void persist(Allocator al_)
+			void persist_this(const Allocator &al_)
 			{
 				al_.persist(this, sizeof *this + size());
 			}
 		uint64_t size(access) const noexcept { return size(); }
 		unsigned inc_ref(access) noexcept { return _ref_count++; }
 		unsigned dec_ref(access) noexcept { return --_ref_count; }
+		unsigned ref_count(access) noexcept { return _ref_count; }
 	};
 
-template <typename T, typename Allocator>
+template <typename T, std::size_t SmallSize, typename Allocator>
 	union rep
 	{
 		using element_type = fixed_string<T>;
@@ -82,7 +83,7 @@ template <typename T, typename Allocator>
 
 		struct small_t
 		{
-			char value[23];
+			char value[SmallSize];
 			std::uint8_t _size; /* discriminant */
 			static constexpr uint8_t large_kind = sizeof value + 1;
 			/* note: as of C++17, can use std::clamp */
@@ -104,7 +105,7 @@ template <typename T, typename Allocator>
 			, "large_t overlays with small.size"
 		);
 
-		/* ERROR: need to persist */
+		/* ERROR: caller needs to to persist */
 		rep()
 			: small(0)
 		{
@@ -136,12 +137,12 @@ template <typename T, typename Allocator>
 						ptr_t(
 							static_cast<typename allocator_type::pointer>(
 								typename allocator_void_type::pointer(
-                                                      local_allocator_char_type(al_).allocate(sizeof(element_type) + data_size)
+									local_allocator_char_type(al_).allocate(sizeof(element_type) + data_size)
 								)
 							)
 						);
 					new (&*large.ptr) element_type(first_, last_, access{});
-					large.ptr->persist(al_);
+					large.ptr->persist_this(al_);
 				}
 			}
 
@@ -207,6 +208,8 @@ template <typename T, typename Allocator>
 			}
 		}
 
+		/* Note: To handle "issue 41" updates, this operation must be restartable - must not alter "other" until this is persisted.
+		 */
 		rep &operator=(const rep &other)
 		{
 			if ( is_small() )
@@ -219,16 +222,16 @@ template <typename T, typename Allocator>
 				else
 				{
 					/* small <- large */
-					small = other.small; /* for "large" flag */
 					new (&large.al()) allocator_type(other.large.al());
 					new (&large.ptr) ptr_t(other.large.ptr);
 					large.ptr->inc_ref(access{});
+					small._size = small.large_kind; /* "large" flag */
 				}
 			}
 			else
 			{
 				/* large <- ? */
-				if ( large.ptr && large.ptr->dec_ref(access{}) == 0 )
+				if ( large.ptr && large.ptr->ref_count(access{}) != 0 && large.ptr->dec_ref(access{}) == 0 )
 				{
 					auto sz = sizeof *large.ptr + large.ptr->size(access());
 					large.ptr->~element_type();
@@ -236,11 +239,10 @@ template <typename T, typename Allocator>
 				}
 				large.al().~allocator_char_type();
 
-				small = other.small; /* for "large" flag */
-
 				if ( other.is_small() )
 				{
 					/* large <- small */
+					small = other.small;
 				}
 				else
 				{
@@ -260,16 +262,48 @@ template <typename T, typename Allocator>
 				if ( other.is_small() )
 				{
 					/* small <- small */
-					small = std::move(other.small);
+					small = other.small;
 				}
 				else
 				{
 					/* small <- large */
-					small = std::move(other.small); /* for "large" flag */
-					new (&large.al()) allocator_type(std::move(other.large.al()));
-					new (&large.ptr) ptr_t(std::move(other.large.ptr));
+					new (&large.al()) allocator_type(other.large.al());
+					new (&large.ptr) ptr_t(other.large.ptr);
+					small._size = small.large_kind; /* "large" flag */
 					other.large.ptr = ptr_t();
 				}
+			}
+			else
+			{
+				/* large <- ? */
+				if ( large.ptr && large.ptr->ref_count(access{}) != 0 && large.ptr->dec_ref(access{}) == 0 )
+				{
+					auto sz = sizeof *large.ptr + large.ptr->size(access());
+					large.ptr->~element_type();
+					large.al().deallocate(static_cast<typename allocator_char_type::pointer>(static_cast<typename allocator_void_type::pointer>(large.ptr)), sz);
+				}
+				large.al().~allocator_char_type();
+
+				if ( other.is_small() )
+				{
+					/* large <- small */
+					small = other.small;
+				}
+				else
+				{
+					/* large <- large */
+					large.ptr = other.large.ptr;
+					new (&large.al()) allocator_type(other.large.al());
+					other.large.ptr = ptr_t();
+				}
+			}
+			return *this;
+		}
+
+		~rep()
+		{
+			if ( is_small() )
+			{
 			}
 			else
 			{
@@ -280,45 +314,33 @@ template <typename T, typename Allocator>
 					large.al().deallocate(static_cast<typename allocator_char_type::pointer>(static_cast<typename allocator_void_type::pointer>(large.ptr)), sz);
 				}
 				large.al().~allocator_char_type();
-
-				small = std::move(other.small); /* for "large" flag */
-
-				if ( other.is_small() )
-				{
-					/* large <- small */
-				}
-				else
-				{
-					/* large <- large */
-					large.ptr = other.large.ptr;
-					other.large.ptr = ptr_t();
-					new (&large.al()) allocator_type(other.large.al());
-				}
-			}
-			return *this;
-		}
-
-		~rep()
-		{
-			if ( ! is_small() && large.ptr )
-			{
-				if ( large.ptr->dec_ref(access{}) == 0 )
-				{
-					auto sz = sizeof *large.ptr + large.ptr->size(access());
-					large.ptr->~element_type();
-					large.al().deallocate(static_cast<typename allocator_char_type::pointer>(static_cast<typename allocator_void_type::pointer>(large.ptr)), sz);
-				}
 			}
 		}
 
 		static constexpr uint8_t large_kind = sizeof small.value + 1;
 
+		void deconstitute() const
+		{
+			if ( ! is_small() )
+			{
+				/* used only by the table_base destructor, at which time
+				 * the reference count should be 1. There is not much point
+				 * in decreasing the reference count except to mirror
+				 * reconstitute.
+				 */
+				if ( large.ptr->dec_ref(access()) == 0 )
+				{
+					large.al().~allocator_char_type();
+				}
+			}
+		}
 		template <typename AL>
 			void reconstitute(AL al_) const
 			{
 				using reallocator_char_type = typename AL::template rebind<char>::other;
 				if ( ! is_small() )
 				{
+					new (&const_cast<rep *>(this)->large.al()) allocator_char_type(al_);
 					auto alr = reallocator_char_type(al_);
 					if ( alr.is_reconstituted(large.ptr) )
 					{
@@ -329,7 +351,7 @@ template <typename T, typename Allocator>
 					{
 						/* The data is not yet reconstituted. Reconstitute it.
 						 * Although the original may have had a refcount
-						 * greater than one, we have not yet seene the
+						 * greater than one, we have not yet seen the
 						 * second reference, so the recount must be set to one.
 						 */
 						alr.reconstitute(sizeof *large.ptr + size(), large.ptr);
@@ -371,7 +393,7 @@ template <typename T, typename Allocator>
 
 	};
 
-template <typename T, typename Allocator>
+template <typename T, std::size_t SmallSize, typename Allocator>
 	class persist_fixed_string
 	{
 		using access = fixed_string_access;
@@ -382,13 +404,14 @@ template <typename T, typename Allocator>
 		 * It does not directly replace persist_fixed_string only to preserve the
 		 * declaration of persist_fixed_string as a class, not a union
 		 */
-		rep<T, Allocator> _rep;
+		rep<T, SmallSize, Allocator> _rep;
 		/* NOTE: allocating the data string adjacent to the header of a fixed_string
 		 * precludes use of a standard allocator
 		 */
 
 	public:
 		using allocator_type = Allocator;
+		static constexpr std::size_t small_size = SmallSize;
 		persist_fixed_string()
 			: _rep()
 		{
@@ -436,14 +459,15 @@ template <typename T, typename Allocator>
 
 		T *data() { return _rep.data(); }
 
+		void deconstitute() const { return _rep.deconstitute(); }
 		template <typename AL>
 			void reconstitute(AL al_) const { return _rep.reconstitute(al_); }
 	};
 
-template <typename T, typename Allocator>
+template <typename T, std::size_t SmallSize, typename Allocator>
 	bool operator==(
-		const persist_fixed_string<T, Allocator> &a
-		, const persist_fixed_string<T, Allocator> &b
+		const persist_fixed_string<T, SmallSize, Allocator> &a
+		, const persist_fixed_string<T, SmallSize, Allocator> &b
 	)
 	{
 		return

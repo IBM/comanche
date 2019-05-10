@@ -18,6 +18,7 @@
 #include "deallocator_pobj_cache_aligned.h"
 #include "pool_pobj.h"
 
+#include "hop_hash_log.h"
 #include "persister_pmem.h"
 #include "pobj_bad_alloc.h"
 #include "pointer_pobj.h"
@@ -34,10 +35,6 @@
 #include <cerrno>
 #include <cstdlib> /* size_t, ptrdiff_t */
 #include <cstdint> /* uint64_t */
-
-#if TRACE_PALLOC
-#include <iostream> /* cerr */
-#endif
 
 template <typename T>
 	struct type_number;
@@ -136,11 +133,11 @@ template <typename T, typename Deallocator>
 #if TRACE_PALLOC
 			{
 				auto ptr = static_cast<char *>(pmemobj_direct(oid)) + cache_align;
-				std::cerr << __func__
-					<< " " << (why ? why : "(cache aligned no reason)")
-					<< " [" << static_cast<void *>(ptr)
-					<< ".." << static_cast<void *>(ptr + s * sizeof(T))
-					<< ") OID " << std::hex << oid.pool_uuid_lo << "." << oid.off << "\n";
+				hop_hash_lgo::write(__func__
+					, " ", (why ? why : "(cache aligned no reason)")
+					, " [", static_cast<void *>(ptr)
+					, "..", static_cast<void *>(ptr + s * sizeof(T))
+					, ") OID ", std::hex, oid.pool_uuid_lo, ".", oid.off);
 			}
 #endif
 			return pointer(oid);

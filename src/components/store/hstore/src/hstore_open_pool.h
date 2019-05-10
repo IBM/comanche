@@ -15,43 +15,28 @@
 #ifndef COMANCHE_HSTORE_OPEN_POOL_H
 #define COMANCHE_HSTORE_OPEN_POOL_H
 
-#include "pool_path.h"
-
 #include <utility> /* move */
-
-/* Note: the distinction between tracked_pool and open_pool is needed only
- * because the IKVStore interface allows an "opened" pool to be deleted.
- */
-class tracked_pool
-	: protected pool_path
-	{
-	public:
-		explicit tracked_pool(const pool_path &p_)
-			: pool_path(p_)
-		{}
-		virtual ~tracked_pool() {}
-		pool_path path() const { return *this; }
-	};
 
 template <typename Handle>
 	class open_pool
-		: public tracked_pool
+		: Handle
 	{
-		Handle _pop;
 	public:
-		explicit open_pool(
-			const pool_path &path_
-			, Handle &&pop_
-		)
-			: tracked_pool(path_)
-			, _pop(std::move(pop_))
-		{}
+		using handle_type = Handle;
+
+		template <typename ... Args>
+			explicit open_pool(
+				Args && ... args_
+			)
+				: Handle(std::forward<Args>(args_)...)
+			{}
+
 		open_pool(const open_pool &) = delete;
+		virtual ~open_pool() {}
 		open_pool& operator=(const open_pool &) = delete;
-#if 1
-		/* session constructor and get_pool_regions only */
-		auto *pool() const { return _pop.get(); }
-#endif
+		using Handle::get;
+		using Handle::operator bool;
+		using Handle::operator->;
 	};
 
 #endif

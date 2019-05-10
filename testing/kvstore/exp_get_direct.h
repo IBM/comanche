@@ -57,8 +57,9 @@ public:
         {
            size_t data_size = sizeof(KV_pair) * g_data->num_elements();
            Data * data = static_cast<Data*>(aligned_alloc(pool_size(), data_size));
-           madvise(data, data_size, MADV_HUGEPAGE);
+           madvise(data, data_size, MADV_HUGEPAGE | MADV_DONTFORK);
            _direct_memory_handle = store()->register_direct_memory(data, data_size);
+           assert(_direct_memory_handle);
         }
       }
       catch(...)
@@ -154,7 +155,7 @@ public:
 
         ++_i;  // increment after running so all elements get used
 
-       if (_i == std::size_t(pool_element_end()) + 1)
+       if (_i == std::size_t(pool_element_end()))
        {
             _erase_pool_entries_in_range(pool_element_start(), pool_element_end());
            _populate_pool_to_capacity(core, _direct_memory_handle);

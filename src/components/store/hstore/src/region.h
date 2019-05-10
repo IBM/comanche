@@ -16,22 +16,78 @@
 #define COMANCHE_HSTORE_NUPM_REGION_H
 
 /* requires persist_data_t definition */
+#include "persist_data.h"
 
-class region
-{
-  static constexpr std::uint64_t magic_value = 0xc74892d72eed493a;
-  std::uint64_t magic;
-public:
-  persist_data_t persist_data;
-#if USE_CC_HEAP == 3
-  heap_rc heap;
-#else
-  heap_cc heap;
-#endif
+#include <sys/uio.h>
+#include <memory>
 
-  void initialize() { magic = magic_value; }
-  bool is_initialized() const noexcept { return magic == magic_value; }
-  /* region used by heap_cc follows */
-};
+class Devdax_manager;
+
+template <typename PersistData, typename Heap>
+  class region
+  {
+    static constexpr std::uint64_t magic_value = 0xc74892d72eed493a;
+  public:
+    using heap_type = Heap;
+    using persist_data_type = PersistData;
+
+  private:
+    std::uint64_t magic;
+	std::uint64_t _uuid;
+    heap_type _heap;
+    persist_data_type _persist_data;
+
+  public:
+
+    region(
+      std::uint64_t uuid_
+      , std::size_t size_
+      , std::size_t expected_obj_count
+      , unsigned numa_node_
+    )
+      : magic(0)
+      , _uuid(uuid_)
+      , _heap(this+1, size_ - sizeof(*this), numa_node_)
+      , _persist_data(expected_obj_count, typename PersistData::allocator_type(heap()))
+    {
+      magic = magic_value;
+      persister_nupm::persist(this, sizeof *this);
+    }
+
+    /* The "reanimate" constructor */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Winit-self"
+    region(
+      const std::unique_ptr<Devdax_manager> & devdax_manager_
+    )
+      : magic(0)
+      , _uuid(this->_uuid)
+      , _heap(devdax_manager_)
+      , _persist_data(std::move(this->_persist_data))
+    {
+      magic = magic_value;
+      persister_nupm::persist(this, sizeof *this);
+    }
+#pragma GCC diagnostic pop
+
+	heap_rc heap() { return heap_rc(&_heap); }
+	persist_data_type &persist_data() { return _persist_data; }
+    bool is_initialized() const noexcept { return magic == magic_value; }
+	void quiesce() { _heap.quiesce(); }
+    std::vector<::iovec> get_regions()
+    {
+      std::vector<::iovec> regions;
+      regions.push_back(_heap.region());
+      return regions;
+    }
+	auto grow(
+		const std::unique_ptr<Devdax_manager> & devdax_manager_
+		, std::size_t increment_
+	) -> std::size_t
+	{
+		return _heap.grow(devdax_manager_, _uuid, increment_);
+	}
+    /* region used by heap_cc follows */
+  };
 
 #endif

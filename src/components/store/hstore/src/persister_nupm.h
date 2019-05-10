@@ -39,7 +39,7 @@ public:
     {
       static int count =0;
       if(count < 500) {
-        PLOG("flush %p %lu", a, sz);
+        PLOG("flush %p %zu", a, sz);
         count++;
       }
     }

@@ -659,5 +659,5 @@ std::size_t Fabric_op_control::max_message_size() const noexcept
 
 std::size_t Fabric_op_control::max_inject_size() const noexcept
 {
-  return _ep_info->ep_attr->max_msg_size;
+  return _ep_info->tx_attr->inject_size;
 }

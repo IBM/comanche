@@ -27,6 +27,7 @@
 
 #include <cstdint> /* uint16_t */
 #include <memory> /* shared_ptr */
+#include <mutex> /* mutex */
 #include <thread>
 
 struct fi_info;
@@ -44,7 +45,10 @@ class Fabric_server_generic_factory
   std::shared_ptr<::fid_pep> _pep;
   event_registration _event_registration;
 
+  /* pending connections: inserts by polling thread, removes by user thread */
+  std::mutex _m_pending;
   Pending_cnxns _pending;
+
   Open_cnxns _open;
   /* a write tells the listener thread to exit */
   Fd_pair _end;

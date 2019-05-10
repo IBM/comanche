@@ -70,12 +70,12 @@ template <typename T, typename Persister = persister>
 		{
 			using other = deallocator_rc<U, Persister>;
 		};
-
+#if 0
 		explicit deallocator_rc(void *area_, std::size_t size_, Persister p_ = Persister())
 			: Persister(p_)
 			, _pool(area_, size_)
 		{}
-
+#endif
 		explicit deallocator_rc(void *area_, Persister p_ = Persister())
 			: Persister(p_)
 			, _pool(area_)
@@ -106,10 +106,10 @@ template <typename T, typename Persister = persister>
 
 		void deallocate(
 			pointer p
-			, size_type
+			, size_type sz_
 		)
 		{
-			_pool.free(p);
+			_pool->free(p, sizeof(T) * sz_);
 		}
 
 		auto max_size() const
@@ -117,7 +117,7 @@ template <typename T, typename Persister = persister>
 			return 8; /* reminder to provide a proper max size value */
 		}
 
-		void persist(const void *ptr, size_type len, const char * = nullptr)
+		void persist(const void *ptr, size_type len, const char * = nullptr) const
 		{
 			Persister::persist(ptr, len);
 		}

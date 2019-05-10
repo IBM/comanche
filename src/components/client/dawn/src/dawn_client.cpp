@@ -178,6 +178,12 @@ status_t Dawn_client::delete_pool(const std::string& name)
   return _connection->delete_pool(name);
 }
 
+status_t Dawn_client::configure_pool(const IKVStore::pool_t pool,
+                                     const std::string& json)
+{
+  return _connection->configure_pool(pool, json);
+}
+
 
 status_t Dawn_client::put(const IKVStore::pool_t pool,
                           const std::string&     key,
@@ -216,10 +222,13 @@ status_t Dawn_client::get_direct(const pool_t       pool,
   return _connection->get_direct(pool, key, out_value, out_value_len, handle);
 }
 
-Component::IKVStore::memory_handle_t Dawn_client::register_direct_memory(
-    void*  vaddr,
-    size_t len)
+Component::IKVStore::memory_handle_t
+Dawn_client::register_direct_memory(void*  vaddr,
+                                    size_t len)
 {
+  if(madvise(vaddr, len, MADV_DONTFORK) != 0)
+    throw General_exception("Dawn_client::register_direct_memory:: madvise 'don't fork' failed unexpectedly (%p %lu)", vaddr, len);
+
   return _connection->register_direct_memory(vaddr, len);
 }
 
@@ -233,7 +242,19 @@ status_t Dawn_client::erase(const IKVStore::pool_t pool, const std::string& key)
   return _connection->erase(pool, key);
 }
 
-size_t Dawn_client::count(const IKVStore::pool_t pool) { return 0; }
+size_t Dawn_client::count(const IKVStore::pool_t pool)
+{
+  return _connection->count(pool);
+}
+
+status_t Dawn_client::get_attribute(const IKVStore::pool_t pool,
+                                    const IKVStore::Attribute attr,
+                                    std::vector<uint64_t>& out_attr,
+                                    const std::string* key)
+{
+  return _connection->get_attribute(pool, attr, out_attr, key);
+}
+
 
 status_t Dawn_client::free_memory(void * p)
 {
@@ -245,11 +266,13 @@ void Dawn_client::debug(const IKVStore::pool_t pool, unsigned cmd, uint64_t arg)
 {
 }
 
-std::string Dawn_client::find(const std::string& key_expression,
-                              IKVIndex::offset_t begin_position,
-                              IKVIndex::find_t find_type,
-                              IKVIndex::offset_t& out_end_position) {
-  return std::string("");
+status_t Dawn_client::find(const IKVStore::pool_t pool,
+                           const std::string& key_expression,
+                           const offset_t offset,
+                           offset_t& out_matched_offset,
+                           std::string& out_matched_key)
+{
+  return _connection->find(pool, key_expression, offset, out_matched_offset, out_matched_key);
 }
 
 /**
@@ -259,12 +282,15 @@ std::string Dawn_client::find(const std::string& key_expression,
 extern "C" void* factory_createInstance(Component::uuid_t& component_id)
 {
   if (component_id == Dawn_client_factory::component_id()) {
+    PMAJOR("Creating Dawn_client_factory ...");
     auto fact = new Dawn_client_factory();
     fact->add_ref();
     return static_cast<void*>(fact);
   }
-  else
+  else {
+    PWRN("request for bad factory type");
     return NULL;
+  }
 }
 
 #undef RESET_STATE

@@ -28,6 +28,8 @@ struct fid_domain;
 struct fid_mr;
 class Fabric;
 
+struct mr_and_address;
+
 class Fabric_memory_control
   : public Component::IFabric_connection
 {
@@ -35,10 +37,13 @@ class Fabric_memory_control
   std::shared_ptr<::fi_info> _domain_info;
   std::shared_ptr<::fid_domain> _domain;
   std::mutex _m; /* protects _mr_addr_to_desc, _mr_desc_to_addr */
-  /* Map of [starts of] registered memory regions to memory descriptors. */
-  std::map<const void *, void *> _mr_addr_to_desc;
-  /* since fi_mr_attr_raw may not be implemented, add reverse map as well. */
-  std::map<void *, const void *> _mr_desc_to_addr;
+  /*
+   * Map of [starts of] registered memory regions to mr_and_address objects.
+   * The map is maintained because no other layer provides fi_mr values for
+   * the addresses in an iovec.
+   */
+  using map_addr_to_mra = std::multimap<const void *, std::unique_ptr<mr_and_address>>;
+  map_addr_to_mra _mr_addr_to_mra;
 
   /*
    * @throw fabric_runtime_error : std::runtime_error : ::fi_mr_reg fail
@@ -50,6 +55,8 @@ class Fabric_memory_control
     , std::uint64_t key
     , std::uint64_t flags
   ) const;
+
+  ::fid_mr *covering_mr(const ::iovec &v);
 
 public:
   /*
@@ -69,6 +76,11 @@ public:
 
   /* BEGIN Component::IFabric_connection */
   /**
+   * @contig_addr - the address of memory to be registered for RDMA. Restrictions
+   * in "man fi_verbs" apply: the memory must be page aligned. The ibverbs layer
+   * will execute an madvise(MADV_DONTFORK) syscall against the region. Any error
+   * returned from that syscal will cause the register_memory function to fail.
+   *
    * @throw std::range_error - address already registered
    * @throw std::logic_error - inconsistent memory address tables
    * @throw fabric_runtime_error : std::runtime_error : ::fi_mr_reg fail

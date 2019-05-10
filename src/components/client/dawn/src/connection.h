@@ -65,7 +65,8 @@ class Connection_handler : public Connection_base {
    */
   Connection_handler(Connection_base::Transport* connection);
 
-  ~Connection_handler() { PLOG("Connection_handler::dtor (%p)", this); }
+  ~Connection_handler();
+  
 
  private:
   enum State {
@@ -109,6 +110,8 @@ class Connection_handler : public Connection_base {
 
   status_t delete_pool(const std::string& name);
 
+  status_t configure_pool(const Component::IKVStore::pool_t pool,
+                          const std::string& json);
 
   status_t put(const pool_t      pool,
                const std::string key,
@@ -150,7 +153,23 @@ class Connection_handler : public Connection_base {
 
   uint64_t auth_id() const { return ((uint64_t) this); }
 
+  size_t count(const pool_t pool);
+
+  status_t get_attribute(const Component::IKVStore::pool_t pool,
+                         const Component::IKVStore::Attribute attr,
+                         std::vector<uint64_t>& out_attr,
+                         const std::string* key);
+
+  status_t find(const Component::IKVStore::pool_t pool,
+                const std::string& key_expression,
+                const offset_t offset,
+                offset_t& out_matched_offset,
+                std::string& out_matched_key);
+
+  bool check_message_size(size_t size) const { return size > _max_message_size; }
+
  private:
+  
   /**
    * FSM tick call
    *
@@ -194,10 +213,10 @@ class Connection_handler : public Connection_base {
   std::mutex _api_lock;
 #endif
 
-  bool     _exit             = false;
-  uint64_t _request_id       = 0;
-  size_t   _max_message_size = 0;
-  size_t   _max_inject_size  = 0;
+  bool     _exit                = false;
+  uint64_t _request_id          = 0;
+  size_t   _max_message_size    = 0;
+  size_t   _max_inject_size     = 0;
 
   struct {
     bool short_circuit_backend = false;

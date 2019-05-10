@@ -15,6 +15,8 @@
 #ifndef COMANCHE_HSTORE_NUPM_TYPES_H
 #define COMANCHE_HSTORE_NUPM_TYPES_H
 
+#include "hstore_config.h"
+
 #if USE_CC_HEAP == 1 || USE_CC_HEAP == 3
 #else
 #error USE_CC_HEAP type incompatible with nupm
@@ -24,32 +26,30 @@
 #include "persister_nupm.h"
 
 #include <cstring> /* strerror */
+#include <memory>
 
-class region;
+template <typename Region, typename Table, typename Allocator, typename LockType>
+	class hstore_nupm;
 
-class hstore_nupm;
-
-class region_closer
-{
-	std::shared_ptr<hstore_nupm> _mgr;
-public:
-	region_closer(std::shared_ptr<hstore_nupm> mgr_)
-		: _mgr(mgr_)
-	{}
-
-	void operator()(region *) noexcept
+template <typename Store, typename Region>
+	class region_closer
 	{
-#if 0
-		/* Note: There is not yet a way to close a region.  And when there is,
-		 * the name may be close_region rather than region_close.
-		 */
-		_mgr->region_close(r);
-#endif
-	}
-};
+		std::shared_ptr<Store> _mgr;
+	public:
+		region_closer(std::shared_ptr<Store> mgr_)
+			: _mgr(mgr_)
+		{}
 
-using open_pool_handle = std::unique_ptr<region, region_closer>;
+		void operator()(Region *) noexcept
+		{
+#if 0
+			/* Note: There is not yet a way to close a region. And when there is,
+			 * the name may be close_region rather than region_close.
+			 */
+			_mgr->region_close(r);
+#endif
+		}
+	};
 
 using Persister = persister_nupm;
-
 #endif
