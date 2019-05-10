@@ -12,7 +12,7 @@ typedef struct
   void*    vaddr; /* address of memory to share (from calling process perspective) */
   size_t   vaddr_size; /* size of region to share */
 }
- __attribute__((packed)) IOCTL_EXPOSE_in;
+ __attribute__((packed)) IOCTL_EXPOSE_msg;
 
 // enum {
 //   IOCTL_CMD_GETBITMAP = 9,
