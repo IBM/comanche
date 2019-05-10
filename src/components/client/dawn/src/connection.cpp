@@ -264,6 +264,7 @@ status_t Connection_handler::put(const pool_t pool,
   }
 
   const auto iob = allocate();
+  const auto iobr = allocate();
 
   status_t status;
 
@@ -278,17 +279,19 @@ status_t Connection_handler::put(const pool_t pool,
                                                                           value,
                                                                           value_len,
                                                                           flags);
+
+    const auto response_msg = new (iobr->base()) Dawn::Protocol::Message_IO_response();
+
     if (_options.short_circuit_backend)
       msg->resvd |= Dawn::Protocol::MSG_RESVD_SCBE;
     
     iob->set_length(msg->msg_len);
     
+    sync_recv_0(iobr);
+
     sync_send(iob);
     
-    sync_recv(iob);
-    
-    const auto response_msg =
-      new (iob->base()) Dawn::Protocol::Message_IO_response();
+    sync_recv_1(iobr);
     
     if (response_msg->type_id != Dawn::Protocol::MSG_TYPE_IO_RESPONSE)
       throw Protocol_exception("expected IO_RESPONSE message - got %x",
@@ -304,6 +307,7 @@ status_t Connection_handler::put(const pool_t pool,
     status = E_FAIL;
   }
   
+  free_buffer(iobr);
   free_buffer(iob);
   return status;
 }
