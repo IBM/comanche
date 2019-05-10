@@ -25,7 +25,7 @@
 
 #include <api/kvstore_itf.h>
 
-class FileStore : public Component::IKVStore /* generic Key-Value store interface */
+class File_store : public Component::IKVStore /* generic Key-Value store interface */
 {  
 private:
   static constexpr bool option_DEBUG = false;
@@ -37,13 +37,13 @@ public:
    * @param block_device Block device interface
    * 
    */
-  FileStore(const std::string& owner, const std::string& name);
+  File_store(const std::string& path);
 
   /** 
    * Destructor
    * 
    */
-  virtual ~FileStore();
+  virtual ~File_store();
 
   /** 
    * Component/interface management
@@ -105,7 +105,15 @@ public:
                               void* out_value,
                               size_t& out_value_len,
                               Component::IKVStore::memory_handle_t handle) override;
- 
+
+  virtual Component::IKVStore::key_t lock(const pool_t pool,
+                                          const std::string& key,
+                                          Component::IKVStore::lock_type_t type,
+                                          void*& out_value,
+                                          size_t& out_value_len) override;
+
+  virtual status_t unlock(const pool_t pool,
+                          key_t key_handle) override;
 
   virtual status_t erase(const pool_t pool,
                          const std::string& key) override;
@@ -113,13 +121,26 @@ public:
   virtual size_t count(const pool_t pool) override;
 
   virtual void debug(const pool_t pool, unsigned cmd, uint64_t arg) override;
+
+  virtual status_t get_attribute(const pool_t pool,
+                                 const Attribute attr,
+                                 std::vector<uint64_t>& out_value,
+                                 const std::string* key = nullptr) override;
+
+  virtual status_t map(const pool_t pool,
+                       std::function<int(const std::string& key,
+                                         const void * value,
+                                         const size_t value_len)> function) override;
+
+  virtual status_t map_keys(const pool_t pool,
+                            std::function<int(const std::string& key)> function) override;
   
 private:
-  
+  std::string _root_path;
 };
 
 
-class FileStore_factory : public Component::IKVStore_factory
+class File_store_factory : public Component::IKVStore_factory
 {  
 public:
 
@@ -141,10 +162,10 @@ public:
     delete this;
   }
 
-  virtual Component::IKVStore * create(const std::string& owner,
-                                       const std::string& name) override
-  {    
-    Component::IKVStore * obj = static_cast<Component::IKVStore*>(new FileStore(owner, name));    
+  virtual Component::IKVStore * create(unsigned debug_level,
+                                       std::map<std::string,std::string>& params) {
+    assert(params.find("pm_path") != params.end());
+    Component::IKVStore * obj = static_cast<Component::IKVStore*>(new File_store(params["pm_path"]));
     obj->add_ref();
     return obj;
   }

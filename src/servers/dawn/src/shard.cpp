@@ -12,7 +12,9 @@
 */
 //#define PROFILE
 
+#include <zlib.h>
 #include <api/components.h>
+#include <api/kvindex_itf.h>
 #include <common/dump_utils.h>
 #include <common/utils.h>
 
@@ -22,6 +24,8 @@
 
 #include "shard.h"
 
+#include <algorithm> /* remove */
+
 using namespace Dawn;
 
 namespace Dawn
@@ -30,12 +34,17 @@ namespace Dawn
 namespace Global
 {
 unsigned debug_level = 0;
+
 }
+
+/* statics */
+Pool_manager Shard::pool_manager;
 
 void Shard::initialize_components(const std::string& backend,
                                   const std::string& index,
                                   const std::string& pci_addr,
                                   const std::string& dax_config,
+                                  const std::string& pm_path,
                                   unsigned           debug_level)
 {
   using namespace Component;
@@ -77,29 +86,27 @@ void Shard::initialize_components(const std::string& backend,
     }
     else if (backend == "nvmestore") {
       if (pci_addr.empty())
-        throw General_exception(
-            "nvmestore backend needs pci device configuration");
-
-      _i_kvstore = fact->create("owner", "name", pci_addr);
+        throw General_exception("nvmestore backend needs pci device configuration");
+      std::map<std::string,std::string> params;
+      params["owner"] = "unknown-owner";
+      params["name"] = "unknown-name";
+      params["pci"] = pci_addr;
+      params["pm_path"] = pm_path;
+      _i_kvstore = fact->create(debug_level, params);
     }
     else if (backend == "pmstore") { /* components that support debug level */
       _i_kvstore = fact->create(debug_level, "owner", "name", "");
+    }
+    else if (backend == "filestore") {
+      std::map<std::string,std::string> params;
+      params["pm_path"] = pm_path;
+
+      _i_kvstore = fact->create(debug_level, params);
     }
     else {
       _i_kvstore = fact->create("owner", "name");
     }
     fact->release_ref();
-  }
-  /* INDEX */
-  {
-    IBase* comp;
-    if (index == "rbtree") {
-      comp = load_component("libcomanche-indexrbtree.so", rbtreeindex_factory);
-      if (!comp)
-        throw General_exception("unable to load libcomanche-indexrbtree.so");
-      _index_factory = static_cast<IKVIndex_factory*>(comp->query_interface(IKVIndex_factory::iid()));
-      assert(_index_factory);
-    }    
   }
 }
 
@@ -116,8 +123,8 @@ void Shard::main_loop()
   uint64_t                  tick __attribute__((aligned(8))) = 0;
   static constexpr uint64_t CHECK_CONNECTION_INTERVAL        = 10000000;
 
-  Connection_handler::action_t                            action;
-  std::vector<std::vector<Connection_handler*>::iterator> pending_close;
+  Connection_handler::action_t     action;
+  std::vector<Connection_handler*> pending_close;
 
   while (_thread_exit == false) {
     /* check for new connections - but not too often */
@@ -147,7 +154,7 @@ void Shard::main_loop()
         /* close session */
         if (tick_response == Dawn::Connection_handler::TICK_RESPONSE_CLOSE) {
           if (option_DEBUG > 1) PMAJOR("Shard: closing connection %p", handler);
-          pending_close.push_back(handler_iter);
+          pending_close.push_back(handler);
         }
 
         /* process ALL deferred actions */
@@ -170,10 +177,16 @@ void Shard::main_loop()
           assert(p_msg);
           switch (p_msg->type_id) {
           case MSG_TYPE_IO_REQUEST:
-            process_message_IO_request(handler, static_cast<Protocol::Message_IO_request*>(p_msg));
+            process_message_IO_request(handler,
+                                       static_cast<Protocol::Message_IO_request*>(p_msg));
             break;
           case MSG_TYPE_POOL_REQUEST:
-            process_message_pool_request(handler, static_cast<Protocol::Message_pool_request*>(p_msg));
+            process_message_pool_request(handler,
+                                         static_cast<Protocol::Message_pool_request*>(p_msg));
+            break;
+          case MSG_TYPE_INFO_REQUEST:
+            process_info_request(handler,
+                                 static_cast<Protocol::Message_INFO_request*>(p_msg));
             break;
           default:
             throw General_exception("unrecognizable message type");
@@ -186,18 +199,21 @@ void Shard::main_loop()
       /* handle pending close sessions */
       if (!pending_close.empty()) {
         for (auto& h : pending_close) {
-          if (option_DEBUG > 1 || 1) {
-            PLOG("Deleting handler (%p)", *h);
+          if (option_DEBUG > 1) {
+            PLOG("Deleting handler (%p)", h);
           }
-          assert(*h);
-          delete *h;
-          _handlers.erase(h);
+          assert(h);
+          delete h;
+          _handlers.erase(std::remove(_handlers.begin(), _handlers.end(), h), _handlers.end());
 
           if (option_DEBUG > 1)
             PLOG("# remaining handlers (%lu)", _handlers.size());
         }
         pending_close.clear();
       }
+
+      /* handle tasks */
+      process_tasks();
     }
 
     tick++;
@@ -210,6 +226,7 @@ void Shard::main_loop()
   ProfilerFlush();
 #endif
 }
+
 
 void Shard::process_message_pool_request(Connection_handler* handler,
                                          Protocol::Message_pool_request* msg)
@@ -239,10 +256,11 @@ void Shard::process_message_pool_request(Connection_handler* handler,
 
     Component::IKVStore::pool_t pool;
 
-    if (handler->check_for_open_pool(pool_name, pool)) {
-      handler->add_reference(pool);
+    if (Shard::pool_manager.check_for_open_pool(pool_name, pool)) {
+      Shard::pool_manager.add_reference(pool);
     }
     else {
+      
       pool = _i_kvstore->create_pool(msg->pool_name(),
                                      msg->pool_size,
                                      msg->flags,
@@ -255,12 +273,29 @@ void Shard::process_message_pool_request(Connection_handler* handler,
       }
       else {
         /* register pool handle */
-        handler->register_pool(pool_name, pool);
+        Shard::pool_manager.register_pool(pool_name, pool);
         response->pool_id = pool;
         response->status  = S_OK;
       }
 
       if (option_DEBUG > 2) PLOG("OP_CREATE: new pool id: %lx", pool);
+
+      /* check for ability to pre-register memory with RDMA stack */
+      std::vector<::iovec> regions;
+      status_t hr;
+      if ((hr = _i_kvstore->get_pool_regions(pool, regions)) == S_OK) {
+        if(option_DEBUG > 1)
+          PLOG("pool region query supported.");
+        for(auto& r: regions) {
+          if(option_DEBUG > 1)
+            PLOG("region: %p %lu MiB", r.iov_base, REDUCE_MB(r.iov_len));
+          /* pre-register memory region with RDMA */
+          handler->ondemand_register(r.iov_base, r.iov_len);
+        }
+      }
+      else {
+        PLOG("pool region query NOT supported, using on-demand");
+      }
     }
   }
   else if (msg->op == Dawn::Protocol::OP_OPEN) {
@@ -271,10 +306,10 @@ void Shard::process_message_pool_request(Connection_handler* handler,
     const std::string pool_name(msg->pool_name());
     
     /* check that pool is not already open */
-    if (handler->check_for_open_pool(pool_name, pool)) {
+    if (Shard::pool_manager.check_for_open_pool(pool_name, pool)) {
       PLOG("reusing existing open pool (%p)", (void*) pool);
       /* pool exists, increment reference */
-      handler->add_reference(pool);
+      Shard::pool_manager.add_reference(pool);
       response->pool_id = pool;
     }
     else {
@@ -287,7 +322,7 @@ void Shard::process_message_pool_request(Connection_handler* handler,
       }
       else {
         /* register pool handle */
-        handler->register_pool(pool_name, pool);
+        Shard::pool_manager.register_pool(pool_name, pool);
         response->pool_id = pool;
       }
     }
@@ -297,7 +332,7 @@ void Shard::process_message_pool_request(Connection_handler* handler,
     if (option_DEBUG > 1) PMAJOR("POOL CLOSE: pool_id=%lx", msg->pool_id);
 
     /* release reference, if its zero, we can close pool for real */
-    if(handler->release_pool_reference(msg->pool_id)) {
+    if(Shard::pool_manager.release_pool_reference(msg->pool_id)) {
       PLOG("actually closing pool %p", (void*) msg->pool_id);
       response->status = _i_kvstore->close_pool(msg->pool_id);
       assert(response->status == S_OK);
@@ -314,7 +349,7 @@ void Shard::process_message_pool_request(Connection_handler* handler,
     const std::string pool_name = msg->pool_name();
 
     /* check if pool is still open; return error if it is */
-    if (handler->check_for_open_pool(pool_name, pool)) {
+    if (Shard::pool_manager.check_for_open_pool(pool_name, pool)) {
       response->pool_id = 0;
       response->status = Component::IKVStore::E_ALREADY_OPEN;
     }
@@ -343,6 +378,9 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
   using namespace Component;
   int status = S_OK;
 
+  const auto iob = handler->allocate();
+  assert(iob);
+
   /////////////////////////////////////////////////////////////////////////////
   //   PUT ADVANCE   //
   /////////////////////
@@ -362,7 +400,7 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
     /* can't support dont stomp flag */
     if(msg->flags & IKVStore::FLAGS_DONT_STOMP) {
       status = E_INVAL;
-      PWRN("PUT_ADVANCE failed IVStore::FLAGS_DONT_STOMP not viable");
+      PWRN("PUT_ADVANCE failed IKVStore::FLAGS_DONT_STOMP not viable");
       goto send_response;
     }
 
@@ -384,38 +422,32 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
       throw Logic_exception("locked value length mismatch");
 
     auto pool_id = msg->pool_id;
+
+    /* register clean up task for value */
     add_locked_value(pool_id, key_handle, target);
 
     /* register memory unless pre-registered */
-    Connection_base::memory_region_t region = nullptr;  // TODO handler->get_preregistered(pool_id);
+    Connection_base::memory_region_t region = handler->ondemand_register(target, target_len);
 
-    if (option_DEBUG > 2) {
-      PLOG("registering locked value: %p %lu", target, target_len);
-    }
-  
-      
-    // if(!region) {
-    //   if(option_DEBUG || 1)
-    //     PLOG("using ondemand registration");
-    //   region = ondemand_register(handler, target, target_len);
-    // }
-    // else {
-    //   if(option_DEBUG > 2)
-    //     PLOG("using pre-registered region (handle=%p)", region);
-    // }
-    // assert(region);
-    // TODO
-    region = handler->ondemand_register(target, target_len);
-
+    /* set up value memory to receive value from network */
     handler->set_pending_value(target, target_len, region);
 
+    /* update index ; position OK? */
+    add_index_key(msg->pool_id, k);
+    
+    Protocol::Message_IO_response* response = new (iob->base())
+      Protocol::Message_IO_response(iob->length(), handler->auth_id());
+    response->request_id = msg->request_id;
+    response->status     = S_OK;
+
+    iob->set_length(response->msg_len);
+    
+    handler->post_send_buffer(iob);
+    
     return;
   }
   
  send_response:
-  /* states that we require a response */
-  const auto iob = handler->allocate();
-  assert(iob);
   
   Protocol::Message_IO_response* response = new (iob->base())
       Protocol::Message_IO_response(iob->length(), handler->auth_id());
@@ -428,8 +460,8 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
        puts for larger data, we use a two-stage operation
     */
     if (option_DEBUG > 2)
-      PLOG("PUT: (%p) key=(%.*s) value=(%.*s)", this, (int) msg->key_len,
-           msg->key(), (int) msg->val_len, msg->value());
+      PLOG("PUT: (%p) key=(%.*s) value=(%.*s ...) len=(%lu)", this, (int) msg->key_len,
+           msg->key(), (int) min(msg->val_len,20), msg->value(), msg->val_len);
 
     if (unlikely(msg->resvd & Dawn::Protocol::MSG_RESVD_SCBE)) {
       status = S_OK;  // short-circuit backend
@@ -445,11 +477,13 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
                                msg->flags);
 
       if (option_DEBUG > 2) {
-        if (status == Component::IKVStore::E_ALREADY_EXISTS)
+        if (status == E_ALREADY_EXISTS)
           PLOG("kvstore->put returned E_ALREADY_EXISTS");
         else
           PLOG("kvstore->put returned %d", status);
       }
+      
+      add_index_key(msg->pool_id, k);
     }
   }
   /////////////////////////////////////////////////////////////////////////////
@@ -457,7 +491,10 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
   /////////////////////
   else if (msg->op == Protocol::OP_GET) {
     if (option_DEBUG > 2)
-      PMAJOR("GET: (%p) (request=%lu) key=(%.*s) ", this, msg->request_id,
+      PMAJOR("GET: (%p) (request=%lu,buffer_size=%lu) key=(%.*s) ",
+             this,
+             msg->request_id,
+             msg->val_len,
              (int) msg->key_len, msg->key());
 
     if (msg->resvd & Dawn::Protocol::MSG_RESVD_SCBE) {
@@ -471,31 +508,36 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
     else {
       void*  value_out     = nullptr;
       size_t value_out_len = 0;
-
+      size_t client_side_value_len = msg->val_len;
+      bool is_direct = msg->resvd & Protocol::MSG_RESVD_DIRECT;
       std::string k(msg->key(), msg->key_len);
-
+      
       auto key_handle = _i_kvstore->lock(msg->pool_id,
                                          k,
                                          IKVStore::STORE_LOCK_READ,
                                          value_out,
                                          value_out_len);
 
-      if (option_DEBUG > 2)
-        PLOG("shard: locked OK: value_out=%p (%.*s) value_out_len=%lu",
-             value_out, (int) value_out_len, (char*) value_out, value_out_len);
 
       if (key_handle == Component::IKVStore::KEY_NONE) { /* key not found */
-        response->status = E_NOT_FOUND;
+        if (option_DEBUG > 2)
+          PLOG("Shard: locking value failed");
+        
+        response->status = Component::IKVStore::E_KEY_NOT_FOUND;
         iob->set_length(response->base_message_size());
         handler->post_response(iob, nullptr);
         return;
       }
 
+      if (option_DEBUG > 2)
+        PLOG("Shard: locked OK: value_out=%p (%.*s ...) value_out_len=%lu",
+             value_out, (int) min(value_out_len,20), (char*) value_out, value_out_len);
+
       assert(value_out_len);
       assert(value_out);
 
-      if (value_out_len <
-          (iob->original_length - response->base_message_size())) {
+//      if (value_out_len < (iob->original_length - response->base_message_size())) {
+      if (!is_direct && (value_out_len < KiB(64))) { // TODO set as static var - (iob->original_length - response->base_message_size())) { 
         /* value can fit in message buffer, let's copy instead of
            performing two-part DMA */
         if (option_DEBUG > 2) PLOG("shard: performing memcpy for small get");
@@ -513,6 +555,20 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
         handler->post_response(iob);
       }
       else {
+
+        if(option_DEBUG > 2||1)
+          PLOG("Shard: get using two stage get response (value_out_len=%lu)", value_out_len);
+
+        /* check if client has allocated sufficient space */
+        if(client_side_value_len < value_out_len) {
+          _i_kvstore->unlock(msg->pool_id, key_handle);
+          response->status = E_INSUFFICIENT_SPACE;
+          iob->set_length(response->base_message_size());
+          handler->post_response(iob, nullptr);
+          PWRN("Client posted insufficient space.");
+          return;
+        }
+        
         iob->set_length(response->base_message_size());
 
         /* register memory on-demand */
@@ -526,18 +582,18 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
         /* create value iob */
         buffer_t* value_buffer;
 
-        if (response->status == S_OK) {
-          value_buffer         = new buffer_t(value_out_len);
-          value_buffer->iov    = new iovec{(void*) value_out, value_out_len};
-          value_buffer->region = region;
-          value_buffer->desc   = handler->get_memory_descriptor(region);
+        assert(response->status == S_OK);
 
-          /* register clean up task for value */
-          add_locked_value(msg->pool_id, key_handle, value_out);
-        }
+        value_buffer         = new buffer_t(value_out_len);
+        value_buffer->iov    = new iovec{(void*) value_out, value_out_len};
+        value_buffer->region = region;
+        value_buffer->desc   = handler->get_memory_descriptor(region);
 
-        if (value_out_len <=
-            (handler->IO_buffer_size() - response->base_message_size())) {
+        /* register clean up task for value */
+        add_locked_value(msg->pool_id, key_handle, value_out);
+      
+
+        if (!is_direct && (value_out_len <= (handler->IO_buffer_size() - response->base_message_size()))) {
           if (option_DEBUG > 2)
             PLOG("posting response header and value together");
 
@@ -545,18 +601,19 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
           handler->post_response(iob, value_buffer);
         }
         else {
+          if (option_DEBUG > 2)
+            PLOG("posting response with separate value following");
+          
           /* for large gets we use a two-stage protocol sending
              response message and value separately
           */
           response->set_twostage_bit();
 
-          /* send two separate packets */
+          /* send two separate packets for response and value */
           handler->post_response(iob);
-
-          /* the client is allocating the recv buffer only after
-             receiving the response advance. this could timeout if
-             this side issues before the remote buffer is ready */
           handler->post_send_value_buffer(value_buffer);
+
+          handler->set_pending_send_value();
         }
       }
     }
@@ -569,6 +626,17 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
     std::string k(msg->key(), msg->key_len);
     
     status = _i_kvstore->erase(msg->pool_id, k);
+
+    if(status == S_OK)
+      remove_index_key(msg->pool_id, k);
+  }
+  /////////////////////////////////////////////////////////////////////////////
+  //   CONFIGURE     //
+  /////////////////////  
+  else if (msg->op == Protocol::OP_CONFIGURE) {
+    if (option_DEBUG > 1)
+      PMAJOR("Shard: pool CONFIGURE (%s)", msg->cmd());
+    status = process_configure(msg);
   }
   else {
     throw Protocol_exception("operation not implemented");
@@ -581,6 +649,146 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
   handler->post_response(iob);  // issue IO request response
 }
 
+void Shard::process_info_request(Connection_handler* handler,
+                                 Protocol::Message_INFO_request* msg)
+{
+  if (msg->type == Protocol::INFO_TYPE_FIND_KEY) {
+    if (option_DEBUG > 1)
+      PLOG("Shard: INFO request INFO_TYPE_FIND_KEY (%s)", msg->c_str());
+    add_task_list(new Key_find_task(msg->c_str(),
+                                    msg->offset,
+                                    handler,
+                                    _index_map->at(msg->pool_id)));
+    return; /* response is not issued straight away */
+  }
+  
+  const auto iob = handler->allocate();
+  assert(iob);
+
+  if (option_DEBUG > 1)
+    PLOG("Shard: INFO request type:%u", msg->type);
+
+
+  Protocol::Message_INFO_response* response = new (iob->base())
+    Protocol::Message_INFO_response(handler->auth_id());
+    
+  if (msg->type == Component::IKVStore::Attribute::COUNT) {
+    response->value = _i_kvstore->count(msg->pool_id);    
+  }
+  else if (msg->type == Component::IKVStore::Attribute::VALUE_LEN) {
+    std::vector<uint64_t> v;
+    std::string key = msg->key();
+    auto hr = _i_kvstore->get_attribute(msg->pool_id,
+                                        Component::IKVStore::Attribute::VALUE_LEN,
+                                        v,
+                                        &key);
+    response->status = hr;
+    
+    if (hr == S_OK && v.size() == 1) {
+      response->value = v[0];
+    }
+    else {
+      PWRN("_i_kvstore->get_attribute failed");
+      response->value = 0;
+    }
+    if (option_DEBUG > 1)
+      PLOG("Shard: INFO reqeust INFO_TYPE_VALUE_LEN rc=%d val=%lu", hr, response->value);
+  }
+  else {
+    std::vector<uint64_t> v;
+    std::string key = msg->key();
+    auto hr = _i_kvstore->get_attribute(msg->pool_id,
+                                        static_cast<Component::IKVStore::Attribute>(msg->type),
+                                        v,
+                                        &key);
+    response->status = hr;
+    
+    if (hr == S_OK && v.size() == 1) {
+      response->value = v[0];
+    }
+    else {
+      /* crc32 we can do here also */
+      if(msg->type == Component::IKVStore::Attribute::CRC32) {
+        response->status = S_OK;
+        void *p = nullptr;
+        size_t p_len = 0;
+        auto key_handle = _i_kvstore->lock(msg->pool_id,
+                                           key,
+                                           Component::IKVStore::STORE_LOCK_READ,
+                                           p,
+                                           p_len);
+
+        if(key_handle == Component::IKVStore::KEY_NONE) {
+          response->status = E_FAIL;
+          response->value = 0;        
+        }
+        else {
+          /* do CRC */
+          uint32_t crc = crc32(0,static_cast<const Bytef*>(p),p_len);
+          response->status = S_OK;
+          response->value = crc;
+          
+          _i_kvstore->unlock(msg->pool_id, key_handle);          
+        }
+      }
+      else {
+        PWRN("_i_kvstore->get_attribute failed");
+        response->status = E_FAIL;
+        response->value = 0;
+      }
+    }
+    if (option_DEBUG > 1)
+      PLOG("Shard: INFO reqeust INFO_TYPE_VALUE_LEN rc=%d val=%lu", hr, response->value);
+  }
+
+  iob->set_length(response->base_message_size());
+  handler->post_send_buffer(iob);  
+  return;
+}
+
+void Shard::process_tasks()
+{
+ retry:
+  for(task_list_t::iterator i = _tasks.begin();
+      i != _tasks.end() ; i++ )  {
+    auto t = *i;
+    assert(t);
+
+    status_t s = t->do_work();
+    if(s != Component::IKVStore::S_MORE) {
+      
+      auto handler = t->handler();
+      auto response_iob = handler->allocate();
+      assert(response_iob);
+      Protocol::Message_INFO_response* response = new (response_iob->base())
+        Protocol::Message_INFO_response(handler->auth_id());
+
+      if(s == S_OK) {
+        response->set_value(response_iob->length(),
+                            t->get_result(),
+                            t->get_result_length());
+        response->offset = t->matched_position();
+
+        response->status = S_OK;
+        response_iob->set_length(response->message_size());
+      }
+      else if(s == E_FAIL) {
+        response_iob->set_length(response->base_message_size());
+        response->status = E_FAIL;
+      }
+      else {
+        throw Logic_exception("unexpected task condition");
+      }
+
+      handler->post_send_buffer(response_iob);
+      _tasks.erase(i);
+
+      goto retry;
+    }
+  }
+}
+
+
 void Shard::check_for_new_connections()
 {
   /* new connections are transferred from the connection handler
@@ -592,6 +800,87 @@ void Shard::check_for_new_connections()
       PMAJOR("Shard: processing new connection (%p)", handler);
     _handlers.push_back(handler);
   }
+}
+
+
+status_t Shard::process_configure(Protocol::Message_IO_request* msg)
+{
+  using namespace Component;
+  
+  std::string command(msg->cmd());
+
+  if(command.substr(0,10) == "AddIndex::") {
+    std::string index_str = command.substr(10);
+
+    /* TODO: use shard configuration */
+    if(index_str == "VolatileTree") {
+
+      if(_index_map == nullptr)
+        _index_map = new index_map_t();
+
+      /* create index component and put into shard index map */
+      IBase* comp = load_component("libcomanche-indexrbtree.so", rbtreeindex_factory);
+      if (!comp)
+        throw General_exception("unable to load libcomanche-indexrbtree.so");
+      auto factory = static_cast<IKVIndex_factory*>(comp->query_interface(IKVIndex_factory::iid()));
+      assert(factory);
+
+      std::stringstream ss;
+      ss << "auth_id:" << msg->auth_id;
+      auto index = factory->create(ss.str(), "");
+      assert(index);
+      
+      _index_map->insert(std::make_pair((IKVStore::pool_t)msg->pool_id, index));
+
+      factory->release_ref();
+
+      if (option_DEBUG > 1)
+        PLOG("Shard: rebuilding volatile index ...");
+
+      status_t hr;
+      if((hr = _i_kvstore->map_keys(msg->pool_id,
+                                    [&index](const std::string& key) {
+                                      index->insert(key);
+                                      return 0;
+                                    })) != S_OK) {
+        
+        hr = _i_kvstore->map(msg->pool_id,
+                             [&index](const std::string& key,
+                                      const void * value,
+                                      const size_t value_len) {
+                               index->insert(key);
+                               return 0;
+                             });
+      }
+        
+      return hr;
+    }
+    else {
+      PWRN("unknown index (%s)", index_str.c_str());
+      return E_BAD_PARAM;
+    }
+  }
+  else if(command == "RemoveIndex::") {
+    try {
+      auto index = _index_map->at(msg->pool_id);     
+      _index_map->erase(msg->pool_id);
+      delete index;
+      if (option_DEBUG > 1)
+        PLOG("Shard: removed index on pool (%lx)", msg->pool_id);
+    }
+    catch(...) {
+      return E_BAD_PARAM;
+    }
+    
+    return S_OK;
+  }
+  else {
+    PWRN("unknown configure command (%s)", command.c_str());
+    return E_BAD_PARAM;
+  }
+    
+  return S_OK;
+
 }
 
 }  // namespace Dawn

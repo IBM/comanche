@@ -90,14 +90,18 @@ public:
    * 
    * @param key_expression Key expression to match on
    * @param begin_position Position from which to start from. Counting from 0.
-   * @param out_end_position [out] Position of the match
+   * @param out_matched_position [out] Position of the match
+   * @param out_matched_key Matching key result
+   * @param max_comparisons Maximum number of comparisons
    * 
    * @return Matched key
    */  
-  virtual std::string find(const std::string& key_expression,
-                           offset_t begin_position,
-                           find_t find_type,
-                           offset_t& out_end_position) = 0;
+  virtual status_t find(const std::string& key_expression,
+                        offset_t begin_position,
+                        find_t find_type,
+                        offset_t& out_matched_position,
+                        std::string& out_matched_key,
+                        unsigned max_comparisons = 0) = 0;
 };
 
 

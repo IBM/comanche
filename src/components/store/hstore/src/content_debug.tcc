@@ -24,6 +24,7 @@ template <typename Value>
 		return _owner == owner_undefined;
 	}
 
+#if TRACED_CONTENT
 template <typename Value>
 	auto impl::content<Value>::to_string() const -> std::string
 	{
@@ -46,14 +47,14 @@ template <typename Value>
 			;
 		return s.str();
 	}
+#endif
 
 template <typename Value>
 	void impl::content<Value>::owner_verify(content::owner_t owner_) const
 	{
 		if ( _owner != owner_ )
 		{
-			std::cerr << __func__ << " non-owner " << owner_
-				<< " attempt to move " << owner_ << "\n";
+			hop_hash_log<TRACE_MANY>::write(__func__, " source owned by ", _owner, " was about to be moved by ", owner_);
 		}
 		assert(_owner == owner_);
 	}
@@ -64,6 +65,7 @@ template <typename Value>
 		_owner |= owner_delta;
 	}
 
+#if TRACED_CONTENT
 template <typename Value>
 	auto impl::content<Value>::state_string() const -> std::string
 	{
@@ -73,6 +75,7 @@ template <typename Value>
 			: "?"
 			;
 	}
+#endif
 
 template <typename Value>
 	auto impl::operator<<(

@@ -4,6 +4,7 @@
 #include "exp_put.h"
 #include "exp_get.h"
 #include "exp_get_direct.h"
+#include "exp_erase.h"
 #include "exp_put_direct.h"
 #include "exp_throughput.h"
 #include "exp_update.h"
@@ -57,13 +58,14 @@ namespace
 
   using exp_f = void(*)(cpu_mask_t, const ProgramOptions &);
   using test_element = std::pair<std::string, exp_f>;
-  const std::vector<test_element> test_vector
+  static const std::vector<test_element> test_vector
   {
     { "put", run_exp<ExperimentPut> },
     { "get", run_exp<ExperimentGet> },
     { "get_direct", run_exp<ExperimentGetDirect> },
     { "put_direct", run_exp<ExperimentPutDirect> },
     { "throughput", run_exp<ExperimentThroughput> },
+    { "erase", run_exp<ExperimentErase> },
     { "update", run_exp<ExperimentUpdate> },
   };
 }

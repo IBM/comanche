@@ -87,7 +87,7 @@ class Constructor_exception : public Exception {
     set_cause(msg);
   }
 
-  status_t error_code() { return _err_code; }
+  status_t error_code() const { return _err_code; }
 
  private:
   status_t _err_code;
@@ -108,7 +108,7 @@ class General_exception : public Exception {
     vsnprintf(msg, 254, fmt, args);
     set_cause(msg);
   }
-  status_t error_code() { return _err_code; }
+  status_t error_code() const { return _err_code; }
 
  private:
   status_t _err_code;
@@ -130,7 +130,7 @@ class API_exception : public Exception {
     set_cause(msg);
   }
 
-  status_t error_code() { return _err_code; }
+  status_t error_code() const { return _err_code; }
 
  private:
   status_t _err_code;
@@ -152,7 +152,7 @@ class Logic_exception : public Exception {
     set_cause(msg);
   }
 
-  status_t error_code() { return _err_code; }
+  status_t error_code() const { return _err_code; }
 
  private:
   status_t _err_code;
@@ -174,7 +174,7 @@ class IO_exception : public Exception {
     set_cause(msg);
   }
 
-  status_t error_code() { return _err_code; }
+  status_t error_code() const { return _err_code; }
 
  private:
   status_t _err_code;
@@ -196,7 +196,7 @@ class Program_exception : public Exception {
     set_cause(msg);
   }
 
-  status_t error_code() { return _err_code; }
+  status_t error_code() const { return _err_code; }
 
  private:
   status_t _err_code;
@@ -218,7 +218,7 @@ class Data_exception : public Exception {
     set_cause(msg);
   }
 
-  status_t error_code() { return _err_code; }
+  status_t error_code() const { return _err_code; }
 
  private:
   status_t _err_code;
@@ -240,7 +240,7 @@ class Protocol_exception : public Exception {
     set_cause(msg);
   }
 
-  status_t error_code() { return _err_code; }
+  status_t error_code() const { return _err_code; }
 
  private:
   status_t _err_code;

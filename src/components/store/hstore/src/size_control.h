@@ -22,7 +22,7 @@
 #include <cassert>
 #include <cstddef> /* size_t */
 
-/* Tracking the size of the table
+/* Tracking the size of the hop_hash
  */
 
 namespace impl

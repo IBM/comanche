@@ -55,6 +55,7 @@ typedef uint32_t core_id_t;
 typedef uint64_t atomic_t;
 typedef uint64_t cpu_time_t;
 typedef int numa_node_t;
+typedef uint64_t offset_t;
 
 #if __x86_64__
 typedef __uint128_t uint128_t;

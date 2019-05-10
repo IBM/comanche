@@ -5,6 +5,4 @@ add_subdirectory(components)
 add_subdirectory(kernel/modules)
 #add_subdirectory(fuse)
 add_subdirectory(servers)
-
-
-
+add_subdirectory(python)

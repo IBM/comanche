@@ -97,13 +97,14 @@ TEST_F(KVIndex_test, FIND)
 {
   string   regex = "abc";
   uint64_t end   = _kvindex->count() - 1;
-  string   key   = _kvindex->find(regex, 0, IKVIndex::FIND_TYPE_EXACT, end);
+  string   key;
+  _kvindex->find(regex, 0, IKVIndex::FIND_TYPE_EXACT, end, key);
   PINF("Key= %s", key.c_str());
 }
 
 TEST_F(KVIndex_test, Erase) { _kvindex->erase("MyKey"); }
 
-TEST_F(KVIndex_test, Count) { PINF("Size: %d", _kvindex->count()); }
+TEST_F(KVIndex_test, Count) { PINF("Size: %lu", _kvindex->count()); }
 
 
 }  // namespace

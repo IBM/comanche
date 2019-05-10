@@ -35,6 +35,10 @@ make bootstrap  # build the core and dependencies
 make # build comanche components & tests, etc
 ```
 
+To include python APIs etc. add BUILD_PYTHON_SUPPORT:
+```bash
+cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_PYTHON_SUPPORT=1 -DCMAKE_INSTALL_PREFIX:PATH=`pwd`/dist ..
+```
 
 * Install libs into cmake installation prefix
 
@@ -75,7 +79,8 @@ Tested Compilers and OS/HW
 --------------------------
 
 * Software 
-  - Ubuntu 16.04.3 LTS (x86_64)
+  - Ubuntu 16.04.3 LTS and 18.04 LTS (x86_64)
+  - Fedora 27 (x86_64)
   - gcc 5.4
   - clang 3.8.0
 

@@ -56,8 +56,6 @@ IBase *load_component(const char *dllname, Component::uuid_t component_id) {
   void *(*factory_createInstance)(Component::uuid_t &);
   char *error;
 
-  PLOG("Loading component: %s", dllname);
-
   void *dll = dlopen(dllname, RTLD_NOW);
 
   if (!dll) {
@@ -68,8 +66,7 @@ IBase *load_component(const char *dllname, Component::uuid_t component_id) {
     dll = dlopen(dll_path.c_str(), RTLD_NOW);
 
     if (!dll) {
-      PERR("Unable to load library (%s) at path (%s) - check dependencies with "
-           "ldd tool (reason:%s)",
+      PLOG("Unable to load library (%s) at path (%s) - check dependencies with ldd tool (reason:%s)",
            dllname, dll_path.c_str(), dlerror());
       return nullptr;
     }
@@ -77,7 +74,7 @@ IBase *load_component(const char *dllname, Component::uuid_t component_id) {
   *(void **) (&factory_createInstance) = dlsym(dll, "factory_createInstance");
 
   if ((error = dlerror()) != nullptr) {
-    PERR("Error: %s\n", error);
+    PLOG("Error: %s\n", error);
     return nullptr;
   }
 
@@ -93,6 +90,7 @@ IBase *load_component(const char *dllname, Component::uuid_t component_id) {
   comp->set_dll_handle(dll); /* record so we can call dlclose() */
   comp->add_ref();
 
+  PLOG("Loaded component: %s", dllname);
   return comp;
 }
 

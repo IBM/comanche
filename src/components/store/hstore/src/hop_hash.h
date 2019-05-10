@@ -19,6 +19,7 @@
 
 #include "bucket_control_unlocked.h"
 #include "construction_mode.h"
+#include "hop_hash_log.h"
 #include "trace_flags.h"
 #include "persist_controller.h"
 #include "segment_and_bucket.h"
@@ -41,11 +42,9 @@
  * http://mcg.cs.tau.ac.il/papers/disc2008-hopscotch.pdf
  */
 
-#if TRACE_CONTENT || TRACE_OWNER || TRACE_BUCKET
 #include "hop_hash_debug.h"
-#endif
 
-#if TRACE_TABLE
+#if TRACED_TABLE
 template <
 	typename Key
 	, typename T
@@ -54,7 +53,7 @@ template <
 	, typename Allocator
 	, typename SharedMutex
 >
-	class table;
+	class hop_hash;
 #endif
 
 namespace impl
@@ -78,24 +77,24 @@ namespace impl
 		move_stuck(bix_t bi, std::size_t size);
 	};
 
-	class table_full
+	class hop_hash_full
 		: public no_near_empty_bucket
 	{
 	public:
-		table_full(bix_t bi, std::size_t size);
+		hop_hash_full(bix_t bi, std::size_t size);
 	};
 
-	template <typename Table>
-		class table_iterator;
+	template <typename HopHash>
+		class hop_hash_iterator;
 
-	template <typename Table>
-		class table_const_iterator;
+	template <typename HopHash>
+		class hop_hash_const_iterator;
 
-	template <typename Table>
-		class table_local_iterator;
+	template <typename HopHash>
+		class hop_hash_local_iterator;
 
-	template <typename Table>
-		class table_const_local_iterator;
+	template <typename HopHash>
+		class hop_hash_const_local_iterator;
 
 	template <typename Bucket, typename Referent>
 		class bucket_ref
@@ -131,32 +130,26 @@ namespace impl
 				: bucket_ref<Bucket, Owner>(&b_, i_)
 				, std::unique_lock<SharedMutex>(m_)
 			{
-#if TRACE_LOCK
-				std::cerr << __func__ << " " << this->index() << "\n";
-#endif
+				hop_hash_log<TRACE_LOCK>::write(__func__, " ", this->index());
 			}
 			bucket_unique_lock(bucket_unique_lock &&) = default;
 			bucket_unique_lock &operator=(bucket_unique_lock &&other_)
 			{
-#if TRACE_LOCK
-				std::cerr << __func__ << " " << this->index()
-					<< "->" << other_.index() << "\n";
-#endif
+				hop_hash_log<TRACE_LOCK>::write(__func__, " ", this->index()
+					, "->", other_.index());
 				std::unique_lock<SharedMutex>::operator=(std::move(other_));
 				base_ref::operator=(std::move(other_));
 				return *this;
 			}
 			~bucket_unique_lock()
 			{
-#if TRACE_LOCK
 				if ( this->owns_lock() )
 				{
-					std::cerr << __func__ << " " << this->index() << "\n";
+					hop_hash_log<TRACE_LOCK>::write(__func__, " ", this->index());
 				}
-#endif
 			}
-			template <typename Table>
-				void assert_clear(bool b, Table &t)
+			template <typename HopHash>
+				void assert_clear(bool b, HopHash &t)
 				{
 					this->ref().assert_clear(b, *this, t);
 				}
@@ -178,29 +171,22 @@ namespace impl
 				: base_ref(&b_, i_)
 				, base_lock(m_)
 			{
-#if TRACE_LOCK
-				std::cerr << __func__ << " " << this->index() << "\n";
-#endif
+				hop_hash_log<TRACE_LOCK>::write( __func__, " ", this->index());
 			}
 			bucket_shared_lock(bucket_shared_lock &&) = default;
 			auto operator=(bucket_shared_lock &&other_) -> bucket_shared_lock &
 			{
-#if TRACE_LOCK
-				std::cerr << __func__ << " " << this->index()
-					<< "->" << other_.index() << "\n";
-#endif
+				hop_hash_log<TRACE_LOCK>::write(__func__, " ", this->index(), "->", other_.index());
 				base_lock::operator=(std::move(other_));
 				base_ref::operator=(std::move(other_));
 				return *this;
 			}
 			~bucket_shared_lock()
 			{
-#if TRACE_LOCK
 				if ( this->owns_lock() )
 				{
-					std::cerr << __func__ << " " << this->index() << "\n";
+					hop_hash_log<TRACE_LOCK>::write(__func__, " ", this->index());
 				}
-#endif
 			}
 		};
 
@@ -209,7 +195,7 @@ namespace impl
 		{
 			Mutex _m_owner;
 			Mutex _m_content;
-			/* current state of ownership *for table::lock_shared/lock_uniqe/unlock
+			/* current state of ownership *for hop_hash::lock_shared/lock_uniqe/unlock
 			 * purposes only*. Not maintained (or needed) for other users.
 			 */
 			enum { SHARED, UNIQUE } _state;
@@ -224,7 +210,7 @@ namespace impl
 		struct bucket_control
 			: public bucket_control_unlocked<Bucket>
 		{
-			bucket_mutexes<Mutex> *_bucket_mutexes;
+			std::unique_ptr<bucket_mutexes<Mutex>[]> _bucket_mutexes;
 		public:
 			using base = bucket_control_unlocked<Bucket>;
 			using bucket_aligned_t = typename base::bucket_aligned_t;
@@ -235,27 +221,32 @@ namespace impl
 			)
 				: bucket_control_unlocked<Bucket>(index_, buckets_)
 				, _bucket_mutexes(nullptr)
-			{}
+			{
+			}
 			explicit bucket_control()
 				: bucket_control(0U, nullptr)
-			{}
+			{
+			}
+			~bucket_control()
+			{
+			}
 		};
 
 	template <typename Allocator>
-		class table_allocator
+		class hop_hash_allocator
 			: public Allocator
 		{
 		public:
-			explicit table_allocator(const Allocator &av_)
+			explicit hop_hash_allocator(const Allocator &av_)
 				: Allocator(av_)
 			{}
 		};
 
-	template <typename Table>
-		class table_local_iterator_impl;
+	template <typename HopHash>
+		class hop_hash_local_iterator_impl;
 
-	template <typename Table>
-		class table_iterator_impl;
+	template <typename HopHash>
+		class hop_hash_iterator_impl;
 
 	template <
 		typename Key
@@ -265,8 +256,8 @@ namespace impl
 		, typename Allocator
 		, typename SharedMutex
 	>
-		class table_base
-			: private table_allocator<Allocator>
+		class hop_hash_base
+			: private hop_hash_allocator<Allocator>
 			, private segment_layout
 			, private
 				persist_controller<
@@ -291,10 +282,10 @@ namespace impl
 			using const_pointer   = typename allocator_type::const_pointer;
 			using reference       = typename allocator_type::reference;
 			using const_reference = typename allocator_type::const_reference;
-			using iterator        = table_iterator<table_base>;
-			using const_iterator  = table_const_iterator<table_base>;
-			using local_iterator  = table_local_iterator<table_base>;
-			using const_local_iterator = table_const_local_iterator<table_base>;
+			using iterator        = hop_hash_iterator<hop_hash_base>;
+			using const_iterator  = hop_hash_const_iterator<hop_hash_base>;
+			using local_iterator  = hop_hash_local_iterator<hop_hash_base>;
+			using const_local_iterator = hop_hash_const_local_iterator<hop_hash_base>;
 			using persist_data_t =
 				persist_map<typename Allocator::template rebind<value_type>::other>;
 		private:
@@ -305,6 +296,7 @@ namespace impl
 			using bucket_mutexes_t = bucket_mutexes<SharedMutex>;
 			using bucket_control_t = bucket_control<bucket_t, SharedMutex>;
 			using bucket_aligned_t = typename bucket_control_t::bucket_aligned_t;
+			static_assert(sizeof(bucket_aligned_t) <= 64, "Bucket size exceeds presumed cache line size (64)");
 			using bucket_allocator_t =
 				typename Allocator::template rebind<bucket_aligned_t>::other;
 			using owner_unique_lock_t = bucket_unique_lock<bucket_t, owner, SharedMutex>;
@@ -335,6 +327,8 @@ namespace impl
 			*/
 			hasher _hasher;
 
+			bool _auto_resize;
+
 			bucket_control_t _bc[_segment_capacity];
 
 			six_t segment_count() const override
@@ -352,16 +346,16 @@ namespace impl
 				, content_unique_lock_t bf
 			) -> content_unique_lock_t;
 
-			template <typename Lock>
+			template <typename Lock, typename K>
 				auto locate_key(
 					Lock &bi
-					, const key_type &k
+					, const K &k
 				) const -> std::tuple<bucket_t *, segment_and_bucket_t>;
 
 			void resize();
 			void resize_pass1();
 			void resize_pass2();
-			void resize_pass2_inner(
+			bool resize_pass2_adjust_owner(
 				bix_t ix_senior
 				, bucket_control_t &junior_bucket_control
 				, content_unique_lock_t &populated_content_lk
@@ -380,7 +374,8 @@ namespace impl
 				, unsigned bkwd
 			) const -> owner_unique_lock_t;
 
-			auto make_owner_shared_lock(const key_type &k) const -> owner_shared_lock_t;
+			template <typename K>
+				auto make_owner_shared_lock(const K &k) const -> owner_shared_lock_t;
 			auto make_owner_shared_lock(
 				const segment_and_bucket_t &
 			) const -> owner_shared_lock_t;
@@ -412,7 +407,8 @@ namespace impl
 
 			static auto locate_owner(const segment_and_bucket_t &a) -> const owner &;
 
-			auto bucket(const key_type &) const -> size_type;
+			template <typename K>
+				auto bucket(const K &) const -> size_type;
 			auto bucket_size(const size_type n) const -> size_type;
 
 			auto owned_by_owner_mask(const segment_and_bucket_t &a) const -> owner::value_type;
@@ -432,28 +428,35 @@ namespace impl
 			unsigned _locate_key_mismatch;
 
 		public:
-			explicit table_base(
+			explicit hop_hash_base(
 				persist_data_t *pc
 				, construction_mode mode
 				, const Allocator &av = Allocator()
 			);
 		protected:
-			virtual ~table_base();
+			virtual ~hop_hash_base();
 		public:
-			table_base(const table_base &) = delete;
-			table_base &operator=(const table_base &) = delete;
+			hop_hash_base(const hop_hash_base &) = delete;
+			hop_hash_base &operator=(const hop_hash_base &) = delete;
 			allocator_type get_allocator() const noexcept
 			{
-				return static_cast<const table_allocator<Allocator> &>(*this);
+				return static_cast<const hop_hash_allocator<Allocator> &>(*this);
 			}
 
 			template <typename ... Args>
 				auto emplace(Args && ... args) -> std::pair<iterator, bool>;
 			auto insert(const value_type &value) -> std::pair<iterator, bool>;
-			auto erase(const key_type &key) -> size_type;
-			auto at(const key_type &key) -> mapped_type &;
-			auto at(const key_type &key) const -> const mapped_type &;
-			auto count(const key_type &k) const -> size_type;
+
+			template <typename K>
+				auto erase(const K &key) -> size_type;
+
+			template <typename K>
+				auto at(const K &key) -> mapped_type &;
+			template <typename K>
+				auto at(const K &key) const -> const mapped_type &;
+
+			template <typename K>
+				auto count(const K &k) const -> size_type;
 			auto begin() -> iterator
 			{
 				return iterator(make_segment_and_bucket_at_begin());
@@ -514,29 +517,35 @@ namespace impl
 			}
 
 			/* use trylock to attempt a shared lock */
-			auto lock_shared(const key_type &k) -> bool;
+			template <typename K>
+				auto lock_shared(const K &k) -> bool;
 			/* use trylock to attempt a unique lock */
-			auto lock_unique(const key_type &k) -> bool;
+			template <typename K>
+				auto lock_unique(const K &k) -> bool;
 			/* unlock (from write if write exists, else read */
-			void unlock(const key_type &key);
+			template <typename K>
+				void unlock(const K &key);
 			auto size() const -> size_type;
 
-#if TRACE_TABLE
+			bool set_auto_resize(bool v1) { auto v0 = _auto_resize; _auto_resize = v1; return v0; }
+			bool get_auto_resize() const { return _auto_resize; }
+
+#if TRACED_TABLE
 			friend
 				auto operator<< <>(
 					std::ostream &
-					, const impl::table_print<
-						table<Key, T, Hash, Pred, Allocator, SharedMutex>
+					, const impl::hop_hash_print<
+						hop_hash<Key, T, Hash, Pred, Allocator, SharedMutex>
 					> &
 				) -> std::ostream &;
 
 			friend
 				auto operator<< <>(
 					std::ostream &
-					, const impl::table_dump<table_base> &
+					, const impl::dump<true>::hop_hash_dump<hop_hash_base> &
 				) -> std::ostream &;
 #endif
-#if TRACE_OWNER
+#if TRACED_OWNER
 			template <typename Lock>
 				friend
 					auto operator<<(
@@ -544,18 +553,18 @@ namespace impl
 						, const impl::owner_print<Lock> &
 					) -> std::ostream &;
 
-			template <typename TableBase>
+			template <typename HopHashBase>
 				friend
 					auto operator<<(
 						std::ostream &o_
 						, const owner_print<
-							bypass_lock<typename TableBase::bucket_t, const owner>
+							bypass_lock<typename HopHashBase::bucket_t, const owner>
 						> &
 					) -> std::ostream &;
 #endif
-#if TRACE_BUCKET
+#if TRACEE_BUCKET
 			template<
-				typename TableBase
+				typename HopHashBase
 				, typename LockOwner
 				, typename LockContent
 			>
@@ -568,32 +577,32 @@ namespace impl
 						> &
 					) -> std::ostream &;
 
-			template <typename Table>
+			template <typename HopHash>
 				friend
 				auto operator<<(
 					std::ostream &o_
 					, const bucket_print
 					<
-						bypass_lock<typename Table::bucket_t, const owner>
+						bypass_lock<typename HopHash::bucket_t, const owner>
 						, bypass_lock<
-							typename Table::bucket_t
-							, const content<typename Table::value_type>
+							typename HopHash::bucket_t
+							, const content<typename HopHash::value_type>
 						>
 					> &
 				) -> std::ostream &;
 #endif
-			template <typename Table>
-				friend class impl::table_local_iterator_impl;
-			template <typename Table>
-				friend class impl::table_iterator_impl;
-			template <typename Table>
-				friend class impl::table_local_iterator;
-			template <typename Table>
-				friend class impl::table_const_local_iterator;
-			template <typename Table>
-				friend class impl::table_iterator;
-			template <typename Table>
-				friend class impl::table_const_iterator;
+			template <typename HopHash>
+				friend class impl::hop_hash_local_iterator_impl;
+			template <typename HopHash>
+				friend class impl::hop_hash_iterator_impl;
+			template <typename HopHash>
+				friend class impl::hop_hash_local_iterator;
+			template <typename HopHash>
+				friend class impl::hop_hash_const_local_iterator;
+			template <typename HopHash>
+				friend class impl::hop_hash_iterator;
+			template <typename HopHash>
+				friend class impl::hop_hash_const_iterator;
 		};
 }
 
@@ -605,23 +614,23 @@ template <
 	, typename Allocator = std::allocator<std::pair<const Key, T>>
 	, typename SharedMutex = std::shared_timed_mutex
 >
-	class table
-		: private impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>
+	class hop_hash
+		: private impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>
 	{
 	public:
-		using base = impl::table_base<Key, T, Hash, Pred, Allocator, SharedMutex>;
+		using base = impl::hop_hash_base<Key, T, Hash, Pred, Allocator, SharedMutex>;
 		using size_type      = std::size_t;
 		using key_type       = Key;
 		using mapped_type    = T;
 		using value_type     = std::pair<const key_type, mapped_type>;
 		/* base is private. Can we use it to specify public types? Yes. */
-		using iterator       = impl::table_iterator<base>;
-		using const_iterator = impl::table_const_iterator<base>;
+		using iterator       = impl::hop_hash_iterator<base>;
+		using const_iterator = impl::hop_hash_const_iterator<base>;
 		using persist_data_t = typename base::persist_data_t;
 		using allocator_type = typename base::allocator_type;
 
 		/* contruct/destroy/copy */
-		explicit table(
+		explicit hop_hash(
 			persist_data_t *pc_
 			, construction_mode mode_
 			, const Allocator &av_ = Allocator()
@@ -637,10 +646,12 @@ template <
 			return size() == 0;
 		}
 		using base::size;
+		using base::get_auto_resize;
+		using base::set_auto_resize;
 		using base::bucket_count;
 		auto max_size() const noexcept -> size_type
 		{
-			return (1U << (base::_segment_capacity-1U));
+			return (size_type(1U) << (base::_segment_capacity-1U));
 		}
 		/* iterators */
 
@@ -650,95 +661,65 @@ template <
 		using base::cend;
 
 		/* modifiers */
-		template <typename ... Args>
-			auto emplace(Args && ... args) -> std::pair<iterator, bool>
-			{
-				return base::emplace(std::forward<Args>(args)...);
 
-			}
-		auto insert(const value_type &value) -> std::pair<iterator, bool>
-		{
-			return base::insert(value);
-		}
-		auto erase(const key_type &key) -> size_type
-		{
-			return base::erase(key);
-		}
+		using base::emplace;
+		using base::insert;
+		using base::erase;
+
+		/* counting */
+
+		using base::count;
 
 		/* lookup */
-		auto at(const key_type &key) const -> const mapped_type &
-		{
-			return base::at(key);
-		}
-
-		auto at(const key_type &key) -> mapped_type &
-		{
-			return base::at(key);
-		}
-
-		auto count(const key_type &key) const -> size_type
-		{
-			return base::count(key);
-		}
+		using base::at;
 
 		/* locking */
-		auto lock_shared(const key_type &k) -> bool
-		{
-			return base::lock_shared(k);
-		}
+		using base::lock_shared;
+		using base::lock_unique;
+		using base::unlock;
 
-		auto lock_unique(const key_type &k) -> bool
-		{
-			return base::lock_unique(k);
-		}
+		template <typename HopHash>
+			friend class impl::hop_hash_local_iterator_impl;
 
-		void unlock(const key_type &key)
-		{
-			return base::unlock(key);
-		}
-
-		template <typename Table>
-			friend class impl::table_local_iterator_impl;
-
-		template <typename Table>
-			friend class impl::table_iterator_impl;
+		template <typename HopHash>
+			friend class impl::hop_hash_iterator_impl;
 	};
 
 namespace impl
 {
-	template <typename Table>
+	template <typename HopHash>
 		bool operator!=(
-			const table_local_iterator_impl<Table> a
-			, const table_local_iterator_impl<Table> b
+			const hop_hash_local_iterator_impl<HopHash> a
+			, const hop_hash_local_iterator_impl<HopHash> b
 		);
 
-	template <typename Table>
+	template <typename HopHash>
 		bool operator==(
-			const table_local_iterator_impl<Table> a
-			, const table_local_iterator_impl<Table> b
+			const hop_hash_local_iterator_impl<HopHash> a
+			, const hop_hash_local_iterator_impl<HopHash> b
 		);
 
-	template <typename Table>
+	template <typename HopHash>
 		bool operator!=(
-			const table_iterator_impl<Table> a
-			, const table_iterator_impl<Table> b
+			const hop_hash_iterator_impl<HopHash> a
+			, const hop_hash_iterator_impl<HopHash> b
 		);
 
-	template <typename Table>
+	template <typename HopHash>
 		bool operator==(
-			const table_iterator_impl<Table> a
-			, const table_iterator_impl<Table> b
+			const hop_hash_iterator_impl<HopHash> a
+			, const hop_hash_iterator_impl<HopHash> b
 		);
 
-	template <typename Table>
-		class table_local_iterator_impl
+	template <typename HopHash>
+		class hop_hash_local_iterator_impl
 			: public std::iterator
 				<
 					std::forward_iterator_tag
-					, typename Table::value_type
+					, typename HopHash::value_type
 				>
 		{
-			using segment_and_bucket_t = typename Table::segment_and_bucket_t;
+			using segment_and_bucket_t = typename HopHash::segment_and_bucket_t;
 			segment_and_bucket_t _sb;
 			owner::value_type _mask;
 			void advance_to_in_use()
@@ -754,12 +735,12 @@ namespace impl
 
 		protected:
 			using base =
-				std::iterator<std::forward_iterator_tag, typename Table::value_type>;
+				std::iterator<std::forward_iterator_tag, typename HopHash::value_type>;
 
-			/* Table 106 (Iterator) */
+			/* HopHash 106 (Iterator) */
 			auto deref() const -> typename base::reference
 			{
-				return _sb.deref().content<typename Table::value_type>::value();
+				return _sb.deref().content<typename HopHash::value_type>::value();
 			}
 			void incr()
 			{
@@ -768,21 +749,21 @@ namespace impl
 				advance_to_in_use();
 			}
 		public:
-			/* Table 17 (EqualityComparable) */
+			/* HopHash 17 (EqualityComparable) */
 			friend
 				bool operator== <>(
-					table_local_iterator_impl<Table> a
-					, table_local_iterator_impl<Table> b
+					hop_hash_local_iterator_impl<HopHash> a
+					, hop_hash_local_iterator_impl<HopHash> b
 				);
-			/* Table 107 (InputIterator) */
+			/* HopHash 107 (InputIterator) */
 			friend
 				bool operator!= <>(
-					table_local_iterator_impl<Table> a
-					, table_local_iterator_impl<Table> b
+					hop_hash_local_iterator_impl<HopHash> a
+					, hop_hash_local_iterator_impl<HopHash> b
 				);
-			/* Table 109 (ForwardIterator) - handled by 107 */
+			/* HopHash 109 (ForwardIterator) - handled by 107 */
 		public:
-			table_local_iterator_impl(const segment_and_bucket_t &sb_, owner::value_type mask_)
+			hop_hash_local_iterator_impl(const segment_and_bucket_t &sb_, owner::value_type mask_)
 				: _sb(sb_)
 				, _mask(mask_)
 			{
@@ -790,19 +771,19 @@ namespace impl
 			}
 		};
 
-	template <typename Table>
-		class table_iterator_impl
+	template <typename HopHash>
+		class hop_hash_iterator_impl
 			: public std::iterator
 				<
 					std::forward_iterator_tag
-					, typename Table::value_type
+					, typename HopHash::value_type
 				>
 		{
-			using segment_and_bucket_t = typename Table::segment_and_bucket_t;
+			using segment_and_bucket_t = typename HopHash::segment_and_bucket_t;
 			segment_and_bucket_t _sb;
 			void advance_to_in_use()
 			{
-				while ( _sb.can_incr_without_wrap() && _sb.deref().state_get() != Table::bucket_t::IN_USE )
+				while ( _sb.can_incr_without_wrap() && _sb.deref().state_get() != HopHash::bucket_t::IN_USE )
 				{
 					_sb.incr_without_wrap();
 				}
@@ -810,12 +791,12 @@ namespace impl
 
 		protected:
 			using base =
-				std::iterator<std::forward_iterator_tag, typename Table::value_type>;
+				std::iterator<std::forward_iterator_tag, typename HopHash::value_type>;
 
-			/* Table 106 (Iterator) */
+			/* HopHash 106 (Iterator) */
 			auto deref() const -> typename base::reference
 			{
-				return _sb.deref().content<typename Table::value_type>::value();
+				return _sb.deref().content<typename HopHash::value_type>::value();
 			}
 			void incr()
 			{
@@ -823,198 +804,198 @@ namespace impl
 				advance_to_in_use();
 			}
 		public:
-			/* Table 17 (EqualityComparable) */
+			/* HopHash 17 (EqualityComparable) */
 			friend
 				bool operator== <>(
-					table_iterator_impl<Table> a
-					, table_iterator_impl<Table> b
+					hop_hash_iterator_impl<HopHash> a
+					, hop_hash_iterator_impl<HopHash> b
 				);
-			/* Table 107 (InputIterator) */
+			/* HopHash 107 (InputIterator) */
 			friend
 				bool operator!= <>(
-					table_iterator_impl<Table> a
-					, table_iterator_impl<Table> b
+					hop_hash_iterator_impl<HopHash> a
+					, hop_hash_iterator_impl<HopHash> b
 				);
-			/* Table 109 (ForwardIterator) - handled by 107 */
+			/* HopHash 109 (ForwardIterator) - handled by 107 */
 		public:
-			table_iterator_impl(const segment_and_bucket_t &sb_)
+			hop_hash_iterator_impl(const segment_and_bucket_t &sb_)
 				: _sb(sb_)
 			{
 				advance_to_in_use();
 			}
 		};
 
-	template <typename Table>
-		class table_local_iterator
-			: public table_local_iterator_impl<Table>
+	template <typename HopHash>
+		class hop_hash_local_iterator
+			: public hop_hash_local_iterator_impl<HopHash>
 		{
-			using segment_and_bucket_t = typename Table::segment_and_bucket_t;
-			using typename table_local_iterator_impl<Table>::base;
+			using segment_and_bucket_t = typename HopHash::segment_and_bucket_t;
+			using typename hop_hash_local_iterator_impl<HopHash>::base;
 		public:
-			table_local_iterator(const Table &t_, const segment_and_bucket_t & sb_, owner::value_type mask_)
-				: table_local_iterator_impl<Table>(sb_, mask_)
+			hop_hash_local_iterator(const HopHash &t_, const segment_and_bucket_t & sb_, owner::value_type mask_)
+				: hop_hash_local_iterator_impl<HopHash>(sb_, mask_)
 			{}
-			/* Table 106 (Iterator) */
+			/* HopHash 106 (Iterator) */
 			auto operator*() const -> typename base::reference
 			{
 				return this->deref();
 			}
-			auto operator++() -> table_local_iterator &
+			auto operator++() -> hop_hash_local_iterator &
 			{
 				this->incr();
 				return *this;
 			}
-			/* Table 17 (EqualityComparable) */
-			/* Table 107 (InputIterator) */
+			/* HopHash 17 (EqualityComparable) */
+			/* HopHash 107 (InputIterator) */
 			auto operator->() const -> typename base::pointer
 			{
 				return &this->deref();
 			}
-			auto operator++(int) -> table_local_iterator
+			auto operator++(int) -> hop_hash_local_iterator
 			{
 				auto ti = *this;
 				this->incr();
 				return ti;
 			}
-			/* Table 109 (ForwardIterator) - handled by 107 */
+			/* HopHash 109 (ForwardIterator) - handled by 107 */
 		};
 
-	template <typename Table>
-		class table_const_local_iterator
-			: public table_local_iterator_impl<Table>
+	template <typename HopHash>
+		class hop_hash_const_local_iterator
+			: public hop_hash_local_iterator_impl<HopHash>
 		{
-			using segment_and_bucket_t = typename Table::segment_and_bucket_t;
-			using typename table_local_iterator_impl<Table>::base;
+			using segment_and_bucket_t = typename HopHash::segment_and_bucket_t;
+			using typename hop_hash_local_iterator_impl<HopHash>::base;
 		public:
-			table_const_local_iterator(const segment_and_bucket_t & sb_, owner::value_type mask_)
-				: table_local_iterator_impl<Table>(sb_, mask_)
+			hop_hash_const_local_iterator(const segment_and_bucket_t & sb_, owner::value_type mask_)
+				: hop_hash_local_iterator_impl<HopHash>(sb_, mask_)
 			{}
-			/* Table 106 (Iterator) */
+			/* HopHash 106 (Iterator) */
 			auto operator*() const -> const typename base::reference
 			{
 				return this->deref();
 			}
-			auto operator++() -> table_const_local_iterator &
+			auto operator++() -> hop_hash_const_local_iterator &
 			{
 				this->incr();
 				return *this;
 			}
-			/* Table 17 (EqualityComparable) */
-			/* Table 107 (InputIterator) */
+			/* HopHash 17 (EqualityComparable) */
+			/* HopHash 107 (InputIterator) */
 			auto operator->() const -> const typename base::pointer
 			{
 				return &this->deref();
 			}
-			auto operator++(int) -> table_const_local_iterator
+			auto operator++(int) -> hop_hash_const_local_iterator
 			{
 				auto ti = *this;
 				this->incr();
 				return ti;
 			}
-			/* Table 109 (ForwardIterator) - handled by 107 */
+			/* HopHash 109 (ForwardIterator) - handled by 107 */
 		};
 
-	template <typename Table>
-		class table_iterator
-			: public table_iterator_impl<Table>
+	template <typename HopHash>
+		class hop_hash_iterator
+			: public hop_hash_iterator_impl<HopHash>
 		{
-			using segment_and_bucket_t = typename Table::segment_and_bucket_t;
-			using typename table_iterator_impl<Table>::base;
+			using segment_and_bucket_t = typename HopHash::segment_and_bucket_t;
+			using typename hop_hash_iterator_impl<HopHash>::base;
 		public:
-			table_iterator(const segment_and_bucket_t & i)
-				: table_iterator_impl<Table>(i)
+			hop_hash_iterator(const segment_and_bucket_t & i)
+				: hop_hash_iterator_impl<HopHash>(i)
 			{}
-			/* Table 106 (Iterator) */
+			/* HopHash 106 (Iterator) */
 			auto operator*() const -> typename base::reference
 			{
 				return this->deref();
 			}
-			auto operator++() -> table_iterator &
+			auto operator++() -> hop_hash_iterator &
 			{
 				this->incr();
 				return *this;
 			}
-			/* Table 17 (EqualityComparable) */
-			/* Table 107 (InputIterator) */
+			/* HopHash 17 (EqualityComparable) */
+			/* HopHash 107 (InputIterator) */
 			auto operator->() const -> typename base::pointer
 			{
 				return &this->deref();
 			}
-			table_iterator operator++(int)
+			hop_hash_iterator operator++(int)
 			{
 				auto ti = *this;
 				this->incr();
 				return ti;
 			}
-			/* Table 109 (ForwardIterator) - handled by 107 */
+			/* HopHash 109 (ForwardIterator) - handled by 107 */
 		};
 
-	template <typename Table>
-		class table_const_iterator
-			: public table_iterator_impl<Table>
+	template <typename HopHash>
+		class hop_hash_const_iterator
+			: public hop_hash_iterator_impl<HopHash>
 		{
-			using segment_and_bucket_t = typename Table::segment_and_bucket_t;
-			using typename table_iterator_impl<Table>::base;
+			using segment_and_bucket_t = typename HopHash::segment_and_bucket_t;
+			using typename hop_hash_iterator_impl<HopHash>::base;
 		public:
-			table_const_iterator(typename Table::size_type i)
-				: table_iterator_impl<Table>(i)
+			hop_hash_const_iterator(typename HopHash::size_type i)
+				: hop_hash_iterator_impl<HopHash>(i)
 			{}
-			/* Table 106 (Iterator) */
+			/* HopHash 106 (Iterator) */
 			auto operator*() const -> const typename base::reference
 			{
 				return this->deref();
 			}
-			auto operator++() -> table_const_iterator &
+			auto operator++() -> hop_hash_const_iterator &
 			{
 				this->incr();
 				return *this;
 			}
-			/* Table 17 (EqualityComparable) */
-			/* Table 107 (InputIterator) */
+			/* HopHash 17 (EqualityComparable) */
+			/* HopHash 107 (InputIterator) */
 			auto operator->() const -> const typename base::pointer
 			{
 				return &this->deref();
 			}
-			table_const_iterator operator++(int)
+			hop_hash_const_iterator operator++(int)
 			{
 				auto ti = *this;
 				this->incr();
 				return ti;
 			}
-			/* Table 109 (ForwardIterator) - handled by 107 */
+			/* HopHash 109 (ForwardIterator) - handled by 107 */
 		};
 
-	template <typename Table>
+	template <typename HopHash>
 		bool operator==(
-			const table_local_iterator_impl<Table> a
-			, const table_local_iterator_impl<Table> b
+			const hop_hash_local_iterator_impl<HopHash> a
+			, const hop_hash_local_iterator_impl<HopHash> b
 		)
 		{
 			return a._mask == b._mask;
 		}
 
-	template <typename Table>
+	template <typename HopHash>
 		bool operator!=(
-			const table_local_iterator_impl<Table> a
-			, const table_local_iterator_impl<Table> b
+			const hop_hash_local_iterator_impl<HopHash> a
+			, const hop_hash_local_iterator_impl<HopHash> b
 		)
 		{
 			return !(a==b);
 		}
 
-	template <typename Table>
+	template <typename HopHash>
 		bool operator==(
-			const table_iterator_impl<Table> a
-			, const table_iterator_impl<Table> b
+			const hop_hash_iterator_impl<HopHash> a
+			, const hop_hash_iterator_impl<HopHash> b
 		)
 		{
 			return a._sb == b._sb;
 		}
 
-	template <typename Table>
+	template <typename HopHash>
 		bool operator!=(
-			const table_iterator_impl<Table> a
-			, const table_iterator_impl<Table> b
+			const hop_hash_iterator_impl<HopHash> a
+			, const hop_hash_iterator_impl<HopHash> b
 		)
 		{
 			return !(a==b);
@@ -1025,9 +1006,9 @@ namespace impl
 #include "owner.tcc"
 #endif
 #include "persist_controller.tcc"
-#include "table.tcc"
+#include "hop_hash.tcc"
 
-#if TRACE_CONTENT || TRACE_OWNER || TRACE_BUCKET
+#if TRACED_CONTENT || TRACED_OWNER || TRACED_BUCKET
 #include "hop_hash_debug.tcc"
 #endif
 

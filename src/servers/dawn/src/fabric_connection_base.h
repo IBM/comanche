@@ -147,11 +147,12 @@ class Fabric_connection_base {
       assert(_deferred_unlock == nullptr);
       _deferred_unlock = _posted_value_buffer->base();
       if (added_deferred_unlock) *added_deferred_unlock = true;
-      _posted_value_buffer = nullptr;
+      //_posted_value_buffer = nullptr;
     }
 
     return true;
   }
+
 
   void free_recv_buffer()
   {
@@ -219,29 +220,33 @@ class Fabric_connection_base {
     _posted_value_buffer_outstanding = true;
     _transport->post_send(_posted_value_buffer->iov,
                           _posted_value_buffer->iov + 1,
-                          &_posted_value_buffer->desc, _posted_value_buffer);
+                          &_posted_value_buffer->desc, _posted_value_buffer);    
   }
 
   void post_recv_value_buffer(buffer_t *buffer = nullptr)
   {
     if (buffer) {
       _posted_value_buffer = buffer;
-      /* PLOG("posting recv value buffer (%p)(base=%p,len=%lu)", */
-      /* 	   buffer, */
-      /* 	   _posted_value_buffer->iov->iov_base, */
-      /* 	   _posted_value_buffer->iov->iov_len); */
+
+      if(option_DEBUG)
+        PLOG("posting recv value buffer (%p)(base=%p,len=%lu,desc=%p)",
+             buffer,
+             _posted_value_buffer->iov->iov_base,
+             _posted_value_buffer->iov->iov_len,
+             _posted_value_buffer->desc);
     }
     assert(_posted_value_buffer);
     _posted_value_buffer_outstanding = true;
     _transport->post_recv(_posted_value_buffer->iov,
                           _posted_value_buffer->iov + 1,
-                          &_posted_value_buffer->desc, _posted_value_buffer);
+                          &_posted_value_buffer->desc,
+                          _posted_value_buffer);
   }
 
   inline buffer_t *posted_recv() const { return _posted_recv_buffer; }
   inline buffer_t *posted_send() const { return _posted_send_buffer; }
 
-  inline Completion_state poll_completions()
+  Completion_state poll_completions()
   {
     if( _posted_recv_buffer_outstanding ||
         _posted_send_buffer_outstanding ||
@@ -250,8 +255,11 @@ class Fabric_connection_base {
         bool added_deferred_unlock = false;
         try {
           _transport->poll_completions(completion_callback, this);
-          check_for_posted_send_complete();
-          check_for_posted_value_complete(&added_deferred_unlock);
+          if(_posted_send_buffer_outstanding)
+            check_for_posted_send_complete();
+
+          if(_posted_value_buffer_outstanding)
+            check_for_posted_value_complete(&added_deferred_unlock);
         }
         catch (std::logic_error e) {
           return Completion_state::CLIENT_DISCONNECT;
@@ -291,6 +299,9 @@ class Fabric_connection_base {
     return Buffer_manager<Component::IFabric_server>::BUFFER_LEN;
   }
 
+  auto transport() const { return _transport; }
+
+  
  private:
   Buffer_manager<Component::IFabric_server> _bm;
 

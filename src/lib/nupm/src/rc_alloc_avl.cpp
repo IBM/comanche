@@ -81,7 +81,7 @@ class Rca_AVL_internal {
   {
     try {
       auto mr = _allocators[numa_node]->alloc(size, alignment);
-      if (_debug_level > 1) PLOG("allocated: 0x%lx size=%lu", mr->addr(), size);
+      if (_debug_level > 1) PLOG("AVL allocated: 0x%lx size=%lu", mr->addr(), size);
 
       assert(mr);
       return mr->paddr();
@@ -126,6 +126,7 @@ void Rca_AVL::add_managed_region(void * region_base,
   if (numa_node > Rca::max_numa_node)
     throw std::invalid_argument("numa node out of range");
 
+  assert(_rca);
   _rca->add_managed_region(region_base, region_length, numa_node);
 }
 

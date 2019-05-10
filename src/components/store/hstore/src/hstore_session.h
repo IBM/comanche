@@ -15,22 +15,32 @@
 #ifndef COMANCHE_HSTORE_SESSION_H
 #define COMANCHE_HSTORE_SESSION_H
 
-#include "hstore_tracked_pool.h"
-
+#include "atomic_controller.h"
 #include "construction_mode.h"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+#include <tbb/scalable_allocator.h>
+#pragma GCC diagnostic pop
+#include <memory>
 #include <utility> /* move */
 #include <vector>
 
-/* open_pool_handle, ALLOC_T, table_t */
-template <typename Handle, typename Allocator, typename Table>
+class Devdax_manager;
+
+/* open_pool_handle, alloc_t, table_t */
+template <typename Handle, typename Allocator, typename Table, typename LockType>
 	class session
-		: public tracked_pool
+		: public Handle
 	{
-		Handle _pop;
+		using table_t = Table;
+		using lock_type_t = LockType;
+		using key_t = typename table_t::key_type;
+		using mapped_t = typename table_t::mapped_type;
 		Allocator _heap;
-		Table _map;
-		impl::atomic_controller<Table> _atomic_state;
+		table_t _map;
+		impl::atomic_controller<table_t> _atomic_state;
+		bool _debug;
 
 		class lock_impl
 			: public Component::IKVStore::Opaque_key
@@ -38,13 +48,13 @@ template <typename Handle, typename Allocator, typename Table>
 			std::string _s;
 		public:
 			lock_impl(const std::string &s_)
-			: Component::IKVStore::Opaque_key{}
-			, _s(s_)
+				: Component::IKVStore::Opaque_key{}
+				, _s(s_)
 			{}
 			const std::string &key() const { return _s; }
 		};
 
-		static bool try_lock(table_t &map, hstore::lock_type_t type, const KEY_T &p_key)
+		static bool try_lock(table_t &map, lock_type_t type, const key_t &p_key)
 		{
 			return
 				type == Component::IKVStore::STORE_LOCK_READ
@@ -53,63 +63,50 @@ template <typename Handle, typename Allocator, typename Table>
 				;
 		}
 
-		class definite_lock
-		{
-			table_t &_map;
-			const KEY_T &_key;
-		public:
-			definite_lock(table_t &map_, const KEY_T &pkey_)
-				: _map(map_)
-				, _key(pkey_)
+		template <typename K>
+			class definite_lock
 			{
-				if ( ! _map.lock_unique(_key) )
+				table_t &_map;
+				const K &_key;
+			public:
+				definite_lock(table_t &map_, const K &pkey_)
+					: _map(map_)
+					, _key(pkey_)
 				{
-					throw General_exception("unable to get write lock");
+					if ( ! _map.lock_unique(_key) )
+					{
+						throw std::range_error("unable to get unique lock");
+					}
 				}
-			}
-			~definite_lock()
-			{
-				_map.unlock(_key); /* release lock */
-			}
-		};
-
-		/* Return value not set. Ignored?? */
-		static int _functor(
-			const std::string &key
-			, MAPPED_T &m
-			, std::function
-			<
-				int(const std::string &key, const void *val, std::size_t val_len)
-			> *lambda
-		)
-		{
-			assert(lambda);
-			(*lambda)(key, m.data(), m.size());
-			return 0;
-		}
+				~definite_lock()
+				{
+					_map.unlock(_key); /* release lock */
+				}
+			};
 
 		auto allocator() const { return _heap; }
 		table_t &map() noexcept { return _map; }
 		const table_t &map() const noexcept { return _map; }
 
-		auto enter_update(
-			typename Table::key_type &key
+		void enter_update(
+			typename table_t::key_type &key
 			, std::vector<Component::IKVStore::Operation *>::const_iterator first
 			, std::vector<Component::IKVStore::Operation *>::const_iterator last
-			) -> Component::status_t
+			)
 		{
-			return _atomic_state.enter_update(allocator(), key, first, last);
+			_atomic_state.enter_update(allocator(), key, first, last);
 		}
 
 		auto enter_replace(
-			typename Table::key_type &key
+			typename table_t::key_type &key
 			, const void *data
 			, std::size_t data_len
-		) -> Component::status_t
+		)
 		{
-			return _atomic_state.enter_replace(allocator(), key, static_cast<const char *>(data), data_len);
+			_atomic_state.enter_replace(allocator(), key, static_cast<const char *>(data), data_len);
 		}
 	public:
+		using handle_t = Handle;
 		/* PMEMoid, persist_data_t */
 		template <typename OID, typename Persist>
 			explicit session(
@@ -118,11 +115,11 @@ template <typename Handle, typename Allocator, typename Table>
 					heap_oid_
 #endif
 				, const pool_path &path_
-				, open_pool_handle &&pop_
+				, Handle &&pop_
 				, Persist *persist_data_
+				, bool debug_ = false
 			)
-			: tracked_pool(path_)
-			, _pop(std::move(pop_))
+			: Handle(std::move(pop_))
 			, _heap(
 				Allocator(
 #if USE_CC_HEAP == 0
@@ -138,33 +135,42 @@ template <typename Handle, typename Allocator, typename Table>
 #else /* USE_CC_HEAP */
 					this->pool() /* not used */
 #endif /* USE_CC_HEAP */
-					)
+				)
 			)
 			, _map(persist_data_, _heap)
 			, _atomic_state(*persist_data_, _map)
+			, _debug(debug_)
 		{}
 
 		explicit session(
-			const pool_path &path_
+			const pool_path &
 			, Handle &&pop_
 			, construction_mode mode_
+			, bool debug_ = false
 		)
-			: tracked_pool(path_)
-			, _pop(std::move(pop_))
+			: Handle(std::move(pop_))
 			, _heap(
 				Allocator(
-					this->pool()->heap
+					this->pool()->heap()
 				)
 			)
-			, _map(&this->pool()->persist_data, mode_, _heap)
-			, _atomic_state(this->pool()->persist_data, _map, mode_)
+			, _map(&this->pool()->persist_data(), mode_, _heap)
+			, _atomic_state(this->pool()->persist_data(), _map, mode_)
+			, _debug(debug_)
 		{}
+
+		~session()
+		{
+#if USE_CC_HEAP == 3
+			this->pool()->quiesce();
+#endif
+		}
 
 		session(const session &) = delete;
 		session& operator=(const session &) = delete;
 		/* session constructor and get_pool_regions only */
-		auto *pool() const { return _pop.get(); }
-	public:
+		const Handle &handle() const { return *this; }
+		auto *pool() const { return handle().get(); }
 
 		auto insert(
 			const std::string &key,
@@ -175,38 +181,31 @@ template <typename Handle, typename Allocator, typename Table>
 			auto cvalue = static_cast<const char *>(value);
 
 			return
-#if 1
 				map().emplace(
 					std::piecewise_construct
 					, std::forward_as_tuple(key.begin(), key.end(), this->allocator())
 					, std::forward_as_tuple(cvalue, cvalue + value_len, this->allocator())
 				);
-#else
-				map().insert(
-					table_t::value_type(
-					table_t::key_type(key.begin(), key.end(), this->allocator())
-					, table_t::mapped_type(cvalue, cvalue + value_len, this->allocator())
-					)
-				);
-#endif
 		}
 
-		auto update_by_issue_41(
+		void update_by_issue_41(
 			const std::string &key,
 			const void * value,
 			const std::size_t value_len,
 			void * /* old_value */,
 			const std::size_t old_value_len
-		) -> status_t
+		)
 		{
-		  /* hstore issue 41: "a put should replace any existing k,v pairs that match.
-		   * If the new put is a different size, then the object should be reallocated.
-		   * If the new put is the same size, then it should be updated in place."
-		   */
+			definite_lock<std::string> dl(this->map(), key);
+
+			/* hstore issue 41: "a put should replace any existing k,v pairs that match.
+			 * If the new put is a different size, then the object should be reallocated.
+			 * If the new put is the same size, then it should be updated in place."
+			 */
 			if ( value_len != old_value_len )
 			{
-				auto p_key = KEY_T(key.begin(), key.end(), this->allocator());
-				return enter_replace(p_key, value, value_len);
+				auto p_key = key_t(key.begin(), key.end(), this->allocator());
+				enter_replace(p_key, value, value_len);
 			}
 			else
 			{
@@ -214,101 +213,71 @@ template <typename Handle, typename Allocator, typename Table>
 				v.emplace_back(std::make_unique<Component::IKVStore::Operation_write>(0, value_len, value));
 				std::vector<Component::IKVStore::Operation *> v2;
 				std::transform(v.begin(), v.end(), std::back_inserter(v2), [] (const auto &i) { return i.get(); });
-				return this->atomic_update(key, v2);
+				this->atomic_update(key, v2);
 			}
 		}
 
 		auto get(
 			const std::string &key,
-			void*& out_value,
-			std::size_t& out_value_len
-		) const -> status_t
-		try
+			void* buffer,
+			std::size_t buffer_size
+		) const -> std::size_t
 		{
-			auto p_key = KEY_T(key.begin(), key.end(), this->allocator());
-			auto &v = map().at(p_key);
-
-			if ( out_value == nullptr )
-			{
-				out_value = ::malloc(v.size());
-				if ( ! out_value )
-				{
-					throw std::bad_alloc();
-				}
-			}
-			else
-			{
-				/* Although not documented, assume that non-zero
-				 * out_value implies that out_value_len holds
-				 * the buffer's size.
-				 *
-				 * It might be reaonable to
-				 *  a) fill the buffer and/or
-				 *  b) return the necessary size in out_value_len,
-				 * but neither action is documented, so we do not.
-				 */
-				if ( out_value_len < v.size() )
-				{
-					return Component::IKVStore::E_INSUFFICIENT_BUFFER;
-				}
-			}
-
-			out_value_len = v.size();
-			memcpy(out_value, v.data(), out_value_len);
-			return Component::IKVStore::S_OK;
-		}
-		catch ( std::out_of_range & )
-		{
-			return Component::IKVStore::E_KEY_NOT_FOUND;
-		}
-
-		auto get_direct(
-			const std::string & key
-			, void* out_value
-			, std::size_t & out_value_len
-		) const -> status_t
-		try
-		{
-			auto p_key = KEY_T(key.begin(), key.end(), this->allocator());
-
-			auto &v = this->map().at(p_key);
-
+			auto &v = map().at(key);
 			auto value_len = v.size();
-			if (out_value_len < value_len)
+
+			if ( value_len <= buffer_size )
 			{
-				/* NOTE: it might be helpful to tell the caller how large
-				 * a buffer is needed,
-				 * but that does not seem to be expected.
-				 */
-				return Component::IKVStore::E_INSUFFICIENT_BUFFER;
+				std::memcpy(buffer, v.data(), value_len);
+			}
+			return value_len;
+		}
+
+		auto get_alloc(
+			const std::string &key
+		) const -> std::tuple<void *, std::size_t>
+		{
+			auto &v = map().at(key);
+			auto value_len = v.size();
+
+			auto value = ::scalable_malloc(value_len);
+			if ( ! value )
+			{
+				throw std::bad_alloc();
 			}
 
-			out_value_len = value_len;
-
-			assert(out_value);
-
-			/* memcpy for moment
-			*/
-			memcpy(out_value, v.data(), out_value_len);
-			return Component::IKVStore::S_OK;
+			std::memcpy(value, v.data(), value_len);
+			return std::pair<void *, std::size_t>(value, value_len);
 		}
-		catch ( const std::out_of_range & )
+
+		auto get_value_len(
+			const std::string & key
+		) const -> std::size_t
 		{
-		        return Component::IKVStore::E_KEY_NOT_FOUND;
+			auto &v = this->map().at(key);
+			return v.size();
+		}
+
+		auto pool_grow(
+			const std::unique_ptr<Devdax_manager> &dax_mgr_
+			, const std::size_t increment_
+		) const -> std::size_t
+		{
+			return this->pool()->grow(dax_mgr_, increment_);
 		}
 
 		auto lock(
 			const std::string &key
-			, hstore::lock_type_t type
+			, lock_type_t type
 			, void *& out_value
 			, std::size_t & out_value_len
 		) -> Component::IKVStore::key_t
 		{
-			const auto p_key = KEY_T(key.begin(), key.end(), this->allocator());
+			const auto p_key = key_t(key.begin(), key.end(), this->allocator());
 
 			try
 			{
-				MAPPED_T &val = this->map().at(p_key);
+				mapped_t &val = this->map().at(p_key);
 				if ( ! try_lock(this->map(), type, p_key) )
 				{
 					return Component::IKVStore::KEY_NONE;
@@ -316,14 +285,14 @@ template <typename Handle, typename Allocator, typename Table>
 				out_value = val.data();
 				out_value_len = val.size();
 			}
-			catch ( std::out_of_range & )
+			catch ( const std::out_of_range & )
 			{
 				/* if the key is not found, we create it and
 				* allocate value space equal in size to out_value_len
 				*/
-				if ( option_DEBUG )
+				if ( _debug )
 				{
-					PLOG(PREFIX "allocating object %lu bytes", __func__, out_value_len);
+					PLOG(PREFIX "allocating object %zu bytes", __func__, out_value_len);
 				}
 
 				auto r =
@@ -340,6 +309,12 @@ template <typename Handle, typename Allocator, typename Table>
 
 				out_value = r.first->second.data();
 				out_value_len = r.first->second.size();
+
+				if ( ! try_lock(this->map(), type, p_key) )
+				{
+					assert(nullptr == "try_lock should always return true for a new key");
+					return Component::IKVStore::KEY_NONE;
+				}
 			}
 			return new lock_impl(key);
 		}
@@ -351,7 +326,7 @@ template <typename Handle, typename Allocator, typename Table>
 				if ( auto lk = dynamic_cast<lock_impl *>(key_) )
 				{
 					try {
-						auto p_key = KEY_T(lk->key().begin(), lk->key().end(), this->allocator());
+						auto p_key = key_t(lk->key().begin(), lk->key().end(), this->allocator());
 						this->map().unlock(p_key);
 					}
 					catch ( const std::out_of_range &e )
@@ -365,97 +340,28 @@ template <typename Handle, typename Allocator, typename Table>
 				}
 				else
 				{
-					return Component::IKVStore::S_OK; /* not really OK - was not one of our locks */
+					return S_OK; /* not really OK - was not one of our locks */
 				}
 			}
-			return Component::IKVStore::S_OK;
+			return S_OK;
 		}
 
-		auto locate_apply(
-			const KEY_T &p_key
-			, std::size_t object_size
-		) -> MAPPED_T *
+		bool get_auto_resize() const
 		{
-			try
-			{
-				return &this->map().at(p_key);
-			}
-			catch ( const std::out_of_range & )
-			{
-				/* if the key is not found, we create it and
-				allocate value space equal in size to out_value_len
-				*/
-
-				if ( option_DEBUG )
-				{
-					PLOG(PREFIX "allocating object %lu bytes", __func__, object_size);
-				}
-
-				auto r =
-					this->map().emplace(
-						std::piecewise_construct
-							, std::forward_as_tuple(p_key)
-						, std::forward_as_tuple(object_size, this->allocator())
-					);
-				return
-					r.second
-					? &(*r.first).second
-					: nullptr
-					;
-			}
+			return this->map().get_auto_resize();
 		}
 
-		auto apply(
-			const std::string &key
-			, std::function<void(void*,std::size_t)> functor
-			, std::size_t object_size
-		) -> status_t
+		void set_auto_resize(bool auto_resize)
 		{
-			auto p_key = KEY_T(key.begin(), key.end(), this->allocator());
-			if ( auto val = locate_apply(p_key, object_size) )
-			{
-				auto data = static_cast<char *>(val->data());
-				auto data_len = val->size();
-				functor(data, data_len);
-				return Component::IKVStore::S_OK;
-			}
-			else
-			{
-				return Component::IKVStore::E_KEY_NOT_FOUND;
-			}
-		}
-
-		auto lock_and_apply(
-			const std::string &key
-			, std::function<void(void*,std::size_t)> functor
-			, std::size_t object_size
-		) -> status_t
-		{
-			auto p_key = KEY_T(key.begin(), key.end(), this->allocator());
-			if ( auto val = locate_apply(p_key, object_size) )
-			{
-				auto data = static_cast<char *>(val->data());
-				auto data_len = val->size();
-				definite_lock m(this->map(), p_key);
-				functor(data, data_len);
-				return Component::IKVStore::S_OK;
-			}
-			else
-			{
-				return Component::IKVStore::E_KEY_NOT_FOUND;
-			}
+			this->map().set_auto_resize(auto_resize);
 		}
 
 		auto erase(
 			const std::string &key
-		) -> status_t
+		) -> std::size_t
 		{
-			auto p_key = KEY_T(key.begin(), key.end(), this->allocator());
-			return
-				map().erase(p_key) == 0
-				? Component::IKVStore::E_KEY_NOT_FOUND
-				: Component::IKVStore::S_OK
-			;
+			auto p_key = key_t(key.begin(), key.end(), this->allocator());
+			return map().erase(p_key);
 		}
 
 		auto count() const -> std::size_t
@@ -465,7 +371,7 @@ template <typename Handle, typename Allocator, typename Table>
 
 		auto bucket_count() const -> std::size_t
 		{
-			table_t::size_type count = 0;
+			typename table_t::size_type count = 0;
 			/* bucket counter */
 			for (
 				auto n = this->map().bucket_count()
@@ -476,7 +382,7 @@ template <typename Handle, typename Allocator, typename Table>
 				auto last = this->map().end(n-1);
 				for ( auto first = this->map().begin(n-1); first != last; ++first )
 				{
-			                ++count;
+					++count;
 				}
 			}
 			return count;
@@ -492,37 +398,39 @@ template <typename Handle, typename Allocator, typename Table>
 			for ( auto &mt : this->map() )
 			{
 				const auto &pstring = mt.first;
+				/* C++17 note: std::string_view would avoid the temporary */
 				std::string s(static_cast<const char *>(pstring.data()), pstring.size());
-				_functor(s, mt.second, &function);
+				const auto &mapped = mt.second;
+				function(s, mapped.data(), mapped.size());
 			}
 
 		}
 
-		auto atomic_update_inner(
-			KEY_T &key
+		void atomic_update_inner(
+			key_t &key
 			, const std::vector<Component::IKVStore::Operation *> &op_vector
-		) -> status_t
+		)
 		{
-			return this->enter_update(key, op_vector.begin(), op_vector.end());
+			this->enter_update(key, op_vector.begin(), op_vector.end());
 		}
 
-		auto atomic_update(
+		void atomic_update(
 			const std::string& key
 			, const std::vector<Component::IKVStore::Operation *> &op_vector
-		) -> status_t
+		)
 		{
-			auto p_key = KEY_T(key.begin(), key.end(), this->allocator());
-			return this->atomic_update_inner(p_key, op_vector);
+			auto p_key = key_t(key.begin(), key.end(), this->allocator());
+			this->atomic_update_inner(p_key, op_vector);
 		}
 
-		auto lock_and_atomic_update(
+		void lock_and_atomic_update(
 			const std::string& key
 			, const std::vector<Component::IKVStore::Operation *> &op_vector
-		) -> status_t
+		)
 		{
-			auto p_key = KEY_T(key.begin(), key.end(), this->allocator());
-			definite_lock m(this->map(), p_key);
-			return this->atomic_update_inner(p_key, op_vector);
+			auto p_key = key_t(key.begin(), key.end(), this->allocator());
+			definite_lock<key_t> m(this->map(), p_key);
+			this->atomic_update_inner(p_key, op_vector);
 		}
 	};
 

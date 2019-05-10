@@ -2,6 +2,8 @@ cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
 project(comanche-dummystore CXX)
 
+set (CMAKE_CXX_STANDARD 14)
+
 add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -O3 -mavx2 -DCONFIG_DEBUG)
 
 include_directories(${CMAKE_INSTALL_PREFIX}/include)
@@ -10,6 +12,8 @@ link_directories(${CMAKE_INSTALL_PREFIX}/lib64)
 
 enable_language(CXX C ASM)
 file(GLOB SOURCES src/*.c*)
+
+add_compile_options(-g -Wcast-align -Wcast-qual -Wconversion -Wshadow -Wtype-limits -Wwrite-strings)
 
 add_library(${PROJECT_NAME} SHARED ${SOURCES})
 

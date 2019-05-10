@@ -24,12 +24,15 @@
 #include <common/exceptions.h>
 #include <common/logging.h>
 #include <map>
+#include <unordered_map>
+#include <list>
 #include <thread>
 #include "connection_handler.h"
 #include "dawn_config.h"
 #include "fabric_transport.h"
 #include "pool_manager.h"
 #include "types.h"
+#include "task_key_find.h"
 
 namespace Dawn
 {
@@ -39,10 +42,15 @@ class Connection_handler;
 using Shard_transport = Fabric_transport;
 
 class Shard : public Shard_transport {
+  
  private:
-  using buffer_t = Shard_transport::buffer_t;
-  using pool_t   = Component::IKVStore::pool_t;
-
+  using buffer_t           = Shard_transport::buffer_t;
+  using pool_t             = Component::IKVStore::pool_t;
+  using index_map_t        = std::unordered_map<pool_t, Component::IKVIndex*>;
+  using pool_key_pair_t    = std::pair<pool_t, Component::IKVStore::key_t>;
+  using locked_value_map_t = std::map<const void*, pool_key_pair_t>;
+  using task_list_t        = std::list<Shard_task*>;
+  
   unsigned option_DEBUG;
 
  public:
@@ -65,6 +73,7 @@ class Shard : public Shard_transport {
                                            index,
                                            pci_addr,
                                            dax_config,
+					   pm_path,
                                            debug_level)
   {
     option_DEBUG = Dawn::Global::debug_level = debug_level;
@@ -79,8 +88,13 @@ class Shard : public Shard_transport {
     assert(_i_kvstore);
     _i_kvstore->release_ref();
 
-    if (_index_factory)
-      _index_factory->release_ref();
+    if (_index_map) {
+      for(auto i : *_index_map) {
+        assert(i.second);
+        i.second->release_ref();
+      }
+      delete _index_map;
+    }
   }
 
   bool exited() const { return _thread_exit; }
@@ -90,6 +104,7 @@ class Shard : public Shard_transport {
                     const std::string& index,
                     const std::string& pci_addr,
                     const std::string& dax_config,
+		    const std::string& pm_path,
                     unsigned           debug_level)
   {
     if (option_DEBUG > 2) PLOG("shard:%u worker thread entered.", _core);
@@ -99,7 +114,7 @@ class Shard : public Shard_transport {
     mask.add_core(_core);
     set_cpu_affinity_mask(mask);
 
-    initialize_components(backend, index, pci_addr, dax_config, debug_level);
+    initialize_components(backend, index, pci_addr, dax_config, pm_path, debug_level);
 
     main_loop();
 
@@ -131,6 +146,7 @@ class Shard : public Shard_transport {
                              const std::string& index,
                              const std::string& pci_addr,
                              const std::string& dax_config,
+			     const std::string& pm_path,
                              unsigned           debug_level);
 
   void check_for_new_connections();
@@ -142,20 +158,56 @@ class Shard : public Shard_transport {
 
   void process_message_IO_request(Connection_handler* handler,
                                   Protocol::Message_IO_request* msg);
+  
+  void process_info_request(Connection_handler* handler,
+                            Protocol::Message_INFO_request* msg);
+
+  status_t process_configure(Protocol::Message_IO_request* msg);
+
+  void process_tasks();
+  
+  Component::IKVIndex * lookup_index(const pool_t pool_id) {
+    if(_index_map) {
+      auto search = _index_map->find(pool_id);
+      if(search == _index_map->end()) return nullptr;
+      return search->second;
+    }
+    else return nullptr;
+  }
+
+  void add_index_key(const pool_t pool_id,
+                     const std::string& k) {
+    auto index = lookup_index(pool_id);
+    if(index)
+      index->insert(k);
+  }
+
+  void remove_index_key(const pool_t pool_id,
+                        const std::string& k) {
+    auto index = lookup_index(pool_id);
+    if(index)
+      index->erase(k);
+  }
+
+  inline void add_task_list(Shard_task *  task) {
+    _tasks.push_back(task);
+  }
 
  private:
+  static Pool_manager              pool_manager; /* instance shared across connections */
+  
+  index_map_t*                     _index_map = nullptr;
   bool                             _thread_exit = false;
   bool                             _forced_exit;
   unsigned                         _core;
   std::thread                      _thread;
   size_t                           _max_message_size;
   Component::IKVStore*             _i_kvstore;
-  Component::IKVIndex_factory*     _index_factory;
   std::vector<Connection_handler*> _handlers;
-
-  std::map<const void*, std::pair<pool_t, Component::IKVStore::key_t>>
-      _locked_values;
+  locked_value_map_t               _locked_values;
+  task_list_t                      _tasks;
 };
+
 
 }  // namespace Dawn
 

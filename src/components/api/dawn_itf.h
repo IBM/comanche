@@ -18,13 +18,15 @@
 
 #include <api/components.h>
 #include <api/kvstore_itf.h>
+#include <api/kvindex_itf.h>
+
 namespace Component
 {
 
 /** 
  * Dawn client interface (this will include both KV and AS capabilities)
  */
-class IDawn
+class IDawn : public Component::IBase
 {
 public:
   // clang-format off
@@ -33,7 +35,6 @@ public:
   
 public:
   
-
   /** 
    * Determine thread safety of the component
    * 
@@ -46,7 +47,7 @@ public:
    * Create an object pool
    * 
    * @param ppol_name Unique pool name
-   * @param size Size of pool in bytes
+   * @param size Size of pool in bytes (for keys,values and metadata)
    * @param flags Creation flags
    * @param expected_obj_count Expected maximum object count (optimization)
    * 
@@ -82,6 +83,18 @@ public:
    */
   virtual status_t delete_pool(const std::string& pool_name) = 0;
 
+
+  /** 
+   * Configure a pool
+   * 
+   * @param setting Configuration request (e.g., AddIndex::VolatileTree)
+
+   * 
+   * @return S_OK on success
+   */
+  virtual status_t configure_pool(const IKVStore::pool_t pool,
+                                  const std::string& setting) = 0;
+  
   /** 
    * Write or overwrite an object value. If there already exists a
    * object with matching key, then it should be replaced
@@ -119,7 +132,7 @@ public:
                               const std::string& key,
                               const void * value,
                               const size_t value_len,
-                              IKVStore::IKVStore::memory_handle_t handle = IKVStore::HANDLE_NONE,
+                              IKVStore::memory_handle_t handle = IKVStore::HANDLE_NONE,
                               unsigned int flags = IKVStore::FLAGS_NONE) = 0;
 
   /** 
@@ -156,18 +169,21 @@ public:
                               IKVStore::memory_handle_t handle = IKVStore::HANDLE_NONE) = 0;
   
   /** 
-   * Perform a key search
+   * Perform key search based on regex or prefix
    * 
-   * @param key_expression Key expression to match on
-   * @param begin_position Position from which to start from. Counting from 0.
-   * @param out_end_position [out] Position of the match
+   * @param pool Pool handle
+   * @param key_expression Regular expression or prefix (e.g. "prefix:carKey")
+   * @param offset Offset from which to search
+   * @param out_matched_offset Out offset of match
+   * @param out_keys Out vector of matching keys
    * 
-   * @return Matched key
-   */  
-  virtual std::string find(const std::string& key_expression,
-                           IKVIndex::offset_t begin_position,
-                           IKVIndex::find_t find_type,
-                           IKVIndex::offset_t& out_end_position) = 0;
+   * @return S_OK on success
+   */
+  virtual status_t find(const IKVStore::pool_t pool,
+                        const std::string& key_expression,
+                        const offset_t offset,
+                        offset_t& out_matched_offset,
+                        std::string& out_matched_key) = 0;
 
   /** 
    * Erase an object
@@ -189,6 +205,21 @@ public:
    */
   virtual size_t count(const IKVStore::pool_t pool) = 0;
 
+  /** 
+   * Get attribute for key or pool (see enum Attribute)
+   * 
+   * @param pool Pool handle
+   * @param attr Attribute to retrieve
+   * @param out_attr Result
+   * @param key [optiona] Key
+   * 
+   * @return S_OK on success
+   */
+  virtual status_t get_attribute(const IKVStore::pool_t pool,
+                                 const IKVStore::Attribute attr,
+                                 std::vector<uint64_t>& out_attr,
+                                 const std::string* key = nullptr) = 0;
+  
   /** 
    * Register memory for zero copy DMA
    * 
@@ -228,31 +259,31 @@ public:
 };
 
 
-class IDawn_factory : public Component::IBase
+class IDawn_factory : public IKVStore_factory
 {
 public:
   // clang-format off
   DECLARE_INTERFACE_UUID(0xfacf1b99,0xbc51,0x49ff,0xa27b,0xd4,0xe8,0x19,0x03,0xbb,0x02);
   // clang-format on
   
-  virtual IDawn * create(const std::string& owner,
-                            const std::string& param){
-    throw API_exception("factory::create(owner,param) not implemented");
-  };
 
-  virtual IDawn * create(const std::string& owner,
-                            const std::string& param,
-                            const std::string& param2){
-    throw API_exception("factory::create(owner,param,param2) not implemented");
+  /** 
+   * Create a "session" to a remote shard
+   * 
+   * @param debug_level Debug level (0-3)
+   * @param owner Owner info (not used)
+   * @param addr_with_port Address and port information, e.g. 10.0.0.22:11911 (must be RDMA)
+   * @param nic_device RDMA network device (e.g., mlnx5_0)
+   * 
+   * @return Pointer to IDawn instance. Use release_ref() to close.
+   */
+  virtual IDawn * dawn_create(unsigned debug_level,
+                              const std::string& owner,
+                              const std::string& addr_with_port,
+                              const std::string& nic_device) {
+    throw API_exception("IDawn_factory::dawn_create(debug_level,owner,param,param2) not implemented");
   }
-
-  virtual IDawn * create(unsigned debug_level,
-                            const std::string& owner,
-                            const std::string& param,
-                            const std::string& param2){
-    throw API_exception("factory::create(debug_level,owner,param,param2) not implemented");
-  }
-
+ 
 
 };
 

@@ -151,12 +151,6 @@ public:
   virtual status_t unlock(const pool_t pool,
                           key_t key_hash) override;
 
-  virtual status_t apply(const pool_t pool,
-                         const std::string& key,
-                         std::function<void(void*,const size_t)> functor,
-                         size_t object_size,
-                         bool take_lock = true) override;
-
   virtual status_t erase(const pool_t pool,
                          const std::string& key) override;
 
@@ -221,16 +215,10 @@ public:
   /*
    *   "pci" is in Bus:Device.Function (BDF) form. Bus and Device must be zero-padded to 2 digits each, e.g. 86:00.0
    */
-  virtual Component::IKVStore * create(const std::string& owner,
-                                       const std::string& name,
-                                       const std::string& pci)
-                                       override;
 
-  virtual Component::IKVStore * create(unsigned,
-                                       const std::string& owner,
-                                       const std::string& name,
-                                       const std::string& pci)
-                                       override;
+  /* mapped params, keys: owner,name,pci,pm_path */
+  virtual Component::IKVStore * create(unsigned debug_level,
+				       std::map<std::string,std::string>& params) override;
 };
 
 #endif

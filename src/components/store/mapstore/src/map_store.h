@@ -104,7 +104,12 @@ public:
                               const size_t value_len,
                               IKVStore::memory_handle_t handle = HANDLE_NONE,
                               unsigned int flags = FLAGS_NONE) override;
-  
+
+  virtual status_t get_attribute(const pool_t pool,
+                                 const Attribute attr,
+                                 std::vector<uint64_t>& out_attr,
+                                 const std::string* key = nullptr) override;
+
   virtual key_t lock(const pool_t pool,
                      const std::string& key,
                      lock_type_t type,
@@ -120,7 +125,15 @@ public:
   virtual size_t count(const pool_t pool) override;
 
   virtual status_t free_memory(void * p) override;
-  
+
+  virtual status_t map(const pool_t pool,
+                       std::function<int(const std::string& key,
+                                         const void * value,
+                                         const size_t value_len)> function) override;
+
+  virtual status_t map_keys(const pool_t pool,
+                            std::function<int(const std::string& key)> function) override;
+
   virtual void debug(const pool_t pool, unsigned cmd, uint64_t arg) override;
 
 private:

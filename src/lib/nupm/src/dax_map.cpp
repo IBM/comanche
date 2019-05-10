@@ -48,6 +48,7 @@ static size_t use_dram = 0; // when DCPMM is not available
 __attribute__((constructor))
 static void __dax_map_ctr() 
 {
+  /* env variable USE_DRAM to trigger use of DRAM instead of PM */
   char* p = getenv("USE_DRAM");
   if(p != nullptr) {
     errno = 0;
@@ -154,11 +155,10 @@ void *Devdax_manager::open_region(uint64_t uuid,
   if (hdr == nullptr)
     throw General_exception("no region header for device (%s)", device);
 
-  size_t region_length = 0;
-  return hdr->get_region(uuid, &region_length);
+  return hdr->get_region(uuid, out_length);
 }
 
-void *Devdax_manager::create_region(uint64_t uuid, unsigned region_id, size_t size)
+void *Devdax_manager::create_region(uint64_t uuid, unsigned region_id, const size_t size)
 {
   guard_t           g(_reentrant_lock);
   const char *      device = lookup_dax_device(region_id);

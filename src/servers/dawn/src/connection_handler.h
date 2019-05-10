@@ -40,13 +40,15 @@ namespace Dawn
 {
 using Connection_base = Fabric_connection_base;
 
+/** 
+ * Connection handler is instantiated for each "connected" client
+ */
 class Connection_handler
     : public Connection_base
-    , public Region_manager
-    , public Pool_manager {
+    , public Region_manager {
  private:
 
-  bool option_DEBUG = Dawn::Global::debug_level > 1;
+  unsigned option_DEBUG = Dawn::Global::debug_level;
   static constexpr uint64_t STALL_TICKS = 20; /*< number of ticks to stall after post */
   
   /* Adaptor point for different transports */
@@ -75,6 +77,7 @@ class Connection_handler
     POST_MSG_RECV,
     WAIT_NEW_MSG_RECV,
     WAIT_RECV_VALUE,
+    WAIT_SEND_VALUE,
   };
 
   State _state = State::INITIALIZE;
@@ -206,6 +209,19 @@ class Connection_handler
                          size_t target_len,
                          Component::IFabric_connection::memory_region_t region);
 
+  void set_pending_send_value();
+
+  void add_memory_handle(Component::IKVStore::memory_handle_t handle) {
+    _mr_vector.push_back(handle);
+  }
+
+  Component::IKVStore::memory_handle_t pop_memory_handle() {
+    if(_mr_vector.empty()) return nullptr;
+    auto mr = _mr_vector.back();
+    _mr_vector.pop_back();
+    return mr;
+  }  
+
   inline uint64_t auth_id() const { return (uint64_t) this; /* temp */ }
 
   inline size_t max_message_size() const { return _max_message_size; }
@@ -216,14 +232,13 @@ class Connection_handler
     return _stall_tick;
   }
 
-  inline void stall() {
-    _stall_tick = STALL_TICKS;
-  }
-  
+  inline void stall() {  _stall_tick = STALL_TICKS;  }
+
  private:
   struct {
     uint64_t response_count               = 0;
     uint64_t recv_msg_count               = 0;
+    uint64_t send_msg_count               = 0;
     uint64_t wait_recv_value_misses       = 0;
     uint64_t wait_msg_recv_misses         = 0;
     uint64_t wait_respond_complete_misses = 0;
@@ -239,6 +254,7 @@ class Connection_handler
     PINF("Ticks                       : %lu", _tick_count);
     PINF("NEW_MSG_RECV misses         : %lu", _stats.wait_msg_recv_misses);
     PINF("Recv message count          : %lu", _stats.recv_msg_count);
+    PINF("Send message count          : %lu", _stats.send_msg_count);
     PINF("Response count              : %lu", _stats.response_count);
     PINF("WAIT_RECV_VALUE misses      : %lu", _stats.wait_recv_value_misses);
     PINF("WAIT_RESPOND_COMPLETE misses: %lu", _stats.wait_respond_complete_misses);
@@ -246,6 +262,10 @@ class Connection_handler
   }
 
  private:
+
+  /* list of pre-registered memory regions; normally one region */
+  std::vector<Component::IKVStore::memory_handle_t> _mr_vector;
+  
   uint64_t               _tick_count __attribute((aligned(8))) = 0;
   uint64_t               _stall_tick __attribute((aligned(8))) = 0;  
   std::vector<buffer_t*> _pending_msgs;

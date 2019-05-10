@@ -31,6 +31,7 @@ namespace impl
 			, public persist_atomic<TypeAtomic>
 		{
 		public:
+			using allocator_type = AllocatorSegment;
 			persist_data(std::size_t n, const AllocatorSegment &av)
 				: persist_map<AllocatorSegment>(n, av)
 				, persist_atomic<TypeAtomic>()

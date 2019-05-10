@@ -22,11 +22,20 @@
 namespace Dawn
 {
 class Region_manager {
-  static constexpr bool option_DEBUG = true;
+  static constexpr bool option_DEBUG = false;
 
  public:
-  Region_manager(Connection* conn) : _conn(conn) { assert(conn); }
+  Region_manager(Connection* conn) : _conn(conn) {
+    assert(conn);
+  }
 
+  ~Region_manager() {
+    /* deregister memory regions */
+    for(auto& r : _reg) {
+      _conn->deregister_memory(r.second);
+    }
+  }
+  
   /**
    * Register memory with network transport for direct IO.  Cache in map.
    *
@@ -53,6 +62,10 @@ class Region_manager {
       region       = _conn->register_memory(target, target_len, 0, 0);
       _reg[target] = region;
     }
+    if(option_DEBUG)
+      PLOG("new memory registered %p len=%lu OK", target, target_len);
+    
+    assert(region);
     return region;
   }
 

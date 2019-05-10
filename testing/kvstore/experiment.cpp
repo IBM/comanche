@@ -28,11 +28,12 @@
 
 #define PMSTORE_PATH "libcomanche-pmstore.so"
 #define FILESTORE_PATH "libcomanche-storefile.so"
+#define DUMMYSTORE_PATH "libcomanche-dummystore.so"
 #define NVMESTORE_PATH "libcomanche-nvmestore.so"
 #define ROCKSTORE_PATH "libcomanche-rocksdb.so"
 #define DAWN_PATH "libcomanche-dawn-client.so"
 
-#define HT_SIZE_FACTOR 3
+#define HT_SIZE_FACTOR 1 /* already factor 3 in hstore */
 
 Data * Experiment::g_data;
 std::mutex Experiment::g_write_lock;
@@ -155,6 +156,8 @@ Experiment::Experiment(std::string name_, const ProgramOptions &options)
   , timer()
   , _verbose(options.verbose)
   , _summary(options.summary)
+  , _pool_element_start(0)
+  , _pool_element_end(0)
   , _bin_count(options.bin_count)
   , _bin_threshold_min(options.bin_threshold_min)
   , _bin_threshold_max(options.bin_threshold_max)
@@ -232,6 +235,9 @@ int Experiment::initialize_store(unsigned core)
     else if( component_is( "filestore" ) ) {
       comp = load_component(FILESTORE_PATH, filestore_factory);
     }
+    else if( component_is( "dummystore" ) ) {
+      comp = load_component(DUMMYSTORE_PATH, dummystore_factory);
+    }
     else if( component_is( "nvmestore" ) ) {
       comp = load_component(NVMESTORE_PATH, nvmestore_factory);
     }
@@ -303,7 +309,7 @@ int Experiment::initialize_store(unsigned core)
       _store = fact->create(_debug_level, _owner, url, *_device_name);
       PMAJOR("dawn component instance: %p", static_cast<const void *>(_store));
     }
-    else if ( component_is( "hstore" ) ) {
+    else if ( component_is( "hstore" ) || component_is("dummystore") ) {
       auto device = core_to_device(core);
       std::size_t dax_base = 0x7000000000;
       /* at least the dax size, rounded for alignment */
@@ -461,6 +467,11 @@ void Experiment::initialize(unsigned core)
   try
   {
     _pool = _store->create_pool(_pool_path + _pool_name_local, _pool_size, _pool_flags, _pool_num_objects * HT_SIZE_FACTOR);
+    if ( _pool == Component::IKVStore::POOL_ERROR )
+    {
+      PERR("create_pool failed");
+      throw std::runtime_error("create_pool failed: returned IKVStore::POOL_ERROR. Aborting experiment.");
+    }
   }
   catch ( const Exception &e )
   {
@@ -646,7 +657,7 @@ try
     if (rc != S_OK)
     {
       PERR("close_pool returned error code %d", rc);
-      throw;
+      throw std::runtime_error("close_pool returned error code " + std::to_string(rc));
     }
   }
   catch(...)
@@ -1111,8 +1122,7 @@ void Experiment::_populate_pool_to_capacity(unsigned core, Component::IKVStore::
     std::cout << "_populate_pool_to_capacity start: _pool_num_components = " << _pool_num_objects << ", _elements_stored = " << _elements_stored << ", _pool_element_end = " << _pool_element_end << std::endl;
   }
 
-  bool can_add_more_elements;
-  unsigned long current = _pool_element_end + 1;  // first run: should be 0 (start index)
+  unsigned long current = _pool_element_end;  // first run: should be 0 (start index)
   long maximum_elements = -1;
   _pool_element_start = current;
 
@@ -1123,7 +1133,10 @@ void Experiment::_populate_pool_to_capacity(unsigned core, Component::IKVStore::
     _debug_print(core, debug_start.str());
   }
 
-  do
+  bool can_add_more_in_batch = (current - _pool_element_start) != static_cast<unsigned long>(maximum_elements);
+  bool can_add_more_overall = current != _pool_num_objects;
+
+  while ( can_add_more_in_batch && can_add_more_overall )
   {
     try
     {
@@ -1153,7 +1166,7 @@ void Experiment::_populate_pool_to_capacity(unsigned core, Component::IKVStore::
     {
       std::cerr << "current = " << current << std::endl;
       PERR("%s", "_populate_pool_to_capacity failed at put call");
-        throw;
+      throw;
     }
 
     // calculate maximum number of elements we can put in pool at one time
@@ -1183,27 +1196,21 @@ void Experiment::_populate_pool_to_capacity(unsigned core, Component::IKVStore::
 
     ++current;
 
-    bool can_add_more_in_batch = (current - _pool_element_start) != static_cast<unsigned long>(maximum_elements);
-    bool can_add_more_overall = current != _pool_num_objects;
-
-    can_add_more_elements = can_add_more_in_batch && can_add_more_overall;
-
-    if ( ! can_add_more_elements )
-    {
-      if ( ! can_add_more_in_batch )
-      {
-        _debug_print(core, "reached capacity", true);
-      }
-
-      if ( ! can_add_more_overall )
-      {
-        _debug_print(core, "reached last element", true);
-      }
-    }
+    can_add_more_in_batch = (current - _pool_element_start) != static_cast<unsigned long>(maximum_elements);
+    can_add_more_overall = current != _pool_num_objects;
   }
-  while ( can_add_more_elements );
 
-  _pool_element_end = current - 1;
+  if ( ! can_add_more_in_batch )
+  {
+    _debug_print(core, "reached capacity", true);
+  }
+
+  if ( ! can_add_more_overall )
+  {
+    _debug_print(core, "reached last element", true);
+  }
+
+  _pool_element_end = current;
 
   if (_verbose)
   {
@@ -1293,7 +1300,7 @@ void Experiment::_erase_pool_entries_in_range(std::size_t start, std::size_t fin
 {
   if (_verbose)
   {
-    std::cout << "erasing pool entries in range " << start << " to " << finish << std::endl;
+    std::cout << "erasing pool entries in [" << start << ".." << finish << ")" << std::endl;
   }
 
   try

@@ -30,13 +30,17 @@ namespace impl
 			, public content<Value>
 		{
 		public:
+			using owner_type = owner;
+			using content_type = content<Value>;
 			explicit hash_bucket(owner owner_)
 				: owner{owner_}
-				, content<Value>()
+				, content_type()
 			{}
 			explicit hash_bucket()
 				: hash_bucket(owner())
 			{}
+			static_assert(sizeof(owner) <= 8, "Owner size exceeds presumed intended value (8)");
+			static_assert(sizeof(content<Value>) <= 56, "Content size exceeds presumed intended limit (56)");
 			/* A hash_bucket consists of two colocated pieces: owner and contents.
 			* They do not move together, therefore copy or move of an entire
 			* hash_bucket is an error.

@@ -127,6 +127,7 @@ class KVStore_test
   static kvv_t kvv_long_long;
 
   static std::size_t multi_count_actual;
+  static constexpr unsigned get_expand = 2;
   static std::size_t estimated_object_count;
   static std::size_t many_count_target;
   static void populate_many(kvv_t &kvv, char tag, std::size_t key_length, std::size_t value_length);
@@ -234,7 +235,7 @@ long unsigned KVStore_test::put_many(const kvv_t &kvv, const std::string &descr)
   {
     timer t(
       [&count, &descr] (timer::duration_t d) {
-        double seconds = std::chrono::duration_cast<std::chrono::microseconds>(d).count() / 1e6;
+        double seconds = std::chrono::duration_cast<std::chrono::duration<double>>(d).count();
         std::cerr << descr << " " << count << " in " << seconds << " seconds -> " << count / seconds << " per second\n";
       }
     );
@@ -311,15 +312,14 @@ void KVStore_test::get_many(const kvv_t &kvv, const std::string &descr)
   ProfilerStart(("test3-get-" + descr + "-cpu-" + store_map::impl->name + ".profile").c_str());
   /* get is quick; run 10 for better profiling */
   {
-    unsigned amplification = 10;
-	auto ct = amplification * kvv.size();
+	auto ct = get_expand * kvv.size();
     timer t(
 		[&descr,ct] (timer::duration_t d) {
-			double seconds = std::chrono::duration_cast<std::chrono::microseconds>(d).count() / 1e6;
+			double seconds = std::chrono::duration_cast<std::chrono::duration<double>>(d).count() / 1e6;
 			std::cerr << descr << " " << ct << " in " << seconds << " => " << ct / seconds << " per second\n";
 		}
 	);
-    for ( auto i = 0; i != amplification; ++i )
+    for ( auto i = 0; i != get_expand; ++i )
     {
       for ( auto &kv : kvv )
       {
@@ -327,9 +327,12 @@ void KVStore_test::get_many(const kvv_t &kvv, const std::string &descr)
         void * value = nullptr;
         size_t value_len = 0;
         auto r = _kvstore->get(pool, key, value, value_len);
-        EXPECT_EQ(r, S_OK);
-        EXPECT_EQ(value_len, std::get<1>(kv).size());
-        _kvstore->free_memory(value);
+        EXPECT_EQ(S_OK, r);
+        if ( S_OK == r )
+        {
+          EXPECT_EQ(value_len, std::get<1>(kv).size());
+          _kvstore->free_memory(value);
+        }
       }
     }
   }

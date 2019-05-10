@@ -36,7 +36,7 @@ public:
     // handle first time setup
     if(_first_iter)
     {
-      _pool_element_end = -1;
+      _pool_element_end = 0;
       // seed the pool with elements from _data
       _populate_pool_to_capacity(core);
 
@@ -67,7 +67,7 @@ public:
         if ( rc != S_OK )
         {
           std::ostringstream e;
-          e << "_pool_element_end = " << pool_element_end() << " get rc != S_OK: " << rc << " @ _i = " << _i;
+          e << "pool_element_end = " << pool_element_end() << " get rc != S_OK: " << rc << " @ _i = " << _i;
           PERR("[%u] %s. Exiting.", core, e.str().c_str());
           throw std::runtime_error(e.str());
         }
@@ -92,7 +92,7 @@ public:
 
     ++_i;  // increment after running so all elements get used
 
-    if (_i == unsigned(pool_element_end()) + 1)
+    if (_i == pool_element_end())
     {
       try
       {
@@ -131,6 +131,8 @@ public:
       BinStatistics start_time_stats = _compute_bin_statistics_from_vectors(_latencies, _start_time, bin_count(), _start_time.front(), _start_time.at(_i-1), _i);
 
       // get existing results, read to document variable
+      std::lock_guard<std::mutex> g(g_write_lock);
+
       rapidjson::Document document = _get_report_document();
       // save everything
 
@@ -142,7 +144,6 @@ public:
         .AddMember("start_time", _add_statistics_to_report(start_time_stats, document), document.GetAllocator())
         ;
 
-      std::lock_guard<std::mutex> g(g_write_lock);
       _report_document_save(document, core, experiment_object);
       _print_highest_count_bin(_latency_stats, core);
     }

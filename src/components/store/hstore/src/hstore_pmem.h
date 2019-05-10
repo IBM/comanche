@@ -15,7 +15,7 @@
 #ifndef COMANCHE_HSTORE_PMEM_H
 #define COMANCHE_HSTORE_PMEM_H
 
-#include "hstore_pm.h"
+#include "hstore_pool_manager.h"
 
 #include <api/kvstore_itf.h> /* E_TOO_LARGE, E_BAD_PARAM */
 
@@ -158,7 +158,7 @@ namespace
   auto delete_and_recreate_pool(const char *path, const std::size_t size, const char *action) -> PMEMobjpool *
   {
     if ( 0 != pmempool_rm(path, PMEMPOOL_RM_FORCE | PMEMPOOL_RM_POOLSET_LOCAL))
-      throw General_exception("pmempool_rm on (%s) failed: %x", path, pmemobj_errormsg());
+      throw General_exception("pmempool_rm on (%s) failed: %" PRIxIKVSTORE_POOL_T, path, pmemobj_errormsg());
 
     auto pop = pmemobj_create_guarded(path, REGION_NAME, size, 0666);
     if (not pop) {
@@ -301,7 +301,7 @@ private:
     if (::access(path_.str().c_str(), F_OK) != 0) {
       if ( debug() )
         {
-          PLOG(PREFIX "creating new pool: %s (%s) size=%lu"
+          PLOG(PREFIX "creating new pool: %s (%s) size=%zu"
                , __func__
                , path_.name().c_str()
                , path_.str().c_str()
@@ -379,16 +379,16 @@ public:
       return uint64_t(Component::IKVStore::E_BAD_PARAM);
 #pragma GCC diagnostic pop
     }
-    return S_OK;
+    return Component::IKVStore::S_OK;
   }
 
   auto pool_create(const pool_path &path_, std::size_t size_, std::size_t expected_obj_count) -> std::unique_ptr<tracked_pool> override
   {
     open_pool_handle pop = pool_create_or_open(path_, size_);
-  #pragma GCC diagnostic push
-  #pragma GCC diagnostic ignored "-Wold-style-cast"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wold-style-cast"
     TOID(struct store_root_t) root = POBJ_ROOT(pop.get(), struct store_root_t);
-  #pragma GCC diagnostic pop
+#pragma GCC diagnostic pop
     assert(!TOID_IS_NULL(root));
 
     auto pc =
@@ -433,7 +433,7 @@ public:
       throw General_exception("failed to re-open pool (not initialized)");
     }
 
-    /* open_pool returns  a ::session.
+    /* open_pool returns a ::session.
      * If the session constructor throws an exception opening an pool you wish to delete,
      * use the form of delete_pool which does not require an open pool.
      */
@@ -467,24 +467,22 @@ public:
     }
   }
 
-  status_t pool_get_regions(void *pool_, std::vector<::iovec>& out_regions) override
+  std::vector<::iovec> pool_get_regions(void *pool_) override
   {
     PMEMobjpool *pool = static_cast<PMEMobjpool *>(pool_);
     /* calls pmemobj extensions in modified version of PMDK */
-    unsigned idx = 0;
     void * base = nullptr;
     size_t len = 0;
 
-    while ( pmemobj_ex_pool_get_region(pool, idx, &base, &len) == 0 ) {
+    std::vector<::iovec> resions;
+    for ( unsigned idx = 0; pmemobj_ex_pool_get_region(pool, idx, &base, &len) == 0, ++idx )
+    {
       assert(base);
       assert(len);
-      out_regions.push_back(::iovec{base,len});
-      base = nullptr;
-      len = 0;
-      idx++;
+      regions.push_back(::iovec{base,len});
     }
 
-    return S_OK;
+    return regions;
   }
 };
 

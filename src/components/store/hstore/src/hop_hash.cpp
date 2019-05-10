@@ -38,6 +38,6 @@ impl::move_stuck::move_stuck(bix_t bi_, std::size_t size_)
 	: no_near_empty_bucket{bi_, size_, __func__}
 {}
 
-impl::table_full::table_full(bix_t bi_, std::size_t size_)
+impl::hop_hash_full::hop_hash_full(bix_t bi_, std::size_t size_)
 	: no_near_empty_bucket{bi_, size_, __func__}
 {}

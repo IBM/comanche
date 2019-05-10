@@ -17,7 +17,7 @@
 
 #include "segment_and_bucket.h"
 #include <cstddef> /* size_t */
-#include <iostream>
+#include <iosfwd>
 
 namespace impl
 {
@@ -71,17 +71,6 @@ namespace impl
 	template <
 		typename Lock
 	>
-		auto make_owner_print(
-			const std::size_t &sz_
-			, Lock &lk_
-		) -> owner_print<Lock>
-		{
-			return owner_print<Lock>(sz_, lk_);
-		}
-
-	template <
-		typename Lock
-	>
 		auto operator<<(
 			std::ostream &o
 			, const owner_print<Lock> &
@@ -114,15 +103,15 @@ namespace impl
 	template <
 		typename TableBase
 	>
-		class table_print
+		class hop_hash_print
 		{
 			const TableBase *_t;
 		public:
-			table_print(const TableBase &t_)
+			hop_hash_print(const TableBase &t_)
 				: _t(&t_)
 			{
 			}
-			const TableBase &get_table() const { return *_t; }
+			const TableBase &get_hop_hash() const { return *_t; }
 		};
 
 	template <
@@ -146,38 +135,102 @@ namespace impl
 	template <
 		typename TableBase
 	>
-		auto make_table_print(const TableBase &t_)
+		auto make_hop_hash_print(const TableBase &t_)
 		{
-			return table_print<TableBase>(t_);
+			return hop_hash_print<TableBase>(t_);
 		}
 
-	template <
-		typename TableBase
-	>
-		class table_dump
+
+	template <bool>
+		class dump;
+
+	template<>
+		class dump<true>
 		{
-			const TableBase *_t;
 		public:
-			table_dump(const TableBase &t_)
-				: _t(&t_)
-			{}
-			const TableBase &get_table() const { return *_t; }
+			template <
+				typename TableBase
+			>
+				class hop_hash_dump
+				{
+					const TableBase *_t;
+				public:
+					hop_hash_dump(const TableBase &t_)
+						: _t(&t_)
+					{}
+					const TableBase &get_hop_hash() const { return *_t; }
+				};
+
+			template <
+				typename TableBase
+			>
+				static hop_hash_dump<TableBase> make_hop_hash_dump(const TableBase &t_)
+				{
+					return hop_hash_dump<TableBase>(t_);
+				}
+
+			template <
+				typename Lock
+			>
+				static auto make_owner_print(
+					const std::size_t &sz_
+					, Lock &lk_
+				) -> owner_print<Lock>
+				{
+					return owner_print<Lock>(sz_, lk_);
+				}
 		};
 
-	template <
-		typename TableBase
-	>
-		auto make_table_dump(const TableBase &t_)
+	template<>
+		class dump<false>
 		{
-			return table_dump<TableBase>(t_);
-		}
+			template <
+				typename TableBase
+			>
+				class hop_hash_dump
+				{
+					const TableBase *_t;
+				public:
+					hop_hash_dump(const TableBase &t_)
+						: _t(&t_)
+					{}
+					const TableBase &get_hop_hash() const { return *_t; }
+				};
+		public:
+			template <
+				typename TableBase
+			>
+				static hop_hash_dump<TableBase> make_hop_hash_dump(const TableBase &t_)
+				{
+					return hop_hash_dump<TableBase>(t_);
+				}
+
+			template <
+				typename Lock
+			>
+				static auto make_owner_print(
+					const std::size_t &sz_
+					, Lock &lk_
+				) -> owner_print<Lock>
+				{
+					return owner_print<Lock>(sz_, lk_);
+				}
+		};
 
 	template <
 		typename TableBase
 	>
 		auto operator<<(
 			std::ostream &o
-			, const impl::table_dump<TableBase> &
+			, const impl::dump<false>::hop_hash_dump<TableBase> &
+		) -> std::ostream &;
+
+	template <
+		typename TableBase
+	>
+		auto operator<<(
+			std::ostream &o
+			, const impl::dump<true>::hop_hash_dump<TableBase> &
 		) -> std::ostream &;
 
 	template <
@@ -194,7 +247,7 @@ namespace impl
 	>
 		auto operator<<(
 			std::ostream &o
-			, const impl::table_print<TableBase> &t
+			, const impl::hop_hash_print<TableBase> &t
 		) -> std::ostream &;
 }
 

@@ -110,6 +110,10 @@ class Fabric_transport {
     _transport->post_recv(first, last, descriptors, context);
   }
 
+  inline size_t max_message_size() const {
+    return _transport->max_message_size();
+  }
+
   /**
    * Post send (one or two buffers) and wait for completion.
    *
@@ -201,8 +205,8 @@ class Fabric_transport {
   Component::IKVStore::memory_handle_t register_direct_memory(void * region,
                                                               size_t region_len)
   {
-    if (!check_aligned(region, 64))
-      throw API_exception("register_direct_memory: region should be aligned");
+    // if (!check_aligned(region, 64))
+    //   throw API_exception("register_direct_memory: region should be aligned");
 
     auto mr        = register_memory(region, region_len);
     auto desc      = get_memory_descriptor(mr);
