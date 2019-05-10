@@ -4,7 +4,7 @@ BUILD = `date +%Y%m%d.%k%m`
 
 ccflags-y := -g -Wall
 
-obj-m += mcasmod.o
+obj-m += mcas.o
 
 mcasmod-objs := mcas.o
 
