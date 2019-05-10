@@ -28,11 +28,31 @@
 
 #include <sys/uio.h> /* iovec */
 
+#include <algorithm> /* find_if */
+#include <iterator> /* back_inserter */
+#include <memory> /* make_unique */
 #include <stdexcept> /* domain_error, range_error */
 #include <sstream> /* ostringstream */
 #include <string>
 
 using guard = std::unique_lock<std::mutex>;
+
+namespace
+{
+  void *iov_end(const ::iovec &v)
+  {
+    return static_cast<char *>(v.iov_base) + v.iov_len;
+  }
+  /* True if range of a is a superset of range of b */
+  bool covers(const ::iovec &a, const ::iovec &b)
+  {
+    return a.iov_base <= b.iov_base && iov_end(b) <= iov_end(a);
+  }
+  std::ostream &operator<<(std::ostream &o, const ::iovec &v)
+  {
+    return o << "[" << v.iov_base << ".." << iov_end(v) << ")";
+  }
+}
 
 /**
  * Fabric/RDMA-based network component
@@ -51,8 +71,7 @@ Fabric_memory_control::Fabric_memory_control(
    */
   , _domain(_fabric.make_fid_domain(*_domain_info, this))
   , _m{}
-  , _mr_addr_to_desc{}
-  , _mr_desc_to_addr{}
+  , _mr_addr_to_mra{}
 {
 }
 
@@ -60,99 +79,89 @@ Fabric_memory_control::~Fabric_memory_control()
 {
 }
 
-auto Fabric_memory_control::register_memory(const void * addr_, size_t size_, std::uint64_t key_, std::uint64_t flags_) -> Component::IFabric_connection::memory_region_t
+struct mr_and_address
 {
-  auto mr = make_fid_mr_reg_ptr(addr_,
+  mr_and_address(::fid_mr *mr_, const void *addr_, std::size_t size_)
+    : mr(fid_ptr(mr_))
+    , v{const_cast<void *>(addr_), size_}
+  {}
+  std::shared_ptr<::fid_mr> mr;
+  ::iovec v;
+};
+
+auto Fabric_memory_control::register_memory(const void * addr_, std::size_t size_, std::uint64_t key_, std::uint64_t flags_) -> Component::IFabric_connection::memory_region_t
+{
+  auto mra =
+    std::make_unique<mr_and_address>(
+      make_fid_mr_reg_ptr(addr_,
                                 size_,
                                 std::uint64_t(FI_SEND|FI_RECV|FI_READ|FI_WRITE|FI_REMOTE_READ|FI_REMOTE_WRITE),
                                 key_,
-                                flags_);
+                                flags_)
+      , addr_
+      , size_
+    );
 
-  /* operations which access local memory will need the memory "descriptor." Record it here. */
-  auto desc = ::fi_mr_desc(mr);
-  {
-    guard g{_m};
-    auto exists_a_to_d = _mr_addr_to_desc.find(addr_) != _mr_addr_to_desc.end();
-    auto exists_d_to_a = _mr_desc_to_addr.find(desc) != _mr_desc_to_addr.end();
-    if ( exists_a_to_d || exists_d_to_a )
-    {
-      std::ostringstream err;
-      err << __func__
-        << " address " << addr_ << " " << (exists_a_to_d ? "already" : "not") << " registered"
-        << ", descriptor " << desc << " " << (exists_d_to_a ? " already" : "not") << "registered";
+  assert(mra->mr);
 
-      throw std::range_error(err.str());
-    }
-    _mr_addr_to_desc.insert({addr_, desc});
-    _mr_desc_to_addr.insert({desc, addr_});
+  /* operations which access local memory will need the "mr." Record it here. */
+  guard g{_m};
 
-    auto size_a_to_d = _mr_addr_to_desc.size();
-    auto size_d_to_a = _mr_desc_to_addr.size();
-    if ( size_a_to_d != size_d_to_a )
-    {
-      std::ostringstream err;
-      err << __func__ << " mismatch: addr_to_desc size " << size_a_to_d << ", desc_to_addr size " << size_d_to_a;
-      throw std::logic_error(err.str());
-    }
-  }
+  auto it = _mr_addr_to_mra.emplace(addr_, std::move(mra));
 
   /*
    * Operations which access remote memory will need the memory key.
    * If the domain has FI_MR_PROV_KEY set, we need to return the actual key.
    */
-  return pointer_cast<Component::IFabric_memory_region>(mr);
+#if 0
+  std::cerr << "Registered mr " << it->second->mr << " " << it->second->v << "\n";
+#endif
+  return pointer_cast<Component::IFabric_memory_region>(&*it->second);
 }
 
 void Fabric_memory_control::deregister_memory(const memory_region_t mr_)
 {
   /* recover the memory region as a unique ptr */
-  auto mr = fid_ptr(pointer_cast<::fid_mr>(mr_));
+  auto mra = pointer_cast<mr_and_address>(mr_);
 
+  guard g{_m};
+
+  auto lb = _mr_addr_to_mra.lower_bound(mra->v.iov_base);
+  auto ub = _mr_addr_to_mra.upper_bound(mra->v.iov_base);
+
+  map_addr_to_mra::size_type scan_count = 0;
+  auto it =
+    std::find_if(
+      lb
+      , ub
+      , [&mra, &scan_count] ( const map_addr_to_mra::value_type &m ) { ++scan_count; return m.second->mr == mra->mr; }
+  );
+
+  if ( it == ub )
   {
-    auto desc = ::fi_mr_desc(&*mr);
-    guard g{_m};
-    auto size_a_to_d = _mr_addr_to_desc.size();
-    auto size_d_to_a = _mr_desc_to_addr.size();
-    if ( size_a_to_d != size_d_to_a )
-    {
-      std::ostringstream err;
-      err << __func__ << " mismatch: addr_to_desc size " << size_a_to_d << ", desc_to_addr size " << size_d_to_a;
-      throw std::logic_error(err.str());
-    }
-
-    auto itr_d_to_a = _mr_desc_to_addr.find(desc);
-    if ( itr_d_to_a == _mr_desc_to_addr.end() )
-    {
-      std::ostringstream err;
-      err << __func__ << " descriptor " << desc << " not found in registry";
-      throw std::range_error(err.str());
-    }
-
-    auto addr = itr_d_to_a->second;
-    auto itr_a_to_d = _mr_addr_to_desc.find(addr);
-    if ( itr_a_to_d == _mr_addr_to_desc.end() )
-    {
-      std::ostringstream err;
-      err << __func__ << " descriptor " << desc << " in registry but address " << addr << " not found in registry";
-      throw std::logic_error(err.str());
-    }
-    _mr_addr_to_desc.erase(itr_a_to_d);
-    _mr_desc_to_addr.erase(itr_d_to_a);
+    std::ostringstream err;
+    err << __func__ << " mr " << mra->mr << " (with range " << mra->v << ")"
+      << " not found in " << scan_count << " of " << _mr_addr_to_mra.size() << " registry entries";
+    throw std::logic_error(err.str());
   }
+#if 0
+  std::cerr << "Deregistered addr " << it->second->mr << " " << it->second->v << "\n";
+#endif
+  _mr_addr_to_mra.erase(it);
 }
 
 std::uint64_t Fabric_memory_control::get_memory_remote_key(const memory_region_t mr_) const noexcept
 {
-  /* recover the memory region as a unique ptr */
-  auto mr = pointer_cast<::fid_mr>(mr_);
+  /* recover the memory region */
+  auto mr = &*pointer_cast<mr_and_address>(mr_)->mr;
   /* ask fabric for the key */
   return ::fi_mr_key(mr);
 }
 
 void *Fabric_memory_control::get_memory_descriptor(const memory_region_t mr_) const noexcept
 {
-  /* recover the memory region as a unique ptr */
-  auto mr = pointer_cast<::fid_mr>(mr_);
+  /* recover the memory region */
+  auto mr = &*pointer_cast<mr_and_address>(mr_)->mr;
   /* ask fabric for the descriptor */
   return ::fi_mr_desc(mr);
 }
@@ -163,24 +172,50 @@ std::vector<void *> Fabric_memory_control::populated_desc(const std::vector<::io
   return populated_desc(&*buffers.begin(), &*buffers.end());
 }
 
+/* find a registered memory region which covers the iovec range */
+::fid_mr *Fabric_memory_control::covering_mr(const ::iovec &v)
+{
+  /* _mr_addr_to_mr is sorted by starting address.
+   * Find the last acceptable starting address, and iterate
+   * backwards through the map until we find a covering range
+   * or we reach the start of the table.
+   */
+
+  guard g{_m};
+
+  auto ub = _mr_addr_to_mra.upper_bound(v.iov_base);
+
+  auto it =
+    std::find_if(
+      map_addr_to_mra::reverse_iterator(ub)
+      , _mr_addr_to_mra.rend()
+      , [&v] ( const map_addr_to_mra::value_type &m ) { return covers(m.second->v, v); }
+    );
+
+  if ( it == _mr_addr_to_mra.rend() )
+  {
+    std::ostringstream e;
+    e << "No mapped region covers " << v;
+    throw std::range_error(e.str());
+  }
+
+#if 0
+  std::cerr << "covering_mr( " << v << ") found mr " << it->second->mr << " with range " << it->second->v << "\n";
+#endif
+  return &*it->second->mr;
+}
+
 std::vector<void *> Fabric_memory_control::populated_desc(const ::iovec *first, const ::iovec *last)
 {
   std::vector<void *> desc;
-  for ( auto cursor = first; cursor != last; ++cursor )
-  {
-    {
-      guard g{_m};
-      /* find a key equal to k or, if none, the largest key less than k */
-      auto dit = _mr_addr_to_desc.lower_bound(cursor->iov_base);
-      /* If not at k, lower_bound has left us with an iterator beyond k. Back up */
-      if ( dit->first != cursor->iov_base && dit != _mr_addr_to_desc.begin() )
-      {
-        --dit;
-      }
 
-      desc.emplace_back(dit->second);
-    }
-  }
+  std::transform(
+    first
+    , last
+    , std::back_inserter(desc)
+    , [this] (const ::iovec &v) { return ::fi_mr_desc(covering_mr(v)); }
+  );
+
   return desc;
 }
 

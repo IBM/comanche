@@ -35,6 +35,10 @@ make bootstrap  # build the core and dependencies
 make # build comanche components & tests, etc
 ```
 
+To include python APIs etc. add BUILD_PYTHON_SUPPORT:
+```bash
+cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_PYTHON_SUPPORT=1 -DCMAKE_INSTALL_PREFIX:PATH=`pwd`/dist ..
+```
 
 * Install libs into cmake installation prefix
 

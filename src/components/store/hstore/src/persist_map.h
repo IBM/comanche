@@ -86,6 +86,7 @@ namespace impl
 
 		public:
 			persist_map(std::size_t n, Allocator av);
+			persist_map(persist_map &&) = default;
 			void do_initial_allocation(Allocator av);
 			void reconstitute(Allocator av);
 			friend class persist_controller<Allocator>;

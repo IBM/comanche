@@ -266,21 +266,21 @@ public:
   DECLARE_INTERFACE_UUID(0xfacf1b99,0xbc51,0x49ff,0xa27b,0xd4,0xe8,0x19,0x03,0xbb,0x02);
   // clang-format on
   
-  // virtual IDawn * dawn_create(const std::string& owner,
-  //                           const std::string& param){
-  //   throw API_exception("factory::dawn_create(owner,param) not implemented");
-  // };
 
-  // virtual IDawn * dawn_create(const std::string& owner,
-  //                           const std::string& param,
-  //                           const std::string& param2){
-  //   throw API_exception("factory::dawn_create(owner,param,param2) not implemented");
-  // }
-
+  /** 
+   * Create a "session" to a remote shard
+   * 
+   * @param debug_level Debug level (0-3)
+   * @param owner Owner info (not used)
+   * @param addr_with_port Address and port information, e.g. 10.0.0.22:11911 (must be RDMA)
+   * @param nic_device RDMA network device (e.g., mlnx5_0)
+   * 
+   * @return Pointer to IDawn instance. Use release_ref() to close.
+   */
   virtual IDawn * dawn_create(unsigned debug_level,
                               const std::string& owner,
-                              const std::string& param,
-                              const std::string& param2) {
+                              const std::string& addr_with_port,
+                              const std::string& nic_device) {
     throw API_exception("IDawn_factory::dawn_create(debug_level,owner,param,param2) not implemented");
   }
  

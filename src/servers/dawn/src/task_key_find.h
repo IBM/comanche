@@ -73,8 +73,8 @@ public:
     status_t hr;
     try {
       hr = _index->find(_expr, _offset, _type, _offset, _out_key, MAX_COMPARES_PER_WORK);
-      PLOG("OFFSET=%lu", _offset);
-      if(hr == IKVIndex::E_MAX_REACHED) {
+      //      PLOG("OFFSET=%lu", _offset);
+      if(hr == E_MAX_REACHED) {
         _offset++;
         return Component::IKVStore::S_MORE;
       }

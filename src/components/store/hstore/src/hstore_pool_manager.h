@@ -95,7 +95,7 @@ template <typename Pool>
     virtual ~pool_manager() {}
     bool debug() const { return _debug; }
 
-    virtual auto pool_create_check(const std::size_t size_) -> status_t = 0;
+    virtual void pool_create_check(const std::size_t size_) = 0;
 
     virtual void pool_close_check(const std::string &) = 0;
 

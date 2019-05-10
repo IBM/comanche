@@ -134,12 +134,12 @@ struct Message_pool_request : public Message {
   {
     assert(op);
     assert(this->op);
-    assert(buffer_size > sizeof(Message_pool_request));
+    if(buffer_size < sizeof(Message_pool_request)) throw std::length_error("Message_pool_request");
     auto max_data_len = buffer_size - sizeof(Message_pool_request);
 
     size_t len = pool_name.length();
     if (len >= max_data_len)
-      throw API_exception("buffer space too small for name (%u)", max_data_len);
+      throw std::length_error("Message_pool_request");
 
     strncpy(data, pool_name.c_str(), len);
     data[len] = '\0';
@@ -155,7 +155,7 @@ struct Message_pool_request : public Message {
         expected_object_count(0)
   {
     assert(op);
-    assert(buffer_size > sizeof(Message_pool_request));
+    if(buffer_size < sizeof(Message_pool_request)) throw std::length_error("Message_pool_request");
     data[0] = '\0';
     msg_len = sizeof(Message_pool_request) + 1;
   }
@@ -375,7 +375,8 @@ struct Message_IO_response : public Message {
 // INFO REQUEST/RESPONSE
 struct Message_INFO_request : public Message {
   Message_INFO_request(uint64_t authid) : Message(auth_id, MSG_TYPE_INFO_REQUEST),
-                                          key_len(0) {  }
+                                          key_len(0) {
+  }
 
   const char* key() const { return data; }
   const char* c_str() const { return data; }

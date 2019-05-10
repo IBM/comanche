@@ -215,7 +215,7 @@ status_t Pool_handle::get_direct(const std::string& key,
     if(option_DEBUG)
       PERR("Map_store: error insufficient buffer");
 
-    return IKVStore::E_INSUFFICIENT_BUFFER;
+    return E_INSUFFICIENT_BUFFER;
   }
 
   out_value_len = i->second.length; /* update length */

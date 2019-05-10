@@ -296,6 +296,7 @@ namespace impl
 			using bucket_mutexes_t = bucket_mutexes<SharedMutex>;
 			using bucket_control_t = bucket_control<bucket_t, SharedMutex>;
 			using bucket_aligned_t = typename bucket_control_t::bucket_aligned_t;
+			static_assert(sizeof(bucket_aligned_t) <= 64, "Bucket size exceeds presumed cache line size (64)");
 			using bucket_allocator_t =
 				typename Allocator::template rebind<bucket_aligned_t>::other;
 			using owner_unique_lock_t = bucket_unique_lock<bucket_t, owner, SharedMutex>;
@@ -325,6 +326,8 @@ namespace impl
 			* That memory can be recovered the next time _b is extended.
 			*/
 			hasher _hasher;
+
+			bool _auto_resize;
 
 			bucket_control_t _bc[_segment_capacity];
 
@@ -443,14 +446,17 @@ namespace impl
 			template <typename ... Args>
 				auto emplace(Args && ... args) -> std::pair<iterator, bool>;
 			auto insert(const value_type &value) -> std::pair<iterator, bool>;
-			auto erase(const key_type &key) -> size_type;
+
+			template <typename K>
+				auto erase(const K &key) -> size_type;
 
 			template <typename K>
 				auto at(const K &key) -> mapped_type &;
 			template <typename K>
 				auto at(const K &key) const -> const mapped_type &;
 
-			auto count(const key_type &k) const -> size_type;
+			template <typename K>
+				auto count(const K &k) const -> size_type;
 			auto begin() -> iterator
 			{
 				return iterator(make_segment_and_bucket_at_begin());
@@ -511,12 +517,18 @@ namespace impl
 			}
 
 			/* use trylock to attempt a shared lock */
-			auto lock_shared(const key_type &k) -> bool;
+			template <typename K>
+				auto lock_shared(const K &k) -> bool;
 			/* use trylock to attempt a unique lock */
-			auto lock_unique(const key_type &k) -> bool;
+			template <typename K>
+				auto lock_unique(const K &k) -> bool;
 			/* unlock (from write if write exists, else read */
-			void unlock(const key_type &key);
+			template <typename K>
+				void unlock(const K &key);
 			auto size() const -> size_type;
+
+			bool set_auto_resize(bool v1) { auto v0 = _auto_resize; _auto_resize = v1; return v0; }
+			bool get_auto_resize() const { return _auto_resize; }
 
 #if TRACED_TABLE
 			friend
@@ -634,6 +646,8 @@ template <
 			return size() == 0;
 		}
 		using base::size;
+		using base::get_auto_resize;
+		using base::set_auto_resize;
 		using base::bucket_count;
 		auto max_size() const noexcept -> size_type
 		{
@@ -647,66 +661,22 @@ template <
 		using base::cend;
 
 		/* modifiers */
-		template <typename ... Args>
-			auto emplace(Args && ... args) -> std::pair<iterator, bool>
-			{
-				return base::emplace(std::forward<Args>(args)...);
 
-			}
-		auto insert(const value_type &value) -> std::pair<iterator, bool>
-		{
-			return base::insert(value);
-		}
-		auto erase(const key_type &key) -> size_type
-		{
-			return base::erase(key);
-		}
+		using base::emplace;
+		using base::insert;
+		using base::erase;
+
+		/* counting */
+
+		using base::count;
 
 		/* lookup */
-#if 0
-		auto at(const key_type &key) const -> const mapped_type &
-		{
-			return base::at(key);
-		}
-
-		auto at(const key_type &key) -> mapped_type &
-		{
-			return base::at(key);
-		}
-#endif
-		auto count(const key_type &key) const -> size_type
-		{
-			return base::count(key);
-		}
-
-		/* lookup special */
-		template <typename K>
-			auto at(const K &key) const -> const mapped_type &
-			{
-				return base::at(key);
-			}
-
-		template <typename K>
-			auto at(const K &key) -> mapped_type &
-			{
-				return base::at(key);
-			}
+		using base::at;
 
 		/* locking */
-		auto lock_shared(const key_type &k) -> bool
-		{
-			return base::lock_shared(k);
-		}
-
-		auto lock_unique(const key_type &k) -> bool
-		{
-			return base::lock_unique(k);
-		}
-
-		void unlock(const key_type &key)
-		{
-			return base::unlock(key);
-		}
+		using base::lock_shared;
+		using base::lock_unique;
+		using base::unlock;
 
 		template <typename HopHash>
 			friend class impl::hop_hash_local_iterator_impl;

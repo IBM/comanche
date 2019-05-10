@@ -58,10 +58,10 @@ namespace impl
 			using mod_ctl_ptr_t = typename allocator_type::template rebind<mod_control>::other::pointer;
 
 			/* key to destination of modification data */
-			using mod_key_t = persist_fixed_string<char, typename Value::first_type::allocator_type>;
+			using mod_key_t = persist_fixed_string<char, Value::first_type::small_size, typename Value::first_type::allocator_type>;
 			mod_key_t mod_key;
 			/* source of modification data */
-			persist_fixed_string<char, typename Value::second_type::allocator_type> mod_mapped;
+			persist_fixed_string<char, Value::second_type::small_size, typename Value::second_type::allocator_type> mod_mapped;
 			/* control of modification data */
 			persistent_t<mod_ctl_ptr_t> mod_ctl;
 			/* size of control located by mod_ctl (0 if no outstanding modification, negative if the modfication is a replace by erase/emplace */
@@ -75,6 +75,7 @@ namespace impl
 			{
 			}
 			persist_atomic(const persist_atomic &) = delete;
+			persist_atomic(persist_atomic &&) = default;
 			persist_atomic& operator=(const persist_atomic &) = delete;
 #if 0
 			friend class atomic_controller<Allocator>;

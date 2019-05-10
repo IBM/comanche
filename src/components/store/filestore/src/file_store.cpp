@@ -184,7 +184,7 @@ status_t Pool_handle::get_direct(const std::string& key,
     throw General_exception("stat failed on file (%s)", full_path.c_str());
 
   if(out_value_len < buffer.st_size)
-    return IKVStore::E_INSUFFICIENT_BUFFER;
+    return E_INSUFFICIENT_BUFFER;
 
   out_value_len = buffer.st_size;
   
@@ -322,7 +322,7 @@ status_t Pool_handle::get_attribute(const IKVStore::Attribute attr,
         return S_OK;
       }
     default:
-      return IKVStore::E_BAD_PARAM;
+      return E_BAD_PARAM;
     }
   
   return E_NOT_IMPL;
