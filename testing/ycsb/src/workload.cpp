@@ -107,7 +107,7 @@ void Workload::load()
     wr.stop();
     double elapse = wr.get_lap_time_in_seconds();
     // cout << timer.get_lap_time_in_seconds() << endl;
-    wr_stat.add_value(elapse);
+    if (elapse * 1000000 >= 900) wr_stat.add_value(elapse);
     wr_cnt++;
   }
 }
@@ -154,7 +154,7 @@ void Workload::doRead()
   rd.stop();
   rd_cnt++;
   double elapse = rd.get_lap_time_in_seconds();
-  rd_stat.add_value(elapse);
+  if (elapse * 1000000 >= 900) rd_stat.add_value(elapse);
 }
 
 void Workload::doUpdate()
@@ -176,7 +176,7 @@ void Workload::doUpdate()
   up.stop();
   up_cnt++;
   double elapse = up.get_lap_time_in_seconds();
-  up_stat.add_value(elapse);
+  if (elapse * 1000000 >= 900) up_stat.add_value(elapse);
 }
 
 void Workload::doInsert() {}
@@ -210,13 +210,49 @@ void Workload::summarize()
 {
   unsigned long global_iops_load = 0;
   unsigned long global_iops      = 0;
+  unsigned long   local_lat        = 0;
+  unsigned long   global_lat       = 0;
+  int             rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  int size;
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
+
   MPI_Reduce(&_iops_load, &global_iops_load, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0,
              MPI_COMM_WORLD);
   MPI_Reduce(&_iops, &global_iops, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0,
              MPI_COMM_WORLD);
+  if (rd_cnt > 0) {
+    local_lat = rd_stat.getCount();
+    MPI_Reduce(&local_lat, &global_lat, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0,
+               MPI_COMM_WORLD);
+    if (rank == 0) {
+      double p = global_lat / (rd_cnt * size);
+      cout << "[Overall], Read percentage of more than 900 us: , " << p << endl;
+    }
+  }
 
-  int rank;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  if (wr_cnt > 0) {
+    local_lat = wr_stat.getCount();
+    MPI_Reduce(&local_lat, &global_lat, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0,
+               MPI_COMM_WORLD);
+    if (rank == 0) {
+      double p = global_lat / (wr_cnt * size);
+      cout << "[Overall], Write percentage of more than 900 us: , " << p
+           << endl;
+    }
+  }
+
+  if (up_cnt > 0) {
+    local_lat = up_stat.getCount();
+    MPI_Reduce(&local_lat, &global_lat, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0,
+               MPI_COMM_WORLD);
+    if (rank == 0) {
+      double p = global_lat / (up_cnt * size);
+      cout << "[Overall], Update percentage of more than 900 us: , " << p
+           << endl;
+    }
+  }
+
   if (rank == 0) {
     cout << "[Overall], Load Throughput (ops/sec), " << global_iops_load << endl;
     cout << "[Overall], Operation Throughput (ops/sec), " << global_iops << endl;
