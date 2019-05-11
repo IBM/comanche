@@ -255,6 +255,9 @@ class Fabric_connection_base {
         bool added_deferred_unlock = false;
         try {
           _transport->poll_completions(completion_callback, this);
+          /* Note: this test may be in error, as the function of
+	   * check_for_posted_send_complete is not to complete the
+	   * send but to free the buffer after the send completes. */
           if(_posted_send_buffer_outstanding)
             check_for_posted_send_complete();
 
