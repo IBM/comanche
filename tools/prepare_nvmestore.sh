@@ -3,6 +3,12 @@
 # email: fengggli@yahoo.com
 
 # a wrapper scripts to check and set environment for nvmestore
+if [ "$EUID" -ne 0 ]
+  then echo "Please run as root or using sudo"
+  exit -1
+fi
+
+username=`logname`
 
 PINF() {
   echo "[INFO]: $@"
@@ -67,16 +73,12 @@ PINF "OK."
 ## nvme_setup
 PINF "Checking VFIO"
 ls /dev/vfio -alt
-ls /dev/vfio -alt |grep -q $USER
+ls /dev/vfio -alt |grep -q $username
 if [ 0  -ne $? ]; then
-  PERR "vfio is not assigned to current user"
-  PINPROGRESS "now reset nvme...step1: unload"
-  sudo ./tools/nvme_setup.sh reset
-  PINPROGRESS "now reset nvme...step2: reload"
-  sudo ./tools/nvme_setup.sh
+  echo "VFIO not set, run sudo ./tools/attach_to_vfio.sh 11:00.0(using your pci addr), exiting... "
+  exit -1
 fi
 PINF "OK."
-
 
 ## xms loaded and permission ?
 PINF "Checking XMS"
@@ -86,6 +88,8 @@ if [ 0  -ne $? ]; then
   PINPROGRESS "now mounting..."
   sudo rmmod xmsmod
   sudo insmod ./lib/xmsmod.ko
+  ## from xms/reload.sh, need this to allocate EAL mem without sudo
+  sudo chmod -R a+rwx /dev/hugepages/
   PPOSTMSG "xms loaded!!"
 fi
 PINF "OK."
