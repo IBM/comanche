@@ -35,7 +35,6 @@
 //#define USE_FILESTORE
 #undef USE_FILESTORE
 
-
 using namespace Component;
 
 
@@ -96,7 +95,14 @@ TEST_F(KVStore_test, Instantiate)
   IKVStore_factory * fact = (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
 
   // this nvme-store use a block device and a block allocator
-  _kvstore = fact->create("owner","name", opt.pci);
+  std::map<std::string, std::string> params;
+  params["owner"] = "testowner";
+  params["name"] = "testname";
+  params["pci"] = opt.pci;
+  params["pm_path"] = "/mnt/pmem0/";
+  unsigned debug_level = 0;
+
+  _kvstore = fact->create(debug_level, params);
 #else
   Component::IBase * comp = Component::load_component("libcomanche-storefile.so",
                                                       Component::filestore_factory);
@@ -299,8 +305,15 @@ TEST_F(KVStore_test, Multiplestore)
   ASSERT_TRUE(comp);
   IKVStore_factory * fact = (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
 
+  std::map<std::string, std::string> params;
+  params["owner"] = "testowner";
+  params["name"] = "anothername";
+  params["pci"] = opt.pci;
+  params["pm_path"] = "/mnt/pmem0/";
+  unsigned debug_level = 0;
+
   // this nvme-store use a block device and a block allocator
-  _kvstore2 = fact->create("owner","name2", opt.pci);
+  _kvstore2 = fact->create(debug_level, params);
 
   fact->release_ref();
 
