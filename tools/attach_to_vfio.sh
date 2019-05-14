@@ -21,7 +21,7 @@ echo "$device" > "/sys/bus/pci/drivers/vfio-pci/bind" 2> /dev/null || true
 echo "$device bound to vfio-pci driver."
 
 username=`logname`
-iommu_group=$(basename $(readlink -f /sys/bus/pci/devices/$device/iommu_group))
+iommu_group=$(basename $(readlink -f /sys/bus/pci/devices/0000:$device/iommu_group))
 if [ -e "/dev/vfio/$iommu_group" ]; then
     chown "$username" "/dev/vfio/$iommu_group"
 fi

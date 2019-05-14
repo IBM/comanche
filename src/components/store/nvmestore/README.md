@@ -1,13 +1,12 @@
 Setup
 -----------------
-Run the [prepare_nvmestore.sh][comanche/tools/prepare_nvmestore.sh] 
-(Run with regular user, input sudo password when necessary) 
+Run the [prepare_nvmestore.sh][comanche/tools/prepare_nvmestore.sh] with sudo
 
 The script does the following check to ensure nvmestore can run properly:
 1. check kernel boot cmdline
 2. check pmem configurations
 3. check spdk related setup(vfi, hugepage)
-4. check comanche-specific setup(xms)
+4. check comanche-specific setup(xms and /dev/hugepages permissions)
 5. etc..
 
 If the environment is not set correctly the script will try to fix it. For other special configuration errors (e.g. those requires system reboot) the script will redirect you to more detailed info here.
@@ -32,8 +31,14 @@ Kernel parameters
 Use the following parameter, huge page is for pmdk, memmap is for the pmem, intel_iommu must be on for vfio
 (if you are working in a machine with small memory size(e.g.no more than 8G), you should modify this correspondingly)
 
+* fill the following into GRUB_CMDLINE_LINUX in /etc/default/grub
 ``` 
 hugepagesz=2M hugepages=4096 intel_iommu=on text memmap=2G!4G
+```
+
+* update grub
+```
+sudo update-grub
 ```
 
 ```
