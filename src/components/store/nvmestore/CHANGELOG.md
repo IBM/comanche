@@ -1,5 +1,9 @@
 # Changelog
 This is the changelog for nvmestore
+[2019-05-14]:
+#fixed:
+1. improve scripts.
+2. Adapting to new create(debug_level, params) signature.
 [2018-12-13]:
 #notes:
 1. there is only one piece of iomem, instead I should use a slab allocator (similar to blkmeta)
