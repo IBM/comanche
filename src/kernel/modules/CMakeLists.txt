@@ -7,3 +7,4 @@ add_custom_target(xms ALL
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/xms)
 
 #add_dependencies(xms)
+add_subdirectory(mcas)

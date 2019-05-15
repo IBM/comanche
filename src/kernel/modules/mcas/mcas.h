@@ -3,12 +3,12 @@
 typedef uint64_t addr_t;
 
 enum {
-  IOCTL_CMD_EXPOSE = 9,
+  IOCTL_CMD_EXPOSE = 1,
 };
 
 typedef struct
 {
-  uint64_t auth_token; /* token that must be used with the mmap call */
+  uint64_t token; /* token that must be used with the mmap call */
   void*    vaddr; /* address of memory to share (from calling process perspective) */
   size_t   vaddr_size; /* size of region to share */
 }

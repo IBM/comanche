@@ -1,8 +1,8 @@
 
 KERNEL_VER = `uname -r`
 BUILD = `date +%Y%m%d.%k%m`
-INCLUDES = -I/home/danielwaddington/comanche/build/dist/include
-LIBS = -L/home/danielwaddington/comanche/build/dist/lib -lnupm
+INCLUDES = -I${CMAKE_INSTALL_PREFIX}/include
+LIBS = -L${CMAKE_INSTALL_PREFIX}/lib -lnupm
 
 ccflags-y := -g -Wall
 
