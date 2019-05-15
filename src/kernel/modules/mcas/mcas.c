@@ -38,7 +38,7 @@ MODULE_AUTHOR("Daniel Waddington"); ///< The author -- visible when you use modi
 MODULE_DESCRIPTION("MCAS support module.");  ///< The description -- see modinfo
 MODULE_VERSION("0.1");              ///< The version of the module
 
-
+extern pte_t* walk_page_table(u64 addr, unsigned long * huge_pfn);
 static int mcas_mmap(struct file *file, struct vm_area_struct *vma);
 
 inline static bool check_aligned(void* p, unsigned alignment)
@@ -53,6 +53,12 @@ inline static bool check_aligned(void* p, unsigned alignment)
 /* MODULE_PARM_DESC(name, "The name to display in /var/log/kern.log");
 ///< parameter description */
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,0,0)
+#define check_access(X,Y) access_ok(VERIFY_READ, X, Y)
+#else
+#define check_access(X,Y) access_ok(X, Y)
+#endif
+
 static long mcas_dev_ioctl(struct file *filp,
                           unsigned int ioctl,
                           unsigned long arg)
@@ -66,9 +72,34 @@ static long mcas_dev_ioctl(struct file *filp,
   switch(ioctl) {
   case IOCTL_CMD_EXPOSE:
     {
+      int rc;      
+      IOCTL_EXPOSE_msg msg;
+
+      if(!check_access((void*) arg, sizeof(IOCTL_EXPOSE_msg))) { 
+        printk(KERN_ERR "mcas: dev_ioctl passed invalid in_data param\n"); 
+        return r; 
+      } 
+
+      rc = copy_from_user(&msg,
+                          ((IOCTL_EXPOSE_msg *) arg),
+                          sizeof(IOCTL_EXPOSE_msg));
+
+      if(rc > 0) { 
+        printk(KERN_ERR "mcas: copy_from_user failed\n"); 
+        return r; 
+      }
+      
+      printk(KERN_INFO "mcas: token=%llu vaddr=%llx vaddr_size=%lu\n",
+             msg.token, (unsigned long long) msg.vaddr, msg.vaddr_size);
+
+      unsigned long pfn = 0;
+      pte_t* pte = walk_page_table((u64) msg.vaddr, &pfn);
+      printk(KERN_INFO "walk result: %lx\n", pfn << PAGE_SHIFT);
+      
       break;
     }
   default:
+    printk(KERN_INFO "mcas: unknown ioctl");
     return -EINVAL;
   }
   
@@ -107,20 +138,9 @@ static void vm_close(struct vm_area_struct *vma)
 {
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,13,0)
-static int vm_fault(struct vm_area_struct *area, 
-                    struct vm_fault *fdata)
-#else
-  static int vm_fault(struct vm_fault *vmf)
-#endif
-{
-  return VM_FAULT_SIGBUS;
-}
-
 static struct vm_operations_struct mmap_fops = {
   .open   = vm_open,
   .close  = vm_close,
-  .fault  = vm_fault
 };
 
 /** 
