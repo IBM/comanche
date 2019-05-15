@@ -289,7 +289,13 @@ int Experiment::initialize_store(unsigned core)
     IKVStore_factory * fact = static_cast<IKVStore_factory *>(comp->query_interface(IKVStore_factory::iid()));
 
     if( component_is( "nvmestore" ) ) {
-      _store = fact->create("owner",_owner, *_pci_address);
+      std::map<std::string, std::string> params;
+      params["owner"] = "owner";
+      params["name"] = _owner;
+      params["pci"] = *_pci_address;
+      params["pm_path"] = "/mnt/pmem0/";
+
+      _store = fact->create(_debug_level, params);
     }
     else if ( component_is( "pmstore" ) ) {
       _store = fact->create(_debug_level, _owner, "", "");

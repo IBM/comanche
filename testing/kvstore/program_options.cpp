@@ -90,7 +90,7 @@ try
   , port(vm_["port"].as<unsigned>())
   , port_increment( vm_.count("port_increment") ? vm_["port_increment"].as<unsigned>() : boost::optional<unsigned>())
   , device_name(vm_.count("device_name") ? vm_["device_name"].as<std::string>() : boost::optional<std::string>())
-  , pci_addr( vm_.count("pci_addr_valid") ? vm_["pci_addr"].as<std::string>() : boost::optional<std::string>() )
+  , pci_addr( vm_.count("pci_addr") ? vm_["pci_addr"].as<std::string>() : boost::optional<std::string>() )
 {
   if ( ( component_is("pmstore") || component_is("hstore") ) && ! path )
   {
