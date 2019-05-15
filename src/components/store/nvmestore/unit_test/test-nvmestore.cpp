@@ -68,6 +68,7 @@ class KVStore_test : public ::testing::Test {
   static Component::IKVStore * _kvstore;
   static Component::IKVStore * _kvstore2;
   static Component::IKVStore::pool_t _pool;
+  static std::string _pool_fullname;
   static bool _pool_is_reopen;  // this run is open a previously created pool
 
   using kv_t = std::tuple<std::string, std::string>;
@@ -79,6 +80,7 @@ class KVStore_test : public ::testing::Test {
 Component::IKVStore * KVStore_test::_kvstore;
 Component::IKVStore * KVStore_test::_kvstore2;
 Component::IKVStore::pool_t KVStore_test::_pool;
+std::string KVStore_test::_pool_fullname;
 bool KVStore_test::_pool_is_reopen;
 
 constexpr unsigned KVStore_test::single_value_length;
@@ -127,13 +129,10 @@ TEST_F(KVStore_test, OpenPool)
 
   pool_name = "basic-nr-"+std::to_string(Data::NUM_ELEMENTS) + "-sz-" + std::to_string(Data::VAL_LEN)+ ".pool";
 
-#ifndef USE_FILESTORE
-  pool_path = PMEM_PATH;
-#else
-  pool_path = "./";
-#endif
+  pool_path = "./data/";
   try{
-  _pool = _kvstore->create_pool(pool_path + pool_name, MB(128));
+  _pool_fullname = pool_path + pool_name;
+  _pool = _kvstore->create_pool(_pool_fullname, MB(128));
   _pool_is_reopen = false;
   }
   catch(...){
@@ -281,12 +280,7 @@ TEST_F(KVStore_test, BasicErase)
 
 #endif
 
-#ifdef DO_ERASE
-TEST_F(KVStore_test, ErasePool)
-{
-  _kvstore->delete_pool(_pool);
-}
-#endif
+
 
 TEST_F(KVStore_test, ClosePool)
 {
@@ -316,9 +310,12 @@ TEST_F(KVStore_test, Multiplestore)
   _kvstore2 = fact->create(debug_level, params);
 
   fact->release_ref();
+  Component::IKVStore::pool_t store2_pool2 = _kvstore2->create_pool("test-nvme2.pool", MB(128));
+}
 
-  _pool = _kvstore2->create_pool(PMEM_PATH "test-nvme2.pool", MB(128));
-  _kvstore2->release_ref();
+TEST_F(KVStore_test, DeletePool)
+{
+  _kvstore->delete_pool(_pool_fullname);
 }
 
 TEST_F(KVStore_test, ReleaseStore)

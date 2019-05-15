@@ -82,7 +82,6 @@ TEST_F(KVStore_test, Instantiate)
   ASSERT_TRUE(comp);
   IKVStore_factory * fact = (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
 
-  // this nvme-store use a block device and a block allocator
   std::map<std::string, std::string> params;
   params["owner"] = "testowner";
   params["name"] = "testname";

@@ -311,22 +311,29 @@ status_t NVME_store::close_pool(pool_t pid)
 
 status_t NVME_store::delete_pool(const std::string& name)
 {
-  throw API_exception("not implemented");
-  
-  // struct open_session_t * session = reinterpret_cast<struct open_session_t*>(pid);
+  // return S_OK on success, E_POOL_NOT_FOUND, E_ALREADY_OPEN
+  const std::string& fullpath = _pm_path + name;
 
-  // if(g_sessions.find(session) == g_sessions.end())
-  //   return E_INVAL;
+  /* if trying to open a unclosed pool!*/
+  for(auto iter : g_sessions){
+    if(iter->path == fullpath){
+      PWRN("nvmestore: try to delete an opened pool!");
+      return E_ALREADY_OPEN;
+    }
+  }
 
-  // g_sessions.erase(session);
-  // pmemobj_close(session->pop);
-  // //TODO should clean the blk_allocator and blk dev (reference) here?
-  // //_blk_alloc->resize(0, 0);
+  if (access(fullpath.c_str(), F_OK) != 0) {
+    PWRN("nvmestore: pool doesn't exsit!");
+    return E_POOL_NOT_FOUND;
+  }
 
-  // if(pmempool_rm(session->path.c_str(), 0))
-  //   throw General_exception("unable to delete pool (%p)", pid);
+   //TODO should clean the blk_allocator and blk dev (reference) here?
+   //_blk_alloc->resize(0, 0);
 
-  // PLOG("pool deleted: %s", session->path.c_str());
+   if(pmempool_rm(fullpath.c_str(), 0))
+     throw General_exception("unable to delete pool (%s)", fullpath.c_str());
+
+   PLOG("pool deleted: %s", session->path.c_str());
   return S_OK;
 }
 

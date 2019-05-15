@@ -4,6 +4,9 @@ This is the changelog for nvmestore
 #fixed:
 1. improve scripts.
 2. Adapting to new create(debug_level, params) signature.
+#todo:
+1. Currently one allocator per blocknvme, it supports multiple stores above it. Using device name to identify each allocator can be revisited. 
+2. delete_pool, attributes, mapapi.
 [2018-12-13]:
 #notes:
 1. there is only one piece of iomem, instead I should use a slab allocator (similar to blkmeta)

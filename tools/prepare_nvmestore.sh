@@ -75,7 +75,8 @@ PINF "Checking VFIO"
 ls /dev/vfio -alt
 ls /dev/vfio -alt |grep -q $username
 if [ 0  -ne $? ]; then
-  echo "VFIO not set, run sudo ./tools/attach_to_vfio.sh 11:00.0(using your pci addr), exiting... "
+  echo "VFIO not set, run sudo ./tools/attach_to_vfio.sh 11:00.0(using your pci addr), then run prepare_nvmestore.sh again."
+  echo "Now exiting... "
   exit -1
 fi
 PINF "OK."
