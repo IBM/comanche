@@ -32,6 +32,7 @@
 
 using namespace Component;
 
+/* To support multiple store on the same block device */
 static std::unordered_map<std::string, IBlock_device *> _dev_map; //pci->blk
 static std::unordered_map<IBlock_device *, IBlock_allocator *> _alloc_map; //blk->alloc
 

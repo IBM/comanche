@@ -28,12 +28,12 @@ Other Information
 Kernel parameters
 =====================
 
-Use the following parameter, huge page is for pmdk, memmap is for the pmem, intel_iommu must be on for vfio
+Use the following parameter, huge page is for pmdk, memmap is for the pmem, intel_iommu must be on for vfio (iommu needs be set as 'pt')
 (if you are working in a machine with small memory size(e.g.no more than 8G), you should modify this correspondingly)
 
 * fill the following into GRUB_CMDLINE_LINUX in /etc/default/grub
 ``` 
-hugepagesz=2M hugepages=4096 intel_iommu=on text memmap=2G!4G
+hugepagesz=2M hugepages=4096 intel_iommu=pt text iommu=pt memmap=2G!4G
 ```
 
 * update grub
