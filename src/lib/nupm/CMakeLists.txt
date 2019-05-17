@@ -38,8 +38,8 @@ add_custom_command(
   TARGET ${PROJECT_NAME} POST_BUILD
   COMMAND mkdir -p ${CMAKE_INSTALL_PREFIX}/include/nupm
   COMMAND mkdir -p ${CMAKE_INSTALL_PREFIX}/lib
-  COMMAND cp ${CMAKE_SOURCE_DIR}/src/lib/nupm/src/*.h ${CMAKE_INSTALL_PREFIX}/include/nupm
-  COMMAND cp -r ${CMAKE_SOURCE_DIR}/src/lib/nupm/src/x86_64 ${CMAKE_INSTALL_PREFIX}/include/nupm
+  COMMAND cp ${PROJECT_SOURCE_DIR}/src/*.h ${CMAKE_INSTALL_PREFIX}/include/nupm
+  COMMAND cp -r ${PROJECT_SOURCE_DIR}/src/x86_64 ${CMAKE_INSTALL_PREFIX}/include/nupm
   COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/libnupm.so ${CMAKE_INSTALL_PREFIX}/lib
   )
 
