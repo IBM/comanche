@@ -56,6 +56,8 @@ struct open_session_t
   std::string               path;
   uint64_t io_mem; // io memory for lock/unload TODO: this should be thead-safe, this should be large enough store the allocated value
   size_t io_mem_size; // io memory size which will an object;
+  nvmestore::Block_manager *blk_manager;
+  
   Component::IBlock_device *_blk_dev;
   Component::IBlock_allocator *_blk_alloc;
   std::unordered_map<uint64_t, io_buffer_t> _locked_regions;
@@ -133,7 +135,7 @@ static int check_pool(const char * path)
 NVME_store::NVME_store(const std::string& owner,
                        const std::string& name,
                        const std::string& pci,
-                       const std::string& pm_path) : _pm_path(pm_path)
+                       const std::string& pm_path) : _blk_manager(pci, pm_path), _pm_path(pm_path)
 {
   if(_pm_path.back() != '/')
     _pm_path += "/";
@@ -142,28 +144,13 @@ NVME_store::NVME_store(const std::string& owner,
   PLOG("PMEMOBJ_MAX_ALLOC_SIZE: %lu MB", REDUCE_MB(PMEMOBJ_MAX_ALLOC_SIZE));
 
   /* Note: see note in open_block_device for failure info */
-  status_t ret = open_block_device(pci, _blk_dev);
-  if(S_OK != ret){
-    throw General_exception("failed (%d) to open block device at pci %s\n", ret, pci.c_str());
-  }
 
-  ret = open_block_allocator(_blk_dev, _blk_alloc);
-
-  if(S_OK != ret){
-    throw General_exception("failed (%d) to open block block allocator for device at pci %s\n", ret, pci.c_str());
-  }
-
-  PDBG("NVME_store: using block device %p with allocator %p", _blk_dev, _blk_alloc);
 }
 
 NVME_store::~NVME_store()
 {
 
   PINF("delete NVME store");
-  assert(_blk_dev);
-  assert(_blk_alloc);
-  _blk_alloc->release_ref();
-  _blk_dev->release_ref();
 }
 
 IKVStore::pool_t NVME_store::create_pool(const std::string& name,
@@ -283,6 +270,7 @@ IKVStore::pool_t NVME_store::open_pool(const std::string& name,
   session->pop = pop;
   session->pool_size = D_RO(root)->pool_size;
   session->path = fullpath;
+  session->blk_manager=&_blk_manager;
   session->io_mem_size = DEFAULT_IO_MEM_SIZE;
   session->io_mem = _blk_dev->allocate_io_buffer(DEFAULT_IO_MEM_SIZE, 4096,Component::NUMA_NODE_ANY);
   g_sessions.insert(session);
@@ -349,7 +337,7 @@ static int __alloc_new_object(struct open_session_t *session, uint64_t hashkey, 
   auto& root = session->root;
   auto& pop = session->pop;
 
-  size_t blk_size = 4096; //TODO: need to detect
+  size_t blk_size = session->blk_manager->blk_sz(); //TODO: need to detect
   size_t nr_io_blocks = (value_len+ blk_size -1)/blk_size;
 
   void * handle;
@@ -401,12 +389,10 @@ status_t NVME_store::put(IKVStore::pool_t pool,
 
   if(g_sessions.find(session) == g_sessions.end())
     throw API_exception("NVME_store::put invalid pool identifier");
+  size_t blk_sz = _blk_manager.blk_sz();
 
   auto& root = session->root;
   auto& pop = session->pop;
-
-  auto& blk_alloc = session->_blk_alloc;
-  auto& blk_dev = session->_blk_dev;
 
   uint64_t hashkey = CityHash64(key.c_str(), key.length());
   TOID(struct block_range) blkmeta; // block mapping of this obj
@@ -429,8 +415,8 @@ status_t NVME_store::put(IKVStore::pool_t pool,
   uint64_t tag = blk_dev->async_write(session->io_mem, 0, lba, nr_io_blocks);
   D_RW(blk_info)->last_tag = tag;
 #else
-  auto nr_io_blocks = (value_len+ BLOCK_SIZE -1)/BLOCK_SIZE;
-  do_block_io(blk_dev, BLOCK_IO_WRITE, session->io_mem, D_RO(blkmeta)->lba_start, nr_io_blocks);
+  auto nr_io_blocks = (value_len+ blk_sz -1)/blk_sz;
+  _blk_manager.do_block_io(block_manager_t::BLOCK_IO_WRITE, session->io_mem, D_RO(blkmeta)->lba_start, nr_io_blocks);
 #endif
 
   _cnt_elem_map[pool] ++;
@@ -447,13 +433,11 @@ status_t NVME_store::get(const pool_t pool,
 
   if(g_sessions.find(session) == g_sessions.end())
     throw API_exception("NVME_store::put invalid pool identifier");
+  size_t blk_sz = _blk_manager.blk_sz();
 
   auto& root = session->root;
   auto& pop = session->pop;
   auto mem = session->io_mem;
-
-  auto& blk_alloc = session->_blk_alloc;
-  auto& blk_dev = session->_blk_dev;
 
   uint64_t hashkey = CityHash64(key.c_str(), key.length());
 
@@ -472,9 +456,9 @@ status_t NVME_store::get(const pool_t pool,
     while(!blk_dev->check_completion(tag)) cpu_relax(); /* check the last completion, TODO: check each time makes the get slightly slow () */
 #endif
     PDBG("prepare to read lba %d with length %d, key %lx", lba, val_len, hashkey);
-    size_t nr_io_blocks = (val_len+ BLOCK_SIZE -1)/BLOCK_SIZE;
+    size_t nr_io_blocks = (val_len+ blk_sz -1)/blk_sz;
 
-    do_block_io(blk_dev, BLOCK_IO_READ, mem, lba, nr_io_blocks);
+    _blk_manager.do_block_io(BLOCK_IO_READ, mem, lba, nr_io_blocks);
 
     out_value = malloc(val_len);
     assert(out_value);
@@ -497,12 +481,11 @@ status_t NVME_store::get_direct(const pool_t pool,
 
   if(g_sessions.find(session) == g_sessions.end())
     throw API_exception("NVME_store::put invalid pool identifier");
+  size_t blk_sz = _blk_manager.blk_sz();
 
   auto& root = session->root;
   auto& pop = session->pop;
 
-  auto& blk_alloc = session->_blk_alloc;
-  auto& blk_dev = session->_blk_dev;
 
   uint64_t hashkey = CityHash64(key.c_str(), key.length());
 
@@ -533,11 +516,11 @@ status_t NVME_store::get_direct(const pool_t pool,
 
     assert(mem);
 
-    size_t nr_io_blocks = (val_len+ BLOCK_SIZE -1)/BLOCK_SIZE;
+    size_t nr_io_blocks = (val_len+ blk_sz -1)/blk_sz;
 
     start = rdtsc() ;
 
-    do_block_io(blk_dev, BLOCK_IO_READ, mem, lba, nr_io_blocks);
+    _blk_manager.do_block_io(BLOCK_IO_READ, mem, lba, nr_io_blocks);
 
     cpu_time_t cycles_for_iop = rdtsc() - start;
     PDBG("prepare to read lba % lu with nr_blocks %lu", lba, nr_io_blocks);
@@ -591,7 +574,7 @@ IKVStore::memory_handle_t NVME_store::register_direct_memory(void * vaddr, size_
 //   /*if(hm_tx_lookup(pop, d_ro(root)->map, key_hash))*/
 //   /*return e_key_exists;*/
 
-//   size_t nr_io_blocks = (nbytes+ BLOCK_SIZE -1)/BLOCK_SIZE;
+//   size_t nr_io_blocks = (nbytes+ blk_sz -1)/blk_sz;
 
 //   // transaction also happens in here
 //   lba_t lba = blk_alloc->alloc(nr_io_blocks, &handle);
@@ -650,6 +633,7 @@ IKVStore::key_t NVME_store::lock(const pool_t pool,
   int operation_type= BLOCK_IO_NOP;
 
   auto& blk_dev = session->_blk_dev;
+  size_t blk_sz = _blk_manager.blk_sz();
 
   uint64_t hashkey = CityHash64(key.c_str(), key.length());
 
@@ -688,10 +672,10 @@ IKVStore::key_t NVME_store::lock(const pool_t pool,
     auto lba = D_RO(blk_info)->lba_start;
 
     /* fetch the data to block io mem */
-    size_t nr_io_blocks = (value_len + BLOCK_SIZE -1)/BLOCK_SIZE;
+    size_t nr_io_blocks = (value_len + blk_sz -1)/blk_sz;
     io_buffer_t mem = blk_dev->allocate_io_buffer(nr_io_blocks*4096, 4096,Component::NUMA_NODE_ANY);
 
-    do_block_io(blk_dev, operation_type, mem, lba, nr_io_blocks);
+    _blk_manager.do_block_io(operation_type, mem, lba, nr_io_blocks);
 
     session->_locked_regions.emplace(hashkey, mem); //TODO: can be placed in another place
 
@@ -723,6 +707,7 @@ status_t NVME_store::unlock(const pool_t pool,
 
 
   auto& blk_dev = session->_blk_dev;
+  size_t blk_sz = _blk_manager.blk_sz();
 
   TOID(struct block_range) blk_info;
   try {
@@ -733,7 +718,7 @@ status_t NVME_store::unlock(const pool_t pool,
     auto val_len = D_RO(blk_info)->size;
     auto lba = D_RO(blk_info)->lba_start;
 
-    size_t nr_io_blocks = (val_len + BLOCK_SIZE -1)/BLOCK_SIZE;
+    size_t nr_io_blocks = (val_len + blk_sz -1)/blk_sz;
     io_buffer_t mem = session->_locked_regions.at((uint64_t)key_hash);
 
     /*flush and release iomem*/
@@ -741,7 +726,7 @@ status_t NVME_store::unlock(const pool_t pool,
     uint64_t tag = blk_dev->async_write(mem, 0, lba, nr_io_blocks);
     D_RW(blk_info)->last_tag = tag;
 #else
-    do_block_io(blk_dev, BLOCK_IO_WRITE, mem, lba, nr_io_blocks);
+    _blk_manager.do_block_io(BLOCK_IO_WRITE, mem, lba, nr_io_blocks);
 #endif
 
     blk_dev->free_io_buffer(mem);
@@ -769,7 +754,7 @@ status_t NVME_store::erase(const pool_t pool,
   auto& pop = session->pop;
 
   auto& blk_alloc = session->_blk_alloc;
-  auto& blk_dev = session->_blk_dev;
+  size_t blk_sz = _blk_manager.blk_sz();
 
   TOID(struct block_range) blk_info;
 
