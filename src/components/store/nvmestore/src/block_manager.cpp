@@ -13,16 +13,16 @@
 /*
  * helper functions to initialize/release block device and block allocators
  */
-#include "nvme_store.h"
+#include "block_manager.h"
 
 #include <gtest/gtest.h>
 #include <mutex>
+#include <atomic>
+#include <unordered_map>
 
 #include <common/utils.h>
 #include <api/components.h>
 #include <api/kvstore_itf.h>
-#include <api/block_itf.h>
-#include <api/block_allocator_itf.h>
 
 
 #include <core/dpdk.h>
@@ -31,6 +31,7 @@
 #define USE_SPDK_NVME_DEVICE
 
 using namespace Component;
+namespace nvmestore{
 
 /* To support multiple store on the same block device */
 static std::unordered_map<std::string, IBlock_device *> _dev_map; //pci->blk
@@ -39,7 +40,7 @@ static std::unordered_map<IBlock_device *, IBlock_allocator *> _alloc_map; //blk
 std::mutex _dev_map_mutex;
 std::mutex _alloc_map_mutex;
 
-status_t NVME_store:: open_block_device(const std::string &pci, IBlock_device* &block)
+status_t Block_manager:: open_block_device(const std::string &pci, IBlock_device* &block)
 {
   std::lock_guard<std::mutex> guard(_dev_map_mutex);
 
@@ -103,7 +104,7 @@ status_t NVME_store:: open_block_device(const std::string &pci, IBlock_device* &
   }
 }
 
-status_t NVME_store::open_block_allocator(IBlock_device *block,Component::IBlock_allocator* &alloc)
+status_t Block_manager::open_block_allocator(IBlock_device *block,Component::IBlock_allocator* &alloc)
 {
 
   std::lock_guard<std::mutex> guard(_alloc_map_mutex);
@@ -152,7 +153,7 @@ status_t NVME_store::open_block_allocator(IBlock_device *block,Component::IBlock
   }
 }
 
-status_t  NVME_store::do_block_io(Component::IBlock_device * block,
+status_t  Block_manager::do_block_io(
                          int type,
                          io_buffer_t mem,
                          lba_t lba,
@@ -164,14 +165,14 @@ status_t  NVME_store::do_block_io(Component::IBlock_device * block,
     case BLOCK_IO_READ:
 
       if(nr_io_blocks < CHUNK_SIZE_IN_BLOCKS)
-        block->read(mem, 0, lba, nr_io_blocks);
+        _blk_dev->read(mem, 0, lba, nr_io_blocks);
       else{
         uint64_t tag;
         lba_t offset = 0;  // offset in blocks
 
         // submit async IO
         do{
-          tag = block->async_read(mem, offset*BLOCK_SIZE, lba+offset, CHUNK_SIZE_IN_BLOCKS);
+          tag = _blk_dev->async_read(mem, offset*_blk_sz, lba+offset, CHUNK_SIZE_IN_BLOCKS);
           offset += CHUNK_SIZE_IN_BLOCKS;
         }
         while(offset < nr_io_blocks);
@@ -179,31 +180,31 @@ status_t  NVME_store::do_block_io(Component::IBlock_device * block,
         // leftover
         if(offset > nr_io_blocks){
           offset -= CHUNK_SIZE_IN_BLOCKS;
-          tag = block->async_read(mem, offset*BLOCK_SIZE, lba + offset, nr_io_blocks - offset);
+          tag = _blk_dev->async_read(mem, offset*_blk_sz, lba + offset, nr_io_blocks - offset);
         }
-        while(!block->check_completion(tag)); /* we only have to check the last completion */
+        while(!_blk_dev->check_completion(tag)); /* we only have to check the last completion */
       }
       break;
 
     case BLOCK_IO_WRITE:
       if(nr_io_blocks < CHUNK_SIZE_IN_BLOCKS)
-        block->write(mem, 0, lba, nr_io_blocks);
+        _blk_dev->write(mem, 0, lba, nr_io_blocks);
       else{
         uint64_t tag;
         lba_t offset = 0;  // offset in blocks
 
         // submit async IO
         do{
-          tag = block->async_write(mem, offset*BLOCK_SIZE, lba+offset, CHUNK_SIZE_IN_BLOCKS);
+          tag = _blk_dev->async_write(mem, offset*_blk_sz, lba+offset, CHUNK_SIZE_IN_BLOCKS);
           offset += CHUNK_SIZE_IN_BLOCKS;
         }while(offset < nr_io_blocks);
 
         // leftover
         if(offset > nr_io_blocks){
           offset -= CHUNK_SIZE_IN_BLOCKS;
-          tag = block->async_write(mem, offset*BLOCK_SIZE, lba + offset, nr_io_blocks - offset);
+          tag = _blk_dev->async_write(mem, offset*_blk_sz, lba + offset, nr_io_blocks - offset);
         }
-        while(!block->check_completion(tag)); /* we only have to check the last completion */
+        while(!_blk_dev->check_completion(tag)); /* we only have to check the last completion */
       }
       break;
     default:
@@ -212,3 +213,5 @@ status_t  NVME_store::do_block_io(Component::IBlock_device * block,
   }
   return S_OK;
 }
+
+} // namespace nvmestore
