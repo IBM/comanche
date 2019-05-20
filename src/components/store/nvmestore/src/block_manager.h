@@ -35,7 +35,7 @@ class Block_manager {
   Block_manager()   = delete;
 
   Block_manager(const std::string &pci, const std::string &pm_path)
-      : _pci_addr(pci), _pm_path(pm_path), _blk_sz(4096)
+      : _pci_addr(pci), _pm_path(pm_path)
   {
     status_t ret;
 

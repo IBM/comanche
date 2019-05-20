@@ -99,6 +99,7 @@ status_t Block_manager::open_block_device(const std::string &pci,
 
     PINF("Block-layer component loaded OK (itf=%p)", block);
     _dev_map.insert(std::pair<std::string, IBlock_device *>(pci, block));
+    block->add_ref();
     return S_OK;
   }
   else {
@@ -148,6 +149,7 @@ status_t Block_manager::open_block_allocator(
 
     _alloc_map.insert(
         std::pair<IBlock_device *, IBlock_allocator *>(block, alloc));
+    alloc->add_ref();
     return S_OK;
   }
   else {
