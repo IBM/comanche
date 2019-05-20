@@ -29,6 +29,8 @@ module_core = Extension('dawn',
                         include_dirs = [include_dir,
                                         '${CMAKE_CURRENT_SOURCE_DIR}/../../../src/components',
                                         '${CMAKE_CURRENT_SOURCE_DIR}/../../../src/lib/common/include',
+                                        '${CMAKE_CURRENT_BINARY_DIR}/src',
+					'${PYTHON_NUMPY_INCLUDE_DIR}'
                                         '${CMAKE_CURRENT_SOURCE_DIR}/../../../src/lib/core/include',
                                         '${CMAKE_CURRENT_BINARY_DIR}/src'
                         ],
@@ -65,6 +67,4 @@ setup (name = 'DawnApiPackage',
        package_dir={ '': '${CMAKE_CURRENT_SOURCE_DIR}' },
        ext_modules = [module_core]
 )
-
-
 
