@@ -28,7 +28,6 @@ class Block_manager {
   static constexpr size_t CHUNK_SIZE_IN_BLOCKS =
       8;  // large IO will be splited into CHUNKs, 8*4k  seems gives optimal
 
-
  private:
   static constexpr bool option_DEBUG = false;
   size_t                _blk_sz =
@@ -36,7 +35,7 @@ class Block_manager {
 
  public:
   using io_buffer_t = uint64_t;
-  Block_manager() = delete;
+  Block_manager()   = delete;
 
   Block_manager(const std::string &pci, const std::string &pm_path)
       : _pci_addr(pci), _pm_path(pm_path), _blk_sz(4096)
@@ -44,6 +43,9 @@ class Block_manager {
     status_t ret;
 
     ret = open_block_device(_pci_addr, _blk_dev);
+    Component::VOLUME_INFO info;
+    _blk_dev->get_volume_info(info);
+    _blk_sz = info.block_size;
 
     if (S_OK != ret) {
       throw General_exception("failed (%d) to open block device at pci %s\n",
@@ -57,8 +59,8 @@ class Block_manager {
           ret, pci.c_str());
     }
 
-    PDBG("block_manager: using block device %p with allocator %p", _blk_dev,
-         _blk_alloc);
+    PDBG("block_manager: using block device %p with allocator %p, blksize= %lu",
+         _blk_dev, _blk_alloc, _blk_sz);
   };
 
   ~Block_manager()
@@ -97,22 +99,23 @@ class Block_manager {
   size_t blk_sz() const { return _blk_sz; }
 
   /* Block Allocator */
-  lba_t alloc_blk_region(size_t size, void** handle = nullptr){
+  lba_t alloc_blk_region(size_t size, void **handle = nullptr)
+  {
     return _blk_alloc->alloc(size, handle);
   }
 
-  void free_blk_region(lba_t addr, void* handle = nullptr){
+  void free_blk_region(lba_t addr, void *handle = nullptr)
+  {
     _blk_alloc->free(addr, handle);
   }
 
-
-  io_buffer_t register_memory_for_io(void * vaddr, addr_t paddr, size_t len){
+  io_buffer_t register_memory_for_io(void *vaddr, addr_t paddr, size_t len)
+  {
     return _blk_dev->register_memory_for_io(vaddr, paddr, len);
   }
 
-
  private:
-  Component::IBlock_device  *_blk_dev;
+  Component::IBlock_device *   _blk_dev;
   Component::IBlock_allocator *_blk_alloc;
 
   std::string _pci_addr;
