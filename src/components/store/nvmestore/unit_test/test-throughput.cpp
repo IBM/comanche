@@ -125,13 +125,9 @@ TEST_F(KVStore_test, OpenPool)
   std::string pool_path;
   std::string pool_name;
 
-  pool_name = "basic-nr-"+std::to_string(Data::NUM_ELEMENTS) + "-sz-" + std::to_string(Data::VAL_LEN)+ ".pool";
+  pool_name = "nvmestore-tp-nr-"+std::to_string(Data::NUM_ELEMENTS) + "-sz-" + std::to_string(Data::VAL_LEN)+ ".pool";
 
-#ifndef USE_FILESTORE
-  pool_path = PMEM_PATH;
-#else
-  pool_path = "./";
-#endif
+  pool_path = "./data/";
   try{
   _pool = _kvstore->create_pool(pool_path + pool_name, MB(128));
   _pool_is_reopen = false;
