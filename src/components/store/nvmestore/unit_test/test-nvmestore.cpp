@@ -137,7 +137,7 @@ TEST_F(KVStore_test, OpenPool)
   }
   catch(...){
     // open the pool if it exists
-    _pool = _kvstore->open_pool(pool_path + pool_name);
+    _pool = _kvstore->open_pool(_pool_fullname);
     _pool_is_reopen = true;
     PINF("NVMEStore:open a exsiting pool instead!");
   }
@@ -310,7 +310,7 @@ TEST_F(KVStore_test, Multiplestore)
   _kvstore2 = fact->create(debug_level, params);
 
   fact->release_ref();
-  Component::IKVStore::pool_t store2_pool2 = _kvstore2->create_pool("test-nvme2.pool", MB(128));
+  Component::IKVStore::pool_t store2_pool2 = _kvstore2->create_pool("data/test-nvme2.pool", MB(128));
 }
 
 TEST_F(KVStore_test, DeletePool)

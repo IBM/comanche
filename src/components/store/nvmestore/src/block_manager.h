@@ -13,9 +13,7 @@
 #include <string>
 #include "common/types.h"  // status_t
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+using namespace Component;
 namespace nvmestore
 {
 /* type of block io*/
@@ -30,9 +28,7 @@ class Block_manager {
 
  private:
   static constexpr bool option_DEBUG = false;
-  size_t                _blk_sz =
-      4096;  // TODO: this should be obtained by querying the block device
-
+  size_t                _blk_sz;
  public:
   using io_buffer_t = uint64_t;
   Block_manager()   = delete;
@@ -87,16 +83,23 @@ class Block_manager {
                        io_buffer_t mem,
                        uint64_t    lba,
                        size_t      nr_io_blocks);
-  void *   virt_addr(io_buffer_t buffer) { return _blk_dev->virt_addr(buffer); }
 
-  io_buffer_t allocate_io_buffer(size_t size, unsigned alignment, int numa_node)
+  size_t blk_sz() const { return _blk_sz; }
+
+  /* Inline Memory related Methods*/
+  inline void *   virt_addr(io_buffer_t buffer) { return _blk_dev->virt_addr(buffer); }
+
+  inline io_buffer_t allocate_io_buffer(size_t size, unsigned alignment, int numa_node)
   {
     return _blk_dev->allocate_io_buffer(size, alignment, numa_node);
   };
 
-  void free_io_buffer(io_buffer_t io_mem) { _blk_dev->free_io_buffer(io_mem); };
+  inline void free_io_buffer(io_buffer_t io_mem) { _blk_dev->free_io_buffer(io_mem); };
 
-  size_t blk_sz() const { return _blk_sz; }
+  inline io_buffer_t register_memory_for_io(void *vaddr, addr_t paddr, size_t len)
+  {
+    return _blk_dev->register_memory_for_io(vaddr, paddr, len);
+  }
 
   /* Block Allocator */
   lba_t alloc_blk_region(size_t size, void **handle = nullptr)
@@ -109,18 +112,12 @@ class Block_manager {
     _blk_alloc->free(addr, handle);
   }
 
-  io_buffer_t register_memory_for_io(void *vaddr, addr_t paddr, size_t len)
-  {
-    return _blk_dev->register_memory_for_io(vaddr, paddr, len);
-  }
-
  private:
   Component::IBlock_device *   _blk_dev;
   Component::IBlock_allocator *_blk_alloc;
 
   std::string _pci_addr;
   std::string _pm_path;
-
   /*
    * open the block device, reuse if it exists already
    *
@@ -144,8 +141,4 @@ class Block_manager {
 
 };  // Block_manager
 }  // namespace nvmestore
-
-#ifdef __cplusplus
-}
-#endif
 #endif

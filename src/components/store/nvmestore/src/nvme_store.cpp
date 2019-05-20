@@ -325,7 +325,7 @@ status_t Nvmestore_session::lock(uint64_t hashkey, lock_type_t type, void * &out
 
     get_locked_regions().emplace(
         mem, hashkey);  // TODO: can be placed in another place
-    PINF("[nvmestore_session]: allocating io mem at %p", (void*)mem);
+    PDBG("[nvmestore_session]: allocating io mem at %p, virt addr %p", (void*)mem, _blk_manager->virt_addr(mem));
 
     /* set output values */
     out_value     = _blk_manager->virt_addr(mem);
@@ -335,7 +335,7 @@ status_t Nvmestore_session::lock(uint64_t hashkey, lock_type_t type, void * &out
     PERR("NVME_store: lock failed");
   }
 
-  PINF("NVME_store: obtained the lock");
+  PDBG("NVME_store: obtained the lock");
 
   return S_OK;
 }
@@ -344,7 +344,7 @@ status_t Nvmestore_session::unlock(uint64_t key_handle){
   auto root = _root;
   auto pop  = _pop;
   auto pool = reinterpret_cast<uint64_t>(this);
-  io_buffer_t mem = key_handle;
+  io_buffer_t mem = reinterpret_cast<io_buffer_t>(key_handle);
   uint64_t hashkey  = get_locked_regions().at(mem);
 
   size_t blk_sz  = _blk_manager->blk_sz();
@@ -367,17 +367,18 @@ status_t Nvmestore_session::unlock(uint64_t key_handle){
     _blk_manager->do_block_io(nvmestore::BLOCK_IO_WRITE, mem, lba, nr_io_blocks);
 #endif
 
-    PINF("[nvmestore_session]: freeing io mem at %p", (void *)mem);
+    PDBG("[nvmestore_session]: freeing io mem at %p", (void *)mem);
     _blk_manager->free_io_buffer(mem);
 
     /*release the lock*/
     p_state_map->state_unlock(pool, D_RO(blk_info)->handle);
 
-    PINF("NVME_store: released the lock");
+    PDBG("NVME_store: released the lock");
   }
   catch (...) {
     throw General_exception("hm_tx_get failed unexpectedly or iomem not found");
   }
+  return S_OK;
 }
 
 using open_session_t = Nvmestore_session;
@@ -817,12 +818,10 @@ IKVStore::memory_handle_t NVME_store::register_direct_memory(void*  vaddr,
 //   return S_OK;
 // }
 
-/* For nvmestore, data is not necessarily in main memory.
+/*
+ * For nvmestore, data is not necessarily in main memory.
  * Lock will allocate iomem and load data from nvme first.
  * Unlock will will free it
- *
- * Note: nvmestore does not support multiple read locks on the same key by the
- * same thread.
  */
 IKVStore::key_t NVME_store::lock(const pool_t       pool,
                                  const std::string& key,
@@ -835,11 +834,11 @@ IKVStore::key_t NVME_store::lock(const pool_t       pool,
   uint64_t hashkey = CityHash64(key.c_str(), key.length());
 
   session->lock(hashkey, type, out_value, out_value_len);
+  PDBG("[nvmestore_lock] %p", out_value);
   return reinterpret_cast<Component::IKVStore::key_t>(out_value);
 }
 
 /*
- *
  * For nvmestore, data is not necessarily in main memory.
  * Lock will allocate iomem and load data from nvme first.
  * Unlock will will free it
