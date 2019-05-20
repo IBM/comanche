@@ -29,6 +29,7 @@ class Block_manager {
  private:
   static constexpr bool option_DEBUG = false;
   size_t                _blk_sz;
+
  public:
   using io_buffer_t = uint64_t;
   Block_manager()   = delete;
@@ -87,16 +88,26 @@ class Block_manager {
   size_t blk_sz() const { return _blk_sz; }
 
   /* Inline Memory related Methods*/
-  inline void *   virt_addr(io_buffer_t buffer) { return _blk_dev->virt_addr(buffer); }
+  inline void *virt_addr(io_buffer_t buffer)
+  {
+    return _blk_dev->virt_addr(buffer);
+  }
 
-  inline io_buffer_t allocate_io_buffer(size_t size, unsigned alignment, int numa_node)
+  inline io_buffer_t allocate_io_buffer(size_t   size,
+                                        unsigned alignment,
+                                        int      numa_node)
   {
     return _blk_dev->allocate_io_buffer(size, alignment, numa_node);
   };
 
-  inline void free_io_buffer(io_buffer_t io_mem) { _blk_dev->free_io_buffer(io_mem); };
+  inline void free_io_buffer(io_buffer_t io_mem)
+  {
+    _blk_dev->free_io_buffer(io_mem);
+  };
 
-  inline io_buffer_t register_memory_for_io(void *vaddr, addr_t paddr, size_t len)
+  inline io_buffer_t register_memory_for_io(void * vaddr,
+                                            addr_t paddr,
+                                            size_t len)
   {
     return _blk_dev->register_memory_for_io(vaddr, paddr, len);
   }

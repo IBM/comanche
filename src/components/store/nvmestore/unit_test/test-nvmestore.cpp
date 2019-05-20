@@ -310,7 +310,7 @@ TEST_F(KVStore_test, Multiplestore)
   _kvstore2 = fact->create(debug_level, params);
 
   fact->release_ref();
-  Component::IKVStore::pool_t store2_pool2 = _kvstore2->create_pool("data/test-nvme2.pool", MB(128));
+  Component::IKVStore::pool_t store2_pool2 = _kvstore2->create_pool("data/test-nvme3.pool", MB(128));
 }
 
 TEST_F(KVStore_test, DeletePool)

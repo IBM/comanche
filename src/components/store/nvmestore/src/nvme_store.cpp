@@ -77,22 +77,28 @@ class Nvmestore_session {
   std::string get_path() & { return _path; }
 
   /** Get persist pointer of this pool*/
-  PMEMobjpool *get_pop()  { return _pop; }
+  PMEMobjpool* get_pop() { return _pop; }
   /** Get */
-  TOID(struct store_root_t) get_root()  { return _root; }
+  TOID(struct store_root_t) get_root() { return _root; }
 
   /** Erase Objects*/
   status_t erase(uint64_t hashkey);
 
   /** Put and object*/
-  status_t put(uint64_t hashkey, const void *valude, size_t value_len, unsigned int flags);
+  status_t put(uint64_t     hashkey,
+               const void*  valude,
+               size_t       value_len,
+               unsigned int flags);
 
   /** Get an object*/
-  status_t get(uint64_t hashkey, void * &out_value, size_t &out_value_len);
+  status_t get(uint64_t hashkey, void*& out_value, size_t& out_value_len);
 
-  status_t get_direct(uint64_t hashkey, void * out_value, size_t &out_value_len);
+  status_t get_direct(uint64_t hashkey, void* out_value, size_t& out_value_len);
 
-  status_t lock(uint64_t hashkey, lock_type_t type, void * &out_value, size_t &out_value_len);
+  status_t lock(uint64_t    hashkey,
+                lock_type_t type,
+                void*&      out_value,
+                size_t&     out_value_len);
   status_t unlock(uint64_t hashkey);
 
  private:
@@ -105,37 +111,38 @@ class Nvmestore_session {
                 // this should be large enough store the allocated value
   size_t _io_mem_size;  // io memory size which will an object;
   nvmestore::Block_manager* _blk_manager;
-  State_map*              p_state_map;
+  State_map*                p_state_map;
 
   /** Session locked*/
   std::unordered_map<io_buffer_t, uint64_t> _locked_regions;
-  size_t _num_objs;
-
+  size_t                                    _num_objs;
 };
 
-status_t Nvmestore_session::erase(uint64_t hashkey) {
+status_t Nvmestore_session::erase(uint64_t hashkey)
+{
   auto& root = this->_root;
   auto& pop  = this->_pop;
 
-  uint64_t pool =  reinterpret_cast<uint64_t>(this);
+  uint64_t pool = reinterpret_cast<uint64_t>(this);
 
   TOID(struct block_range) blk_info;
   try {
-    blk_info          = hm_tx_get(pop, D_RW(root)->map, hashkey);
+    blk_info = hm_tx_get(pop, D_RW(root)->map, hashkey);
     if (OID_IS_NULL(blk_info.oid)) return NVME_store::E_KEY_NOT_FOUND;
 
     /* get hold of write lock to remove */
     if (!p_state_map->state_get_write_lock(pool, D_RO(blk_info)->handle))
       throw API_exception("unable to remove, value locked");
 
-    _blk_manager->free_blk_region(D_RO(blk_info)->lba_start, D_RO(blk_info)->handle);
+    _blk_manager->free_blk_region(D_RO(blk_info)->lba_start,
+                                  D_RO(blk_info)->handle);
 
     blk_info = hm_tx_remove(pop, D_RW(root)->map,
                             hashkey); /* could be optimized to not re-lookup */
     if (OID_IS_NULL(blk_info.oid))
       throw API_exception("hm_tx_remove failed unexpectedly");
     p_state_map->state_remove(pool, D_RO(blk_info)->handle);
-    _num_objs -=1;
+    _num_objs -= 1;
   }
   catch (...) {
     throw General_exception("hm_tx_remove failed unexpectedly");
@@ -143,7 +150,11 @@ status_t Nvmestore_session::erase(uint64_t hashkey) {
   return S_OK;
 };
 
-status_t Nvmestore_session::put(uint64_t hashkey, const void *value, size_t value_len, unsigned int flags){
+status_t Nvmestore_session::put(uint64_t     hashkey,
+                                const void*  value,
+                                size_t       value_len,
+                                unsigned int flags)
+{
   size_t blk_sz = _blk_manager->blk_sz();
 
   auto root = _root;
@@ -156,7 +167,8 @@ status_t Nvmestore_session::put(uint64_t hashkey, const void *value, size_t valu
     throw General_exception("Object size larger than MB(8)!");
   }
 
-  if (hm_tx_lookup(pop, D_RO(root)->map, hashkey)) return IKVStore::E_KEY_EXISTS;
+  if (hm_tx_lookup(pop, D_RO(root)->map, hashkey))
+    return IKVStore::E_KEY_EXISTS;
 
   alloc_new_object(hashkey, value_len, blkmeta);
 
@@ -171,20 +183,21 @@ status_t Nvmestore_session::put(uint64_t hashkey, const void *value, size_t valu
 #else
   auto nr_io_blocks = (value_len + blk_sz - 1) / blk_sz;
   _blk_manager->do_block_io(nvmestore::BLOCK_IO_WRITE, _io_mem,
-                           D_RO(blkmeta)->lba_start, nr_io_blocks);
+                            D_RO(blkmeta)->lba_start, nr_io_blocks);
 #endif
-  _num_objs +=1;
+  _num_objs += 1;
   return S_OK;
 }
 
-
-status_t Nvmestore_session::get(uint64_t hashkey, void * &out_value, size_t &out_value_len){
+status_t Nvmestore_session::get(uint64_t hashkey,
+                                void*&   out_value,
+                                size_t&  out_value_len)
+{
   size_t blk_sz = _blk_manager->blk_sz();
 
-  auto root = _root;
+  auto  root = _root;
   auto& pop  = _pop;
   auto  mem  = _io_mem;
-
 
   TOID(struct block_range) blk_info;
   // TODO: can write to a shadowed copy
@@ -218,12 +231,14 @@ status_t Nvmestore_session::get(uint64_t hashkey, void * &out_value, size_t &out
   return S_OK;
 }
 
-status_t Nvmestore_session::get_direct(uint64_t hashkey, void * out_value, size_t &out_value_len){
+status_t Nvmestore_session::get_direct(uint64_t hashkey,
+                                       void*    out_value,
+                                       size_t&  out_value_len)
+{
   size_t blk_sz = _blk_manager->blk_sz();
 
   auto root = _root;
   auto pop  = _pop;
-
 
   TOID(struct block_range) blk_info;
   try {
@@ -272,14 +287,17 @@ status_t Nvmestore_session::get_direct(uint64_t hashkey, void * out_value, size_
   return S_OK;
 }
 
-status_t Nvmestore_session::lock(uint64_t hashkey, lock_type_t type, void * &out_value, size_t &out_value_len){
+status_t Nvmestore_session::lock(uint64_t    hashkey,
+                                 lock_type_t type,
+                                 void*&      out_value,
+                                 size_t&     out_value_len)
+{
   auto& root           = _root;
   auto& pop            = _pop;
   int   operation_type = nvmestore::BLOCK_IO_NOP;
 
-  size_t blk_sz  = _blk_manager->blk_sz();
-  auto pool = reinterpret_cast<uint64_t>(this);
-
+  size_t blk_sz = _blk_manager->blk_sz();
+  auto   pool   = reinterpret_cast<uint64_t>(this);
 
   TOID(struct block_range) blk_info;
   try {
@@ -318,14 +336,15 @@ status_t Nvmestore_session::lock(uint64_t hashkey, lock_type_t type, void * &out
 
     /* fetch the data to block io mem */
     size_t      nr_io_blocks = (value_len + blk_sz - 1) / blk_sz;
-    io_buffer_t mem = _blk_manager->allocate_io_buffer(nr_io_blocks * blk_sz, 4096,
-                                                  Component::NUMA_NODE_ANY);
+    io_buffer_t mem          = _blk_manager->allocate_io_buffer(
+        nr_io_blocks * blk_sz, 4096, Component::NUMA_NODE_ANY);
 
     _blk_manager->do_block_io(operation_type, mem, lba, nr_io_blocks);
 
     get_locked_regions().emplace(
         mem, hashkey);  // TODO: can be placed in another place
-    PDBG("[nvmestore_session]: allocating io mem at %p, virt addr %p", (void*)mem, _blk_manager->virt_addr(mem));
+    PDBG("[nvmestore_session]: allocating io mem at %p, virt addr %p",
+         (void*) mem, _blk_manager->virt_addr(mem));
 
     /* set output values */
     out_value     = _blk_manager->virt_addr(mem);
@@ -340,14 +359,15 @@ status_t Nvmestore_session::lock(uint64_t hashkey, lock_type_t type, void * &out
   return S_OK;
 }
 
-status_t Nvmestore_session::unlock(uint64_t key_handle){
-  auto root = _root;
-  auto pop  = _pop;
-  auto pool = reinterpret_cast<uint64_t>(this);
-  io_buffer_t mem = reinterpret_cast<io_buffer_t>(key_handle);
-  uint64_t hashkey  = get_locked_regions().at(mem);
+status_t Nvmestore_session::unlock(uint64_t key_handle)
+{
+  auto        root    = _root;
+  auto        pop     = _pop;
+  auto        pool    = reinterpret_cast<uint64_t>(this);
+  io_buffer_t mem     = reinterpret_cast<io_buffer_t>(key_handle);
+  uint64_t    hashkey = get_locked_regions().at(mem);
 
-  size_t blk_sz  = _blk_manager->blk_sz();
+  size_t blk_sz = _blk_manager->blk_sz();
 
   TOID(struct block_range) blk_info;
   try {
@@ -357,17 +377,18 @@ status_t Nvmestore_session::unlock(uint64_t key_handle){
     auto val_len = D_RO(blk_info)->size;
     auto lba     = D_RO(blk_info)->lba_start;
 
-    size_t      nr_io_blocks = (val_len + blk_sz - 1) / blk_sz;
+    size_t nr_io_blocks = (val_len + blk_sz - 1) / blk_sz;
 
     /*flush and release iomem*/
 #ifdef USE_ASYNC
     uint64_t tag             = blk_dev->async_write(mem, 0, lba, nr_io_blocks);
     D_RW(blk_info)->last_tag = tag;
 #else
-    _blk_manager->do_block_io(nvmestore::BLOCK_IO_WRITE, mem, lba, nr_io_blocks);
+    _blk_manager->do_block_io(nvmestore::BLOCK_IO_WRITE, mem, lba,
+                              nr_io_blocks);
 #endif
 
-    PDBG("[nvmestore_session]: freeing io mem at %p", (void *)mem);
+    PDBG("[nvmestore_session]: freeing io mem at %p", (void*) mem);
     _blk_manager->free_io_buffer(mem);
 
     /*release the lock*/
@@ -712,7 +733,6 @@ status_t NVME_store::get(const pool_t       pool,
     throw API_exception("NVME_store::put invalid pool identifier");
   uint64_t hashkey = CityHash64(key.c_str(), key.length());
 
-  
   return session->get(hashkey, out_value, out_value_len);
 }
 
@@ -727,7 +747,7 @@ status_t NVME_store::get_direct(const pool_t       pool,
   if (g_sessions.find(session) == g_sessions.end())
     throw API_exception("NVME_store::put invalid pool identifier");
   uint64_t hashkey = CityHash64(key.c_str(), key.length());
-  
+
   return session->get_direct(hashkey, out_value, out_value_len);
 }
 
@@ -847,7 +867,7 @@ status_t NVME_store::unlock(const pool_t pool, key_t key_handle)
 {
   open_session_t* session = get_session(pool);
 
-  session->unlock((uint64_t)key_handle); // i.e. virt addr
+  session->unlock((uint64_t) key_handle);  // i.e. virt addr
   return S_OK;
 }
 

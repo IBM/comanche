@@ -3,9 +3,9 @@
  *
  */
 
-/* 
- * Authors: 
- * 
+/*
+ * Authors:
+ *
  * Feng Li (fengggli@yahoo.com)
  */
 
@@ -14,166 +14,185 @@
 
 #include <libpmemobj.h>
 
-#include <pthread.h>
 #include <common/rwlock.h>
 #include <common/types.h>
+#include <pthread.h>
 
 #include <api/kvstore_itf.h>
 
-#include "state_map.h"
 #include "block_manager.h"
+#include "state_map.h"
 
 class State_map;
 
-//static constexpr char PMEM_PATH_ALLOC[] = "/mnt/pmem0/pool/0/"; // the pool for allocation info
+// static constexpr char PMEM_PATH_ALLOC[] = "/mnt/pmem0/pool/0/"; // the pool
+// for allocation info
 
 POBJ_LAYOUT_BEGIN(nvme_store);
 POBJ_LAYOUT_ROOT(nvme_store, struct store_root_t);
 POBJ_LAYOUT_TOID(nvme_store, struct block_range);
 POBJ_LAYOUT_END(nvme_store);
 
-
 /*
  * for block allocator
  */
-typedef struct block_range{
-  int lba_start;
-  int size; // size in bytes
-  void * handle; // handle to free this block
-  //uint64_t last_tag; // tag for async block io
+typedef struct block_range {
+  int   lba_start;
+  int   size;    // size in bytes
+  void* handle;  // handle to free this block
+  // uint64_t last_tag; // tag for async block io
 } block_range_t;
 
-class NVME_store : public Component::IKVStore
-{
-  using block_manager_t=nvmestore::Block_manager;
-  using io_buffer_t = block_manager_t::io_buffer_t;
-  static constexpr size_t DEFAULT_IO_MEM_SIZE= MB(8); // initial IO memory size in bytes
+class NVME_store : public Component::IKVStore {
+  using block_manager_t = nvmestore::Block_manager;
+  using io_buffer_t     = block_manager_t::io_buffer_t;
+  static constexpr size_t DEFAULT_IO_MEM_SIZE =
+      MB(8);  // initial IO memory size in bytes
 
-private:
-  static constexpr bool option_DEBUG = true;
+ private:
+  static constexpr bool                           option_DEBUG = true;
   std::unordered_map<pool_t, std::atomic<size_t>> _cnt_elem_map;
-  std::string _pm_path; 
+  std::string                                     _pm_path;
 
-  State_map _sm; // map control TODO: change to session manager
-  block_manager_t _blk_manager; // shared across all nvmestore
+  State_map       _sm;           // map control TODO: change to session manager
+  block_manager_t _blk_manager;  // shared across all nvmestore
 
-public:
-  /** 
+ public:
+  /**
    * Constructor
-   * 
+   *
    * @param owner
    * @param name
    * @param pci pci address of the Nvme
-   *   The "pci address" is in Bus:Device.Function (BDF) form with Bus and Device zero-padded to 2 digits each, e.g. 86:00.0
+   *   The "pci address" is in Bus:Device.Function (BDF) form with Bus and
+   * Device zero-padded to 2 digits each, e.g. 86:00.0
    */
   NVME_store(const std::string& owner,
              const std::string& name,
              const std::string& pci,
              const std::string& pm_path);
 
-  /** 
+  /**
    * Destructor
-   * 
+   *
    */
   virtual ~NVME_store();
 
-  /** 
+  /**
    * Component/interface management
    */
   DECLARE_VERSION(0.1);
-  DECLARE_COMPONENT_UUID(0x59564581,0x9e1b,0x4811,0xbdb2,0x19,0x57,0xa0,0xa6,0x84,0x57);
+  DECLARE_COMPONENT_UUID(0x59564581,
+                         0x9e1b,
+                         0x4811,
+                         0xbdb2,
+                         0x19,
+                         0x57,
+                         0xa0,
+                         0xa6,
+                         0x84,
+                         0x57);
 
-  void * query_interface(Component::uuid_t& itf_uuid) override {
-    if(itf_uuid == Component::IKVStore::iid()) {
-      return (void *) static_cast<Component::IKVStore*>(this);
+  void* query_interface(Component::uuid_t& itf_uuid) override
+  {
+    if (itf_uuid == Component::IKVStore::iid()) {
+      return (void*) static_cast<Component::IKVStore*>(this);
     }
-    else return NULL; // we don't support this interface
+    else
+      return NULL;  // we don't support this interface
   }
 
-  void unload() override {
-    delete this;
-  }
+  void unload() override { delete this; }
 
-public:
-
+ public:
   /* IKVStore */
-  virtual int thread_safety() const override { return THREAD_MODEL_SINGLE_PER_POOL; }
-
+  virtual int thread_safety() const override
+  {
+    return THREAD_MODEL_SINGLE_PER_POOL;
+  }
 
   virtual pool_t create_pool(const std::string& name,
-                             const size_t size,
-                             unsigned int flags,
-                             uint64_t expected_obj_count = 0
-                             ) override;
+                             const size_t       size,
+                             unsigned int       flags,
+                             uint64_t expected_obj_count = 0) override;
 
   virtual pool_t open_pool(const std::string& name,
-                           unsigned int flags) override;
-
+                           unsigned int       flags) override;
 
   virtual status_t delete_pool(const std::string& name) override;
 
   virtual status_t close_pool(const pool_t pid) override;
 
-  virtual status_t put(const pool_t pool,
+  virtual status_t put(const pool_t       pool,
                        const std::string& key,
-                       const void * value,
-                       const size_t value_len,
-                       unsigned int flags = FLAGS_NONE) override;
+                       const void*        value,
+                       const size_t       value_len,
+                       unsigned int       flags = FLAGS_NONE) override;
 
-  virtual status_t get(const pool_t pool,
-                  const std::string& key,
-                  void*& out_value,
-                  size_t& out_value_len) override;
+  virtual status_t get(const pool_t       pool,
+                       const std::string& key,
+                       void*&             out_value,
+                       size_t&            out_value_len) override;
 
-  virtual status_t get_direct(const pool_t pool,
-                              const std::string& key,
-                              void* out_value,
-                              size_t& out_value_len,
-                              Component::IKVStore::memory_handle_t handle) override;
+  virtual status_t get_direct(
+      const pool_t                         pool,
+      const std::string&                   key,
+      void*                                out_value,
+      size_t&                              out_value_len,
+      Component::IKVStore::memory_handle_t handle) override;
 
-  virtual IKVStore::memory_handle_t register_direct_memory(void * vaddr, size_t len) override;
+  virtual IKVStore::memory_handle_t register_direct_memory(void*  vaddr,
+                                                           size_t len) override;
 
-  virtual IKVStore::key_t lock(const pool_t pool,
+  virtual IKVStore::key_t lock(const pool_t       pool,
                                const std::string& key,
-                               lock_type_t type,
-                               void*& out_value,
-                               size_t& out_value_len) override;
+                               lock_type_t        type,
+                               void*&             out_value,
+                               size_t&            out_value_len) override;
 
-  virtual status_t unlock(const pool_t pool,
-                          key_t key_hash) override;
+  virtual status_t unlock(const pool_t pool, key_t key_hash) override;
 
-  virtual status_t erase(const pool_t pool,
-                         const std::string& key) override;
+  virtual status_t erase(const pool_t pool, const std::string& key) override;
 
-  virtual size_t count(const pool_t pool) override { return _cnt_elem_map[pool]; }
+  virtual size_t count(const pool_t pool) override
+  {
+    return _cnt_elem_map[pool];
+  }
 
-  virtual void debug(const pool_t pool, unsigned cmd, uint64_t arg) { }
-
+  virtual void debug(const pool_t pool, unsigned cmd, uint64_t arg) {}
 };
 
-
-class NVME_store_factory : public Component::IKVStore_factory
-{
-public:
-
-  /** 
+class NVME_store_factory : public Component::IKVStore_factory {
+ public:
+  /**
    * Component/interface management
-   * 
+   *
    */
   DECLARE_VERSION(0.1);
-  DECLARE_COMPONENT_UUID(0xfac64581,0x1993,0x4811,0xbdb2,0x19,0x57,0xa0,0xa6,0x84,0x57);
+  DECLARE_COMPONENT_UUID(0xfac64581,
+                         0x1993,
+                         0x4811,
+                         0xbdb2,
+                         0x19,
+                         0x57,
+                         0xa0,
+                         0xa6,
+                         0x84,
+                         0x57);
 
-  void * query_interface(Component::uuid_t& itf_uuid) override;
+  void* query_interface(Component::uuid_t& itf_uuid) override;
 
   void unload() override;
 
   /*
-   *   "pci" is in Bus:Device.Function (BDF) form. Bus and Device must be zero-padded to 2 digits each, e.g. 86:00.0
+   *   "pci" is in Bus:Device.Function (BDF) form. Bus and Device must be
+   * zero-padded to 2 digits each, e.g. 86:00.0
    */
 
   /* mapped params, keys: owner,name,pci,pm_path */
-  virtual Component::IKVStore * create(unsigned debug_level,
-				       std::map<std::string,std::string>& params) override;
+  virtual Component::IKVStore* create(
+      unsigned                            debug_level,
+      std::map<std::string, std::string>& params) override;
 };
 
 #endif
