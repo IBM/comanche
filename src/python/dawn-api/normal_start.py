@@ -15,7 +15,7 @@ def get_keys(pool, expr):
 
 pool_name = 'foo'
 #session = dawn.Session(ip="10.0.0.92",port=11900)
-session = dawn.Session(ip="10.0.0.22")
+session = dawn.Session(ip="10.0.0.22", port=11911)
 pool = session.create_pool(pool_name,int(2e9),100)
 
 

@@ -178,24 +178,21 @@ class Fabric_transport {
 
   /**
    * Post receive then wait for completion before returning.
+   * Use after post_send may lead to poor performance if the response
+   * arrives before the receive buffer is posted.
    *
    * @param iob IO buffer
    */
   void sync_recv(buffer_t *iob)
   {
-    if (option_DEBUG)
-      PLOG("sync_recv: (%p, %p, base=%p, len=%lu)", iob, iob->desc,
-           iob->iov->iov_base, iob->iov->iov_len);
-
-    iob->reset_length();
-    post_recv(iob->iov, iob->iov + 1, &iob->desc, iob);
+    post_recv(iob);
     wait_for_completion(iob);
   }
 
   void post_recv(buffer_t *iob)
   {
     if (option_DEBUG)
-      PLOG("post_recv: (%p, %p, base=%p, len=%lu)", iob, iob->desc,
+      PLOG("%s: (%p, %p, base=%p, len=%lu)", __func__, iob, iob->desc,
            iob->iov->iov_base, iob->iov->iov_len);
 
     iob->reset_length();
