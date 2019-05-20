@@ -131,9 +131,9 @@ TEST_F(KVStore_test, OpenPool)
 
   pool_path = "./data/";
   try{
-  _pool_fullname = pool_path + pool_name;
-  _pool = _kvstore->create_pool(_pool_fullname, MB(128));
-  _pool_is_reopen = false;
+    _pool_fullname = pool_path + pool_name;
+    _pool = _kvstore->create_pool(_pool_fullname, MB(128));
+    _pool_is_reopen = false;
   }
   catch(...){
     // open the pool if it exists
