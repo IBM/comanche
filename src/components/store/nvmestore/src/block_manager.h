@@ -18,17 +18,24 @@ extern "C" {
 #endif
 namespace nvmestore
 {
+/* type of block io*/
+enum {
+  BLOCK_IO_NOP   = 0,
+  BLOCK_IO_READ  = 1,
+  BLOCK_IO_WRITE = 2,
+};
 class Block_manager {
   static constexpr size_t CHUNK_SIZE_IN_BLOCKS =
       8;  // large IO will be splited into CHUNKs, 8*4k  seems gives optimal
 
-  using io_buffer_t = uint64_t;
 
  private:
   static constexpr bool option_DEBUG = false;
-  size_t _blk_sz = 4096; // TODO: this should be obtained by querying the block device
+  size_t                _blk_sz =
+      4096;  // TODO: this should be obtained by querying the block device
 
  public:
+  using io_buffer_t = uint64_t;
   Block_manager() = delete;
 
   Block_manager(const std::string &pci, const std::string &pm_path)
@@ -62,13 +69,6 @@ class Block_manager {
     _blk_dev->release_ref();
   }
 
-  /* type of block io*/
-  enum blk_op_t {
-    BLOCK_IO_NOP   = 0,
-    BLOCK_IO_READ  = 1,
-    BLOCK_IO_WRITE = 2,
-  };
-
   /*
    * Issue block device io to one block device
    *
@@ -81,17 +81,38 @@ class Block_manager {
    *
    * This call itself is synchronous
    */
-  status_t do_block_io(int                       type,
-                       io_buffer_t               mem,
-                       uint64_t                  lba,
-                       size_t                    nr_io_blocks);
+  status_t do_block_io(int         type,
+                       io_buffer_t mem,
+                       uint64_t    lba,
+                       size_t      nr_io_blocks);
+  void *   virt_addr(io_buffer_t buffer) { return _blk_dev->virt_addr(buffer); }
 
-  size_t blk_sz() const{
-    return _blk_sz;
+  io_buffer_t allocate_io_buffer(size_t size, unsigned alignment, int numa_node)
+  {
+    return _blk_dev->allocate_io_buffer(size, alignment, numa_node);
+  };
+
+  void free_io_buffer(io_buffer_t io_mem) { _blk_dev->free_io_buffer(io_mem); };
+
+  size_t blk_sz() const { return _blk_sz; }
+
+  /* Block Allocator */
+  lba_t alloc_blk_region(size_t size, void** handle = nullptr){
+    return _blk_alloc->alloc(size, handle);
   }
 
+  void free_blk_region(lba_t addr, void* handle = nullptr){
+    _blk_alloc->free(addr, handle);
+  }
+
+
+  io_buffer_t register_memory_for_io(void * vaddr, addr_t paddr, size_t len){
+    return _blk_dev->register_memory_for_io(vaddr, paddr, len);
+  }
+
+
  private:
-  Component::IBlock_device *   _blk_dev;
+  Component::IBlock_device  *_blk_dev;
   Component::IBlock_allocator *_blk_alloc;
 
   std::string _pci_addr;

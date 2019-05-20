@@ -47,13 +47,13 @@ class NVME_store : public Component::IKVStore
 {
   using block_manager_t=nvmestore::Block_manager;
   using io_buffer_t = block_manager_t::io_buffer_t;
+  static constexpr size_t DEFAULT_IO_MEM_SIZE= MB(8); // initial IO memory size in bytes
 private:
   static constexpr bool option_DEBUG = true;
-  static constexpr size_t DEFAULT_IO_MEM_SIZE= MB(8); // initial IO memory size in bytes
   std::unordered_map<pool_t, std::atomic<size_t>> _cnt_elem_map;
   std::string _pm_path; 
 
-  State_map _sm; // map control
+  State_map _sm; // map control TODO: change to session manager
   block_manager_t _blk_manager; // shared across all nvmestore
 
 public:
