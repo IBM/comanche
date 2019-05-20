@@ -48,6 +48,7 @@ class NVME_store : public Component::IKVStore
   using block_manager_t=nvmestore::Block_manager;
   using io_buffer_t = block_manager_t::io_buffer_t;
   static constexpr size_t DEFAULT_IO_MEM_SIZE= MB(8); // initial IO memory size in bytes
+
 private:
   static constexpr bool option_DEBUG = true;
   std::unordered_map<pool_t, std::atomic<size_t>> _cnt_elem_map;

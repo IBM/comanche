@@ -108,7 +108,7 @@ class Nvmestore_session {
   State_map*              p_state_map;
 
   /** Session locked*/
-  std::unordered_map<uint64_t, io_buffer_t> _locked_regions;
+  std::unordered_map<io_buffer_t, uint64_t> _locked_regions;
   size_t _num_objs;
 
 };
@@ -318,13 +318,14 @@ status_t Nvmestore_session::lock(uint64_t hashkey, lock_type_t type, void * &out
 
     /* fetch the data to block io mem */
     size_t      nr_io_blocks = (value_len + blk_sz - 1) / blk_sz;
-    io_buffer_t mem = _blk_manager->allocate_io_buffer(nr_io_blocks * 4096, 4096,
+    io_buffer_t mem = _blk_manager->allocate_io_buffer(nr_io_blocks * blk_sz, 4096,
                                                   Component::NUMA_NODE_ANY);
 
     _blk_manager->do_block_io(operation_type, mem, lba, nr_io_blocks);
 
     get_locked_regions().emplace(
-        hashkey, mem);  // TODO: can be placed in another place
+        mem, hashkey);  // TODO: can be placed in another place
+    PINF("[nvmestore_session]: allocating io mem at %p", (void*)mem);
 
     /* set output values */
     out_value     = _blk_manager->virt_addr(mem);
@@ -339,10 +340,12 @@ status_t Nvmestore_session::lock(uint64_t hashkey, lock_type_t type, void * &out
   return S_OK;
 }
 
-status_t Nvmestore_session::unlock(uint64_t hashkey){
+status_t Nvmestore_session::unlock(uint64_t key_handle){
   auto root = _root;
   auto pop  = _pop;
   auto pool = reinterpret_cast<uint64_t>(this);
+  io_buffer_t mem = key_handle;
+  uint64_t hashkey  = get_locked_regions().at(mem);
 
   size_t blk_sz  = _blk_manager->blk_sz();
 
@@ -355,7 +358,6 @@ status_t Nvmestore_session::unlock(uint64_t hashkey){
     auto lba     = D_RO(blk_info)->lba_start;
 
     size_t      nr_io_blocks = (val_len + blk_sz - 1) / blk_sz;
-    io_buffer_t mem = get_locked_regions().at((uint64_t) hashkey);
 
     /*flush and release iomem*/
 #ifdef USE_ASYNC
@@ -365,6 +367,7 @@ status_t Nvmestore_session::unlock(uint64_t hashkey){
     _blk_manager->do_block_io(nvmestore::BLOCK_IO_WRITE, mem, lba, nr_io_blocks);
 #endif
 
+    PINF("[nvmestore_session]: freeing io mem at %p", (void *)mem);
     _blk_manager->free_io_buffer(mem);
 
     /*release the lock*/
@@ -640,7 +643,7 @@ void Nvmestore_session::alloc_new_object(uint64_t hashkey,
   auto& pop         = this->_pop;
   auto& blk_manager = this->_blk_manager;
 
-  size_t blk_size     = blk_manager->blk_sz();  // TODO: need to detect
+  size_t blk_size     = blk_manager->blk_sz();
   size_t nr_io_blocks = (value_len + blk_size - 1) / blk_size;
 
   void* handle;
@@ -832,7 +835,7 @@ IKVStore::key_t NVME_store::lock(const pool_t       pool,
   uint64_t hashkey = CityHash64(key.c_str(), key.length());
 
   session->lock(hashkey, type, out_value, out_value_len);
-  return reinterpret_cast<Component::IKVStore::key_t>(hashkey);
+  return reinterpret_cast<Component::IKVStore::key_t>(out_value);
 }
 
 /*
@@ -841,12 +844,11 @@ IKVStore::key_t NVME_store::lock(const pool_t       pool,
  * Lock will allocate iomem and load data from nvme first.
  * Unlock will will free it
  */
-status_t NVME_store::unlock(const pool_t pool, key_t key_hash)
+status_t NVME_store::unlock(const pool_t pool, key_t key_handle)
 {
   open_session_t* session = get_session(pool);
 
-  session->unlock((uint64_t)key_hash);
-
+  session->unlock((uint64_t)key_handle); // i.e. virt addr
   return S_OK;
 }
 
