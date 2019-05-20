@@ -432,8 +432,8 @@ status_t Connection_handler::put_direct(const pool_t                         poo
     const auto iob = allocate();
 
     if (option_DEBUG ||1) {
-      PLOG("put_direct: key=(%.*s) key_len=%lu value=(%.20s...) value_len=%lu",
-           (int) key_len, (char*) key.c_str(), key_len, (char*) value, value_len);
+      //PLOG("put_direct: key=(%.*s) key_len=%lu value=(%.20s...) value_len=%lu",
+      //    (int) key_len, (char*) key.c_str(), key_len, (char*) value, value_len);
 
       PLOG("value_buffer: (iov_len=%lu, mr=%p, desc=%p)",
            value_buffer->iov->iov_len, value_buffer->region, value_buffer->desc);
