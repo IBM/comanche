@@ -113,9 +113,11 @@ class Nvmestore_session {
   nvmestore::Block_manager* _blk_manager;
   State_map*                p_state_map;
 
-  /** Session locked*/
+  /** Session locked, io_buffer_t(virt_addr) -> pool hashkey of obj*/
   std::unordered_map<io_buffer_t, uint64_t> _locked_regions;
   size_t                                    _num_objs;
+
+  status_t may_ajust_io_mem(size_t value_len);
 };
 
 status_t Nvmestore_session::erase(uint64_t hashkey)
@@ -150,6 +152,25 @@ status_t Nvmestore_session::erase(uint64_t hashkey)
   return S_OK;
 };
 
+status_t Nvmestore_session::may_ajust_io_mem(size_t value_len){
+  /*  increase IO buffer sizes when value size is large*/
+  // TODO: need lock
+  if (value_len > _io_mem_size) {
+    size_t new_io_mem_size = _io_mem_size;
+
+    while(new_io_mem_size < value_len){
+      new_io_mem_size*=2;
+    }
+    PLOG("[Nvmestore_session]: incresing IO mem size %lu", new_io_mem_size);
+
+    _io_mem_size = new_io_mem_size;
+    _blk_manager->free_io_buffer(_io_mem);
+
+    _io_mem         = _blk_manager->allocate_io_buffer(
+        _io_mem_size, 4096, Component::NUMA_NODE_ANY);
+  }
+}
+
 status_t Nvmestore_session::put(uint64_t     hashkey,
                                 const void*  value,
                                 size_t       value_len,
@@ -162,10 +183,7 @@ status_t Nvmestore_session::put(uint64_t     hashkey,
 
   TOID(struct block_range) blkmeta;  // block mapping of this obj
 
-  /* TODO: increase IO buffer sizes when value size is large*/
-  if (value_len > _io_mem_size) {
-    throw General_exception("Object size larger than MB(8)!");
-  }
+  may_ajust_io_mem(value_len);
 
   if (hm_tx_lookup(pop, D_RO(root)->map, hashkey))
     return IKVStore::E_KEY_EXISTS;
@@ -216,6 +234,8 @@ status_t Nvmestore_session::get(uint64_t hashkey,
 #endif
     PDBG("prepare to read lba %d with length %d, key %lx", lba, val_len,
          hashkey);
+
+    may_ajust_io_mem(val_len);
     size_t nr_io_blocks = (val_len + blk_sz - 1) / blk_sz;
 
     _blk_manager->do_block_io(nvmestore::BLOCK_IO_READ, mem, lba, nr_io_blocks);

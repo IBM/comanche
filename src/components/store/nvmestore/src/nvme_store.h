@@ -193,6 +193,18 @@ class NVME_store_factory : public Component::IKVStore_factory {
   virtual Component::IKVStore* create(
       unsigned                            debug_level,
       std::map<std::string, std::string>& params) override;
+
+  virtual IKVStore* create(const std::string& owner,
+                           const std::string& param,
+                           const std::string& param2) override
+  {
+    std::map<std::string, std::string> params;
+    params["owner"]   = owner;
+    params["name"]    = param;
+    params["pci"]     = param2;
+    params["pm_path"] = "/mnt/pmem0/";
+    return create(0, params);
+  }
 };
 
 #endif
