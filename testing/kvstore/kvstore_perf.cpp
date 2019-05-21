@@ -63,10 +63,14 @@ namespace
     { "put", run_exp<ExperimentPut> },
     { "get", run_exp<ExperimentGet> },
     { "get_direct", run_exp<ExperimentGetDirect> },
+#if 0
     { "put_direct", run_exp<ExperimentPutDirect> },
     { "throughput", run_exp<ExperimentThroughput> },
+#endif
     { "erase", run_exp<ExperimentErase> },
+#if 0
     { "update", run_exp<ExperimentUpdate> },
+#endif
   };
 }
 

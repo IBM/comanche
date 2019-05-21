@@ -36,9 +36,9 @@ PINF "OK"
 
 # check kernel cmdline
 PINF "check kernel cmdline..."
-less /proc/cmdline|grep "intel_iommu=on" |grep "iommu=pt" |grep -q memmap
+less /proc/cmdline|grep "intel_iommu=on"  |grep -q memmap
 if [ 0  -ne $? ]; then
-  PERR "intel_iommu=on iommu=pt needs in kernel cmdline, needs to reserve space to simulate pmem"
+  PERR "intel_iommu=on needs in kernel cmdline, needs to reserve space to simulate pmem"
   PINPROGRESS "see comanche/src/components/store/nvmestore/HOWTO.md #Kernel Parameters# for more details"
   PINPROGRESS "you should change it upgrade-grub and reboot "
   exit -1
