@@ -1,5 +1,5 @@
 /*
-   Copyright [2017-2019] [IBM Corporation]
+   Copyright [2019] [IBM Corporation]
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
@@ -44,8 +44,8 @@ public:
   DECLARE_INTERFACE_UUID(0xbbbfa389,0x1665,0x4e5b,0xa1b1,0x3c,0xff,0x4a,0x5e,0xe2,0x63);
   // clang-format on
 
-  using work_id_t = uint64_t;
-  using shared_memory_token_t = uint64_t;
+  using work_id_t = uint64_t; /*< work handle/identifier */
+  using shared_memory_token_t = uint64_t; /*< token identifying shared memory for mcas module */
   
   enum class Op_type {
     FLATBUFFER_OPERATION, /* a method invocation in the form of a flatbuffer message */    
