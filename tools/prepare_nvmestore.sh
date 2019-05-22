@@ -89,6 +89,11 @@ if [ 0  -ne $? ]; then
   PINPROGRESS "now mounting..."
   sudo rmmod xmsmod
   sudo insmod ./lib/xmsmod.ko
+  if [ 0  -ne $? ]; then
+    echo "xms mod needs to be re-compiled, go to src/kernel/modules/xms, run make clean then make"
+    exit -1
+  fi
+
   ## from xms/reload.sh, need this to allocate EAL mem without sudo
   sudo chmod -R a+rwx /dev/hugepages/
   PPOSTMSG "xms loaded!!"

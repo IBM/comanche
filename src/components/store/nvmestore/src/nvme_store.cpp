@@ -161,7 +161,7 @@ status_t Nvmestore_session::may_ajust_io_mem(size_t value_len){
     while(new_io_mem_size < value_len){
       new_io_mem_size*=2;
     }
-    PLOG("[Nvmestore_session]: incresing IO mem size %lu", new_io_mem_size);
+    PINF("[Nvmestore_session]: incresing IO mem size %lu", new_io_mem_size);
 
     _io_mem_size = new_io_mem_size;
     _blk_manager->free_io_buffer(_io_mem);
@@ -169,6 +169,7 @@ status_t Nvmestore_session::may_ajust_io_mem(size_t value_len){
     _io_mem         = _blk_manager->allocate_io_buffer(
         _io_mem_size, 4096, Component::NUMA_NODE_ANY);
   }
+  return S_OK;
 }
 
 status_t Nvmestore_session::put(uint64_t     hashkey,
@@ -215,7 +216,6 @@ status_t Nvmestore_session::get(uint64_t hashkey,
 
   auto  root = _root;
   auto& pop  = _pop;
-  auto  mem  = _io_mem;
 
   TOID(struct block_range) blk_info;
   // TODO: can write to a shadowed copy
@@ -238,11 +238,11 @@ status_t Nvmestore_session::get(uint64_t hashkey,
     may_ajust_io_mem(val_len);
     size_t nr_io_blocks = (val_len + blk_sz - 1) / blk_sz;
 
-    _blk_manager->do_block_io(nvmestore::BLOCK_IO_READ, mem, lba, nr_io_blocks);
+    _blk_manager->do_block_io(nvmestore::BLOCK_IO_READ, _io_mem, lba, nr_io_blocks);
 
     out_value = malloc(val_len);
     assert(out_value);
-    memcpy(out_value, _blk_manager->virt_addr(mem), val_len);
+    memcpy(out_value, _blk_manager->virt_addr(_io_mem), val_len);
     out_value_len = val_len;
   }
   catch (...) {
