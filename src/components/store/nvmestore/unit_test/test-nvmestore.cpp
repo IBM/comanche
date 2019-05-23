@@ -163,22 +163,21 @@ TEST_F(KVStore_test, GetDirect)
 
   /*Register Mem is only from gdr memory*/
   //ASSERT_TRUE(S_OK == _kvstore->register_direct_memory(user_buf, MB(8)));
-  io_buffer_t handle;
+  IKVStore::memory_handle_t  handle;
   Core::Physical_memory  mem_alloc; // aligned and pinned mem allocator, TODO: should be provided through IZerocpy Memory interface of NVMestore
   std::string key = "MyKey";
   void * value = nullptr;
   size_t value_len = 0;
 
-  handle = mem_alloc.allocate_io_buffer(single_value_length, 4096, Component::NUMA_NODE_ANY);
-  ASSERT_TRUE(handle);
-  value = mem_alloc.virt_addr(handle);
+  handle = _kvstore->allocate_direct_memory(value, single_value_length);
 
-  _kvstore->get_direct(_pool, key, value, value_len, 0);
+  _kvstore->get_direct(_pool, key, value, value_len, handle);
 
   EXPECT_FALSE(strcmp("Hello world!", (char*)value));
   PINF("Value=(%.50s) %lu", ((char*)value), value_len);
 
-  mem_alloc.free_io_buffer(handle);
+  // TODO: Implement 
+  _kvstore->free_direct_memory(handle);
 }
 
 
