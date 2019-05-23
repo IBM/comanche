@@ -96,25 +96,13 @@ public:
 
         // check time it takes to complete a single get_direct operation
 
-        Component::io_buffer_t handle{};
-        Core::Physical_memory mem_alloc;
         size_t expected_val_len = g_data->value_len();
         void* pval = operator new(expected_val_len);
         Component::IKVStore::memory_handle_t memory_handle = Component::IKVStore::HANDLE_NONE;
 
         if ( component_is("nvmestore") )
         {
-            // TODO: can I remove this hardcopied alignment?
-            unsigned int alignment = 4096;
-            handle = mem_alloc.allocate_io_buffer(expected_val_len, alignment, Component::NUMA_NODE_ANY);
-            pval = mem_alloc.virt_addr(handle);
-
-            if (!handle)
-            {
-                perror("ExpGetDirect.do_work: allocate_io_buffer failed");
-            }
-
-            pval = mem_alloc.virt_addr(handle);
+            memory_handle = store()->allocate_direct_memory(pval, expected_val_len);
         }
         else if ( component_is("dawn") )
         {
@@ -147,7 +135,7 @@ public:
 
         if ( component_is("nvmestore") )
         {
-             mem_alloc.free_io_buffer(handle);
+          store()->free_direct_memory(memory_handle);
         }
         else if (pval != nullptr)
         {
