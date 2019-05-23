@@ -794,8 +794,34 @@ static_assert(sizeof(IKVStore::memory_handle_t) == sizeof(io_buffer_t),
               "cast may not work");
 
 /*
+ * Direct memory for NVMeStore.
  * Only used for the case when memory is pinned/aligned but not from spdk, e.g.
- * cudadma should be 2MB aligned in both phsycial and virtual*/
+ * cudadma should be 2MB aligned in both phsycial and virtual
+ * */
+
+IKVStore::memory_handle_t NVME_store::allocate_direct_memory(void * &vaddr, size_t len){
+  io_buffer_t io_mem;
+  io_mem = _blk_manager.allocate_io_buffer(len, 4096, Component::NUMA_NODE_ANY);
+  if(io_mem == 0)  
+    throw API_exception("NVME_store:: direct memory allocation failed");
+  vaddr = _blk_manager.virt_addr(io_mem);
+
+  buffer_t *buffer = new buffer_t(len, io_mem, vaddr);
+
+  auto handle = reinterpret_cast<IKVStore::memory_handle_t>(buffer);
+  /* save this this registration */
+  
+  return handle;
+
+}
+
+status_t NVME_store::free_direct_memory(memory_handle_t handle){
+  buffer_t *buffer = reinterpret_cast<buffer_t *>(handle);
+  _blk_manager.free_io_buffer(buffer->io_mem());
+  delete buffer;
+  return S_OK;
+}
+
 IKVStore::memory_handle_t NVME_store::register_direct_memory(void*  vaddr,
                                                              size_t len)
 {

@@ -160,6 +160,10 @@ class NVME_store : public Component::IKVStore {
       size_t&                              out_value_len,
       Component::IKVStore::memory_handle_t handle) override;
 
+  virtual memory_handle_t allocate_direct_memory(void * &vaddr, size_t len) override;
+
+  virtual status_t free_direct_memory(memory_handle_t handle) override;
+
   virtual IKVStore::memory_handle_t register_direct_memory(void*  vaddr,
                                                            size_t len) override;
 
