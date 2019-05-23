@@ -43,6 +43,25 @@ typedef struct block_range {
   // uint64_t last_tag; // tag for async block io
 } block_range_t;
 
+namespace{
+struct buffer_t {
+    const size_t    _length;
+    const io_buffer_t _io_mem;
+    void * const _start_vaddr; // it will equal to _io_mem if using allocate_io_buffer
+
+    buffer_t(size_t length, io_buffer_t io_mem, void *start_vaddr) : _length(length),_io_mem(io_mem), _start_vaddr(start_vaddr)
+    {
+    }
+
+    ~buffer_t() {}
+
+    inline size_t length() const { return _length; }
+    inline size_t io_mem() const { return _io_mem; }
+    inline void * start_vaddr() const {return _start_vaddr;}
+  };
+
+}
+
 class NVME_store : public Component::IKVStore {
   using block_manager_t = nvmestore::Block_manager;
   using io_buffer_t     = block_manager_t::io_buffer_t;
@@ -143,6 +162,8 @@ class NVME_store : public Component::IKVStore {
 
   virtual IKVStore::memory_handle_t register_direct_memory(void*  vaddr,
                                                            size_t len) override;
+
+  virtual status_t unregister_direct_memory(memory_handle_t handle) override;
 
   virtual IKVStore::key_t lock(const pool_t       pool,
                                const std::string& key,

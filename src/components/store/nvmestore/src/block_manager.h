@@ -112,6 +112,13 @@ class Block_manager {
     return _blk_dev->register_memory_for_io(vaddr, paddr, len);
   }
 
+  inline void unregister_memory_for_io(void * vaddr,
+                                            size_t len)
+  {
+    _blk_dev->unregister_memory_for_io(vaddr, len) ;
+  }
+
+
   /* Block Allocator */
   lba_t alloc_blk_region(size_t size, void **handle = nullptr)
   {
