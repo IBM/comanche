@@ -178,7 +178,11 @@ struct Message_pool_response : public Message {
   {
     msg_len = sizeof(Message_pool_response);
   }
-  Message_pool_response() { assert(this->version == PROTOCOL_VERSION); }
+  Message_pool_response() {
+    if(this->version != PROTOCOL_VERSION) {
+      PWRN("Message_pool_response: different protocol version");
+    }
+  }
   uint64_t pool_id;
   char     data[];
 } __attribute__((packed));
@@ -264,8 +268,12 @@ struct Message_IO_request : public Message {
     msg_len = sizeof(Message_IO_request) + key_len + value_len + 1;
   }
 
-  Message_IO_request() { assert(version == PROTOCOL_VERSION); }
-
+  Message_IO_request() {
+    if(this->version != PROTOCOL_VERSION) {
+      PWRN("Message_IO_request: different protocol version (ver=%x)", this->version);
+    }
+  }
+  
   const char* key() const { return &data[0]; }
   const char* cmd() const { return &data[0]; }
   const char* value() const { return &data[key_len + 1]; }
@@ -346,7 +354,10 @@ struct Message_IO_response : public Message {
     msg_len  = sizeof(Message_IO_response);
   }
 
-  Message_IO_response() { 
+  Message_IO_response() {
+    if(this->version != PROTOCOL_VERSION) {
+      PWRN("Message_IO_reponse: different protocol version (ver=%x)", this->version);
+    }
   }
 
   void copy_in_data(const void* in_data, size_t len)
