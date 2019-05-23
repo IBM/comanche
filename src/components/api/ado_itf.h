@@ -102,11 +102,11 @@ public:
    * 
    * @return Proxy interface, with reference count 1. Use release_ref() to destroy.
    */
-  virtual IADO * create(const std::string& filename,
-                        std::vector<std::string>& args,
-                        shared_memory_token_t shm_token,
-                        numa_node_t value_memory_numa_zone,
-                        SLA * sla = nullptr) = 0;
+  virtual IADO_proxy* create(const std::string&        filename,
+                             std::vector<std::string>& args,
+                             shared_memory_token_t     shm_token,
+                             numa_node_t               value_memory_numa_zone,
+                             SLA*                      sla = nullptr) = 0;
 
   /** 
    * Wait for process to exit.
@@ -115,7 +115,7 @@ public:
    * 
    * @return S_OK on success or E_BUSY.
    */
-  virtual bool has_exited(IADO * ado_proxy) = 0;
+  virtual bool has_exited(IADO_proxy* ado_proxy) = 0;
 
   /** 
    * Shutdown ADO process
@@ -124,7 +124,7 @@ public:
    * 
    * @return S_OK on success
    */
-  virtual status_t shutdown(IADO * ado) = 0;
+  virtual status_t shutdown(IADO_proxy* ado) = 0;
 };
 
 
