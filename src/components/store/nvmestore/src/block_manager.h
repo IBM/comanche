@@ -97,6 +97,8 @@ class Block_manager {
                                         unsigned alignment,
                                         int      numa_node)
   {
+    if(size%_blk_sz) 
+        throw General_exception("Allocate with partial block");
     return _blk_dev->allocate_io_buffer(size, alignment, numa_node);
   };
 

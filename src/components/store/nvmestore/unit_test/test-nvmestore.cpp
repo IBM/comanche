@@ -161,7 +161,7 @@ TEST_F(KVStore_test, BasicPut)
 TEST_F(KVStore_test, GetDirect)
 {
 
-#if 0 // register memory from other components
+#if 0
   /*Register Mem is only from gdr memory*/
   //ASSERT_TRUE(S_OK == _kvstore->register_direct_memory(user_buf, MB(8)));
 #endif

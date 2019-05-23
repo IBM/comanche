@@ -293,11 +293,12 @@ status_t Nvmestore_session::get_direct(uint64_t hashkey,
       if(out_value < memory_handle->start_vaddr()){
         throw General_exception("out_value is not registered");
       }
-      if(val_len > (size_t)(memory_handle->start_vaddr())){
+
+      size_t offset = (size_t)out_value - (size_t)(memory_handle->start_vaddr());
+      if( (val_len + offset )> memory_handle->length()){
         throw General_exception("registered memory is not big enough");
       }
 
-      size_t offset = (size_t)out_value - (size_t)(memory_handle->start_vaddr());
       mem = memory_handle->io_mem() + offset;
     }
     else{
@@ -801,7 +802,8 @@ static_assert(sizeof(IKVStore::memory_handle_t) == sizeof(io_buffer_t),
 
 IKVStore::memory_handle_t NVME_store::allocate_direct_memory(void * &vaddr, size_t len){
   io_buffer_t io_mem;
-  io_mem = _blk_manager.allocate_io_buffer(len, 4096, Component::NUMA_NODE_ANY);
+  size_t blk_sz = _blk_manager.blk_sz();
+  io_mem = _blk_manager.allocate_io_buffer(round_up(len, blk_sz), 4096, Component::NUMA_NODE_ANY);
   if(io_mem == 0)  
     throw API_exception("NVME_store:: direct memory allocation failed");
   vaddr = _blk_manager.virt_addr(io_mem);
