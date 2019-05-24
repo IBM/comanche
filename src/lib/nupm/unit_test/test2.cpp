@@ -44,7 +44,7 @@ TEST_F(Libnupm_test, RegionModifications)
   const void *v;
   std::size_t sz;
   sz = nupm::region_tracker_get_region(1, v);
-  EXPECT_EQ(nupm::region_tracker_preserves_splits() ? sizeof z.j : sizeof z.i + sizeof z.j, sz);
+  EXPECT_EQ(sizeof z.i + sizeof z.j, sz);
   EXPECT_EQ(&z.i, v);
   sz = nupm::region_tracker_get_region(0, v);
   EXPECT_EQ(sizeof z.c, sz);
