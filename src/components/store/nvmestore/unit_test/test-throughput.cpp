@@ -207,12 +207,9 @@ TEST_F(KVStore_test, ThroughputGetDirect){
   /* get direct */
 
 #ifndef USE_FILESTORE
-  io_buffer_t handle;
-  Core::Physical_memory  mem_alloc; // aligned and pinned mem allocator, TODO: should be provided through IZerocpy Memory interface of NVMestore
-
-  handle = mem_alloc.allocate_io_buffer(Data::VAL_LEN, 4096, Component::NUMA_NODE_ANY);
-  ASSERT_TRUE(handle);
-  pval = mem_alloc.virt_addr(handle);
+  IKVStore::memory_handle_t handle;
+  handle = _kvstore->allocate_direct_memory(pval, Data::VAL_LEN);
+  
 #else
   pval = malloc(Data::VAL_LEN);
   ASSERT_TRUE(pval);
@@ -226,7 +223,7 @@ TEST_F(KVStore_test, ThroughputGetDirect){
   ProfilerStart("testnvmestore.get_direct.profile");
   for(i = 0; i < Data::NUM_ELEMENTS; i ++){
     std::string key = "elem" + std::to_string(i);
-    if(ret  = _kvstore->get_direct(_pool, key, pval, pval_len)){
+    if(ret  = _kvstore->get_direct(_pool, key, pval, pval_len, handle)){
       throw API_exception("NVME_store:: get erorr with return value %d", ret);
     }
   }
@@ -241,7 +238,7 @@ TEST_F(KVStore_test, ThroughputGetDirect){
       ((double)i) / secs, ((double)i) / secs*Data::VAL_LEN/(1024*1024), Data::VAL_LEN/1024, secs, i);
 
 #ifndef USE_FILESTORE
-  mem_alloc.free_io_buffer(handle);
+  _kvstore->free_direct_memory(handle);
 #else
   free(pval);
 #endif
