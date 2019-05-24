@@ -5,6 +5,7 @@ project(nvmestore-tests CXX)
 include_directories(${CONF_COMANCHE_HOME}/testing)
 
 link_directories(/usr/local/lib64)
+link_directories(/usr/lib/x86_64-linux-gnu)
 
 add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 

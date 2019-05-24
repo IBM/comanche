@@ -16,6 +16,7 @@ add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} ${FLAG_DUMP_CLASS} -DCONFIG_DEBUG)
 
 include_directories(${CMAKE_INSTALL_PREFIX}/include)
 link_directories(${CMAKE_INSTALL_PREFIX}/lib)
+link_directories(/usr/lib/x86_64-linux-gnu)
 
 include_directories(../../../servers/dawn/src/)
 

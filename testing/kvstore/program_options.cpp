@@ -152,7 +152,7 @@ void ProgramOptions::add_program_options(
     ("port", po::value<unsigned>()->default_value(11911), "Dawn server port. Default 11911")
     ("port_increment", po::value<unsigned>(), "Port increment every N instances.")
     ("device_name", po::value<std::string>()->default_value("unused"), "Device name.")
-    ("pci_addr", po::value<std::string>()->default_value("no_pci_addr"), "PCI address (e.g. 0b:00.0).")
+    ("pci_addr", po::value<std::string>(), "PCI address (e.g. 0b:00.0).")
     ("nopin", "Do not pin down worker threads to cores")
     ("start_time", po::value<std::string>(), "Delay start time of experiment until specified time (HH:MM, 24 hour format expected.")
     ("verbose", "Verbose output")

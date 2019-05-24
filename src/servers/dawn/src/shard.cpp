@@ -242,7 +242,8 @@ void Shard::process_message_pool_request(Connection_handler* handler,
 
   Protocol::Message_pool_response* response = new (response_iob->base())
       Protocol::Message_pool_response(handler->auth_id());
-  assert(response);
+
+  assert(response->version == Protocol::PROTOCOL_VERSION);
   response->status = S_OK;
 
   /* handle operation */
