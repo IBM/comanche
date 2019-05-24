@@ -20,4 +20,4 @@ target_link_libraries(libnupm-test ${ASAN_LIB} common numa ndctl gtest pthread d
 
 add_executable(libnupm-test2 test2.cpp)
 target_compile_options(libnupm-test2 PUBLIC -g -pedantic -Wall -Wextra -Wcast-align -Wcast-qual -Wconversion -Weffc++ -Wold-style-cast -Wredundant-decls -Wshadow -Wtype-limits -Wunused-parameter -Wwrite-strings)
-target_link_libraries(libnupm-test2 ${ASAN_LIB} gtest pthread dl)  # add profier for google profiler
+target_link_libraries(libnupm-test2 ${ASAN_LIB} gtest pthread dl nupm)  # add profier for google profiler
