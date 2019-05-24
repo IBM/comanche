@@ -157,7 +157,7 @@ status_t Pool_handle::put(const std::string& key,
   if(ws != value_len)
     throw General_exception("file write failed (%s)", strerror(errno));
 
-  /*Turn on to avoid the effect of file cache*/
+  /* optionally flush */
   if (!use_cache)
     fsync(fd);
   
