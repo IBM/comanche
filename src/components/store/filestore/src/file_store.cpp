@@ -25,10 +25,25 @@
 #include <boost/filesystem.hpp>
 #include <boost/range/iterator_range.hpp>
 #include <sys/stat.h>
+#include <sys/mman.h>
 #include <tbb/concurrent_hash_map.h>
 #include <tbb/concurrent_unordered_set.h>
 
 #include "file_store.h"
+
+//#define USE_DPDK
+
+#ifdef USE_DPDK
+#include <core/dpdk.h>
+#include <core/physical_memory.h>
+#endif
+
+#ifdef USE_DPDK
+static void __attribute__((constructor)) ctor(void) 
+{
+  DPDK::eal_init(4*1024); // limit 4 GiB
+} 
+#endif
 
 //#define FORCE_FLUSH  // enable this for GPU testing
 using namespace Component;
@@ -39,12 +54,28 @@ class Simulated_locked_item
 {
 public:
   Simulated_locked_item(int filehandle, size_t size) : fd(filehandle)  {
+#ifdef USE_DPDK
+    io_buffer = allocator.allocate_io_buffer(size, MiB(2), -1);
+    p = allocator.virt_addr(io_buffer);
+#else
     p = ::aligned_alloc(KiB(4),size);
+#endif
+    mlock(p, size);
+    madvise(p, size, MADV_DONTFORK);
     p_len = size;
   }
   ~Simulated_locked_item() {
+#ifdef USE_DPDK
+    allocator.free_io_buffer(io_buffer);
+#else
     ::free(p);
+#endif
   }
+#ifdef USE_DPDK
+  Core::Physical_memory allocator;
+  Component::io_buffer_t io_buffer;
+#endif
+
   void * p;
   size_t p_len;
   int fd;
@@ -126,7 +157,7 @@ status_t Pool_handle::put(const std::string& key,
   if(ws != value_len)
     throw General_exception("file write failed (%s)", strerror(errno));
 
-  /*Turn on to avoid the effect of file cache*/
+  /* optionally flush */
   if (!use_cache)
     fsync(fd);
   
