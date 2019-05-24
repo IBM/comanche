@@ -46,8 +46,8 @@ struct store_root_t {
 
 class Nvmestore_session {
  public:
-   static constexpr bool option_DEBUG = false;
-  using lock_type_t = IKVStore::lock_type_t;
+  static constexpr bool option_DEBUG = false;
+  using lock_type_t                  = IKVStore::lock_type_t;
   Nvmestore_session(TOID(struct store_root_t) root,
                     PMEMobjpool*              pop,
                     size_t                    pool_size,
@@ -64,7 +64,7 @@ class Nvmestore_session {
 
   ~Nvmestore_session()
   {
-    if(option_DEBUG) PLOG("CLOSING session");
+    if (option_DEBUG) PLOG("CLOSING session");
     if (_io_mem) _blk_manager->free_io_buffer(_io_mem);
     pmemobj_close(_pop);
   }
@@ -95,7 +95,10 @@ class Nvmestore_session {
   /** Get an object*/
   status_t get(uint64_t hashkey, void*& out_value, size_t& out_value_len);
 
-  status_t get_direct(uint64_t hashkey, void* out_value, size_t& out_value_len, buffer_t * memory_handle);
+  status_t get_direct(uint64_t  hashkey,
+                      void*     out_value,
+                      size_t&   out_value_len,
+                      buffer_t* memory_handle);
 
   status_t lock(uint64_t    hashkey,
                 lock_type_t type,
@@ -109,9 +112,8 @@ class Nvmestore_session {
   size_t       _pool_size;
   std::string  _path;
   uint64_t
-      _io_mem;  // io memory for lock/unload TODO: this should be thead-safe,
-                // this should be large enough store the allocated value
-  size_t _io_mem_size;  // io memory size which will an object;
+      _io_mem; /** dynamic iomem for put/get */
+  size_t _io_mem_size;  /** io memory size */ 
   nvmestore::Block_manager* _blk_manager;
   State_map*                p_state_map;
 
@@ -154,22 +156,25 @@ status_t Nvmestore_session::erase(uint64_t hashkey)
   return S_OK;
 };
 
-status_t Nvmestore_session::may_ajust_io_mem(size_t value_len){
+status_t Nvmestore_session::may_ajust_io_mem(size_t value_len)
+{
   /*  increase IO buffer sizes when value size is large*/
   // TODO: need lock
   if (value_len > _io_mem_size) {
     size_t new_io_mem_size = _io_mem_size;
 
-    while(new_io_mem_size < value_len){
-      new_io_mem_size*=2;
+    while (new_io_mem_size < value_len) {
+      new_io_mem_size *= 2;
     }
 
     _io_mem_size = new_io_mem_size;
     _blk_manager->free_io_buffer(_io_mem);
 
-    _io_mem         = _blk_manager->allocate_io_buffer(
-        _io_mem_size, 4096, Component::NUMA_NODE_ANY);
-    if(option_DEBUG) PINF("[Nvmestore_session]: incresing IO mem size %lu at %lx", new_io_mem_size, _io_mem);
+    _io_mem = _blk_manager->allocate_io_buffer(_io_mem_size, 4096,
+                                               Component::NUMA_NODE_ANY);
+    if (option_DEBUG)
+      PINF("[Nvmestore_session]: incresing IO mem size %lu at %lx",
+           new_io_mem_size, _io_mem);
   }
   return S_OK;
 }
@@ -240,7 +245,8 @@ status_t Nvmestore_session::get(uint64_t hashkey,
     may_ajust_io_mem(val_len);
     size_t nr_io_blocks = (val_len + blk_sz - 1) / blk_sz;
 
-    _blk_manager->do_block_io(nvmestore::BLOCK_IO_READ, _io_mem, lba, nr_io_blocks);
+    _blk_manager->do_block_io(nvmestore::BLOCK_IO_READ, _io_mem, lba,
+                              nr_io_blocks);
 
     out_value = malloc(val_len);
     assert(out_value);
@@ -253,9 +259,10 @@ status_t Nvmestore_session::get(uint64_t hashkey,
   return S_OK;
 }
 
-status_t Nvmestore_session::get_direct(uint64_t hashkey,
-                                       void*    out_value,
-                                       size_t&  out_value_len, buffer_t * memory_handle)
+status_t Nvmestore_session::get_direct(uint64_t  hashkey,
+                                       void*     out_value,
+                                       size_t&   out_value_len,
+                                       buffer_t* memory_handle)
 {
   size_t blk_sz = _blk_manager->blk_sz();
 
@@ -288,20 +295,22 @@ status_t Nvmestore_session::get_direct(uint64_t hashkey,
 
     io_buffer_t mem;
 
-    if(memory_handle){ // external memory
-      /* TODO: they are not nessarily equal, it memory is registered from outside */
-      if(out_value < memory_handle->start_vaddr()){
+    if (memory_handle) {  // external memory
+      /* TODO: they are not nessarily equal, it memory is registered from
+       * outside */
+      if (out_value < memory_handle->start_vaddr()) {
         throw General_exception("out_value is not registered");
       }
 
-      size_t offset = (size_t)out_value - (size_t)(memory_handle->start_vaddr());
-      if( (val_len + offset )> memory_handle->length()){
+      size_t offset =
+          (size_t) out_value - (size_t)(memory_handle->start_vaddr());
+      if ((val_len + offset) > memory_handle->length()) {
         throw General_exception("registered memory is not big enough");
       }
 
       mem = memory_handle->io_mem() + offset;
     }
-    else{
+    else {
       mem = reinterpret_cast<io_buffer_t>(out_value);
     }
 
@@ -379,8 +388,7 @@ status_t Nvmestore_session::lock(uint64_t    hashkey,
 
     _blk_manager->do_block_io(operation_type, mem, lba, nr_io_blocks);
 
-    get_locked_regions().emplace(
-        mem, hashkey);  // TODO: can be placed in another place
+    get_locked_regions().emplace(mem, hashkey);
     PDBG("[nvmestore_session]: allocating io mem at %p, virt addr %p",
          (void*) mem, _blk_manager->virt_addr(mem));
 
@@ -522,7 +530,10 @@ NVME_store::NVME_store(const std::string& owner,
   PLOG("PMEMOBJ_MAX_ALLOC_SIZE: %lu MB", REDUCE_MB(PMEMOBJ_MAX_ALLOC_SIZE));
 }
 
-NVME_store::~NVME_store() { if(option_DEBUG) PLOG("delete NVME store"); }
+NVME_store::~NVME_store()
+{
+  if (option_DEBUG) PLOG("delete NVME store");
+}
 
 IKVStore::pool_t NVME_store::create_pool(const std::string& name,
                                          const size_t       size,
@@ -535,7 +546,6 @@ IKVStore::pool_t NVME_store::create_pool(const std::string& name,
   size_t max_sz_hxmap = MB(500);  // this can fit 1M objects (block_range_t)
 
   // TODO: need to check size
-  // TODO: pass prefix (pm_path) into nvmestore component config
   const std::string& fullpath = _pm_path + name;
 
   PINF("[NVME_store]::create_pool fullpath=%s name=%s", fullpath.c_str(),
@@ -786,7 +796,8 @@ status_t NVME_store::get_direct(const pool_t       pool,
     throw API_exception("NVME_store::put invalid pool identifier");
   uint64_t hashkey = CityHash64(key.c_str(), key.length());
 
-  return session->get_direct(hashkey, out_value, out_value_len, reinterpret_cast<buffer_t *>(handle));
+  return session->get_direct(hashkey, out_value, out_value_len,
+                             reinterpret_cast<buffer_t*>(handle));
 
   // return reinterpret_cast<Component::IKVStore::key_t>(out_value);
 }
@@ -800,25 +811,28 @@ static_assert(sizeof(IKVStore::memory_handle_t) == sizeof(io_buffer_t),
  * cudadma should be 2MB aligned in both phsycial and virtual
  * */
 
-IKVStore::memory_handle_t NVME_store::allocate_direct_memory(void * &vaddr, size_t len){
+IKVStore::memory_handle_t NVME_store::allocate_direct_memory(void*& vaddr,
+                                                             size_t len)
+{
   io_buffer_t io_mem;
-  size_t blk_sz = _blk_manager.blk_sz();
-  io_mem = _blk_manager.allocate_io_buffer(round_up(len, blk_sz), 4096, Component::NUMA_NODE_ANY);
-  if(io_mem == 0)  
+  size_t      blk_sz = _blk_manager.blk_sz();
+  io_mem = _blk_manager.allocate_io_buffer(round_up(len, blk_sz), 4096,
+                                           Component::NUMA_NODE_ANY);
+  if (io_mem == 0)
     throw API_exception("NVME_store:: direct memory allocation failed");
   vaddr = _blk_manager.virt_addr(io_mem);
 
-  buffer_t *buffer = new buffer_t(len, io_mem, vaddr);
+  buffer_t* buffer = new buffer_t(len, io_mem, vaddr);
 
   auto handle = reinterpret_cast<IKVStore::memory_handle_t>(buffer);
   /* save this this registration */
-  
-  return handle;
 
+  return handle;
 }
 
-status_t NVME_store::free_direct_memory(memory_handle_t handle){
-  buffer_t *buffer = reinterpret_cast<buffer_t *>(handle);
+status_t NVME_store::free_direct_memory(memory_handle_t handle)
+{
+  buffer_t* buffer = reinterpret_cast<buffer_t*>(handle);
   _blk_manager.free_io_buffer(buffer->io_mem());
   delete buffer;
   return S_OK;
@@ -829,9 +843,10 @@ IKVStore::memory_handle_t NVME_store::register_direct_memory(void*  vaddr,
 {
   memset(vaddr, 0, len);
 
-  addr_t phys_addr = xms_get_phys(vaddr);
-  io_buffer_t io_mem  = _blk_manager.register_memory_for_io(vaddr, phys_addr, len);
-  buffer_t *buffer = new buffer_t(len, io_mem, vaddr);
+  addr_t      phys_addr = xms_get_phys(vaddr);
+  io_buffer_t io_mem =
+      _blk_manager.register_memory_for_io(vaddr, phys_addr, len);
+  buffer_t* buffer = new buffer_t(len, io_mem, vaddr);
 
   auto handle = reinterpret_cast<IKVStore::memory_handle_t>(buffer);
   /* save this this registration */
@@ -846,8 +861,9 @@ IKVStore::memory_handle_t NVME_store::register_direct_memory(void*  vaddr,
 
 status_t NVME_store::unregister_direct_memory(memory_handle_t handle)
 {
-  buffer_t *buffer = reinterpret_cast<buffer_t *>(handle);
-  _blk_manager.unregister_memory_for_io(buffer->start_vaddr(), buffer->length());
+  buffer_t* buffer = reinterpret_cast<buffer_t*>(handle);
+  _blk_manager.unregister_memory_for_io(buffer->start_vaddr(),
+                                        buffer->length());
   delete buffer;
   return S_OK;
 }
