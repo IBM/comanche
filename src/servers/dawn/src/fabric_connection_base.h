@@ -216,31 +216,45 @@ class Fabric_connection_base {
       assert(!_posted_value_buffer);
       _posted_value_buffer = buffer;
     }
+    else {} /* buffer already set up */
     assert(_posted_value_buffer);
     _posted_value_buffer_outstanding = true;
     _transport->post_send(_posted_value_buffer->iov,
                           _posted_value_buffer->iov + 1,
-                          &_posted_value_buffer->desc, _posted_value_buffer);    
+                          &_posted_value_buffer->desc, _posted_value_buffer);
+
+    
+    if(option_DEBUG)
+        PLOG("posting send value buffer (%p)(base=%p,len=%lu,desc=%p)",
+             buffer,
+             _posted_value_buffer->iov->iov_base,
+             _posted_value_buffer->iov->iov_len,
+             _posted_value_buffer->desc);
+
   }
 
   void post_recv_value_buffer(buffer_t *buffer = nullptr)
   {
     if (buffer) {
       _posted_value_buffer = buffer;
-
-      if(option_DEBUG)
-        PLOG("posting recv value buffer (%p)(base=%p,len=%lu,desc=%p)",
-             buffer,
-             _posted_value_buffer->iov->iov_base,
-             _posted_value_buffer->iov->iov_len,
-             _posted_value_buffer->desc);
     }
+    else {} /* buffer already set up */
+    
     assert(_posted_value_buffer);
     _posted_value_buffer_outstanding = true;
     _transport->post_recv(_posted_value_buffer->iov,
                           _posted_value_buffer->iov + 1,
                           &_posted_value_buffer->desc,
                           _posted_value_buffer);
+
+    
+    if(option_DEBUG)
+      PLOG("posted recv value buffer (%p)(base=%p,len=%lu,desc=%p)",
+	   buffer,
+	   _posted_value_buffer->iov->iov_base,
+	   _posted_value_buffer->iov->iov_len,
+	   _posted_value_buffer->desc);
+
   }
 
   inline buffer_t *posted_recv() const { return _posted_recv_buffer; }
