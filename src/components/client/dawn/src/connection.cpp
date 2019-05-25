@@ -23,6 +23,20 @@
 
 using namespace Component;
 
+namespace
+{
+  /*
+   * First, cast the response buffer to Message (checking version).
+   * Second, cast the Message to a specific message type (checking message type).
+   */
+  template <typename Type>
+    const Type *response_ptr(void *b)
+    {
+      const auto *const msg = Dawn::Protocol::message_cast(b);
+      return msg->ptr_cast<Type>();
+    }
+}
+
 namespace Dawn
 {
 namespace Client
@@ -50,7 +64,7 @@ class iob_free
 {
   Connection_handler *_h;
 public:
-  iob_free(Connection_handler *h_) 
+  iob_free(Connection_handler *h_)
     : _h(h_)
   {}
   void operator()(Connection_handler::buffer_t *iob) { _h->free_buffer(iob); }
@@ -81,7 +95,6 @@ Connection_handler::pool_t Connection_handler::open_pool(const std::string name,
   assert(iobs);
   assert(iobr);
 
-  status_t status;
   Component::IKVStore::pool_t pool_id;
 
   assert(&*iobr != &*iobs);
@@ -98,19 +111,6 @@ Connection_handler::pool_t Connection_handler::open_pool(const std::string name,
 									     name);
     
     iobs->set_length(msg->msg_len);
-
-    /*
-     * Note: the Message_pool_response must be constructor *before* the call to
-     * post_recv (or at least sync_inject_send). If constructed after the send
-     * the constructor may overwrite the received type_id, and if constructed 
-     * after the wait_for_completion the constructor will definitely overwrite
-     * the type_id.
-     *
-     * Even better than moving the construcor before the send would be to construct
-     * the area with a base class of Message_pool_response which initialized
-     * the type_id to some value *not* matching MSG_TYPE_POOL_RESPONSE, to ensure
-     * that the completion wrote the proper value.
-     */
 
     /* The &* notation extracts a raw pointer form the "unique_ptr".
      * The difference is that the standard pointer does not imply
@@ -129,14 +129,12 @@ Connection_handler::pool_t Connection_handler::open_pool(const std::string name,
     sync_inject_send(&*iobs);
     wait_for_completion(&*iobr); /* await response */
 
-    const auto response_msg = static_cast<const Protocol::Message *>(iobr->base())
-      ->ptr_cast<Protocol::Message_pool_response>();
+    const auto response_msg =
+      response_ptr<const Dawn::Protocol::Message_pool_response>(iobr->base());
 
-    status = S_OK;
     pool_id = response_msg->pool_id;
   }
   catch(...) {
-    status = E_FAIL;
     pool_id = Component::IKVStore::POOL_ERROR;
   }
   return pool_id;
@@ -158,7 +156,6 @@ Connection_handler::pool_t Connection_handler::create_pool(const std::string nam
 
   PLOG("Connection_handler::create_pool");
 
-  status_t status;
   Component::IKVStore::pool_t pool_id;
 
   try {
@@ -172,26 +169,23 @@ Connection_handler::pool_t Connection_handler::create_pool(const std::string nam
     assert(msg->op);
     msg->flags = flags;
     msg->expected_object_count = expected_obj_count;
-    
+
     iobs->set_length(msg->msg_len);
 
     post_recv(&*iobr);
     sync_inject_send(&*iobs);
     wait_for_completion(&*iobr);
 
-    const auto response_msg = static_cast<const Protocol::Message *>(iobr->base())
-      ->ptr_cast<Protocol::Message_pool_response>();
+    const auto response_msg =
+      response_ptr<const Dawn::Protocol::Message_pool_response>(iobr->base());
 
-    status_t rc = response_msg->status;
-    
     pool_id = response_msg->pool_id;
-    status = msg->status;
   }
   catch(...) {
-    status = E_FAIL;
-    pool_id = Component::IKVStore::POOL_ERROR;    
+    pool_id = Component::IKVStore::POOL_ERROR;
   }
 
+  /* Note: most request/response pairs return status. This one returns a pool_id instead. */
   return pool_id;
 }
 
@@ -208,13 +202,13 @@ status_t Connection_handler::close_pool(pool_t pool)
   msg->pool_id = pool;
 
   iobs->set_length(msg->msg_len);
-  
+
   post_recv(&*iobr);
   sync_inject_send(&*iobs);
   wait_for_completion(&*iobr);
 
-  const auto response_msg = static_cast<const Protocol::Message *>(iobr->base())
-    ->ptr_cast<Protocol::Message_pool_response>();
+  const auto response_msg =
+    response_ptr<const Dawn::Protocol::Message_pool_response>(iobr->base());
 
   const auto status = response_msg->status;
   return status;
@@ -235,13 +229,13 @@ status_t Connection_handler::delete_pool(const std::string& name)
                                                                           Dawn::Protocol::OP_DELETE,
                                                                           name);
   iobs->set_length(msg->msg_len);
-  
+
   post_recv(&*iobr);
   sync_inject_send(&*iobs);
   wait_for_completion(&*iobr);
 
-  const auto response_msg = static_cast<const Protocol::Message *>(iobr->base())
-    ->ptr_cast<Protocol::Message_pool_response>();
+  const auto response_msg =
+    response_ptr<const Dawn::Protocol::Message_pool_response>(iobr->base());
   
   return response_msg->status;
 }
@@ -270,8 +264,8 @@ status_t Connection_handler::configure_pool(const Component::IKVStore::pool_t po
   sync_inject_send(&*iobs);
   wait_for_completion(&*iobr);
 
-  const auto response_msg = static_cast<const Protocol::Message *>(iobr->base())
-    ->ptr_cast<Protocol::Message_IO_response>();
+  const auto response_msg =
+    response_ptr<const Dawn::Protocol::Message_IO_response>(iobr->base());
 
   if (option_DEBUG)
     PLOG("got response from CONFIGURE operation: status=%d request_id=%lu",
@@ -332,15 +326,15 @@ status_t Connection_handler::put(const pool_t pool,
 
     if (_options.short_circuit_backend)
       msg->resvd |= Dawn::Protocol::MSG_RESVD_SCBE;
-    
+
     iobs->set_length(msg->msg_len);
-    
+
     post_recv(&*iobr);
     sync_send(&*iobs);
     wait_for_completion(&*iobr);
 
-    const auto response_msg = static_cast<const Protocol::Message *>(iobr->base())
-      ->ptr_cast<Protocol::Message_IO_response>();
+    const auto response_msg =
+      response_ptr<const Dawn::Protocol::Message_IO_response>(iobr->base());
 
     if (option_DEBUG)
       PLOG("got response from PUT operation: status=%d request_id=%lu",
@@ -351,7 +345,7 @@ status_t Connection_handler::put(const pool_t pool,
   catch(...) {
     status = E_FAIL;
   }
-  
+
   return status;
 }
 
@@ -369,7 +363,7 @@ status_t Connection_handler::two_stage_put_direct(const pool_t                  
 
   assert(value_len <= _max_message_size);
   assert(value_len > 0);
-  
+
   {
     const auto iobs = std::unique_ptr<buffer_t, iob_free>(allocate(), this);
     const auto iobr = std::unique_ptr<buffer_t, iob_free>(allocate(), this);
@@ -377,7 +371,7 @@ status_t Connection_handler::two_stage_put_direct(const pool_t                  
     /* send advance leader message */
     const auto request_id = ++_request_id;
     const auto msg        = new (iobs->base())
-      Protocol::Message_IO_request(iobs->length(), 
+      Protocol::Message_IO_request(iobs->length(),
                                    auth_id(), request_id, pool,
                                    Protocol::OP_PUT_ADVANCE,  // op
                                    key, key_len, value_len, flags);
@@ -388,10 +382,11 @@ status_t Connection_handler::two_stage_put_direct(const pool_t                  
     sync_inject_send(&*iobs);
     wait_for_completion(&*iobr);
 
-    const auto response_msg = static_cast<const Protocol::Message *>(iobr->base())
-      ->ptr_cast<Protocol::Message_IO_response>();
+    const auto response_msg =
+      response_ptr<const Dawn::Protocol::Message_IO_response>(iobr->base());
     
     /* wait for response from header before posting the value */    
+
     if(option_DEBUG)
       PMAJOR("got response (status=%u) from put direct header",response_msg->status);
 
@@ -400,7 +395,7 @@ status_t Connection_handler::two_stage_put_direct(const pool_t                  
       return msg->status;
     }
   }
-  
+
   /* send value */
   buffer_t* value_buffer = reinterpret_cast<buffer_t*>(handle);
   value_buffer->set_length(value_len);
@@ -442,16 +437,16 @@ status_t Connection_handler::put_direct(const pool_t                         poo
 
   buffer_t* value_buffer = reinterpret_cast<buffer_t*>(handle);
   value_buffer->set_length(value_len);
-  
+
   if (!value_buffer->check_magic()) {
     PWRN("put_direct: memory handle is invalid");
     return E_INVAL;
   }
-    
+
   status_t status;
 
   try {
-    
+
     const auto key_len = key.length();
     if ((key_len + value_len + sizeof(Dawn::Protocol::Message_IO_request)) >
       Buffer_manager<Component::IFabric_client>::BUFFER_LEN) {
@@ -460,7 +455,7 @@ status_t Connection_handler::put_direct(const pool_t                         poo
       if(value_len > _max_message_size) {
         return IKVStore::E_TOO_LARGE;
       }
-      
+
       /* for large puts, where the receiver will not have
        * sufficient buffer space, we use a two-stage protocol */
       return two_stage_put_direct(pool,
@@ -504,8 +499,8 @@ status_t Connection_handler::put_direct(const pool_t                         poo
     sync_send(&*iobs, value_buffer); /* send two concatentated buffers in single DMA */
     wait_for_completion(&*iobr); /* get response */
 
-    const auto response_msg = static_cast<const Protocol::Message *>(iobr->base())
-      ->ptr_cast<Protocol::Message_IO_response>();
+    const auto response_msg =
+      response_ptr<const Dawn::Protocol::Message_IO_response>(iobr->base());
 
     if (option_DEBUG)
       PLOG("got response from PUT_DIRECT operation: status=%d", msg->status);
@@ -515,7 +510,7 @@ status_t Connection_handler::put_direct(const pool_t                         poo
   catch(...) {
     status = E_FAIL;
   }
-  
+
   return status;
 }
 
@@ -533,7 +528,7 @@ status_t Connection_handler::get(const pool_t       pool,
   status_t status;
 
   try {
-    
+
     const auto msg = new (iobs->base()) Dawn::Protocol::Message_IO_request(iobs->length(),
                                                                           auth_id(),
                                                                           ++_request_id,
@@ -552,8 +547,8 @@ status_t Connection_handler::get(const pool_t       pool,
     sync_inject_send(&*iobs);
     wait_for_completion(&*iobr);
 
-    const auto response_msg = static_cast<const Protocol::Message *>(iobr->base())
-      ->ptr_cast<Protocol::Message_IO_response>();
+    const auto response_msg =
+      response_ptr<const Dawn::Protocol::Message_IO_response>(iobr->base());
 
     if (option_DEBUG)
       PLOG("got response from GET operation: status=%d (%s)", msg->status,
@@ -586,7 +581,7 @@ status_t Connection_handler::get(const pool_t       pool,
   status_t status;
 
   try {
-    
+
     const auto msg = new (iobs->base()) Dawn::Protocol::Message_IO_request(iobs->length(),
                                                                           auth_id(),
                                                                           ++_request_id,
@@ -610,8 +605,8 @@ status_t Connection_handler::get(const pool_t       pool,
     sync_inject_send(&*iobs);
     wait_for_completion(&*iobr); /* TODO; could we issue the recv and send together? */
 
-    const auto response_msg = static_cast<const Protocol::Message *>(iobr->base())
-      ->ptr_cast<Protocol::Message_IO_response>();	
+    const auto response_msg =
+      response_ptr<const Dawn::Protocol::Message_IO_response>(iobr->base());
 
     if (option_DEBUG)
       PLOG("got response from GET operation: status=%d request_id=%lu data_len=%lu",
@@ -648,7 +643,7 @@ status_t Connection_handler::get(const pool_t       pool,
       memcpy(value, response_msg->data, response_msg->data_len);
       ((char*) value)[response_msg->data_len] = '\0';
     }
-    
+
     status = response_msg->status;
   }
   catch(...) {
@@ -700,15 +695,15 @@ status_t Connection_handler::get_direct(const pool_t                         poo
        get_direct this is allocated by the client */
     msg->resvd = Protocol::MSG_RESVD_DIRECT;
     msg->val_len = out_value_len;
-    
+
     iobs->set_length(msg->msg_len);
 
     post_recv(&*iobr);
     sync_inject_send(&*iobs);
     wait_for_completion(&*iobr); /* get response */
 
-    const auto response_msg = static_cast<const Protocol::Message *>(iobr->base())
-      ->ptr_cast<Protocol::Message_IO_response>();
+    const auto response_msg =
+      response_ptr<const Dawn::Protocol::Message_IO_response>(iobr->base());
 
     if(option_DEBUG)
       PLOG("get_direct: got initial response (two_stage=%s)",
@@ -723,7 +718,7 @@ status_t Connection_handler::get_direct(const pool_t                         poo
     if (status != S_OK) {
       return status;
     }
-  
+
     /* set out_value_len to receiving length */
     out_value_len = response_msg->data_length();
 
@@ -759,7 +754,7 @@ status_t Connection_handler::erase(const pool_t pool,
   assert(iobr);
 
   status_t status;
-  
+
   try {
     const auto msg = new (iobs->base()) Dawn::Protocol::Message_IO_request(iobs->length(),
                                                                           auth_id(),
@@ -769,15 +764,15 @@ status_t Connection_handler::erase(const pool_t pool,
                                                                           key.c_str(),
                                                                           key.length(),
                                                                           0);
-    
+
     iobs->set_length(msg->msg_len);
 
     post_recv(&*iobr);
     sync_inject_send(&*iobs);
     wait_for_completion(&*iobr);
 
-    const auto response_msg = static_cast<const Protocol::Message *>(iobr->base())
-      ->ptr_cast<Protocol::Message_IO_response>();    
+    const auto response_msg =
+      response_ptr<const Dawn::Protocol::Message_IO_response>(iobr->base());
 
     if (option_DEBUG)
       PLOG("got response from ERASE operation: status=%d request_id=%lu data_len=%lu",
@@ -788,7 +783,7 @@ status_t Connection_handler::erase(const pool_t pool,
   catch(...) {
     status = E_FAIL;
   }
-  
+
   return status;
 }
 
@@ -801,19 +796,25 @@ size_t Connection_handler::count(const pool_t pool)
   assert(iobs);
   assert(iobr);
 
-  const auto msg = new (iobs->base()) Dawn::Protocol::Message_INFO_request(auth_id());
-  msg->pool_id = pool;
-  msg->type = Component::IKVStore::Attribute::COUNT;
-  iobs->set_length(msg->base_message_size());
+  try {
+    const auto msg = new (iobs->base()) Dawn::Protocol::Message_INFO_request(auth_id());
+    msg->pool_id = pool;
+    msg->type = Component::IKVStore::Attribute::COUNT;
+    iobs->set_length(msg->base_message_size());
 
-  post_recv(&*iobr);
-  sync_inject_send(&*iobs);
-  wait_for_completion(&*iobr);
+    post_recv(&*iobr);
+    sync_inject_send(&*iobs);
+    wait_for_completion(&*iobr);
 
-  const auto response_msg = static_cast<const Protocol::Message *>(iobr->base())
-    ->ptr_cast<Protocol::Message_INFO_response>();
-  
-  return response_msg->value;
+    const auto response_msg =
+      response_ptr<const Dawn::Protocol::Message_INFO_response>(iobr->base());
+
+    return response_msg->value;
+  }
+  catch ( ... )
+  {
+    return 0;
+  }
 }
 
 status_t Connection_handler::get_attribute(const IKVStore::pool_t pool,
@@ -823,7 +824,7 @@ status_t Connection_handler::get_attribute(const IKVStore::pool_t pool,
 {
 
   API_LOCK();
-  
+
   const auto iobs = std::unique_ptr<buffer_t, iob_free>(allocate(), this);
   const auto iobr = std::unique_ptr<buffer_t, iob_free>(allocate(), this);
   assert(iobs);
@@ -843,8 +844,8 @@ status_t Connection_handler::get_attribute(const IKVStore::pool_t pool,
     sync_inject_send(&*iobs);
     wait_for_completion(&*iobr);
 
-    const auto response_msg = static_cast<const Protocol::Message *>(iobr->base())
-      ->ptr_cast<Protocol::Message_INFO_response>();    
+    const auto response_msg =
+      response_ptr<const Dawn::Protocol::Message_INFO_response>(iobr->base());
 
     out_attr.clear();
     out_attr.push_back(response_msg->value);
@@ -853,7 +854,7 @@ status_t Connection_handler::get_attribute(const IKVStore::pool_t pool,
   catch(...) {
     status = E_FAIL;
   }
-  
+
   return status;
 }
 
@@ -877,7 +878,7 @@ status_t Connection_handler::find(const IKVStore::pool_t pool,
     msg->pool_id = pool;
     msg->type = Dawn::Protocol::INFO_TYPE_FIND_KEY;
     msg->offset = offset;
-  
+
     msg->set_key(iobs->length(), key_expression);
     iobs->set_length(msg->message_size());
 
@@ -885,15 +886,15 @@ status_t Connection_handler::find(const IKVStore::pool_t pool,
     sync_inject_send(&*iobs);
     wait_for_completion(&*iobr);
 
-    const auto response_msg = static_cast<const Protocol::Message *>(iobr->base())
-      ->ptr_cast<Protocol::Message_INFO_response>();    
+    const auto response_msg =
+      response_ptr<const Dawn::Protocol::Message_INFO_response>(iobr->base());
 
     status = response_msg->status;
-    
+
     if(status == S_OK) {
       out_matched_key = response_msg->c_str();
       out_matched_offset = response_msg->offset;
-    }       
+    }
   }
   catch(...) {
     status = E_FAIL;
@@ -932,12 +933,8 @@ int Connection_handler::tick()
 
     wait_for_completion(&*iob);
 
-    /* should probably be cast to a base type, not Message_handshake_reply,
-     * as we do not know whether it is a Message_handshake_reply until we
-     * have examined type_id
-     */
-    const auto msg = static_cast<const Protocol::Message *>(iob->base())
-      ->ptr_cast<Protocol::Message_handshake_reply>();
+    const auto response_msg =
+      response_ptr<const Dawn::Protocol::Message_handshake_reply>(iob->base());
 
     set_state(READY);
 
