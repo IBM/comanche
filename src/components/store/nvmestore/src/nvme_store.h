@@ -70,7 +70,6 @@ class NVME_store : public Component::IKVStore {
 
  private:
   static constexpr bool                           option_DEBUG = true;
-  std::unordered_map<pool_t, std::atomic<size_t>> _cnt_elem_map;
   std::string                                     _pm_path;
 
   State_map       _sm;           // map control TODO: change to session manager
@@ -179,11 +178,8 @@ class NVME_store : public Component::IKVStore {
 
   virtual status_t erase(const pool_t pool, const std::string& key) override;
 
-  virtual size_t count(const pool_t pool) override
-  {
-    return _cnt_elem_map[pool];
-  }
-
+  virtual size_t count(const pool_t pool) override;
+  
   virtual void debug(const pool_t pool, unsigned cmd, uint64_t arg) {}
 };
 

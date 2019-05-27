@@ -68,9 +68,6 @@ class Nvmestore_session {
     if (_io_mem) _blk_manager->free_io_buffer(_io_mem);
     pmemobj_close(_pop);
   }
-  void alloc_new_object(uint64_t hashkey,
-                        size_t   value_len,
-                        TOID(struct block_range) & out_blkmeta);
 
   std::unordered_map<uint64_t, io_buffer_t>& get_locked_regions()
   {
@@ -82,6 +79,11 @@ class Nvmestore_session {
   PMEMobjpool* get_pop() { return _pop; }
   /** Get */
   TOID(struct store_root_t) get_root() { return _root; }
+  size_t get_count(){return _num_objs;}
+
+  void alloc_new_object(uint64_t hashkey,
+                        size_t   value_len,
+                        TOID(struct block_range) & out_blkmeta);
 
   /** Erase Objects*/
   status_t erase(uint64_t hashkey);
@@ -211,7 +213,6 @@ status_t Nvmestore_session::put(uint64_t     hashkey,
   _blk_manager->do_block_io(nvmestore::BLOCK_IO_WRITE, _io_mem,
                             D_RO(blkmeta)->lba_start, nr_io_blocks);
 #endif
-  _num_objs += 1;
   return S_OK;
 }
 
@@ -743,6 +744,8 @@ void Nvmestore_session::alloc_new_object(uint64_t hashkey,
       else
         throw General_exception("hm_tx_insert failed unexpectedly (rc=%d)", rc);
     }
+
+    _num_objs += 1;
   }
   TX_ONABORT
   {
@@ -960,6 +963,11 @@ status_t NVME_store::unlock(const pool_t pool, key_t key_handle)
 
   session->unlock((uint64_t) key_handle);  // i.e. virt addr
   return S_OK;
+}
+
+size_t count(const pool_t pool){
+  open_session_t* session = get_session(pool);
+  return session->get_count();
 }
 
 status_t NVME_store::erase(const pool_t pool, const std::string& key)
