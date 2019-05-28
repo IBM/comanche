@@ -25,9 +25,6 @@
 
 class State_map;
 
-// static constexpr char PMEM_PATH_ALLOC[] = "/mnt/pmem0/pool/0/"; // the pool
-// for allocation info
-
 POBJ_LAYOUT_BEGIN(nvme_store);
 POBJ_LAYOUT_ROOT(nvme_store, struct store_root_t);
 POBJ_LAYOUT_TOID(nvme_store, struct block_range);
@@ -43,24 +40,27 @@ typedef struct block_range {
   // uint64_t last_tag; // tag for async block io
 } block_range_t;
 
-namespace{
+namespace
+{
 struct buffer_t {
-    const size_t    _length;
-    const io_buffer_t _io_mem;
-    void * const _start_vaddr; // it will equal to _io_mem if using allocate_io_buffer
+  const size_t      _length;
+  const io_buffer_t _io_mem;
+  void* const
+      _start_vaddr;  // it will equal to _io_mem if using allocate_io_buffer
 
-    buffer_t(size_t length, io_buffer_t io_mem, void *start_vaddr) : _length(length),_io_mem(io_mem), _start_vaddr(start_vaddr)
-    {
-    }
+  buffer_t(size_t length, io_buffer_t io_mem, void* start_vaddr)
+      : _length(length), _io_mem(io_mem), _start_vaddr(start_vaddr)
+  {
+  }
 
-    ~buffer_t() {}
+  ~buffer_t() {}
 
-    inline size_t length() const { return _length; }
-    inline size_t io_mem() const { return _io_mem; }
-    inline void * start_vaddr() const {return _start_vaddr;}
-  };
+  inline size_t length() const { return _length; }
+  inline size_t io_mem() const { return _io_mem; }
+  inline void*  start_vaddr() const { return _start_vaddr; }
+};
 
-}
+}  // namespace
 
 class NVME_store : public Component::IKVStore {
   using block_manager_t = nvmestore::Block_manager;
@@ -69,8 +69,8 @@ class NVME_store : public Component::IKVStore {
       MB(8);  // initial IO memory size in bytes
 
  private:
-  static constexpr bool                           option_DEBUG = true;
-  std::string                                     _pm_path;
+  static constexpr bool option_DEBUG = true;
+  std::string           _pm_path;
 
   State_map       _sm;           // map control TODO: change to session manager
   block_manager_t _blk_manager;  // shared across all nvmestore
@@ -159,7 +159,8 @@ class NVME_store : public Component::IKVStore {
       size_t&                              out_value_len,
       Component::IKVStore::memory_handle_t handle) override;
 
-  virtual memory_handle_t allocate_direct_memory(void * &vaddr, size_t len) override;
+  virtual memory_handle_t allocate_direct_memory(void*& vaddr,
+                                                 size_t len) override;
 
   virtual status_t free_direct_memory(memory_handle_t handle) override;
 
@@ -178,13 +179,15 @@ class NVME_store : public Component::IKVStore {
 
   virtual status_t erase(const pool_t pool, const std::string& key) override;
 
-  virtual size_t count(const pool_t pool) override;
-  virtual status_t map(const pool_t pool,
-                       std::function<int(const std::string& key,
-                                         const void * value,
-                                         const size_t value_len)> function) override;
-  virtual status_t map_keys(const pool_t pool,
-                            std::function<int(const std::string& key)> function);   
+  virtual size_t   count(const pool_t pool) override;
+  virtual status_t map(
+      const pool_t                               pool,
+      std::function<int(const std::string& key,
+                        const void*        value,
+                        const size_t       value_len)> function) override;
+  virtual status_t map_keys(
+      const pool_t                               pool,
+      std::function<int(const std::string& key)> function);
   virtual void debug(const pool_t pool, unsigned cmd, uint64_t arg) override;
 };
 
