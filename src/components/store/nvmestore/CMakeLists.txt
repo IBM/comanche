@@ -12,7 +12,7 @@ include_directories(./src)
 
 #add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 
-file(GLOB SOURCES ./src/*.c*)
+file(GLOB SOURCES ./src/*.cpp)
 
 add_library(${PROJECT_NAME} SHARED ${SOURCES})
 
