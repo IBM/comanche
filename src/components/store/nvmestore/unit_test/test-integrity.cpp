@@ -70,6 +70,7 @@ Component::IKVStore * KVStore_test::_kvstore;
 Component::IKVStore::pool_t KVStore_test::_pool;
 
 static constexpr int nr_elem = 4; // number of the test elem in the pool
+static constexpr size_t KEY_LEN = 16;
 static constexpr size_t VAL_LEN = GB(1);
 std::unordered_map<std::string, int> _crc_map;
 
@@ -109,6 +110,7 @@ TEST_F(KVStore_test, BasicPut)
   ASSERT_TRUE(_pool);
   for(int i=0 ;i< nr_elem; i++){
     std::string key = "MyKey"+std::to_string(i);
+    key.resize(KEY_LEN, '.');
     auto val = Common::random_string(VAL_LEN);
 
 		boost::crc_32_type result;
@@ -131,6 +133,7 @@ TEST_F(KVStore_test, GetDirect)
 
   for(int i=0 ;i< nr_elem; i++){
     std::string key = "MyKey"+ std::to_string(i);
+    key.resize(KEY_LEN, '.');
 
     _kvstore->get_direct(_pool, key, value, value_len, handle);
 
@@ -150,6 +153,7 @@ TEST_F(KVStore_test, BasicGet)
 
   for(int i=0 ;i< nr_elem; i++){
     std::string key = "MyKey"+ std::to_string(i);
+    key.resize(KEY_LEN, '.');
 
     void * value = nullptr;
     size_t value_len = 0;
@@ -166,13 +170,38 @@ TEST_F(KVStore_test, BasicGet)
   }
 }
 
+TEST_F(KVStore_test, BasicMap){
+  auto value_len_sum = 0;
+
+  _kvstore->map(_pool,[&value_len_sum](const std::string &key,
+                        const void * value,
+                        const size_t value_len) -> int
+                {
+					value_len_sum += value_len;
+                    return 0;
+                  });
+  EXPECT_EQ(nr_elem*VAL_LEN, value_len_sum);
+}
+
+TEST_F(KVStore_test, DISABLED_BasicMapKeys){
+  auto key_len_sum = 0;
+  size_t key_len = KEY_LEN;
+  _kvstore->map_keys(_pool,[&key_len_sum](const std::string &key) -> int
+                {
+					key_len_sum += key.size();
+                    return 0;
+                  });
+  EXPECT_EQ(nr_elem*KEY_LEN, key_len_sum);
+}
+
 TEST_F(KVStore_test, BasicErase)
 {
 
   for(int i=0 ;i< nr_elem; i++){
+    std::string key = "MyKey"+std::to_string(i);
+    key.resize(KEY_LEN, '.');
     _kvstore->erase(_pool, "MyKey"+std::to_string(i));
   }
-
 }
 
 

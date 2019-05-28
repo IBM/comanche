@@ -179,8 +179,13 @@ class NVME_store : public Component::IKVStore {
   virtual status_t erase(const pool_t pool, const std::string& key) override;
 
   virtual size_t count(const pool_t pool) override;
-  
-  virtual void debug(const pool_t pool, unsigned cmd, uint64_t arg) {}
+  virtual status_t map(const pool_t pool,
+                       std::function<int(const std::string& key,
+                                         const void * value,
+                                         const size_t value_len)> function) override;
+  virtual status_t map_keys(const pool_t pool,
+                            std::function<int(const std::string& key)> function);   
+  virtual void debug(const pool_t pool, unsigned cmd, uint64_t arg) override;
 };
 
 class NVME_store_factory : public Component::IKVStore_factory {

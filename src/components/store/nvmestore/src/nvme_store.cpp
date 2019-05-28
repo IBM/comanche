@@ -108,6 +108,11 @@ class Nvmestore_session {
                 size_t&     out_value_len);
   status_t unlock(uint64_t hashkey);
 
+  status_t map(std::function<int(const std::string& key,
+                                         const void * value,
+                                         const size_t value_len)> f);
+
+
  private:
   TOID(struct store_root_t) _root;
   PMEMobjpool* _pop;  // the pool for mapping
@@ -125,6 +130,8 @@ class Nvmestore_session {
 
   status_t may_ajust_io_mem(size_t value_len);
 };
+
+using open_session_t = Nvmestore_session;
 
 status_t Nvmestore_session::erase(uint64_t hashkey)
 {
@@ -361,7 +368,6 @@ status_t Nvmestore_session::lock(uint64_t    hashkey,
       operation_type = nvmestore::BLOCK_IO_READ;
     }
     else {
-      /* TODO: need to create new object and continue */
       if (!out_value_len) {
         throw General_exception(
             "%s: Need value length to lock a unexsiting object", __func__);
@@ -406,6 +412,8 @@ status_t Nvmestore_session::lock(uint64_t    hashkey,
   return S_OK;
 }
 
+
+
 status_t Nvmestore_session::unlock(uint64_t key_handle)
 {
   auto        root    = _root;
@@ -449,7 +457,57 @@ status_t Nvmestore_session::unlock(uint64_t key_handle)
   return S_OK;
 }
 
-using open_session_t = Nvmestore_session;
+status_t Nvmestore_session::map(std::function<int(const std::string& key,
+                                         const void * value,
+                                         const size_t value_len)> f)
+{
+  size_t blk_sz = _blk_manager->blk_sz();
+
+  auto root = _root;
+  auto pop  = _pop;
+
+  TOID(struct block_range) blk_info;
+  TX_BEGIN(pop)
+  {
+    cpu_time_t start = rdtsc();
+
+    int (*f_map)(uint64_t, void*)  = [f](uint64_t key, void*arg)->int{
+      open_session_t *session = reinterpret_cast<open_session_t*>(arg);
+      void *value = nullptr;
+          size_t value_len = 0;
+
+          IKVStore::lock_type_t wlock= IKVStore::STORE_LOCK_WRITE;
+          // lock
+          if(S_OK != session->lock(key,
+                                 wlock,
+                                 value,
+                                 value_len)){
+            throw General_exception("lock failed");
+          }
+
+          std::string s; // no need actualy
+          if(S_OK != f(s, value, value_len)){
+            throw General_exception("apply functor failed");
+          }
+
+          // unlock
+          if(S_OK != session->unlock(key)){
+            throw General_exception("unlock failed");
+          }
+
+          return 0;
+    };
+    // lock/apply/ and unlock
+    hm_tx_foreachkey(pop, D_RW(root)->map, f_map,  this);
+  }
+  TX_ONABORT{
+    throw General_exception("Map for each failed");
+  }
+  TX_END
+
+  return S_OK;
+}
+
 
 struct tls_cache_t {
   open_session_t* session;
@@ -970,6 +1028,7 @@ size_t count(const pool_t pool){
   return session->get_count();
 }
 
+
 status_t NVME_store::erase(const pool_t pool, const std::string& key)
 {
   open_session_t* session = get_session(pool);
@@ -977,6 +1036,24 @@ status_t NVME_store::erase(const pool_t pool, const std::string& key)
   uint64_t key_hash = CityHash64(key.c_str(), key.length());
   return session->erase(key_hash);
 }
+
+status_t map(const pool_t pool,
+                       std::function<int(const std::string& key,
+                                         const void * value,
+                                         const size_t value_len)> function){
+  open_session_t* session = get_session(pool);
+
+  status_t Nvmestore_session::map(function);
+
+  return S_OK;
+}
+status_t map_keys(const pool_t pool,
+                            std::function<int(const std::string& key)> function){
+
+  //
+}
+
+
 
 /**
  * Factory entry point
