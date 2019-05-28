@@ -57,6 +57,10 @@ int hm_tx_lookup(PMEMobjpool *pop, TOID(struct hashmap_tx) hashmap,
 		uint64_t key);
 int hm_tx_foreach(PMEMobjpool *pop, TOID(struct hashmap_tx) hashmap,
 	int (*cb)(uint64_t key, PMEMoid value, void *arg), void *arg);
+
+int hm_tx_foreachkey(PMEMobjpool *pop, TOID(struct hashmap_tx) hashmap,
+	int (*cb)(uint64_t key, void *arg), void *arg);
+
 size_t hm_tx_count(PMEMobjpool *pop, TOID(struct hashmap_tx) hashmap);
 int hm_tx_cmd(PMEMobjpool *pop, TOID(struct hashmap_tx) hashmap,
 		unsigned cmd, uint64_t arg);
