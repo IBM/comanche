@@ -46,9 +46,13 @@ public:
 
   using work_id_t = uint64_t; /*< work handle/identifier */
   using shared_memory_token_t = uint64_t; /*< token identifying shared memory for mcas module */
-  
+
   enum class Op_type {
-    FLATBUFFER_OPERATION, /* a method invocation in the form of a flatbuffer message */    
+    FLATBUFFER_OPERATION, /* a method invocation in the form of a flatbuffer
+                             message */
+    KILL,                 // shutdown ado process
+    CHECK_COMPLETION,     // check how many completed
+    CHECK_READY,          // check if process is launched, and ask for pid
   };
 
   /** 
