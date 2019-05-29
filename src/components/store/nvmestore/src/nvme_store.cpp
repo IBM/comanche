@@ -40,7 +40,7 @@ extern "C" {
 using namespace Component;
 
 struct store_root_t {
-  TOID(struct hashmap_tx) map; /** hashkey-> block_range*/
+  TOID(struct hashmap_tx) map; /** hashkey-> obj_info*/
   size_t pool_size;
 };
 // TOID_DECLARE_ROOT(struct store_root_t);
@@ -85,7 +85,7 @@ class Nvmestore_session {
 
   void alloc_new_object(const std::string& key,
                         size_t             value_len,
-                        TOID(struct block_range) & out_blkmeta);
+                        TOID(struct obj_info) & out_blkmeta);
 
   /** Erase Objects*/
   status_t erase(const std::string& key);
@@ -142,23 +142,23 @@ status_t Nvmestore_session::erase(const std::string& key)
 
   uint64_t pool = reinterpret_cast<uint64_t>(this);
 
-  TOID(struct block_range) blk_info;
+  TOID(struct obj_info) objinfo;
   try {
-    blk_info = hm_tx_get(pop, D_RW(root)->map, hashkey);
-    if (OID_IS_NULL(blk_info.oid)) return NVME_store::E_KEY_NOT_FOUND;
+    objinfo = hm_tx_get(pop, D_RW(root)->map, hashkey);
+    if (OID_IS_NULL(objinfo.oid)) return NVME_store::E_KEY_NOT_FOUND;
 
     /* get hold of write lock to remove */
-    if (!p_state_map->state_get_write_lock(pool, D_RO(blk_info)->handle))
+    if (!p_state_map->state_get_write_lock(pool, D_RO(objinfo)->handle))
       throw API_exception("unable to remove, value locked");
 
-    _blk_manager->free_blk_region(D_RO(blk_info)->lba_start,
-                                  D_RO(blk_info)->handle);
+    _blk_manager->free_blk_region(D_RO(objinfo)->lba_start,
+                                  D_RO(objinfo)->handle);
 
-    blk_info = hm_tx_remove(pop, D_RW(root)->map,
-                            hashkey); /* could be optimized to not re-lookup */
-    if (OID_IS_NULL(blk_info.oid))
+    objinfo = hm_tx_remove(pop, D_RW(root)->map,
+                           hashkey); /* could be optimized to not re-lookup */
+    if (OID_IS_NULL(objinfo.oid))
       throw API_exception("hm_tx_remove failed unexpectedly");
-    p_state_map->state_remove(pool, D_RO(blk_info)->handle);
+    p_state_map->state_remove(pool, D_RO(objinfo)->handle);
     _num_objs -= 1;
   }
   catch (...) {
@@ -201,7 +201,7 @@ status_t Nvmestore_session::put(const std::string& key,
   auto root = _root;
   auto pop  = _pop;
 
-  TOID(struct block_range) blkmeta;  // block mapping of this obj
+  TOID(struct obj_info) blkmeta;  // block mapping of this obj
 
   may_ajust_io_mem(value_len);
 
@@ -217,7 +217,7 @@ status_t Nvmestore_session::put(const std::string& key,
 #error("use_sync is deprecated")
   // TODO: can the free be triggered by callback?
   uint64_t tag = blk_dev->async_write(session->io_mem, 0, lba, nr_io_blocks);
-  D_RW(blk_info)->last_tag = tag;
+  D_RW(objinfo)->last_tag = tag;
 #else
   auto nr_io_blocks = (value_len + blk_sz - 1) / blk_sz;
   _blk_manager->do_block_io(nvmestore::BLOCK_IO_WRITE, _io_mem,
@@ -236,17 +236,17 @@ status_t Nvmestore_session::get(const std::string& key,
   auto  root = _root;
   auto& pop  = _pop;
 
-  TOID(struct block_range) blk_info;
+  TOID(struct obj_info) objinfo;
   // TODO: can write to a shadowed copy
   try {
-    blk_info = hm_tx_get(pop, D_RW(root)->map, hashkey);
-    if (OID_IS_NULL(blk_info.oid)) return IKVStore::E_KEY_NOT_FOUND;
+    objinfo = hm_tx_get(pop, D_RW(root)->map, hashkey);
+    if (OID_IS_NULL(objinfo.oid)) return IKVStore::E_KEY_NOT_FOUND;
 
-    auto val_len = D_RO(blk_info)->size;
-    auto lba     = D_RO(blk_info)->lba_start;
+    auto val_len = D_RO(objinfo)->size;
+    auto lba     = D_RO(objinfo)->lba_start;
 
 #ifdef USE_ASYNC
-    uint64_t tag = D_RO(blk_info)->last_tag;
+    uint64_t tag = D_RO(objinfo)->last_tag;
     while (!blk_dev->check_completion(tag))
       cpu_relax(); /* check the last completion, TODO: check each time makes the
                       get slightly slow () */
@@ -282,14 +282,14 @@ status_t Nvmestore_session::get_direct(const std::string& key,
   auto root = _root;
   auto pop  = _pop;
 
-  TOID(struct block_range) blk_info;
+  TOID(struct obj_info) objinfo;
   try {
     cpu_time_t start = rdtsc();
-    blk_info         = hm_tx_get(pop, D_RW(root)->map, hashkey);
-    if (OID_IS_NULL(blk_info.oid)) return IKVStore::E_KEY_NOT_FOUND;
+    objinfo          = hm_tx_get(pop, D_RW(root)->map, hashkey);
+    if (OID_IS_NULL(objinfo.oid)) return IKVStore::E_KEY_NOT_FOUND;
 
-    auto val_len = static_cast<size_t>(D_RO(blk_info)->size);
-    auto lba     = static_cast<lba_t>(D_RO(blk_info)->lba_start);
+    auto val_len = static_cast<size_t>(D_RO(objinfo)->size);
+    auto lba     = static_cast<lba_t>(D_RO(objinfo)->lba_start);
 
     cpu_time_t cycles_for_hm = rdtsc() - start;
 
@@ -297,7 +297,7 @@ status_t Nvmestore_session::get_direct(const std::string& key,
          cycles_for_hm, cycles_for_hm / 2400.0f);
 
 #ifdef USE_ASYNC
-    uint64_t tag = D_RO(blk_info)->last_tag;
+    uint64_t tag = D_RO(objinfo)->last_tag;
     while (!blk_dev->check_completion(tag))
       cpu_relax(); /* check the last completion, TODO: check each time makes the
                       get slightly slow () */
@@ -360,14 +360,14 @@ Nvmestore_session::key_t Nvmestore_session::lock(const std::string& key,
   size_t blk_sz = _blk_manager->blk_sz();
   auto   pool   = reinterpret_cast<uint64_t>(this);
 
-  TOID(struct block_range) blk_info;
+  TOID(struct obj_info) objinfo;
   try {
-    blk_info = hm_tx_get(pop, D_RW(root)->map, hashkey);
+    objinfo = hm_tx_get(pop, D_RW(root)->map, hashkey);
 
-    if (!OID_IS_NULL(blk_info.oid)) {
+    if (!OID_IS_NULL(objinfo.oid)) {
 #ifdef USE_ASYNC
       /* there might be pending async write for this object */
-      uint64_t tag = D_RO(blk_info)->last_tag;
+      uint64_t tag = D_RO(objinfo)->last_tag;
       while (!blk_dev->check_completion(tag))
         cpu_relax(); /* check the last completion */
 #endif
@@ -378,21 +378,21 @@ Nvmestore_session::key_t Nvmestore_session::lock(const std::string& key,
         throw General_exception(
             "%s: Need value length to lock a unexsiting object", __func__);
       }
-      alloc_new_object(key, out_value_len, blk_info);
+      alloc_new_object(key, out_value_len, objinfo);
     }
 
     if (type == IKVStore::STORE_LOCK_READ) {
-      if (!p_state_map->state_get_read_lock(pool, D_RO(blk_info)->handle))
+      if (!p_state_map->state_get_read_lock(pool, D_RO(objinfo)->handle))
         throw General_exception("%s: unable to get read lock", __func__);
     }
     else {
-      if (!p_state_map->state_get_write_lock(pool, D_RO(blk_info)->handle))
+      if (!p_state_map->state_get_write_lock(pool, D_RO(objinfo)->handle))
         throw General_exception("%s: unable to get write lock", __func__);
     }
 
-    auto handle    = D_RO(blk_info)->handle;
-    auto value_len = D_RO(blk_info)->size;  // the length allocated before
-    auto lba       = D_RO(blk_info)->lba_start;
+    auto handle    = D_RO(objinfo)->handle;
+    auto value_len = D_RO(objinfo)->size;  // the length allocated before
+    auto lba       = D_RO(objinfo)->lba_start;
 
     /* fetch the data to block io mem */
     size_t      nr_io_blocks = (value_len + blk_sz - 1) / blk_sz;
@@ -428,20 +428,20 @@ status_t Nvmestore_session::unlock(Nvmestore_session::key_t key_handle)
 
   size_t blk_sz = _blk_manager->blk_sz();
 
-  TOID(struct block_range) blk_info;
+  TOID(struct obj_info) objinfo;
   try {
-    blk_info = hm_tx_get(pop, D_RW(root)->map, (uint64_t) hashkey);
-    if (OID_IS_NULL(blk_info.oid)) return IKVStore::E_KEY_NOT_FOUND;
+    objinfo = hm_tx_get(pop, D_RW(root)->map, (uint64_t) hashkey);
+    if (OID_IS_NULL(objinfo.oid)) return IKVStore::E_KEY_NOT_FOUND;
 
-    auto val_len = D_RO(blk_info)->size;
-    auto lba     = D_RO(blk_info)->lba_start;
+    auto val_len = D_RO(objinfo)->size;
+    auto lba     = D_RO(objinfo)->lba_start;
 
     size_t nr_io_blocks = (val_len + blk_sz - 1) / blk_sz;
 
     /*flush and release iomem*/
 #ifdef USE_ASYNC
-    uint64_t tag             = blk_dev->async_write(mem, 0, lba, nr_io_blocks);
-    D_RW(blk_info)->last_tag = tag;
+    uint64_t tag            = blk_dev->async_write(mem, 0, lba, nr_io_blocks);
+    D_RW(objinfo)->last_tag = tag;
 #else
     _blk_manager->do_block_io(nvmestore::BLOCK_IO_WRITE, mem, lba,
                               nr_io_blocks);
@@ -451,7 +451,7 @@ status_t Nvmestore_session::unlock(Nvmestore_session::key_t key_handle)
     _blk_manager->free_io_buffer(mem);
 
     /*release the lock*/
-    p_state_map->state_unlock(pool, D_RO(blk_info)->handle);
+    p_state_map->state_unlock(pool, D_RO(objinfo)->handle);
 
     PDBG("NVME_store: released the lock");
   }
@@ -470,7 +470,7 @@ status_t Nvmestore_session::map(std::function<int(const std::string& key,
   auto root = _root;
   auto pop  = _pop;
 
-  TOID(struct block_range) blk_info;
+  TOID(struct obj_info) objinfo;
 
   // functor
   auto f_map = [f, pop, root](uint64_t hashkey, void* arg) -> int {
@@ -478,9 +478,9 @@ status_t Nvmestore_session::map(std::function<int(const std::string& key,
     void*           value     = nullptr;
     size_t          value_len = 0;
 
-    TOID(struct block_range) blk_info;
-    blk_info            = hm_tx_get(pop, D_RW(root)->map, (uint64_t) hashkey);
-    const char* key_str = D_RO(D_RO(blk_info)->key_data);
+    TOID(struct obj_info) objinfo;
+    objinfo             = hm_tx_get(pop, D_RW(root)->map, (uint64_t) hashkey);
+    const char* key_str = D_RO(D_RO(objinfo)->key_data);
     std::string key(key_str);
 
     IKVStore::lock_type_t wlock = IKVStore::STORE_LOCK_WRITE;
@@ -522,13 +522,13 @@ status_t Nvmestore_session::map_keys(
   auto& root = _root;
   auto& pop  = _pop;
 
-  TOID(struct block_range) blk_info;
+  TOID(struct obj_info) objinfo;
 
   // functor
   auto f_map = [f, pop, root](uint64_t hashkey, void* arg) -> int {
-    TOID(struct block_range) blk_info;
-    blk_info            = hm_tx_get(pop, D_RW(root)->map, (uint64_t) hashkey);
-    const char* key_str = D_RO(D_RO(blk_info)->key_data);
+    TOID(struct obj_info) objinfo;
+    objinfo             = hm_tx_get(pop, D_RW(root)->map, (uint64_t) hashkey);
+    const char* key_str = D_RO(D_RO(objinfo)->key_data);
     std::string key(key_str);
 
     if (S_OK != f(key)) {
@@ -555,7 +555,7 @@ status_t Nvmestore_session::map_keys(
  * TODO This allocate memory using regions */
 void Nvmestore_session::alloc_new_object(const std::string& key,
                                          size_t             value_len,
-                                         TOID(struct block_range) & out_blkmeta)
+                                         TOID(struct obj_info) & out_blkmeta)
 {
   auto& root        = this->_root;
   auto& pop         = this->_pop;
@@ -573,29 +573,29 @@ void Nvmestore_session::alloc_new_object(const std::string& key,
 
   PDBG("write to lba %lu with length %lu, key %lx", lba, value_len, hashkey);
 
-  auto& blk_info = out_blkmeta;
+  auto& objinfo = out_blkmeta;
   TX_BEGIN(pop)
   {
     /* allocate memory for entry - range added to tx implicitly? */
 
     // get the available range from allocator
-    blk_info = TX_ALLOC(struct block_range, sizeof(struct block_range));
+    objinfo = TX_ALLOC(struct obj_info, sizeof(struct obj_info));
 
-    D_RW(blk_info)->lba_start = lba;
-    D_RW(blk_info)->size      = value_len;
-    D_RW(blk_info)->handle    = handle;
-    D_RW(blk_info)->key_len   = key.length();
-    TOID(char) key_data = TX_ALLOC(char, key.length() + 1);  // \0 included
+    D_RW(objinfo)->lba_start = lba;
+    D_RW(objinfo)->size      = value_len;
+    D_RW(objinfo)->handle    = handle;
+    D_RW(objinfo)->key_len   = key.length();
+    TOID(char) key_data      = TX_ALLOC(char, key.length() + 1);  // \0 included
 
     if (D_RO(key_data) == nullptr)
       throw General_exception("Failed to allocate space for key");
     std::copy(key.c_str(), key.c_str() + key.length() + 1, D_RW(key_data));
 
-    D_RW(blk_info)->key_data = key_data;
+    D_RW(objinfo)->key_data = key_data;
 
     /* insert into HT */
     int rc;
-    if ((rc = hm_tx_insert(pop, D_RW(root)->map, hashkey, blk_info.oid))) {
+    if ((rc = hm_tx_insert(pop, D_RW(root)->map, hashkey, objinfo.oid))) {
       if (rc == 1)
         throw General_exception("inserting same key");
       else
@@ -606,7 +606,7 @@ void Nvmestore_session::alloc_new_object(const std::string& key,
   }
   TX_ONABORT
   {
-    // TODO: free blk_info
+    // TODO: free objinfo
     throw General_exception("TX abort (%s) during nvmeput", pmemobj_errormsg());
   }
   TX_END
@@ -704,7 +704,7 @@ IKVStore::pool_t NVME_store::create_pool(const std::string& name,
   PMEMobjpool* pop = nullptr;  // pool to allocate all mapping
   int          ret = 0;
 
-  size_t max_sz_hxmap = MB(500);  // this can fit 1M objects (block_range_t)
+  size_t max_sz_hxmap = MB(500);  // this can fit 1M objects (obj_info_t)
 
   // TODO: need to check size
   const std::string& fullpath = _pm_path + name;
@@ -762,8 +762,8 @@ IKVStore::pool_t NVME_store::create_pool(const std::string& name,
 IKVStore::pool_t NVME_store::open_pool(const std::string& name,
                                        unsigned int       flags)
 {
-  PMEMobjpool* pop;               // pool to allocate all mapping
-  size_t max_sz_hxmap = MB(500);  // this can fit 1M objects (block_range_t)
+  PMEMobjpool* pop;                     // pool to allocate all mapping
+  size_t       max_sz_hxmap = MB(500);  // this can fit 1M objects (obj_info_t)
 
   PINF("NVME_store::open_pool name=%s", name.c_str());
 
@@ -968,67 +968,6 @@ status_t NVME_store::unregister_direct_memory(memory_handle_t handle)
   delete buffer;
   return S_OK;
 }
-
-// status_t NVME_store::allocate(const pool_t pool,
-//                               const std::string& key,
-//                               const size_t nbytes,
-//                               uint64_t& out_key_hash)
-// {
-//   open_session_t * session = get_session(pool);
-//   auto& root = session->root;
-//   auto& pop = session->pop;
-
-//   auto& blk_alloc = session->_blk_alloc;
-//   auto& blk_dev = session->_blk_dev;
-
-//   uint64_t key_hash = CityHash64(key.c_str(), key.length());
-
-//   void * handle;
-
-//   /* check to see if key already exists */
-//   /*if(hm_tx_lookup(pop, d_ro(root)->map, key_hash))*/
-//   /*return e_key_exists;*/
-
-//   size_t nr_io_blocks = (nbytes+ blk_sz -1)/blk_sz;
-
-//   // transaction also happens in here
-//   lba_t lba = blk_alloc->alloc(nr_io_blocks, &handle);
-
-//   TOID(struct block_range) blk_info;
-
-//   TX_BEGIN(pop) {
-
-//     /* allocate memory for entry - range added to tx implicitly? */
-
-//     //get the available range from allocator
-//     blk_info = TX_ALLOC(struct block_range, sizeof(struct block_range));
-
-//     D_RW(blk_info)->lba_start = lba;
-//     D_RW(blk_info)->size = nbytes;
-//     D_RW(blk_info)->handle = handle;
-// #ifdef USE_ASYNC
-//     D_RW(blk_info)->last_tag = 0;
-// #endif
-
-//     /* insert into HT */
-//     int rc;
-//     if((rc = hm_tx_insert(pop, D_RW(root)->map, key_hash, blk_info.oid))) {
-//       if(rc == 1)
-//         return E_ALREADY_EXISTS;
-//       else throw General_exception("hm_tx_insert failed unexpectedly
-//       (rc=%d)", rc);
-//     }
-//   }
-//   TX_ONABORT {
-//     //TODO: free blk_range
-//     throw General_exception("TX abort (%s)", pmemobj_errormsg());
-//   }
-//   TX_END
-
-//     out_key_hash = key_hash;
-
-//   return S_OK;
-// }
 
 /*
  * For nvmestore, data is not necessarily in main memory.
