@@ -183,7 +183,7 @@ TEST_F(KVStore_test, BasicMap)
   EXPECT_EQ(nr_elem * VAL_LEN, value_len_sum);
 }
 
-TEST_F(KVStore_test, DISABLED_BasicMapKeys)
+TEST_F(KVStore_test, BasicMapKeys)
 {
   auto   key_len_sum = 0;
   size_t key_len     = KEY_LEN;

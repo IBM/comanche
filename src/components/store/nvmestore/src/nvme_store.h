@@ -28,16 +28,21 @@ class State_map;
 POBJ_LAYOUT_BEGIN(nvme_store);
 POBJ_LAYOUT_ROOT(nvme_store, struct store_root_t);
 POBJ_LAYOUT_TOID(nvme_store, struct block_range);
+POBJ_LAYOUT_TOID(nvme_store, char);
 POBJ_LAYOUT_END(nvme_store);
 
 /*
  * for block allocator
  */
 typedef struct block_range {
+  // Block alocation
   int   lba_start;
-  int   size;    // size in bytes
+  int   size;    // value size in bytes
   void* handle;  // handle to free this block
-  // uint64_t last_tag; // tag for async block io
+
+  // key info
+  size_t key_len;
+  TOID(char) key_data;
 } block_range_t;
 
 namespace

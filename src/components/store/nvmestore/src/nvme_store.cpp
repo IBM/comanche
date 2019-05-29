@@ -40,13 +40,10 @@ extern "C" {
 using namespace Component;
 
 struct store_root_t {
-  TOID(struct hashmap_tx) map;  // name mappings
+  TOID(struct hashmap_tx) map; /** hashkey-> block_range*/
   size_t pool_size;
 };
 // TOID_DECLARE_ROOT(struct store_root_t);
-/*
- * hm_tx_foreachkey -- iterate on  the hashmap
- */
 
 class Nvmestore_session {
  public:
@@ -86,36 +83,37 @@ class Nvmestore_session {
   TOID(struct store_root_t) get_root() { return _root; }
   size_t get_count() { return _num_objs; }
 
-  void alloc_new_object(uint64_t hashkey,
-                        size_t   value_len,
+  void alloc_new_object(const std::string& key,
+                        size_t             value_len,
                         TOID(struct block_range) & out_blkmeta);
 
   /** Erase Objects*/
-  status_t erase(uint64_t hashkey);
+  status_t erase(const std::string& key);
 
   /** Put and object*/
-  status_t put(uint64_t     hashkey,
-               const void*  valude,
-               size_t       value_len,
-               unsigned int flags);
+  status_t put(const std::string& key,
+               const void*        valude,
+               size_t             value_len,
+               unsigned int       flags);
 
   /** Get an object*/
-  status_t get(uint64_t hashkey, void*& out_value, size_t& out_value_len);
+  status_t get(const std::string& key, void*& out_value, size_t& out_value_len);
 
-  status_t get_direct(uint64_t  hashkey,
-                      void*     out_value,
-                      size_t&   out_value_len,
-                      buffer_t* memory_handle);
+  status_t get_direct(const std ::string& key,
+                      void*               out_value,
+                      size_t&             out_value_len,
+                      buffer_t*           memory_handle);
 
-  key_t    lock(uint64_t    hashkey,
-                lock_type_t type,
-                void*&      out_value,
-                size_t&     out_value_len);
+  key_t    lock(const std::string& key,
+                lock_type_t        type,
+                void*&             out_value,
+                size_t&            out_value_len);
   status_t unlock(key_t obj_key);
 
   status_t map(std::function<int(const std::string& key,
                                  const void*        value,
                                  const size_t       value_len)> f);
+  status_t map_keys(std::function<int(const std::string& key)> f);
 
  private:
   TOID(struct store_root_t) _root;
@@ -136,10 +134,11 @@ class Nvmestore_session {
 
 using open_session_t = Nvmestore_session;
 
-status_t Nvmestore_session::erase(uint64_t hashkey)
+status_t Nvmestore_session::erase(const std::string& key)
 {
-  auto& root = this->_root;
-  auto& pop  = this->_pop;
+  uint64_t hashkey = CityHash64(key.c_str(), key.length());
+  auto&    root    = this->_root;
+  auto&    pop     = this->_pop;
 
   uint64_t pool = reinterpret_cast<uint64_t>(this);
 
@@ -166,7 +165,7 @@ status_t Nvmestore_session::erase(uint64_t hashkey)
     throw General_exception("hm_tx_remove failed unexpectedly");
   }
   return S_OK;
-};
+}
 
 status_t Nvmestore_session::may_ajust_io_mem(size_t value_len)
 {
@@ -191,12 +190,13 @@ status_t Nvmestore_session::may_ajust_io_mem(size_t value_len)
   return S_OK;
 }
 
-status_t Nvmestore_session::put(uint64_t     hashkey,
-                                const void*  value,
-                                size_t       value_len,
-                                unsigned int flags)
+status_t Nvmestore_session::put(const std::string& key,
+                                const void*        value,
+                                size_t             value_len,
+                                unsigned int       flags)
 {
-  size_t blk_sz = _blk_manager->blk_sz();
+  uint64_t hashkey = CityHash64(key.c_str(), key.length());
+  size_t   blk_sz  = _blk_manager->blk_sz();
 
   auto root = _root;
   auto pop  = _pop;
@@ -208,7 +208,7 @@ status_t Nvmestore_session::put(uint64_t     hashkey,
   if (hm_tx_lookup(pop, D_RO(root)->map, hashkey))
     return IKVStore::E_KEY_EXISTS;
 
-  alloc_new_object(hashkey, value_len, blkmeta);
+  alloc_new_object(key, value_len, blkmeta);
 
   memcpy(_blk_manager->virt_addr(_io_mem), value,
          value_len); /* for the moment we have to memcpy */
@@ -226,11 +226,12 @@ status_t Nvmestore_session::put(uint64_t     hashkey,
   return S_OK;
 }
 
-status_t Nvmestore_session::get(uint64_t hashkey,
-                                void*&   out_value,
-                                size_t&  out_value_len)
+status_t Nvmestore_session::get(const std::string& key,
+                                void*&             out_value,
+                                size_t&            out_value_len)
 {
-  size_t blk_sz = _blk_manager->blk_sz();
+  uint64_t hashkey = CityHash64(key.c_str(), key.length());
+  size_t   blk_sz  = _blk_manager->blk_sz();
 
   auto  root = _root;
   auto& pop  = _pop;
@@ -270,12 +271,13 @@ status_t Nvmestore_session::get(uint64_t hashkey,
   return S_OK;
 }
 
-status_t Nvmestore_session::get_direct(uint64_t  hashkey,
-                                       void*     out_value,
-                                       size_t&   out_value_len,
-                                       buffer_t* memory_handle)
+status_t Nvmestore_session::get_direct(const std::string& key,
+                                       void*              out_value,
+                                       size_t&            out_value_len,
+                                       buffer_t*          memory_handle)
 {
-  size_t blk_sz = _blk_manager->blk_sz();
+  uint64_t hashkey = CityHash64(key.c_str(), key.length());
+  size_t   blk_sz  = _blk_manager->blk_sz();
 
   auto root = _root;
   auto pop  = _pop;
@@ -286,8 +288,8 @@ status_t Nvmestore_session::get_direct(uint64_t  hashkey,
     blk_info         = hm_tx_get(pop, D_RW(root)->map, hashkey);
     if (OID_IS_NULL(blk_info.oid)) return IKVStore::E_KEY_NOT_FOUND;
 
-    auto val_len = D_RO(blk_info)->size;
-    auto lba     = D_RO(blk_info)->lba_start;
+    auto val_len = static_cast<size_t>(D_RO(blk_info)->size);
+    auto lba     = static_cast<lba_t>(D_RO(blk_info)->lba_start);
 
     cpu_time_t cycles_for_hm = rdtsc() - start;
 
@@ -301,7 +303,7 @@ status_t Nvmestore_session::get_direct(uint64_t  hashkey,
                       get slightly slow () */
 #endif
 
-    PDBG("prepare to read lba % lu with length %lu", lba, val_len);
+    PDBG("prepare to read lba %lu with length %lu", lba, val_len);
     assert(out_value);
 
     io_buffer_t mem;
@@ -334,7 +336,7 @@ status_t Nvmestore_session::get_direct(uint64_t  hashkey,
     _blk_manager->do_block_io(nvmestore::BLOCK_IO_READ, mem, lba, nr_io_blocks);
 
     cpu_time_t cycles_for_iop = rdtsc() - start;
-    PDBG("prepare to read lba % lu with nr_blocks %lu", lba, nr_io_blocks);
+    PDBG("prepare to read lba %lu with nr_blocks %lu", lba, nr_io_blocks);
     PDBG("checked read latency took %ld cycles (%f usec) per IOP",
          cycles_for_iop, cycles_for_iop / 2400.0f);
     out_value_len = val_len;
@@ -345,14 +347,15 @@ status_t Nvmestore_session::get_direct(uint64_t  hashkey,
   return S_OK;
 }
 
-Nvmestore_session::key_t Nvmestore_session::lock(uint64_t    hashkey,
-                                                 lock_type_t type,
-                                                 void*&      out_value,
-                                                 size_t&     out_value_len)
+Nvmestore_session::key_t Nvmestore_session::lock(const std::string& key,
+                                                 lock_type_t        type,
+                                                 void*&             out_value,
+                                                 size_t& out_value_len)
 {
-  auto& root           = _root;
-  auto& pop            = _pop;
-  int   operation_type = nvmestore::BLOCK_IO_NOP;
+  uint64_t hashkey        = CityHash64(key.c_str(), key.length());
+  auto&    root           = _root;
+  auto&    pop            = _pop;
+  int      operation_type = nvmestore::BLOCK_IO_NOP;
 
   size_t blk_sz = _blk_manager->blk_sz();
   auto   pool   = reinterpret_cast<uint64_t>(this);
@@ -375,7 +378,7 @@ Nvmestore_session::key_t Nvmestore_session::lock(uint64_t    hashkey,
         throw General_exception(
             "%s: Need value length to lock a unexsiting object", __func__);
       }
-      alloc_new_object(hashkey, out_value_len, blk_info);
+      alloc_new_object(key, out_value_len, blk_info);
     }
 
     if (type == IKVStore::STORE_LOCK_READ) {
@@ -468,36 +471,42 @@ status_t Nvmestore_session::map(std::function<int(const std::string& key,
   auto pop  = _pop;
 
   TOID(struct block_range) blk_info;
+
+  // functor
+  auto f_map = [f, pop, root](uint64_t hashkey, void* arg) -> int {
+    open_session_t* session   = reinterpret_cast<open_session_t*>(arg);
+    void*           value     = nullptr;
+    size_t          value_len = 0;
+
+    TOID(struct block_range) blk_info;
+    blk_info            = hm_tx_get(pop, D_RW(root)->map, (uint64_t) hashkey);
+    const char* key_str = D_RO(D_RO(blk_info)->key_data);
+    std::string key(key_str);
+
+    IKVStore::lock_type_t wlock = IKVStore::STORE_LOCK_WRITE;
+    // lock
+    try {
+      session->lock(key, wlock, value, value_len);
+    }
+    catch (...) {
+      throw General_exception("lock failed");
+    }
+
+    std::string s;  // no need actualy
+    if (S_OK != f(s, value, value_len)) {
+      throw General_exception("apply functor failed");
+    }
+
+    // unlock
+    if (S_OK != session->unlock((key_t) value)) {
+      throw General_exception("unlock failed");
+    }
+
+    return 0;
+  };
+
   TX_BEGIN(pop)
   {
-    cpu_time_t start = rdtsc();
-
-    auto f_map = [f](uint64_t key, void* arg) -> int {
-      open_session_t* session   = reinterpret_cast<open_session_t*>(arg);
-      void*           value     = nullptr;
-      size_t          value_len = 0;
-
-      IKVStore::lock_type_t wlock = IKVStore::STORE_LOCK_WRITE;
-      // lock
-      try {
-        session->lock(key, wlock, value, value_len);
-      }
-      catch (...) {
-        throw General_exception("lock failed");
-      }
-
-      std::string s;  // no need actualy
-      if (S_OK != f(s, value, value_len)) {
-        throw General_exception("apply functor failed");
-      }
-
-      // unlock
-      if (S_OK != session->unlock((key_t) value)) {
-        throw General_exception("unlock failed");
-      }
-
-      return 0;
-    };
     // lock/apply/ and unlock
     hm_tx_foreachkey(pop, D_RW(root)->map, f_map, this);
   }
@@ -505,6 +514,102 @@ status_t Nvmestore_session::map(std::function<int(const std::string& key,
   TX_END
 
   return S_OK;
+}
+
+status_t Nvmestore_session::map_keys(
+    std::function<int(const std::string& key)> f)
+{
+  auto& root = _root;
+  auto& pop  = _pop;
+
+  TOID(struct block_range) blk_info;
+
+  // functor
+  auto f_map = [f, pop, root](uint64_t hashkey, void* arg) -> int {
+    TOID(struct block_range) blk_info;
+    blk_info            = hm_tx_get(pop, D_RW(root)->map, (uint64_t) hashkey);
+    const char* key_str = D_RO(D_RO(blk_info)->key_data);
+    std::string key(key_str);
+
+    if (S_OK != f(key)) {
+      throw General_exception("apply functor failed");
+    }
+
+    return 0;
+  };
+
+  TX_BEGIN(pop) { hm_tx_foreachkey(pop, D_RW(root)->map, f_map, this); }
+  TX_ONABORT { throw General_exception("MapKeys for each failed"); }
+  TX_END
+
+  return S_OK;
+}
+
+/**
+ * Create a entry in the pool and allocate space
+ *
+ * @param session
+ * @param value_len
+ * @param out_blkmeta [out] block mapping info of this obj
+ *
+ * TODO This allocate memory using regions */
+void Nvmestore_session::alloc_new_object(const std::string& key,
+                                         size_t             value_len,
+                                         TOID(struct block_range) & out_blkmeta)
+{
+  auto& root        = this->_root;
+  auto& pop         = this->_pop;
+  auto& blk_manager = this->_blk_manager;
+
+  uint64_t hashkey = CityHash64(key.c_str(), key.length());
+
+  size_t blk_size     = blk_manager->blk_sz();
+  size_t nr_io_blocks = (value_len + blk_size - 1) / blk_size;
+
+  void* handle;
+
+  // transaction also happens in here
+  uint64_t lba = _blk_manager->alloc_blk_region(nr_io_blocks, &handle);
+
+  PDBG("write to lba %lu with length %lu, key %lx", lba, value_len, hashkey);
+
+  auto& blk_info = out_blkmeta;
+  TX_BEGIN(pop)
+  {
+    /* allocate memory for entry - range added to tx implicitly? */
+
+    // get the available range from allocator
+    blk_info = TX_ALLOC(struct block_range, sizeof(struct block_range));
+
+    D_RW(blk_info)->lba_start = lba;
+    D_RW(blk_info)->size      = value_len;
+    D_RW(blk_info)->handle    = handle;
+    D_RW(blk_info)->key_len   = key.length();
+    TOID(char) key_data = TX_ALLOC(char, key.length() + 1);  // \0 included
+
+    if (D_RO(key_data) == nullptr)
+      throw General_exception("Failed to allocate space for key");
+    std::copy(key.c_str(), key.c_str() + key.length() + 1, D_RW(key_data));
+
+    D_RW(blk_info)->key_data = key_data;
+
+    /* insert into HT */
+    int rc;
+    if ((rc = hm_tx_insert(pop, D_RW(root)->map, hashkey, blk_info.oid))) {
+      if (rc == 1)
+        throw General_exception("inserting same key");
+      else
+        throw General_exception("hm_tx_insert failed unexpectedly (rc=%d)", rc);
+    }
+
+    _num_objs += 1;
+  }
+  TX_ONABORT
+  {
+    // TODO: free blk_info
+    throw General_exception("TX abort (%s) during nvmeput", pmemobj_errormsg());
+  }
+  TX_END
 }
 
 struct tls_cache_t {
@@ -583,7 +688,6 @@ NVME_store::NVME_store(const std::string& owner,
 {
   if (_pm_path.back() != '/') _pm_path += "/";
 
-  PLOG("NVMESTORE: chunk size in blocks: %lu", CHUNK_SIZE_IN_BLOCKS);
   PLOG("PMEMOBJ_MAX_ALLOC_SIZE: %lu MB", REDUCE_MB(PMEMOBJ_MAX_ALLOC_SIZE));
 }
 
@@ -750,65 +854,8 @@ status_t NVME_store::delete_pool(const std::string& name)
   if (pmempool_rm(fullpath.c_str(), 0))
     throw General_exception("unable to delete pool (%s)", fullpath.c_str());
 
-  PLOG("pool deleted: %s", session->path.c_str());
+  PLOG("pool deleted: %s", fullpath.c_str());
   return S_OK;
-}
-
-/**
- * Create a entry in the pool and allocate space
- *
- * @param session
- * @param value_len
- * @param out_blkmeta [out] block mapping info of this obj
- *
- * TODO This allocate memory using regions */
-void Nvmestore_session::alloc_new_object(uint64_t hashkey,
-                                         size_t   value_len,
-                                         TOID(struct block_range) & out_blkmeta)
-{
-  auto& root        = this->_root;
-  auto& pop         = this->_pop;
-  auto& blk_manager = this->_blk_manager;
-
-  size_t blk_size     = blk_manager->blk_sz();
-  size_t nr_io_blocks = (value_len + blk_size - 1) / blk_size;
-
-  void* handle;
-
-  // transaction also happens in here
-  uint64_t lba = _blk_manager->alloc_blk_region(nr_io_blocks, &handle);
-
-  PDBG("write to lba %lu with length %lu, key %lx", lba, value_len, hashkey);
-
-  auto& blk_info = out_blkmeta;
-  TX_BEGIN(pop)
-  {
-    /* allocate memory for entry - range added to tx implicitly? */
-
-    // get the available range from allocator
-    blk_info = TX_ALLOC(struct block_range, sizeof(struct block_range));
-
-    D_RW(blk_info)->lba_start = lba;
-    D_RW(blk_info)->size      = value_len;
-    D_RW(blk_info)->handle    = handle;
-
-    /* insert into HT */
-    int rc;
-    if ((rc = hm_tx_insert(pop, D_RW(root)->map, hashkey, blk_info.oid))) {
-      if (rc == 1)
-        throw General_exception("inserting same key");
-      else
-        throw General_exception("hm_tx_insert failed unexpectedly (rc=%d)", rc);
-    }
-
-    _num_objs += 1;
-  }
-  TX_ONABORT
-  {
-    // TODO: free blk_info
-    throw General_exception("TX abort (%s) during nvmeput", pmemobj_errormsg());
-  }
-  TX_END
 }
 
 /*
@@ -826,8 +873,7 @@ status_t NVME_store::put(IKVStore::pool_t   pool,
     // TODO: resize the allocation
     throw API_exception("NVME_store::put invalid pool identifier");
 
-  uint64_t hashkey = CityHash64(key.c_str(), key.length());
-  return session->put(hashkey, value, value_len, flags);
+  return session->put(key, value, value_len, flags);
 }
 
 status_t NVME_store::get(const pool_t       pool,
@@ -839,9 +885,8 @@ status_t NVME_store::get(const pool_t       pool,
 
   if (g_sessions.find(session) == g_sessions.end())
     throw API_exception("NVME_store::put invalid pool identifier");
-  uint64_t hashkey = CityHash64(key.c_str(), key.length());
 
-  return session->get(hashkey, out_value, out_value_len);
+  return session->get(key, out_value, out_value_len);
 }
 
 status_t NVME_store::get_direct(const pool_t       pool,
@@ -854,9 +899,8 @@ status_t NVME_store::get_direct(const pool_t       pool,
 
   if (g_sessions.find(session) == g_sessions.end())
     throw API_exception("NVME_store::put invalid pool identifier");
-  uint64_t hashkey = CityHash64(key.c_str(), key.length());
 
-  return session->get_direct(hashkey, out_value, out_value_len,
+  return session->get_direct(key, out_value, out_value_len,
                              reinterpret_cast<buffer_t*>(handle));
 }
 
@@ -999,9 +1043,7 @@ IKVStore::key_t NVME_store::lock(const pool_t       pool,
 {
   open_session_t* session = get_session(pool);
 
-  uint64_t hashkey = CityHash64(key.c_str(), key.length());
-
-  session->lock(hashkey, type, out_value, out_value_len);
+  session->lock(key, type, out_value, out_value_len);
   PDBG("[nvmestore_lock] %p", out_value);
   return reinterpret_cast<Component::IKVStore::key_t>(out_value);
 }
@@ -1029,8 +1071,7 @@ status_t NVME_store::erase(const pool_t pool, const std::string& key)
 {
   open_session_t* session = get_session(pool);
 
-  uint64_t key_hash = CityHash64(key.c_str(), key.length());
-  return session->erase(key_hash);
+  return session->erase(key);
 }
 
 status_t NVME_store::map(const pool_t                               pool,
@@ -1042,11 +1083,14 @@ status_t NVME_store::map(const pool_t                               pool,
 
   return session->map(function);
 }
+
 status_t NVME_store::map_keys(
     const pool_t                               pool,
     std::function<int(const std::string& key)> function)
 {
-  //
+  open_session_t* session = get_session(pool);
+
+  return session->map_keys(function);
 }
 
 void NVME_store::debug(const pool_t pool, unsigned cmd, uint64_t arg) {}

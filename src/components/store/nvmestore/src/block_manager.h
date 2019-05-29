@@ -56,8 +56,9 @@ class Block_manager {
           ret, pci.c_str());
     }
 
-    PDBG("block_manager: using block device %p with allocator %p, blksize= %lu",
-         _blk_dev, _blk_alloc, _blk_sz);
+    PDBG("block_manager: using block device %p with allocator %p, blksize= "
+         "%lu, chunk_size_in_blks %lu",
+         _blk_dev, _blk_alloc, _blk_sz, CHUNK_SIZE_IN_BLOCKS);
   };
 
   ~Block_manager()
@@ -97,8 +98,7 @@ class Block_manager {
                                         unsigned alignment,
                                         int      numa_node)
   {
-    if(size%_blk_sz) 
-        throw General_exception("Allocate with partial block");
+    if (size % _blk_sz) throw General_exception("Allocate with partial block");
     return _blk_dev->allocate_io_buffer(size, alignment, numa_node);
   };
 
@@ -114,12 +114,10 @@ class Block_manager {
     return _blk_dev->register_memory_for_io(vaddr, paddr, len);
   }
 
-  inline void unregister_memory_for_io(void * vaddr,
-                                            size_t len)
+  inline void unregister_memory_for_io(void *vaddr, size_t len)
   {
-    _blk_dev->unregister_memory_for_io(vaddr, len) ;
+    _blk_dev->unregister_memory_for_io(vaddr, len);
   }
-
 
   /* Block Allocator */
   lba_t alloc_blk_region(size_t size, void **handle = nullptr)
