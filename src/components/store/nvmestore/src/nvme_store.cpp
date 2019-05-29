@@ -52,6 +52,7 @@ class Nvmestore_session {
  public:
   static constexpr bool option_DEBUG = false;
   using lock_type_t                  = IKVStore::lock_type_t;
+  using key_t = uint64_t;  // virt_addr is used to identify each obj
   Nvmestore_session(TOID(struct store_root_t) root,
                     PMEMobjpool*              pop,
                     size_t                    pool_size,
@@ -106,11 +107,11 @@ class Nvmestore_session {
                       size_t&   out_value_len,
                       buffer_t* memory_handle);
 
-  status_t lock(uint64_t    hashkey,
+  key_t    lock(uint64_t    hashkey,
                 lock_type_t type,
                 void*&      out_value,
                 size_t&     out_value_len);
-  status_t unlock(uint64_t hashkey);
+  status_t unlock(key_t obj_key);
 
   status_t map(std::function<int(const std::string& key,
                                  const void*        value,
@@ -344,10 +345,10 @@ status_t Nvmestore_session::get_direct(uint64_t  hashkey,
   return S_OK;
 }
 
-status_t Nvmestore_session::lock(uint64_t    hashkey,
-                                 lock_type_t type,
-                                 void*&      out_value,
-                                 size_t&     out_value_len)
+Nvmestore_session::key_t Nvmestore_session::lock(uint64_t    hashkey,
+                                                 lock_type_t type,
+                                                 void*&      out_value,
+                                                 size_t&     out_value_len)
 {
   auto& root           = _root;
   auto& pop            = _pop;
@@ -411,10 +412,10 @@ status_t Nvmestore_session::lock(uint64_t    hashkey,
 
   PDBG("NVME_store: obtained the lock");
 
-  return S_OK;
+  return reinterpret_cast<Nvmestore_session::key_t>(out_value);
 }
 
-status_t Nvmestore_session::unlock(uint64_t key_handle)
+status_t Nvmestore_session::unlock(Nvmestore_session::key_t key_handle)
 {
   auto        root    = _root;
   auto        pop     = _pop;
@@ -478,7 +479,10 @@ status_t Nvmestore_session::map(std::function<int(const std::string& key,
 
       IKVStore::lock_type_t wlock = IKVStore::STORE_LOCK_WRITE;
       // lock
-      if (S_OK != session->lock(key, wlock, value, value_len)) {
+      try {
+        session->lock(key, wlock, value, value_len);
+      }
+      catch (...) {
         throw General_exception("lock failed");
       }
 
@@ -488,7 +492,7 @@ status_t Nvmestore_session::map(std::function<int(const std::string& key,
       }
 
       // unlock
-      if (S_OK != session->unlock(key)) {
+      if (S_OK != session->unlock((key_t) value)) {
         throw General_exception("unlock failed");
       }
 
@@ -819,6 +823,7 @@ status_t NVME_store::put(IKVStore::pool_t   pool,
   open_session_t* session = reinterpret_cast<open_session_t*>(pool);
 
   if (g_sessions.find(session) == g_sessions.end())
+    // TODO: resize the allocation
     throw API_exception("NVME_store::put invalid pool identifier");
 
   uint64_t hashkey = CityHash64(key.c_str(), key.length());
@@ -853,8 +858,6 @@ status_t NVME_store::get_direct(const pool_t       pool,
 
   return session->get_direct(hashkey, out_value, out_value_len,
                              reinterpret_cast<buffer_t*>(handle));
-
-  // return reinterpret_cast<Component::IKVStore::key_t>(out_value);
 }
 
 static_assert(sizeof(IKVStore::memory_handle_t) == sizeof(io_buffer_t),
@@ -865,7 +868,6 @@ static_assert(sizeof(IKVStore::memory_handle_t) == sizeof(io_buffer_t),
  * Only used for the case when memory is pinned/aligned but not from spdk, e.g.
  * cudadma should be 2MB aligned in both phsycial and virtual
  * */
-
 IKVStore::memory_handle_t NVME_store::allocate_direct_memory(void*& vaddr,
                                                              size_t len)
 {

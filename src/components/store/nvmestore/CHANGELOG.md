@@ -1,5 +1,9 @@
 # Changelog
 This is the changelog for nvmestore
+[2019-05-28]:
+#added:
+1. nvmestore::map and its test
+
 [2019-05-14]:
 #fixed:
 1. improve scripts.

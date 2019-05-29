@@ -63,9 +63,14 @@ class KVStore_test : public ::testing::Test {
 Component::IKVStore *       KVStore_test::_kvstore;
 Component::IKVStore::pool_t KVStore_test::_pool;
 
-static constexpr int    nr_elem = 4;  // number of the test elem in the pool
 static constexpr size_t KEY_LEN = 16;
+#ifdef BIG_ELEM
+static constexpr int    nr_elem = 4;  // number of the test elem in the pool
 static constexpr size_t VAL_LEN = GB(1);
+#else
+static constexpr int    nr_elem = 10000;  // number of the test elem in the pool
+static constexpr size_t VAL_LEN = KB(128);
+#endif
 std::unordered_map<std::string, int> _crc_map;
 
 TEST_F(KVStore_test, Instantiate)
@@ -103,6 +108,7 @@ TEST_F(KVStore_test, OpenPool)
 TEST_F(KVStore_test, BasicPut)
 {
   ASSERT_TRUE(_pool);
+  PINF("Writing elems...");
   for (int i = 0; i < nr_elem; i++) {
     std::string key = "MyKey" + std::to_string(i);
     key.resize(KEY_LEN, '.');
@@ -135,9 +141,9 @@ TEST_F(KVStore_test, GetDirect)
     boost::crc_32_type result;
     result.process_bytes(value, value_len);
     PDBG("Checksum: %d", result.checksum());
-    EXPECT_TRUE(_crc_map[key] == result.checksum());
+    EXPECT_EQ(_crc_map[key], result.checksum());
 
-    PINF("Value=(%.50s) %lu", ((char *) value), value_len);
+    PDBG("Value=(%.50s) %lu", ((char *) value), value_len);
   }
 
   _kvstore->free_direct_memory(handle);
@@ -156,7 +162,7 @@ TEST_F(KVStore_test, BasicGet)
     boost::crc_32_type result;
     result.process_bytes(value, value_len);
     PDBG("Checksum: %d", result.checksum());
-    EXPECT_TRUE(_crc_map[key] == result.checksum());
+    EXPECT_EQ(_crc_map[key], result.checksum());
 
     free(value);
 
