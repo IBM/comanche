@@ -10,7 +10,7 @@ file(GLOB SOURCES ./src/*.c*)
 
 add_library(${PROJECT_NAME} SHARED ${SOURCES})
 
-#add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
+# add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 
 target_link_libraries(${PROJECT_NAME} common comanche-core pthread numa dl rt boost_system boost_filesystem pmem pmempool pmemobj)
 

@@ -139,7 +139,7 @@ status_t Block_manager::open_block_allocator(
     nr_blocks_tracked =
         nr_blocks > TOO_MANY_BLOCKS ? TOO_MANY_BLOCKS : nr_blocks;
 
-    PLOG("%s: Opening allocator to support %lu \/ %lu blocks", __func__,
+    PLOG("%s: Opening allocator to support %lu / %lu blocks", __func__,
          nr_blocks_tracked, nr_blocks);
 
     persist_id_t id_alloc = std::string(devinfo.volume_name) + ".alloc.pool";
