@@ -45,12 +45,6 @@ static size_t bin_to_size(unsigned bin) { return 1 << bin; }
 struct BlockAllocRecord {
   lba_t    _offset;  // start offset of the allocation
   unsigned _order;   // allocation size is 2^order
-
-  BlockAllocRecord(lba_t offset, unsigned order)
-      : _offset(offset), _order(order)
-  {
-    PDBG("record offset %lu, order %u", _offset, _order);
-  }
 };
 
 Block_allocator_AEP::Block_allocator_AEP(size_t      max_lba,
@@ -166,7 +160,23 @@ lba_t Block_allocator_AEP::alloc(size_t count, void **handle)
   PDBG("%s: (%lu) find free region at lba %lu, order= %u", __func__,
        std::hash<std::thread::id>{}(std::this_thread::get_id()), pos, order);
 
-  *handle = new BlockAllocRecord(pos, order);
+  // Handle needs to persist so that we can free this blkrange when restarting
+  // app
+  TX_BEGIN(_pop)
+  {
+    TOID(struct BlockAllocRecord) record;
+    record = TX_ALLOC(struct BlockAllocRecord, sizeof(struct BlockAllocRecord));
+    D_RW(record)->_offset = pos;
+    D_RW(record)->_order  = order;
+
+    *handle = reinterpret_cast<void *>(record.oid.off);
+  }
+  TX_ONABORT
+  {
+    throw General_exception("TX abort (%s) when allocate block range record",
+                            pmemobj_errormsg());
+  }
+  TX_END
   return pos;
 }
 
@@ -177,15 +187,31 @@ lba_t Block_allocator_AEP::alloc(size_t count, void **handle)
  */
 void Block_allocator_AEP::free(lba_t lba, void *handle)
 {
-  BlockAllocRecord *rec = static_cast<BlockAllocRecord *>(handle);
-  PDBG("free: from %lu, order %lu", rec->_offset, rec->_order);
+  PMEMoid oid;
+  oid.pool_uuid_lo = _map.oid.pool_uuid_lo;
+  oid.off          = reinterpret_cast<uint64_t>(handle);
+
+  if (OID_IS_NULL(oid)) {
+    throw General_exception("Double free on persist handle for block range");
+  }
+
+  TOID(struct BlockAllocRecord) persist_record;
+  persist_record.oid = oid;
+
+  const BlockAllocRecord *rec = D_RO(persist_record);
+  PDBG("free previous block range: from %lu, order %u", rec->_offset,
+       rec->_order);
 
   // TODO actually free here
   bitmap_tx_release_region(_pop, _map, rec->_offset, rec->_order);
-  if (rec) {
-    delete rec;
-    rec = nullptr;
+
+  TX_BEGIN(_pop) { TX_FREE(persist_record); }
+  TX_ONABORT
+  {
+    throw General_exception("TX abort (%s) when free block range record",
+                            pmemobj_errormsg());
   }
+  TX_END
 }
 
 /* explicitly resize to 0 will remove this allocator*/
