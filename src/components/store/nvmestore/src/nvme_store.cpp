@@ -134,6 +134,75 @@ class Nvmestore_session {
 
 using open_session_t = Nvmestore_session;
 
+/**
+ * Create a entry in the pool and allocate space
+ *
+ * @param session
+ * @param value_len
+ * @param out_blkmeta [out] block mapping info of this obj
+ *
+ * TODO This allocate memory using regions */
+void Nvmestore_session::alloc_new_object(const std::string& key,
+                                         size_t             value_len,
+                                         TOID(struct obj_info) & out_blkmeta)
+{
+  auto& root        = this->_root;
+  auto& pop         = this->_pop;
+  auto& blk_manager = this->_blk_manager;
+
+  uint64_t hashkey = CityHash64(key.c_str(), key.length());
+
+  size_t blk_size     = blk_manager->blk_sz();
+  size_t nr_io_blocks = (value_len + blk_size - 1) / blk_size;
+
+  void* handle;
+
+  // transaction also happens in here
+  uint64_t lba = _blk_manager->alloc_blk_region(nr_io_blocks, &handle);
+
+  PDBG("write to lba %lu with length %lu, key %lx", lba, value_len, hashkey);
+
+  auto& objinfo = out_blkmeta;
+  TX_BEGIN(pop)
+  {
+    /* allocate memory for entry - range added to tx implicitly? */
+
+    // get the available range from allocator
+    objinfo = TX_ALLOC(struct obj_info, sizeof(struct obj_info));
+
+    D_RW(objinfo)->lba_start = lba;
+    D_RW(objinfo)->size      = value_len;
+    D_RW(objinfo)->handle    = handle;
+    D_RW(objinfo)->key_len   = key.length();
+    TOID(char) key_data      = TX_ALLOC(char, key.length() + 1);  // \0 included
+
+    if (D_RO(key_data) == nullptr)
+      throw General_exception("Failed to allocate space for key");
+    std::copy(key.c_str(), key.c_str() + key.length() + 1, D_RW(key_data));
+
+    D_RW(objinfo)->key_data = key_data;
+
+    /* insert into HT */
+    int rc;
+    if ((rc = hm_tx_insert(pop, D_RW(root)->map, hashkey, objinfo.oid))) {
+      if (rc == 1)
+        throw General_exception("inserting same key");
+      else
+        throw General_exception("hm_tx_insert failed unexpectedly (rc=%d)", rc);
+    }
+
+    _num_objs += 1;
+  }
+  TX_ONABORT
+  {
+    // TODO: free objinfo
+    throw General_exception("TX abort (%s) during nvmeput", pmemobj_errormsg());
+  }
+  TX_END
+  PDBG("Allocated obj with obj %p, ,handle %p", D_RO(objinfo),
+       D_RO(objinfo)->handle);
+}
+
 status_t Nvmestore_session::erase(const std::string& key)
 {
   uint64_t hashkey = CityHash64(key.c_str(), key.length());
@@ -151,6 +220,8 @@ status_t Nvmestore_session::erase(const std::string& key)
     if (!p_state_map->state_get_write_lock(pool, D_RO(objinfo)->handle))
       throw API_exception("unable to remove, value locked");
 
+    PDBG("Tring to Remove obj with obj %p,handle %p", D_RO(objinfo),
+         D_RO(objinfo)->handle);
     _blk_manager->free_blk_region(D_RO(objinfo)->lba_start,
                                   D_RO(objinfo)->handle);
 
@@ -203,10 +274,13 @@ status_t Nvmestore_session::put(const std::string& key,
 
   TOID(struct obj_info) blkmeta;  // block mapping of this obj
 
-  may_ajust_io_mem(value_len);
+  if (hm_tx_lookup(pop, D_RO(root)->map, hashkey)) {
+    PLOG("overriting exsiting obj");
+    erase(key);
+    return put(key, value, value_len, flags);
+  }
 
-  if (hm_tx_lookup(pop, D_RO(root)->map, hashkey))
-    return IKVStore::E_KEY_EXISTS;
+  may_ajust_io_mem(value_len);
 
   alloc_new_object(key, value_len, blkmeta);
 
@@ -543,73 +617,6 @@ status_t Nvmestore_session::map_keys(
   TX_END
 
   return S_OK;
-}
-
-/**
- * Create a entry in the pool and allocate space
- *
- * @param session
- * @param value_len
- * @param out_blkmeta [out] block mapping info of this obj
- *
- * TODO This allocate memory using regions */
-void Nvmestore_session::alloc_new_object(const std::string& key,
-                                         size_t             value_len,
-                                         TOID(struct obj_info) & out_blkmeta)
-{
-  auto& root        = this->_root;
-  auto& pop         = this->_pop;
-  auto& blk_manager = this->_blk_manager;
-
-  uint64_t hashkey = CityHash64(key.c_str(), key.length());
-
-  size_t blk_size     = blk_manager->blk_sz();
-  size_t nr_io_blocks = (value_len + blk_size - 1) / blk_size;
-
-  void* handle;
-
-  // transaction also happens in here
-  uint64_t lba = _blk_manager->alloc_blk_region(nr_io_blocks, &handle);
-
-  PDBG("write to lba %lu with length %lu, key %lx", lba, value_len, hashkey);
-
-  auto& objinfo = out_blkmeta;
-  TX_BEGIN(pop)
-  {
-    /* allocate memory for entry - range added to tx implicitly? */
-
-    // get the available range from allocator
-    objinfo = TX_ALLOC(struct obj_info, sizeof(struct obj_info));
-
-    D_RW(objinfo)->lba_start = lba;
-    D_RW(objinfo)->size      = value_len;
-    D_RW(objinfo)->handle    = handle;
-    D_RW(objinfo)->key_len   = key.length();
-    TOID(char) key_data      = TX_ALLOC(char, key.length() + 1);  // \0 included
-
-    if (D_RO(key_data) == nullptr)
-      throw General_exception("Failed to allocate space for key");
-    std::copy(key.c_str(), key.c_str() + key.length() + 1, D_RW(key_data));
-
-    D_RW(objinfo)->key_data = key_data;
-
-    /* insert into HT */
-    int rc;
-    if ((rc = hm_tx_insert(pop, D_RW(root)->map, hashkey, objinfo.oid))) {
-      if (rc == 1)
-        throw General_exception("inserting same key");
-      else
-        throw General_exception("hm_tx_insert failed unexpectedly (rc=%d)", rc);
-    }
-
-    _num_objs += 1;
-  }
-  TX_ONABORT
-  {
-    // TODO: free objinfo
-    throw General_exception("TX abort (%s) during nvmeput", pmemobj_errormsg());
-  }
-  TX_END
 }
 
 struct tls_cache_t {
