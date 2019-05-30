@@ -58,7 +58,7 @@ int Connection_handler::tick()
       const auto iob = posted_recv();
       assert(iob);
         
-      const Message *msg = static_cast<Message *>(iob->base());
+      const Message *msg = Dawn::Protocol::message_cast(iob->base());
       assert(msg);
         
       switch (msg->type_id) {
@@ -155,25 +155,21 @@ int Connection_handler::tick()
       const auto iob = posted_recv();
       assert(iob);
 
-      Message_handshake *msg = static_cast<Message_handshake *>(iob->base());
-      if (msg->type_id == Dawn::Protocol::MSG_TYPE_HANDSHAKE) {
-        auto reply_iob = allocate();
-        assert(reply_iob);
-        auto reply_msg =
-          new (reply_iob->base()) Dawn::Protocol::Message_handshake_reply(auth_id(),
-                                                                          1 /* seq */,
-                                                                          max_message_size(),
-                                                                          (uint64_t) this);
-        /* post response */
-        reply_iob->set_length(reply_msg->msg_len);
-        post_send_buffer(reply_iob);
+      auto msg =
+        Dawn::Protocol::message_cast(iob->base())->ptr_cast<Message_handshake>();
 
-        set_state(WAIT_HANDSHAKE_RESPONSE_COMPLETION);
-      }
-      else {
-        throw General_exception("expecting handshake request got type_id=%u",
-                                msg->type_id);
-      }
+      auto reply_iob = allocate();
+      assert(reply_iob);
+      auto reply_msg =
+        new (reply_iob->base()) Dawn::Protocol::Message_handshake_reply(auth_id(),
+                                                                        1 /* seq */,
+                                                                        max_message_size(),
+                                                                        (uint64_t) this);
+      /* post response */
+      reply_iob->set_length(reply_msg->msg_len);
+      post_send_buffer(reply_iob);
+
+      set_state(WAIT_HANDSHAKE_RESPONSE_COMPLETION);
     }
     break;
   }
