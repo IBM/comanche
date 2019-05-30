@@ -43,6 +43,13 @@ PMEM_IS_PMEM_FORCE=1 ./testing/kvstore/kvstore-perf --component nvmestore --pci_
 python testing/kvstore/plot_results/plot_everything_in_file.py ./build/results/nvmestore/results_2019_05_21_17_19.json
 ```
 
+DAWN test
+------------
+
+1. ./src/servers/dawn/dawn --config ./nvmestore-dawn.conf
+
+2. ./src/components/client/dawn/unit_test/dawn-client-test1 --server-addr=xxx
+
 Other Information
 ==================
 
