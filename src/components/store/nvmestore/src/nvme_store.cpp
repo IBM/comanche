@@ -222,13 +222,26 @@ status_t Nvmestore_session::erase(const std::string& key)
 
     PDBG("Tring to Remove obj with obj %p,handle %p", D_RO(objinfo),
          D_RO(objinfo)->handle);
+
+    // Free objinfo
+    objinfo = hm_tx_remove(pop, D_RW(root)->map,
+                           hashkey); /* could be optimized to not re-lookup */
+    TX_BEGIN(_pop) { TX_FREE(objinfo); }
+    TX_ONABORT
+    {
+      throw General_exception("TX abort (%s) when free objinfo record",
+                              pmemobj_errormsg());
+    }
+    TX_END
+
+    if (OID_IS_NULL(objinfo.oid))
+      throw API_exception("hm_tx_remove with key(%lu) failed unexpectedly %s",
+                          hashkey, pmemobj_errormsg());
+
+    // Free block range in the blk_alloc
     _blk_manager->free_blk_region(D_RO(objinfo)->lba_start,
                                   D_RO(objinfo)->handle);
 
-    objinfo = hm_tx_remove(pop, D_RW(root)->map,
-                           hashkey); /* could be optimized to not re-lookup */
-    if (OID_IS_NULL(objinfo.oid))
-      throw API_exception("hm_tx_remove failed unexpectedly");
     p_state_map->state_remove(pool, D_RO(objinfo)->handle);
     _num_objs -= 1;
   }

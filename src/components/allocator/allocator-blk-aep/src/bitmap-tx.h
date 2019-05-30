@@ -34,6 +34,7 @@ typedef unsigned long *bitmap_ptr;
 POBJ_LAYOUT_BEGIN(bitmap_store);
 POBJ_LAYOUT_ROOT(bitmap_store, struct bitmap_tx);
 POBJ_LAYOUT_TOID(bitmap_store, word_t);
+POBJ_LAYOUT_TOID(bitmap_store, struct BlockAllocRecord);
 POBJ_LAYOUT_END(bitmap_store);
 
 struct bitmap_tx {
