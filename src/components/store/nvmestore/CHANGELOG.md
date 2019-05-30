@@ -3,6 +3,8 @@ This is the changelog for nvmestore
 [2019-05-29]:
 #added:
 * add value string in the persistent type, so that map_key can get the key string back
+##TODO:
+handle(BlockAllocRecord handle needs to be persist)
 [2019-05-28]:
 #added:
 * nvmestore::map and its test
