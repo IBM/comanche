@@ -196,11 +196,14 @@ TEST_F(KVStore_test, BasicMapKeys)
 
 TEST_F(KVStore_test, BasicErase)
 {
+  ASSERT_EQ(nr_elem, _kvstore->count(_pool));
   for (int i = 0; i < nr_elem; i++) {
     std::string key = "MyKey" + std::to_string(i);
     key.resize(KEY_LEN, '.');
-    _kvstore->erase(_pool, "MyKey" + std::to_string(i));
+    _kvstore->erase(_pool, key);
   }
+
+  ASSERT_EQ(0, _kvstore->count(_pool));
 }
 
 TEST_F(KVStore_test, ClosePool) { _kvstore->close_pool(_pool); }
