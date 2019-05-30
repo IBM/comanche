@@ -194,8 +194,18 @@ TEST_F(KVStore_test, BasicMap)
   _kvstore->map(_pool,
                 [](const std::string &key, const void *value,
                    const size_t value_len) -> int {
-                  PINF("key:%s value@%p value_len=%lu", key.c_str(), value,
+                  PINF("key:%s, value@%p value_len=%lu", key.c_str(), value,
                        value_len);
+                  return 0;
+                  ;
+                });
+}
+
+TEST_F(KVStore_test, BasicMapKeys)
+{
+  _kvstore->map_keys(_pool,
+                [](const std::string &key) -> int {
+                  PINF("key:%s", key.c_str());
                   return 0;
                   ;
                 });
