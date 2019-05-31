@@ -245,6 +245,11 @@ status_t Dawn_client::get_attribute(const IKVStore::pool_t pool,
   return _connection->get_attribute(pool, attr, out_attr, key);
 }
 
+status_t Dawn_client::get_statistics(Shard_stats& out_stats)
+{
+  return _connection->get_statistics(out_stats);
+}
+
 
 status_t Dawn_client::free_memory(void * p)
 {

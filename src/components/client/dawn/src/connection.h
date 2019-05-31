@@ -14,6 +14,7 @@
 #define __DAWN_CLIENT_HANDLER_H__
 
 #include <api/fabric_itf.h>
+#include <api/dawn_itf.h>
 #include <common/exceptions.h>
 #include <common/utils.h>
 #include <sys/mman.h>
@@ -159,6 +160,8 @@ class Connection_handler : public Connection_base {
                          const Component::IKVStore::Attribute attr,
                          std::vector<uint64_t>& out_attr,
                          const std::string* key);
+
+  status_t get_statistics(Component::IDawn::Shard_stats& out_stats);
 
   status_t find(const Component::IKVStore::pool_t pool,
                 const std::string& key_expression,
