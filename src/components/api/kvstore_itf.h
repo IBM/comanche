@@ -396,6 +396,29 @@ public:
     return E_NOT_SUPPORTED;
   }
 
+  /**
+   * Allocate memory for zero copy DMA
+   *
+   * @param vaddr [out] allocated memory buffer
+   * @param len [in] length of memory buffer in bytes
+   *
+   * @return Memory handle or NULL on not supported.
+   */
+  virtual memory_handle_t allocate_direct_memory(void * &vaddr, size_t len){
+    throw API_exception("IKVstore:: allocate_direct_memory not implemented");
+  }
+
+  /**
+   * Free memory for zero copy DMA
+   *
+   * @param handle handle to memory region to free
+   *
+   * @return S_OK on success
+   */
+
+  virtual status_t free_direct_memory(memory_handle_t handle){
+    throw API_exception("IKVstore:: free_direct_memory not implemented");
+  }
 
   /** 
    * Register memory for zero copy DMA

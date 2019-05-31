@@ -3,6 +3,12 @@
 # email: fengggli@yahoo.com
 
 # a wrapper scripts to check and set environment for nvmestore
+if [ "$EUID" -ne 0 ]
+  then echo "Please run as root or using sudo"
+  exit -1
+fi
+
+username=`logname`
 
 PINF() {
   echo "[INFO]: $@"
@@ -30,9 +36,9 @@ PINF "OK"
 
 # check kernel cmdline
 PINF "check kernel cmdline..."
-less /proc/cmdline|grep "intel_iommu=on" |grep -q memmap
+less /proc/cmdline|grep "intel_iommu=on"  |grep -q memmap
 if [ 0  -ne $? ]; then
-  PERR "intel_iommu should be on and reserve space to simulate pmem"
+  PERR "intel_iommu=on needs in kernel cmdline, needs to reserve space to simulate pmem"
   PINPROGRESS "see comanche/src/components/store/nvmestore/HOWTO.md #Kernel Parameters# for more details"
   PINPROGRESS "you should change it upgrade-grub and reboot "
   exit -1
@@ -67,16 +73,13 @@ PINF "OK."
 ## nvme_setup
 PINF "Checking VFIO"
 ls /dev/vfio -alt
-ls /dev/vfio -alt |grep -q $USER
+ls /dev/vfio -alt |grep -q $username
 if [ 0  -ne $? ]; then
-  PERR "vfio is not assigned to current user"
-  PINPROGRESS "now reset nvme...step1: unload"
-  sudo ./tools/nvme_setup.sh reset
-  PINPROGRESS "now reset nvme...step2: reload"
-  sudo ./tools/nvme_setup.sh
+  echo "VFIO not set, run sudo ./tools/attach_to_vfio.sh 11:00.0(using your pci addr), then run prepare_nvmestore.sh again."
+  echo "Now exiting... "
+  exit -1
 fi
 PINF "OK."
-
 
 ## xms loaded and permission ?
 PINF "Checking XMS"
@@ -86,6 +89,13 @@ if [ 0  -ne $? ]; then
   PINPROGRESS "now mounting..."
   sudo rmmod xmsmod
   sudo insmod ./lib/xmsmod.ko
+  if [ 0  -ne $? ]; then
+    echo "xms mod needs to be re-compiled, go to src/kernel/modules/xms, run make clean then make"
+    exit -1
+  fi
+
+  ## from xms/reload.sh, need this to allocate EAL mem without sudo
+  sudo chmod -R a+rwx /dev/hugepages/
   PPOSTMSG "xms loaded!!"
 fi
 PINF "OK."
