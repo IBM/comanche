@@ -858,6 +858,41 @@ status_t Connection_handler::get_attribute(const IKVStore::pool_t pool,
   return status;
 }
 
+
+status_t Connection_handler::get_statistics(Component::IDawn::Shard_stats& out_stats)
+{
+  API_LOCK();
+
+  const auto iobs = std::unique_ptr<buffer_t, iob_free>(allocate(), this);
+  const auto iobr = std::unique_ptr<buffer_t, iob_free>(allocate(), this);
+  assert(iobs);
+  assert(iobr);
+
+  status_t status;
+
+  try {
+    const auto msg = new (iobs->base()) Dawn::Protocol::Message_INFO_request(auth_id());
+    msg->pool_id = 0;
+    msg->type = Dawn::Protocol::INFO_TYPE_GET_STATS;
+    iobs->set_length(msg->message_size());
+
+    post_recv(&*iobr);
+    sync_inject_send(&*iobs);
+    wait_for_completion(&*iobr);
+
+    const auto response_msg =
+      response_ptr<const Dawn::Protocol::Message_stats>(iobr->base());
+
+    status = response_msg->status;
+    out_stats = response_msg->stats;
+  }
+  catch(...) {
+    status = E_FAIL;
+  }
+
+  return status;
+}
+
 status_t Connection_handler::find(const IKVStore::pool_t pool,
                                   const std::string& key_expression,
                                   const offset_t offset,
