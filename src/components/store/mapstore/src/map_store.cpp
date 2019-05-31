@@ -132,8 +132,10 @@ status_t Pool_handle::put(const std::string& key,
                           const size_t value_len,
                           unsigned int flags)
 {
-  if(!value || !value_len)
-    throw API_exception("invalid parameters");
+  if(!value || !value_len) {
+    PWRN("map_store: invalid parameters (value=%p, value_len=%lu)", value, value_len);
+    return E_INVAL;
+  }
 
 #ifndef SINGLE_THREADED
   RWLock_guard guard(map_lock, RWLock_guard::WRITE);
