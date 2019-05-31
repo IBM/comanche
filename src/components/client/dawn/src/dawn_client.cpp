@@ -213,8 +213,11 @@ Component::IKVStore::memory_handle_t
 Dawn_client::register_direct_memory(void*  vaddr,
                                     size_t len)
 {
-  if(madvise(vaddr, len, MADV_DONTFORK) != 0)
-    throw General_exception("Dawn_client::register_direct_memory:: madvise 'don't fork' failed unexpectedly (%p %lu)", vaddr, len);
+  madvise(vaddr, len, MADV_DONTFORK);
+  // if(madvise(vaddr, len, MADV_DONTFORK) != 0) {
+  //   PWRN("Dawn_client::register_direct_memory:: madvise 'don't fork' failed unexpectedly (%p %lu) %s",
+  //        vaddr, len, strerro(errno));
+  // }
 
   return _connection->register_direct_memory(vaddr, len);
 }
