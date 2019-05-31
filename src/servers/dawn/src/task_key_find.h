@@ -83,7 +83,8 @@ public:
         return S_OK;
       }
     }
-    catch(std::out_of_range e) {
+    catch(...) {
+      PWRN("Shard::task_key index->find failed");
       return E_FAIL;
     }
     

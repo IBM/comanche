@@ -203,7 +203,7 @@ class Shard : public Shard_transport {
 private:
 
   /* per-shard statistics */
-  Component::IDawn::Shard_stats _stats __attribute__((aligned(8)));
+  Component::IDawn::Shard_stats _stats __attribute__((aligned(8))) = {0};
 
   void dump_stats()
   {
