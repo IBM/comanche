@@ -678,10 +678,22 @@ void Shard::process_info_request(Connection_handler* handler,
   if (msg->type == Protocol::INFO_TYPE_FIND_KEY) {
     if (option_DEBUG > 1)
       PLOG("Shard: INFO request INFO_TYPE_FIND_KEY (%s)", msg->c_str());
-    add_task_list(new Key_find_task(msg->c_str(),
-                                    msg->offset,
-                                    handler,
-                                    _index_map->at(msg->pool_id)));
+    try {
+      add_task_list(new Key_find_task(msg->c_str(),
+                                      msg->offset,
+                                      handler,
+                                      _index_map->at(msg->pool_id)));
+    }
+    catch(...) {
+      const auto iob = handler->allocate();
+      Protocol::Message_INFO_response* response = new (iob->base())
+        Protocol::Message_INFO_response(handler->auth_id());
+      
+      response->status = E_INVAL;
+      handler->post_send_buffer(iob);
+      return;
+    }
+    
     return; /* response is not issued straight away */
   }
   
@@ -689,14 +701,19 @@ void Shard::process_info_request(Connection_handler* handler,
   assert(iob);
 
   if (option_DEBUG > 1)
-    PLOG("Shard: INFO request type:%u", msg->type);
+    PLOG("Shard: INFO request type:0x%X", msg->type);
 
   /* stats request handler */
   if (msg->type == Protocol::INFO_TYPE_GET_STATS) {
     Protocol::Message_stats* response = new (iob->base())
       Protocol::Message_stats(handler->auth_id(),_stats);
+    response->status = S_OK;
     iob->set_length(sizeof(Protocol::Message_stats));
-    handler->post_send_buffer(iob);  
+
+    if (option_DEBUG > 1)
+      dump_stats();
+
+    handler->post_send_buffer(iob);
     return;
   }
 
