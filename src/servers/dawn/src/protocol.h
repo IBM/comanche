@@ -531,7 +531,7 @@ struct Message_stats : public Message {
     stats = shard_stats;
   }
 
-  constexpr size_t message_size() const { return sizeof(Message_stats); }
+  size_t message_size() const { return sizeof(Message_stats); }
   // fields
   Component::IDawn::Shard_stats stats; 
 } __attribute__((packed));
