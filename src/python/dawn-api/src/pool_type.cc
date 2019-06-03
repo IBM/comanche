@@ -49,7 +49,6 @@ Pool_dealloc(Pool *self)
 {
   assert(self);
   Py_TYPE(self)->tp_free((PyObject*)self);
-  PLOG("Pool: dealloc");
 }
 
 static PyMemberDef Pool_members[] = {
@@ -171,6 +170,10 @@ static PyObject * pool_put(Pool* self, PyObject *args, PyObject *kwds)
   else if(PyUnicode_Check(value)) {
     p = PyUnicode_DATA(value);
     p_len = PyUnicode_GET_SIZE(value);
+  }
+  else {
+    PyErr_SetString(PyExc_RuntimeError,"bad value parameter");
+    return NULL;
   }
 
   unsigned int flags = 0;
