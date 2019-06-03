@@ -404,9 +404,7 @@ public:
    *
    * @return Memory handle or NULL on not supported.
    */
-  virtual memory_handle_t allocate_direct_memory(void * &vaddr, size_t len){
-    throw API_exception("IKVstore:: allocate_direct_memory not implemented");
-  }
+  virtual memory_handle_t allocate_direct_memory(void * &vaddr, size_t len){ return nullptr; }
 
   /**
    * Free memory for zero copy DMA
@@ -416,9 +414,7 @@ public:
    * @return S_OK on success
    */
 
-  virtual status_t free_direct_memory(memory_handle_t handle){
-    throw API_exception("IKVstore:: free_direct_memory not implemented");
-  }
+  virtual status_t free_direct_memory(memory_handle_t handle){ return E_NOT_SUPPORTED; }
 
   /** 
    * Register memory for zero copy DMA
