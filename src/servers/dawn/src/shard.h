@@ -42,6 +42,9 @@ class Connection_handler;
 using Shard_transport = Fabric_transport;
 
 class Shard : public Shard_transport {
+
+ private:
+  static constexpr size_t TWO_STAGE_THREADSHOLD = KiB(64); /* above this two stage is used */
   
  private:
   using buffer_t           = Shard_transport::buffer_t;
@@ -192,6 +195,32 @@ class Shard : public Shard_transport {
   inline void add_task_list(Shard_task *  task) {
     _tasks.push_back(task);
   }
+
+  inline size_t session_count() const {
+    return _handlers.size();
+  }
+  
+private:
+
+  /* per-shard statistics */
+  Component::IDawn::Shard_stats _stats __attribute__((aligned(8))) = {0};
+
+  void dump_stats()
+  {
+    PINF("------------------------------------------------");
+    PINF("| Shard Statistics                             |");
+    PINF("------------------------------------------------");
+    PINF("PUT count          : %lu", _stats.op_put_count);
+    PINF("GET count          : %lu", _stats.op_get_count);
+    PINF("PUT_DIRECT count   : %lu", _stats.op_put_direct_count);
+    PINF("GET 2-stage count  : %lu", _stats.op_get_twostage_count);
+    PINF("ERASE count        : %lu", _stats.op_erase_count);
+    PINF("Failed count       : %lu", _stats.op_failed_request_count);    
+    PINF("Session count      : %lu", session_count());
+    PINF("------------------------------------------------");
+  }
+
+
 
  private:
   static Pool_manager              pool_manager; /* instance shared across connections */

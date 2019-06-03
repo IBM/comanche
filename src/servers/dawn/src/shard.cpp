@@ -382,6 +382,8 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
   const auto iob = handler->allocate();
   assert(iob);
 
+  _stats.op_request_count++;
+
   /////////////////////////////////////////////////////////////////////////////
   //   PUT ADVANCE   //
   /////////////////////
@@ -402,6 +404,7 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
     if(msg->flags & IKVStore::FLAGS_DONT_STOMP) {
       status = E_INVAL;
       PWRN("PUT_ADVANCE failed IKVStore::FLAGS_DONT_STOMP not viable");
+      _stats.op_failed_request_count++;
       goto send_response;
     }
 
@@ -416,6 +419,7 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
     if (key_handle == Component::IKVStore::KEY_NONE) {
       PWRN("PUT_ADVANCE failed to lock value (lock() returned KEY_NONE) ");
       status = E_INVAL;
+      _stats.op_failed_request_count++;
       goto send_response;
     }
 
@@ -444,7 +448,10 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
     iob->set_length(response->msg_len);
     
     handler->post_send_buffer(iob);
-    
+
+    /* update stats */
+    _stats.op_put_direct_count++;
+  
     return;
   }
   
@@ -478,14 +485,19 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
                                msg->flags);
 
       if (option_DEBUG > 2) {
-        if (status == E_ALREADY_EXISTS)
+        if (status == E_ALREADY_EXISTS) {
           PLOG("kvstore->put returned E_ALREADY_EXISTS");
-        else
+          _stats.op_failed_request_count++;
+        }
+        else {
           PLOG("kvstore->put returned %d", status);
+        }
       }
       
       add_index_key(msg->pool_id, k);
     }
+    /* update stats */
+    _stats.op_put_count++;
   }
   /////////////////////////////////////////////////////////////////////////////
   //   GET           //
@@ -527,6 +539,7 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
         response->status = Component::IKVStore::E_KEY_NOT_FOUND;
         iob->set_length(response->base_message_size());
         handler->post_response(iob, nullptr);
+        _stats.op_failed_request_count++;
         return;
       }
 
@@ -537,8 +550,8 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
       assert(value_out_len);
       assert(value_out);
 
-//      if (value_out_len < (iob->original_length - response->base_message_size())) {
-      if (!is_direct && (value_out_len < KiB(64))) { // TODO set as static var - (iob->original_length - response->base_message_size())) { 
+      /* optimize based on size */
+      if (!is_direct && (value_out_len < TWO_STAGE_THREADSHOLD)) { 
         /* value can fit in message buffer, let's copy instead of
            performing two-part DMA */
         if (option_DEBUG > 2) PLOG("shard: performing memcpy for small get");
@@ -554,6 +567,8 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
 
         assert(iob);
         handler->post_response(iob);
+
+        _stats.op_get_count++;
       }
       else {
 
@@ -567,6 +582,7 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
           iob->set_length(response->base_message_size());
           handler->post_response(iob, nullptr);
           PWRN("Client posted insufficient space.");
+          _stats.op_failed_request_count++;
           return;
         }
         
@@ -594,7 +610,8 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
         add_locked_value(msg->pool_id, key_handle, value_out);
       
 
-        if (!is_direct && (value_out_len <= (handler->IO_buffer_size() - response->base_message_size()))) {
+        if (!is_direct &&
+            (value_out_len <= (handler->IO_buffer_size() - response->base_message_size()))) {
           if (option_DEBUG > 2)
             PLOG("posting response header and value together");
 
@@ -616,6 +633,7 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
 
           handler->set_pending_send_value();
         }
+        _stats.op_get_twostage_count++;
       }
     }
     return;
@@ -630,6 +648,10 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
 
     if(status == S_OK)
       remove_index_key(msg->pool_id, k);
+    else
+      _stats.op_failed_request_count++;
+
+    _stats.op_erase_count++;
   }
   /////////////////////////////////////////////////////////////////////////////
   //   CONFIGURE     //
@@ -656,10 +678,22 @@ void Shard::process_info_request(Connection_handler* handler,
   if (msg->type == Protocol::INFO_TYPE_FIND_KEY) {
     if (option_DEBUG > 1)
       PLOG("Shard: INFO request INFO_TYPE_FIND_KEY (%s)", msg->c_str());
-    add_task_list(new Key_find_task(msg->c_str(),
-                                    msg->offset,
-                                    handler,
-                                    _index_map->at(msg->pool_id)));
+    try {
+      add_task_list(new Key_find_task(msg->c_str(),
+                                      msg->offset,
+                                      handler,
+                                      _index_map->at(msg->pool_id)));
+    }
+    catch(...) {
+      const auto iob = handler->allocate();
+      Protocol::Message_INFO_response* response = new (iob->base())
+        Protocol::Message_INFO_response(handler->auth_id());
+      
+      response->status = E_INVAL;
+      handler->post_send_buffer(iob);
+      return;
+    }
+    
     return; /* response is not issued straight away */
   }
   
@@ -667,9 +701,23 @@ void Shard::process_info_request(Connection_handler* handler,
   assert(iob);
 
   if (option_DEBUG > 1)
-    PLOG("Shard: INFO request type:%u", msg->type);
+    PLOG("Shard: INFO request type:0x%X", msg->type);
 
+  /* stats request handler */
+  if (msg->type == Protocol::INFO_TYPE_GET_STATS) {
+    Protocol::Message_stats* response = new (iob->base())
+      Protocol::Message_stats(handler->auth_id(),_stats);
+    response->status = S_OK;
+    iob->set_length(sizeof(Protocol::Message_stats));
 
+    if (option_DEBUG > 1)
+      dump_stats();
+
+    handler->post_send_buffer(iob);
+    return;
+  }
+
+  /* info requests */
   Protocol::Message_INFO_response* response = new (iob->base())
     Protocol::Message_INFO_response(handler->auth_id());
     

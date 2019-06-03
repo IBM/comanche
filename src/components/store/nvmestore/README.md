@@ -1,13 +1,13 @@
 Setup
------------------
-Run the [prepare_nvmestore.sh][comanche/tools/prepare_nvmestore.sh] 
-(Run with regular user, input sudo password when necessary) 
+=================
+
+Run the [prepare_nvmestore.sh][comanche/tools/prepare_nvmestore.sh] with sudo
 
 The script does the following check to ensure nvmestore can run properly:
 1. check kernel boot cmdline
 2. check pmem configurations
 3. check spdk related setup(vfi, hugepage)
-4. check comanche-specific setup(xms)
+4. check comanche-specific setup(xms and /dev/hugepages permissions)
 5. etc..
 
 If the environment is not set correctly the script will try to fix it. For other special configuration errors (e.g. those requires system reboot) the script will redirect you to more detailed info here.
@@ -16,24 +16,57 @@ Mostly you may want to use the script in those two occasions:
 1. after a fresh installation of comanche, and before running the unit test
 2. someone else has did some thing with vfio and changed the permissions, then you need to change it back.
 
-Run
-------------------
-
-test-nvmestore
-===============
-This will check basic functionality
-
-Other Information
-------------------
-
-Kernel parameters
+Test and performance
 =====================
 
-Use the following parameter, huge page is for pmdk, memmap is for the pmem, intel_iommu must be on for vfio
+unit test
+--------------
+
+This will check basic functionality:
+1. test-nvmestore.
+2. test-integrity
+3. test-throughput
+
+Performance
+-----------
+
+Currently nvmestore supports put/get/get_direct.
+
+1. run the test
+```
+PMEM_IS_PMEM_FORCE=1 ./testing/kvstore/kvstore-perf --component nvmestore --pci_addr 11:00.0 --test=put --value_length=1048576 --elements=1000
+```
+(if not specify --test=put, all tests will run some might fail but results for put/get/get_direct will be generated)
+
+2. Generate result plot
+```
+python testing/kvstore/plot_results/plot_everything_in_file.py ./build/results/nvmestore/results_2019_05_21_17_19.json
+```
+
+DAWN test
+------------
+
+1. ./src/servers/dawn/dawn --config ./nvmestore-dawn.conf
+
+2. ./src/components/client/dawn/unit_test/dawn-client-test1 --server-addr=xxx
+
+Other Information
+==================
+
+Kernel parameters
+-----------------
+
+Use the following parameter, huge page is for pmdk, memmap is for the pmem, intel_iommu must be on for vfio (tested with ubuntu 18.04 with kernel 4.15.0.20, no sure about higher kernel version)
 (if you are working in a machine with small memory size(e.g.no more than 8G), you should modify this correspondingly)
 
+* fill the following into GRUB_CMDLINE_LINUX in /etc/default/grub
 ``` 
-hugepagesz=2M hugepages=4096 intel_iommu=on text memmap=2G!4G
+intel_iommu=on hugepagesz=2M hugepages=4096 text memmap=2G!4G
+```
+
+* update grub
+```
+sudo update-grub
 ```
 
 ```
@@ -43,7 +76,8 @@ mount -t hugetlbfs nodev /mnt/huge
 ```
 
 pmem setup
-=====================
+----------
+
 ```
 ./setup_pmem.sh
 ```
@@ -54,7 +88,7 @@ PMEM_IS_PMEM_FORCE=1 ./you-program
 ```
 
 Memlock limit
-=======================
+---------------
 
 if you run deps/dpdk/user-tools/dpdk-setup.sh to set vfio permission and get  warning to set the ulimit:
 ```
@@ -68,7 +102,7 @@ Add those two lines to /et/security/limits.conf(this allows users in the sudo gr
 ```
 
 Remove Metadata
-==================
+-----------------
 
 you can use this to remove all metadata
 ```

@@ -17,6 +17,7 @@
 #include <common/exceptions.h>
 #include <common/logging.h>
 #include <common/utils.h>
+#include <api/dawn_itf.h>
 #include <cstring>
 
 #define PROTOCOL_VERSION (0xFB)
@@ -24,12 +25,14 @@
 
 namespace Dawn
 {
+
 namespace Protocol
 {
 enum {
   MSG_TYPE_HANDSHAKE       = 0x1,
   MSG_TYPE_HANDSHAKE_REPLY = 0x2,
   MSG_TYPE_CLOSE_SESSION   = 0x3,
+  MSG_TYPE_STATS           = 0x4,
   MSG_TYPE_POOL_REQUEST    = 0x10,
   MSG_TYPE_POOL_RESPONSE   = 0x11,
   MSG_TYPE_IO_REQUEST      = 0x20,
@@ -43,12 +46,13 @@ enum {
 //   INFO_TYPE_VALUE_LEN = 0x1,
 //   INFO_TYPE_COUNT     = 0x1,
   /* must be above IKVStore::Attributes */
-  INFO_TYPE_FIND_KEY  = 0xF0, 
+  INFO_TYPE_FIND_KEY  = 0xF0,
+  INFO_TYPE_GET_STATS = 0xF1,
 };
 
 enum {
   PROTOCOL_V1 = 0x1, /*< Key-Value Store */
-  PROTOCOL_V2 = 0x2, /*< Active Storage */
+  PROTOCOL_V2 = 0x2, /*< Memory-Centric Active Storage */
 };
 
 enum {
@@ -71,6 +75,7 @@ enum {
   OP_PREPARE     = 9,  // prepare for immediately following operation
   OP_COUNT       = 10,
   OP_CONFIGURE   = 11,
+  OP_STATS       = 12,
   OP_INVALID     = 0xFE,
   OP_MAX         = 0xFF
 };
@@ -115,12 +120,11 @@ struct Message {
   const Type *ptr_cast() const
   {
     if (this->type_id != Type::id)
-      throw Protocol_exception("expected %s (0x%x) message - got 0x%x, len %lu", Type::description, Type::id,
-			       this->type_id, this->msg_len);
+      throw Protocol_exception("expected %s (0x%x) message - got 0x%x, len %lu",
+                               Type::description, Type::id,
+                               this->type_id, this->msg_len);
     return static_cast<const Type *>(this);
   }
-
-
 
   uint64_t auth_id;  // authorization token
   uint32_t msg_len;
@@ -514,6 +518,25 @@ struct Message_close_session : public Message {
   uint64_t seq;
 
 } __attribute__((packed));
+
+
+struct Message_stats : public Message {
+
+  static constexpr uint8_t id = MSG_TYPE_STATS;
+  static constexpr const char *description = "Message_stats";
+
+  Message_stats(uint64_t auth,
+                const Component::IDawn::Shard_stats& shard_stats) : Message(auth_id, id)
+  {
+    stats = shard_stats;
+  }
+
+  size_t message_size() const { return sizeof(Message_stats); }
+  // fields
+  Component::IDawn::Shard_stats stats; 
+} __attribute__((packed));
+
+
 
 static_assert(sizeof(Message_IO_request) % 8 == 0,
               "Message_IO_request should be 64bit aligned");

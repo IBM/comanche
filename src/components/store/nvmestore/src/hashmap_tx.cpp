@@ -307,6 +307,30 @@ hm_tx_foreach(PMEMobjpool *pop, TOID(struct hashmap_tx) hashmap,
 	return ret;
 }
 
+int
+hm_tx_foreachkey(PMEMobjpool *pop, TOID(struct hashmap_tx) hashmap,
+	std::function<int(uint64_t key, void *arg)> f, void *arg)
+{
+	TOID(struct buckets) buckets = D_RO(hashmap)->buckets;
+	TOID(struct entry) var;
+
+	int ret = 0;
+	for (size_t i = 0; i < D_RO(buckets)->nbuckets; ++i) {
+		if (TOID_IS_NULL(D_RO(buckets)->bucket[i]))
+			continue;
+
+		for (var = D_RO(buckets)->bucket[i]; !TOID_IS_NULL(var);
+				var = D_RO(var)->next) {
+			ret = f(D_RO(var)->key, arg);
+			if (ret)
+				break;
+		}
+	}
+
+	return ret;
+};
+
+
 /*
  * hm_tx_debug -- prints complete hashmap state
  */

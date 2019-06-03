@@ -20,3 +20,4 @@ doc/html*
 /src/ppl/pcj/pcj-helloworld/nbproject/private/
 /src/ppl/pcj/pcj-helloworld/dist/
 *.swp
+compile_commands.json
