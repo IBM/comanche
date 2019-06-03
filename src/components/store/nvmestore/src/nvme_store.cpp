@@ -29,7 +29,7 @@
 #include <component/base.h>
 #include <core/xms.h>
 
-#include "state_map.h"
+#include "persist_session.h"
 
 extern "C" {
 #include "hashmap_tx.h"
@@ -39,12 +39,12 @@ extern "C" {
 
 using namespace Component;
 
+#ifdef USE_PMEM
 struct store_root_t {
   TOID(struct hashmap_tx) map; /** hashkey-> obj_info*/
   size_t pool_size;
 };
 // TOID_DECLARE_ROOT(struct store_root_t);
-
 class Nvmestore_session {
  public:
   static constexpr bool option_DEBUG = false;
@@ -79,8 +79,8 @@ class Nvmestore_session {
 
   /** Get persist pointer of this pool*/
   PMEMobjpool* get_pop() { return _pop; }
-  /** Get */
-  TOID(struct store_root_t) get_root() { return _root; }
+  /* [>* Get <]*/
+  /*TOID(struct store_root_t) get_root() { return _root; }*/
   size_t get_count() { return _num_objs; }
 
   void alloc_new_object(const std::string& key,
@@ -116,8 +116,10 @@ class Nvmestore_session {
   status_t map_keys(std::function<int(const std::string& key)> f);
 
  private:
+  // for meta_pmem only
   TOID(struct store_root_t) _root;
-  PMEMobjpool*              _pop;  // the pool for mapping
+  PMEMobjpool* _pop;  // the pool for mapping
+
   size_t                    _pool_size;
   std::string               _path;
   uint64_t                  _io_mem;      /** dynamic iomem for put/get */
@@ -131,8 +133,6 @@ class Nvmestore_session {
 
   status_t may_ajust_io_mem(size_t value_len);
 };
-
-using open_session_t = Nvmestore_session;
 
 /**
  * Create a entry in the pool and allocate space
@@ -554,16 +554,16 @@ status_t Nvmestore_session::map(std::function<int(const std::string& key,
 {
   size_t blk_sz = _blk_manager->blk_sz();
 
-  auto &root = _root;
-  auto &pop  = _pop;
+  auto& root = _root;
+  auto& pop  = _pop;
 
   TOID(struct obj_info) objinfo;
 
   // functor
   auto f_map = [f, pop, root](uint64_t hashkey, void* arg) -> int {
-    open_session_t* session   = reinterpret_cast<open_session_t*>(arg);
-    void*           value     = nullptr;
-    size_t          value_len = 0;
+    Nvmestore_session* session   = reinterpret_cast<Nvmestore_session*>(arg);
+    void*              value     = nullptr;
+    size_t             value_len = 0;
 
     TOID(struct obj_info) objinfo;
     objinfo             = hm_tx_get(pop, D_RW(root)->map, (uint64_t) hashkey);
@@ -630,6 +630,10 @@ status_t Nvmestore_session::map_keys(
 
   return S_OK;
 }
+#endif
+
+// using open_session_t = Nvmestore_session;
+using open_session_t = nvmestore::persist_session;
 
 struct tls_cache_t {
   open_session_t* session;
@@ -702,17 +706,62 @@ static int check_pool(const char* path)
 NVME_store::NVME_store(const std::string& owner,
                        const std::string& name,
                        const std::string& pci,
-                       const std::string& pm_path)
+                       const std::string& pm_path,
+                       const std::string& config_persist_type)
     : _pm_path(pm_path), _blk_manager(pci, pm_path)
 {
-  if (_pm_path.back() != '/') _pm_path += "/";
+#ifdef USE_PMEM
+  if (config_persist_type == "pmem") {
+    _meta_persist_type = PERSIST_PMEM;
+    PINF("NVMe_store, using persist type %s", config_persist_type.c_str());
 
-  PLOG("PMEMOBJ_MAX_ALLOC_SIZE: %lu MB", REDUCE_MB(PMEMOBJ_MAX_ALLOC_SIZE));
+    PLOG("PMEMOBJ_MAX_ALLOC_SIZE: %lu MB", REDUCE_MB(PMEMOBJ_MAX_ALLOC_SIZE));
+  }
+#endif
+  IBase* comp;
+  if (config_persist_type == "filestore") {
+    _meta_persist_type = PERSIST_FILE;
+    comp = load_component("libcomanche-storefile.so", filestore_factory);
+  }
+  else if (config_persist_type == "hstore") {
+    _meta_persist_type = PERSIST_HSTORE;
+    comp = load_component("libcomanche-hstore.so", hstore_factory);
+    throw API_exception("not implemented");
+  }
+  else {
+    throw API_exception("Option %s not supported", config_persist_type.c_str());
+  }
+  if (!comp)
+    throw General_exception("unable to initialize Dawn backend component");
+
+  IKVStore_factory* fact =
+      (IKVStore_factory*) comp->query_interface(IKVStore_factory::iid());
+  assert(fact);
+
+  unsigned debug_level = 0;
+  if (_meta_persist_type ==
+      PERSIST_FILE) { /* components that support debug level */
+    std::map<std::string, std::string> params;
+    params["pm_path"] = pm_path;
+    _meta_store       = fact->create(debug_level, params);
+  }
+  else if (_meta_persist_type == PERSIST_HSTORE) {
+    // TODO refer to dawn
+    throw API_exception("hstore init not implemented");
+  }
+  else {
+    _meta_store = fact->create("owner", "name");
+  }
+  fact->release_ref();
+
+  // path
+  if (_pm_path.back() != '/') _pm_path += "/";
 }
 
 NVME_store::~NVME_store()
 {
-  if (option_DEBUG) PLOG("delete NVME store");
+  if (option_DEBUG) PLOG("deleting NVME store");
+  _meta_store->release_ref();
 }
 
 IKVStore::pool_t NVME_store::create_pool(const std::string& name,
@@ -720,10 +769,7 @@ IKVStore::pool_t NVME_store::create_pool(const std::string& name,
                                          unsigned int       flags,
                                          uint64_t           args)
 {
-  PMEMobjpool* pop = nullptr;  // pool to allocate all mapping
-  int          ret = 0;
-
-  size_t max_sz_hxmap = MB(500);  // this can fit 1M objects (obj_info_t)
+  int ret = 0;
 
   // TODO: need to check size
   const std::string& fullpath = _pm_path + name;
@@ -731,47 +777,55 @@ IKVStore::pool_t NVME_store::create_pool(const std::string& name,
   PINF("[NVME_store]::create_pool fullpath=%s name=%s", fullpath.c_str(),
        name.c_str());
 
-  /* open existing pool */
-  pop = pmemobj_open(fullpath.c_str(), POBJ_LAYOUT_NAME(nvme_store));
+#if USE_PMEM
+  if (_meta_persist_type == PERSIST_PMEM) {  // deprecated
 
-  if (!pop) {
-    PLOG("creating new pool: %s", name.c_str());
+    size_t max_sz_hxmap = MB(500);  // this can fit 1M objects (obj_info_t)
+    /* open existing pool */
+    PMEMobjpool* pop = nullptr;  // pool to allocate all mapping
+    pop = pmemobj_open(fullpath.c_str(), POBJ_LAYOUT_NAME(nvme_store));
 
-    boost::filesystem::path p(fullpath);
-    boost::filesystem::create_directories(p.parent_path());
+    if (!pop) {
+      PLOG("creating new pool: %s", name.c_str());
 
-    pop = pmemobj_create(fullpath.c_str(), POBJ_LAYOUT_NAME(nvme_store),
-                         max_sz_hxmap, 0666);
-  }
+      boost::filesystem::path p(fullpath);
+      boost::filesystem::create_directories(p.parent_path());
 
-  if (not pop) return POOL_ERROR;
-
-  /* see:
-   * https://github.com/pmem/pmdk/blob/stable-1.4/src/examples/libpmemobj/map/kv_server.c
-   */
-  assert(pop);
-  TOID(struct store_root_t) root = POBJ_ROOT(pop, struct store_root_t);
-  assert(!TOID_IS_NULL(root));
-
-  if (D_RO(root)->map.oid.off == 0) {
-    /* create hash table if it does not exist */
-    TX_BEGIN(pop)
-    {
-      if (hm_tx_create(pop, &D_RW(root)->map, nullptr))
-        throw General_exception("hm_tx_create failed unexpectedly");
-      D_RW(root)->pool_size = size;
+      pop = pmemobj_create(fullpath.c_str(), POBJ_LAYOUT_NAME(nvme_store),
+                           max_sz_hxmap, 0666);
     }
-    TX_ONABORT { ret = -1; }
-    TX_END
+
+    if (not pop) return POOL_ERROR;
+
+    /* see:
+     * https://github.com/pmem/pmdk/blob/stable-1.4/src/examples/libpmemobj/map/kv_server.c
+     */
+    assert(pop);
+    TOID(struct store_root_t) root = POBJ_ROOT(pop, struct store_root_t);
+    assert(!TOID_IS_NULL(root));
+
+    if (D_RO(root)->map.oid.off == 0) {
+      /* create hash table if it does not exist */
+      TX_BEGIN(pop)
+      {
+        if (hm_tx_create(pop, &D_RW(root)->map, nullptr))
+          throw General_exception("hm_tx_create failed unexpectedly");
+        D_RW(root)->pool_size = size;
+      }
+      TX_ONABORT { ret = -1; }
+      TX_END
+    }
+    // Check
+    if (hm_tx_check(pop, D_RO(root)->map))
+      throw General_exception("hm_tx_check failed unexpectedly");
+
+    open_session_t* session = new open_session_t(
+        root, pop, size, fullpath, DEFAULT_IO_MEM_SIZE, &_blk_manager, &_sm);
   }
-
-  assert(ret == 0);
-
-  if (hm_tx_check(pop, D_RO(root)->map))
-    throw General_exception("hm_tx_check failed unexpectedly");
+#endif
 
   open_session_t* session = new open_session_t(
-      root, pop, size, fullpath, DEFAULT_IO_MEM_SIZE, &_blk_manager, &_sm);
+      size, fullpath, DEFAULT_IO_MEM_SIZE, &_blk_manager, &_sm);
 
   g_sessions.insert(session);
 
@@ -812,6 +866,8 @@ IKVStore::pool_t NVME_store::open_pool(const std::string& name,
                               pmemobj_errormsg());
   }
 
+  size_t pool_size;
+#ifdef USE_PMEM
   TOID(struct store_root_t) root = POBJ_ROOT(pop, struct store_root_t);
   assert(!TOID_IS_NULL(root));
 
@@ -823,10 +879,15 @@ IKVStore::pool_t NVME_store::open_pool(const std::string& name,
   PLOG("Using existing root, pool size =  %lu:", D_RO(root)->pool_size);
   if (hm_tx_init(pop, D_RW(root)->map))
     throw General_exception("hm_tx_init failed unexpectedly");
-
   size_t          pool_size = D_RO(root)->pool_size;
   open_session_t* session   = new open_session_t(
       root, pop, pool_size, fullpath, DEFAULT_IO_MEM_SIZE, &_blk_manager, &_sm);
+
+#else
+  open_session_t* session = new open_session_t(
+      pool_size, fullpath, DEFAULT_IO_MEM_SIZE, &_blk_manager, &_sm);
+
+#endif
 
   g_sessions.insert(session);
 
@@ -840,6 +901,11 @@ status_t NVME_store::close_pool(pool_t pid)
   if (g_sessions.find(session) == g_sessions.end()) {
     return E_INVAL;
   }
+
+#ifdef USE_PMEM
+  auto& pop = session->get_pop();
+  pmemobj_close(pop);
+#endif
 
   delete session;
 
@@ -870,8 +936,10 @@ status_t NVME_store::delete_pool(const std::string& name)
   // TODO should clean the blk_allocator and blk dev (reference) here?
   //_blk_alloc->resize(0, 0);
 
+#ifdef USE_PMEM
   if (pmempool_rm(fullpath.c_str(), 0))
     throw General_exception("unable to delete pool (%s)", fullpath.c_str());
+#endif
 
   PLOG("pool deleted: %s", fullpath.c_str());
   return S_OK;
@@ -1087,8 +1155,12 @@ IKVStore* NVME_store_factory::create(unsigned debug_level,
         "Parameter '%s' does not look like a PCI address", pci.c_str());
   }
 
-  Component::IKVStore* obj = static_cast<Component::IKVStore*>(new NVME_store(
-      params["owner"], params["name"], params["pci"], params["pm_path"]));
+  std::string meta_persist_type = params.find("persist_type") == params.end()
+                                      ? "filestore"
+                                      : params["persist_type"];
+  Component::IKVStore* obj = static_cast<Component::IKVStore*>(
+      new NVME_store(params["owner"], params["name"], params["pci"],
+                     params["pm_path"], meta_persist_type));
   obj->add_ref();
   return obj;
 }

@@ -23,8 +23,13 @@
 #include "block_manager.h"
 #include "state_map.h"
 
+#undef USE_PMEM
+
+using namespace nvmestore;
+
 class State_map;
 
+#ifdef USE_PMEM
 POBJ_LAYOUT_BEGIN(nvme_store);
 POBJ_LAYOUT_ROOT(nvme_store, struct store_root_t);
 POBJ_LAYOUT_TOID(nvme_store, struct obj_info);
@@ -44,9 +49,19 @@ typedef struct obj_info {
   size_t key_len;
   TOID(char) key_data;
 } obj_info_t;
+#else
+typedef struct obj_info {
+  // Block alocation
+  int   lba_start;
+  int   size;    // value size in bytes
+  void* handle;  // handle to free this block
 
-namespace
-{
+  // key info
+  size_t key_len;
+  char*  key_data;
+} obj_info_t;
+#endif
+
 struct buffer_t {
   const size_t      _length;
   const io_buffer_t _io_mem;
@@ -65,8 +80,6 @@ struct buffer_t {
   inline void*  start_vaddr() const { return _start_vaddr; }
 };
 
-}  // namespace
-
 class NVME_store : public Component::IKVStore {
   using block_manager_t = nvmestore::Block_manager;
   using io_buffer_t     = block_manager_t::io_buffer_t;
@@ -79,6 +92,12 @@ class NVME_store : public Component::IKVStore {
 
   State_map       _sm;           // map control TODO: change to session manager
   block_manager_t _blk_manager;  // shared across all nvmestore
+  enum {
+    PERSIST_PMEM,
+    PERSIST_HSTORE,
+    PERSIST_FILE
+  } _meta_persist_type; /** How to persist meta data*/
+  IKVStore* _meta_store = nullptr;
 
  public:
   /**
@@ -88,12 +107,16 @@ class NVME_store : public Component::IKVStore {
    * @param name
    * @param pci pci address of the Nvme
    *   The "pci address" is in Bus:Device.Function (BDF) form with Bus and
-   * Device zero-padded to 2 digits each, e.g. 86:00.0
+   * @param config_persist_type Use either "pmem"(pmdk tx), "hstore",
+   * "filestore" to manage metadata, default is pmem
+   * Device zero-padded to 2
+   * digits each, e.g. 86:00.0
    */
   NVME_store(const std::string& owner,
              const std::string& name,
              const std::string& pci,
-             const std::string& pm_path);
+             const std::string& pm_path,
+             const std::string& config_persist_type);
 
   /**
    * Destructor

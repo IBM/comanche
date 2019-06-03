@@ -1,5 +1,13 @@
 # Changelog
 This is the changelog for nvmestore
+[2019-06-3]:
+* TODO:
+  1. use filestore instead hashmap.cpp
+  2. use filestore in blockallocator.
+  3. plug with persist mem
+[2019-05-30]:
+* TODO: illegal instruction in sievert.
+* Switch to file-based method
 [2019-05-29]:
 #added:
 * add value string in the persistent type, so that map_key can get the key string back
