@@ -1,11 +1,10 @@
 cmake_minimum_required(VERSION 3.5) # may work with earlier versions
 
-option(BUILD_PYTHON_SUPPORT "Build Python support" OFF)
+option(BUILD_PYTHON_SUPPORT "Build Python support" ON)
 
 find_program(PYTHON "python3.6")
-
-if (PYTHON AND BUILD_PYTHON_SUPPORT)
-  
+find_package(NumPy)
+if (PYTHON AND BUILD_PYTHON_SUPPORT AND PYTHON_NUMPY_FOUND)
   message("-- Building Python support.")
   set(SETUP_PY_IN "${CMAKE_CURRENT_SOURCE_DIR}/setup.py.in")
   set(SETUP_PY    "${CMAKE_CURRENT_BINARY_DIR}/setup.py")
