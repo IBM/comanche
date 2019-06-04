@@ -203,12 +203,11 @@ TEST_F(KVStore_test, BasicMap)
 
 TEST_F(KVStore_test, BasicMapKeys)
 {
-  _kvstore->map_keys(_pool,
-                [](const std::string &key) -> int {
-                  PINF("key:%s", key.c_str());
-                  return 0;
-                  ;
-                });
+  _kvstore->map_keys(_pool, [](const std::string &key) -> int {
+    PINF("key:%s", key.c_str());
+    return 0;
+    ;
+  });
 }
 
 /* lock */
@@ -225,39 +224,46 @@ TEST_F(KVStore_test, LockBasic)
     const auto  key_new    = std::get<0>(kv) + "x";
     void *      value0     = nullptr;
     std::size_t value0_len = 0;
-    auto r0 = _kvstore->lock(pool, key, IKVStore::STORE_LOCK_READ, value0,
-                             value0_len);
-    EXPECT_NE(r0, nullptr);
+
+    status_t        rc;
+    IKVStore::key_t out_key0, out_key1, out_key2, out_key3;
+    rc = _kvstore->lock(pool, key, IKVStore::STORE_LOCK_READ, value0,
+                        value0_len, out_key0);
+    EXPECT_NE(out_key0, nullptr);
+    EXPECT_EQ(rc, S_OK);
     EXPECT_EQ(value0_len, single_value_length);
     EXPECT_EQ(0, memcmp(ev.data(), value0, ev.size()));
     void *      value1     = nullptr;
     std::size_t value1_len = 0;
-    auto r1 = _kvstore->lock(pool, key, IKVStore::STORE_LOCK_READ, value1,
-                             value1_len);
-    EXPECT_NE(r1, nullptr);
+    rc = _kvstore->lock(pool, key, IKVStore::STORE_LOCK_READ, value1,
+                        value1_len, out_key1);
+    EXPECT_NE(out_key1, nullptr);
+    EXPECT_EQ(rc, S_OK);
     EXPECT_EQ(value1_len, single_value_length);
     EXPECT_EQ(0, memcmp(ev.data(), value1, ev.size()));
     /* Exclusive locking test. Skip if the library is built without locking. */
     if (_kvstore->thread_safety() == IKVStore::THREAD_MODEL_MULTI_PER_POOL) {
       void *      value2     = nullptr;
       std::size_t value2_len = 0;
-      auto r2 = _kvstore->lock(pool, key, IKVStore::STORE_LOCK_WRITE, value2,
-                               value2_len);
-      EXPECT_EQ(r2, nullptr);
+      rc = _kvstore->lock(pool, key, IKVStore::STORE_LOCK_WRITE, value2,
+                          value2_len, out_key2);
+      EXPECT_EQ(out_key2, nullptr);
+      EXPECT_EQ(rc, E_FAIL);
     }
     void *      value3     = nullptr;
     std::size_t value3_len = single_value_length;
-    auto r3 = _kvstore->lock(pool, key_new, IKVStore::STORE_LOCK_WRITE, value3,
-                             value3_len);
-    EXPECT_NE(r3, nullptr);
+    rc = _kvstore->lock(pool, key_new, IKVStore::STORE_LOCK_WRITE, value3,
+                        value3_len, out_key3);
+    EXPECT_NE(out_key3, nullptr);
+    EXPECT_EQ(rc, S_OK);
     EXPECT_EQ(value3_len, single_value_length);
     EXPECT_NE(value3, nullptr);
 
-    auto r0x = _kvstore->unlock(pool, r0);
+    auto r0x = _kvstore->unlock(pool, out_key0);
     EXPECT_EQ(r0x, S_OK);
-    auto r1x = _kvstore->unlock(pool, r1);
+    auto r1x = _kvstore->unlock(pool, out_key1);
     EXPECT_EQ(r1x, S_OK);
-    auto r3x = _kvstore->unlock(pool, r3);
+    auto r3x = _kvstore->unlock(pool, out_key3);
     EXPECT_EQ(r3x, S_OK);
 
     ++ct;
