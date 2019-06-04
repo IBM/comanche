@@ -25,7 +25,6 @@ class persist_session {
   using lock_type_t                  = IKVStore::lock_type_t;
   using key_t = uint64_t;  // virt_addr is used to identify each obj
   persist_session(IKVStore::pool_t obj_info_pool,
-                  size_t           pool_size,
                   std::string      path,
                   size_t           io_mem_size,
                   Block_manager*   blk_manager,
@@ -112,7 +111,6 @@ class persist_session {
  private:
   // for meta_pmem only
 
-  size_t                    _pool_size;
   std::string               _path;
   uint64_t                  _io_mem;      /** dynamic iomem for put/get */
   size_t                    _io_mem_size; /** io memory size */

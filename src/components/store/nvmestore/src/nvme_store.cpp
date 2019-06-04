@@ -830,7 +830,7 @@ IKVStore::pool_t NVME_store::create_pool(const std::string& name,
     throw General_exception("Creating objmap pool failed");
   }
   open_session_t* session = new open_session_t(
-      obj_info_pool, size, fullpath, DEFAULT_IO_MEM_SIZE, &_blk_manager, &_sm);
+      obj_info_pool, fullpath, DEFAULT_IO_MEM_SIZE, &_blk_manager, &_sm);
 
   g_sessions.insert(session);
 
@@ -841,7 +841,6 @@ IKVStore::pool_t NVME_store::open_pool(const std::string& name,
                                        unsigned int       flags)
 {
   const std::string& fullpath = _pm_path + name;
-  size_t             pool_size;
 
 #ifdef USE_PMEM
   PMEMobjpool* pop;                     // pool to allocate all mapping
@@ -894,9 +893,8 @@ IKVStore::pool_t NVME_store::open_pool(const std::string& name,
     throw General_exception("objmap pool: failed during opening ");
   }
 
-  open_session_t* session =
-      new open_session_t(obj_info_pool, pool_size, fullpath,
-                         DEFAULT_IO_MEM_SIZE, &_blk_manager, &_sm);
+  open_session_t* session = new open_session_t(
+      obj_info_pool, fullpath, DEFAULT_IO_MEM_SIZE, &_blk_manager, &_sm);
 
 #endif
 
@@ -958,7 +956,6 @@ status_t NVME_store::delete_pool(const std::string& name)
   if (S_OK != _meta_store->delete_pool(name)) {
     throw General_exception("objmap pool-  failed when deleting");
   }
-
   return S_OK;
 }
 
