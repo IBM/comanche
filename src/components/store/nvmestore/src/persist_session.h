@@ -17,19 +17,21 @@ namespace nvmestore
 {
 class persist_session {
  private:
-  using obj_info_t = struct obj_info;
+  using obj_info_t      = struct obj_info;
+  using obj_info_pool_t = IKVStore::pool_t;
 
  public:
   static constexpr bool option_DEBUG = false;
   using lock_type_t                  = IKVStore::lock_type_t;
   using key_t = uint64_t;  // virt_addr is used to identify each obj
-  persist_session(size_t         pool_size,
-                  std::string    path,
-                  size_t         io_mem_size,
-                  Block_manager* blk_manager,
-                  State_map*     ptr_state_map)
-      : _path(path), _io_mem_size(io_mem_size), _blk_manager(blk_manager),
-        p_state_map(ptr_state_map), _num_objs(0)
+  persist_session(IKVStore::pool_t obj_info_pool,
+                  size_t           pool_size,
+                  std::string      path,
+                  size_t           io_mem_size,
+                  Block_manager*   blk_manager,
+                  State_map*       ptr_state_map)
+      : _map_obj_info(obj_info_pool), _path(path), _io_mem_size(io_mem_size),
+        _blk_manager(blk_manager), p_state_map(ptr_state_map), _num_objs(0)
   {
     _io_mem = _blk_manager->allocate_io_buffer(_io_mem_size, 4096,
                                                Component::NUMA_NODE_ANY);
@@ -47,7 +49,8 @@ class persist_session {
   }
   std::string get_path() & { return _path; }
 
-  size_t get_count() { return _num_objs; }
+  size_t           get_count() { return _num_objs; }
+  IKVStore::pool_t get_obj_info_pool() const { return _map_obj_info; }
 
   void alloc_new_object(const std::string& key,
                         size_t             value_len,
@@ -115,6 +118,8 @@ class persist_session {
   size_t                    _io_mem_size; /** io memory size */
   nvmestore::Block_manager* _blk_manager;
   State_map*                p_state_map;
+  obj_info_pool_t _map_obj_info; /** pool to store hashkey->obj mapping*/
+  size_t          map_obj_init_size;
 
   /** Session locked, io_buffer_t(virt_addr) -> pool hashkey of obj*/
   std::unordered_map<io_buffer_t, uint64_t> _locked_regions;

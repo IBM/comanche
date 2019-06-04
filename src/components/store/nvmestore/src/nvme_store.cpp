@@ -742,7 +742,7 @@ NVME_store::NVME_store(const std::string& owner,
   if (_meta_persist_type ==
       PERSIST_FILE) { /* components that support debug level */
     std::map<std::string, std::string> params;
-    params["pm_path"] = pm_path;
+    params["pm_path"] = pm_path + "meta/";
     _meta_store       = fact->create(debug_level, params);
   }
   else if (_meta_persist_type == PERSIST_HSTORE) {
@@ -823,9 +823,14 @@ IKVStore::pool_t NVME_store::create_pool(const std::string& name,
         root, pop, size, fullpath, DEFAULT_IO_MEM_SIZE, &_blk_manager, &_sm);
   }
 #endif
-
+  size_t estimated_obj_map_size = MB(4);  // 32B per entry, that's 2^17
+  IKVStore::pool_t obj_info_pool =
+      _meta_store->create_pool(name, estimated_obj_map_size, flags);
+  if (obj_info_pool == POOL_ERROR) {
+    throw General_exception("Creating objmap pool failed");
+  }
   open_session_t* session = new open_session_t(
-      size, fullpath, DEFAULT_IO_MEM_SIZE, &_blk_manager, &_sm);
+      obj_info_pool, size, fullpath, DEFAULT_IO_MEM_SIZE, &_blk_manager, &_sm);
 
   g_sessions.insert(session);
 
@@ -835,12 +840,14 @@ IKVStore::pool_t NVME_store::create_pool(const std::string& name,
 IKVStore::pool_t NVME_store::open_pool(const std::string& name,
                                        unsigned int       flags)
 {
+  const std::string& fullpath = _pm_path + name;
+  size_t             pool_size;
+
+#ifdef USE_PMEM
   PMEMobjpool* pop;                     // pool to allocate all mapping
   size_t       max_sz_hxmap = MB(500);  // this can fit 1M objects (obj_info_t)
 
   PINF("NVME_store::open_pool name=%s", name.c_str());
-
-  const std::string& fullpath = _pm_path + name;
 
   /* if trying to open a unclosed pool!*/
   for (auto iter : g_sessions) {
@@ -866,8 +873,6 @@ IKVStore::pool_t NVME_store::open_pool(const std::string& name,
                               pmemobj_errormsg());
   }
 
-  size_t pool_size;
-#ifdef USE_PMEM
   TOID(struct store_root_t) root = POBJ_ROOT(pop, struct store_root_t);
   assert(!TOID_IS_NULL(root));
 
@@ -884,8 +889,14 @@ IKVStore::pool_t NVME_store::open_pool(const std::string& name,
       root, pop, pool_size, fullpath, DEFAULT_IO_MEM_SIZE, &_blk_manager, &_sm);
 
 #else
-  open_session_t* session = new open_session_t(
-      pool_size, fullpath, DEFAULT_IO_MEM_SIZE, &_blk_manager, &_sm);
+  IKVStore::pool_t obj_info_pool = _meta_store->open_pool(name, flags);
+  if (obj_info_pool == POOL_ERROR) {
+    throw General_exception("objmap pool: failed during opening ");
+  }
+
+  open_session_t* session =
+      new open_session_t(obj_info_pool, pool_size, fullpath,
+                         DEFAULT_IO_MEM_SIZE, &_blk_manager, &_sm);
 
 #endif
 
@@ -906,6 +917,9 @@ status_t NVME_store::close_pool(pool_t pid)
   auto& pop = session->get_pop();
   pmemobj_close(pop);
 #endif
+  if (S_OK != _meta_store->close_pool(session->get_obj_info_pool())) {
+    throw General_exception("Close objmap pool failed");
+  }
 
   delete session;
 
@@ -927,7 +941,7 @@ status_t NVME_store::delete_pool(const std::string& name)
       return E_ALREADY_OPEN;
     }
   }
-
+#ifdef USE_PMEM
   if (access(fullpath.c_str(), F_OK) != 0) {
     PWRN("nvmestore: pool doesn't exsit!");
     return E_POOL_NOT_FOUND;
@@ -936,12 +950,15 @@ status_t NVME_store::delete_pool(const std::string& name)
   // TODO should clean the blk_allocator and blk dev (reference) here?
   //_blk_alloc->resize(0, 0);
 
-#ifdef USE_PMEM
   if (pmempool_rm(fullpath.c_str(), 0))
     throw General_exception("unable to delete pool (%s)", fullpath.c_str());
+  PLOG("pool deleted: %s", fullpath.c_str());
 #endif
 
-  PLOG("pool deleted: %s", fullpath.c_str());
+  if (S_OK != _meta_store->delete_pool(name)) {
+    throw General_exception("objmap pool-  failed when deleting");
+  }
+
   return S_OK;
 }
 
