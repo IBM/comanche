@@ -450,14 +450,16 @@ public:
    * @param type STORE_LOCK_READ | STORE_LOCK_WRITE
    * @param out_value [out] Pointer to data
    * @param out_value_len [in-out] Size of data in bytes
+   * @param out_key [out]  Handle to key for unlock or KEY_NONE if unsupported or other error occurred.
    * 
-   * @return Handle to key for unlock or KEY_NONE if unsupported or other error occurred.
+   * @return S_OK, S_MORE, or E_FAIL
    */
-  virtual key_t lock(const pool_t pool,
-                     const std::string& key,
-                     lock_type_t type,
-                     void*& out_value,
-                     size_t& out_value_len) { return KEY_NONE; }
+  virtual status_t lock(const pool_t pool,
+                        const std::string& key,
+                        lock_type_t type,
+                        void*& out_value,
+                        size_t& out_value_len,
+                        key_t& out_key) {  return E_NOT_SUPPORTED;  }
 
   /** 
    * Unlock an object
