@@ -98,8 +98,7 @@ public:
   DECLARE_INTERFACE_UUID(0xaaafa389,0x1665,0x4e5b,0xa1b1,0x3c,0xff,0x4a,0x5e,0xe2,0x63);
   // clang-format on
 
-  using shared_memory_token_t =
-      uint64_t; /*< token identifying shared memory for mcas module */
+  using shared_memory_token_t = uint64_t; /*< token identifying shared memory for mcas module */
   /**
    * Launch ADO process.  This method must NOT block.
    *
