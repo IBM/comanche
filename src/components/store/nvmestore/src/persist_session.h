@@ -24,6 +24,9 @@ struct obj_info {
   // key info
   size_t key_len;
   char*  key_data;
+
+  // handle for the metastore lock/unlock
+  IKVStore::key_t meta_key;
 };
 
 struct buffer_t {
@@ -84,16 +87,10 @@ class persist_session {
 
   void alloc_new_object(const std::string& key,
                         size_t             value_len,
-                        obj_info_t*&       out_blkmeta)
-  {
-    throw API_exception("Not implemented");
-  }
+                        obj_info_t*&       out_blkmeta);
 
   /** Erase Objects*/
-  status_t erase(const std::string& key)
-  {
-    throw API_exception("Not implemented");
-  }
+  status_t erase(const std::string& key);
 
   status_t check_exists(const std::string key) const;
 
@@ -101,10 +98,7 @@ class persist_session {
   status_t put(const std::string& key,
                const void*        valude,
                size_t             value_len,
-               unsigned int       flags)
-  {
-    return E_FAIL;
-  }
+               unsigned int       flags);
 
   /** Get an object*/
   status_t get(const std::string& key, void*& out_value, size_t& out_value_len);

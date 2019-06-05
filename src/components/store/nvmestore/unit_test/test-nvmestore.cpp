@@ -154,8 +154,6 @@ TEST_F(KVStore_test, BasicGetEmpty)
   free(value);
 }
 
-#if 0
-
 TEST_F(KVStore_test, BasicPut)
 {
   ASSERT_TRUE(_pool);
@@ -169,6 +167,7 @@ TEST_F(KVStore_test, BasicPut)
   EXPECT_TRUE(S_OK == _kvstore->put(_pool, key, value.c_str(), value.length()));
 }
 
+#if 0
 TEST_F(KVStore_test, GetDirect)
 {
 #if 0
@@ -189,6 +188,7 @@ TEST_F(KVStore_test, GetDirect)
 
   _kvstore->free_direct_memory(handle);
 }
+#endif
 
 TEST_F(KVStore_test, BasicGet)
 {
@@ -203,6 +203,8 @@ TEST_F(KVStore_test, BasicGet)
 
   free(value);
 }
+
+#if 0
 
 TEST_F(KVStore_test, BasicMap)
 {
@@ -279,9 +281,10 @@ TEST_F(KVStore_test, LockBasic)
   }
 }
 
+#endif
 TEST_F(KVStore_test, BasicErase) { _kvstore->erase(_pool, "MyKey"); }
 
-
+#if 0
 /*
  * multiple store on same nvmedevice will use the same _block and the _blk_alloc
  */

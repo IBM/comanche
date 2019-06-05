@@ -11,7 +11,6 @@
 
 using namespace nvmestore;
 
-#if 0
 /** Allocate space for metadata
  *
  * Before invoke this, we ensure that the key is either not exsiting before, or
@@ -19,63 +18,92 @@ using namespace nvmestore;
  */
 void persist_session::alloc_new_object(const std::string& key,
                                        size_t             value_len,
-                                       obj_info_t*&       out_blkmeta)
+                                       obj_info_t*&       out_objinfo)
 {
   auto& blk_manager = this->_blk_manager;
-
-  uint64_t hashkey = CityHash64(key.c_str(), key.length());
 
   size_t blk_size     = blk_manager->blk_sz();
   size_t nr_io_blocks = (value_len + blk_size - 1) / blk_size;
 
   void* handle;
 
-  // transaction also happens in here
+  // get free block range
   uint64_t lba = _blk_manager->alloc_blk_region(nr_io_blocks, &handle);
-
   PDBG("write to lba %lu with length %lu, key %lx", lba, value_len, hashkey);
 
-  auto& objinfo = out_blkmeta;
-  TX_BEGIN(pop)
-  {
-    /* allocate memory for entry - range added to tx implicitly? */
+  // prepare objinfo buffer
+  void* raw_objinfo = malloc(sizeof(obj_info_t));
+  if (raw_objinfo == nullptr)
+    throw General_exception("Failed to allocate space for objinfo");
+  obj_info_t* objinfo = reinterpret_cast<obj_info_t*>(raw_objinfo);
 
-    // get the available range from allocator
-    objinfo = TX_ALLOC(struct obj_info, sizeof(struct obj_info));
+  // compose the objinfo
+  objinfo->lba_start = lba;
+  objinfo->size      = value_len;
+  objinfo->handle    = handle;
+  objinfo->key_len   = key.length();
 
-    D_RW(objinfo)->lba_start = lba;
-    D_RW(objinfo)->size      = value_len;
-    D_RW(objinfo)->handle    = handle;
-    D_RW(objinfo)->key_len   = key.length();
-    TOID(char) key_data      = TX_ALLOC(char, key.length() + 1);  // \0 included
+  void* key_data = malloc(key.length() + 1);  // \0 included
+  if (key_data == nullptr)
+    throw General_exception("Failed to allocate space for key");
+  std::copy(key.c_str(), key.c_str() + key.length() + 1, (char*) (key_data));
+  objinfo->key_data = (char*) key_data;
 
-    if (D_RO(key_data) == nullptr)
-      throw General_exception("Failed to allocate space for key");
-    std::copy(key.c_str(), key.c_str() + key.length() + 1, D_RW(key_data));
-
-    D_RW(objinfo)->key_data = key_data;
-
-    /* insert into HT */
-    int rc;
-    if ((rc = hm_tx_insert(pop, D_RW(root)->map, hashkey, objinfo.oid))) {
-      if (rc == 1)
-        throw General_exception("inserting same key");
-      else
-        throw General_exception("hm_tx_insert failed unexpectedly (rc=%d)", rc);
-    }
-
-    _num_objs += 1;
+  // put to meta_pool
+  status_t rc =
+      _meta_store->put(_meta_pool, key, raw_objinfo, sizeof(obj_info_t));
+  if (rc != S_OK) {
+    throw General_exception("put objinfo to meta_pool failed");
   }
-  TX_ONABORT
-  {
-    // TODO: free objinfo
-    throw General_exception("TX abort (%s) during nvmeput", pmemobj_errormsg());
-  }
-  TX_END
+
+  _num_objs += 1;
+
   PDBG("Allocated obj with obj %p, ,handle %p", D_RO(objinfo),
        D_RO(objinfo)->handle);
+
+  out_objinfo = objinfo;
 }
-#endif
+
+status_t persist_session::erase(const std::string& key)
+{
+  if (check_exists(key) == E_NOT_FOUND) return IKVStore::E_KEY_NOT_FOUND;
+
+  uint64_t pool = reinterpret_cast<uint64_t>(this);
+
+  status_t rc;
+  void*    raw_objinfo;
+  size_t   obj_info_sz_in_bytes;
+
+  // Get objinfo from meta_pool
+  rc = _meta_store->get(_meta_pool, key, raw_objinfo, obj_info_sz_in_bytes);
+  if (rc != S_OK || obj_info_sz_in_bytes != sizeof(obj_info_t)) {
+    throw General_exception("get objinfo from meta_pool failed");
+  }
+  obj_info_t* objinfo = reinterpret_cast<obj_info_t*>(raw_objinfo);
+
+  /* get hold of write lock to remove */
+  if (!p_state_map->state_get_write_lock(pool, objinfo->handle))
+    throw API_exception("unable to remove, value locked");
+
+  PDBG("Tring to Remove obj with obj %p,handle %p", D_RO(objinfo),
+       D_RO(objinfo)->handle);
+
+  // Free objinfo from meta_pool
+  rc = _meta_store->erase(_meta_pool, key);
+  if (rc != S_OK) {
+    throw General_exception("erase objinfo from meta_pool failed");
+  }
+
+  // Free block range in the blk_alloc
+  _blk_manager->free_blk_region(objinfo->lba_start, objinfo->handle);
+  p_state_map->state_remove(pool, objinfo->handle);
+
+  if (objinfo->key_data) free(objinfo->key_data);
+  if (objinfo) free(objinfo);
+
+  _num_objs -= 1;
+  return S_OK;
+}
 
 /*
  * Search whether key exists in this pool or not
@@ -159,34 +187,26 @@ status_t persist_session::get(const std::string& key,
   return S_OK;
 }
 
-#if 0
 status_t persist_session::put(const std::string& key,
-                              const void*        valude,
+                              const void*        value,
                               size_t             value_len,
                               unsigned int       flags)
 {
-  uint64_t hashkey = CityHash64(key.c_str(), key.length());
-  size_t   blk_sz  = _blk_manager->blk_sz();
-
-  struct obj_info* blkmeta;  // block mapping of this obj
-
-  if (hm_tx_lookup(pop, D_RO(root)->map, hashkey)) {
-  }
-
-  if (try_get(key) == S_OK) {  // key exsits
-    PLOG("overriting exsiting obj");
+  if (check_exists(key) == S_OK) {
+#if 0
     erase(key);
     return put(key, value, value_len, flags);
+#endif
+    throw API_exception("put overwrite not implemented, before erase");
   }
+  size_t blk_sz = _blk_manager->blk_sz();
+
+  obj_info_t* objinfo;  // block mapping of this obj
 
   may_ajust_io_mem(value_len);
 
-  alloc_new_object(key, value_len, blkmeta);
-  if (blkmeta == nullptr) {  // key exist before
-    erase(key);
-    return put(key, value, value_len, flags);
-  }
-
+  alloc_new_object(key, value_len, objinfo);
+  auto lba = ((obj_info_t*) (objinfo))->lba_start;
   memcpy(_blk_manager->virt_addr(_io_mem), value,
          value_len); /* for the moment we have to memcpy */
 
@@ -197,12 +217,11 @@ status_t persist_session::put(const std::string& key,
   D_RW(objinfo)->last_tag = tag;
 #else
   auto nr_io_blocks = (value_len + blk_sz - 1) / blk_sz;
-  _blk_manager->do_block_io(nvmestore::BLOCK_IO_WRITE, _io_mem,
-                            D_RO(blkmeta)->lba_start, nr_io_blocks);
+  _blk_manager->do_block_io(nvmestore::BLOCK_IO_WRITE, _io_mem, lba,
+                            nr_io_blocks);
 #endif
   return S_OK;
 }
-#endif
 
 status_t persist_session::map_keys(std::function<int(const std::string& key)> f)
 {
