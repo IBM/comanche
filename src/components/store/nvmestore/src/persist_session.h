@@ -106,10 +106,7 @@ class persist_session {
   status_t get_direct(const std ::string& key,
                       void*               out_value,
                       size_t&             out_value_len,
-                      buffer_t*           memory_handle)
-  {
-    throw API_exception("Not implemented");
-  }
+                      buffer_t*           memory_handle);
 
   key_t lock(const std::string& key,
              lock_type_t        type,

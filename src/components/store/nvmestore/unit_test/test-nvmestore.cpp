@@ -167,7 +167,6 @@ TEST_F(KVStore_test, BasicPut)
   EXPECT_TRUE(S_OK == _kvstore->put(_pool, key, value.c_str(), value.length()));
 }
 
-#if 0
 TEST_F(KVStore_test, GetDirect)
 {
 #if 0
@@ -188,7 +187,6 @@ TEST_F(KVStore_test, GetDirect)
 
   _kvstore->free_direct_memory(handle);
 }
-#endif
 
 TEST_F(KVStore_test, BasicGet)
 {
@@ -204,8 +202,30 @@ TEST_F(KVStore_test, BasicGet)
   free(value);
 }
 
-#if 0
+// put the same key with different value
+TEST_F(KVStore_test, PutOverwrite)
+{
+  ASSERT_TRUE(_pool);
+  std::string key   = "MyKey";
+  std::string value = "Second Hello world!";
+  //  value.resize(value.length()+1); /* append /0 */
+  value.resize(single_value_length);
 
+  kvv.emplace_back(key, value);
+
+  EXPECT_EQ(S_OK, _kvstore->put(_pool, key, value.c_str(), value.length()));
+
+  void * get_value     = nullptr;
+  size_t get_value_len = 0;
+  EXPECT_EQ(S_OK, _kvstore->get(_pool, key, get_value, get_value_len));
+
+  EXPECT_FALSE(strcmp("Second Hello world!", (char *) get_value));
+  PINF("Value=(%.50s) %lu", ((char *) get_value), get_value_len);
+
+  free(get_value);
+}
+
+#if 0
 TEST_F(KVStore_test, BasicMap)
 {
   _kvstore->map(_pool,

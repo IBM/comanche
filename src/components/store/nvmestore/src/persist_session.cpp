@@ -33,6 +33,7 @@ void persist_session::alloc_new_object(const std::string& key,
 
   // prepare objinfo buffer
   void* raw_objinfo = malloc(sizeof(obj_info_t));
+  memset(raw_objinfo, 0, sizeof(obj_info_t));
   if (raw_objinfo == nullptr)
     throw General_exception("Failed to allocate space for objinfo");
   obj_info_t* objinfo = reinterpret_cast<obj_info_t*>(raw_objinfo);
@@ -157,13 +158,17 @@ status_t persist_session::get(const std::string& key,
   if (check_exists(key) == E_NOT_FOUND) return IKVStore::E_KEY_NOT_FOUND;
   size_t blk_sz = _blk_manager->blk_sz();
 
-  void*  objinfo;
+  void*  raw_objinfo;
   size_t obj_info_length;
 
-  _meta_store->get(_meta_pool, key, objinfo, obj_info_length);
+  status_t rc = _meta_store->get(_meta_pool, key, raw_objinfo, obj_info_length);
+  if (rc != S_OK || obj_info_length != sizeof(obj_info_t)) {
+    throw General_exception("get objinfo from meta_pool failed");
+  }
 
-  auto val_len = ((obj_info_t*) (objinfo))->size;
-  auto lba     = ((obj_info_t*) (objinfo))->lba_start;
+  obj_info_t* objinfo = reinterpret_cast<obj_info_t*>(raw_objinfo);
+  auto        val_len = objinfo->size;
+  auto        lba     = objinfo->lba_start;
 
 #ifdef USE_ASYNC
   uint64_t tag = D_RO(objinfo)->last_tag;
@@ -187,26 +192,86 @@ status_t persist_session::get(const std::string& key,
   return S_OK;
 }
 
+status_t persist_session::get_direct(const std ::string& key,
+                                     void*               out_value,
+                                     size_t&             out_value_len,
+                                     buffer_t*           memory_handle)
+{
+  if (check_exists(key) == E_NOT_FOUND) return IKVStore::E_KEY_NOT_FOUND;
+  size_t blk_sz = _blk_manager->blk_sz();
+
+  void*  raw_objinfo;
+  size_t obj_info_length;
+
+  status_t rc = _meta_store->get(_meta_pool, key, raw_objinfo, obj_info_length);
+  if (rc != S_OK || obj_info_length != sizeof(obj_info_t)) {
+    throw General_exception("get objinfo from meta_pool failed");
+  }
+
+  obj_info_t* objinfo = reinterpret_cast<obj_info_t*>(raw_objinfo);
+  auto        val_len = objinfo->size;
+  auto        lba     = objinfo->lba_start;
+
+#ifdef USE_ASYNC
+  uint64_t tag = D_RO(objinfo)->last_tag;
+  while (!blk_dev->check_completion(tag))
+    cpu_relax(); /* check the last completion, TODO: check each time makes the
+                    get slightly slow () */
+#endif
+
+  PDBG("prepare to read lba %lu with length %lu", lba, val_len);
+  assert(out_value);
+
+  io_buffer_t mem;
+
+  if (memory_handle) {  // external memory
+    /* TODO: they are not nessarily equal, it memory is registered from
+     * outside */
+    if (out_value < memory_handle->start_vaddr()) {
+      throw General_exception("out_value is not registered");
+    }
+
+    size_t offset = (size_t) out_value - (size_t)(memory_handle->start_vaddr());
+    if ((val_len + offset) > memory_handle->length()) {
+      throw General_exception("registered memory is not big enough");
+    }
+
+    mem = memory_handle->io_mem() + offset;
+  }
+  else {
+    mem = reinterpret_cast<io_buffer_t>(out_value);
+  }
+
+  assert(mem);
+
+  size_t nr_io_blocks = (val_len + blk_sz - 1) / blk_sz;
+
+  _blk_manager->do_block_io(nvmestore::BLOCK_IO_READ, mem, lba, nr_io_blocks);
+
+  out_value_len = val_len;
+  return S_OK;
+}
+
 status_t persist_session::put(const std::string& key,
                               const void*        value,
                               size_t             value_len,
                               unsigned int       flags)
 {
+  // if key exsit before overwrite it
   if (check_exists(key) == S_OK) {
-#if 0
     erase(key);
     return put(key, value, value_len, flags);
-#endif
-    throw API_exception("put overwrite not implemented, before erase");
   }
+
   size_t blk_sz = _blk_manager->blk_sz();
 
-  obj_info_t* objinfo;  // block mapping of this obj
+  obj_info_t* objinfo = nullptr;  // block mapping of this obj
 
   may_ajust_io_mem(value_len);
 
   alloc_new_object(key, value_len, objinfo);
-  auto lba = ((obj_info_t*) (objinfo))->lba_start;
+
+  auto lba = objinfo->lba_start;
   memcpy(_blk_manager->virt_addr(_io_mem), value,
          value_len); /* for the moment we have to memcpy */
 
