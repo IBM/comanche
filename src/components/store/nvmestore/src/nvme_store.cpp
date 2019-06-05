@@ -554,8 +554,8 @@ status_t Nvmestore_session::map(std::function<int(const std::string& key,
 {
   size_t blk_sz = _blk_manager->blk_sz();
 
-  auto &root = _root;
-  auto &pop  = _pop;
+  auto& root = _root;
+  auto& pop  = _pop;
 
   TOID(struct obj_info) objinfo;
 
@@ -993,17 +993,19 @@ status_t NVME_store::unregister_direct_memory(memory_handle_t handle)
  * Lock will allocate iomem and load data from nvme first.
  * Unlock will will free it
  */
-IKVStore::key_t NVME_store::lock(const pool_t       pool,
-                                 const std::string& key,
-                                 lock_type_t        type,
-                                 void*&             out_value,
-                                 size_t&            out_value_len)
+status_t NVME_store::lock(const pool_t       pool,
+                          const std::string& key,
+                          lock_type_t        type,
+                          void*&             out_value,
+                          size_t&            out_value_len,
+                          IKVStore::key_t&   out_key)
 {
   open_session_t* session = get_session(pool);
 
   session->lock(key, type, out_value, out_value_len);
   PDBG("[nvmestore_lock] %p", out_value);
-  return reinterpret_cast<Component::IKVStore::key_t>(out_value);
+  out_key = reinterpret_cast<Component::IKVStore::key_t>(out_value);
+  return S_OK;
 }
 
 /*

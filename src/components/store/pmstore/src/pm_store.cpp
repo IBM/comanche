@@ -518,12 +518,12 @@ status_t PM_store::get_direct(const pool_t pool,
 
 
 
-Component::IKVStore::key_t
-PM_store::lock(const pool_t pool,
+status_t PM_store::lock(const pool_t pool,
                const std::string& key,
                lock_type_t type,
                void*& out_value,
-               size_t& out_value_len)
+               size_t& out_value_len,
+               IKVStore::key_t &out_key)
 {
   open_session_t * session = get_session(pool);
 
@@ -541,8 +541,10 @@ PM_store::lock(const pool_t pool,
     if(OID_IS_NULL(val.oid)) {
 
       PINF("Creating new value (%s)", key.c_str());
-      if(out_value_len == 0)
-        return Component::IKVStore::KEY_NONE;
+      if(out_value_len == 0){
+        out_key = Component::IKVStore::KEY_NONE;
+        return E_FAIL;
+      }
 
       if(_debug_level)
         PLOG("PM_store: lock allocating object (%lx) of %lu bytes", key_hash, out_value_len);
@@ -578,7 +580,8 @@ PM_store::lock(const pool_t pool,
   }
   TX_END
 
-    return reinterpret_cast<Component::IKVStore::key_t>(key_hash);
+  out_key = reinterpret_cast<Component::IKVStore::key_t>(key_hash);
+  return S_OK;
 }
 
 
