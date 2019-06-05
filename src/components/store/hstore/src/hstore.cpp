@@ -512,17 +512,20 @@ auto hstore::set_attribute(
   return E_NOT_SUPPORTED;
 }
 
-auto hstore::lock(const pool_t pool,
-                  const std::string &key,
-                  lock_type_t type,
-                  void *& out_value,
-                  std::size_t & out_value_len) -> Component::IKVStore::key_t
+auto hstore::lock(
+  const pool_t pool
+  , const std::string &key
+  , lock_type_t type
+  , void *& out_value
+  , std::size_t & out_value_len
+  , Component::IKVStore::key_t& out_key
+) -> status_t
 {
   const auto session = static_cast<session_t *>(locate_session(pool));
   return
     session
-    ? session->lock(key, type, out_value, out_value_len)
-    : KEY_NONE
+    ? ( out_key = session->lock(key, type, out_value, out_value_len), S_OK )
+    : E_FAIL
     ;
 }
 

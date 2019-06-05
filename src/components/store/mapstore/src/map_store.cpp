@@ -550,20 +550,25 @@ status_t Map_store::get_attribute(const pool_t pool,
   return session->pool->get_attribute(pool, attr, out_attr, key);
 }
 
-Component::IKVStore::key_t
-Map_store::lock(const pool_t pid,
+
+status_t Map_store::lock(const pool_t pid,
                 const std::string& key,
                 lock_type_t type,
                 void*& out_value,
-                size_t& out_value_len)
+                size_t& out_value_len,
+                IKVStore::key_t &out_key)
 {
   auto session = get_session(pid);
-  if(!session) return IKVStore::KEY_NONE;
+  if(!session){
+    out_key = IKVStore::KEY_NONE;
+    return E_FAIL;
+  }
 
   if(option_DEBUG)
     PLOG("map_store: lock(%s)", key.c_str());
 
-  return session->pool->lock(key, type, out_value, out_value_len);
+  out_key = session->pool->lock(key, type, out_value, out_value_len);
+  return S_OK;
 }
 
 status_t Map_store::unlock(const pool_t pid,

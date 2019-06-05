@@ -410,13 +410,15 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
 
     std::string k(msg->key(), msg->key_len);
     /* create (if needed) and lock value */    
-    auto key_handle = _i_kvstore->lock(msg->pool_id,
-                                       k,
-                                       IKVStore::STORE_LOCK_WRITE,
-                                       target,
-                                       target_len);
+    Component::IKVStore::key_t key_handle;
+    status_t rc = _i_kvstore->lock(msg->pool_id,
+                                   k,
+                                   IKVStore::STORE_LOCK_WRITE,
+                                   target,
+                                   target_len,
+                                   key_handle);
 
-    if (key_handle == Component::IKVStore::KEY_NONE) {
+    if (rc == E_FAIL || key_handle == Component::IKVStore::KEY_NONE) {
       PWRN("PUT_ADVANCE failed to lock value (lock() returned KEY_NONE) ");
       status = E_INVAL;
       _stats.op_failed_request_count++;
@@ -524,15 +526,17 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
       size_t client_side_value_len = msg->val_len;
       bool is_direct = msg->resvd & Protocol::MSG_RESVD_DIRECT;
       std::string k(msg->key(), msg->key_len);
-      
-      auto key_handle = _i_kvstore->lock(msg->pool_id,
-                                         k,
-                                         IKVStore::STORE_LOCK_READ,
-                                         value_out,
-                                         value_out_len);
+
+      Component::IKVStore::key_t key_handle;
+      status_t rc = _i_kvstore->lock(msg->pool_id,
+                                     k,
+                                     IKVStore::STORE_LOCK_READ,
+                                     value_out,
+                                     value_out_len,
+                                     key_handle);
 
 
-      if (key_handle == Component::IKVStore::KEY_NONE) { /* key not found */
+      if (rc == E_FAIL || key_handle == Component::IKVStore::KEY_NONE) { /* key not found */
         if (option_DEBUG > 2)
           PLOG("Shard: locking value failed");
         
