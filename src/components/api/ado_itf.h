@@ -84,20 +84,6 @@ public:
   
 };
 
-class IADO_proxy_factory : public Component::IBase {
- public:
-  // clang-format off
-  DECLARE_INTERFACE_UUID(0xfacbb389,0x1665,0x4e5b,0xa1b1,0x3c,0xff,0x4a,0x5e,0xe2,0x63);
-  // clang-format on
-
-  virtual IADO_proxy* create(
-      const std::string&                        filename,
-      std::vector<std::string>&                 args,
-      IADO_manager_proxy::shared_memory_token_t shm_token,
-      string                                    cores,
-      int                                       memroy) = 0;
-};
-
 /** 
  * ADO manager interface.  This is actually a proxy interface communicating with an external process.
  * The ADO manager has a "global" view of the system and can coordinate / schedule resources that
@@ -158,6 +144,20 @@ public:
   // clang-format on
 
   virtual IADO_manager_proxy* create(unsigned debug_level, int core) = 0;
+};
+
+class IADO_proxy_factory : public Component::IBase {
+ public:
+  // clang-format off
+  DECLARE_INTERFACE_UUID(0xfacbb389,0x1665,0x4e5b,0xa1b1,0x3c,0xff,0x4a,0x5e,0xe2,0x63);
+  // clang-format on
+
+  virtual IADO_proxy* create(
+      const std::string&                        filename,
+      std::vector<std::string>&                 args,
+      IADO_manager_proxy::shared_memory_token_t shm_token,
+      std::string                               cores,
+      int                                       memroy) = 0;
 };
 
 } // Component
