@@ -49,36 +49,7 @@ typedef struct obj_info {
   size_t key_len;
   TOID(char) key_data;
 } obj_info_t;
-#else
-typedef struct obj_info {
-  // Block alocation
-  int   lba_start;
-  int   size;    // value size in bytes
-  void* handle;  // handle to free this block
-
-  // key info
-  size_t key_len;
-  char*  key_data;
-} obj_info_t;
 #endif
-
-struct buffer_t {
-  const size_t      _length;
-  const io_buffer_t _io_mem;
-  void* const
-      _start_vaddr;  // it will equal to _io_mem if using allocate_io_buffer
-
-  buffer_t(size_t length, io_buffer_t io_mem, void* start_vaddr)
-      : _length(length), _io_mem(io_mem), _start_vaddr(start_vaddr)
-  {
-  }
-
-  ~buffer_t() {}
-
-  inline size_t length() const { return _length; }
-  inline size_t io_mem() const { return _io_mem; }
-  inline void*  start_vaddr() const { return _start_vaddr; }
-};
 
 class NVME_store : public Component::IKVStore {
   using block_manager_t = nvmestore::Block_manager;

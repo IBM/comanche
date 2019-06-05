@@ -142,6 +142,18 @@ TEST_F(KVStore_test, OpenPool)
   ASSERT_TRUE(_pool > 0);
 }
 
+TEST_F(KVStore_test, BasicGetEmpty)
+{
+  std::string key = "MyKey";
+
+  void * value     = nullptr;
+  size_t value_len = 0;
+  EXPECT_EQ(IKVStore::E_KEY_NOT_FOUND,
+            _kvstore->get(_pool, key, value, value_len));
+
+  free(value);
+}
+
 #if 0
 
 TEST_F(KVStore_test, BasicPut)

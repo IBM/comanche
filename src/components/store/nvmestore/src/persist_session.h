@@ -15,6 +15,35 @@ using namespace Component;
 
 namespace nvmestore
 {
+struct obj_info {
+  // Block alocation
+  int   lba_start;
+  int   size;    // value size in bytes
+  void* handle;  // handle to free this block
+
+  // key info
+  size_t key_len;
+  char*  key_data;
+};
+
+struct buffer_t {
+  const size_t      _length;
+  const io_buffer_t _io_mem;
+  void* const
+      _start_vaddr;  // it will equal to _io_mem if using allocate_io_buffer
+
+  buffer_t(size_t length, io_buffer_t io_mem, void* start_vaddr)
+      : _length(length), _io_mem(io_mem), _start_vaddr(start_vaddr)
+  {
+  }
+
+  ~buffer_t() {}
+
+  inline size_t length() const { return _length; }
+  inline size_t io_mem() const { return _io_mem; }
+  inline void*  start_vaddr() const { return _start_vaddr; }
+};
+
 class persist_session {
  private:
   using obj_info_t      = struct obj_info;
@@ -24,13 +53,15 @@ class persist_session {
   static constexpr bool option_DEBUG = false;
   using lock_type_t                  = IKVStore::lock_type_t;
   using key_t = uint64_t;  // virt_addr is used to identify each obj
-  persist_session(IKVStore::pool_t obj_info_pool,
+  persist_session(IKVStore*        metastore,
+                  IKVStore::pool_t obj_info_pool,
                   std::string      path,
                   size_t           io_mem_size,
                   Block_manager*   blk_manager,
                   State_map*       ptr_state_map)
-      : _map_obj_info(obj_info_pool), _path(path), _io_mem_size(io_mem_size),
-        _blk_manager(blk_manager), p_state_map(ptr_state_map), _num_objs(0)
+      : _meta_store(metastore), _meta_pool(obj_info_pool), _path(path),
+        _io_mem_size(io_mem_size), _blk_manager(blk_manager),
+        p_state_map(ptr_state_map), _num_objs(0)
   {
     _io_mem = _blk_manager->allocate_io_buffer(_io_mem_size, 4096,
                                                Component::NUMA_NODE_ANY);
@@ -49,7 +80,7 @@ class persist_session {
   std::string get_path() & { return _path; }
 
   size_t           get_count() { return _num_objs; }
-  IKVStore::pool_t get_obj_info_pool() const { return _map_obj_info; }
+  IKVStore::pool_t get_obj_info_pool() const { return _meta_pool; }
 
   void alloc_new_object(const std::string& key,
                         size_t             value_len,
@@ -64,20 +95,19 @@ class persist_session {
     throw API_exception("Not implemented");
   }
 
+  status_t check_exists(const std::string key) const;
+
   /** Put and object*/
   status_t put(const std::string& key,
                const void*        valude,
                size_t             value_len,
                unsigned int       flags)
   {
-    throw API_exception("Not implemented");
+    return E_FAIL;
   }
 
   /** Get an object*/
-  status_t get(const std::string& key, void*& out_value, size_t& out_value_len)
-  {
-    throw API_exception("Not implemented");
-  }
+  status_t get(const std::string& key, void*& out_value, size_t& out_value_len);
 
   status_t get_direct(const std ::string& key,
                       void*               out_value,
@@ -103,10 +133,7 @@ class persist_session {
   {
     throw API_exception("Not implemented");
   }
-  status_t map_keys(std::function<int(const std::string& key)> f)
-  {
-    throw API_exception("Not implemented");
-  };
+  status_t map_keys(std::function<int(const std::string& key)> f);
 
  private:
   // for meta_pmem only
@@ -116,8 +143,10 @@ class persist_session {
   size_t                    _io_mem_size; /** io memory size */
   nvmestore::Block_manager* _blk_manager;
   State_map*                p_state_map;
-  obj_info_pool_t _map_obj_info; /** pool to store hashkey->obj mapping*/
-  size_t          map_obj_init_size;
+
+  IKVStore*             _meta_store;
+  obj_info_pool_t const _meta_pool; /** pool to store hashkey->obj mapping*/
+  size_t                _meta_pool_size;
 
   /** Session locked, io_buffer_t(virt_addr) -> pool hashkey of obj*/
   std::unordered_map<io_buffer_t, uint64_t> _locked_regions;
