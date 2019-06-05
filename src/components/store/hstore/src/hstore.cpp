@@ -518,7 +518,7 @@ auto hstore::lock(
   , lock_type_t type
   , void *& out_value
   , std::size_t & out_value_len
-  key_t& out_key
+  , Component::IKVStore::key_t& out_key
 ) -> status_t
 {
   const auto session = static_cast<session_t *>(locate_session(pool));

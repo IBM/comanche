@@ -223,7 +223,7 @@ public:
                         lock_type_t type,
                         void*& out_value,
                         size_t& out_value_len,
-                        key_t& out_key) override;
+                        Component::IKVStore::key_t& out_key) override;
 
   status_t unlock(pool_t pool,
                   Component::IKVStore::key_t key_handle) override;
