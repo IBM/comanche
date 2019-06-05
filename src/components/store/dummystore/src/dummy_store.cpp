@@ -192,14 +192,15 @@ status_t Dummy_store::put_direct(const pool_t pid,
   return S_OK;
 }
 
-Component::IKVStore::key_t
-Dummy_store::lock(const pool_t pid,
+status_t Dummy_store::lock(const pool_t pid,
                   const std::string& key,
                   lock_type_t type,
                   void*& out_value,
-                  size_t& out_value_len)
+                  size_t& out_value_len,
+                  IKVStore::key_t &out_key)
 {
-  return nullptr;
+  out_key = nullptr;
+  return E_FAIL;
 }
 
 status_t Dummy_store::unlock(const pool_t pid,
