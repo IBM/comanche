@@ -134,6 +134,14 @@ INLINE cpu_time_t rdtsc() {
 
 #endif
 
+#elif defined(__powerpc64__)
+
+#include <sys/platform/ppc.h>
+
+INLINE cpu_time_t rdtsc() {
+  return __ppc_get_timebase();
+}
+
 #else
 #error Platform not supported.
 #endif

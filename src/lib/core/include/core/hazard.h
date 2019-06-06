@@ -11,8 +11,6 @@
    limitations under the License.
 */
 
-
-
 #ifndef HAZARD_MANAGER
 #define HAZARD_MANAGER
 
