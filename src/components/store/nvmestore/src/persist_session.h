@@ -76,7 +76,7 @@ class persist_session {
     if (_io_mem) _blk_manager->free_io_buffer(_io_mem);
   }
 
-  std::unordered_map<uint64_t, io_buffer_t>& get_locked_regions()
+  std::unordered_map<uint64_t, std::string>& get_locked_regions()
   {
     return _locked_regions;
   }
@@ -85,9 +85,9 @@ class persist_session {
   size_t           get_count() { return _num_objs; }
   IKVStore::pool_t get_obj_info_pool() const { return _meta_pool; }
 
-  void alloc_new_object(const std::string& key,
-                        size_t             value_len,
-                        obj_info_t*&       out_blkmeta);
+  status_t alloc_new_object(const std::string& key,
+                            size_t             value_len,
+                            obj_info_t*&       out_blkmeta);
 
   /** Erase Objects*/
   status_t erase(const std::string& key);
@@ -111,12 +111,9 @@ class persist_session {
   key_t lock(const std::string& key,
              lock_type_t        type,
              void*&             out_value,
-             size_t&            out_value_len)
-  {
-    throw API_exception("Not implemented");
-  }
+             size_t&            out_value_len);
 
-  status_t unlock(key_t obj_key) { throw API_exception("Not implemented"); }
+  status_t unlock(key_t obj_key);
 
   status_t map(std::function<int(const std::string& key,
                                  const void*        value,
@@ -139,9 +136,9 @@ class persist_session {
   obj_info_pool_t const _meta_pool; /** pool to store hashkey->obj mapping*/
   size_t                _meta_pool_size;
 
-  /** Session locked, io_buffer_t(virt_addr) -> pool hashkey of obj*/
-  std::unordered_map<io_buffer_t, uint64_t> _locked_regions;
-  size_t                                    _num_objs;
+  /** Session locked, io_buffer_t(virt_addr) -> key_str of obj*/
+  std::unordered_map<io_buffer_t, std::string> _locked_regions;
+  size_t                                       _num_objs;
 
   status_t may_ajust_io_mem(size_t value_len);
 };

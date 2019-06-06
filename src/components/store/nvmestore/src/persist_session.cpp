@@ -16,9 +16,9 @@ using namespace nvmestore;
  * Before invoke this, we ensure that the key is either not exsiting before, or
  * have been freed
  */
-void persist_session::alloc_new_object(const std::string& key,
-                                       size_t             value_len,
-                                       obj_info_t*&       out_objinfo)
+status_t persist_session::alloc_new_object(const std::string& key,
+                                           size_t             value_len,
+                                           obj_info_t*&       out_objinfo)
 {
   auto& blk_manager = this->_blk_manager;
 
@@ -63,6 +63,7 @@ void persist_session::alloc_new_object(const std::string& key,
        D_RO(objinfo)->handle);
 
   out_objinfo = objinfo;
+  return S_OK;
 }
 
 status_t persist_session::erase(const std::string& key)
@@ -170,12 +171,6 @@ status_t persist_session::get(const std::string& key,
   auto        val_len = objinfo->size;
   auto        lba     = objinfo->lba_start;
 
-#ifdef USE_ASYNC
-  uint64_t tag = D_RO(objinfo)->last_tag;
-  while (!blk_dev->check_completion(tag))
-    cpu_relax(); /* check the last completion, TODO: check each time makes the
-                    get slightly slow () */
-#endif
   PDBG("prepare to read lba %d with length %d, key %lx", lba, val_len, hashkey);
 
   may_ajust_io_mem(val_len);
@@ -211,13 +206,6 @@ status_t persist_session::get_direct(const std ::string& key,
   obj_info_t* objinfo = reinterpret_cast<obj_info_t*>(raw_objinfo);
   auto        val_len = objinfo->size;
   auto        lba     = objinfo->lba_start;
-
-#ifdef USE_ASYNC
-  uint64_t tag = D_RO(objinfo)->last_tag;
-  while (!blk_dev->check_completion(tag))
-    cpu_relax(); /* check the last completion, TODO: check each time makes the
-                    get slightly slow () */
-#endif
 
   PDBG("prepare to read lba %lu with length %lu", lba, val_len);
   assert(out_value);
@@ -275,21 +263,124 @@ status_t persist_session::put(const std::string& key,
   memcpy(_blk_manager->virt_addr(_io_mem), value,
          value_len); /* for the moment we have to memcpy */
 
-#ifdef USE_ASYNC
-#error("use_sync is deprecated")
-  // TODO: can the free be triggered by callback?
-  uint64_t tag = blk_dev->async_write(session->io_mem, 0, lba, nr_io_blocks);
-  D_RW(objinfo)->last_tag = tag;
-#else
   auto nr_io_blocks = (value_len + blk_sz - 1) / blk_sz;
   _blk_manager->do_block_io(nvmestore::BLOCK_IO_WRITE, _io_mem, lba,
                             nr_io_blocks);
-#endif
   return S_OK;
 }
 
 status_t persist_session::map_keys(std::function<int(const std::string& key)> f)
 {
   _meta_store->map_keys(_meta_pool, f);
+  return S_OK;
+}
+
+persist_session::key_t persist_session::lock(const std::string& key,
+                                             lock_type_t        type,
+                                             void*&             out_value,
+                                             size_t&            out_value_len)
+{
+  int operation_type = nvmestore::BLOCK_IO_NOP;
+
+  size_t blk_sz = _blk_manager->blk_sz();
+
+  obj_info_t* objinfo;
+
+  if (check_exists(key) == E_NOT_FOUND) {
+    if (!out_value_len) {
+      throw General_exception(
+          "%s: Need value length to lock a unexsiting object", __func__);
+    }
+    alloc_new_object(key, out_value_len, objinfo);
+  }
+
+  else {
+    size_t obj_info_length;
+
+    void*    raw_objinfo;
+    status_t rc =
+        _meta_store->get(_meta_pool, key, raw_objinfo, obj_info_length);
+    if (rc != S_OK || obj_info_length != sizeof(obj_info_t)) {
+      throw General_exception("get objinfo from meta_pool failed");
+    }
+    operation_type = nvmestore::BLOCK_IO_READ;
+    objinfo        = reinterpret_cast<obj_info_t*>(raw_objinfo);
+  }
+
+  auto pool = reinterpret_cast<uint64_t>(this);
+
+  if (type == IKVStore::STORE_LOCK_READ) {
+    if (!p_state_map->state_get_read_lock(pool, objinfo->handle))
+      throw General_exception("%s: unable to get read lock", __func__);
+  }
+  else {
+    if (!p_state_map->state_get_write_lock(pool, objinfo->handle))
+      throw General_exception("%s: unable to get write lock", __func__);
+  }
+
+  auto handle    = objinfo->handle;
+  auto value_len = objinfo->size;  // the length allocated before
+  auto lba       = objinfo->lba_start;
+
+  /* fetch the data to block io mem */
+  size_t      nr_io_blocks = (value_len + blk_sz - 1) / blk_sz;
+  io_buffer_t mem          = _blk_manager->allocate_io_buffer(
+      nr_io_blocks * blk_sz, 4096, Component::NUMA_NODE_ANY);
+
+  _blk_manager->do_block_io(operation_type, mem, lba, nr_io_blocks);
+
+  get_locked_regions().emplace(mem, key);
+  PDBG("[nvmestore_session]: allocating io mem at %p, virt addr %p",
+       (void*) mem, _blk_manager->virt_addr(mem));
+
+  /* set output values */
+  out_value     = _blk_manager->virt_addr(mem);
+  out_value_len = value_len;
+
+  PDBG("NVME_store: obtained the lock");
+
+  return reinterpret_cast<persist_session::key_t>(out_value);
+}
+
+status_t persist_session::unlock(persist_session::key_t key_handle)
+{
+  auto         pool = reinterpret_cast<uint64_t>(this);
+  io_buffer_t  mem  = reinterpret_cast<io_buffer_t>(key_handle);
+  std::string& key  = get_locked_regions().at(mem);
+
+  if (check_exists(key) == E_NOT_FOUND) return IKVStore::E_KEY_NOT_FOUND;
+  size_t blk_sz = _blk_manager->blk_sz();
+
+  void*  raw_objinfo;
+  size_t obj_info_length;
+
+  status_t rc = _meta_store->get(_meta_pool, key, raw_objinfo, obj_info_length);
+  if (rc != S_OK || obj_info_length != sizeof(obj_info_t)) {
+    throw General_exception("get objinfo from meta_pool failed");
+  }
+
+  obj_info_t* objinfo = reinterpret_cast<obj_info_t*>(raw_objinfo);
+  auto        val_len = objinfo->size;
+  auto        lba     = objinfo->lba_start;
+
+  size_t nr_io_blocks = (val_len + blk_sz - 1) / blk_sz;
+
+  /*flush and release iomem*/
+#ifdef USE_ASYNC
+  uint64_t tag            = blk_dev->async_write(mem, 0, lba, nr_io_blocks);
+  D_RW(objinfo)->last_tag = tag;
+#else
+  _blk_manager->do_block_io(nvmestore::BLOCK_IO_WRITE, mem, lba, nr_io_blocks);
+#endif
+
+  PDBG("[nvmestore_session]: freeing io mem at %p", (void*) mem);
+  _blk_manager->free_io_buffer(mem);
+
+  /*release the lock*/
+  p_state_map->state_unlock(pool, objinfo->handle);
+
+  PDBG("NVME_store: released the lock");
+
+  get_locked_regions().erase(mem);
   return S_OK;
 }

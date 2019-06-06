@@ -142,6 +142,7 @@ TEST_F(KVStore_test, OpenPool)
   ASSERT_TRUE(_pool > 0);
 }
 
+#if 0
 TEST_F(KVStore_test, BasicGetEmpty)
 {
   std::string key = "MyKey";
@@ -153,6 +154,7 @@ TEST_F(KVStore_test, BasicGetEmpty)
 
   free(value);
 }
+#endif
 
 TEST_F(KVStore_test, BasicPut)
 {
@@ -211,6 +213,14 @@ TEST_F(KVStore_test, PutOverwrite)
   //  value.resize(value.length()+1); /* append /0 */
   value.resize(single_value_length);
 
+  // also update the record
+  for (auto &kv : kvv) {
+    // if ( ct == lock_count ) { break; }
+    const auto &matched_key = std::get<0>(kv);
+    auto &      ev          = std::get<1>(kv);
+    if (matched_key == key) ev = value;
+  }
+
   kvv.emplace_back(key, value);
 
   EXPECT_EQ(S_OK, _kvstore->put(_pool, key, value.c_str(), value.length()));
@@ -237,15 +247,15 @@ TEST_F(KVStore_test, BasicMap)
                   ;
                 });
 }
+#endif
 
 TEST_F(KVStore_test, BasicMapKeys)
 {
-  _kvstore->map_keys(_pool,
-                [](const std::string &key) -> int {
-                  PINF("key:%s", key.c_str());
-                  return 0;
-                  ;
-                });
+  _kvstore->map_keys(_pool, [](const std::string &key) -> int {
+    PINF("key:%s", key.c_str());
+    return 0;
+    ;
+  });
 }
 
 /* lock */
@@ -301,7 +311,6 @@ TEST_F(KVStore_test, LockBasic)
   }
 }
 
-#endif
 TEST_F(KVStore_test, BasicErase) { _kvstore->erase(_pool, "MyKey"); }
 
 #if 0
