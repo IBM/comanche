@@ -28,3 +28,6 @@ install(TARGETS ${PROJECT_NAME}
     DESTINATION lib)
 
 add_subdirectory(unit_test)
+
+# some experimental testing
+add_subdirectory(testing)
