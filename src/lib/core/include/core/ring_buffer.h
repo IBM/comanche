@@ -23,6 +23,8 @@
 #ifndef __CORE_RING_BUFFER_H__
 #define __CORE_RING_BUFFER_H__
 
+#if defined(__x86_64__)
+
 #include <stdlib.h>
 #include <atomic>
 #include <string>
@@ -112,4 +114,5 @@ class Ring_buffer : public Ring_buffer_base {
 
 }  // namespace Core
 
+#endif
 #endif  // __CORE_RING_BUFFER_H__

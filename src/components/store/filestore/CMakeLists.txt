@@ -1,18 +1,15 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
-
 add_subdirectory(./unit_test)
 
 project(comanche-storefile CXX)
 
 add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
-#add_definitions(${GCC_COVERAGE_COMPILE_FLAGS})
 
 include_directories(${CMAKE_INSTALL_PREFIX}/include)
 link_directories(${CMAKE_INSTALL_PREFIX}/lib)
 link_directories(${CMAKE_INSTALL_PREFIX}/lib64)
 
-enable_language(CXX C ASM)
 file(GLOB SOURCES src/*.c*)
 
 add_library(${PROJECT_NAME} SHARED ${SOURCES})

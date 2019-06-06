@@ -9,7 +9,11 @@
 #include "rapidjson/stringbuffer.h"
 
 #include <boost/filesystem.hpp>
+#if defined(__powerpc64__)
+#include <gperftools/heap-profiler.h>
+#else
 #include <gperftools/profiler.h>
+#endif
 #include <sys/mman.h> /* madvise, MADV_HUGEPAGE */
 #include <sys/sysmacros.h> /* major, minor */
 
