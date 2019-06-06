@@ -168,13 +168,14 @@ class NVME_store : public Component::IKVStore {
 
   virtual status_t unregister_direct_memory(memory_handle_t handle) override;
 
-  virtual IKVStore::key_t lock(const pool_t       pool,
-                               const std::string& key,
-                               lock_type_t        type,
-                               void*&             out_value,
-                               size_t&            out_value_len) override;
+  virtual status_t lock(const pool_t       pool,
+                        const std::string& key,
+                        lock_type_t        type,
+                        void*&             out_value,
+                        size_t&            out_value_len,
+                        key_t&             out_key) override;
 
-  virtual status_t unlock(const pool_t pool, key_t key_hash) override;
+  virtual status_t unlock(const pool_t pool, key_t key_handle) override;
 
   virtual status_t erase(const pool_t pool, const std::string& key) override;
 

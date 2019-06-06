@@ -1,4 +1,5 @@
 #include "region_modifications.h"
+#include "allocator_ra.h"
 
 #include <gtest/gtest.h>
 
@@ -65,6 +66,42 @@ TEST_F(Libnupm_test, RegionModifications)
   nupm::region_tracker_clear();
   sz = nupm::region_tracker_get_region(0, v);
   EXPECT_EQ(0, sz);
+}
+
+TEST_F(Libnupm_test, AVL_allocator)
+{
+  auto size = 1000000;
+  void *v = malloc(size);
+  ASSERT_NE(nullptr, v);
+  /* AVL_range_allocator requires an addr_t, defined in comanche common/types.h */
+  Core::AVL_range_allocator ra(reinterpret_cast<addr_t>(v), size);
+  auto a = nupm::allocator_ra<char>(ra);
+  const std::size_t ITERATIONS = 100;
+  PLOG("AVL_allocator running... %zu allocations", ITERATIONS);
+
+  std::vector<char *> alloc_v;
+  alloc_v.reserve(ITERATIONS);
+
+  auto start = std::chrono::high_resolution_clock::now();
+  constexpr auto alloc_size = 200;
+  for (unsigned i = 0; i < ITERATIONS; i++) {
+    auto p = a.allocate(alloc_size);
+    ASSERT_TRUE(p);
+    EXPECT_LE(v, p);
+    EXPECT_LT(p + alloc_size, static_cast<char *>(v) + size);
+    alloc_v.push_back(p);
+  }
+
+  auto end = std::chrono::high_resolution_clock::now();
+  double secs = std::chrono::duration_cast<std::chrono::duration<double>>(end - start).count();
+  PINF("AVL_allocator: %lu allocs/sec",
+       static_cast<unsigned long>( double(ITERATIONS) / secs)
+  );
+
+  PLOG("AVL_allocator: Freeing %zu allocations...", alloc_v.size());
+  for (auto &vv : alloc_v) {
+    a.deallocate(vv, alloc_size);
+  }
 }
 
 int main(int argc, char **argv)

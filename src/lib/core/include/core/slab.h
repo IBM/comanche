@@ -346,7 +346,7 @@ class Allocator : public Common::Base_slab_allocator {
     addr_t base = (addr_t) _region;
     addr_t top = base + _header->region_size;
 
-    PLOG("---------------------------------------------------");
+    PLOG("%s", "---------------------------------------------------");
     PLOG("HEADER: magic         (%s) ", _header->magic);
     PLOG("      : slots         (%ld)", _header->slots);
     PLOG("      : max slots     (%ld)", _header->max_slots);
@@ -356,7 +356,7 @@ class Allocator : public Common::Base_slab_allocator {
          REDUCE_KB((top - base)));
     PLOG("      : chksum        (%x)",
          Common::chksum32(_header, _header->region_size));
-    PLOG("---------------------------------------------------");
+    PLOG("%s", "---------------------------------------------------");
 
 #ifdef SHOW_ENTRIES
     for (unsigned i = 0; i < _header->slots; i++) {
@@ -381,18 +381,18 @@ class Allocator : public Common::Base_slab_allocator {
     }
 #endif
 
-    PLOG("---------------------------------------------------");
+    PLOG("%s", "---------------------------------------------------");
     PLOG(" Volatile status: _free_slots.size = %ld", _free_slots.size());
     unsigned i = 0;
     for (auto fs : _free_slots) {
       PLOG("FREE slot entry: %p", (void*) fs);
       i++;
       if (i == 100) {
-        PLOG("...");
+        PLOG("%s", "...");
         break;
       }
     }
-    PLOG("---------------------------------------------------");
+    PLOG("%s", "---------------------------------------------------");
   }
 
   /**
