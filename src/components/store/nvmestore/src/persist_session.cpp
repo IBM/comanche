@@ -32,8 +32,10 @@ status_t persist_session::alloc_new_object(const std::string& key,
   PDBG("write to lba %lu with length %lu, key %lx", lba, value_len, hashkey);
 
   // prepare objinfo buffer
-  void* raw_objinfo = malloc(sizeof(obj_info_t));
-  memset(raw_objinfo, 0, sizeof(obj_info_t));
+  size_t obj_info_sz_in_bytes =
+      sizeof(obj_info_t) + key.length() + 1;  // \0 included
+  void* raw_objinfo = malloc(obj_info_sz_in_bytes);
+  memset(raw_objinfo, 0, obj_info_sz_in_bytes);
   if (raw_objinfo == nullptr)
     throw General_exception("Failed to allocate space for objinfo");
   obj_info_t* objinfo = reinterpret_cast<obj_info_t*>(raw_objinfo);
@@ -44,23 +46,20 @@ status_t persist_session::alloc_new_object(const std::string& key,
   objinfo->handle    = handle;
   objinfo->key_len   = key.length();
 
-  void* key_data = malloc(key.length() + 1);  // \0 included
-  if (key_data == nullptr)
-    throw General_exception("Failed to allocate space for key");
+  void* key_data = (char*) raw_objinfo + sizeof(obj_info_t);
   std::copy(key.c_str(), key.c_str() + key.length() + 1, (char*) (key_data));
   objinfo->key_data = (char*) key_data;
 
   // put to meta_pool
   status_t rc =
-      _meta_store->put(_meta_pool, key, raw_objinfo, sizeof(obj_info_t));
+      _meta_store->put(_meta_pool, key, raw_objinfo, obj_info_sz_in_bytes);
   if (rc != S_OK) {
     throw General_exception("put objinfo to meta_pool failed");
   }
 
   _num_objs += 1;
 
-  PDBG("Allocated obj with obj %p, ,handle %p", D_RO(objinfo),
-       D_RO(objinfo)->handle);
+  PDBG("Allocated obj with obj %p, ,handle %p", objinfo, objinfo->handle);
 
   out_objinfo = objinfo;
   return S_OK;
@@ -78,7 +77,7 @@ status_t persist_session::erase(const std::string& key)
 
   // Get objinfo from meta_pool
   rc = _meta_store->get(_meta_pool, key, raw_objinfo, obj_info_sz_in_bytes);
-  if (rc != S_OK || obj_info_sz_in_bytes != sizeof(obj_info_t)) {
+  if (rc != S_OK || obj_info_sz_in_bytes < sizeof(obj_info_t)) {
     throw General_exception("get objinfo from meta_pool failed");
   }
   obj_info_t* objinfo = reinterpret_cast<obj_info_t*>(raw_objinfo);
@@ -100,7 +99,6 @@ status_t persist_session::erase(const std::string& key)
   _blk_manager->free_blk_region(objinfo->lba_start, objinfo->handle);
   p_state_map->state_remove(pool, objinfo->handle);
 
-  if (objinfo->key_data) free(objinfo->key_data);
   if (objinfo) free(objinfo);
 
   _num_objs -= 1;
@@ -163,7 +161,7 @@ status_t persist_session::get(const std::string& key,
   size_t obj_info_length;
 
   status_t rc = _meta_store->get(_meta_pool, key, raw_objinfo, obj_info_length);
-  if (rc != S_OK || obj_info_length != sizeof(obj_info_t)) {
+  if (rc != S_OK || obj_info_length < sizeof(obj_info_t)) {
     throw General_exception("get objinfo from meta_pool failed");
   }
 
@@ -199,7 +197,7 @@ status_t persist_session::get_direct(const std ::string& key,
   size_t obj_info_length;
 
   status_t rc = _meta_store->get(_meta_pool, key, raw_objinfo, obj_info_length);
-  if (rc != S_OK || obj_info_length != sizeof(obj_info_t)) {
+  if (rc != S_OK || obj_info_length < sizeof(obj_info_t)) {
     throw General_exception("get objinfo from meta_pool failed");
   }
 
@@ -333,7 +331,7 @@ persist_session::key_t persist_session::lock(const std::string& key,
     void*    raw_objinfo;
     status_t rc =
         _meta_store->get(_meta_pool, key, raw_objinfo, obj_info_length);
-    if (rc != S_OK || obj_info_length != sizeof(obj_info_t)) {
+    if (rc != S_OK || obj_info_length < sizeof(obj_info_t)) {
       throw General_exception("get objinfo from meta_pool failed");
     }
     operation_type = nvmestore::BLOCK_IO_READ;
@@ -388,7 +386,7 @@ status_t persist_session::unlock(persist_session::key_t key_handle)
   size_t obj_info_length;
 
   status_t rc = _meta_store->get(_meta_pool, key, raw_objinfo, obj_info_length);
-  if (rc != S_OK || obj_info_length != sizeof(obj_info_t)) {
+  if (rc != S_OK || obj_info_length < sizeof(obj_info_t)) {
     throw General_exception("get objinfo from meta_pool failed");
   }
 

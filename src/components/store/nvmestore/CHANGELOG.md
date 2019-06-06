@@ -1,5 +1,9 @@
 # Changelog
 This is the changelog for nvmestore
+[2019-06-06]:
+* Added:
+  1. use filestore to manage objinfo. support put/get/get_direct/erase/lock/unlock/map/unmap
+  2. Currently check_exist(in put/get/get_direct) use map_keys each time, this needs to be cached
 [2019-06-3]:
 * TODO:
   1. use filestore instead hashmap.cpp

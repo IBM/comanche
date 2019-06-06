@@ -16,17 +16,18 @@ using namespace Component;
 namespace nvmestore
 {
 struct obj_info {
+  // TODO better padding
   // Block alocation
   int   lba_start;
   int   size;    // value size in bytes
   void* handle;  // handle to free this block
 
-  // key info
-  size_t key_len;
-  char*  key_data;
-
   // handle for the metastore lock/unlock
   IKVStore::key_t meta_key;
+
+  // key info
+  size_t key_len;
+  char*  key_data;  // actual char array follows it with ending '\0'
 };
 
 struct buffer_t {

@@ -5,7 +5,7 @@ add_subdirectory(./unit_test)
 
 project(comanche-storefile CXX)
 
-add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
+# add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 #add_definitions(${GCC_COVERAGE_COMPILE_FLAGS})
 
 include_directories(${CMAKE_INSTALL_PREFIX}/include)
