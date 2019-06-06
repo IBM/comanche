@@ -23,9 +23,10 @@ file(GLOB SOURCES src/*.c*)
 
 add_library(nupm SHARED ${SOURCES})
 
+target_compile_options(${PROJECT_NAME} PUBLIC "$<$<CONFIG:Debug>:-O0>")
 target_link_libraries(${PROJECT_NAME} stdc++fs common numa ${LIB_NDCTL} pmem pmemobj vmem tbb tbbmalloc dl memkind)
 
-#add_subdirectory(unit_test)
+add_subdirectory(unit_test)
 
 install(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION lib)
 install(DIRECTORY "src/" DESTINATION "include/nupm" FILES_MATCHING PATTERN "*.h")
