@@ -68,7 +68,9 @@ static constexpr size_t KEY_LEN = 16;
 static constexpr int    nr_elem = 4;  // number of the test elem in the pool
 static constexpr size_t VAL_LEN = GB(1);
 #else
-static constexpr int    nr_elem = 10000;  // number of the test elem in the pool
+// static constexpr int nr_elem = 10000;  // TODO: Takes long if I dont cache
+// key list
+static constexpr int    nr_elem = 100;  // number of the test elem in the pool
 static constexpr size_t VAL_LEN = KB(128);
 #endif
 std::unordered_map<std::string, int> _crc_map;

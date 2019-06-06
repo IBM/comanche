@@ -132,14 +132,29 @@ TEST_F(KVStore_test, OpenPool)
     _pool           = _kvstore->create_pool(_pool_fullname, MB(128));
     _pool_is_reopen = false;
   }
+
   catch (...) {
     // open the pool if it exists
+    PINF("NVMEStore:open a exsiting pool instead!");
     _pool           = _kvstore->open_pool(_pool_fullname);
     _pool_is_reopen = true;
-    PINF("NVMEStore:open a exsiting pool instead!");
   }
   ASSERT_TRUE(_pool > 0);
 }
+
+#if 0
+TEST_F(KVStore_test, BasicGetEmpty)
+{
+  std::string key = "MyKey";
+
+  void * value     = nullptr;
+  size_t value_len = 0;
+  EXPECT_EQ(IKVStore::E_KEY_NOT_FOUND,
+            _kvstore->get(_pool, key, value, value_len));
+
+  free(value);
+}
+#endif
 
 TEST_F(KVStore_test, BasicPut)
 {
@@ -187,6 +202,37 @@ TEST_F(KVStore_test, BasicGet)
   PINF("Value=(%.50s) %lu", ((char *) value), value_len);
 
   free(value);
+}
+
+// put the same key with different value
+TEST_F(KVStore_test, PutOverwrite)
+{
+  ASSERT_TRUE(_pool);
+  std::string key   = "MyKey";
+  std::string value = "Second Hello world!";
+  //  value.resize(value.length()+1); /* append /0 */
+  value.resize(single_value_length);
+
+  // also update the record
+  for (auto &kv : kvv) {
+    // if ( ct == lock_count ) { break; }
+    const auto &matched_key = std::get<0>(kv);
+    auto &      ev          = std::get<1>(kv);
+    if (matched_key == key) ev = value;
+  }
+
+  kvv.emplace_back(key, value);
+
+  EXPECT_EQ(S_OK, _kvstore->put(_pool, key, value.c_str(), value.length()));
+
+  void * get_value     = nullptr;
+  size_t get_value_len = 0;
+  EXPECT_EQ(S_OK, _kvstore->get(_pool, key, get_value, get_value_len));
+
+  EXPECT_FALSE(strcmp("Second Hello world!", (char *) get_value));
+  PINF("Value=(%.50s) %lu", ((char *) get_value), get_value_len);
+
+  free(get_value);
 }
 
 TEST_F(KVStore_test, BasicMap)
@@ -272,8 +318,6 @@ TEST_F(KVStore_test, LockBasic)
 
 TEST_F(KVStore_test, BasicErase) { _kvstore->erase(_pool, "MyKey"); }
 
-TEST_F(KVStore_test, ClosePool) { _kvstore->close_pool(_pool); }
-
 /*
  * multiple store on same nvmedevice will use the same _block and the _blk_alloc
  */
@@ -301,6 +345,8 @@ TEST_F(KVStore_test, Multiplestore)
   Component::IKVStore::pool_t store2_pool2 =
       _kvstore2->create_pool("data/test-nvme3.pool", MB(128));
 }
+
+TEST_F(KVStore_test, ClosePool) { _kvstore->close_pool(_pool); }
 
 TEST_F(KVStore_test, DeletePool) { _kvstore->delete_pool(_pool_fullname); }
 
