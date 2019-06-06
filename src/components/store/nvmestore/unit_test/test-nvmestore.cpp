@@ -311,7 +311,6 @@ TEST_F(KVStore_test, LockBasic)
 
 TEST_F(KVStore_test, BasicErase) { _kvstore->erase(_pool, "MyKey"); }
 
-#if 0
 /*
  * multiple store on same nvmedevice will use the same _block and the _blk_alloc
  */
@@ -340,7 +339,6 @@ TEST_F(KVStore_test, Multiplestore)
       _kvstore2->create_pool("data/test-nvme3.pool", MB(128));
 }
 
-#endif
 TEST_F(KVStore_test, ClosePool) { _kvstore->close_pool(_pool); }
 
 TEST_F(KVStore_test, DeletePool) { _kvstore->delete_pool(_pool_fullname); }
