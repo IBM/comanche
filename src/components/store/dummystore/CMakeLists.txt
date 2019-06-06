@@ -4,7 +4,7 @@ project(comanche-dummystore CXX)
 
 set (CMAKE_CXX_STANDARD 14)
 
-add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -O3 -mavx2 -DCONFIG_DEBUG)
+add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -O3 -DCONFIG_DEBUG -mavx2)
 
 include_directories(${CMAKE_INSTALL_PREFIX}/include)
 link_directories(${CMAKE_INSTALL_PREFIX}/lib)

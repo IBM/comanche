@@ -99,6 +99,10 @@ extern "C"
 #define mb() asm volatile("" ::: "memory")
 #define rmb() asm volatile("" ::: "memory")
 #define wmb() asm volatile("" ::: "memory")
+#elif defined(__powerpc64__)
+#define mb()     asm volatile("sync" ::: "memory")
+#define rmb()    asm volatile("lwsync" ::: "memory")
+#define wmb()    mb()
 #else
 #error Memory barriers not implemented
 #endif
@@ -362,7 +366,7 @@ Cpu_bitset get_actual_affinities(const Cpu_bitset &logical_affinities,
 #elif defined(__arm__)
 #define cpu_relax() asm volatile("" : : : "memory")
 #else
-#error Cpu relax not defined for architecture
+#define cpu_relax()
 #endif
 
 #if defined(__x86_64__)

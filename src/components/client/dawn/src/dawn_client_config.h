@@ -13,6 +13,11 @@
 #ifndef __DAWN_CLIENT_CONFIG_H__
 #define __DAWN_CLIENT_CONFIG_H__
 
+#if defined(__powerpc64__)
+#define likely(X) X /* TODO: fix for Power */
+#define unlikely(X) X
+#endif
+
 namespace Dawn
 {
 namespace Global

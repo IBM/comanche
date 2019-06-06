@@ -1,9 +1,13 @@
 cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
+execute_process( COMMAND uname -m COMMAND tr -d '\n' OUTPUT_VARIABLE ARCHITECTURE )
+
 project(comanche-mdfixobd)
 
-add_subdirectory(./unit_test)
-
+if( ${ARCHITECTURE} STREQUAL "x86_64" )
+  add_subdirectory(./unit_test)
+endif()
+  
 include_directories(${CMAKE_INSTALL_PREFIX}/include)
 link_directories(${CMAKE_INSTALL_PREFIX}/lib)
 

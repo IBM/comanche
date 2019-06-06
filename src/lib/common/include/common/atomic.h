@@ -46,7 +46,7 @@
 #endif
 #endif
 
-#if defined(__i386__) || defined(__i686__) || defined(__i586__)
+#if defined(__i386__) || defined(__i686__) || defined(__i586__) || defined(__powerpc64__)
 #if defined(__GCC_HAVE_SYNC_COMPARE_AND_SWAP_4)
 #define USE_GCC_CAS_INTRINSIC
 #else
