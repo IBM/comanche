@@ -117,10 +117,7 @@ class persist_session {
 
   status_t map(std::function<int(const std::string& key,
                                  const void*        value,
-                                 const size_t       value_len)> f)
-  {
-    throw API_exception("Not implemented");
-  }
+                                 const size_t       value_len)> f);
   status_t map_keys(std::function<int(const std::string& key)> f);
 
  private:

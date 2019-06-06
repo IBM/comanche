@@ -269,6 +269,39 @@ status_t persist_session::put(const std::string& key,
   return S_OK;
 }
 
+status_t persist_session::map(std::function<int(const std::string& key,
+                                                const void*        value,
+                                                const size_t value_len)> f)
+{
+  // functor
+  auto f_map = [f, this](const std::string& iter_key) -> int {
+    persist_session* current_session = this;
+    void*            value           = nullptr;
+    size_t           value_len       = 0;
+
+    IKVStore::lock_type_t wlock = IKVStore::STORE_LOCK_WRITE;
+    // lock
+    try {
+      current_session->lock(iter_key, wlock, value, value_len);
+    }
+    catch (...) {
+      throw General_exception("lock failed");
+    }
+
+    if (S_OK != f(iter_key, value, value_len)) {
+      throw General_exception("apply functor failed");
+    }
+
+    // unlock
+    if (S_OK != current_session->unlock((key_t) value)) {
+      throw General_exception("unlock failed");
+    }
+
+    return 0;
+  };
+  return _meta_store->map_keys(_meta_pool, f_map);
+}
+
 status_t persist_session::map_keys(std::function<int(const std::string& key)> f)
 {
   _meta_store->map_keys(_meta_pool, f);

@@ -235,7 +235,6 @@ TEST_F(KVStore_test, PutOverwrite)
   free(get_value);
 }
 
-#if 0
 TEST_F(KVStore_test, BasicMap)
 {
   _kvstore->map(_pool,
@@ -247,7 +246,6 @@ TEST_F(KVStore_test, BasicMap)
                   ;
                 });
 }
-#endif
 
 TEST_F(KVStore_test, BasicMapKeys)
 {
