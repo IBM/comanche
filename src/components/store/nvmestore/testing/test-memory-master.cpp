@@ -11,7 +11,11 @@
 
 #include <api/block_itf.h>
 #include <core/dpdk.h>
+
 #include <core/physical_memory.h>
+extern "C" {
+#include <spdk/env.h>
+}
 
 using namespace Component;
 
@@ -79,9 +83,30 @@ int main(int argc, char ** argv)
   if (rv != virt_addr || region_size != ALLOC_SIZE)
     throw General_exception("mmap failed, got region_size = %lu, addr = %p",
                             region_size, rv);
-  PINF("[master master ok]: virt addr is %p, region size %lu", virt_addr, ALLOC_SIZE);
+  PINF("[master map ok]: virt addr is %p, region size %lu", virt_addr, ALLOC_SIZE);
 
-  PINF("Press Any key to exit master");
+  // set mem
+  memset(virt_addr, 0x02, ALLOC_SIZE);
+  PINF("[master memset ok");
+
+  // Register Failed
+  int rc = spdk_mem_register(virt_addr, ALLOC_SIZE);
+  if(rc != S_OK)  
+    throw General_exception("register failed with code %d", rc);
+
+  io_buffer_t mem =  reinterpret_cast<Component::io_buffer_t>(virt_addr);
+
+  // do io
+  PINF("[master] starting doing io");
+  unsigned ITERATIONS =100;
+  unsigned tag;
+for (unsigned i = 0; i < ITERATIONS; i++) {
+    tag = _block->async_write(mem, 0, i, 1);
+    }
+  while (!_block->check_completion(tag))
+    ;
+
+  PINF("[master] io done, Press Any key to exit master");
   getchar();
 
   destroy_block_device();
