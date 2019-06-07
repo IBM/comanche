@@ -4,42 +4,86 @@
  * Author: Feng Li
  * e-mail: fengggli@yahoo.com
  */
+#include <api/components.h>
 #include <common/logging.h>
 #include "cstdio"
 #include "nupm/mcas_mod.h"
 
+#include <api/block_itf.h>
 #include <core/dpdk.h>
 #include <core/physical_memory.h>
 
 using namespace Component;
 
-#define MB(a) (a << 20)
+Component::IBlock_device *_block;
 
-int main()
+struct {
+  std::string pci;
+} opt;
+
+status_t init_block_device()
 {
-  status_t                rc;
+  Component::IBase *comp = Component::load_component(
+      "libcomanche-blknvme.so", Component::block_nvme_factory);
+  assert(comp);
+  PLOG("Block_device factory loaded OK.");
+
+  IBlock_device_factory *fact = (IBlock_device_factory *) comp->query_interface(
+      IBlock_device_factory::iid());
+  cpu_mask_t cpus;
+  cpus.add_core(2);
+  //  cpus.add_core(25);
+
+  _block = fact->create(opt.pci.c_str(), &cpus);
+
+  assert(_block);
+  fact->release_ref();
+  PINF("nvme-based block-layer component loaded OK.");
+
+  return S_OK;
+}
+
+status_t destroy_block_device()
+{
+  assert(_block);
+  _block->release_ref();
+  return S_OK;
+}
+
+int main(int argc, char ** argv)
+{
+  if (argc != 2) {
+    PINF("test <pci-address>");
+    return 0;
+  }
+
+  opt.pci = argv[1];
+
+
+  unsigned master_core = 0;
+  bool is_primary = true;
+  DPDK::eal_init(1024, master_core, is_primary);  // limit 1 GiB
   static constexpr size_t ALLOC_SIZE = MB(16);
+  nupm::Memory_token      token      = 1;
 
-  DPDK::eal_init(1024);  // limit 1 GiB
+  // do block io
+  init_block_device();
 
-  // allocate memory
-  Core::Physical_memory mem_alloc;
-  io_buffer_t           io_mem =
-      mem_alloc.allocate_io_buffer(ALLOC_SIZE, 4096, NUMA_NODE_ANY);
-
-  void *virt_addr = mem_alloc.virt_addr(io_mem);
-  PINF("[master]: virt addr is %p, region size %lu", virt_addr, ALLOC_SIZE);
-
-  // expose io memory
-  nupm::Memory_token token = 1;
-  rc                       = nupm::expose_memory(token, virt_addr, ALLOC_SIZE);
-  if (rc != S_OK) throw General_exception("expose failed");
-
-  PINF("Press Any key");
+  PINF("please start client and  Press Any key to map to it");
   getchar();
 
-  rc = nupm::revoke_memory(token);
-  if (rc != S_OK) throw General_exception("revoke expose failed");
-  mem_alloc.free_io_buffer(io_mem);
+  // map to mcas master memory
+  size_t region_size = 0;
+  void * virt_addr   = (void *) 0x700000000;
+  void * rv          = nupm::mmap_exposed_memory(token, region_size, virt_addr);
+  if (rv != virt_addr || region_size != ALLOC_SIZE)
+    throw General_exception("mmap failed, got region_size = %lu, addr = %p",
+                            region_size, rv);
+  PINF("[master master ok]: virt addr is %p, region size %lu", virt_addr, ALLOC_SIZE);
+
+  PINF("Press Any key to exit master");
+  getchar();
+
+  destroy_block_device();
   return 0;
 }
