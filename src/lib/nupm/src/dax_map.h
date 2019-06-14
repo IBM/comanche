@@ -22,10 +22,12 @@
 #ifndef __NUPM_DAX_MAP_H__
 #define __NUPM_DAX_MAP_H__
 
+#include "nd_utils.h"
 #include <mutex>
 #include <string>
 #include <tuple>
-#include "nd_utils.h"
+
+struct iovec;
 
 namespace nupm
 {
