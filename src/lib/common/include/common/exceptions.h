@@ -71,15 +71,15 @@ class Exception {
 
 class Constructor_exception : public Exception {
  public:
-  Constructor_exception()
-      : Exception("Constructor failed"), _err_code(E_FAIL) {}
-
   Constructor_exception(int err)
       : Exception("Constructor failed"), _err_code(err) {}
 
+  Constructor_exception()
+      : Constructor_exception(E_FAIL) {}
+
   __attribute__((__format__(__printf__, 2, 0)))
   Constructor_exception(const char *fmt, ...)
-      : Exception() {
+      : Constructor_exception() {
     va_list args;
     va_start(args, fmt);
     char msg[255] = {0};
@@ -95,13 +95,13 @@ class Constructor_exception : public Exception {
 
 class General_exception : public Exception {
  public:
-  General_exception() : Exception("General exception"), _err_code(E_FAIL) {}
-
   General_exception(int err) : Exception("General exception"), _err_code(err) {}
+
+  General_exception() : General_exception(E_FAIL) {}
 
   __attribute__((__format__(__printf__, 2, 0)))
   General_exception(const char *fmt, ...)
-      : Exception() {
+      : General_exception() {
     va_list args;
     va_start(args, fmt);
     char msg[255] = {0};
@@ -116,13 +116,13 @@ class General_exception : public Exception {
 
 class API_exception : public Exception {
  public:
-  API_exception() : Exception("API error"), _err_code(E_FAIL) {}
-
   API_exception(int err) : Exception("API error"), _err_code(err) {}
+
+  API_exception() : API_exception(E_FAIL) {}
 
   __attribute__((__format__(__printf__, 2, 0)))
   API_exception(const char *fmt, ...)
-      : Exception() {
+      : API_exception() {
     va_list args;
     va_start(args, fmt);
     char msg[255] = {0};
@@ -138,13 +138,13 @@ class API_exception : public Exception {
 
 class Logic_exception : public Exception {
  public:
-  Logic_exception() : Exception("Logic error"), _err_code(E_FAIL) {}
-
   Logic_exception(int err) : Exception("Logic error"), _err_code(err) {}
+
+  Logic_exception() : Logic_exception(E_FAIL) {}
 
   __attribute__((__format__(__printf__, 2, 0)))
   Logic_exception(const char *fmt, ...)
-      : Exception() {
+      : Logic_exception() {
     va_list args;
     va_start(args, fmt);
     char msg[255] = {0};
@@ -160,13 +160,13 @@ class Logic_exception : public Exception {
 
 class IO_exception : public Exception {
  public:
-  IO_exception() : Exception("IO error"), _err_code(E_FAIL) {}
-
   IO_exception(int err) : Exception("IO error"), _err_code(err) {}
+
+  IO_exception() : IO_exception(E_FAIL) {}
 
   __attribute__((__format__(__printf__, 2, 0)))
   IO_exception(const char *fmt, ...)
-      : Exception() {
+      : IO_exception() {
     va_list args;
     va_start(args, fmt);
     char msg[255] = {0};
@@ -182,13 +182,13 @@ class IO_exception : public Exception {
 
 class Program_exception : public Exception {
  public:
-  Program_exception() : Exception("Program error"), _err_code(E_FAIL) {}
-
   Program_exception(int err) : Exception("Program error"), _err_code(err) {}
+
+  Program_exception() : Program_exception(E_FAIL) {}
 
   __attribute__((__format__(__printf__, 2, 0)))
   Program_exception(const char *fmt, ...)
-      : Exception() {
+      : Program_exception() {
     va_list args;
     va_start(args, fmt);
     char msg[255] = {0};
@@ -204,13 +204,13 @@ class Program_exception : public Exception {
 
 class Data_exception : public Exception {
  public:
-  Data_exception() : Exception("Data error"), _err_code(E_FAIL) {}
-
   Data_exception(int err) : Exception("Data error"), _err_code(err) {}
+
+  Data_exception() : Data_exception(E_FAIL) {}
 
   __attribute__((__format__(__printf__, 2, 0)))
   Data_exception(const char *fmt, ...)
-      : Exception() {
+      : Data_exception() {
     va_list args;
     va_start(args, fmt);
     char msg[255] = {0};
@@ -226,13 +226,13 @@ class Data_exception : public Exception {
 
 class Protocol_exception : public Exception {
  public:
-  Protocol_exception() : Exception("Protocol error"), _err_code(E_FAIL) {}
-
   Protocol_exception(int err) : Exception("Protocol error"), _err_code(err) {}
+
+  Protocol_exception() : Protocol_exception(E_FAIL) {}
 
   __attribute__((__format__(__printf__, 2, 0)))
   Protocol_exception(const char *fmt, ...)
-      : Exception() {
+      : Protocol_exception() {
     va_list args;
     va_start(args, fmt);
     char msg[255] = {0};
