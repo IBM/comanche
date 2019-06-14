@@ -541,6 +541,11 @@ TEST_F(KVStore_test, LockMany)
   unsigned ct = 0;
   for ( auto &kv : kvv )
   {
+#if __cplusplus < 201703
+    static constexpr auto KEY_NONE = IKVStore::KEY_NONE+0;
+#else
+    static constexpr auto KEY_NONE = IKVStore::KEY_NONE;
+#endif
     if ( ct == lock_count ) { break; }
     const auto &key = std::get<0>(kv);
     const auto &ev = std::get<1>(kv);
@@ -550,7 +555,8 @@ TEST_F(KVStore_test, LockMany)
     IKVStore::key_t k0 = IKVStore::key_t();
     auto r0 = _kvstore->lock(pool, key, IKVStore::STORE_LOCK_READ, value0, value0_len, k0);
     EXPECT_EQ(S_OK, r0);
-    if ( S_OK == r0 )
+    EXPECT_NE(KEY_NONE, k0);
+    if ( S_OK == r0 && IKVStore::KEY_NONE != k0 )
     {
       EXPECT_EQ(many_value_length, value0_len);
       EXPECT_EQ(0, memcmp(ev.data(), value0, ev.size()));
@@ -560,7 +566,8 @@ TEST_F(KVStore_test, LockMany)
     IKVStore::key_t k1 = IKVStore::key_t();
     auto r1 = _kvstore->lock(pool, key, IKVStore::STORE_LOCK_READ, value1, value1_len, k1);
     EXPECT_EQ(S_OK, r1);
-    if ( S_OK == r1 )
+    EXPECT_NE(KEY_NONE, k1);
+    if ( S_OK == r1 && IKVStore::KEY_NONE != k1 )
     {
       EXPECT_EQ(many_value_length, value1_len);
       EXPECT_EQ(0, memcmp(ev.data(), value1, ev.size()));
@@ -571,14 +578,16 @@ TEST_F(KVStore_test, LockMany)
     std::size_t value2_len = 0;
     IKVStore::key_t k2 = IKVStore::key_t();
     auto r2 = _kvstore->lock(pool, key, IKVStore::STORE_LOCK_WRITE, value2, value2_len, k2);
-    EXPECT_EQ(E_FAIL, r2);
+    EXPECT_EQ(S_OK, r2);
+    EXPECT_EQ(KEY_NONE, k2);
 
     void * value3 = nullptr;
     std::size_t value3_len = many_value_length;
     IKVStore::key_t k3 = IKVStore::key_t();
     auto r3 = _kvstore->lock(pool, key_new, IKVStore::STORE_LOCK_WRITE, value3, value3_len, k3);
     EXPECT_EQ(S_OK, r3);
-    if ( S_OK == r3 )
+    EXPECT_NE(KEY_NONE, k3);
+    if ( S_OK == r3 && IKVStore::KEY_NONE != k3 )
     {
       EXPECT_EQ(many_value_length, value3_len);
       EXPECT_NE(nullptr, value3);
