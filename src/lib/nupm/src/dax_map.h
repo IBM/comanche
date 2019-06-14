@@ -44,11 +44,13 @@ class Devdax_manager {
 
  public:
 
-  typedef struct {
+  struct config_t {
     std::string path;
     addr_t addr;
     unsigned region_id;
-  } config_t;
+    /* Through no fault of its own, config_t may begin life with no proper values */
+    config_t() : path(), addr(0), region_id(0) {}
+  };
   
   /** 
    * Constructor e.g.  

@@ -53,7 +53,7 @@ class ND_control_exception : public Exception {
 
   __attribute__((__format__(__printf__, 2, 0)))
   ND_control_exception(const char *fmt, ...)
-      : Exception()
+      : ND_control_exception()
   {
     va_list args;
     va_start(args, fmt);
@@ -85,6 +85,8 @@ class ND_control {
    *
    */
   ND_control();
+  ND_control(const ND_control &) = delete;
+  ND_control& operator=(const ND_control &) = delete;
 
   /**
    * Destructor
