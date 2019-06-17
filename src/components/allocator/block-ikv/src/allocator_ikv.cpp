@@ -7,6 +7,7 @@
 #include <api/block_allocator_itf.h>
 #include <api/block_itf.h>
 #include <api/kvstore_itf.h>
+#include <common/rand.h>
 #include "bitmap_ikv.h"
 
 using namespace Component;
@@ -20,7 +21,7 @@ static unsigned size_to_bin(uint64_t size)
 class BlockAlloc_ikv {
  public:
   /**
-   * construct a bitmap in a IKVstore pool
+   * Construct a bitmap in a IKVstore pool
    * @param store
    * @param pool
    * @param nbits number of
@@ -31,12 +32,15 @@ class BlockAlloc_ikv {
                  unsigned           nbits)
       : _id(id), _store(store), _pool(pool)
   {
+    _bitmap = new bitmap_ikv(_store, _pool, _id);
+    if (nbits > _bitmap->get_capacity())
+      throw General_exception("single chunk is too small");
   }
 
-  ~BlockAlloc_ikv();
+  ~BlockAlloc_ikv() { delete _bitmap; };
 
   lba_t alloc(size_t size, void** handle);
-  lba_t free(lba_t addr, void* handle);
+  void  free(lba_t addr, void* handle);
 
  private:
   IKVStore*        _store;
@@ -47,25 +51,18 @@ class BlockAlloc_ikv {
 
 lba_t BlockAlloc_ikv::alloc(size_t count, void** handle)
 {
-  int             ret_pos;
-  void*           ptr2bitmap;
-  IKVStore::key_t lock_key;
-  size_t          bitmap_len = bitmap_ikv::BITMAP_CHUNCK_SIZE;
+  assert(handle);
+  lba_t  ret_pos;
+  size_t order = size_to_bin(count) - 1;
 
-  if (S_OK != _store->lock(_pool, _id, IKVStore::STORE_LOCK_WRITE, ptr2bitmap,
-                           bitmap_len, lock_key)) {
-    throw General_exception("bitmap_ikv: intial kv lock failed");
-  }
-
-  unsigned order = size_to_bin(count) - 1;
-
+  IKVStore::key_t lockkey;
+  _bitmap->load(lockkey);
+  // TODO sth bad can happen here
   ret_pos = _bitmap->find_free_region(order);
-
-  if (S_OK != _store->unlock(_pool, lock_key)) {
-    throw General_exception("bitmap_ikv: unlock failed");
-  }
+  _bitmap->flush(lockkey);
 
   return ret_pos;
 }
 
+lba_t free(lba_t addr, void* handle) { assert(handle); }
 }  // namespace block_alloc_ikv

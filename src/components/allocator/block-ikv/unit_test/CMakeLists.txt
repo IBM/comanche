@@ -8,7 +8,7 @@ set(GCC_COVERAGE_COMPILE_FLAGS "-g -O2 -fPIC")
 
 link_directories(/usr/local/lib64)
 
-add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
+#add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 
 add_executable(blkalloc-ikv-test1 test-blockalloc-ikv.cpp)
-target_link_libraries(blkalloc-ikv-test1 ${ASAN_LIB} comanche-core common numa gtest pthread dl)
+target_link_libraries(blkalloc-ikv-test1 ${ASAN_LIB} comanche-core common numa gtest pthread dl comanche-blkalloc-ikv)
