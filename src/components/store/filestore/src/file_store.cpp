@@ -278,7 +278,7 @@ IKVStore::key_t Pool_handle::lock(const std::string& key,
     ssize_t rs = read(fd, out_value, out_value_len);
 
     if(rs != out_value_len)
-      throw General_exception("file read failed (rs=%lu)", rs);
+      throw General_exception("file read failed (rs=%lu) != (out_value_len=%lu)", rs, out_value_len);
   }
 
   /* fd will be closed on unlock */

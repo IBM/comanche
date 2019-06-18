@@ -184,3 +184,12 @@ class BlockAlloc_ikv_factory : public Component::IBlock_allocator_factory {
 };
 
 }  // namespace block_alloc_ikv
+
+extern "C" void* factory_createInstance(Component::uuid_t& component_id)
+{
+  if (component_id == block_alloc_ikv::BlockAlloc_ikv_factory::component_id()) {
+    return static_cast<void*>(new block_alloc_ikv::BlockAlloc_ikv_factory());
+  }
+  else
+    return NULL;
+}

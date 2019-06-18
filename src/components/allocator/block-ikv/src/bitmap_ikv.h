@@ -21,7 +21,7 @@
  * source code */
 
 #ifndef MB
-#define MB(x) (x >> 20)
+#define MB(x) (x << 20)
 #endif
 
 #define BITS_PER_LONG (64)

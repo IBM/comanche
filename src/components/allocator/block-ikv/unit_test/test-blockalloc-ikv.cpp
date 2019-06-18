@@ -21,11 +21,10 @@ class BlkAllocIkv_test : public ::testing::Test {
  protected:
   static IKVStore::pool_t _pool;
   static IKVStore *       _kvstore;
-  static bitmap_ikv *     _bitmap;
   static std::string      _test_id;
 
-  static std::map<unsigned int, unsigned int> _regions; /** pos->order*/
-  static IKVStore::key_t                      _lockkey; /** for this 4Mbitmap*/
+  static Component::IBlock_allocator *_alloc;
+  static size_t                       _nr_blocks;
 };
 
 // static constexpr int _k_mid_order = 16;
@@ -33,15 +32,14 @@ static constexpr int _k_mid_order = 16;
 
 IKVStore::pool_t BlkAllocIkv_test::_pool;
 IKVStore *       BlkAllocIkv_test::_kvstore;
-bitmap_ikv *     BlkAllocIkv_test::_bitmap;
-std::string      BlkAllocIkv_test::_test_id = "thisistheiid";
-IKVStore::key_t  BlkAllocIkv_test::_lockkey;
+std::string      BlkAllocIkv_test::_test_id = "guesswhatid";
 
-std::map<unsigned int, unsigned int> BlkAllocIkv_test::_regions;
+Component::IBlock_allocator *BlkAllocIkv_test::_alloc;
+size_t                       BlkAllocIkv_test::_nr_blocks = 10000000;
 
 TEST_F(BlkAllocIkv_test, Instantiate)
 {
-  /* create object instance through factory */
+  // First Initialize ikvstore and one pool
   Component::IBase *comp = Component::load_component(
       "libcomanche-storefile.so", Component::filestore_factory);
 
@@ -53,63 +51,75 @@ TEST_F(BlkAllocIkv_test, Instantiate)
   params["pm_path"]    = "/mnt/pmem0/";
   unsigned debug_level = 0;
 
-  // this nvme-store use a block device and a block allocator
   _kvstore = fact->create(debug_level, params);
-
   fact->release_ref();
 
   PLOG(" test-nvmestore: try to openpool");
   ASSERT_TRUE(_kvstore);
-  // pass blk and alloc here
   _pool = _kvstore->create_pool("block-alloc-pool", MB(128));
   ASSERT_TRUE(_pool > 0);
 
-  _bitmap = new bitmap_ikv(_kvstore, _pool, _test_id);
-  _bitmap->load(_lockkey);
-  _bitmap->zero();
+  // Then intialize the allocator
+  comp = load_component("libcomanche-blkalloc-ikv.so",
+                        Component::block_allocator_ikv_factory);
+  assert(comp);
+  IBlock_allocator_factory *fact_blk_alloc =
+      static_cast<IBlock_allocator_factory *>(
+          comp->query_interface(IBlock_allocator_factory::iid()));
+
+  PLOG("Opening allocator to support %lu blocks", num_blocks);
+  _alloc = fact_blk_alloc->open_allocator(_nr_blocks, _kvstore, _pool, _test_id,
+                                          true);
+  fact_blk_alloc->release_ref();
 }
 
-TEST_F(BlkAllocIkv_test, Alloc)
+TEST_F(BlkAllocIkv_test, TestAllocation)
 {
-  // i should find 4096*1024/16 = 256
-  size_t expected_regions = _bitmap->get_capacity() / (1 << _k_mid_order);
-  PINF("Allcoate!, expect %lu regions", expected_regions);
-  size_t nr_regions = 0;
+  size_t n_blocks = 100000;
+  struct Record {
+    lba_t lba;
+    void *handle;
+  };
 
-  int pos;
+  std::vector<Record> v;
+  std::set<lba_t>     used_lbas;
+  // Core::AVL_range_allocator ra(0, n_blocks*KB(4));
 
-  while (1) {
-    pos = _bitmap->find_free_region(_k_mid_order);
-    if (pos == -1) {
-      PLOG("stop\n");
-      break;
-    }
-    else {
-      nr_regions += 1;
-      _regions.emplace(pos, _k_mid_order);
-      PDBG("allocate at pos %u", pos);
-      PDBG("now %lu instances", nr_regions);
-    }
-    if (nr_regions > expected_regions) FAIL();
+  PLOG("total blocks = %ld (%lx)", n_blocks, n_blocks);
+  for (unsigned long i = 0; i < n_blocks; i++) {
+    void * p;
+    size_t s   = 1;  // (genrand64_int64() % 5) + 2;
+    lba_t  lba = _alloc->alloc(s, &p);
+    PLOG("lba=%lx", lba);
+
+    ASSERT_TRUE(used_lbas.find(lba) == used_lbas.end());  // not already in set
+
+    // ASSERT_TRUE(ra.alloc_at(lba, s) != nullptr); // allocate range
+
+    used_lbas.insert(lba);
+    //    PLOG("[%lu]: lba(%ld) allocated %ld blocks", i, lba, s);
+    v.push_back({lba, p});
+
+    if (i % 100 == 0) PLOG("allocations:%ld", i);
   }
 
-  ASSERT_EQ(expected_regions, nr_regions);
-}
-TEST_F(BlkAllocIkv_test, Free)
-{
-  PINF("Free!");
-  for (auto i = _regions.begin(); i != _regions.end(); i++) {
-    unsigned int pos   = i->first;
-    unsigned int order = i->second;
-
-    _bitmap->release_region(pos, order);
+  for (auto &e : v) {
+    _alloc->free(e.lba, e.handle);
   }
 }
+
+#if 0
+TEST_F(BlkAllocIkv_test, EraseAllocator){
+  _alloc->resize(0,0);
+}
+#endif
 
 TEST_F(BlkAllocIkv_test, Finalize)
 {
-  _bitmap->flush(_lockkey);
-  delete _bitmap;
+  ASSERT_TRUE(_alloc);
+
+  _alloc->release_ref();
+
   _kvstore->close_pool(_pool);
   _kvstore->release_ref();
 }
