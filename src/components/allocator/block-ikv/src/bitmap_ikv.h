@@ -16,6 +16,7 @@
 
 #include <api/kvstore_itf.h>
 #include <component/base.h>
+#include "cstring"
 /* Note: these uuid decls are so we don't have to have access to the component
  * source code */
 

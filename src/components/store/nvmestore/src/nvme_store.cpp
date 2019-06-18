@@ -379,8 +379,10 @@ static_assert(sizeof(IKVStore::memory_handle_t) == sizeof(io_buffer_t),
  * Only used for the case when memory is pinned/aligned but not from spdk, e.g.
  * cudadma should be 2MB aligned in both phsycial and virtual
  * */
-IKVStore::memory_handle_t NVME_store::allocate_direct_memory(void*& vaddr,
-                                                             size_t len)
+status_t NVME_store::allocate_direct_memory(
+    void*&                     vaddr,
+    size_t                     len,
+    IKVStore::memory_handle_t& out_handle)
 {
   io_buffer_t io_mem;
   size_t      blk_sz = _blk_manager.blk_sz();
@@ -392,10 +394,9 @@ IKVStore::memory_handle_t NVME_store::allocate_direct_memory(void*& vaddr,
 
   buffer_t* buffer = new buffer_t(len, io_mem, vaddr);
 
-  auto handle = reinterpret_cast<IKVStore::memory_handle_t>(buffer);
+  out_handle = reinterpret_cast<IKVStore::memory_handle_t>(buffer);
   /* save this this registration */
-
-  return handle;
+  return S_OK;
 }
 
 status_t NVME_store::free_direct_memory(memory_handle_t handle)
