@@ -22,6 +22,10 @@
 #ifndef __NUPM_MAPPERS_H__
 #define __NUPM_MAPPERS_H__
 
+#include <common/types.h> /* addr_t */
+#include <common/utils.h> /* KiB, MiB, MB, GB, round_down */
+#include <cstddef> /* size_t */
+
 inline static unsigned get_log2_bin(size_t a)
 {
   unsigned fsmsb = unsigned(((sizeof(size_t) * 8) - __builtin_clzl(a)));

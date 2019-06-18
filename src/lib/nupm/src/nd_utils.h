@@ -36,7 +36,11 @@
 
 namespace libndctl
 {
+/* ndctl_namespace_get_dax declared twice */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wredundant-decls"
 #include <ndctl/libndctl.h>
+#pragma GCC diagnostic pop
 }
 
 #define DIMM_HANDLE(n, s, i, c, d)                              \
