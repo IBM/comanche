@@ -780,13 +780,14 @@ void Shard::process_info_request(Connection_handler* handler,
         response->status = S_OK;
         void *p = nullptr;
         size_t p_len = 0;
-        auto key_handle = _i_kvstore->lock(msg->pool_id,
+        Component::IKVStore::key_t key_handle;
+        status_t rc = _i_kvstore->lock(msg->pool_id,
                                            key,
                                            Component::IKVStore::STORE_LOCK_READ,
                                            p,
-                                           p_len);
+                                           p_len, key_handle);
 
-        if(key_handle == Component::IKVStore::KEY_NONE) {
+        if(rc != S_OK || key_handle == Component::IKVStore::KEY_NONE) {
           response->status = E_FAIL;
           response->value = 0;        
         }
