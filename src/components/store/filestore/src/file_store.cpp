@@ -291,6 +291,7 @@ status_t Pool_handle::unlock(IKVStore::key_t key_handle)
   assert(item);
 
   /* write out the content on unlock */
+  lseek(item->fd, 0, SEEK_SET);
   ssize_t ws = write(item->fd, item->p, item->p_len);
   if(ws != item->p_len)
     throw General_exception("file write failed (%s) in Pool_handle::unlock", strerror(errno));
