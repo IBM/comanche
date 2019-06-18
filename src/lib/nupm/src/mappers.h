@@ -31,10 +31,17 @@ inline static unsigned get_log2_bin(size_t a)
 
 namespace nupm
 {
+/* Two types of regions:
+ *   large-object regions contain a single object
+ *   small-object regions contain multiple objects
+ */
 class Large_and_small_bucket_mapper {
   friend class Region_map;
-  
+
 protected:
+  /* Objects not exceeding 4K size are allocated in 1MB pools.
+   * Objects exceding 4K are allocated singly.
+   */
   static constexpr size_t L0_MAX_SMALL_OBJECT_SIZE = KiB(4);
   static constexpr size_t L0_REGION_SIZE           = MiB(1);
 
@@ -49,7 +56,9 @@ protected:
     if (object_size <= L0_MAX_SMALL_OBJECT_SIZE)
       return get_log2_bin(object_size);
 
-    
+    /* All "large" objects are allocated in a single bucket, regardless of size.
+     * Therefore, size maps to bucket index, but bucket index does not map to a size.
+     */
     return _large_object_bucket_index;
   }
 
@@ -63,7 +72,7 @@ protected:
 
   size_t region_size(size_t object_size)
   {
-    if (object_size <= L0_MAX_SMALL_OBJECT_SIZE)
+    if ( object_size <= L0_MAX_SMALL_OBJECT_SIZE )
       return L0_REGION_SIZE;
     else
       return object_size;
