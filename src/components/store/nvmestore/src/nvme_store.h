@@ -12,14 +12,14 @@
 #ifndef NVME_STORE_H_
 #define NVME_STORE_H_
 
-#include <libpmemobj.h>
-
 #include <common/rwlock.h>
 #include <common/types.h>
 #include <pthread.h>
 
 #include <api/kvstore_itf.h>
 
+#include <api/block_allocator_itf.h>
+#include <api/block_itf.h>
 #include "block_manager.h"
 #include "state_map.h"
 
@@ -30,6 +30,7 @@ using namespace nvmestore;
 class State_map;
 
 #ifdef USE_PMEM
+#include <libpmemobj.h>
 POBJ_LAYOUT_BEGIN(nvme_store);
 POBJ_LAYOUT_ROOT(nvme_store, struct store_root_t);
 POBJ_LAYOUT_TOID(nvme_store, struct obj_info);
@@ -158,8 +159,9 @@ class NVME_store : public Component::IKVStore {
       size_t&                              out_value_len,
       Component::IKVStore::memory_handle_t handle) override;
 
-  virtual memory_handle_t allocate_direct_memory(void*& vaddr,
-                                                 size_t len) override;
+  virtual status_t allocate_direct_memory(void*&           vaddr,
+                                          size_t           len,
+                                          memory_handle_t& handle) override;
 
   virtual status_t free_direct_memory(memory_handle_t handle) override;
 

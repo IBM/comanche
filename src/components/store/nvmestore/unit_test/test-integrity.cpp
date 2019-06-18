@@ -132,7 +132,7 @@ TEST_F(KVStore_test, GetDirect)
   void *                    value     = nullptr;
   size_t                    value_len = 0;
 
-  handle = _kvstore->allocate_direct_memory(value, VAL_LEN);
+  ASSERT_EQ(S_OK, _kvstore->allocate_direct_memory(value, VAL_LEN, handle));
 
   for (int i = 0; i < nr_elem; i++) {
     std::string key = "MyKey" + std::to_string(i);

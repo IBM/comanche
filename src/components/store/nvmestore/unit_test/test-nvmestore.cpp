@@ -180,7 +180,7 @@ TEST_F(KVStore_test, GetDirect)
   void *                    value     = nullptr;
   size_t                    value_len = 0;
 
-  handle = _kvstore->allocate_direct_memory(value, single_value_length);
+  EXPECT_EQ(S_OK, _kvstore->allocate_direct_memory(value, single_value_length, handle));
 
   _kvstore->get_direct(_pool, key, value, value_len, handle);
 
