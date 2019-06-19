@@ -11,6 +11,8 @@
    limitations under the License.
 */
 
+#if defined(__x86_64__)
+
 #include "ring_buffer.h"
 #include <common/exceptions.h>
 #include <rte_errno.h>
@@ -97,3 +99,5 @@ int Ring_buffer_base::mc_dequeue(void*& elem) {
 std::atomic<uint64_t> Ring_buffer_base::_static_name_index;
 
 }  // namespace Core
+
+#endif

@@ -76,12 +76,10 @@ public:
   * @param out_completions Vector of completed work items
   * @param out_remaining_count Remaining number of work items
   *
-  * @return Number of work items completed
+  * @return S_OK if completed, E_EMPTY if not
   */
- virtual size_t check_completions(std::vector<work_id_t>& out_completions,
-                                  size_t& out_remaining_count) = 0;
-
-  
+ virtual status_t check_completions(work_id_t out_completions) = 0;
+ virtual bool     has_exited()                                 = 0;
 };
 
 /** 

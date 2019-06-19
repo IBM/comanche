@@ -475,7 +475,7 @@ IKVStore::pool_t File_store::create_pool(const std::string& name,
   if(fs::exists(p)) {
     if(flags & IKVStore::FLAGS_CREATE_ONLY) return POOL_ERROR;
   }
-  else if(!fs::create_directory(p)) {
+  else if(!fs::create_directories(p)) {
     throw General_exception("filestore unable to create dir (%s)", p.string().c_str());
   }
 
