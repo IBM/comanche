@@ -10,6 +10,7 @@
 #include <common/utils.h>
 #include <gtest/gtest.h>
 #include <map>
+#include <thread>
 #include "bitmap_ikv.h"
 using namespace Component;
 using namespace block_alloc_ikv;
@@ -26,9 +27,6 @@ class BlkAllocIkv_test : public ::testing::Test {
   static Component::IBlock_allocator *_alloc;
   static size_t                       _nr_blocks;
 };
-
-// static constexpr int _k_mid_order = 16;
-static constexpr int _k_mid_order = 16;
 
 IKVStore::pool_t BlkAllocIkv_test::_pool;
 IKVStore *       BlkAllocIkv_test::_kvstore;
@@ -75,7 +73,7 @@ TEST_F(BlkAllocIkv_test, Instantiate)
 
 TEST_F(BlkAllocIkv_test, TestAllocation)
 {
-  size_t n_blocks = 100000;
+  size_t n_blocks = 1000;
   struct Record {
     lba_t lba;
     void *handle;
@@ -106,6 +104,63 @@ TEST_F(BlkAllocIkv_test, TestAllocation)
   for (auto &e : v) {
     _alloc->free(e.lba, e.handle);
   }
+}
+
+static void allocate_bit(Component::IBlock_allocator *alloc, size_t num_bits)
+{
+  size_t                                n_blocks = num_bits;  // blocks
+  std::chrono::system_clock::time_point _start, _end;
+
+  struct Record {
+    lba_t lba;
+    void *handle;
+  };
+
+  std::vector<Record> v;
+
+  _start = std::chrono::high_resolution_clock::now();
+
+  for (unsigned long i = 0; i < n_blocks; i++) {
+    void * p;
+    size_t s   = 1;  // (genrand64_int64() % 5) + 2;
+    lba_t  lba = alloc->alloc(s, &p);
+
+    v.push_back({lba, p});
+  }
+
+  _end = std::chrono::high_resolution_clock::now();
+  double secs =
+      std::chrono::duration_cast<std::chrono::milliseconds>(_end - _start)
+          .count() /
+      1000.0;
+  PINF("*block allocator*: %lu allocations in %.1lf sec, rate: %2g", n_blocks,
+       secs, ((double) n_blocks) / secs);
+
+  /* TODO: free after join, otherwise freed lba will be reused, violate the test
+   */
+  for (auto &e : v) {
+    alloc->free(e.lba, e.handle);
+  }
+}
+
+TEST_F(BlkAllocIkv_test, TestConcurrentAlloc)
+{
+  int i;
+  int nr_threads;
+
+  size_t blocks_per_thread = 1000;
+  PINF("how many work threads?");
+  std::cin >> nr_threads;
+  PINF("now starting %d working thread ...", nr_threads);
+
+  std::vector<std::thread> threads;
+
+  for (i = 0; i < nr_threads; i++) {
+    threads.push_back(std::thread(allocate_bit, _alloc, blocks_per_thread));
+  }
+
+  for (auto &th : threads) th.join();
+  PINF("*block allocator* all thread joined");
 }
 
 #if 0

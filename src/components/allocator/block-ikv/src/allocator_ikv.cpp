@@ -40,6 +40,13 @@ class BlockAlloc_ikv : public Component::IBlock_allocator {
     _bitmap = new bitmap_ikv(_store, _pool, _id);
     if (nbits > _bitmap->get_capacity())
       throw General_exception("single chunk is too small");
+
+    if (force_init) {
+      IKVStore::key_t lockkey;
+      _bitmap->load(lockkey);
+      _bitmap->zero();
+      _bitmap->flush(lockkey);
+    }
   }
 
   virtual ~BlockAlloc_ikv() { delete _bitmap; };
@@ -121,7 +128,11 @@ void BlockAlloc_ikv::free(lba_t addr, void* handle)
     throw General_exception(
         "[%s]: try to free block region using corrupted handle", __func__);
   }
+
+  IKVStore::key_t lockkey;
+  _bitmap->load(lockkey);
   _bitmap->release_region(lba_start, order);
+  _bitmap->flush(lockkey);
 }
 
 size_t   BlockAlloc_ikv::get_free_capacity() { return 0; }

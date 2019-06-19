@@ -16,6 +16,7 @@
 
 #include <api/kvstore_itf.h>
 #include <component/base.h>
+#include <atomic>
 #include "cstring"
 /* Note: these uuid decls are so we don't have to have access to the component
  * source code */
@@ -74,6 +75,7 @@ class bitmap_ikv {
     }
     out_lockkey = lock_key;
     _bitdata    = reinterpret_cast<word_t*>(ptr2bitmap);
+    _is_locked  = true;
     return S_OK;
   }
 
@@ -82,11 +84,15 @@ class bitmap_ikv {
   {
     if (S_OK != _store->unlock(_pool, lockkey))
       throw General_exception("bitmap_ikv: unlock failed");
+    _is_locked = false;
     return S_OK;
   }
 
   status_t zero()
   {
+    if (!_is_locked) {
+      throw General_exception("cannot zero unlocked region");
+    }
     size_t mem_size = BITS_TO_LONGS(_capacity) * sizeof(long);
     memset(_bitdata, 0, mem_size);
     return S_OK;
@@ -122,7 +128,8 @@ class bitmap_ikv {
   std::string      _id; /** identifier for this allocator/block device*/
 
   size_t  _capacity; /** how many bit in this bitmap*/
-  word_t* _bitdata;
+  word_t* _bitdata   = nullptr;
+  bool    _is_locked = false;
 };  // namespace block_alloc_ikv
 
 }  // namespace block_alloc_ikv
