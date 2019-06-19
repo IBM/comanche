@@ -167,7 +167,7 @@ class Shard : public Shard_transport {
 
   status_t process_configure(Protocol::Message_IO_request* msg);
 
-  void process_tasks();
+  void process_tasks(unsigned& idle);
   
   Component::IKVIndex * lookup_index(const pool_t pool_id) {
     if(_index_map) {

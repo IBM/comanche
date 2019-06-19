@@ -11,8 +11,12 @@
    limitations under the License.
 */
 
+#include "dax_map.h"
+#include "dax_data.h"
 
+#include <common/exceptions.h>
 #include <common/utils.h>
+
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -22,9 +26,6 @@
 #include <fstream>
 #include <mutex>
 #include <set>
-#include <common/exceptions.h>
-#include "dax_data.h"
-#include "dax_map.h"
 
 //#define REGION_NAME "dawn-dax-pool"
 #define DEBUG_PREFIX "Devdax_manager: "

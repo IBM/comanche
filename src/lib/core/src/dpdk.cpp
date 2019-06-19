@@ -20,6 +20,8 @@
  *
  */
 
+#if defined(__x86_64__)
+
 #include "dpdk.h"
 
 #include <rte_eal.h>
@@ -175,3 +177,5 @@ void meminfo_display(void) {
 }
 
 }  // namespace DPDK
+
+#endif

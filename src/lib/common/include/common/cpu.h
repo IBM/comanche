@@ -47,6 +47,9 @@
 #if defined(__x86_64__) || defined(__x86_32__)
 #define CACHE_LINE_SIZE 64  // Intel only
 #define CACHE_LINE_SHIFT 6
+#elif defined(__powerpc64__)
+#define CACHE_LINE_SIZE 128  // ppc64le
+#define CACHE_LINE_SHIFT 7
 #else
 #error Unsupported HW architecture.
 #endif

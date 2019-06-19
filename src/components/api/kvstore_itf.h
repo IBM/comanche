@@ -450,9 +450,9 @@ public:
    * @param type STORE_LOCK_READ | STORE_LOCK_WRITE
    * @param out_value [out] Pointer to data
    * @param out_value_len [in-out] Size of data in bytes
-   * @param out_key [out]  Handle to key for unlock or KEY_NONE if unsupported or other error occurred.
+   * @param out_key [out]  Handle to key for unlock
    * 
-   * @return S_OK, S_MORE, or E_FAIL
+   * @return S_OK, S_MORE (for async), E_INVAL or other error
    */
   virtual status_t lock(const pool_t pool,
                         const std::string& key,
@@ -467,7 +467,7 @@ public:
    * @param pool Pool handle
    * @param key_handle Handle (opaque) for key
    * 
-   * @return S_OK or error code
+   * @return S_OK, S_MORE (for async), E_INVAL or other error
    */
   virtual status_t unlock(const pool_t pool,
                           key_t key_handle) { return E_NOT_SUPPORTED; }
