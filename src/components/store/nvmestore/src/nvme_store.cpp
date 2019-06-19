@@ -70,62 +70,17 @@ NVME_store::NVME_store(const std::string& owner,
                        const std::string& name,
                        const std::string& pci,
                        const std::string& pm_path,
-                       const std::string& config_persist_type)
-    : _pm_path(pm_path), _blk_manager(pci, pm_path)
+                       persist_type_t     persist_type)
+    : _pm_path(pm_path), _metastore(owner, name, pm_path, persist_type),
+      _blk_manager(pci, pm_path, _metastore)
 {
-#ifdef USE_PMEM
-  if (config_persist_type == "pmem") {
-    _meta_persist_type = PERSIST_PMEM;
-    PINF("NVMe_store, using persist type %s", config_persist_type.c_str());
-
-    PLOG("PMEMOBJ_MAX_ALLOC_SIZE: %lu MB", REDUCE_MB(PMEMOBJ_MAX_ALLOC_SIZE));
-  }
-#endif
-  IBase* comp;
-  if (config_persist_type == "filestore") {
-    _meta_persist_type = PERSIST_FILE;
-    comp = load_component("libcomanche-storefile.so", filestore_factory);
-  }
-  else if (config_persist_type == "hstore") {
-    _meta_persist_type = PERSIST_HSTORE;
-    comp = load_component("libcomanche-hstore.so", hstore_factory);
-    throw API_exception("not implemented");
-  }
-  else {
-    throw API_exception("Option %s not supported", config_persist_type.c_str());
-  }
-  if (!comp)
-    throw General_exception("unable to initialize Dawn backend component");
-
-  IKVStore_factory* fact =
-      (IKVStore_factory*) comp->query_interface(IKVStore_factory::iid());
-  assert(fact);
-
-  unsigned debug_level = 0;
-  if (_meta_persist_type ==
-      PERSIST_FILE) { /* components that support debug level */
-    std::map<std::string, std::string> params;
-    params["pm_path"] = pm_path + "meta/";
-    _meta_store       = fact->create(debug_level, params);
-  }
-  else if (_meta_persist_type == PERSIST_HSTORE) {
-    // TODO refer to dawn
-    throw API_exception("hstore init not implemented");
-  }
-  else {
-    _meta_store = fact->create("owner", "name");
-  }
-  fact->release_ref();
+  // order: pm_path -> metastore -> block allocator(might use metastore)
 
   // path
   if (_pm_path.back() != '/') _pm_path += "/";
 }
 
-NVME_store::~NVME_store()
-{
-  if (option_DEBUG) PLOG("deleting NVME store");
-  _meta_store->release_ref();
-}
+NVME_store::~NVME_store() {}
 
 IKVStore::pool_t NVME_store::create_pool(const std::string& name,
                                          const size_t       size,
@@ -188,12 +143,12 @@ IKVStore::pool_t NVME_store::create_pool(const std::string& name,
 #endif
   size_t estimated_obj_map_size = MB(4);  // 32B per entry, that's 2^17
   IKVStore::pool_t obj_info_pool =
-      _meta_store->create_pool(name, estimated_obj_map_size, flags);
+      _metastore.get_store()->create_pool(name, estimated_obj_map_size, flags);
   if (obj_info_pool == POOL_ERROR) {
     throw General_exception("Creating objmap pool failed");
   }
   open_session_t* session =
-      new open_session_t(_meta_store, obj_info_pool, fullpath,
+      new open_session_t(_metastore.get_store(), obj_info_pool, fullpath,
                          DEFAULT_IO_MEM_SIZE, &_blk_manager, &_sm);
 
   g_sessions.insert(session);
@@ -252,13 +207,14 @@ IKVStore::pool_t NVME_store::open_pool(const std::string& name,
       root, pop, pool_size, fullpath, DEFAULT_IO_MEM_SIZE, &_blk_manager, &_sm);
 
 #else
-  IKVStore::pool_t obj_info_pool = _meta_store->open_pool(name, flags);
+  IKVStore::pool_t obj_info_pool =
+      _metastore.get_store()->open_pool(name, flags);
   if (obj_info_pool == POOL_ERROR) {
     throw General_exception("objmap pool: failed during opening ");
   }
 
   open_session_t* session =
-      new open_session_t(_meta_store, obj_info_pool, fullpath,
+      new open_session_t(_metastore.get_store(), obj_info_pool, fullpath,
                          DEFAULT_IO_MEM_SIZE, &_blk_manager, &_sm);
 
 #endif
@@ -280,7 +236,8 @@ status_t NVME_store::close_pool(pool_t pid)
   auto& pop = session->get_pop();
   pmemobj_close(pop);
 #endif
-  if (S_OK != _meta_store->close_pool(session->get_obj_info_pool())) {
+  if (S_OK !=
+      _metastore.get_store()->close_pool(session->get_obj_info_pool())) {
     throw General_exception("Close objmap pool failed");
   }
 
@@ -319,7 +276,7 @@ status_t NVME_store::delete_pool(const std::string& name)
 #endif
 
   // TODO erase from main store
-  if (S_OK != _meta_store->delete_pool(name)) {
+  if (S_OK != _metastore.get_store()->delete_pool(name)) {
     throw General_exception("objmap pool-  failed when deleting");
   }
   return S_OK;
@@ -538,9 +495,20 @@ IKVStore* NVME_store_factory::create(unsigned debug_level,
         "Parameter '%s' does not look like a PCI address", pci.c_str());
   }
 
-  std::string meta_persist_type = params.find("persist_type") == params.end()
-                                      ? "filestore"
-                                      : params["persist_type"];
+  persist_type_t meta_persist_type = PERSIST_FILE;
+  if (params.find("persist_type") != params.end()) {
+    if (params["persist_type"] == "filestore") {
+      meta_persist_type = PERSIST_FILE;
+    }
+    else if (params["persist_type"] == "hstore") {
+      meta_persist_type = PERSIST_HSTORE;
+    }
+    else {
+      throw API_exception("Option %s not supported",
+                          params["persist_type"].c_str());
+    }
+  }
+
   Component::IKVStore* obj = static_cast<Component::IKVStore*>(
       new NVME_store(params["owner"], params["name"], params["pci"],
                      params["pm_path"], meta_persist_type));
