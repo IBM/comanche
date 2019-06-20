@@ -96,24 +96,13 @@ public:
 
         // check time it takes to complete a single get_direct operation
 
-        Component::io_buffer_t handle{};
-        Core::Physical_memory mem_alloc;
-        size_t pval_len = 64;
-        void* pval = operator new(pval_len);
+        size_t expected_val_len = g_data->value_len();
+        void* pval = operator new(expected_val_len);
         Component::IKVStore::memory_handle_t memory_handle = Component::IKVStore::HANDLE_NONE;
 
         if ( component_is("nvmestore") )
         {
-            // TODO: make the input parameters 1 and 2 variable based on experiment inputs
-            handle = mem_alloc.allocate_io_buffer(MB(8), 4096, Component::NUMA_NODE_ANY);
-            pval = mem_alloc.virt_addr(handle);
-
-            if (!handle)
-            {
-                perror("ExpGetDirect.do_work: allocate_io_buffer failed");
-            }
-
-            pval = mem_alloc.virt_addr(handle);
+            memory_handle = store()->allocate_direct_memory(pval, expected_val_len);
         }
         else if ( component_is("dawn") )
         {
@@ -122,7 +111,13 @@ public:
 
         {
           StopwatchInterval si(timer);
-          auto rc = store()->get_direct(pool(), g_data->key(_i), pval, pval_len, memory_handle);
+          size_t out_val_len = 0;
+          auto rc = store()->get_direct(pool(), g_data->key(_i), pval, out_val_len, memory_handle);
+          if( out_val_len != expected_val_len){
+            std::string e("get_direct gave inconsistent out_val_len");
+            PERR("%s.", e.c_str());
+            throw std::runtime_error(e);
+          }
           if (rc != S_OK)
           {
             auto e = "get_direct returned !S_OK value rc = " + std::to_string(rc);
@@ -140,7 +135,7 @@ public:
 
         if ( component_is("nvmestore") )
         {
-             mem_alloc.free_io_buffer(handle);
+          store()->free_direct_memory(memory_handle);
         }
         else if (pval != nullptr)
         {

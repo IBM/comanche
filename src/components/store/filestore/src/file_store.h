@@ -106,11 +106,12 @@ public:
                               size_t& out_value_len,
                               Component::IKVStore::memory_handle_t handle) override;
 
-  virtual Component::IKVStore::key_t lock(const pool_t pool,
-                                          const std::string& key,
-                                          Component::IKVStore::lock_type_t type,
-                                          void*& out_value,
-                                          size_t& out_value_len) override;
+  virtual status_t lock(const pool_t pool,
+                        const std::string& key,
+                        Component::IKVStore::lock_type_t type,
+                        void*& out_value,
+                        size_t& out_value_len,
+                        Component::IKVStore::key_t& out_key) override;
 
   virtual status_t unlock(const pool_t pool,
                           key_t key_handle) override;

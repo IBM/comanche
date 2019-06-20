@@ -430,16 +430,19 @@ File_store::~File_store()
 {
 }
 
-IKVStore::key_t File_store::lock(const pool_t pool,
-                                 const std::string& key,
-                                 IKVStore::lock_type_t type,
-                                 void*& out_value,
-                                 size_t& out_value_len)
+status_t File_store::lock(const pool_t pool,
+                          const std::string& key,
+                          Component::IKVStore::lock_type_t type,
+                          void*& out_value,
+                          size_t& out_value_len,
+                          Component::IKVStore::key_t& out_key)
 {
   auto handle = reinterpret_cast<Pool_handle*>(pool);
   if(_pool_sessions.count(handle) != 1)
-    return KEY_NONE;
-  return handle->lock(key,type,out_value,out_value_len);
+    return E_INVAL;
+  
+  out_key = handle->lock(key,type,out_value,out_value_len);
+  return S_OK;
 }
 
 status_t File_store::unlock(const pool_t pool,
@@ -472,7 +475,7 @@ IKVStore::pool_t File_store::create_pool(const std::string& name,
   if(fs::exists(p)) {
     if(flags & IKVStore::FLAGS_CREATE_ONLY) return POOL_ERROR;
   }
-  else if(!fs::create_directory(p)) {
+  else if(!fs::create_directories(p)) {
     throw General_exception("filestore unable to create dir (%s)", p.string().c_str());
   }
 

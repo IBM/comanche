@@ -25,6 +25,8 @@ typedef struct {
 static PyObject * open_pool(Session* self, PyObject *args, PyObject *kwds);
 static PyObject * create_pool(Session* self, PyObject *args, PyObject *kwds);
 static PyObject * delete_pool(Session* self, PyObject *args, PyObject *kwds);
+static PyObject * get_stats(Session* self, PyObject *args, PyObject *kwds);
+
   
 static PyObject *
 Session_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
@@ -134,11 +136,13 @@ static PyMemberDef Session_members[] = {
 PyDoc_STRVAR(open_pool_doc,"Session.open_pool(name,[readonly=True]) -> Open pool.");
 PyDoc_STRVAR(create_pool_doc,"Session.create_pool(name,pool_size,objcount) -> Create pool.");
 PyDoc_STRVAR(delete_pool_doc,"Session.delete_pool(name) -> Delete pool.");
+PyDoc_STRVAR(get_stats_doc,"Session.get_stats() -> Get shard statistics.");
 
 static PyMethodDef Session_methods[] = {
   {"open_pool",  (PyCFunction) open_pool, METH_VARARGS | METH_KEYWORDS, open_pool_doc},
   {"create_pool",  (PyCFunction) create_pool, METH_VARARGS | METH_KEYWORDS, create_pool_doc},
   {"delete_pool",  (PyCFunction) delete_pool, METH_VARARGS | METH_KEYWORDS, delete_pool_doc},
+  {"get_stats",  (PyCFunction) get_stats, METH_VARARGS | METH_KEYWORDS, get_stats_doc},
   {NULL}
 };
 
@@ -302,5 +306,34 @@ static PyObject * delete_pool(Session* self, PyObject *args, PyObject *kwds)
   Py_RETURN_NONE;
 }
 
+#define macro_add_dict_item(X) PyDict_SetItemString(dict, #X, PyLong_FromUnsignedLongLong(stats.X));
+
+static PyObject * get_stats(Session* self, PyObject *args, PyObject *kwds)
+{
+  Component::IDawn::Shard_stats stats;
+
+  PLOG("Dawn.Session.get_statistics ");
+  status_t hr = self->_dawn->get_statistics(stats);
+
+  if(hr != S_OK) {
+    std::stringstream ss;
+    ss << "Dawn.Session.get_statistics failed [status:" << hr << "]";
+    PyErr_SetString(PyExc_RuntimeError,ss.str().c_str());
+    return NULL;
+  }
+
+  /* convert result to dictionary */
+  PyObject* dict = PyDict_New();
+  macro_add_dict_item(op_request_count);
+  macro_add_dict_item(op_put_count);
+  macro_add_dict_item(op_get_count);
+  macro_add_dict_item(op_put_direct_count);
+  macro_add_dict_item(op_get_twostage_count);
+  macro_add_dict_item(op_erase_count);
+  macro_add_dict_item(op_failed_request_count);
+  macro_add_dict_item(last_op_count_snapshot);
+
+  return dict;
+}
 
 #endif

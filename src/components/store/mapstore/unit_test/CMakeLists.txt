@@ -3,8 +3,8 @@ cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
 project(mapstore-tests CXX)
 
-enable_language(CXX C ASM)
-set(GCC_COVERAGE_COMPILE_FLAGS "-std=c++11 -g -O2 -fPIC -msse3")
+set(CMAKE_CXX_STANDARD 11)
+set(GCC_COVERAGE_COMPILE_FLAGS "-g -O2 -fPIC")
 
 link_directories(/usr/local/lib64)
 

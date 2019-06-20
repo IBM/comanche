@@ -396,6 +396,29 @@ public:
     return E_NOT_SUPPORTED;
   }
 
+  /**
+   * Allocate memory for zero copy DMA
+   *
+   * @param vaddr [out] allocated memory buffer
+   * @param len [in] length of memory buffer in bytes
+   *
+   * @return Memory handle or NULL on not supported.
+   */
+  virtual memory_handle_t allocate_direct_memory(void * &vaddr, size_t len){
+    throw API_exception("IKVstore:: allocate_direct_memory not implemented");
+  }
+
+  /**
+   * Free memory for zero copy DMA
+   *
+   * @param handle handle to memory region to free
+   *
+   * @return S_OK on success
+   */
+
+  virtual status_t free_direct_memory(memory_handle_t handle){
+    throw API_exception("IKVstore:: free_direct_memory not implemented");
+  }
 
   /** 
    * Register memory for zero copy DMA
@@ -427,14 +450,16 @@ public:
    * @param type STORE_LOCK_READ | STORE_LOCK_WRITE
    * @param out_value [out] Pointer to data
    * @param out_value_len [in-out] Size of data in bytes
+   * @param out_key [out]  Handle to key for unlock
    * 
-   * @return Handle to key for unlock or KEY_NONE if unsupported or other error occurred.
+   * @return S_OK, S_MORE (for async), E_INVAL or other error
    */
-  virtual key_t lock(const pool_t pool,
-                     const std::string& key,
-                     lock_type_t type,
-                     void*& out_value,
-                     size_t& out_value_len) { return KEY_NONE; }
+  virtual status_t lock(const pool_t pool,
+                        const std::string& key,
+                        lock_type_t type,
+                        void*& out_value,
+                        size_t& out_value_len,
+                        key_t& out_key) {  return E_NOT_SUPPORTED;  }
 
   /** 
    * Unlock an object
@@ -442,7 +467,7 @@ public:
    * @param pool Pool handle
    * @param key_handle Handle (opaque) for key
    * 
-   * @return S_OK or error code
+   * @return S_OK, S_MORE (for async), E_INVAL or other error
    */
   virtual status_t unlock(const pool_t pool,
                           key_t key_handle) { return E_NOT_SUPPORTED; }

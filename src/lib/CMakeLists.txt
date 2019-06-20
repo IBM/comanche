@@ -3,6 +3,8 @@ cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 # option to build libraries, on by default
 include(${CMAKE_ROOT}/Modules/ExternalProject.cmake)
 
+execute_process( COMMAND uname -m COMMAND tr -d '\n' OUTPUT_VARIABLE ARCHITECTURE )
+
 if(BOOTSTRAP_DEPS)
 
   add_subdirectory(dpdk)
@@ -44,8 +46,11 @@ if(BOOTSTRAP_DEPS)
   endif()
 
 else(BOOTSTRAP_DEPS)
-
+  
+if( ${ARCHITECTURE} STREQUAL "x86_64" )
   add_subdirectory(nupm)
+endif()
+
   add_subdirectory(common)
   add_subdirectory(core)
   add_subdirectory(tbb)

@@ -132,8 +132,10 @@ status_t Pool_handle::put(const std::string& key,
                           const size_t value_len,
                           unsigned int flags)
 {
-  if(!value || !value_len)
-    throw API_exception("invalid parameters");
+  if(!value || !value_len) {
+    PWRN("map_store: invalid parameters (value=%p, value_len=%lu)", value, value_len);
+    return E_INVAL;
+  }
 
 #ifndef SINGLE_THREADED
   RWLock_guard guard(map_lock, RWLock_guard::WRITE);
@@ -548,20 +550,25 @@ status_t Map_store::get_attribute(const pool_t pool,
   return session->pool->get_attribute(pool, attr, out_attr, key);
 }
 
-Component::IKVStore::key_t
-Map_store::lock(const pool_t pid,
+
+status_t Map_store::lock(const pool_t pid,
                 const std::string& key,
                 lock_type_t type,
                 void*& out_value,
-                size_t& out_value_len)
+                size_t& out_value_len,
+                IKVStore::key_t &out_key)
 {
   auto session = get_session(pid);
-  if(!session) return IKVStore::KEY_NONE;
+  if(!session){
+    out_key = IKVStore::KEY_NONE;
+    return E_FAIL;
+  }
 
   if(option_DEBUG)
     PLOG("map_store: lock(%s)", key.c_str());
 
-  return session->pool->lock(key, type, out_value, out_value_len);
+  out_key = session->pool->lock(key, type, out_value, out_value_len);
+  return S_OK;
 }
 
 status_t Map_store::unlock(const pool_t pid,
