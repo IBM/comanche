@@ -157,28 +157,43 @@ status_t Block_manager::open_block_allocator(
     // TODO: remove hardcopied block size
     constexpr size_t TOO_MANY_BLOCKS = GB(128) / KB(4);
 
-    if (metastore.get_type() == PERSIST_PMEM |
-        metastore.get_type() == PERSIST_FILE) {
+    block->get_volume_info(devinfo);
+
+    size_t nr_blocks = devinfo.block_count;  // actual blocks from this device
+    assert(nr_blocks);
+
+    nr_blocks_tracked =
+        nr_blocks > TOO_MANY_BLOCKS ? TOO_MANY_BLOCKS : nr_blocks;
+
+    PLOG("%s: Opening allocator to support %lu / %lu blocks", __func__,
+         nr_blocks_tracked, nr_blocks);
+
+    persist_id_t id_alloc = std::string(devinfo.volume_name) + ".alloc.pool";
+
+    if (metastore.get_type() == PERSIST_PMEM) {
       IBase *comp = load_component("libcomanche-blkalloc-aep.so",
                                    Component::block_allocator_aep_factory);
       assert(comp);
       IBlock_allocator_factory *fact = static_cast<IBlock_allocator_factory *>(
           comp->query_interface(IBlock_allocator_factory::iid()));
 
-      block->get_volume_info(devinfo);
-
-      size_t nr_blocks = devinfo.block_count;  // actual blocks from this device
-      assert(nr_blocks);
-
-      nr_blocks_tracked =
-          nr_blocks > TOO_MANY_BLOCKS ? TOO_MANY_BLOCKS : nr_blocks;
-
-      PLOG("%s: Opening allocator to support %lu / %lu blocks", __func__,
-           nr_blocks_tracked, nr_blocks);
-
-      persist_id_t id_alloc = std::string(devinfo.volume_name) + ".alloc.pool";
-
       alloc = fact->open_allocator(nr_blocks_tracked, _pm_path, id_alloc);
+      fact->release_ref();
+    }
+    else if (metastore.get_type() == PERSIST_FILE) {
+      IBase *comp = load_component("libcomanche-blkalloc-ikv.so",
+                                   Component::block_allocator_ikv_factory);
+      assert(comp);
+      IBlock_allocator_factory *fact = static_cast<IBlock_allocator_factory *>(
+          comp->query_interface(IBlock_allocator_factory::iid()));
+
+      // Open a pool to save block allocation
+      IKVStore *       store = metastore.get_store();
+      IKVStore::pool_t pool  = store->create_pool("meta-blockalloc", MB(128));
+
+      // TODO: needs close pool
+
+      alloc = fact->open_allocator(nr_blocks_tracked, store, pool, id_alloc);
       fact->release_ref();
     }
     else {

@@ -16,10 +16,6 @@
 using namespace Component;
 namespace nvmestore
 {
-/*enum block_alloc_t {*/
-// BLOCK_ALLOC_AEP = 0,  // using pmdk api
-// BLOCK_ALLOC_IKV = 1,  // using ikvstore
-/*};*/
 /* type of block io*/
 enum {
   BLOCK_IO_NOP   = 0,
@@ -137,7 +133,6 @@ class Block_manager {
   /*
    * open an allocator for block device, reuse if it exsits already
    */
-
   status_t open_block_allocator(Component::IBlock_device *    block,
                                 Component::IBlock_allocator *&alloc,
                                 MetaStore &                   metastore);
