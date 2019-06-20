@@ -19,6 +19,7 @@
 #include <api/fabric_itf.h>
 #include <api/kvstore_itf.h>
 #include <sys/mman.h>
+#include "dawn_config.h"
 
 namespace Dawn
 {

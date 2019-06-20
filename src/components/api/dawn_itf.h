@@ -32,7 +32,22 @@ public:
   // clang-format off
   DECLARE_INTERFACE_UUID(0x33af1b99,0xbc51,0x49ff,0xa27b,0xd4,0xe8,0x19,0x03,0xbb,0x02);
   // clang-format on
-  
+
+public:
+
+  /* per-shard statistics */
+  struct Shard_stats {
+    uint64_t op_request_count;
+    uint64_t op_put_count;
+    uint64_t op_get_count;
+    uint64_t op_put_direct_count;
+    uint64_t op_get_twostage_count;
+    uint64_t op_erase_count;
+    uint64_t op_failed_request_count;
+    uint64_t last_op_count_snapshot;
+    uint16_t client_count;
+  } __attribute__((aligned(8)));
+
 public:
   
   /** 
@@ -219,6 +234,15 @@ public:
                                  const IKVStore::Attribute attr,
                                  std::vector<uint64_t>& out_attr,
                                  const std::string* key = nullptr) = 0;
+
+  /** 
+   * Retrieve shard statistics
+   * 
+   * @param out_stats 
+   * 
+   * @return S_OK on success
+   */
+  virtual status_t get_statistics(Shard_stats& out_stats) = 0;
   
   /** 
    * Register memory for zero copy DMA

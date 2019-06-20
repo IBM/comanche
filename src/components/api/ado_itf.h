@@ -22,11 +22,12 @@
 #ifndef __API_ADO_ITF_H__
 #define __API_ADO_ITF_H__
 
-#include <string>
-#include <vector>
-#include <map>
 #include <common/errors.h>
 #include <common/types.h>
+#include <component/base.h>
+#include <map>
+#include <string>
+#include <vector>
 
 namespace Component
 {
@@ -42,42 +43,44 @@ class IADO_proxy : public Component::IBase
 public:
   // clang-format off
   DECLARE_INTERFACE_UUID(0xbbbfa389,0x1665,0x4e5b,0xa1b1,0x3c,0xff,0x4a,0x5e,0xe2,0x63);
-  // clang-format on
+ // clang-format on
 
-  using work_id_t = uint64_t; /*< work handle/identifier */
-  using shared_memory_token_t = uint64_t; /*< token identifying shared memory for mcas module */
-  
-  enum class Op_type {
-    FLATBUFFER_OPERATION, /* a method invocation in the form of a flatbuffer message */    
-  };
+ using work_id_t = uint64_t; /*< work handle/identifier */
 
-  /** 
-   * Post work item. This method must NOT block.
-   * 
-   * @param type Type of work
-   * @param data Pointer to work descriptor (e.g., pointer to flatbuffer)
-   * @param data_len Length of descriptor data in bytes
-   * @param out_work_id [out] Work identifier
-   * 
-   * @return S_OK or E_FULL if queue is full.
-   */
-  virtual status_t post_work(Op_type type, void * desc, const size_t desc_len, work_id_t& out_work_id) = 0;
+ enum class Op_type {
+   FLATBUFFER_OPERATION, /* a method invocation in the form of a flatbuffer
+                            message */
+   KILL,                 // shutdown ado process
+   CHECK_COMPLETION,     // check how many completed
+ };
 
-  /** 
-   * Check for work completions.  This gets polled by the shard process.
-   * This method must NOT block.
-   * 
-   * @param out_completions Vector of completed work items
-   * @param out_remaining_count Remaining number of work items
-   * 
-   * @return Number of work items completed
-   */
-  virtual size_t check_completions(std::vector<work_id_t>& out_completions,
-                                   size_t& out_remaining_count) = 0;
+ /**
+  * Post work item. This method must NOT block.
+  *
+  * @param type Type of work
+  * @param data Pointer to work descriptor (e.g., pointer to flatbuffer)
+  * @param data_len Length of descriptor data in bytes
+  * @param out_work_id [out] Work identifier
+  *
+  * @return S_OK or E_FULL if queue is full.
+  */
+ virtual status_t post_work(Op_type      type,
+                            void*        desc,
+                            const size_t desc_len,
+                            work_id_t&   out_work_id) = 0;
 
-  
+ /**
+  * Check for work completions.  This gets polled by the shard process.
+  * This method must NOT block.
+  *
+  * @param out_completions Vector of completed work items
+  * @param out_remaining_count Remaining number of work items
+  *
+  * @return S_OK if completed, E_EMPTY if not
+  */
+ virtual status_t check_completions(work_id_t out_completions) = 0;
+ virtual bool     has_exited()                                 = 0;
 };
-
 
 /** 
  * ADO manager interface.  This is actually a proxy interface communicating with an external process.
@@ -91,16 +94,19 @@ public:
   DECLARE_INTERFACE_UUID(0xaaafa389,0x1665,0x4e5b,0xa1b1,0x3c,0xff,0x4a,0x5e,0xe2,0x63);
   // clang-format on
 
-  /** 
+  using shared_memory_token_t = uint64_t; /*< token identifying shared memory for mcas module */
+  /**
    * Launch ADO process.  This method must NOT block.
-   * 
+   *
    * @param filename Location of the executable
    * @param args Command line arguments to pass
-   * @param shm_token Token to pass to ADO to use to map value memory into process space.
+   * @param shm_token Token to pass to ADO to use to map value memory into
+   * process space.
    * @param value_memory_numa_zone NUMA zone to which the value memory resides
    * @param sla Placeholder for some type of SLA/QoS requirements specification.
-   * 
-   * @return Proxy interface, with reference count 1. Use release_ref() to destroy.
+   *
+   * @return Proxy interface, with reference count 1. Use release_ref() to
+   * destroy.
    */
   virtual IADO_proxy* create(const std::string&        filename,
                              std::vector<std::string>& args,
@@ -134,11 +140,23 @@ public:
   // clang-format off
   DECLARE_INTERFACE_UUID(0xfacfa389,0x1665,0x4e5b,0xa1b1,0x3c,0xff,0x4a,0x5e,0xe2,0x63);
   // clang-format on
-  
-  virtual IADO_manager_proxy * create(unsigned debug_level,
-                                      std::map<std::string, std::string>& params) = 0;
-}
-  
+
+  virtual IADO_manager_proxy* create(unsigned debug_level, int core) = 0;
+};
+
+class IADO_proxy_factory : public Component::IBase {
+ public:
+  // clang-format off
+  DECLARE_INTERFACE_UUID(0xfacbb389,0x1665,0x4e5b,0xa1b1,0x3c,0xff,0x4a,0x5e,0xe2,0x63);
+  // clang-format on
+
+  virtual IADO_proxy* create(
+      const std::string&                        filename,
+      std::vector<std::string>&                 args,
+      IADO_manager_proxy::shared_memory_token_t shm_token,
+      std::string                               cores,
+      int                                       memroy) = 0;
+};
 
 } // Component
 

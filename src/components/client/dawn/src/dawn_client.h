@@ -146,6 +146,8 @@ class Dawn_client : public virtual Component::IKVStore,
                                  std::vector<uint64_t>& out_attr,
                                  const std::string* key) override;
 
+  virtual status_t get_statistics(Shard_stats& out_stats) override;
+
   virtual void debug(const pool_t pool, unsigned cmd, uint64_t arg) override;
 
   virtual Component::IKVStore::memory_handle_t register_direct_memory(void*  vaddr,

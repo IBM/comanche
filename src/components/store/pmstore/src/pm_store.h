@@ -106,11 +106,11 @@ public:
 
   virtual Component::IKVStore::memory_handle_t register_direct_memory(void * vaddr, size_t len) override;
 
-  virtual Component::IKVStore::key_t lock(const pool_t pool,
+  virtual status_t lock(const pool_t pool,
                                           const std::string& key,
                                           lock_type_t type,
                                           void*& out_value,
-                                          size_t& out_value_len) override;
+                                          size_t& out_value_len, IKVStore::key_t &out_key) override;
 
   virtual status_t unlock(const pool_t pool,
                           Component::IKVStore::key_t key_handle) override;

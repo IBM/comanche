@@ -72,8 +72,6 @@ static inline void *xchg(void *ptr, void *x) {
 #elif defined(__arm__)
   return (void *) __atomic_exchange_n((unsigned long *) ptr,
                                       (unsigned long *) x, __ATOMIC_RELAXED);
-#else
-#error Unsupported platform
 #endif
 
   return x;

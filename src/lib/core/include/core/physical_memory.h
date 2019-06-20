@@ -23,6 +23,8 @@
 #ifndef __PHYSICAL_MEMORY_H__
 #define __PHYSICAL_MEMORY_H__
 
+#if defined(__x86_64__)
+
 #include <api/memory_itf.h>
 
 namespace DPDK
@@ -164,4 +166,5 @@ class Physical_memory {
     return Physical_memory::get_size(buffer);                                \
   }
 
+#endif
 #endif

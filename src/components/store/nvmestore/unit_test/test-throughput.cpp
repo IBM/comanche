@@ -95,8 +95,14 @@ TEST_F(KVStore_test, Instantiate)
   ASSERT_TRUE(comp);
   IKVStore_factory * fact = (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
 
-  // this nvme-store use a block device and a block allocator
-  _kvstore = fact->create("owner","name", opt.pci);
+  std::map<std::string, std::string> params;
+  params["owner"] = "testowner";
+  params["name"] = "testname";
+  params["pci"] = opt.pci;
+  params["pm_path"] = "/mnt/pmem0/";
+  unsigned debug_level = 0;
+
+  _kvstore = fact->create(debug_level, params);
 #else
   Component::IBase * comp = Component::load_component("libcomanche-storefile.so",
                                                       Component::filestore_factory);
@@ -119,13 +125,9 @@ TEST_F(KVStore_test, OpenPool)
   std::string pool_path;
   std::string pool_name;
 
-  pool_name = "basic-nr-"+std::to_string(Data::NUM_ELEMENTS) + "-sz-" + std::to_string(Data::VAL_LEN)+ ".pool";
+  pool_name = "nvmestore-tp-nr-"+std::to_string(Data::NUM_ELEMENTS) + "-sz-" + std::to_string(Data::VAL_LEN)+ ".pool";
 
-#ifndef USE_FILESTORE
-  pool_path = PMEM_PATH;
-#else
-  pool_path = "./";
-#endif
+  pool_path = "./data/";
   try{
   _pool = _kvstore->create_pool(pool_path + pool_name, MB(128));
   _pool_is_reopen = false;
@@ -205,12 +207,9 @@ TEST_F(KVStore_test, ThroughputGetDirect){
   /* get direct */
 
 #ifndef USE_FILESTORE
-  io_buffer_t handle;
-  Core::Physical_memory  mem_alloc; // aligned and pinned mem allocator, TODO: should be provided through IZerocpy Memory interface of NVMestore
-
-  handle = mem_alloc.allocate_io_buffer(Data::VAL_LEN, 4096, Component::NUMA_NODE_ANY);
-  ASSERT_TRUE(handle);
-  pval = mem_alloc.virt_addr(handle);
+  IKVStore::memory_handle_t handle;
+  handle = _kvstore->allocate_direct_memory(pval, Data::VAL_LEN);
+  
 #else
   pval = malloc(Data::VAL_LEN);
   ASSERT_TRUE(pval);
@@ -224,7 +223,7 @@ TEST_F(KVStore_test, ThroughputGetDirect){
   ProfilerStart("testnvmestore.get_direct.profile");
   for(i = 0; i < Data::NUM_ELEMENTS; i ++){
     std::string key = "elem" + std::to_string(i);
-    if(ret  = _kvstore->get_direct(_pool, key, pval, pval_len)){
+    if(ret  = _kvstore->get_direct(_pool, key, pval, pval_len, handle)){
       throw API_exception("NVME_store:: get erorr with return value %d", ret);
     }
   }
@@ -239,7 +238,7 @@ TEST_F(KVStore_test, ThroughputGetDirect){
       ((double)i) / secs, ((double)i) / secs*Data::VAL_LEN/(1024*1024), Data::VAL_LEN/1024, secs, i);
 
 #ifndef USE_FILESTORE
-  mem_alloc.free_io_buffer(handle);
+  _kvstore->free_direct_memory(handle);
 #else
   free(pval);
 #endif

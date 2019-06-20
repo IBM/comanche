@@ -88,8 +88,8 @@ public:
                 else if (component_name.compare("nvmestore") == 0) {
                     component_object = "libcomanche-nvmestore.so";
                     component_uuid = Component::nvmestore_factory;
-                    pool_path = "/mnt/pmem0/";
-                    pci_address = "09:00.0";  // IMPORTANT: this is what will show up as the first part of command "$ lspci | grep Non"
+                    // pool_path = "/mnt/pmem0/"; // all pool will created under pm_path
+                    pci_address = "11:00.0";  // IMPORTANT: this is what will show up as the first part of command "$ lspci | grep Non"
                 }
                 else if (component_name.compare("dawn") == 0)
                 {
