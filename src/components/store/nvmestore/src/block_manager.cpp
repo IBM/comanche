@@ -180,7 +180,8 @@ status_t Block_manager::open_block_allocator(
       alloc = fact->open_allocator(nr_blocks_tracked, _pm_path, id_alloc);
       fact->release_ref();
     }
-    else if (metastore.get_type() == PERSIST_FILE) {
+    else if (metastore.get_type() == PERSIST_FILE ||
+             metastore.get_type() == PERSIST_HSTORE) {
       IBase *comp = load_component("libcomanche-blkalloc-ikv.so",
                                    Component::block_allocator_ikv_factory);
       assert(comp);

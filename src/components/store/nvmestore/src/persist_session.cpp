@@ -70,7 +70,7 @@ status_t persist_session::erase(const std::string& key)
   uint64_t pool = reinterpret_cast<uint64_t>(this);
 
   status_t rc;
-  void*    raw_objinfo;
+  void*    raw_objinfo = nullptr;
   size_t   obj_info_sz_in_bytes;
 
   // Get objinfo from meta_pool
@@ -100,7 +100,7 @@ status_t persist_session::erase(const std::string& key)
   _blk_manager->free_blk_region(lba_start, objinfo->block_region);
   p_state_map->state_remove(pool, objinfo->block_region);
 
-  if (objinfo) free(objinfo);
+  _meta_store->free_memory(raw_objinfo);
 
   _num_objs -= 1;
   return S_OK;
@@ -158,7 +158,7 @@ status_t persist_session::get(const std::string& key,
   if (check_exists(key) == E_NOT_FOUND) return IKVStore::E_KEY_NOT_FOUND;
   size_t blk_sz = _blk_manager->blk_sz();
 
-  void*  raw_objinfo;
+  void*  raw_objinfo = nullptr;
   size_t obj_info_length;
 
   status_t rc = _meta_store->get(_meta_pool, key, raw_objinfo, obj_info_length);
@@ -183,6 +183,7 @@ status_t persist_session::get(const std::string& key,
   memcpy(out_value, _blk_manager->virt_addr(_io_mem), val_len);
   out_value_len = val_len;
 
+  _meta_store->free_memory(raw_objinfo);
   return S_OK;
 }
 
@@ -194,7 +195,7 @@ status_t persist_session::get_direct(const std ::string& key,
   if (check_exists(key) == E_NOT_FOUND) return IKVStore::E_KEY_NOT_FOUND;
   size_t blk_sz = _blk_manager->blk_sz();
 
-  void*  raw_objinfo;
+  void*  raw_objinfo = nullptr;
   size_t obj_info_length;
 
   status_t rc = _meta_store->get(_meta_pool, key, raw_objinfo, obj_info_length);
@@ -236,6 +237,8 @@ status_t persist_session::get_direct(const std ::string& key,
   _blk_manager->do_block_io(nvmestore::BLOCK_IO_READ, mem, lba, nr_io_blocks);
 
   out_value_len = val_len;
+
+  _meta_store->free_memory(raw_objinfo);
   return S_OK;
 }
 
@@ -329,7 +332,7 @@ persist_session::key_t persist_session::lock(const std::string& key,
   else {
     size_t obj_info_length;
 
-    void*    raw_objinfo;
+    void*    raw_objinfo = nullptr;
     status_t rc =
         _meta_store->get(_meta_pool, key, raw_objinfo, obj_info_length);
     if (rc != S_OK || obj_info_length < sizeof(obj_info_t)) {
@@ -382,7 +385,7 @@ status_t persist_session::unlock(persist_session::key_t key_handle)
   if (check_exists(key) == E_NOT_FOUND) return IKVStore::E_KEY_NOT_FOUND;
   size_t blk_sz = _blk_manager->blk_sz();
 
-  void*  raw_objinfo;
+  void*  raw_objinfo = nullptr;
   size_t obj_info_length;
 
   status_t rc = _meta_store->get(_meta_pool, key, raw_objinfo, obj_info_length);

@@ -22,8 +22,7 @@ class MetaStore {
       comp = load_component("libcomanche-storefile.so", filestore_factory);
     }
     else if (_persist_type == PERSIST_HSTORE)
-      throw API_exception("not implemented");
-    // comp = load_component("libcomanche-hstore.so", hstore_factory);
+      comp = load_component("libcomanche-hstore.so", hstore_factory);
     else {
       throw API_exception("Option %d not supported", _persist_type);
     }
@@ -40,6 +39,17 @@ class MetaStore {
       std::map<std::string, std::string> params;
       params["pm_path"] = pm_path + "meta/";
       _store            = fact->create(debug_level, params);
+    }
+    else if (_persist_type == PERSIST_HSTORE) {
+      std::string dax_config =
+          "[ { \"region_id\": 0, \"path\" : \"/dev/dax0.1\", \"addr\" : "
+          "\"0x9000000000\" } ]";
+
+      _store = fact->create(owner, name, dax_config);
+      if (!_store)
+        throw General_exception(
+            "hstore failed in initialization. you shall set export "
+            "USE_DRAM=24; export NO_CLFLUSHOPT=1; export DAX_RESET=1");
     }
     else {
       // TODO refer to dawn
