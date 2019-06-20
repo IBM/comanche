@@ -25,6 +25,7 @@
 #include <string>
 #include <api/pmem_itf.h>
 #include <api/components.h>
+#include <api/kvstore_itf.h>
 namespace Component
 {
 
@@ -54,7 +55,7 @@ public:
 
 
 
-/** 
+  /** 
    * Open allocator using AEP
    * 
    * @param max_lba Maximum LBA to track
@@ -66,6 +67,23 @@ public:
                                             std::string path,
                                             std::string name,
                                             int numa_node = NUMA_NODE_ANY,
+                                            bool force_init = false){
+    throw API_exception("not implemented.");
+  }
+
+  /** 
+   * Open allocator using IKVStore
+   * 
+   * @param max_lba Maximum LBA to track
+   * @param store
+   * @param pool a opened pool in the store
+   * @param name the name of the stored allocation info
+   * @return 
+   */
+  virtual IBlock_allocator * open_allocator(size_t max_lba,
+                                            IKVStore* store,
+                                            IKVStore::pool_t pool,
+                                            std::string& name,
                                             bool force_init = false){
     throw API_exception("not implemented.");
   }

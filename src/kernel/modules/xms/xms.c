@@ -236,7 +236,8 @@ static const struct file_operations xms_chardev_ops = {
 };
 
 static struct miscdevice xms_dev = {
-  XMS_MINOR,
+  MISC_DYNAMIC_MINOR,
+  // XMS_MINOR,
   "xms",
   &xms_chardev_ops,
 };
