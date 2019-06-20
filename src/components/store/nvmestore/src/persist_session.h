@@ -33,8 +33,7 @@ struct obj_info {
 
   // key info
   size_t key_len;
-  char*  key_data;
-  // actual char array follows this with ending '\0'
+  char*  key_data;  // actual char array follows this with ending '\0'
 };
 
 struct buffer_t {

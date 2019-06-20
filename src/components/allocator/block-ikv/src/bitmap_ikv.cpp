@@ -22,12 +22,13 @@ static boost::detail::spinlock _spinlock;
 //#define ENABLE_TIMING
 
 /*
- * bitmap region operation support
+ * Bitmap region operation support.
  *
- * @param bitmap bitmap to operate on
  * @param pos the posion of the bit
  * @param order order of the region
- * @param operation type
+ * @param reg_op operation type for the region
+ *
+ * This folllows the linux bitmap design
  */
 int bitmap_ikv::_reg_op(unsigned int pos, unsigned order, reg_op_t reg_op)
 {

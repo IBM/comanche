@@ -171,7 +171,6 @@ class BlockAlloc_ikv_factory : public Component::IBlock_allocator_factory {
   /**
    * Open an allocator
    *
-   *
    * @return Pointer to allocator instance. Ref count = 1. Release ref to
    * delete.
    */

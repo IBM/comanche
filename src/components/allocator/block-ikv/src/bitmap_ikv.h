@@ -40,7 +40,7 @@ enum reg_op_t {
 };
 
 /**
- * Fixed sized bitmap(4M bits)
+ * Fixed sized bitmap(4M bits).
  *
  * Each instance is backed by one object in the ikvstore pool
  */
@@ -99,7 +99,7 @@ class bitmap_ikv {
   }
 
   /*
-   * find a contiguous aligned mem region, this assume data is loaded
+   * Find a contiguous aligned mem region, this assume data is loaded.
    *
    * @param pop persist object pool
    * @param bitmap the bitmap to operate on
@@ -108,7 +108,7 @@ class bitmap_ikv {
   int find_free_region(unsigned order);
 
   /*
-   * free a region from bitmap, assuming data is loaded
+   * Free a region from bitmap, assuming data is loaded.
    *
    * @param pos the starting bit to reset
    * @param order, the order(2^order bits) to reset
@@ -116,7 +116,7 @@ class bitmap_ikv {
   int release_region(unsigned int pos, unsigned order);
 
   /**
-   * Get the capacity in bits
+   * Get the capacity in bits.
    */
   size_t get_capacity() const { return _capacity; }
 
