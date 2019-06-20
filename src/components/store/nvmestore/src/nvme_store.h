@@ -61,15 +61,13 @@ class NVME_store : public Component::IKVStore {
 
  private:
   static constexpr bool option_DEBUG = true;
-  std::string           _pm_path;
 
-  State_map       _sm;           // map control TODO: change to session manager
-  block_manager_t _blk_manager;  // shared across all nvmestore
-
-  persist_type_t _meta_persist_type; /** How to persist meta data*/
+  State_map _sm;  // map control TODO: change to session manager
 
   // IKVStore* _meta_store = nullptr;
-  MetaStore _metastore;
+  std::string     _pm_path;
+  MetaStore       _metastore;
+  block_manager_t _blk_manager;  // shared across all nvmestore
 
  public:
   /**

@@ -157,7 +157,8 @@ status_t Block_manager::open_block_allocator(
     // TODO: remove hardcopied block size
     constexpr size_t TOO_MANY_BLOCKS = GB(128) / KB(4);
 
-    if (metastore.get_type() == PERSIST_PMEM) {
+    if (metastore.get_type() == PERSIST_PMEM |
+        metastore.get_type() == PERSIST_FILE) {
       IBase *comp = load_component("libcomanche-blkalloc-aep.so",
                                    Component::block_allocator_aep_factory);
       assert(comp);
@@ -181,7 +182,8 @@ status_t Block_manager::open_block_allocator(
       fact->release_ref();
     }
     else {
-      throw General_exception("Cannot open allocator type %d");
+      throw General_exception("Cannot open allocator type %d",
+                              metastore.get_type());
     }
 
     _alloc_map.insert(
