@@ -127,10 +127,18 @@ void Shard::main_loop()
   Connection_handler::action_t     action;
   std::vector<Connection_handler*> pending_close;
 
+  unsigned idle = 0;
+  
   while (_thread_exit == false) {
+    
     /* check for new connections - but not too often */
     if (tick % CHECK_CONNECTION_INTERVAL == 0)
       check_for_new_connections();
+
+#ifdef IDLE_CHECK
+    if (idle > 1000)
+      usleep(100000);
+#endif
 
     /* if there are no sessions, sleep thread */
     if(_handlers.empty()) {
@@ -138,7 +146,9 @@ void Shard::main_loop()
       check_for_new_connections();
     }
     else {
-    
+
+      _stats.client_count = _handlers.size(); /* update stats client count */
+      
       /* iterate connection handlers (each connection is a client session) */
       for (std::vector<Connection_handler*>::iterator handler_iter =
              _handlers.begin();
@@ -154,12 +164,14 @@ void Shard::main_loop()
 
         /* close session */
         if (tick_response == Dawn::Connection_handler::TICK_RESPONSE_CLOSE) {
+          idle = 0;
           if (option_DEBUG > 1) PMAJOR("Shard: closing connection %p", handler);
           pending_close.push_back(handler);
         }
 
         /* process ALL deferred actions */
         while (handler->get_pending_action(action)) {
+          idle = 0;
           switch (action.op) {
           case Connection_handler::ACTION_RELEASE_VALUE_LOCK:
             if (option_DEBUG > 2)
@@ -175,6 +187,7 @@ void Shard::main_loop()
         buffer_t*          iob;
         Protocol::Message* p_msg = nullptr;
         while ((iob = handler->get_pending_msg(p_msg)) != nullptr) {
+          idle = 0;
           assert(p_msg);
           switch (p_msg->type_id) {
           case MSG_TYPE_IO_REQUEST:
@@ -214,9 +227,10 @@ void Shard::main_loop()
       }
 
       /* handle tasks */
-      process_tasks();
+      process_tasks(idle);
     }
 
+    idle++;
     tick++;
   }
 
@@ -420,7 +434,7 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
                                    key_handle);
 
     if (rc == E_FAIL || key_handle == Component::IKVStore::KEY_NONE) {
-      PWRN("PUT_ADVANCE failed to lock value (lock() returned KEY_NONE) ");
+      PWRN("PUT_ADVANCE failed to lock value");
       status = E_INVAL;
       _stats.op_failed_request_count++;
       goto send_response;
@@ -709,7 +723,8 @@ void Shard::process_info_request(Connection_handler* handler,
     PLOG("Shard: INFO request type:0x%X", msg->type);
 
   /* stats request handler */
-  if (msg->type == Protocol::INFO_TYPE_GET_STATS) {
+  if (msg->type == Protocol::INFO_TYPE_GET_STATS) {   
+      
     Protocol::Message_stats* response = new (iob->base())
       Protocol::Message_stats(handler->auth_id(),_stats);
     response->status = S_OK;
@@ -766,13 +781,14 @@ void Shard::process_info_request(Connection_handler* handler,
         response->status = S_OK;
         void *p = nullptr;
         size_t p_len = 0;
-        auto key_handle = _i_kvstore->lock(msg->pool_id,
+        Component::IKVStore::key_t key_handle;
+        status_t rc = _i_kvstore->lock(msg->pool_id,
                                            key,
                                            Component::IKVStore::STORE_LOCK_READ,
                                            p,
-                                           p_len);
+                                           p_len, key_handle);
 
-        if(key_handle == Component::IKVStore::KEY_NONE) {
+        if(rc != S_OK || key_handle == Component::IKVStore::KEY_NONE) {
           response->status = E_FAIL;
           response->value = 0;        
         }
@@ -800,13 +816,14 @@ void Shard::process_info_request(Connection_handler* handler,
   return;
 }
 
-void Shard::process_tasks()
+void Shard::process_tasks(unsigned& idle)
 {
  retry:
   for(task_list_t::iterator i = _tasks.begin();
       i != _tasks.end() ; i++ )  {
     auto t = *i;
     assert(t);
+    idle = 0;
 
     status_t s = t->do_work();
     if(s != Component::IKVStore::S_MORE) {

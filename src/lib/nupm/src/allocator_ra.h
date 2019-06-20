@@ -12,8 +12,8 @@
 */
 
 
-#ifndef COMANCHE_HSTORE_ALLOCATOR_RA_H
-#define COMANCHE_HSTORE_ALLOCATOR_RA_H
+#ifndef COMANCHE_NUPM_ALLOCATOR_RA_H
+#define COMANCHE_NUPM_ALLOCATOR_RA_H
 
 #include "deallocator_ra.h"
 

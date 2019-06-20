@@ -52,6 +52,10 @@ namespace nupm
 	template <typename T>
 		class deallocator_ra
 		{
+			/* Note: to distinguish copyable allocators from memory providers like
+			 * AVL_range_allocator, C++17 pmr library refers to the latter as a
+			 * "memory resources," not as a "allocators."
+			 */
 			Core::AVL_range_allocator *_ra;
 		public:
 			using size_type = std::size_t;

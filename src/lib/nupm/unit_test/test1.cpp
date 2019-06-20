@@ -75,12 +75,12 @@ typedef split_interval_set<addr_t> interval_set_t;
 #ifdef RUN_AVL_RANGE_ALLOCATOR_TESTS
 TEST_F(Libnupm_test, AVLRange)
 {
-  const addr_t BASE = 0x900000000; 
+  const addr_t BASE = 0x900000000;
   const size_t ARENA_SIZE = GB(32);
   const size_t COUNT = 100000;
   init_genrand64(0xF00B);
 
-  
+
   std::vector<iovec> log;
   interval_set_t iset;
 
@@ -95,7 +95,7 @@ TEST_F(Libnupm_test, AVLRange)
       void * p = mr->paddr();
       ASSERT_TRUE(check_aligned(p, 8));
       ASSERT_TRUE(((addr_t)p) >= BASE);
-      
+
       /* closed, both value included in range */
       auto ival = interval<addr_t>::closed((addr_t)p, ((addr_t)p) + s - 1);
 
@@ -111,10 +111,10 @@ TEST_F(Libnupm_test, AVLRange)
     }
     avl.dump_info(&before);
   }
-  
+
   /* now do reconstitution */
   PLOG("Reconstituting AVL...");
-  {  
+  {
     Core::AVL_range_allocator avl(BASE, ARENA_SIZE);
 
     for(auto a : log) {
@@ -136,15 +136,15 @@ TEST_F(Libnupm_test, RcAllocatorAVLReconstitute)
   void * p = aligned_alloc(GB(1), ARENA_SIZE);
   ASSERT_TRUE(p);
   init_genrand64(0xF00B);
-  
+
   std::vector<iovec> log;
   interval_set_t iset;
-  
+
   /* set up AVL allocator */
   std::string state_A, state_B;
 
   PLOG("Populating AVL allocator...");
-  { 
+  {
     nupm::Rca_AVL rca;
     rca.add_managed_region(p, ARENA_SIZE, 0);
 
@@ -166,7 +166,7 @@ TEST_F(Libnupm_test, RcAllocatorAVLReconstitute)
       }
 
       iset += ival;
-      log.push_back({p, s});    
+      log.push_back({p, s});
     }
 
     rca.debug_dump(&state_A);
@@ -202,22 +202,21 @@ TEST_F(Libnupm_test, RcAllocatorLBReconstitute)
     size_t   size;
 
     bool operator< (info_t cmp)  {
-      return ((addr_t)p) < ((addr_t)cmp.p);
+      return p < cmp.p;
     }
   };
-  
+
   struct compare {
     bool operator() (info_t a, info_t b)
     {
       return a.p == b.p && a.size == b.size;
     }
   };
- 
-  
+
   std::list<info_t> log;
   interval_set_t iset;
   std::string before;
-  
+
   /* do allocations */
   PLOG("Populating LB allocator...");
   {
@@ -241,9 +240,9 @@ TEST_F(Libnupm_test, RcAllocatorLBReconstitute)
         ASSERT_TRUE(false);
       }
 
-      iset += ival;     
+      iset += ival;
 
-      log.push_back({p, s});    
+      log.push_back({p, s});
     }
     /* capture state */
     rca.debug_dump(&before);
@@ -256,7 +255,7 @@ TEST_F(Libnupm_test, RcAllocatorLBReconstitute)
     nupm::Rca_LB rca;
     rca.add_managed_region(p, ARENA_SIZE, 0);
     init_genrand64(0xF00B);
-    
+
     for (size_t i = 1; i < COUNT; i++) {
       size_t s = round_up(((genrand64_int64() % 4096) + 8), 8);
       assert(s % 8 == 0);
@@ -277,7 +276,7 @@ TEST_F(Libnupm_test, RcAllocatorLBReconstitute)
     tmplog.unique(compare());
     ASSERT_TRUE(before_uniq == log.size());
   }
-  
+
   /* now do reconstitution */
   PLOG("Reconstituting LB allocator...");
   std::string after;
@@ -295,7 +294,7 @@ TEST_F(Libnupm_test, RcAllocatorLBReconstitute)
        before.length(), after.length());
   ASSERT_TRUE(before == after);
 
-  
+
 }
 #endif
 
@@ -379,6 +378,16 @@ TEST_F(Libnupm_test, RcAllocatorLBIntegrity)
     rca.free(e.p, 0, e.size);
   }
 
+  {
+    /* All objects freed. Frees should return unused buckets to the arena.
+     * Check that dump, which enumerates free buckets, is a trivially small
+     * size.
+     */
+    std::string d;
+    rca.debug_dump(&d);
+    EXPECT_GT(1000, d.size());
+  }
+
   free(p);
 }
 #endif
@@ -452,7 +461,7 @@ TEST_F(Libnupm_test, RcAllocatorLB)
     }
 
     /* logical power-fail */
-    rca.debug_dump(&state_A);  
+    rca.debug_dump(&state_A);
 
     /* now we should be able to free */
     for (auto &i : allocations) {
@@ -494,7 +503,7 @@ TEST_F(Libnupm_test, DevdaxManager)
     PLOG("sizeof device /dev/dax0.0 is %ld bytes", s);
     ASSERT_TRUE(s > 0);
   }
-  
+
   {
     nupm::Devdax_manager ddm({{"/dev/dax0.3", 0x9000000000, 0}},true);
   }
@@ -560,7 +569,7 @@ TEST_F(Libnupm_test, RcAllocatorAVL)
     }
 
     /* logical power-fail */
-    rca.debug_dump(&state_A);  
+    rca.debug_dump(&state_A);
   }
 
   {
@@ -703,7 +712,7 @@ TEST_F(Libnupm_test, TxCache)
     ((char*)p)[i*MB(2)]='a';
   }
   cpu_time_t delta = (rdtsc() - start)/NUM_PAGES;
-  PLOG("Mean PF cost: (%f usec) %lu", Common::cycles_to_usec(delta), delta);  
+  PLOG("Mean PF cost: (%f usec) %lu", Common::cycles_to_usec(delta), delta);
   // { // important
   //   Core::Heap_allocator<char> heap(p, p_size, "heapA");
 
@@ -719,7 +728,7 @@ TEST_F(Libnupm_test, TxCache)
   c[4096] = 'a';
   PLOG("touched! in %ld cycles (%f usec)", delta, Common::cycles_to_usec(delta));
 #endif
-  
+
   nupm::free_virtual_pages(p);
 }
 #endif
@@ -732,7 +741,7 @@ TEST_F(Libnupm_test, Arena)
 
   std::chrono::system_clock::time_point start, end;
   PLOG("SingleThreadAlloc running...");
-  
+
   const unsigned ITERATIONS = 3000;
   std::vector<void*> alloc_v;
   alloc_v.reserve(ITERATIONS);

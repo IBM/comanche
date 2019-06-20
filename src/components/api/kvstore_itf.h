@@ -26,8 +26,8 @@
 #include <api/components.h>
 #include <common/exceptions.h>
 #include <common/utils.h>
-#include <mutex>
 #include <semaphore.h>
+#include <mutex>
 
 /* print format for the pool type */
 #define PRIxIKVSTORE_POOL_T PRIx64
@@ -410,8 +410,8 @@ class IKVStore : public Component::IBase {
    *
    */
   virtual status_t allocate_direct_memory(void*&           vaddr,
-                                            size_t           len,
-                                            memory_handle_t& handle)
+                                          size_t           len,
+                                          memory_handle_t& handle)
   {
     return E_NOT_SUPPORTED;
   }
@@ -465,10 +465,9 @@ class IKVStore : public Component::IBase {
    * @param type STORE_LOCK_READ | STORE_LOCK_WRITE
    * @param out_value [out] Pointer to data
    * @param out_value_len [in-out] Size of data in bytes
-   * @param out_key [out]  Handle to key for unlock or KEY_NONE if unsupported
-   * or other error occurred.
+   * @param out_key [out]  Handle to key for unlock
    *
-   * @return S_OK, S_MORE, or E_FAIL
+   * @return S_OK, S_MORE (for async), E_INVAL or other error
    */
   virtual status_t lock(const pool_t       pool,
                         const std::string& key,
@@ -486,7 +485,7 @@ class IKVStore : public Component::IBase {
    * @param pool Pool handle
    * @param key_handle Handle (opaque) for key
    *
-   * @return S_OK or error code
+   * @return S_OK, S_MORE (for async), E_INVAL or other error
    */
   virtual status_t unlock(const pool_t pool, key_t key_handle)
   {

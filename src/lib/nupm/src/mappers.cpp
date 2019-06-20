@@ -1,5 +1,5 @@
 /*
-   Copyright [2017-2019] [IBM Corporation]
+   Copyright [2019] [IBM Corporation]
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
@@ -12,21 +12,4 @@
 */
 
 
-#ifndef COMANCHE_HSTORE_DAX_MAP_H
-#define COMANCHE_HSTORE_DAX_MAP_H
-
-#include <nupm/dax_map.h>
-
-#include <string>
-
-class Devdax_manager
-	: public nupm::Devdax_manager
-{
-public:
-	Devdax_manager(
-		const std::string &dax_map
-		, bool force_reset = false
-	);
-};
-
-#endif
+#include "mappers.h"
