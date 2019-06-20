@@ -2,9 +2,9 @@
 This is the changelog for nvmestore
 [2019-06-20]:
 * Added:
-  1. Use hstore/filestore as backend of nvmestore.
-  2. To use hstore as backend: export USE_DRAM=24; export NO_CLFLUSHOPT=1; export DAX_RESET=1
-  3. to switch between different backends use persist_type in the factory params
+  1. Use hstore/filestore as backend of nvmestore. 
+  2. To use hstore as backend: export USE_DRAM=24; export NO_CLFLUSHOPT=1; export DAX_RESET=1.
+  3. to switch between different backends use persist_type in the factory params.
 [2019-06-06]:
 * Added:
   1. use filestore to manage objinfo. support put/get/get_direct/erase/lock/unlock/map/unmap
