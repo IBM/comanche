@@ -256,6 +256,7 @@ IKVStore::key_t Pool_handle::lock(const std::string& key,
     int rc = ::ftruncate(fd, out_value_len);
     if(rc != 0)
       throw General_exception("file_store::lock ::ftruncate failed %s", strerror(errno));
+    ::fsync(fd);
     ::close(fd);
     created = true;
   }
@@ -271,14 +272,23 @@ IKVStore::key_t Pool_handle::lock(const std::string& key,
   auto sl = new Simulated_locked_item(fd, info.st_size);
   assert(sl);
   
-  out_value_len = info.st_size;
+  //TODO: mix simulated_locked_item: out_value_len = info.st_size;
   out_value = sl->p;
 
   if(!created) { /* reload from file */
     ssize_t rs = read(fd, out_value, out_value_len);
 
-    if(rs != out_value_len)
-      throw General_exception("file read failed (rs=%lu)", rs);
+    if(rs != out_value_len) {
+	  //throw General_exception("file read failed (rs=%lu)", rs);
+	  int fd = open(full_path.c_str(), O_WRONLY | O_APPEND | O_CREAT, 0644);
+	  if(fd == -1)
+		throw General_exception("file_store::lock ::open failed %s", strerror(errno));
+	  int rc = ::ftruncate(fd, out_value_len);
+	  if(rc != 0)
+		throw General_exception("file_store::lock ::ftruncate failed %s", strerror(errno));
+	  ::fsync(fd);
+	  ::close(fd);
+    }
   }
 
   /* fd will be closed on unlock */
