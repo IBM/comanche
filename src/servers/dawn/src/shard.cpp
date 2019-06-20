@@ -92,6 +92,7 @@ void Shard::initialize_components(const std::string& backend,
       params["name"] = "unknown-name";
       params["pci"] = pci_addr;
       params["pm_path"] = pm_path;
+      params["persist_type"] = "hstore";
       _i_kvstore = fact->create(debug_level, params);
     }
     else if (backend == "pmstore") { /* components that support debug level */

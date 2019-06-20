@@ -12,15 +12,16 @@
 #ifndef NVME_STORE_H_
 #define NVME_STORE_H_
 
-#include <libpmemobj.h>
-
 #include <common/rwlock.h>
 #include <common/types.h>
 #include <pthread.h>
 
 #include <api/kvstore_itf.h>
 
+#include <api/block_allocator_itf.h>
+#include <api/block_itf.h>
 #include "block_manager.h"
+#include "meta_store.h"
 #include "state_map.h"
 
 #undef USE_PMEM
@@ -30,6 +31,7 @@ using namespace nvmestore;
 class State_map;
 
 #ifdef USE_PMEM
+#include <libpmemobj.h>
 POBJ_LAYOUT_BEGIN(nvme_store);
 POBJ_LAYOUT_ROOT(nvme_store, struct store_root_t);
 POBJ_LAYOUT_TOID(nvme_store, struct obj_info);
@@ -59,16 +61,13 @@ class NVME_store : public Component::IKVStore {
 
  private:
   static constexpr bool option_DEBUG = true;
-  std::string           _pm_path;
 
-  State_map       _sm;           // map control TODO: change to session manager
+  State_map _sm;  // map control TODO: change to session manager
+
+  // IKVStore* _meta_store = nullptr;
+  std::string     _pm_path;
+  MetaStore       _metastore;
   block_manager_t _blk_manager;  // shared across all nvmestore
-  enum {
-    PERSIST_PMEM,
-    PERSIST_HSTORE,
-    PERSIST_FILE
-  } _meta_persist_type; /** How to persist meta data*/
-  IKVStore* _meta_store = nullptr;
 
  public:
   /**
@@ -78,16 +77,15 @@ class NVME_store : public Component::IKVStore {
    * @param name
    * @param pci pci address of the Nvme
    *   The "pci address" is in Bus:Device.Function (BDF) form with Bus and
-   * @param config_persist_type Use either "pmem"(pmdk tx), "hstore",
-   * "filestore" to manage metadata, default is pmem
+   * @param meta_persist_type see nvmestore_types.h
    * Device zero-padded to 2
    * digits each, e.g. 86:00.0
    */
-  NVME_store(const std::string& owner,
-             const std::string& name,
-             const std::string& pci,
-             const std::string& pm_path,
-             const std::string& config_persist_type);
+  NVME_store(const std::string&   owner,
+             const std::string&   name,
+             const std::string&   pci,
+             const std::string&   pm_path,
+             const persist_type_t meta_persist_type);
 
   /**
    * Destructor
@@ -158,8 +156,9 @@ class NVME_store : public Component::IKVStore {
       size_t&                              out_value_len,
       Component::IKVStore::memory_handle_t handle) override;
 
-  virtual memory_handle_t allocate_direct_memory(void*& vaddr,
-                                                 size_t len) override;
+  virtual status_t allocate_direct_memory(void*&           vaddr,
+                                          size_t           len,
+                                          memory_handle_t& handle) override;
 
   virtual status_t free_direct_memory(memory_handle_t handle) override;
 
@@ -189,6 +188,12 @@ class NVME_store : public Component::IKVStore {
       const pool_t                               pool,
       std::function<int(const std::string& key)> function);
   virtual void debug(const pool_t pool, unsigned cmd, uint64_t arg) override;
+
+ private:
+  status_t _init_metastore(const std::string& owner,
+                           const std::string& name,
+                           const std::string& pm_path,
+                           const std::string& config_persist_type);
 };
 
 class NVME_store_factory : public Component::IKVStore_factory {
