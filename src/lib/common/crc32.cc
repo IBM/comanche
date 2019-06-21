@@ -25,6 +25,7 @@
    This exception applies to code released by its copyright holders
    in files containing the exception.
 */
+#if defined(__x86_64__)
 #include <cpuid.h>
 #include <smmintrin.h>
 #include <stdint.h>
@@ -164,3 +165,4 @@ bool check_sse4() {
   __get_cpuid(1, &eax, &ebx, &ecx, &edx);
   return (ecx & bit_SSE4_2);
 }
+#endif

@@ -713,7 +713,7 @@ class AVL_range_allocator {
   size_t free(addr_t addr) {
     Memory_region* region = find(addr);
     if (region == nullptr) {
-      PERR("invalid call to free: bad address");
+      PERR("invalid call to %s: bad address", __func__);
       return -1;
     }
 
@@ -767,7 +767,7 @@ class AVL_range_allocator {
             });
     }
     else {
-      PINF("+ AVL_tree: ");
+      PINF("%s", "+ AVL_tree: ");
       AVL_tree<Memory_region>::dump(*(_tree->root()));
     }
 
@@ -860,7 +860,7 @@ class Arena_allocator : public Common::Base_memory_allocator {
     try {
       mr = _range_allocator.alloc(size);
     } catch (General_exception e) {
-      PERR("Arena_allocator: out of memory");
+      PERR("%s", "Arena_allocator: out of memory");
       exit(0);
     }
     assert(mr);

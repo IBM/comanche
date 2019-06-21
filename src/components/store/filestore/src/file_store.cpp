@@ -291,7 +291,7 @@ IKVStore::key_t Pool_handle::lock(const std::string& key,
     ssize_t rs = read(fd, out_value, out_value_len);
 
     if(rs != out_value_len)
-	  throw General_exception("file read failed (rs=%lu)", rs);
+      throw General_exception("file read failed (rs=%lu) != (out_value_len=%lu)", rs, out_value_len);
   }
 
   /* fd will be closed on unlock */
@@ -444,16 +444,19 @@ File_store::~File_store()
 {
 }
 
-IKVStore::key_t File_store::lock(const pool_t pool,
-                                 const std::string& key,
-                                 IKVStore::lock_type_t type,
-                                 void*& out_value,
-                                 size_t& out_value_len)
+status_t File_store::lock(const pool_t pool,
+                          const std::string& key,
+                          Component::IKVStore::lock_type_t type,
+                          void*& out_value,
+                          size_t& out_value_len,
+                          Component::IKVStore::key_t& out_key)
 {
   auto handle = reinterpret_cast<Pool_handle*>(pool);
   if(_pool_sessions.count(handle) != 1)
-    return KEY_NONE;
-  return handle->lock(key,type,out_value,out_value_len);
+    return E_INVAL;
+  
+  out_key = handle->lock(key,type,out_value,out_value_len);
+  return S_OK;
 }
 
 status_t File_store::unlock(const pool_t pool,

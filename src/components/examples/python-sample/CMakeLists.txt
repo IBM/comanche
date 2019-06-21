@@ -6,7 +6,7 @@ project(pysample-component CXX)
 add_subdirectory(./unit_test)
 
 enable_language(CXX C ASM)
-set(GCC_COVERAGE_COMPILE_FLAGS "-std=c++11 -g -O2 -fPIC -msse3")
+set(GCC_COVERAGE_COMPILE_FLAGS "-std=c++11 -g -O2 -fPIC")
 
 FIND_PACKAGE(PythonLibs)
 IF(PYTHONLIBS_FOUND)

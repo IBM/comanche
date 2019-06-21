@@ -1,0 +1,31 @@
+# Basic Operation
+
+Create configuration file for server:
+
+For example:
+```
+{
+    "shards" :
+    [
+        {
+            "core" : 2,
+            "port" : 11911,
+            "net"  : "mlx5_0",
+            "default_backend" : "mapstore"
+        }
+    ],
+    "net_providers" : "verbs"
+}
+```
+
+Run Dawn server
+
+```bash
+./dist/bin/dawn --conf ./memstore.conf --debug 0
+```
+
+Run test client
+
+```bash
+./dist/bin/kvstore-perf --component dawn --cores 22 --test put --server 10.0.0.21 --port 11911 --device_name mlx5_0
+```

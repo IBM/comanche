@@ -110,11 +110,12 @@ public:
                               IKVStore::memory_handle_t handle = HANDLE_NONE,
                               unsigned int flags = FLAGS_NONE) override;
   
-  virtual key_t lock(const pool_t pool,
+  virtual status_t lock(const pool_t pool,
                      const std::string& key,
                      lock_type_t type,
                      void*& out_value,
-                     size_t& out_value_len) override;
+                     size_t& out_value_len,
+                     IKVStore::key_t &out_key) override;
 
   virtual status_t unlock(const pool_t pool,
                           key_t key) override;

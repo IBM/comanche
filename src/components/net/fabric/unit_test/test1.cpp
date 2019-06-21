@@ -60,23 +60,10 @@
 #include <thread> /* sleep_for */
 
 // The fixture for testing class Foo.
-class Fabric_test : public ::testing::Test {
-
+class Fabric_test : public ::testing::Test
+{
   static const char *control_port_spec;
- protected:
-
-  // If the constructor and destructor are not enough for setting up
-  // and cleaning up each test, you can define the following methods:
-
-  virtual void SetUp() {
-    // Code here will be called immediately after the constructor (right
-    // before each test).
-  }
-
-  virtual void TearDown() {
-    // Code here will be called immediately after each test (right
-    // before the destructor).
-  }
+protected:
 
   // Objects declared here can be used by all tests in the test case
 
@@ -138,9 +125,14 @@ class Fabric_test : public ::testing::Test {
        + " }"
       ;
   }
+
+  static const char *remote_host;
+
+  static bool is_client() { return bool(remote_host); }
+  static bool is_server() { return ! is_client(); }
 public:
-  static char *domain_name_verbs;
-  static char *domain_name_sockets;
+  static const char *domain_name_verbs;
+  static const char *domain_name_sockets;
 };
 
 const char *Fabric_test::control_port_spec = std::getenv("FABRIC_TEST_CONTROL_PORT");
@@ -149,8 +141,9 @@ const std::uint16_t Fabric_test::control_port_1 = uint16_t(control_port_0 + 1);
 const std::uint16_t Fabric_test::control_port_2 = uint16_t(control_port_0 + 2);
 
 
-char *Fabric_test::domain_name_verbs;
-char *Fabric_test::domain_name_sockets;
+const char *Fabric_test::domain_name_verbs = ::getenv("DOMAIN_VERBS");
+const char *Fabric_test::domain_name_sockets = ::getenv("DOMAIN_SOCKETS");
+const char *Fabric_test::remote_host = ::getenv("SERVER");
 
 std::ostream &describe_ep(std::ostream &o_, const Component::IFabric_server_factory &e_)
 {
@@ -159,9 +152,6 @@ std::ostream &describe_ep(std::ostream &o_, const Component::IFabric_server_fact
 
 namespace
 {
-  bool is_client = false;
-  bool is_server = false;
-  char *remote_host = nullptr;
 }
 
 namespace
@@ -193,7 +183,7 @@ static constexpr std::size_t memory_size = 4096;
 static constexpr unsigned long iterations = 1000000;
 static constexpr std::size_t msg_size = 1U << 6U;
 
-void write_read_sequential(const std::string &fabric_spec_, uint16_t control_port_, bool force_error_)
+void write_read_sequential(const std::string &fabric_spec_, const char *const remote_host, uint16_t control_port_, bool force_error_)
 {
   for ( auto iter0 = 0U; iter0 != count_outer; ++iter0 )
   {
@@ -210,17 +200,7 @@ void write_read_sequential(const std::string &fabric_spec_, uint16_t control_por
     auto factory = std::shared_ptr<Component::IFabric_factory>(static_cast<Component::IFabric_factory *>(comp->query_interface(Component::IFabric_factory::iid())));
 
     auto fabric = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec_));
-    if ( is_server )
-    {
-      std::cerr << "SERVER begin " << iter0 << " port " << control_port << std::endl;
-      {
-        auto remote_key_base = 0U;
-        remote_memory_server server(*fabric, "{}", control_port, "", memory_size, remote_key_base);
-        EXPECT_LT(0U, server.max_message_size());
-      }
-      std::cerr << "SERVER end " << iter0 << std::endl;
-    }
-    else
+    if ( remote_host )
     {
       /* allow time for the server to listen before the client restarts.
        * For an unknown reason, client "connect" puts the port in "ESTABSLISHED"
@@ -268,6 +248,16 @@ void write_read_sequential(const std::string &fabric_spec_, uint16_t control_por
       remote_memory_client_for_shutdown client_shutdown(*fabric, "{}", remote_host, control_port, memory_size, remote_key_index);
       EXPECT_EQ(client_shutdown.max_message_size(), msg_max);
     }
+    else
+    {
+      std::cerr << "SERVER begin " << iter0 << " port " << control_port << std::endl;
+      {
+        auto remote_key_base = 0U;
+        remote_memory_server server(*fabric, "{}", control_port, "", memory_size, remote_key_base);
+        EXPECT_LT(0U, server.max_message_size());
+      }
+      std::cerr << "SERVER end " << iter0 << std::endl;
+    }
 
     factory->release_ref();
   }
@@ -298,7 +288,7 @@ std::chrono::microseconds usec(const timeval &start, const timeval &stop)
     ;
 }
 
-void ping_pong(const std::string &fabric_spec_, std::uint16_t control_port_2_, unsigned thread_count_)
+void ping_pong(const std::string &fabric_spec_, const char *const remote_host, std::uint16_t control_port_2_, unsigned thread_count_)
 {
   /* create object instance through factory */
   Component::IBase * comp = Component::load_component("libcomanche-fabric.so",
@@ -317,7 +307,53 @@ void ping_pong(const std::string &fabric_spec_, std::uint16_t control_port_2_, u
   std::chrono::high_resolution_clock::duration start_stagger{};
   std::chrono::high_resolution_clock::duration stop_stagger{};
   std::uint64_t poll_count = 0U;
-  if ( is_server )
+  if ( remote_host )
+  {
+    auto start_delay = std::chrono::seconds(3);
+    /* allow time for the server to listen before the client restarts */
+    std::this_thread::sleep_for(start_delay);
+
+    std::cerr << "CLIENT begin port " << control_port << std::endl;
+    std::vector<std::future<pingpong_stat>> clients;
+    /* In case the provider actually uses the remote keys which we provide, make them unique. */
+    auto cpu_start = cpu_time();
+    for ( auto remote_key_base = 0U; remote_key_base != thread_count_; ++remote_key_base )
+    {
+      clients.emplace_back(
+        std::async(
+          std::launch::async
+          , [&fabric, remote_host, control_port, buffer_size, remote_key_base]
+            {
+              auto id = static_cast<std::uint8_t>(remote_key_base);
+              pingpong_client client(*fabric, "{}", remote_host, control_port, buffer_size, remote_key_base, iterations, msg_size, id);
+              return client.time();
+            }
+        )
+      );
+    }
+    auto start_max = std::chrono::high_resolution_clock::time_point::min();
+    auto stop_max = std::chrono::high_resolution_clock::time_point::min();
+    auto start_min = std::chrono::high_resolution_clock::time_point::max();
+    auto stop_min = std::chrono::high_resolution_clock::time_point::max();
+
+    for ( auto &f : clients )
+    {
+      auto r = f.get();
+      start_min = std::min(start_min, r.start());
+      start_max = std::max(start_max, r.start());
+      stop_min = std::min(stop_min, r.stop());
+      stop_max = std::max(stop_max, r.stop());
+      poll_count += r.poll_count();
+    }
+    auto cpu_stop = cpu_time();
+    cpu_user = usec(cpu_start.first, cpu_stop.first);
+    cpu_system = usec(cpu_start.second, cpu_stop.second);
+    std::cerr << "CLIENT end\n";
+    t = stop_max - start_min;
+    start_stagger = start_max - start_min;
+    stop_stagger = stop_max - stop_min;
+  }
+  else
   {
     std::cerr << "SERVER begin port " << control_port << std::endl;
 
@@ -362,52 +398,6 @@ void ping_pong(const std::string &fabric_spec_, std::uint16_t control_port_2_, u
     start_stagger = start_max - start_min;
     stop_stagger = stop_max - stop_min;
   }
-  else
-  {
-    auto start_delay = std::chrono::seconds(3);
-    /* allow time for the server to listen before the client restarts */
-    std::this_thread::sleep_for(start_delay);
-
-    std::cerr << "CLIENT begin port " << control_port << std::endl;
-    std::vector<std::future<pingpong_stat>> clients;
-    /* In case the provider actually uses the remote keys which we provide, make them unique. */
-    auto cpu_start = cpu_time();
-    for ( auto remote_key_base = 0U; remote_key_base != thread_count_; ++remote_key_base )
-    {
-      clients.emplace_back(
-        std::async(
-          std::launch::async
-          , [&fabric, control_port, buffer_size, remote_key_base]
-            {
-              auto id = static_cast<std::uint8_t>(remote_key_base);
-              pingpong_client client(*fabric, "{}", remote_host, control_port, buffer_size, remote_key_base, iterations, msg_size, id);
-              return client.time();
-            }
-        )
-      );
-    }
-    auto start_max = std::chrono::high_resolution_clock::time_point::min();
-    auto stop_max = std::chrono::high_resolution_clock::time_point::min();
-    auto start_min = std::chrono::high_resolution_clock::time_point::max();
-    auto stop_min = std::chrono::high_resolution_clock::time_point::max();
-
-    for ( auto &f : clients )
-    {
-      auto r = f.get();
-      start_min = std::min(start_min, r.start());
-      start_max = std::max(start_max, r.start());
-      stop_min = std::min(stop_min, r.stop());
-      stop_max = std::max(stop_max, r.stop());
-      poll_count += r.poll_count();
-    }
-    auto cpu_stop = cpu_time();
-    cpu_user = usec(cpu_start.first, cpu_stop.first);
-    cpu_system = usec(cpu_start.second, cpu_stop.second);
-    std::cerr << "CLIENT end\n";
-    t = stop_max - start_min;
-    start_stagger = start_max - start_min;
-    stop_stagger = stop_max - stop_min;
-  }
 
   auto iter = thread_count_ * iterations;
   auto iterf = static_cast<double>(iter);
@@ -427,7 +417,7 @@ void ping_pong(const std::string &fabric_spec_, std::uint16_t control_port_2_, u
   factory->release_ref();
 }
 
-void pingpong_single_server(const std::string &fabric_spec_, std::uint16_t control_port_2, unsigned client_count_)
+void pingpong_single_server(const std::string &fabric_spec_, const char *const remote_host, std::uint16_t control_port_2, unsigned client_count_)
 {
   /* create object instance through factory */
   Component::IBase * comp = Component::load_component("libcomanche-fabric.so",
@@ -447,27 +437,7 @@ void pingpong_single_server(const std::string &fabric_spec_, std::uint16_t contr
   std::chrono::high_resolution_clock::duration start_stagger{};
   std::chrono::high_resolution_clock::duration stop_stagger{};
 
-  if ( is_server )
-  {
-    std::cerr << "SERVER begin port " << control_port << std::endl;
-
-    auto ep = std::unique_ptr<Component::IFabric_server_factory>(fabric->open_server_factory("{}", control_port));
-    EXPECT_LT(0U, ep->max_message_size());
-
-    /* In case the provider actually uses the remote keys which we provide, make them unique. */
-    auto remote_key_base = 0U;
-    auto cpu_start = cpu_time();
-    pingpong_server_n server(client_count_, *ep, buffer_size, remote_key_base, iterations, msg_size);
-    auto f2 = server.time();
-    auto cpu_stop = cpu_time();
-    cpu_user = usec(cpu_start.first, cpu_stop.first);
-    cpu_system = usec(cpu_start.second, cpu_stop.second);
-    t = f2.stop() - f2.start();
-    poll_count += f2.poll_count();
-
-    std::cerr << "SERVER end" << std::endl;
-  }
-  else
+  if ( remote_host )
   {
     auto start_delay = std::chrono::seconds(3);
     /* allow time for the server to listen before the client restarts */
@@ -482,7 +452,7 @@ void pingpong_single_server(const std::string &fabric_spec_, std::uint16_t contr
       clients.emplace_back(
         std::async(
           std::launch::async
-          , [&fabric, control_port, buffer_size, remote_key_base]
+          , [&fabric, remote_host, control_port, buffer_size, remote_key_base]
             {
               auto id = static_cast<std::uint8_t>(remote_key_base);
               pingpong_client client(*fabric, "{}", remote_host, control_port, buffer_size, remote_key_base, iterations, msg_size, id);
@@ -513,6 +483,26 @@ void pingpong_single_server(const std::string &fabric_spec_, std::uint16_t contr
     t = stop_max - start_min;
     start_stagger = start_max - start_min;
     stop_stagger = stop_max - stop_min;
+  }
+  else
+  {
+    std::cerr << "SERVER begin port " << control_port << std::endl;
+
+    auto ep = std::unique_ptr<Component::IFabric_server_factory>(fabric->open_server_factory("{}", control_port));
+    EXPECT_LT(0U, ep->max_message_size());
+
+    /* In case the provider actually uses the remote keys which we provide, make them unique. */
+    auto remote_key_base = 0U;
+    auto cpu_start = cpu_time();
+    pingpong_server_n server(client_count_, *ep, buffer_size, remote_key_base, iterations, msg_size);
+    auto f2 = server.time();
+    auto cpu_stop = cpu_time();
+    cpu_user = usec(cpu_start.first, cpu_stop.first);
+    cpu_system = usec(cpu_start.second, cpu_stop.second);
+    t = f2.stop() - f2.start();
+    poll_count += f2.poll_count();
+
+    std::cerr << "SERVER end" << std::endl;
   }
 
   auto iter = client_count_ * iterations;
@@ -703,29 +693,29 @@ void instantiate_server_and_client(const std::string &fabric_spec_, std::uint16_
   factory->release_ref();
 }
 
-TEST_F(Fabric_test, InstantiateServerAndClient)
-{
-  instantiate_server_and_client(fabric_spec("verbs"), control_port_1);
-}
-
 TEST_F(Fabric_test, InstantiateServerAndClientSockets)
 {
   instantiate_server_and_client(fabric_spec("sockets"), control_port_1);
 }
 
+TEST_F(Fabric_test, InstantiateServerAndClient)
+{
+  instantiate_server_and_client(fabric_spec("verbs"), control_port_1);
+}
+
 TEST_F(Fabric_test, WriteReadSequential)
 {
-  write_read_sequential(fabric_spec("verbs"), control_port_2, false);
+  write_read_sequential(fabric_spec("verbs"), remote_host, control_port_2, false);
 }
 
 TEST_F(Fabric_test, WriteReadSequentialSockets)
 {
-  write_read_sequential(fabric_spec("sockets"), control_port_2, false);
+  write_read_sequential(fabric_spec("sockets"), remote_host, control_port_2, false);
 }
 
 TEST_F(Fabric_test, WriteReadSequentialWithError)
 {
-  write_read_sequential(fabric_spec("sockets"), control_port_2, true);
+  write_read_sequential(fabric_spec("sockets"), remote_host, control_port_2, true);
 }
 
 TEST_F(Fabric_test, WriteReadParallel)
@@ -745,7 +735,7 @@ TEST_F(Fabric_test, WriteReadParallel)
     auto factory = std::shared_ptr<Component::IFabric_factory>(static_cast<Component::IFabric_factory *>(comp->query_interface(Component::IFabric_factory::iid())));
 
     auto fabric = std::shared_ptr<Component::IFabric>(factory->make_fabric(fabric_spec("verbs")));
-    if ( is_server )
+    if ( is_server() )
     {
       std::cerr << "SERVER begin " << iter0 << " port " << control_port << std::endl;
       {
@@ -819,7 +809,7 @@ TEST_F(Fabric_test, GroupedClients)
      */
     auto control_port = std::uint16_t(control_port_2 + iter0);
 
-    if ( is_server )
+    if ( is_server() )
     {
       std::cerr << "SERVER begin " << iter0 << std::endl;
       {
@@ -900,7 +890,7 @@ TEST_F(Fabric_test, GroupedServer)
      */
     auto control_port = std::uint16_t(control_port_2 + iter0);
 
-    if ( is_server )
+    if ( is_server() )
     {
       std::cerr << "SERVER begin " << iter0 << std::endl;
       {
@@ -950,81 +940,76 @@ TEST_F(Fabric_test, GroupedServer)
 
 TEST_F(Fabric_test, PingPong_1Threads)
 {
-  ping_pong(fabric_spec("verbs"), control_port_2, 1U);
-  ping_pong(fabric_spec("verbs"), control_port_2, 1U);
+  ping_pong(fabric_spec("verbs"), remote_host, control_port_2, 1U);
+  ping_pong(fabric_spec("verbs"), remote_host, control_port_2, 1U);
 }
 
 TEST_F(Fabric_test, PingPong_2Threads)
 {
-  ping_pong(fabric_spec("verbs"), control_port_2, 2U);
-  ping_pong(fabric_spec("verbs"), control_port_2, 2U);
+  ping_pong(fabric_spec("verbs"), remote_host, control_port_2, 2U);
+  ping_pong(fabric_spec("verbs"), remote_host, control_port_2, 2U);
 }
 
 TEST_F(Fabric_test, PingPong_4Threads)
 {
-  ping_pong(fabric_spec("verbs"), control_port_2, 4U);
-  ping_pong(fabric_spec("verbs"), control_port_2, 4U);
+  ping_pong(fabric_spec("verbs"), remote_host, control_port_2, 4U);
+  ping_pong(fabric_spec("verbs"), remote_host, control_port_2, 4U);
 }
 
 TEST_F(Fabric_test, PingPong_8Threads)
 {
-  ping_pong(fabric_spec("verbs"), control_port_2, 8U);
-  ping_pong(fabric_spec("verbs"), control_port_2, 8U);
+  ping_pong(fabric_spec("verbs"), remote_host, control_port_2, 8U);
+  ping_pong(fabric_spec("verbs"), remote_host, control_port_2, 8U);
 }
 
 TEST_F(Fabric_test, PingPong_16Threads)
 {
-  ping_pong(fabric_spec("verbs"), control_port_2, 16U);
-  ping_pong(fabric_spec("verbs"), control_port_2, 16U);
+  ping_pong(fabric_spec("verbs"), remote_host, control_port_2, 16U);
+  ping_pong(fabric_spec("verbs"), remote_host, control_port_2, 16U);
 }
 
 TEST_F(Fabric_test, PingPong1Server_1Client)
 {
-  pingpong_single_server(fabric_spec("verbs"), control_port_2, 1U);
-  pingpong_single_server(fabric_spec("verbs"), control_port_2, 1U);
+  pingpong_single_server(fabric_spec("verbs"), remote_host, control_port_2, 1U);
+  pingpong_single_server(fabric_spec("verbs"), remote_host, control_port_2, 1U);
 }
 
 TEST_F(Fabric_test, PingPong1Server_2Clients)
 {
-  pingpong_single_server(fabric_spec("verbs"), control_port_2, 2U);
-  pingpong_single_server(fabric_spec("verbs"), control_port_2, 2U);
+  pingpong_single_server(fabric_spec("verbs"), remote_host, control_port_2, 2U);
+  pingpong_single_server(fabric_spec("verbs"), remote_host, control_port_2, 2U);
 }
 
 TEST_F(Fabric_test, PingPong1Server_4Clients)
 {
-  pingpong_single_server(fabric_spec("verbs"), control_port_2, 4U);
-  pingpong_single_server(fabric_spec("verbs"), control_port_2, 4U);
+  pingpong_single_server(fabric_spec("verbs"), remote_host, control_port_2, 4U);
+  pingpong_single_server(fabric_spec("verbs"), remote_host, control_port_2, 4U);
 }
 
 TEST_F(Fabric_test, PingPong1Server_8Clients)
 {
-  pingpong_single_server(fabric_spec("verbs"), control_port_2, 8U);
-  pingpong_single_server(fabric_spec("verbs"), control_port_2, 8U);
+  pingpong_single_server(fabric_spec("verbs"), remote_host, control_port_2, 8U);
+  pingpong_single_server(fabric_spec("verbs"), remote_host, control_port_2, 8U);
 }
 
 TEST_F(Fabric_test, PingPong1Server_16Clients)
 {
-  pingpong_single_server(fabric_spec("verbs"), control_port_2, 16U);
-  pingpong_single_server(fabric_spec("verbs"), control_port_2, 16U);
+  pingpong_single_server(fabric_spec("verbs"), remote_host, control_port_2, 16U);
+  pingpong_single_server(fabric_spec("verbs"), remote_host, control_port_2, 16U);
 }
 
 } // namespace
 
 int main(int argc, char **argv)
 {
-  is_client = bool(argv[1]);
-  is_server = ! is_client;
-  Fabric_test::domain_name_verbs = getenv("DOMAIN_VERBS");
-  Fabric_test::domain_name_sockets = getenv("DOMAIN_SOCKETS");
+  /* server invocation:
+   *   fabric-test1
+   * client in invocation:
+   *   SERVER=10.0.0.91 fabric-test1
+   */
+
   std::cerr << "Domain/verbs is " << (Fabric_test::domain_name_verbs ? Fabric_test::domain_name_verbs : "unspecified") << "\n";
   std::cerr << "Domain/sockets is " << (Fabric_test::domain_name_sockets ? Fabric_test::domain_name_sockets : "unspecified") << "\n";
-
-  if ( is_client && argc != 2 )
-  {
-    PINF("%s [<ipaddr>]", argv[0]);
-    return -1;
-  }
-  remote_host = argv[1];
 
   ::testing::InitGoogleTest(&argc, argv);
   auto r = RUN_ALL_TESTS();

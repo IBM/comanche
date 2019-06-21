@@ -20,6 +20,8 @@
  *
  */
 
+#if defined(__x86_64__)
+
 #include "physical_memory.h"
 
 #include <rte_malloc.h>
@@ -221,3 +223,5 @@ size_t Physical_memory::get_size(Component::io_buffer_t buffer) {
 }
 
 }  // namespace Core
+
+#endif

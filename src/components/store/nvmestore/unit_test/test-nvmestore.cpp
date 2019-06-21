@@ -93,10 +93,12 @@ TEST_F(KVStore_test, Instantiate)
 
   // this nvme-store use a block device and a block allocator
   std::map<std::string, std::string> params;
-  params["owner"]      = "testowner";
-  params["name"]       = "testname";
-  params["pci"]        = opt.pci;
-  params["pm_path"]    = "/mnt/pmem0/";
+  params["owner"]        = "testowner";
+  params["name"]         = "testname";
+  params["pci"]          = opt.pci;
+  params["pm_path"]      = "/mnt/pmem0/";
+  params["persist_type"] = "hstore";
+
   unsigned debug_level = 0;
 
   _kvstore = fact->create(debug_level, params);
@@ -132,14 +134,29 @@ TEST_F(KVStore_test, OpenPool)
     _pool           = _kvstore->create_pool(_pool_fullname, MB(128));
     _pool_is_reopen = false;
   }
+
   catch (...) {
     // open the pool if it exists
+    PINF("NVMEStore:open a exsiting pool instead!");
     _pool           = _kvstore->open_pool(_pool_fullname);
     _pool_is_reopen = true;
-    PINF("NVMEStore:open a exsiting pool instead!");
   }
   ASSERT_TRUE(_pool > 0);
 }
+
+#if 0
+TEST_F(KVStore_test, BasicGetEmpty)
+{
+  std::string key = "MyKey";
+
+  void * value     = nullptr;
+  size_t value_len = 0;
+  EXPECT_EQ(IKVStore::E_KEY_NOT_FOUND,
+            _kvstore->get(_pool, key, value, value_len));
+
+  free(value);
+}
+#endif
 
 TEST_F(KVStore_test, BasicPut)
 {
@@ -165,7 +182,8 @@ TEST_F(KVStore_test, GetDirect)
   void *                    value     = nullptr;
   size_t                    value_len = 0;
 
-  handle = _kvstore->allocate_direct_memory(value, single_value_length);
+  EXPECT_EQ(S_OK, _kvstore->allocate_direct_memory(value, single_value_length,
+                                                   handle));
 
   _kvstore->get_direct(_pool, key, value, value_len, handle);
 
@@ -189,26 +207,35 @@ TEST_F(KVStore_test, BasicGet)
   free(value);
 }
 
-TEST_F(KVStore_test, BasicMap)
+// put the same key with different value
+TEST_F(KVStore_test, PutOverwrite)
 {
-  _kvstore->map(_pool,
-                [](const std::string &key, const void *value,
-                   const size_t value_len) -> int {
-                  PINF("key:%s, value@%p value_len=%lu", key.c_str(), value,
-                       value_len);
-                  return 0;
-                  ;
-                });
-}
+  ASSERT_TRUE(_pool);
+  std::string key   = "MyKey";
+  std::string value = "Second Hello world!";
+  //  value.resize(value.length()+1); /* append /0 */
+  value.resize(single_value_length);
 
-TEST_F(KVStore_test, BasicMapKeys)
-{
-  _kvstore->map_keys(_pool,
-                [](const std::string &key) -> int {
-                  PINF("key:%s", key.c_str());
-                  return 0;
-                  ;
-                });
+  // also update the record
+  for (auto &kv : kvv) {
+    // if ( ct == lock_count ) { break; }
+    const auto &matched_key = std::get<0>(kv);
+    auto &      ev          = std::get<1>(kv);
+    if (matched_key == key) ev = value;
+  }
+
+  kvv.emplace_back(key, value);
+
+  EXPECT_EQ(S_OK, _kvstore->put(_pool, key, value.c_str(), value.length()));
+
+  void * get_value     = nullptr;
+  size_t get_value_len = 0;
+  EXPECT_EQ(S_OK, _kvstore->get(_pool, key, get_value, get_value_len));
+
+  EXPECT_FALSE(strcmp("Second Hello world!", (char *) get_value));
+  PINF("Value=(%.50s) %lu", ((char *) get_value), get_value_len);
+
+  free(get_value);
 }
 
 /* lock */
@@ -225,48 +252,74 @@ TEST_F(KVStore_test, LockBasic)
     const auto  key_new    = std::get<0>(kv) + "x";
     void *      value0     = nullptr;
     std::size_t value0_len = 0;
-    auto r0 = _kvstore->lock(pool, key, IKVStore::STORE_LOCK_READ, value0,
-                             value0_len);
-    EXPECT_NE(r0, nullptr);
+
+    status_t        rc;
+    IKVStore::key_t out_key0, out_key1, out_key2, out_key3;
+    rc = _kvstore->lock(pool, key, IKVStore::STORE_LOCK_READ, value0,
+                        value0_len, out_key0);
+    EXPECT_NE(out_key0, nullptr);
+    EXPECT_EQ(rc, S_OK);
     EXPECT_EQ(value0_len, single_value_length);
     EXPECT_EQ(0, memcmp(ev.data(), value0, ev.size()));
     void *      value1     = nullptr;
     std::size_t value1_len = 0;
-    auto r1 = _kvstore->lock(pool, key, IKVStore::STORE_LOCK_READ, value1,
-                             value1_len);
-    EXPECT_NE(r1, nullptr);
+    rc = _kvstore->lock(pool, key, IKVStore::STORE_LOCK_READ, value1,
+                        value1_len, out_key1);
+    EXPECT_NE(out_key1, nullptr);
+    EXPECT_EQ(rc, S_OK);
     EXPECT_EQ(value1_len, single_value_length);
     EXPECT_EQ(0, memcmp(ev.data(), value1, ev.size()));
     /* Exclusive locking test. Skip if the library is built without locking. */
     if (_kvstore->thread_safety() == IKVStore::THREAD_MODEL_MULTI_PER_POOL) {
       void *      value2     = nullptr;
       std::size_t value2_len = 0;
-      auto r2 = _kvstore->lock(pool, key, IKVStore::STORE_LOCK_WRITE, value2,
-                               value2_len);
-      EXPECT_EQ(r2, nullptr);
+      rc = _kvstore->lock(pool, key, IKVStore::STORE_LOCK_WRITE, value2,
+                          value2_len, out_key2);
+      EXPECT_EQ(out_key2, nullptr);
+      EXPECT_EQ(rc, E_FAIL);
     }
     void *      value3     = nullptr;
     std::size_t value3_len = single_value_length;
-    auto r3 = _kvstore->lock(pool, key_new, IKVStore::STORE_LOCK_WRITE, value3,
-                             value3_len);
-    EXPECT_NE(r3, nullptr);
+    rc = _kvstore->lock(pool, key_new, IKVStore::STORE_LOCK_WRITE, value3,
+                        value3_len, out_key3);
+    EXPECT_NE(out_key3, nullptr);
+    EXPECT_EQ(rc, S_OK);
     EXPECT_EQ(value3_len, single_value_length);
     EXPECT_NE(value3, nullptr);
 
-    auto r0x = _kvstore->unlock(pool, r0);
+    auto r0x = _kvstore->unlock(pool, out_key0);
     EXPECT_EQ(r0x, S_OK);
-    auto r1x = _kvstore->unlock(pool, r1);
+    auto r1x = _kvstore->unlock(pool, out_key1);
     EXPECT_EQ(r1x, S_OK);
-    auto r3x = _kvstore->unlock(pool, r3);
+    auto r3x = _kvstore->unlock(pool, out_key3);
     EXPECT_EQ(r3x, S_OK);
 
     ++ct;
   }
 }
 
-TEST_F(KVStore_test, BasicErase) { _kvstore->erase(_pool, "MyKey"); }
+TEST_F(KVStore_test, BasicMap)
+{
+  _kvstore->map(_pool,
+                [](const std::string &key, const void *value,
+                   const size_t value_len) -> int {
+                  PINF("key:%s, value@%p value_len=%lu", key.c_str(), value,
+                       value_len);
+                  return 0;
+                  ;
+                });
+}
 
-TEST_F(KVStore_test, ClosePool) { _kvstore->close_pool(_pool); }
+TEST_F(KVStore_test, BasicMapKeys)
+{
+  _kvstore->map_keys(_pool, [](const std::string &key) -> int {
+    PINF("key:%s", key.c_str());
+    return 0;
+    ;
+  });
+}
+
+TEST_F(KVStore_test, BasicErase) { _kvstore->erase(_pool, "MyKey"); }
 
 /*
  * multiple store on same nvmedevice will use the same _block and the _blk_alloc
@@ -295,6 +348,8 @@ TEST_F(KVStore_test, Multiplestore)
   Component::IKVStore::pool_t store2_pool2 =
       _kvstore2->create_pool("data/test-nvme3.pool", MB(128));
 }
+
+TEST_F(KVStore_test, ClosePool) { _kvstore->close_pool(_pool); }
 
 TEST_F(KVStore_test, DeletePool) { _kvstore->delete_pool(_pool_fullname); }
 
