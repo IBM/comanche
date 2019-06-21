@@ -95,7 +95,7 @@ extern "C" void run_cuda_basic_test(Component::IKVStore * store)
   initialize();
 
   CUresult error;
-  const size_t obj_size = MB(64);
+  const size_t obj_size = MB(128);
   CUdeviceptr d_A;
 
   /* allocate GPU side memory */
