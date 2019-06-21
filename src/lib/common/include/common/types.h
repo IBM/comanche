@@ -47,6 +47,7 @@ typedef signed long mword_t;
 typedef uint32_t addr32_t;
 typedef unsigned long long int addr64_t;
 
+/* Note: C++17 provides std::byte */
 typedef unsigned char byte;
 typedef uint16_t word;
 typedef uint32_t dword;

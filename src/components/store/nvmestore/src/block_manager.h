@@ -22,6 +22,9 @@ enum {
   BLOCK_IO_READ  = 1,
   BLOCK_IO_WRITE = 2,
 };
+
+class MetaStore;
+
 class Block_manager {
   static constexpr size_t CHUNK_SIZE_IN_BLOCKS =
       8;  // large IO will be splited into CHUNKs, 8*4k  seems gives optimal
@@ -34,32 +37,9 @@ class Block_manager {
   using io_buffer_t = uint64_t;
   Block_manager()   = delete;
 
-  Block_manager(const std::string &pci, const std::string &pm_path)
-      : _pci_addr(pci), _pm_path(pm_path)
-  {
-    status_t ret;
-
-    ret = open_block_device(_pci_addr, _blk_dev);
-    Component::VOLUME_INFO info;
-    _blk_dev->get_volume_info(info);
-    _blk_sz = info.block_size;
-
-    if (S_OK != ret) {
-      throw General_exception("failed (%d) to open block device at pci %s\n",
-                              ret, pci.c_str());
-    }
-
-    ret = open_block_allocator(_blk_dev, _blk_alloc);
-    if (S_OK != ret) {
-      throw General_exception(
-          "failed (%d) to open block block allocator for device at pci %s\n",
-          ret, pci.c_str());
-    }
-
-    PDBG("block_manager: using block device %p with allocator %p, blksize= "
-         "%lu, chunk_size_in_blks %lu",
-         _blk_dev, _blk_alloc, _blk_sz, CHUNK_SIZE_IN_BLOCKS);
-  };
+  Block_manager(const std::string &pci,
+                const std::string &pm_path,
+                MetaStore &        metastore);
 
   ~Block_manager()
   {
@@ -141,8 +121,8 @@ class Block_manager {
    *
    * @param pci in pci address of the nvme
    *   The "pci address" is in Bus:Device.Function (BDF) form with Bus and
-   * Device zero-padded to 2 digits each, e.g. 86:00.0 The domain is implicitly
-   * 0000.
+   * Device zero-padded to 2 digits each, e.g. 86:00.0 The domain is
+   * implicitly 0000.
    * @param block out reference of block device
    *
    * @return S_OK if success
@@ -153,9 +133,9 @@ class Block_manager {
   /*
    * open an allocator for block device, reuse if it exsits already
    */
-
   status_t open_block_allocator(Component::IBlock_device *    block,
-                                Component::IBlock_allocator *&alloc);
+                                Component::IBlock_allocator *&alloc,
+                                MetaStore &                   metastore);
 
 };  // Block_manager
 }  // namespace nvmestore

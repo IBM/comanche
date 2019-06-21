@@ -93,10 +93,12 @@ TEST_F(KVStore_test, Instantiate)
 
   // this nvme-store use a block device and a block allocator
   std::map<std::string, std::string> params;
-  params["owner"]      = "testowner";
-  params["name"]       = "testname";
-  params["pci"]        = opt.pci;
-  params["pm_path"]    = "/mnt/pmem0/";
+  params["owner"]        = "testowner";
+  params["name"]         = "testname";
+  params["pci"]          = opt.pci;
+  params["pm_path"]      = "/mnt/pmem0/";
+  params["persist_type"] = "hstore";
+
   unsigned debug_level = 0;
 
   _kvstore = fact->create(debug_level, params);
@@ -180,7 +182,8 @@ TEST_F(KVStore_test, GetDirect)
   void *                    value     = nullptr;
   size_t                    value_len = 0;
 
-  handle = _kvstore->allocate_direct_memory(value, single_value_length);
+  EXPECT_EQ(S_OK, _kvstore->allocate_direct_memory(value, single_value_length,
+                                                   handle));
 
   _kvstore->get_direct(_pool, key, value, value_len, handle);
 
@@ -233,27 +236,6 @@ TEST_F(KVStore_test, PutOverwrite)
   PINF("Value=(%.50s) %lu", ((char *) get_value), get_value_len);
 
   free(get_value);
-}
-
-TEST_F(KVStore_test, BasicMap)
-{
-  _kvstore->map(_pool,
-                [](const std::string &key, const void *value,
-                   const size_t value_len) -> int {
-                  PINF("key:%s, value@%p value_len=%lu", key.c_str(), value,
-                       value_len);
-                  return 0;
-                  ;
-                });
-}
-
-TEST_F(KVStore_test, BasicMapKeys)
-{
-  _kvstore->map_keys(_pool, [](const std::string &key) -> int {
-    PINF("key:%s", key.c_str());
-    return 0;
-    ;
-  });
 }
 
 /* lock */
@@ -314,6 +296,27 @@ TEST_F(KVStore_test, LockBasic)
 
     ++ct;
   }
+}
+
+TEST_F(KVStore_test, BasicMap)
+{
+  _kvstore->map(_pool,
+                [](const std::string &key, const void *value,
+                   const size_t value_len) -> int {
+                  PINF("key:%s, value@%p value_len=%lu", key.c_str(), value,
+                       value_len);
+                  return 0;
+                  ;
+                });
+}
+
+TEST_F(KVStore_test, BasicMapKeys)
+{
+  _kvstore->map_keys(_pool, [](const std::string &key) -> int {
+    PINF("key:%s", key.c_str());
+    return 0;
+    ;
+  });
 }
 
 TEST_F(KVStore_test, BasicErase) { _kvstore->erase(_pool, "MyKey"); }

@@ -11,6 +11,9 @@
    limitations under the License.
 */
 
+#include "rc_alloc_lb.h"
+#include "region.h"
+
 #include <common/exceptions.h>
 #include <common/logging.h>
 #include <common/utils.h>
@@ -19,8 +22,6 @@
 #include <numa.h>
 #include <stdexcept>
 
-#include "rc_alloc_lb.h"
-#include "region.h"
 
 namespace nupm
 {

@@ -89,7 +89,7 @@ void * nupm::mmap_exposed_memory(Memory_token token,
   status_t rc = ioctl(fd, IOCTL_CMD_QUERY, &msg);
 
   if(rc) {
-    PERR("nupm::mmap_exposed_memory ioctl failed");
+    PERR("nupm::mmap_exposed_memory ioctl failed, with err code %d", rc);
     return nullptr;
   }
   

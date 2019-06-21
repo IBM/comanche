@@ -102,7 +102,7 @@ public:
 
         if ( component_is("nvmestore") )
         {
-            memory_handle = store()->allocate_direct_memory(pval, expected_val_len);
+            assert(S_OK == store()->allocate_direct_memory(pval, expected_val_len, memory_handle));
         }
         else if ( component_is("dawn") )
         {
