@@ -8,6 +8,10 @@
 #ifndef PERSIST_SESSION_PMEM_H_
 #define PERSIST_SESSION_PMEM_H_
 
+/*
+ * This is deprecated, now nvmestore use ikvstore as backend.
+ */
+
 #ifdef USE_PMEM
 struct store_root_t {
   TOID(struct hashmap_tx) map; /** hashkey-> obj_info*/

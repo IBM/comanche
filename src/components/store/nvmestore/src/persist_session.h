@@ -15,19 +15,25 @@ using namespace Component;
 
 namespace nvmestore
 {
+/** Extra info(order) to free block range*/
+using block_region_t =
+    void*;  // higher 32bit for lba_start, lower 32bit for order
+
 struct obj_info {
   // TODO better padding
-  // Block alocation
-  int   lba_start;
-  int   size;    // value size in bytes
-  void* handle;  // handle to free this block
+  // Block allocation
+  int size;  // value size in bytes
+
+  // block allocation
+  lba_t          lba_start;
+  block_region_t block_region;  // handle to free this block
 
   // handle for the metastore lock/unlock
   IKVStore::key_t meta_key;
 
   // key info
   size_t key_len;
-  char*  key_data;  // actual char array follows it with ending '\0'
+  char*  key_data;  // actual char array follows this with ending '\0'
 };
 
 struct buffer_t {
