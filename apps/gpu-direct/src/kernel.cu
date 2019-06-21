@@ -195,7 +195,10 @@ void run_cuda_perf_direct(Component::IKVStore * store)
   PLOG("registered memory with storage/RDMA.. OK (handle=%p)", handle);
   
   /* create pool */
-  auto pool = store->create_pool("/pools","gpu0", obj_size);
+  auto pool = store->create_pool("/poolsgpu0", obj_size);
+  if (pool == Component::IKVStore::POOL_ERROR) {
+	  throw General_exception("Create pool error");
+  }
   PLOG("Pool created OK.");
   
   /* put into dawn storage */
@@ -238,6 +241,7 @@ void run_cuda_perf_direct(Component::IKVStore * store)
   cuMemFree(d_A);
   store->unregister_direct_memory(handle);
   store->close_pool(pool);
+  store->delete_pool("/poolsgpu0");
 }
 
 void run_cuda_perf_bounce(Component::IKVStore * store)
@@ -269,7 +273,10 @@ void run_cuda_perf_bounce(Component::IKVStore * store)
   PLOG("registered memory with storage/RDMA.. OK (handle=%p)", handle);
   
   /* create pool */
-  auto pool = store->create_pool("/pools","gpu0", obj_size);
+  auto pool = store->create_pool("/poolsgpu0", obj_size);
+  if (pool == Component::IKVStore::POOL_ERROR) {
+  	  throw General_exception("Create pool error");
+  }
   PLOG("Pool created OK.");
   
   /* put into dawn storage */
@@ -319,6 +326,7 @@ void run_cuda_perf_bounce(Component::IKVStore * store)
   cuMemFree(d_B);
   store->unregister_direct_memory(handle);
   store->close_pool(pool);
+  store->delete_pool("/poolsgpu0");
 }
 
 extern "C" void run_cuda_perf(Component::IKVStore * store)
