@@ -208,7 +208,7 @@ TEST_F(KVStore_test, ThroughputGetDirect){
 
 #ifndef USE_FILESTORE
   IKVStore::memory_handle_t handle;
-  handle = _kvstore->allocate_direct_memory(pval, Data::VAL_LEN);
+  ASSERT_EQ(S_OK, _kvstore->allocate_direct_memory(pval, Data::VAL_LEN, handle));
   
 #else
   pval = malloc(Data::VAL_LEN);
