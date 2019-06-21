@@ -20,6 +20,8 @@
  *
  */
 
+#if defined(__x86_64__)
+
 #ifndef __CORE_DPDK_H__
 #define __CORE_DPDK_H__
 
@@ -54,5 +56,7 @@ void eal_init(size_t memory_limit_MB, unsigned master_core = 0,
 void eal_show_info();
 
 }  // namespace DPDK
+
+#endif
 
 #endif

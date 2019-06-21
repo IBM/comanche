@@ -7,7 +7,7 @@ include_directories(${CMAKE_INSTALL_PREFIX}/include)
 link_directories(${CMAKE_INSTALL_PREFIX}/lib)
 link_directories(/usr/local/lib64)
 
-add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
+#add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 
 add_executable(test-bitmap test-bitmap.cpp ../src/bitmap-tx.cpp)
 target_link_libraries(test-bitmap ${ASAN_LIB} common comanche-core numa pthread dl comanche-allocblock pmem pmempool pmemobj tbb profiler gtest )

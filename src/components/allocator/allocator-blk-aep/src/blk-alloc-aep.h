@@ -28,7 +28,7 @@
 
 class Block_allocator_AEP : public Component::IBlock_allocator {
  private:
-  static constexpr bool option_DEBUG = true;
+  static constexpr bool option_DEBUG = false;
   std::string           _pool_name;  // path to find the allocation info
 
  public:

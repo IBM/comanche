@@ -9,7 +9,11 @@
 #include "rapidjson/stringbuffer.h"
 
 #include <boost/filesystem.hpp>
+#if defined(__powerpc64__)
+#include <gperftools/heap-profiler.h>
+#else
 #include <gperftools/profiler.h>
+#endif
 #include <sys/mman.h> /* madvise, MADV_HUGEPAGE */
 #include <sys/sysmacros.h> /* major, minor */
 
@@ -294,6 +298,7 @@ int Experiment::initialize_store(unsigned core)
       params["name"] = _owner;
       params["pci"] = *_pci_address;
       params["pm_path"] = "/mnt/pmem0/";
+      params["persist_type"] = "hstore";
 
       _store = fact->create(_debug_level, params);
     }

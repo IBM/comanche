@@ -57,7 +57,12 @@ TEST_F(KVStore_test, Instantiate)
   ASSERT_TRUE(comp);
   IKVStore_factory * fact = (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
 
-  _kvstore = fact->create("owner","name");
+  std::map<std::string, std::string> params;
+  params["pm_path"]    = "/mnt/pmem0/";
+  unsigned debug_level = 0;
+
+  _kvstore = fact->create(debug_level, params);
+  // _kvstore = fact->create("owner","name"); // deprecated
   
   fact->release_ref();
 }
@@ -69,6 +74,7 @@ TEST_F(KVStore_test, OpenPool)
     pool = _kvstore->create_pool("/tmp/test1.pool", MB(32));
   }
   catch(...) {
+    PINF("trying to open existing pool");
     pool = _kvstore->open_pool("/tmp/test1.pool");
   }
   ASSERT_TRUE(pool != 0);

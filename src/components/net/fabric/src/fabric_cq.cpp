@@ -94,7 +94,7 @@ ssize_t Fabric_cq::cq_read(void *buf, size_t count) noexcept
    * combination of
    *  - skipping cq_read
    *  - using fi_inject
-   *  - using the bverbs provider
+   *  - using the verbs provider
    * caused a hang after about 128 operations. If this happens again,
    * use FABRIC_DO_NOT_FORCE_CQ_READ=1 to avoid forced reads.
    */

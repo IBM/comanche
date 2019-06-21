@@ -218,11 +218,12 @@ public:
                                  const std::vector<uint64_t>& value,
                                  const std::string* key) override;
 
-  Component::IKVStore::key_t lock(pool_t pool,
-                const std::string &key,
-                lock_type_t type,
-                void*& out_value,
-                std::size_t& out_value_len) override;
+  status_t lock(const pool_t pool,
+                        const std::string& key,
+                        lock_type_t type,
+                        void*& out_value,
+                        size_t& out_value_len,
+                        Component::IKVStore::key_t& out_key) override;
 
   status_t unlock(pool_t pool,
                   Component::IKVStore::key_t key_handle) override;

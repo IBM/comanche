@@ -34,7 +34,7 @@ Currently nvmestore supports put/get/get_direct.
 
 1. run the test
 ```
-PMEM_IS_PMEM_FORCE=1 ./testing/kvstore/kvstore-perf --component nvmestore --pci_addr 11:00.0 --test=put --value_length=1048576 --elements=1000
+./testing/kvstore/kvstore-perf --component nvmestore --pci_addr 11:00.0 --test=put --value_length=1048576 --elements=1000
 ```
 (if not specify --test=put, all tests will run some might fail but results for put/get/get_direct will be generated)
 

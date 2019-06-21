@@ -45,6 +45,7 @@ public:
     uint64_t op_erase_count;
     uint64_t op_failed_request_count;
     uint64_t last_op_count_snapshot;
+    uint16_t client_count;
   } __attribute__((aligned(8)));
 
 public:

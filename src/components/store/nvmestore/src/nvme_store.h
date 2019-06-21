@@ -12,19 +12,26 @@
 #ifndef NVME_STORE_H_
 #define NVME_STORE_H_
 
-#include <libpmemobj.h>
-
 #include <common/rwlock.h>
 #include <common/types.h>
 #include <pthread.h>
 
 #include <api/kvstore_itf.h>
 
+#include <api/block_allocator_itf.h>
+#include <api/block_itf.h>
 #include "block_manager.h"
+#include "meta_store.h"
 #include "state_map.h"
+
+#undef USE_PMEM
+
+using namespace nvmestore;
 
 class State_map;
 
+#ifdef USE_PMEM
+#include <libpmemobj.h>
 POBJ_LAYOUT_BEGIN(nvme_store);
 POBJ_LAYOUT_ROOT(nvme_store, struct store_root_t);
 POBJ_LAYOUT_TOID(nvme_store, struct obj_info);
@@ -44,28 +51,7 @@ typedef struct obj_info {
   size_t key_len;
   TOID(char) key_data;
 } obj_info_t;
-
-namespace
-{
-struct buffer_t {
-  const size_t      _length;
-  const io_buffer_t _io_mem;
-  void* const
-      _start_vaddr;  // it will equal to _io_mem if using allocate_io_buffer
-
-  buffer_t(size_t length, io_buffer_t io_mem, void* start_vaddr)
-      : _length(length), _io_mem(io_mem), _start_vaddr(start_vaddr)
-  {
-  }
-
-  ~buffer_t() {}
-
-  inline size_t length() const { return _length; }
-  inline size_t io_mem() const { return _io_mem; }
-  inline void*  start_vaddr() const { return _start_vaddr; }
-};
-
-}  // namespace
+#endif
 
 class NVME_store : public Component::IKVStore {
   using block_manager_t = nvmestore::Block_manager;
@@ -75,9 +61,12 @@ class NVME_store : public Component::IKVStore {
 
  private:
   static constexpr bool option_DEBUG = true;
-  std::string           _pm_path;
 
-  State_map       _sm;           // map control TODO: change to session manager
+  State_map _sm;  // map control TODO: change to session manager
+
+  // IKVStore* _meta_store = nullptr;
+  std::string     _pm_path;
+  MetaStore       _metastore;
   block_manager_t _blk_manager;  // shared across all nvmestore
 
  public:
@@ -88,12 +77,15 @@ class NVME_store : public Component::IKVStore {
    * @param name
    * @param pci pci address of the Nvme
    *   The "pci address" is in Bus:Device.Function (BDF) form with Bus and
-   * Device zero-padded to 2 digits each, e.g. 86:00.0
+   * @param meta_persist_type see nvmestore_types.h
+   * Device zero-padded to 2
+   * digits each, e.g. 86:00.0
    */
-  NVME_store(const std::string& owner,
-             const std::string& name,
-             const std::string& pci,
-             const std::string& pm_path);
+  NVME_store(const std::string&   owner,
+             const std::string&   name,
+             const std::string&   pci,
+             const std::string&   pm_path,
+             const persist_type_t meta_persist_type);
 
   /**
    * Destructor
@@ -164,8 +156,9 @@ class NVME_store : public Component::IKVStore {
       size_t&                              out_value_len,
       Component::IKVStore::memory_handle_t handle) override;
 
-  virtual memory_handle_t allocate_direct_memory(void*& vaddr,
-                                                 size_t len) override;
+  virtual status_t allocate_direct_memory(void*&           vaddr,
+                                          size_t           len,
+                                          memory_handle_t& handle) override;
 
   virtual status_t free_direct_memory(memory_handle_t handle) override;
 
@@ -174,13 +167,14 @@ class NVME_store : public Component::IKVStore {
 
   virtual status_t unregister_direct_memory(memory_handle_t handle) override;
 
-  virtual IKVStore::key_t lock(const pool_t       pool,
-                               const std::string& key,
-                               lock_type_t        type,
-                               void*&             out_value,
-                               size_t&            out_value_len) override;
+  virtual status_t lock(const pool_t       pool,
+                        const std::string& key,
+                        lock_type_t        type,
+                        void*&             out_value,
+                        size_t&            out_value_len,
+                        key_t&             out_key) override;
 
-  virtual status_t unlock(const pool_t pool, key_t key_hash) override;
+  virtual status_t unlock(const pool_t pool, key_t key_handle) override;
 
   virtual status_t erase(const pool_t pool, const std::string& key) override;
 
@@ -194,6 +188,12 @@ class NVME_store : public Component::IKVStore {
       const pool_t                               pool,
       std::function<int(const std::string& key)> function);
   virtual void debug(const pool_t pool, unsigned cmd, uint64_t arg) override;
+
+ private:
+  status_t _init_metastore(const std::string& owner,
+                           const std::string& name,
+                           const std::string& pm_path,
+                           const std::string& config_persist_type);
 };
 
 class NVME_store_factory : public Component::IKVStore_factory {

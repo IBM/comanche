@@ -1,5 +1,22 @@
 # Changelog
 This is the changelog for nvmestore
+[2019-06-20]:
+* Added:
+  1. Use hstore/filestore as backend of nvmestore. 
+  2. To use hstore as backend: export USE_DRAM=24; export NO_CLFLUSHOPT=1; export DAX_RESET=1.
+  3. to switch between different backends use persist_type in the factory params.
+[2019-06-06]:
+* Added:
+  1. use filestore to manage objinfo. support put/get/get_direct/erase/lock/unlock/map/unmap
+  2. Currently check_exist(in put/get/get_direct) use map_keys each time, this needs to be cached
+[2019-06-3]:
+* TODO:
+  1. use filestore instead hashmap.cpp
+  2. use filestore in blockallocator.
+  3. plug with persist mem
+[2019-05-30]:
+* TODO: illegal instruction in sievert.
+* Switch to file-based method
 [2019-05-29]:
 #added:
 * add value string in the persistent type, so that map_key can get the key string back
