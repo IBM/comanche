@@ -17,6 +17,7 @@ if(BOOTSTRAP_DEPS)
   add_subdirectory(memkind)
   add_subdirectory(tbb)
   add_subdirectory(rapidjson)
+  add_subdirectory(libdocker)
   
   find_package(GTest)
   if( NOT GTEST_FOUND) # libgtest-dev in ubuntu 1604 only installs headers
