@@ -59,7 +59,10 @@ typedef int numa_node_t;
 typedef uint64_t offset_t;
 
 #if __x86_64__
+namespace Common /* avoid conflict with EASTL definition of uint128_t */
+{
 typedef __uint128_t uint128_t;
+}
 #endif
 
 #endif
