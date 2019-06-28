@@ -14,6 +14,7 @@
 #define __DAWN_CONFIG_FILE_H__
 
 #include <assert.h>
+#include <cstring>
 #include <common/exceptions.h>
 #include <rapidjson/document.h>
 #include <rapidjson/filereadstream.h>
@@ -176,7 +177,7 @@ class Config_file {
     if (!shard.HasMember("dax_config"))
       return result;
 
-    if (k_typenames[shard["dax_config"].GetType()] != "Array")
+    if ( 0 != ::strcmp(k_typenames[shard["dax_config"].GetType()], "Array") )
       throw General_exception("dax_config attribute should be an array");
 
     for (auto& config : shard["dax_config"].GetArray()) {
