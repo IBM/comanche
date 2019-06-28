@@ -10,7 +10,7 @@ apt-get install -y build-essential cmake libnuma-dev libelf-dev libpcap-dev uuid
         libboost-python-dev libkmod-dev libjson-c-dev libbz2-dev \
         linux-headers-`uname -r` libelf-dev libsnappy-dev liblz4-dev \
         asciidoc xmlto libtool libgtest-dev python3-numpy libudev-dev \
-	libgoogle-perftools-dev google-perftools
+	libgoogle-perftools-dev google-perftools libcurl4-openssl-dev
         
 cd /usr/src/gtest ; cmake . ; make ; make install
 
