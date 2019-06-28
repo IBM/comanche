@@ -440,8 +440,12 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
       goto send_response;
     }
 
-    if (target_len != msg->val_len)
-      throw Logic_exception("locked value length mismatch");
+    if (target_len != msg->val_len) {
+      PWRN("existing entry length does NOT equal request length");
+      status = E_INVAL;
+      _stats.op_failed_request_count++;
+      goto send_response;
+    }
 
     auto pool_id = msg->pool_id;
 
