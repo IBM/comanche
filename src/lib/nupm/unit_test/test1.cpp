@@ -54,18 +54,18 @@ class Libnupm_test : public ::testing::Test {
 //   return true;
 // }
 
-#define RUN_AVL_RANGE_ALLOCATOR_TESTS
-#define RUN_RPALLOCATOR_TESTS
-//#define RUN_VMEM_ALLOCATOR_TESTS
-//#define RUN_DEVDAX_TEST
-#define RUN_AVL_RCA_TEST
-#define RUN_AVL_STRESS_TEST
-#define RUN_AVL_RECONST_TEST
-#define RUN_MALLOC_STRESS_TEST
-#define RUN_LB_TEST
-#define RUN_LB_STRESS_TEST
-#define RUN_LB_INTEGRITY_TEST
-#define RUN_LB_RECONST_TEST
+// #define RUN_AVL_RANGE_ALLOCATOR_TESTS
+// #define RUN_RPALLOCATOR_TESTS
+// #define RUN_VMEM_ALLOCATOR_TESTS
+#define RUN_DEVDAX_TEST
+// #define RUN_AVL_RCA_TEST
+// #define RUN_AVL_STRESS_TEST
+// #define RUN_AVL_RECONST_TEST
+// #define RUN_MALLOC_STRESS_TEST
+// #define RUN_LB_TEST
+// #define RUN_LB_STRESS_TEST
+// #define RUN_LB_INTEGRITY_TEST
+// #define RUN_LB_RECONST_TEST
 
 using namespace std;
 using namespace boost::icl;
@@ -504,16 +504,25 @@ TEST_F(Libnupm_test, DevdaxManager)
     ASSERT_TRUE(s > 0);
   }
 
+  nupm::Devdax_manager::config_t config;
+  config.path = "/dev/dax0.0";
+  config.addr = 0x900000000;
+  config.region_id = 0;
+  
   {
-    nupm::Devdax_manager ddm({{"/dev/dax0.3", 0x9000000000, 0}},true);
+    nupm::Devdax_manager ddm({config},true);
   }
-  nupm::Devdax_manager ddm({{"/dev/dax0.3", 0x9000000000, 0}});  // rebuild
 
+  nupm::Devdax_manager ddm({config});  // rebuild
+
+  
   size_t   p_len = 0;
   uint64_t uuid  = Options.uuid;
-  assert(uuid > 0);
+
+  if(uuid == 0) uuid = 1;
+
   size_t size = GB(2);
-  ddm.debug_dump(0);
+  ddm.debug_dump(0); /* region id 0 */
 
   PLOG("Opening existing region..");
   void *p = ddm.open_region(uuid, 0, &p_len);
@@ -541,6 +550,7 @@ TEST_F(Libnupm_test, DevdaxManager)
 
   ddm.debug_dump(0);
   ddm.erase_region(uuid, 0);
+
 }
 #endif
 
@@ -638,7 +648,7 @@ TEST_F(Libnupm_test, RcAllocatorStressMemkind)
   ASSERT_TRUE(p);
 
   nupm::Rca_AVL rca;
-  rca.add_managed_region("/dev/dax0.3", 0);
+  rca.add_managed_region("/dev/dax0.0", 0);
 
   //  std::vector<iovec> allocations;
   //  allocations.push_back({a, s});
