@@ -204,11 +204,11 @@ void Devdax_manager::recover_metadata(const char *device_path,
   if (!rh->check_magic()) rebuild = true;
 
   if (rebuild) {
-    PLOG("devdax_manager: rebuilding.");
+    PLOG("Devdax_manager: rebuilding.");
     rh = new (p) DM_region_header(p_len);
   }
   else {
-    PLOG("devdax_manager: no rebuild.");
+    PLOG("Devdax_manager: no rebuild.");
     rh->check_undo_logs();
   }
 
@@ -233,7 +233,7 @@ void *Devdax_manager::map_region(const char *path, addr_t base_addr)
     size_t size = dax_map::use_dram;
     void *p = mmap((void *) base_addr, size, /* length = 0 means whole device */
                    PROT_READ | PROT_WRITE,
-                   MAP_ANONYMOUS | MAP_SHARED | MAP_FIXED | MAP_POPULATE |MAP_LOCKED,  // TODO check | MAP_HUGETLB | MAP_HUGE_2MB,
+                   MAP_ANONYMOUS | MAP_SHARED | MAP_FIXED | MAP_POPULATE | MAP_LOCKED,
                    0, /* file */
                    0 /* offset */);
 
@@ -271,18 +271,31 @@ void *Devdax_manager::map_region(const char *path, addr_t base_addr)
   PLOG(DEBUG_PREFIX "%s size=%lu", path, size);
 
   /* mmap it in */
-  void *p = mmap((void *) base_addr, size, /* length = 0 means whole device */
-                 PROT_READ | PROT_WRITE,
-                 MAP_SHARED_VALIDATE | MAP_FIXED | MAP_SYNC | MAP_LOCKED,  // TODO check | MAP_HUGETLB | MAP_HUGE_2MB,
-                 fd, 0 /* offset */);
+  void *p;
+
+  p = mmap((void *) base_addr,
+	   size, /* length = 0 means whole device */
+	   PROT_READ | PROT_WRITE,
+	   MAP_SHARED_VALIDATE | MAP_FIXED | MAP_LOCKED | MAP_SYNC | MAP_HUGE_2MB,
+	   fd, 0 /* offset */);
+
+  if(p == ((void*) -1)) {
+    p = mmap((void *) base_addr,
+	     size, /* length = 0 means whole device */
+	     PROT_READ | PROT_WRITE,
+	     MAP_SHARED_VALIDATE | MAP_FIXED | MAP_LOCKED | MAP_HUGE_2MB,
+	     fd, 0 /* offset */);
+  }
+    
 
   if (p != (void *) base_addr) {
     perror("");
-    throw General_exception("mmap failed on devdax");
+    throw General_exception("mmap failed on devdax (request %p, got %p)", base_addr, p);
   }
 
   if(madvise(p, size, MADV_DONTFORK) != 0)
-    throw General_exception("madvise 'don't fork' failed unexpectedly (%p %lu)", base_addr, size);
+    throw General_exception("madvise 'don't fork' failed unexpectedly (%p %lu)",
+			    base_addr, size);
   
   _mapped_regions[std::string(path)] = {p, size};
 

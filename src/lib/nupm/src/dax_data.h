@@ -132,7 +132,6 @@ class DM_region_header {
 
   void check_undo_logs()
   {
-    PLOG("Checking undo logs..");
     _undo_log.check_and_undo();
   }
 
