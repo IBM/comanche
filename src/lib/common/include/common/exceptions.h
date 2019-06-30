@@ -54,8 +54,6 @@ class Exception {
 
   Exception(const char *cause) {
     __builtin_strncpy(_cause, cause, 256);
-    PEXCEP("%s", cause);
-    asm("int3");
   }
 
   const char *cause() const { return _cause; }
@@ -100,8 +98,7 @@ class General_exception : public Exception {
   General_exception() : General_exception(E_FAIL) {}
 
   __attribute__((__format__(__printf__, 2, 0)))
-  General_exception(const char *fmt, ...)
-      : General_exception() {
+  General_exception(const char *fmt, ...) : Exception("")  {
     va_list args;
     va_start(args, fmt);
     char msg[255] = {0};
