@@ -8,9 +8,11 @@ apt-get install -y build-essential cmake libnuma-dev libelf-dev libpcap-dev uuid
         libssl-dev g++-multilib fabric libtool-bin autoconf automake libibverbs-dev librdmacm-dev \
         rapidjson-dev libfuse-dev libpcap-dev sqlite3 libsqlite3-dev libomp-dev \
         libboost-python-dev libkmod-dev libjson-c-dev libbz2-dev \
-        linux-headers-`uname -r` libelf-dev libsnappy-dev liblz4-dev \
+        libelf-dev libsnappy-dev liblz4-dev \
         asciidoc xmlto libtool libgtest-dev python3-numpy libudev-dev \
 	libgoogle-perftools-dev google-perftools libcurl4-openssl-dev
-        
 cd /usr/src/gtest ; cmake . ; make ; make install
+# this may not work on custom builds
+apt-get install -y linux-headers-`uname -r`
+
 
