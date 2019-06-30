@@ -9,10 +9,12 @@ apt-get install -y wget git gcc libpciaccess-dev make libcunit1-dev pkg-config \
         libssl-dev g++-multilib fabric libtool-bin autoconf automake \
         rapidjson-dev libfuse-dev libpcap-dev sqlite3 libsqlite3-dev libomp-dev \
 	      libboost-python-dev libkmod-dev libjson-c-dev libbz2-dev \
-        linux-headers-`uname -r` libelf-dev libsnappy-dev liblz4-dev \
+        llibelf-dev libsnappy-dev liblz4-dev \
         asciidoc xmlto libtool graphviz \
         google-perftools libgoogle-perftools-dev libgtest-dev \
 	libmemcached-dev python-numpy libcurl4-openssl-dev
+
+apt-get install -y inux-headers-`uname -r` 
 
 # optional
 #
