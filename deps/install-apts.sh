@@ -14,7 +14,7 @@ apt-get install -y wget git gcc libpciaccess-dev make cmake libcunit1-dev pkg-co
         google-perftools libgoogle-perftools-dev libgtest-dev \
 	libmemcached-dev python-numpy libcurl4-openssl-dev
 
-apt-get install -y inux-headers-`uname -r` 
+apt-get install -y linux-headers-`uname -r` 
 
 # optional
 #
