@@ -1,0 +1,2 @@
+#!/bin/bash
+PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_CURRENT_BINARY_DIR}/build/${LIBDIR} python3.6 -i -c 'import dawn'
