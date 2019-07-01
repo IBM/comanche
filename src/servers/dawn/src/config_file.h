@@ -14,6 +14,7 @@
 #define __DAWN_CONFIG_FILE_H__
 
 #include <assert.h>
+#include <cstring>
 #include <common/exceptions.h>
 #include <rapidjson/document.h>
 #include <rapidjson/filereadstream.h>
@@ -31,6 +32,7 @@ namespace Dawn
 class Config_file {
  private:
   static constexpr bool option_DEBUG = true;
+  static constexpr auto DEFAULT_PROVIDER = "verbs";
 
  public:
   Config_file(const std::string& filename)
@@ -63,7 +65,7 @@ class Config_file {
       _shards = _doc["shards"];
     }
     catch (...) {
-      throw General_exception("bad JSON in configuration file");
+      throw General_exception("bad JSON in configuration file (shards))");
     }
 
     PLOG("shards type:%s", k_typenames[_shards.GetType()]);
@@ -86,6 +88,30 @@ class Config_file {
         PLOG("shard: core(%d) port(%d) net(%s)", get_shard_core(i),
              get_shard_port(i), get_shard("net", i).c_str());
       }
+    }
+
+    auto nit = _doc.FindMember("net_providers");
+    if ( nit != _doc.MemberEnd() )
+    {
+      /* Note rapidjson.org says that a missing operator[] will assert.
+       * If true, the catch may not do much good.
+       */
+      rapidjson::Value &net_provider = nit->value;
+      PLOG("net_providers type:%s", k_typenames[net_provider.GetType()]);
+
+      if ( ! net_provider.IsString() )
+      {
+        throw General_exception("bad JSON: net_providers should be string");
+      }
+      _net_providers = net_provider.GetString();
+    }
+    else
+    {
+      _net_providers = DEFAULT_PROVIDER;
+    }
+
+    if (option_DEBUG) {
+      PLOG("net_providers: %s%s", (nit == _doc.MemberEnd() ? "(default) " : " "), get_net_providers().c_str());
     }
   }
 
@@ -123,6 +149,11 @@ class Config_file {
     return std::string(shard[name.c_str()].GetString());
   }
 
+  std::string get_net_providers() const
+  {
+    return _net_providers;
+  }
+
   auto get_shard_object(std::string name, rapidjson::SizeType i) const
   {
     if (i > shard_count())
@@ -141,12 +172,12 @@ class Config_file {
       throw General_exception("get_shard_dax_config out of bounds");
 
     std::vector<std::pair<std::string, std::string>> result;
-        
+
     auto shard = get_shard(i);
     if (!shard.HasMember("dax_config"))
       return result;
 
-    if (k_typenames[shard["dax_config"].GetType()] != "Array")
+    if ( 0 != ::strcmp(k_typenames[shard["dax_config"].GetType()], "Array") )
       throw General_exception("dax_config attribute should be an array");
 
     for (auto& config : shard["dax_config"].GetArray()) {
@@ -169,6 +200,7 @@ class Config_file {
  private:
   rapidjson::Document _doc;
   rapidjson::Value    _shards;
+  std::string         _net_providers;
 };
 }  // namespace Dawn
 #endif  // __DAWN_CONFIG_FILE_H__

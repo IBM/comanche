@@ -107,23 +107,9 @@ class Shard : public Shard_transport {
                     const std::string& index,
                     const std::string& pci_addr,
                     const std::string& dax_config,
-		    const std::string& pm_path,
-                    unsigned           debug_level)
-  {
-    if (option_DEBUG > 2) PLOG("shard:%u worker thread entered.", _core);
-
-    /* pin thread */
-    cpu_mask_t mask;
-    mask.add_core(_core);
-    set_cpu_affinity_mask(mask);
-
-    initialize_components(backend, index, pci_addr, dax_config, pm_path, debug_level);
-
-    main_loop();
-
-    if (option_DEBUG > 2) PLOG("shard:%u worker thread exited.", _core);
-  }
-
+                    const std::string& pm_path,
+                    unsigned           debug_level);
+  
   void add_locked_value(const pool_t               pool_id,
                         Component::IKVStore::key_t key,
                         void*                      target)

@@ -742,7 +742,7 @@ int main(int argc, char **argv)
     po::options_description desc("Options");
     desc.add_options()("help", "Show help")
       ("debug", po::value<unsigned>()->default_value(0), "Debug level 0-3")
-      ("server-addr", po::value<std::string>()->default_value("10.0.0.21:11911"), "Server address IP:PORT")
+      ("server-addr", po::value<std::string>()->default_value("10.0.0.21:11911:verbs"), "Server address IP:PORT[:PROVIDER]")
       ("device", po::value<std::string>()->default_value("mlx5_0"), "Network device (e.g., mlx5_0)")
       ("pool", po::value<std::string>()->default_value("myPool"), "Pool name")
       ("value_size", po::value<std::size_t>()->default_value(0), "Value size")
