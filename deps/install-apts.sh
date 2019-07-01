@@ -9,7 +9,7 @@ apt-get install -y wget git gcc libpciaccess-dev make cmake libcunit1-dev pkg-co
         libssl-dev g++-multilib fabric libtool-bin autoconf automake \
         rapidjson-dev libfuse-dev libpcap-dev sqlite3 libsqlite3-dev libomp-dev \
 	      libboost-python-dev libkmod-dev libjson-c-dev libbz2-dev \
-        llibelf-dev libsnappy-dev liblz4-dev \
+        libelf-dev libsnappy-dev liblz4-dev \
         asciidoc xmlto libtool graphviz \
         google-perftools libgoogle-perftools-dev libgtest-dev \
 	libmemcached-dev python-numpy libcurl4-openssl-dev
