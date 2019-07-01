@@ -280,6 +280,7 @@ void *Devdax_manager::map_region(const char *path, addr_t base_addr)
 	   fd, 0 /* offset */);
 
   if(p == ((void*) -1)) {
+    PWRN("map_region: MAP_SYNC flag failed on persistent memory. Omitting flag.");
     p = mmap((void *) base_addr,
 	     size, /* length = 0 means whole device */
 	     PROT_READ | PROT_WRITE,
