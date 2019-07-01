@@ -40,6 +40,33 @@ unsigned debug_level = 0;
 /* statics */
 Pool_manager Shard::pool_manager;
 
+void Shard::thread_entry(const std::string& backend,
+                         const std::string& index,
+                         const std::string& pci_addr,
+                         const std::string& dax_config,
+                         const std::string& pm_path,
+                         unsigned           debug_level)
+{
+  if (option_DEBUG > 2) PLOG("shard:%u worker thread entered.", _core);
+
+  /* pin thread */
+  cpu_mask_t mask;
+  mask.add_core(_core);
+  set_cpu_affinity_mask(mask);
+
+  try {
+    initialize_components(backend, index, pci_addr, dax_config, pm_path, debug_level);
+
+    main_loop();
+
+  }
+  catch(General_exception e) {
+    PERR("Shard component initialization failed.");
+  }
+  
+  if (option_DEBUG > 2) PLOG("Shard:%u worker thread exited.", _core);
+}
+
 void Shard::initialize_components(const std::string& backend,
                                   const std::string& index,
                                   const std::string& pci_addr,
