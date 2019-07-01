@@ -701,6 +701,18 @@ void Shard::process_info_request(Connection_handler* handler,
   if (msg->type == Protocol::INFO_TYPE_FIND_KEY) {
     if (option_DEBUG > 1)
       PLOG("Shard: INFO request INFO_TYPE_FIND_KEY (%s)", msg->c_str());
+
+    if(_index_map == nullptr) { /* index does not exist */
+      PLOG("Shard: cannot perform regex request, no index!! use configure('AddIndex::VolatileTree') ");
+      const auto iob = handler->allocate();
+      Protocol::Message_INFO_response* response = new (iob->base())
+        Protocol::Message_INFO_response(handler->auth_id());
+      
+      response->status = E_INVAL;
+      handler->post_send_buffer(iob);
+      return;
+    }
+    
     try {
       add_task_list(new Key_find_task(msg->c_str(),
                                       msg->offset,
