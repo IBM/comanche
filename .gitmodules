@@ -35,3 +35,6 @@
 [submodule "testing/ycsb/memcached/memcachedb"]
 	path = testing/ycsb/memcached/memcachedb
 	url = https://github.com/LMDB/memcachedb.git
+[submodule "src/lib/libdocker"]
+	path = src/lib/libdocker
+	url = https://github.com/xuluna/libdocker.git
