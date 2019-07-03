@@ -101,6 +101,22 @@ namespace nupm
 				}
 				return reinterpret_cast<pointer>(ptr);
 			}
+
+			/* EASTL expectation (non-standard) */
+			auto allocate(
+				size_type s
+				, size_type alignment
+				, size_type offset
+			) -> pointer
+			{
+				assert(offset == 0);
+				auto ptr = this->ra()->alloc(s * sizeof(T), alignment);
+				if ( ptr == 0 )
+				{
+					throw bad_alloc(0, s, sizeof(T));
+				}
+				return reinterpret_cast<pointer>(ptr);
+			}
 		};
 }
 #endif
