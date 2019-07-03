@@ -68,9 +68,9 @@ static constexpr size_t KEY_LEN = 16;
 static constexpr int    nr_elem = 4;  // number of the test elem in the pool
 static constexpr size_t VAL_LEN = GB(1);
 #else
-// static constexpr int nr_elem = 10000;  // TODO: Takes long if I dont cache
-// key list
-static constexpr int    nr_elem = 100;  // number of the test elem in the pool
+static constexpr int nr_elem =
+    1000;  // number of the test elem in the pool TODO: Takes long if I dont
+           // cache key list
 static constexpr size_t VAL_LEN = KB(128);
 #endif
 std::unordered_map<std::string, int> _crc_map;
@@ -86,11 +86,12 @@ TEST_F(KVStore_test, Instantiate)
       (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
 
   std::map<std::string, std::string> params;
-  params["owner"]      = "testowner";
-  params["name"]       = "testname";
-  params["pci"]        = opt.pci;
-  params["pm_path"]    = "/mnt/pmem0/";
-  unsigned debug_level = 0;
+  params["owner"]        = "testowner";
+  params["name"]         = "testname";
+  params["pci"]          = opt.pci;
+  params["pm_path"]      = "/mnt/pmem0/";
+  params["persist_type"] = "hstore";
+  unsigned debug_level   = 0;
 
   // this nvme-store use a block device and a block allocator
   _kvstore = fact->create(debug_level, params);
@@ -123,6 +124,7 @@ TEST_F(KVStore_test, BasicPut)
     _crc_map[key] = result.checksum();
 
     EXPECT_TRUE(S_OK == _kvstore->put(_pool, key, val.c_str(), VAL_LEN));
+    PDBG("Elems written");
   }
 }
 
@@ -132,7 +134,7 @@ TEST_F(KVStore_test, GetDirect)
   void *                    value     = nullptr;
   size_t                    value_len = 0;
 
-  handle = _kvstore->allocate_direct_memory(value, VAL_LEN);
+  ASSERT_EQ(S_OK, _kvstore->allocate_direct_memory(value, VAL_LEN, handle));
 
   for (int i = 0; i < nr_elem; i++) {
     std::string key = "MyKey" + std::to_string(i);

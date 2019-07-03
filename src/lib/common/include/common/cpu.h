@@ -60,11 +60,7 @@ class cpu_mask_t {
   cpu_set_t cpu_set_;
 
  public:
-  cpu_mask_t() { __builtin_memset(&cpu_set_, 0, sizeof(cpu_set_t)); }
-
-  cpu_mask_t(const cpu_mask_t &inst) {
-    __builtin_memcpy(&cpu_set_, &inst, sizeof(cpu_set_t));
-  }
+  cpu_mask_t() : cpu_set_{} {}
 
   void add_core(int cpu) { CPU_SET(cpu, &cpu_set_); }
 

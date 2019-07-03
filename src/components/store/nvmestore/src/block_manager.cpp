@@ -14,6 +14,7 @@
  * helper functions to initialize/release block device and block allocators
  */
 #include "block_manager.h"
+#include "meta_store.h"
 
 #include <gtest/gtest.h>
 #include <atomic>
@@ -41,6 +42,36 @@ static std::unordered_map<IBlock_device *, IBlock_allocator *>
 std::mutex _dev_map_mutex;
 std::mutex _alloc_map_mutex;
 
+Block_manager::Block_manager(const std::string &pci,
+                             const std::string &pm_path,
+                             MetaStore &        metastore)
+    : _pci_addr(pci), _pm_path(pm_path)
+{
+  status_t ret;
+
+  PINF("Trying to open allocator with type %d", metastore.get_type());
+  ret = open_block_device(_pci_addr, _blk_dev);
+  Component::VOLUME_INFO info;
+  _blk_dev->get_volume_info(info);
+  _blk_sz = info.block_size;
+
+  if (S_OK != ret) {
+    throw General_exception("failed (%d) to open block device at pci %s\n", ret,
+                            pci.c_str());
+  }
+
+  ret = open_block_allocator(_blk_dev, _blk_alloc, metastore);
+  if (S_OK != ret) {
+    throw General_exception("failed (%d) to open block block allocator "
+                            "for device at pci %s\n",
+                            ret, pci.c_str());
+  }
+
+  PDBG("block_manager: using block device %p with allocator %p, blksize= "
+       "%lu, chunk_size_in_blks %lu",
+       _blk_dev, _blk_alloc, _blk_sz, CHUNK_SIZE_IN_BLOCKS);
+};
+
 status_t Block_manager::open_block_device(const std::string &pci,
                                           IBlock_device *&   block)
 {
@@ -51,12 +82,12 @@ status_t Block_manager::open_block_device(const std::string &pci,
     /* Note: may fail due to no free hugepages, in which case increasing
      * /sys/devices/system/node/node<N>/hugepages/hugepages-2048kB/nr_hugepages
      * for all NUMA nodes <n> may help. Note: may create many dir entries
-     * /dev/hugepages/<prefix>map_<n> where prefix is nvme_comanche or value of
-     * env var SPDK_DEVICE0 where n is 0..127, 32768,,32895 Note that the dir
-     * entries will persist after execution
+     * /dev/hugepages/<prefix>map_<n> where prefix is nvme_comanche or
+     * value of env var SPDK_DEVICE0 where n is 0..127, 32768,,32895 Note
+     * that the dir entries will persist after execution
      */
-    /* initialize "Data Plane Development Kit Environment Abstraction Layer
-     * (EAL)" */
+    /* initialize "Data Plane Development Kit Environment Abstraction
+     * Layer (EAL)" */
     DPDK::eal_init(512);
 
 #ifdef USE_SPDK_NVME_DEVICE
@@ -111,7 +142,8 @@ status_t Block_manager::open_block_device(const std::string &pci,
 
 status_t Block_manager::open_block_allocator(
     IBlock_device *               block,
-    Component::IBlock_allocator *&alloc)
+    Component::IBlock_allocator *&alloc,
+    MetaStore &                   metastore)
 {
   std::lock_guard<std::mutex> guard(_alloc_map_mutex);
 
@@ -124,12 +156,6 @@ status_t Block_manager::open_block_allocator(
 
     // TODO: remove hardcopied block size
     constexpr size_t TOO_MANY_BLOCKS = GB(128) / KB(4);
-
-    IBase *comp = load_component("libcomanche-blkalloc-aep.so",
-                                 Component::block_allocator_aep_factory);
-    assert(comp);
-    IBlock_allocator_factory *fact = static_cast<IBlock_allocator_factory *>(
-        comp->query_interface(IBlock_allocator_factory::iid()));
 
     block->get_volume_info(devinfo);
 
@@ -144,8 +170,37 @@ status_t Block_manager::open_block_allocator(
 
     persist_id_t id_alloc = std::string(devinfo.volume_name) + ".alloc.pool";
 
-    alloc = fact->open_allocator(nr_blocks_tracked, _pm_path, id_alloc);
-    fact->release_ref();
+    if (metastore.get_type() == PERSIST_PMEM) {
+      IBase *comp = load_component("libcomanche-blkalloc-aep.so",
+                                   Component::block_allocator_aep_factory);
+      assert(comp);
+      IBlock_allocator_factory *fact = static_cast<IBlock_allocator_factory *>(
+          comp->query_interface(IBlock_allocator_factory::iid()));
+
+      alloc = fact->open_allocator(nr_blocks_tracked, _pm_path, id_alloc);
+      fact->release_ref();
+    }
+    else if (metastore.get_type() == PERSIST_FILE ||
+             metastore.get_type() == PERSIST_HSTORE) {
+      IBase *comp = load_component("libcomanche-blkalloc-ikv.so",
+                                   Component::block_allocator_ikv_factory);
+      assert(comp);
+      IBlock_allocator_factory *fact = static_cast<IBlock_allocator_factory *>(
+          comp->query_interface(IBlock_allocator_factory::iid()));
+
+      // Open a pool to save block allocation
+      IKVStore *       store = metastore.get_store();
+      IKVStore::pool_t pool  = store->create_pool("meta-blockalloc", MB(128));
+
+      // TODO: needs close pool
+
+      alloc = fact->open_allocator(nr_blocks_tracked, store, pool, id_alloc);
+      fact->release_ref();
+    }
+    else {
+      throw General_exception("Cannot open allocator type %d",
+                              metastore.get_type());
+    }
 
     _alloc_map.insert(
         std::pair<IBlock_device *, IBlock_allocator *>(block, alloc));

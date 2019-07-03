@@ -40,6 +40,33 @@ unsigned debug_level = 0;
 /* statics */
 Pool_manager Shard::pool_manager;
 
+void Shard::thread_entry(const std::string& backend,
+                         const std::string& index,
+                         const std::string& pci_addr,
+                         const std::string& dax_config,
+                         const std::string& pm_path,
+                         unsigned           debug_level)
+{
+  if (option_DEBUG > 2) PLOG("shard:%u worker thread entered.", _core);
+
+  /* pin thread */
+  cpu_mask_t mask;
+  mask.add_core(_core);
+  set_cpu_affinity_mask(mask);
+
+  try {
+    initialize_components(backend, index, pci_addr, dax_config, pm_path, debug_level);
+
+    main_loop();
+
+  }
+  catch(General_exception e) {
+    PERR("Shard component initialization failed.");
+  }
+  
+  if (option_DEBUG > 2) PLOG("Shard:%u worker thread exited.", _core);
+}
+
 void Shard::initialize_components(const std::string& backend,
                                   const std::string& index,
                                   const std::string& pci_addr,
@@ -92,6 +119,7 @@ void Shard::initialize_components(const std::string& backend,
       params["name"] = "unknown-name";
       params["pci"] = pci_addr;
       params["pm_path"] = pm_path;
+      params["persist_type"] = "hstore";
       _i_kvstore = fact->create(debug_level, params);
     }
     else if (backend == "pmstore") { /* components that support debug level */
@@ -439,8 +467,12 @@ void Shard::process_message_IO_request(Connection_handler*           handler,
       goto send_response;
     }
 
-    if (target_len != msg->val_len)
-      throw Logic_exception("locked value length mismatch");
+    if (target_len != msg->val_len) {
+      PWRN("existing entry length does NOT equal request length");
+      status = E_INVAL;
+      _stats.op_failed_request_count++;
+      goto send_response;
+    }
 
     auto pool_id = msg->pool_id;
 
