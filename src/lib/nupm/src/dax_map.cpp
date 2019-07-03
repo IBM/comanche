@@ -163,11 +163,12 @@ void *Devdax_manager::create_region(uint64_t uuid, unsigned region_id, const siz
 {
   guard_t           g(_reentrant_lock);
   const char *      device = lookup_dax_device(region_id);
+
   DM_region_header *hdr    = _region_hdrs[device];
   if (hdr == nullptr)
     throw General_exception("no region header for device (%s)", device);
 
-  return hdr->allocate_region(uuid, (size / GB(1) + 1));
+  return hdr->allocate_region(uuid, (size / GB(1) + 1)); /* allocates n GiB */
 }
 
 void Devdax_manager::erase_region(uint64_t uuid, unsigned region_id)
@@ -281,10 +282,10 @@ void *Devdax_manager::map_region(const char *path, addr_t base_addr)
 
   if(p == ((void*) -1)) {
     p = mmap((void *) base_addr,
-	     size, /* length = 0 means whole device */
-	     PROT_READ | PROT_WRITE,
-	     MAP_SHARED_VALIDATE | MAP_FIXED | MAP_LOCKED | MAP_HUGE_2MB,
-	     fd, 0 /* offset */);
+             size, /* length = 0 means whole device */
+             PROT_READ | PROT_WRITE,
+             MAP_SHARED_VALIDATE | MAP_FIXED | MAP_LOCKED | MAP_HUGE_2MB,
+             fd, 0 /* offset */);
   }
     
 
