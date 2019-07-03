@@ -24,7 +24,7 @@
 #define __CORE_AVL_MALLOC_H__
 
 #if !defined(__cplusplus)
-#error This is a C++ header
+#error("This is a C++ header")
 #endif
 
 #include <common/stack.h>
@@ -183,12 +183,10 @@ class Memory_region : public Core::AVL_node<Memory_region> {
     }
     else {
       Memory_region* result;
-      if ((result = find_region(node->left(), addr))) {
+      if ((result = find_region(node->left(), addr)))
         return result;
-      }
-      if ((result = find_region(node->right(), addr))) {
+      if ((result = find_region(node->right(), addr)))
         return result;
-      }
       return nullptr;
     }
 #else

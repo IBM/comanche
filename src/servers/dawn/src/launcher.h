@@ -24,8 +24,6 @@
 namespace Dawn
 {
 class Shard_launcher : public Config_file {
-  static constexpr auto DEFAULT_PROVIDER = "verbs";
-
  public:
   Shard_launcher(Program_options& options) : Config_file(options.config_file)
   {
@@ -45,18 +43,25 @@ class Shard_launcher : public Config_file {
         dax_config_json = ss.str();
       }
       
-      _shards.push_back(new Dawn::Shard(
-          get_shard_core(i),
-          get_shard_port(i), DEFAULT_PROVIDER,
-          get_shard("device", i),
-          get_shard("net", i),
-          get_shard("default_backend", i),
-          get_shard("index", i),
-          get_shard("nvme_device", i),
-          get_shard("pm_path", i),
-          dax_config_json,
-          options.debug_level,
-          options.forced_exit));
+      try
+      {
+        _shards.push_back(new Dawn::Shard(
+            get_shard_core(i),
+            get_shard_port(i), get_net_providers(),
+            get_shard("device", i),
+            get_shard("net", i),
+            get_shard("default_backend", i),
+            get_shard("index", i),
+            get_shard("nvme_device", i),
+            get_shard("pm_path", i),
+            dax_config_json,
+            options.debug_level,
+            options.forced_exit));
+      }
+      catch (const std::exception &e)
+      {
+        PLOG("shard %d failed to launch: %s", i, e.what());
+      }
     }
   }
 

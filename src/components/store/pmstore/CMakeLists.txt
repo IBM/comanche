@@ -28,8 +28,10 @@ include_directories(${CMAKE_INSTALL_PREFIX}/include)
 link_directories(${CMAKE_INSTALL_PREFIX}/lib)
 link_directories(${CMAKE_INSTALL_PREFIX}/lib64)
 
+set(GCC_COVERAGE_COMPILE_FLAGS -g -O2 -fPIC -msse3)
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-  add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -fdump-class-hierarchy -DCONFIG_DEBUG)
+  add_compile_options(${GCC_COVERAGE_COMPILE_FLAGS})
+  add_definitions(-DCONFIG_DEBUG)
 endif()
 add_library(${PROJECT_NAME} SHARED ${SOURCES})
 

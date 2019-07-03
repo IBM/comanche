@@ -26,6 +26,13 @@
 #include <asm/set_memory.h>
 #endif
 
+/* Linux 5 drops the mode atribute in access_ok */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,0,0)
+#define ACCESS_OK(mode,addr,size) access_ok(mode,addr,size)
+#else
+#define ACCESS_OK(mode,addr,size) access_ok(addr,size)
+#endif
+
 #include <asm/pgtable.h>
 #include <asm/uaccess.h>
 
@@ -77,7 +84,7 @@ static long xms_dev_ioctl(struct file *filp,
                         ((IOCTL_SETMEMORY_param *) arg),
                         sizeof(IOCTL_SETMEMORY_param));
     
-    if((rc > 0) || (!access_ok(VERIFY_READ, params.vaddr, params.size))) {
+    if((rc > 0) || (!ACCESS_OK(VERIFY_READ, params.vaddr, params.size))) {
       printk(KERN_ERR "xms: dev_ioctl passed invalid param\n");
       return r;
     }
@@ -103,7 +110,7 @@ static long xms_dev_ioctl(struct file *filp,
       return r;
     }
     
-    if(!access_ok(VERIFY_READ, params.vaddr, sizeof(params.vaddr))) {
+    if(!ACCESS_OK(VERIFY_READ, params.vaddr, sizeof(params.vaddr))) {
       printk(KERN_ERR "xms: dev_ioctl passed invalid in_data param");
       return r;
     }
@@ -149,12 +156,12 @@ static long xms_dev_ioctl(struct file *filp,
                         ((IOCTL_GETBITMAP_param *) arg),
                         sizeof(IOCTL_GETBITMAP_param));
     
-    if((rc > 0) || (!access_ok(VERIFY_WRITE, params.out_data, params.out_size))) {
+    if((rc > 0) || (!ACCESS_OK(VERIFY_WRITE, params.out_data, params.out_size))) {
       printk(KERN_ERR "xms: dev_ioctl passed invalid out_data param");
       return r;
     }
     
-    if(!access_ok(VERIFY_READ, params.ptr, params.size)) {
+    if(!ACCESS_OK(VERIFY_READ, params.ptr, params.size)) {
       printk(KERN_ERR "xms: dev_ioctl passed invalid in_data param");
       return r;
     }
@@ -236,7 +243,8 @@ static const struct file_operations xms_chardev_ops = {
 };
 
 static struct miscdevice xms_dev = {
-  XMS_MINOR,
+  MISC_DYNAMIC_MINOR,
+  // XMS_MINOR,
   "xms",
   &xms_chardev_ops,
 };

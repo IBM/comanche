@@ -181,6 +181,7 @@ public:
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Winit-self"
+#pragma GCC diagnostic ignored "-Wuninitialized"
 	heap_rc_shared(const std::unique_ptr<Devdax_manager> &devdax_manager_)
 		: _pool0(this->_pool0)
 		, _numa_node(this->_numa_node)
