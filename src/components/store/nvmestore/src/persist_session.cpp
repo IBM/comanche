@@ -9,8 +9,8 @@
 #include <set>
 #include "persist_session.h"
 
-using namespace nvmestore;
-
+namespace nvmestore
+{
 /** Allocate space for metadata
  *
  * Before invoke this, we ensure that the key is either not exsiting before, or
@@ -25,12 +25,6 @@ status_t persist_session::alloc_new_object(const std::string& key,
   size_t blk_size     = blk_manager->blk_sz();
   size_t nr_io_blocks = (value_len + blk_size - 1) / blk_size;
 
-  void* handle;
-
-  // get free block range
-  uint64_t lba = _blk_manager->alloc_blk_region(nr_io_blocks, &handle);
-  PDBG("write to lba %lu with length %lu, key %lx", lba, value_len, hashkey);
-
   // prepare objinfo buffer
   size_t obj_info_sz_in_bytes =
       sizeof(obj_info_t) + key.length() + 1;  // \0 included
@@ -41,9 +35,13 @@ status_t persist_session::alloc_new_object(const std::string& key,
   obj_info_t* objinfo = reinterpret_cast<obj_info_t*>(raw_objinfo);
 
   // compose the objinfo
-  objinfo->lba_start = lba;
+  // get free block range
+  uint64_t lba =
+      _blk_manager->alloc_blk_region(nr_io_blocks, &(objinfo->block_region));
+  PDBG("write to lba %lu with length %lu, key %lx", lba, value_len, hashkey);
+
   objinfo->size      = value_len;
-  objinfo->handle    = handle;
+  objinfo->lba_start = lba;
   objinfo->key_len   = key.length();
 
   void* key_data = (char*) raw_objinfo + sizeof(obj_info_t);
@@ -72,7 +70,7 @@ status_t persist_session::erase(const std::string& key)
   uint64_t pool = reinterpret_cast<uint64_t>(this);
 
   status_t rc;
-  void*    raw_objinfo;
+  void*    raw_objinfo = nullptr;
   size_t   obj_info_sz_in_bytes;
 
   // Get objinfo from meta_pool
@@ -83,7 +81,7 @@ status_t persist_session::erase(const std::string& key)
   obj_info_t* objinfo = reinterpret_cast<obj_info_t*>(raw_objinfo);
 
   /* get hold of write lock to remove */
-  if (!p_state_map->state_get_write_lock(pool, objinfo->handle))
+  if (!p_state_map->state_get_write_lock(pool, objinfo->block_region))
     throw API_exception("unable to remove, value locked");
 
   PDBG("Tring to Remove obj with obj %p,handle %p", D_RO(objinfo),
@@ -96,10 +94,13 @@ status_t persist_session::erase(const std::string& key)
   }
 
   // Free block range in the blk_alloc
-  _blk_manager->free_blk_region(objinfo->lba_start, objinfo->handle);
-  p_state_map->state_remove(pool, objinfo->handle);
+  uint64_t block_region = (uint64_t)(objinfo->block_region);
+  unsigned lba_start    = objinfo->lba_start;
 
-  if (objinfo) free(objinfo);
+  _blk_manager->free_blk_region(lba_start, objinfo->block_region);
+  p_state_map->state_remove(pool, objinfo->block_region);
+
+  _meta_store->free_memory(raw_objinfo);
 
   _num_objs -= 1;
   return S_OK;
@@ -157,7 +158,7 @@ status_t persist_session::get(const std::string& key,
   if (check_exists(key) == E_NOT_FOUND) return IKVStore::E_KEY_NOT_FOUND;
   size_t blk_sz = _blk_manager->blk_sz();
 
-  void*  raw_objinfo;
+  void*  raw_objinfo = nullptr;
   size_t obj_info_length;
 
   status_t rc = _meta_store->get(_meta_pool, key, raw_objinfo, obj_info_length);
@@ -182,6 +183,7 @@ status_t persist_session::get(const std::string& key,
   memcpy(out_value, _blk_manager->virt_addr(_io_mem), val_len);
   out_value_len = val_len;
 
+  _meta_store->free_memory(raw_objinfo);
   return S_OK;
 }
 
@@ -193,7 +195,7 @@ status_t persist_session::get_direct(const std ::string& key,
   if (check_exists(key) == E_NOT_FOUND) return IKVStore::E_KEY_NOT_FOUND;
   size_t blk_sz = _blk_manager->blk_sz();
 
-  void*  raw_objinfo;
+  void*  raw_objinfo = nullptr;
   size_t obj_info_length;
 
   status_t rc = _meta_store->get(_meta_pool, key, raw_objinfo, obj_info_length);
@@ -235,6 +237,8 @@ status_t persist_session::get_direct(const std ::string& key,
   _blk_manager->do_block_io(nvmestore::BLOCK_IO_READ, mem, lba, nr_io_blocks);
 
   out_value_len = val_len;
+
+  _meta_store->free_memory(raw_objinfo);
   return S_OK;
 }
 
@@ -328,7 +332,7 @@ persist_session::key_t persist_session::lock(const std::string& key,
   else {
     size_t obj_info_length;
 
-    void*    raw_objinfo;
+    void*    raw_objinfo = nullptr;
     status_t rc =
         _meta_store->get(_meta_pool, key, raw_objinfo, obj_info_length);
     if (rc != S_OK || obj_info_length < sizeof(obj_info_t)) {
@@ -341,15 +345,14 @@ persist_session::key_t persist_session::lock(const std::string& key,
   auto pool = reinterpret_cast<uint64_t>(this);
 
   if (type == IKVStore::STORE_LOCK_READ) {
-    if (!p_state_map->state_get_read_lock(pool, objinfo->handle))
+    if (!p_state_map->state_get_read_lock(pool, objinfo->block_region))
       throw General_exception("%s: unable to get read lock", __func__);
   }
   else {
-    if (!p_state_map->state_get_write_lock(pool, objinfo->handle))
+    if (!p_state_map->state_get_write_lock(pool, objinfo->block_region))
       throw General_exception("%s: unable to get write lock", __func__);
   }
 
-  auto handle    = objinfo->handle;
   auto value_len = objinfo->size;  // the length allocated before
   auto lba       = objinfo->lba_start;
 
@@ -382,7 +385,7 @@ status_t persist_session::unlock(persist_session::key_t key_handle)
   if (check_exists(key) == E_NOT_FOUND) return IKVStore::E_KEY_NOT_FOUND;
   size_t blk_sz = _blk_manager->blk_sz();
 
-  void*  raw_objinfo;
+  void*  raw_objinfo = nullptr;
   size_t obj_info_length;
 
   status_t rc = _meta_store->get(_meta_pool, key, raw_objinfo, obj_info_length);
@@ -408,10 +411,11 @@ status_t persist_session::unlock(persist_session::key_t key_handle)
   _blk_manager->free_io_buffer(mem);
 
   /*release the lock*/
-  p_state_map->state_unlock(pool, objinfo->handle);
+  p_state_map->state_unlock(pool, objinfo->block_region);
 
   PDBG("NVME_store: released the lock");
 
   get_locked_regions().erase(mem);
   return S_OK;
 }
+}  // namespace nvmestore

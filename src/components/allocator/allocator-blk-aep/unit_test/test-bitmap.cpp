@@ -63,7 +63,7 @@ TEST(bitmap_test, create){
  * small regions(less than a word)
  */
 TEST(bitmap_test, small){
-  // i should find 4096/16 = 256
+  // i should find 4096/4 = 1024
   int nr_regions = 0;
 
   unsigned int pos;

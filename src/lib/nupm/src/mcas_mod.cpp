@@ -89,7 +89,7 @@ void * nupm::mmap_exposed_memory(Memory_token token,
   status_t rc = ioctl(fd, IOCTL_CMD_QUERY, &msg);
 
   if(rc) {
-    PERR("nupm::mmap_exposed_memory ioctl failed");
+    PERR("nupm::mmap_exposed_memory ioctl failed, with err code %d", rc);
     return nullptr;
   }
   
@@ -100,7 +100,7 @@ void * nupm::mmap_exposed_memory(Memory_token token,
   void * ptr = ::mmap(target_addr,
                       size,
                       PROT_READ | PROT_WRITE,
-                      MAP_PRIVATE | MAP_FIXED, // | MAP_HUGETLB, // | MAP_HUGE_2MB,
+                      MAP_SHARED | MAP_FIXED, // | MAP_HUGETLB, // | MAP_HUGE_2MB,
                       fd,
                       offset); 
 
