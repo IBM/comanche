@@ -39,12 +39,12 @@ enum {
   MSG_TYPE_IO_RESPONSE     = 0x21,
   MSG_TYPE_INFO_REQUEST    = 0x30,
   MSG_TYPE_INFO_RESPONSE   = 0x31,
+  MSG_TYPE_ADO_REQUEST     = 0x40,
+  MSG_TYPE_ADO_RESPONSE    = 0x41,
   MSG_TYPE_MAX             = 0xFF,
 };
 
 enum {
-//   INFO_TYPE_VALUE_LEN = 0x1,
-//   INFO_TYPE_COUNT     = 0x1,
   /* must be above IKVStore::Attributes */
   INFO_TYPE_FIND_KEY  = 0xF0,
   INFO_TYPE_GET_STATS = 0xF1,
@@ -76,6 +76,7 @@ enum {
   OP_COUNT       = 10,
   OP_CONFIGURE   = 11,
   OP_STATS       = 12,
+  OP_ISSUE       = 13,
   OP_INVALID     = 0xFE,
   OP_MAX         = 0xFF
 };
@@ -127,14 +128,14 @@ struct Message {
   }
 
   uint64_t auth_id;  // authorization token
-  uint32_t msg_len;
-  uint8_t  version;
+  uint32_t msg_len;  // message length in bytes
+  uint8_t  version;  // protocol version
   uint8_t  type_id;  // message type id
   union {
-    uint8_t op;
-    int8_t  status;
+    uint8_t op;      // operation code 
+    int8_t  status;  // return status
   };
-  uint8_t resvd;
+  uint8_t resvd;     // reserved
 } __attribute__((packed));
 
 namespace
@@ -145,7 +146,8 @@ namespace
     assert(pm->version == PROTOCOL_VERSION);
     if (pm->version != PROTOCOL_VERSION)
     {
-      Protocol_exception e("expected protocol version 0x%x, got got 0x%x", PROTOCOL_VERSION,
+      Protocol_exception e("expected protocol version 0x%x, got got 0x%x",
+                           PROTOCOL_VERSION,
                            pm->version);
 #if 0
       throw e;
@@ -535,6 +537,31 @@ struct Message_stats : public Message {
   // fields
   Component::IDawn::Shard_stats stats; 
 } __attribute__((packed));
+
+
+
+////////////////////////////////////////////////////////////////////////
+// ADO MESSAGES
+
+struct Message_ado_request : public Message {
+
+  static constexpr uint8_t id = MSG_TYPE_ADO_REQUEST;
+  static constexpr const char *description = "Message_ado_request";
+
+  Message_ado_request(uint64_t auth_id) :   Message(auth_id, id) {
+  }
+                      
+  // fields
+  uint64_t request_id; /*< id or sender timestamp counter */
+  uint64_t pool_id;
+  uint64_t key_len;
+  uint64_t cmd_len;
+  uint32_t flags;
+
+} __attribute__((packed));
+
+
+
 
 
 
