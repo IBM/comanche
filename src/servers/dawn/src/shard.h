@@ -1,14 +1,14 @@
 /*
-   Copyright [2017-2019] [IBM Corporation]
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
-       http://www.apache.org/licenses/LICENSE-2.0
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
+  Copyright [2017-2019] [IBM Corporation]
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+  http://www.apache.org/licenses/LICENSE-2.0
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
 */
 #ifndef __DAWN_SHARD_H__
 #define __DAWN_SHARD_H__
@@ -43,19 +43,18 @@ using Shard_transport = Fabric_transport;
 
 class Shard : public Shard_transport {
 
- private:
+private:
   static constexpr size_t TWO_STAGE_THREADSHOLD = KiB(64); /* above this two stage is used */
   
- private:
-
-  using pool_t             = Component::IKVStore::pool_t;
+private:
 
   struct lock_info_t {
     Component::IKVStore::pool_t pool;
     Component::IKVStore::key_t  key;
     int                         count;
   };
-  
+
+  using pool_t             = Component::IKVStore::pool_t;
   using buffer_t           = Shard_transport::buffer_t;
   using index_map_t        = std::unordered_map<pool_t, Component::IKVIndex*>;
   using locked_value_map_t = std::map<const void*, lock_info_t>;
@@ -63,7 +62,7 @@ class Shard : public Shard_transport {
   
   unsigned option_DEBUG;
 
- public:
+public:
   Shard(int               core,
         unsigned int      port,
         const std::string provider,
@@ -76,15 +75,15 @@ class Shard : public Shard_transport {
         const std::string dax_config,
         unsigned          debug_level,
         bool              forced_exit)
-      : Shard_transport(provider, net, port), _core(core),
-        _forced_exit(forced_exit), _thread(&Shard::thread_entry,
-                                           this,
-                                           backend,
-                                           index,
-                                           pci_addr,
-                                           dax_config,
-					   pm_path,
-                                           debug_level)
+    : Shard_transport(provider, net, port), _core(core),
+      _forced_exit(forced_exit), _thread(&Shard::thread_entry,
+                                         this,
+                                         backend,
+                                         index,
+                                         pci_addr,
+                                         dax_config,
+                                         pm_path,
+                                         debug_level)
   {
     option_DEBUG = Dawn::Global::debug_level = debug_level;
   }
@@ -109,7 +108,7 @@ class Shard : public Shard_transport {
 
   bool exited() const { return _thread_exit; }
 
- private:
+private:
   void thread_entry(const std::string& backend,
                     const std::string& index,
                     const std::string& pci_addr,
@@ -222,7 +221,7 @@ private:
 
 
 
- private:
+private:
   static Pool_manager              pool_manager; /* instance shared across connections */
   
   index_map_t*                     _index_map = nullptr;
