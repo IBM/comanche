@@ -57,6 +57,7 @@ template <typename PersistData, typename Heap>
     /* The "reanimate" constructor */
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Winit-self"
+#pragma GCC diagnostic ignored "-Wuninitialized"
     region(
       const std::unique_ptr<Devdax_manager> & devdax_manager_
     )
