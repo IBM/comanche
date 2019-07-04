@@ -52,11 +52,14 @@ bool operator==(const Component::uuid_t &lhs, const Component::uuid_t &rhs) {
  * Called by the client to load the component from a DLL file
  *
  */
-IBase *load_component(const char *dllname, Component::uuid_t component_id) {
+IBase *load_component(const char *dllname, Component::uuid_t component_id, bool quiet) {
   void *(*factory_createInstance)(Component::uuid_t &);
   char *error;
 
   void *dll = dlopen(dllname, RTLD_NOW);
+
+  if (!quiet && dll == nullptr)
+    PLOG("Unable to find component binary with path (%s).", dllname);
 
   if (!dll) {
     std::string dll_path = CONF_COMANCHE_INSTALL;
@@ -64,10 +67,11 @@ IBase *load_component(const char *dllname, Component::uuid_t component_id) {
     dll_path += dllname;
 
     dll = dlopen(dll_path.c_str(), RTLD_NOW);
-
+    
     if (!dll) {
-      PLOG("Unable to load library (%s) at path (%s) - check dependencies with ldd tool (reason:%s)",
-           dllname, dll_path.c_str(), dlerror());
+      if(!quiet)
+        PLOG("Unable to load library (%s) at path (%s) - check dependencies with ldd tool (reason:%s)",
+             dllname, dll_path.c_str(), dlerror());
       return nullptr;
     }
   }

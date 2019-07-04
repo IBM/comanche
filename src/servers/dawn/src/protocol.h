@@ -552,12 +552,18 @@ struct Message_ado_request : public Message {
   Message_ado_request(size_t buffer_size,
                       uint64_t auth_id,
                       uint64_t request_id,
+                      uint64_t pool_id,
                       const std::string& key,
-                      const std::string& command) :   Message(auth_id, id), request_id(request_id) {
+                      const std::string& command,
+                      size_t ondemand_val_len = 0) :
+    Message(auth_id, id),
+    request_id(request_id),
+    pool_id(pool_id), ondemand_val_len(ondemand_val_len) {
 
     key_len = key.size();
     cmd_len = command.size();
-
+    msg_len = message_size();
+    
     if (buffer_size < message_size())
       throw API_exception("%s::%s - insufficient buffer for Message_ado_request",
                           description, __func__);
@@ -575,6 +581,7 @@ struct Message_ado_request : public Message {
   uint64_t request_id; /*< id or sender timestamp counter */
   uint64_t pool_id;
   uint64_t key_len; /*< does not include null terminator */
+  uint64_t ondemand_val_len;
   uint32_t cmd_len; /*< does not include null terminator */
   uint32_t flags;
   char     data[];
@@ -600,11 +607,14 @@ struct Message_ado_response : public Message {
       throw API_exception("%s::%s - insufficient buffer for Message_ado_response",
                           description, __func__);
 
+    msg_len = message_size();
     strncpy(data, response.c_str(), response_len);
     data[response_len] = '\0';
   }
   
   size_t message_size() const { return sizeof(Message_ado_response) + response_len + 1; }
+  const char * response() const { return data; }
+  size_t response_length() const { return response_len; }
   
   // fields
   uint64_t request_id; /*< id or sender timestamp counter */
