@@ -271,7 +271,7 @@ class IBase {
  *
  * @return Pointer to IBase interface
  */
-IBase *load_component(const char *dllname, Component::uuid_t component_id);
+IBase *load_component(const char *dllname, Component::uuid_t component_id, bool quiet = false);
 
 inline IBase *load_component(std::string &dllname,
                              Component::uuid_t component_id) {
