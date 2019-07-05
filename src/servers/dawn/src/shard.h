@@ -20,6 +20,8 @@
 #include <api/fabric_itf.h>
 #include <api/kvstore_itf.h>
 #include <api/kvindex_itf.h>
+#include <api/ado_itf.h>
+
 #include <common/cpu.h>
 #include <common/exceptions.h>
 #include <common/logging.h>
@@ -97,6 +99,9 @@ public:
     assert(_i_kvstore);
     _i_kvstore->release_ref();
 
+    if(_i_ado_mgr)
+      _i_ado_mgr->release_ref();
+
     if (_index_map) {
       for(auto i : *_index_map) {
         assert(i.second);
@@ -164,6 +169,9 @@ private:
   void process_info_request(Connection_handler* handler,
                             Protocol::Message_INFO_request* msg);
 
+  void process_ado_request(Connection_handler* handler,
+                           Protocol::Message_ado_request* msg);
+
   status_t process_configure(Protocol::Message_IO_request* msg);
 
   void process_tasks(unsigned& idle);
@@ -201,6 +209,8 @@ private:
   
 private:
 
+  bool ado_enabled() const { return _i_ado_mgr != nullptr; }
+
   /* per-shard statistics */
   Component::IDawn::Shard_stats _stats __attribute__((aligned(8))) = {0};
 
@@ -214,14 +224,14 @@ private:
     PINF("PUT_DIRECT count   : %lu", _stats.op_put_direct_count);
     PINF("GET 2-stage count  : %lu", _stats.op_get_twostage_count);
     PINF("ERASE count        : %lu", _stats.op_erase_count);
+    PINF("ADO count          : %lu (enabled=%s)", _stats.op_ado_count, ado_enabled() ? "yes":"no");
     PINF("Failed count       : %lu", _stats.op_failed_request_count);    
     PINF("Session count      : %lu", session_count());
     PINF("------------------------------------------------");
   }
 
-
-
 private:
+  
   static Pool_manager              pool_manager; /* instance shared across connections */
   
   index_map_t*                     _index_map = nullptr;
@@ -231,6 +241,7 @@ private:
   std::thread                      _thread;
   size_t                           _max_message_size;
   Component::IKVStore*             _i_kvstore;
+  Component::IADO_manager_proxy*   _i_ado_mgr;
   std::vector<Connection_handler*> _handlers;
   locked_value_map_t               _locked_values;
   task_list_t                      _tasks;
