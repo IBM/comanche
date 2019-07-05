@@ -17,6 +17,7 @@
 #include <api/kvindex_itf.h>
 #include <common/dump_utils.h>
 #include <common/utils.h>
+#include <nupm/mcas_mod.h>
 
 #ifdef PROFILE
 #include <gperftools/profiler.h>
@@ -139,6 +140,12 @@ void Shard::initialize_components(const std::string& backend,
 
   /* optional ADO components */
   {
+    /* check MCAS kernel module */
+    if(nupm::check_mcas_kernel_module() == false) {
+      PMAJOR("MCAS kernel module not found. Disabling ADO");
+      return;
+    }
+    
     IBase * comp = load_component("libado-manager-proxy.so", ado_manager_proxy_factory);
     if(comp) {
       IADO_manager_factory* fact = static_cast<IADO_manager_factory*>(comp->query_interface(IADO_manager_factory::iid()));
@@ -152,7 +159,7 @@ void Shard::initialize_components(const std::string& backend,
       fact->release_ref();
     }
     else {
-      PLOG("ADO not found and thus not enabled.");
+      PMAJOR("ADO not found and thus not enabled.");
     }
   }
 }
@@ -888,23 +895,33 @@ void Shard::process_ado_request(Connection_handler* handler,
 {
   auto response_iob = handler->allocate();
   assert(response_iob);
-  Protocol::Message_ado_response* response = new (response_iob->base())
+  Protocol::Message_ado_response* response;
+  
+  if(!_i_ado_mgr) {
+    PWRN("ADO request ignored. Not enabled");
+
+    response = new (response_iob->base())
     Protocol::Message_ado_response(response_iob->length(),
                                    handler->auth_id(),
                                    msg->request_id,
                                    "ADO!NOT_ENABLED");
 
-  if(!_i_ado_mgr) {
-    PWRN("ADO request ignored. Not enabled");
     response->status = E_INVAL;
     response_iob->set_length(response->message_size());
     handler->post_send_buffer(response_iob);
     return;
   }
 
-  PERR("ADO request handler");
-  throw Logic_exception("not implemented");
-    
+  response = new (response_iob->base())
+    Protocol::Message_ado_response(response_iob->length(),
+                                   handler->auth_id(),
+                                   msg->request_id,
+                                   "ADO!DUMMY_RESPONSE");
+
+  response->status = S_OK;
+  response_iob->set_length(response->message_size());
+  handler->post_send_buffer(response_iob);
+  PLOG("ADO dummy response sent.");
 }
 
 
