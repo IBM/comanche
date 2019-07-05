@@ -133,10 +133,8 @@ public:
   virtual status_t shutdown(IADO_proxy* ado) = 0;
 };
 
-
-class IADO_manager_factory : public Component::IBase
-{
-public:
+class IADO_manager_proxy_factory : public Component::IBase {
+ public:
   // clang-format off
   DECLARE_INTERFACE_UUID(0xfacfa389,0x1665,0x4e5b,0xa1b1,0x3c,0xff,0x4a,0x5e,0xe2,0x63);
   // clang-format on
