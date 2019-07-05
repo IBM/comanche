@@ -48,6 +48,10 @@ bool operator==(const Component::uuid_t &lhs, const Component::uuid_t &rhs) {
   return memcmp(&lhs, &rhs, sizeof(Component::uuid_t)) == 0;
 }
 
+IBase *load_component(const char *dllname, Component::uuid_t component_id) {
+  return load_component(dllname, component_id, false);
+}
+
 /**
  * Called by the client to load the component from a DLL file
  *
