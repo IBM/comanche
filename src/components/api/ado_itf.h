@@ -48,10 +48,11 @@ public:
  using work_id_t = uint64_t; /*< work handle/identifier */
 
  enum class Op_type {
-   FLATBUFFER_OPERATION, /* a method invocation in the form of a flatbuffer
-                            message */
-   KILL,                 // shutdown ado process
-   CHECK_COMPLETION,     // check how many completed
+   FLATBUFFER_OPERATION, /*< a method invocation in the form of a flatbuffer message */
+   DOMAIN_OPERATION,     /*< domain-specific operation */
+   BOOTSTRAP,
+   KILL,                 /*<  shutdown ado process */
+   CHECK_COMPLETION,     /*< check how many completed */
  };
 
  /**
@@ -69,6 +70,9 @@ public:
                             const size_t desc_len,
                             work_id_t&   out_work_id) = 0;
 
+ /* ADO-to-SHARD protocol */
+  virtual status_t boostrap_ado() { return E_NOT_IMPL; }
+                               
  /**
   * Check for work completions.  This gets polled by the shard process.
   * This method must NOT block.
@@ -95,6 +99,7 @@ public:
   // clang-format on
 
   using shared_memory_token_t = uint64_t; /*< token identifying shared memory for mcas module */
+  
   /**
    * Launch ADO process.  This method must NOT block.
    *

@@ -64,6 +64,8 @@ private:
   
   unsigned option_DEBUG;
 
+  const std::string _default_ado_path;
+
 public:
   Shard(int               core,
         unsigned int      port,
@@ -75,17 +77,21 @@ public:
         const std::string pci_addr,
         const std::string pm_path,
         const std::string dax_config,
+        const std::string default_ado_path,
         unsigned          debug_level,
         bool              forced_exit)
-    : Shard_transport(provider, net, port), _core(core),
-      _forced_exit(forced_exit), _thread(&Shard::thread_entry,
-                                         this,
-                                         backend,
-                                         index,
-                                         pci_addr,
-                                         dax_config,
-                                         pm_path,
-                                         debug_level)
+    : Shard_transport(provider, net, port),
+      _core(core),
+      _default_ado_path(default_ado_path),
+      _forced_exit(forced_exit),
+      _thread(&Shard::thread_entry,
+              this,
+              backend,
+              index,
+              pci_addr,
+              dax_config,
+              pm_path,
+              debug_level)
   {
     option_DEBUG = Dawn::Global::debug_level = debug_level;
   }
@@ -231,6 +237,8 @@ private:
   }
 
 private:
+
+  using ado_map_t = std::map<Component::IKVStore::pool_t, Component::IADO_proxy*>;
   
   static Pool_manager              pool_manager; /* instance shared across connections */
   
@@ -242,6 +250,7 @@ private:
   size_t                           _max_message_size;
   Component::IKVStore*             _i_kvstore;
   Component::IADO_manager_proxy*   _i_ado_mgr;
+  ado_map_t                        _ado_map;
   std::vector<Connection_handler*> _handlers;
   locked_value_map_t               _locked_values;
   task_list_t                      _tasks;
