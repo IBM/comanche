@@ -141,7 +141,9 @@ void Shard::initialize_components(const std::string& backend,
   {
     IBase * comp = load_component("libado-manager-proxy.so", ado_manager_proxy_factory);
     if(comp) {
-      IADO_manager_factory* fact = static_cast<IADO_manager_factory*>(comp->query_interface(IADO_manager_factory::iid()));
+      IADO_manager_proxy_factory* fact =
+          static_cast<IADO_manager_proxy_factory*>(
+              comp->query_interface(IADO_manager_proxy_factory::iid()));
       assert(fact);
 
       _i_ado_mgr = fact->create(option_DEBUG, 13); /* todo configure ADO CORE */
