@@ -136,6 +136,25 @@ void Shard::initialize_components(const std::string& backend,
     }
     fact->release_ref();
   }
+
+  /* optional ADO components */
+  {
+    IBase * comp = load_component("libado-manager-proxy.so", ado_manager_proxy_factory);
+    if(comp) {
+      IADO_manager_factory* fact = static_cast<IADO_manager_factory*>(comp->query_interface(IADO_manager_factory::iid()));
+      assert(fact);
+
+      _i_ado_mgr = fact->create(option_DEBUG, 13); /* todo configure ADO CORE */
+      if(_i_ado_mgr == nullptr)
+        throw General_exception("Instantiation of ADO manager failed unexpectedly.");
+      PMAJOR("ADO manager created.");
+      
+      fact->release_ref();
+    }
+    else {
+      PLOG("ADO not found and thus not enabled.");
+    }
+  }
 }
 
 void Shard::main_loop()
@@ -228,6 +247,10 @@ void Shard::main_loop()
           case MSG_TYPE_INFO_REQUEST:
             process_info_request(handler,
                                  static_cast<Protocol::Message_INFO_request*>(p_msg));
+            break;
+          case MSG_TYPE_ADO_REQUEST:
+            process_ado_request(handler,
+                                static_cast<Protocol::Message_ado_request*>(p_msg));
             break;
           default:
             throw General_exception("unrecognizable message type");
@@ -826,10 +849,10 @@ void Shard::process_info_request(Connection_handler* handler,
         size_t p_len = 0;
         Component::IKVStore::key_t key_handle;
         status_t rc = _i_kvstore->lock(msg->pool_id,
-                                           key,
-                                           Component::IKVStore::STORE_LOCK_READ,
-                                           p,
-                                           p_len, key_handle);
+                                       key,
+                                       Component::IKVStore::STORE_LOCK_READ,
+                                       p,
+                                       p_len, key_handle);
 
         if(rc != S_OK || key_handle == Component::IKVStore::KEY_NONE) {
           response->status = E_FAIL;
@@ -858,6 +881,32 @@ void Shard::process_info_request(Connection_handler* handler,
   handler->post_send_buffer(iob);  
   return;
 }
+
+
+void Shard::process_ado_request(Connection_handler* handler,
+                                Protocol::Message_ado_request* msg)
+{
+  auto response_iob = handler->allocate();
+  assert(response_iob);
+  Protocol::Message_ado_response* response = new (response_iob->base())
+    Protocol::Message_ado_response(response_iob->length(),
+                                   handler->auth_id(),
+                                   msg->request_id,
+                                   "ADO!NOT_ENABLED");
+
+  if(!_i_ado_mgr) {
+    PWRN("ADO request ignored. Not enabled");
+    response->status = E_INVAL;
+    response_iob->set_length(response->message_size());
+    handler->post_send_buffer(response_iob);
+    return;
+  }
+
+  PERR("ADO request handler");
+  throw Logic_exception("not implemented");
+    
+}
+
 
 void Shard::process_tasks(unsigned& idle)
 {

@@ -76,7 +76,8 @@ enum {
   OP_COUNT       = 10,
   OP_CONFIGURE   = 11,
   OP_STATS       = 12,
-  OP_ISSUE       = 13,
+  OP_SYNC        = 13,
+  OP_ASYNC       = 14,
   OP_INVALID     = 0xFE,
   OP_MAX         = 0xFF
 };
@@ -86,7 +87,7 @@ enum { S_OK = 0, E_KEY_EXISTS = 1, STATUS_MAX = 0xFF };
 enum {
   IO_READ      = 0x1,
   IO_WRITE     = 0x2,
-  IO_ERASE = 0x4,
+  IO_ERASE     = 0x4,
   IO_MAX       = 0xFF,
 };
 
@@ -548,16 +549,79 @@ struct Message_ado_request : public Message {
   static constexpr uint8_t id = MSG_TYPE_ADO_REQUEST;
   static constexpr const char *description = "Message_ado_request";
 
-  Message_ado_request(uint64_t auth_id) :   Message(auth_id, id) {
+  Message_ado_request(size_t buffer_size,
+                      uint64_t auth_id,
+                      uint64_t request_id,
+                      uint64_t pool_id,
+                      const std::string& key,
+                      const std::string& command,
+                      size_t ondemand_val_len = 0) :
+    Message(auth_id, id),
+    request_id(request_id),
+    pool_id(pool_id), ondemand_val_len(ondemand_val_len) {
+
+    key_len = key.size();
+    cmd_len = command.size();
+    msg_len = message_size();
+    
+    if (buffer_size < message_size())
+      throw API_exception("%s::%s - insufficient buffer for Message_ado_request",
+                          description, __func__);
+
+    strncpy(data, key.c_str(), key.size());
+    data[key_len] = '\0';
+    strncpy(&data[key_len+1], command.c_str(), command.size());
+    data[key_len + 1 + cmd_len] = '\0';
   }
-                      
+  
+  size_t message_size() const { return sizeof(Message_ado_request) + key_len + cmd_len + 2; }
+  const char * command() const { return data; }
+  
   // fields
   uint64_t request_id; /*< id or sender timestamp counter */
   uint64_t pool_id;
-  uint64_t key_len;
-  uint64_t cmd_len;
+  uint64_t key_len; /*< does not include null terminator */
+  uint64_t ondemand_val_len;
+  uint32_t cmd_len; /*< does not include null terminator */
   uint32_t flags;
+  char     data[];
+  
+} __attribute__((packed));
 
+
+
+struct Message_ado_response : public Message {
+
+  static constexpr uint8_t id = MSG_TYPE_ADO_RESPONSE;
+  static constexpr const char *description = "Message_ado_response";
+
+  Message_ado_response(size_t buffer_size,
+                       uint64_t auth_id,
+                       uint64_t request_id,
+                       const std::string& response) :   Message(auth_id, id),
+                                                        request_id(request_id) {
+
+    response_len = response.size();
+
+    if (buffer_size < message_size())
+      throw API_exception("%s::%s - insufficient buffer for Message_ado_response",
+                          description, __func__);
+
+    msg_len = message_size();
+    strncpy(data, response.c_str(), response_len);
+    data[response_len] = '\0';
+  }
+  
+  size_t message_size() const { return sizeof(Message_ado_response) + response_len + 1; }
+  const char * response() const { return data; }
+  size_t response_length() const { return response_len; }
+  
+  // fields
+  uint64_t request_id; /*< id or sender timestamp counter */
+  uint32_t response_len; /*< does not include null terminator */
+  uint32_t flags;
+  char     data[];
+  
 } __attribute__((packed));
 
 
