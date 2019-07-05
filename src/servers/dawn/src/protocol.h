@@ -575,7 +575,7 @@ struct Message_ado_request : public Message {
   }
   
   size_t message_size() const { return sizeof(Message_ado_request) + key_len + cmd_len + 2; }
-  const char * command() const { return data; }
+  std::string command() const { return std::string(data); }
   
   // fields
   uint64_t request_id; /*< id or sender timestamp counter */

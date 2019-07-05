@@ -55,6 +55,7 @@ class Shard_launcher : public Config_file {
             get_shard("nvme_device", i),
             get_shard("pm_path", i),
             dax_config_json,
+            get_shard("default_ado_path", i),
             options.debug_level,
             options.forced_exit));
       }

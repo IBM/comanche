@@ -142,7 +142,7 @@ void Shard::initialize_components(const std::string& backend,
   {
     /* check MCAS kernel module */
     if(nupm::check_mcas_kernel_module() == false) {
-      PMAJOR("MCAS kernel module not found. Disabling ADO");
+      PMAJOR("MCAS kernel module not found. Disabling ADO.");
       return;
     }
     
@@ -892,41 +892,6 @@ void Shard::process_info_request(Connection_handler* handler,
 }
 
 
-void Shard::process_ado_request(Connection_handler* handler,
-                                Protocol::Message_ado_request* msg)
-{
-  auto response_iob = handler->allocate();
-  assert(response_iob);
-  Protocol::Message_ado_response* response;
-  
-  if(!_i_ado_mgr) {
-    PWRN("ADO request ignored. Not enabled");
-
-    response = new (response_iob->base())
-    Protocol::Message_ado_response(response_iob->length(),
-                                   handler->auth_id(),
-                                   msg->request_id,
-                                   "ADO!NOT_ENABLED");
-
-    response->status = E_INVAL;
-    response_iob->set_length(response->message_size());
-    handler->post_send_buffer(response_iob);
-    return;
-  }
-
-  response = new (response_iob->base())
-    Protocol::Message_ado_response(response_iob->length(),
-                                   handler->auth_id(),
-                                   msg->request_id,
-                                   "ADO!DUMMY_RESPONSE");
-
-  response->status = S_OK;
-  response_iob->set_length(response->message_size());
-  handler->post_send_buffer(response_iob);
-  PLOG("ADO dummy response sent.");
-}
-
-
 void Shard::process_tasks(unsigned& idle)
 {
  retry:
@@ -1065,4 +1030,7 @@ status_t Shard::process_configure(Protocol::Message_IO_request* msg)
 
 }
 
+#include "shard_ado.cpp"
+
 }  // namespace Dawn
+
