@@ -155,7 +155,7 @@ class IADO_proxy_factory : public Component::IBase {
       std::vector<std::string>&                 args,
       IADO_manager_proxy::shared_memory_token_t shm_token,
       std::string                               cores,
-      int                                       memroy) = 0;
+      int                                       memory) = 0;
 };
 
 } // Component
