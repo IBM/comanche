@@ -8,7 +8,7 @@ execute_process( COMMAND uname -m COMMAND tr -d '\n' OUTPUT_VARIABLE ARCHITECTUR
 if(BOOTSTRAP_DEPS)
 
   add_subdirectory(flatbuffers)
-  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/flatbuffers/flatc DESTINATION bin PERMISSIONS OWNER_EXECUTE GROUP_EXECUTE)
+  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/flatbuffers/flatc DESTINATION bin PERMISSIONS OWNER_EXECUTE GROUP_EXECUTE OWNER_READ GROUP_READ)
 
   add_subdirectory(dpdk)
   add_subdirectory(spdk)
