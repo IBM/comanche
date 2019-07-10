@@ -238,8 +238,14 @@ private:
 
 private:
 
+  struct work_request_t {
+    Component::IKVStore::pool_t pool;
+    Component::IKVStore::key_t key_handle;
+    Component::IKVStore::lock_type_t lock_type;
+  };
+
   using ado_map_t = std::map<Component::IKVStore::pool_t, Component::IADO_proxy*>;
-  
+
   static Pool_manager              pool_manager; /* instance shared across connections */
   
   index_map_t*                     _index_map = nullptr;
@@ -249,11 +255,12 @@ private:
   std::thread                      _thread;
   size_t                           _max_message_size;
   Component::IKVStore*             _i_kvstore;
-  Component::IADO_manager_proxy*   _i_ado_mgr;
+  Component::IADO_manager_proxy*   _i_ado_mgr = nullptr;
   ado_map_t                        _ado_map;
   std::vector<Connection_handler*> _handlers;
   locked_value_map_t               _locked_values;
   task_list_t                      _tasks;
+  std::set<work_request_t*>        _outstanding_work;
 };
 
 

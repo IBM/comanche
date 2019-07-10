@@ -55,23 +55,19 @@ public:
    CHECK_COMPLETION,     /*< check how many completed */
  };
 
- /**
-  * Post work item. This method must NOT block.
-  *
-  * @param type Type of work
-  * @param data Pointer to work descriptor (e.g., pointer to flatbuffer)
-  * @param data_len Length of descriptor data in bytes
-  * @param out_work_id [out] Work identifier
-  *
-  * @return S_OK or E_FULL if queue is full.
-  */
- virtual status_t post_work(Op_type      type,
-                            void*        desc,
-                            const size_t desc_len,
-                            work_id_t&   out_work_id) = 0;
 
  /* ADO-to-SHARD protocol */
-  virtual status_t boostrap_ado() { return E_NOT_IMPL; }
+  virtual status_t bootstrap_ado() = 0;
+
+  virtual status_t send_memory_map(uint64_t token,
+                                   size_t size,
+                                   void * value_vaddr) = 0;
+
+  virtual status_t send_work_request(void * work_request_record,
+                                     void * value_addr,
+                                     size_t value_len,
+                                     const char * request_string) = 0;
+
                                
  /**
   * Check for work completions.  This gets polled by the shard process.
@@ -84,6 +80,8 @@ public:
   */
  virtual status_t check_completions(work_id_t out_completions) = 0;
  virtual bool     has_exited()                                 = 0;
+
+
 };
 
 /** 
@@ -115,7 +113,6 @@ public:
    */
   virtual IADO_proxy* create(const std::string&        filename,
                              std::vector<std::string>& args,
-                             shared_memory_token_t     shm_token,
                              numa_node_t               value_memory_numa_zone,
                              SLA*                      sla = nullptr) = 0;
 
@@ -153,12 +150,10 @@ class IADO_proxy_factory : public Component::IBase {
   DECLARE_INTERFACE_UUID(0xfacbb389,0x1665,0x4e5b,0xa1b1,0x3c,0xff,0x4a,0x5e,0xe2,0x63);
   // clang-format on
 
-  virtual IADO_proxy* create(
-      const std::string&                        filename,
-      std::vector<std::string>&                 args,
-      IADO_manager_proxy::shared_memory_token_t shm_token,
-      std::string                               cores,
-      int                                       memory) = 0;
+  virtual IADO_proxy* create(const std::string& filename,
+                             std::vector<std::string>& args,
+                             std::string cores,
+                             int memory) = 0;
 };
 
 } // Component
