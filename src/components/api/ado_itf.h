@@ -30,7 +30,7 @@
 #include <string>
 #include <vector>
 #include <functional>
-#include <bits/types/struct_iovec.h>
+#include <sys/uio.h>
 
 namespace Component
 {
