@@ -50,9 +50,11 @@ void Shard::process_ado_request(Connection_handler* handler,
   if(i == _ado_map.end()) {
     /* need to launch new ADO process */
     std::vector<std::string> args;
+    args.push_back("--plugin");
+    args.push_back(_default_ado_plugin);
 
     if (option_DEBUG > 2)
-      PLOG("Launching ADO path: (%s)", _default_ado_path.c_str());
+      PLOG("Launching ADO path: (%s), plugin (%s)", _default_ado_path.c_str(), _default_ado_plugin.c_str());
     
     ado = _i_ado_mgr->create(_default_ado_path, args, 0);
 
@@ -134,7 +136,7 @@ void Shard::process_ado_request(Connection_handler* handler,
   _outstanding_work.insert(wr_key);
 
   /* now send the work request */
-  ado->send_work_request(wr_key, value, value_len, msg->request(), msg->request_len());
+  ado->send_work_request(wr_key, msg->key(), value, value_len, msg->request(), msg->request_len());
 
   if (option_DEBUG > 2)
     PLOG("Shard_ado: sent work request (len=%lu, key=%lu)", msg->request_len(), wr_key);

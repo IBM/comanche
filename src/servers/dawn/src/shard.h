@@ -65,6 +65,7 @@ private:
   unsigned option_DEBUG;
 
   const std::string _default_ado_path;
+  const std::string _default_ado_plugin;
 
 public:
   Shard(int               core,
@@ -78,11 +79,13 @@ public:
         const std::string pm_path,
         const std::string dax_config,
         const std::string default_ado_path,
+        const std::string default_ado_plugin,
         unsigned          debug_level,
         bool              forced_exit)
     : Shard_transport(provider, net, port),
       _core(core),
       _default_ado_path(default_ado_path),
+      _default_ado_plugin(default_ado_plugin),
       _forced_exit(forced_exit),
       _thread(&Shard::thread_entry,
               this,
