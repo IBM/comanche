@@ -502,6 +502,12 @@ IKVStore* NVME_store_factory::create(unsigned debug_level,
     }
     else if (params["persist_type"] == "hstore") {
       meta_persist_type = PERSIST_HSTORE;
+      if (std::ifstream("/dev/dax0.1").good() == false &&
+          (getenv("USE_DRAM") == NULL)) {
+        throw General_exception(
+            "[nvmestore factory]: Need to set in current shell: \n \texport "
+            "USE_DRAM=24; export NO_CLFLUSHOPT=1; export DAX_RESET=1");
+      }
     }
     else {
       throw API_exception("Option %s not supported",
