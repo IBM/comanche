@@ -44,6 +44,8 @@ extern "C" {
 
 using namespace Component;
 
+namespace fs=boost::filesystem;
+
 // using open_session_t = Nvmestore_session;
 using open_session_t = nvmestore::persist_session;
 
@@ -90,12 +92,13 @@ IKVStore::pool_t NVME_store::create_pool(const std::string& name,
   int ret = 0;
 
   // TODO: need to check size
+
+#if USE_PMEM
   const std::string& fullpath = _pm_path + name;
 
   PINF("[NVME_store]::create_pool fullpath=%s name=%s", fullpath.c_str(),
        name.c_str());
 
-#if USE_PMEM
   if (_meta_persist_type == PERSIST_PMEM) {  // deprecated
 
     size_t max_sz_hxmap = MB(500);  // this can fit 1M objects (obj_info_t)
@@ -148,7 +151,7 @@ IKVStore::pool_t NVME_store::create_pool(const std::string& name,
     throw General_exception("Creating objmap pool failed");
   }
   open_session_t* session =
-      new open_session_t(_metastore.get_store(), obj_info_pool, fullpath,
+      new open_session_t(_metastore.get_store(), obj_info_pool, name,
                          DEFAULT_IO_MEM_SIZE, &_blk_manager, &_sm);
 
   g_sessions.insert(session);
@@ -159,9 +162,9 @@ IKVStore::pool_t NVME_store::create_pool(const std::string& name,
 IKVStore::pool_t NVME_store::open_pool(const std::string& name,
                                        unsigned int       flags)
 {
-  const std::string& fullpath = _pm_path + name;
 
 #ifdef USE_PMEM
+  const std::string& fullpath = _pm_path + name;
   PMEMobjpool* pop;                     // pool to allocate all mapping
   size_t       max_sz_hxmap = MB(500);  // this can fit 1M objects (obj_info_t)
 
@@ -214,7 +217,7 @@ IKVStore::pool_t NVME_store::open_pool(const std::string& name,
   }
 
   open_session_t* session =
-      new open_session_t(_metastore.get_store(), obj_info_pool, fullpath,
+      new open_session_t(_metastore.get_store(), obj_info_pool, name,
                          DEFAULT_IO_MEM_SIZE, &_blk_manager, &_sm);
 
 #endif
@@ -252,16 +255,16 @@ status_t NVME_store::close_pool(pool_t pid)
 status_t NVME_store::delete_pool(const std::string& name)
 {
   // return S_OK on success, E_POOL_NOT_FOUND, E_ALREADY_OPEN
-  const std::string& fullpath = _pm_path + name;
 
   /* if trying to open a unclosed pool!*/
   for (auto iter : g_sessions) {
-    if (iter->get_path() == fullpath) {
+    if (iter->get_path() == name) {
       PWRN("nvmestore: try to delete an opened pool!");
       return E_ALREADY_OPEN;
     }
   }
 #ifdef USE_PMEM
+  const std::string& fullpath = _pm_path + name;
   if (access(fullpath.c_str(), F_OK) != 0) {
     PWRN("nvmestore: pool doesn't exsit!");
     return E_POOL_NOT_FOUND;
@@ -502,7 +505,7 @@ IKVStore* NVME_store_factory::create(unsigned debug_level,
     }
     else if (params["persist_type"] == "hstore") {
       meta_persist_type = PERSIST_HSTORE;
-      if (std::ifstream("/dev/dax0.1").good() == false &&
+      if ( fs::exists("/dev/dax0.1") &&
           (getenv("USE_DRAM") == NULL)) {
         throw General_exception(
             "[nvmestore factory]: Need to set in current shell: \n \texport "

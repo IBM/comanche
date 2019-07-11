@@ -69,7 +69,7 @@ Currently nvmestore supports put/get/get_direct in kvperf --test.
 
 2. Generate result plot
 ```
-python testing/kvstore/plot_results/plot_everything_in_file.py ./build/results/nvmestore/results_2019_05_21_17_19.json
+python ../testing/kvstore/plot_results/plot_everything_in_file.py results/nvmestore/results_2019_05_21_17_19.json
 ```
 
 DAWN test
@@ -89,7 +89,7 @@ DAWN test
 
 3. Test with kvstorre-pef dawn client
 ```
-./dist/bin/kvstore-perf --component dawn --cores 22 --test get --server 10.0.0.82 --port 11911 --device_name mlx
+./dist/bin/kvstore-perf --component dawn --cores 22 --test get --server 10.0.0.82 --port 11911 --device_name mlx5_0
 ```
 
 Other Information
