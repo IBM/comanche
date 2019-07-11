@@ -178,6 +178,8 @@ private:
   void process_ado_request(Connection_handler* handler,
                            Protocol::Message_ado_request* msg);
 
+  void process_messages_from_ado();
+
   status_t process_configure(Protocol::Message_IO_request* msg);
 
   void process_tasks(unsigned& idle);
@@ -242,10 +244,18 @@ private:
     Component::IKVStore::pool_t pool;
     Component::IKVStore::key_t key_handle;
     Component::IKVStore::lock_type_t lock_type;
+    uint64_t request_id; /* original client request */
   };
 
-  using ado_map_t = std::map<Component::IKVStore::pool_t, Component::IADO_proxy*>;
+  using ado_map_t = std::map<Component::IKVStore::pool_t,
+                             std::pair<Component::IADO_proxy*,Connection_handler*>>;
+  using work_request_key_t = uint64_t;
 
+  static inline work_request_t * request_key_to_record(work_request_key_t key) {
+    return reinterpret_cast<work_request_t *>(key);
+  }
+
+  
   static Pool_manager              pool_manager; /* instance shared across connections */
   
   index_map_t*                     _index_map = nullptr;
@@ -260,7 +270,7 @@ private:
   std::vector<Connection_handler*> _handlers;
   locked_value_map_t               _locked_values;
   task_list_t                      _tasks;
-  std::set<work_request_t*>        _outstanding_work;
+  std::set<work_request_key_t>     _outstanding_work;
 };
 
 

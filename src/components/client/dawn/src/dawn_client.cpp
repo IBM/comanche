@@ -272,12 +272,12 @@ status_t Dawn_client::find(const IKVStore::pool_t pool,
 
 status_t Dawn_client::invoke_ado(const IKVStore::pool_t pool,
                                  const std::string& key,
-                                 const std::string& msg,
+                                 const std::vector<uint8_t>& request,
                                  const uint32_t flags,                              
-                                 std::string& out_response,
+                                 std::vector<uint8_t>& out_response,
                                  const size_t value_size)
 {
-  return _connection->invoke_ado(pool, key, msg, flags, out_response, value_size);
+  return _connection->invoke_ado(pool, key, request, flags, out_response, value_size);
 }
 
 

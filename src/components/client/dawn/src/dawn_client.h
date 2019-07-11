@@ -166,9 +166,9 @@ class Dawn_client : public virtual Component::IKVStore,
 
   virtual status_t invoke_ado(const IKVStore::pool_t pool,
                               const std::string& key,
-                              const std::string& msg,
+                              const std::vector<uint8_t>& request,
                               const uint32_t flags,                              
-                              std::string& out_response,
+                              std::vector<uint8_t>& out_response,
                               const size_t value_size = 0) override;
 
   

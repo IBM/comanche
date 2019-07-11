@@ -171,9 +171,9 @@ class Connection_handler : public Connection_base {
 
   status_t invoke_ado(const Component::IKVStore::pool_t pool,
                       const std::string& key,
-                      const std::string& msg,
+                      const std::vector<uint8_t>& request,
                       const uint32_t flags,                              
-                      std::string& out_response,
+                      std::vector<uint8_t>& out_response,
                       const size_t value_size);
 
   bool check_message_size(size_t size) const { return size > _max_message_size; }

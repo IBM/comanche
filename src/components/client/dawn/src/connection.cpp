@@ -941,9 +941,9 @@ status_t Connection_handler::find(const IKVStore::pool_t pool,
 
 status_t Connection_handler::invoke_ado(const IKVStore::pool_t pool,
                                         const std::string& key,
-                                        const std::string& command,
+                                        const std::vector<uint8_t>& request,
                                         const uint32_t flags,                              
-                                        std::string& out_response,
+                                        std::vector<uint8_t>& out_response,
                                         const size_t value_size)
 {
   API_LOCK();
@@ -952,7 +952,7 @@ status_t Connection_handler::invoke_ado(const IKVStore::pool_t pool,
   const auto iobr = std::unique_ptr<buffer_t, iob_free>(allocate(), this);
   assert(iobs);
   assert(iobr);
-
+  assert(request.size() > 0);
   status_t status;
 
   try {
@@ -961,7 +961,8 @@ status_t Connection_handler::invoke_ado(const IKVStore::pool_t pool,
                                                                             ++_request_id,
                                                                             pool,
                                                                             key,
-                                                                            command,
+                                                                            request.data(),
+                                                                            request.size(),
                                                                             value_size);
     iobs->set_length(msg->message_size());
 
@@ -975,8 +976,8 @@ status_t Connection_handler::invoke_ado(const IKVStore::pool_t pool,
     status = response_msg->status;
 
     if(status == S_OK) {
-      out_response = response_msg->response();
-      PLOG("!!!! GOT ADO response (%s)", out_response.c_str());
+      out_response.resize(response_msg->response_len);
+      memcpy(out_response.data(), response_msg->response(), response_msg->response_len);
     }
   }
   catch(...) {

@@ -376,17 +376,21 @@ static PyObject * pool_invoke_ado(Pool* self, PyObject *args, PyObject *kwds)
 {
   static const char *kwlist[] = {"key",
                                  "command",
+                                 "ondemand_size",
                                  NULL};
 
   const char * key = nullptr;
   const char * command = nullptr;
+  unsigned long ondemand_size = 4096;
+  
   
   if (! PyArg_ParseTupleAndKeywords(args,
                                     kwds,
-                                    "ss",
+                                    "ss|k",
                                     const_cast<char**>(kwlist),
                                     &key,
-                                    &command)) {
+                                    &command,
+                                    &ondemand_size)) {
     PyErr_SetString(PyExc_RuntimeError,"bad arguments");
     return NULL;
   }
@@ -394,13 +398,18 @@ static PyObject * pool_invoke_ado(Pool* self, PyObject *args, PyObject *kwds)
   assert(self->_dawn);
   assert(self->_pool);
 
-  std::string out_response;
+  std::vector<uint8_t> request(strlen(command));
+  memcpy(request.data(), command, strlen(command));
+  assert(request.size() > 0);
+
+  std::vector<uint8_t> out_response;
   
   status_t hr = self->_dawn->invoke_ado(self->_pool,
                                         key,
-                                        command,
+                                        request,
                                         0, // flags
-                                        out_response);
+                                        out_response,
+                                        ondemand_size);
 
   if(hr != S_OK) {
     std::stringstream ss;
@@ -408,8 +417,8 @@ static PyObject * pool_invoke_ado(Pool* self, PyObject *args, PyObject *kwds)
     PyErr_SetString(PyExc_RuntimeError,ss.str().c_str());
     return NULL;
   }
-  
-  return PyUnicode_DecodeUTF8(out_response.c_str(), out_response.length(), "strict");
+
+  return PyUnicode_DecodeUTF8((const char *) out_response.data(), out_response.size(), "strict");
 }
 
 
