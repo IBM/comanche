@@ -25,6 +25,7 @@
 #include <common/errors.h>
 #include <common/types.h>
 #include <component/base.h>
+
 #include <map>
 #include <string>
 #include <vector>
@@ -43,44 +44,29 @@ class IADO_proxy : public Component::IBase
 public:
   // clang-format off
   DECLARE_INTERFACE_UUID(0xbbbfa389,0x1665,0x4e5b,0xa1b1,0x3c,0xff,0x4a,0x5e,0xe2,0x63);
- // clang-format on
-
- using work_id_t = uint64_t; /*< work handle/identifier */
-
- enum class Op_type {
-   FLATBUFFER_OPERATION, /*< a method invocation in the form of a flatbuffer message */
-   DOMAIN_OPERATION,     /*< domain-specific operation */
-   BOOTSTRAP,
-   KILL,                 /*<  shutdown ado process */
-   CHECK_COMPLETION,     /*< check how many completed */
- };
+  // clang-format on
 
 
- /* ADO-to-SHARD protocol */
+  using work_id_t = uint64_t; /*< work handle/identifier */
+
+  /* ADO-to-SHARD (and vice versa) protocol */
   virtual status_t bootstrap_ado() = 0;
 
   virtual status_t send_memory_map(uint64_t token,
                                    size_t size,
                                    void * value_vaddr) = 0;
 
-  virtual status_t send_work_request(void * work_request_record,
-                                     void * value_addr,
-                                     size_t value_len,
-                                     const char * request_string) = 0;
 
-                               
- /**
-  * Check for work completions.  This gets polled by the shard process.
-  * This method must NOT block.
-  *
-  * @param out_completions Vector of completed work items
-  * @param out_remaining_count Remaining number of work items
-  *
-  * @return S_OK if completed, E_EMPTY if not
-  */
- virtual status_t check_completions(work_id_t out_completions) = 0;
- virtual bool     has_exited()                                 = 0;
+  virtual status_t send_work_request(uint64_t work_request_key,
+                                     const void * value_addr,
+                                     const size_t value_len,
+                                     const void * invocation_data,
+                                     const size_t invocation_len) = 0;
 
+  
+  virtual status_t check_work_completions(uint64_t& work_request_key,
+                                          void *& out_response, /* use ::free to release */
+                                          size_t & out_response_length) = 0;
 
 };
 

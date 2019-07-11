@@ -265,10 +265,15 @@ void Shard::main_loop()
             throw General_exception("unrecognizable message type");
           }
           handler->free_recv_buffer();
-        }
+        }        
       }  // handler iter
 
-    
+      /* handle messages send back from ADO */
+      process_messages_from_ado();
+
+      /* handle tasks */
+      process_tasks(idle);
+
       /* handle pending close sessions */
       if (!pending_close.empty()) {
         for (auto& h : pending_close) {
@@ -285,8 +290,6 @@ void Shard::main_loop()
         pending_close.clear();
       }
 
-      /* handle tasks */
-      process_tasks(idle);
     }
 
     idle++;

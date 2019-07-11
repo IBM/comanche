@@ -12,10 +12,8 @@
 */
 
 /*< #included in shard.cpp */
+#include <api/ado_itf.h>
 #include <nupm/mcas_mod.h>
-static long MsgType_Proxy2Ado = 0xBEEF;
-static long MsgType_Ado2Proxy = 0xFEED;
-
 
 void Shard::process_ado_request(Connection_handler* handler,
                                 Protocol::Message_ado_request* msg)
@@ -29,7 +27,8 @@ void Shard::process_ado_request(Connection_handler* handler,
     Protocol::Message_ado_response(response_iob->length(),
                                    handler->auth_id(),
                                    msg->request_id,
-                                   message);
+                                   (void*) message,
+                                   strlen(message));
     response->status = E_INVAL;
     response_iob->set_length(response->message_size());
     handler->post_send_buffer(response_iob);
@@ -51,14 +50,20 @@ void Shard::process_ado_request(Connection_handler* handler,
   if(i == _ado_map.end()) {
     /* need to launch new ADO process */
     std::vector<std::string> args;
-    PLOG("Launching ADO path: (%s)", _default_ado_path.c_str());
+
+    if (option_DEBUG > 2)
+      PLOG("Launching ADO path: (%s)", _default_ado_path.c_str());
+    
     ado = _i_ado_mgr->create(_default_ado_path, args, 0);
-    PLOG("ADO process launched OK.");
+
+    if (option_DEBUG > 2)
+      PLOG("ADO process launched OK.");
+    
     assert(ado);
-    _ado_map[msg->pool_id] = ado;
+    _ado_map[msg->pool_id] = std::make_pair(ado, handler);
   }
   else {
-    ado = i->second;
+    ado = i->second.first;
     bootstrap = false;
   }
 
@@ -91,16 +96,21 @@ void Shard::process_ado_request(Connection_handler* handler,
           continue;
         }
         ado->send_memory_map(token, r.iov_len, r.iov_base);
-        PLOG("Shard: exposed region: %p %lu", r.iov_base, r.iov_len);
+
+        if (option_DEBUG > 2)
+          PLOG("Shard: exposed region: %p %lu", r.iov_base, r.iov_len);
       }
     }
   } /* end of bootstrap */
 
   /* get key-value pair */ 
   void * value = nullptr;
-  size_t value_len = 0;
+  size_t value_len = msg->ondemand_val_len;
+
+  assert(value_len > 0);
+  
   Component::IKVStore::key_t key_handle;
-  auto locktype = Component::IKVStore::STORE_LOCK_WRITE;
+  auto locktype = Component::IKVStore::STORE_LOCK_WRITE;  
   if(_i_kvstore->lock(msg->pool_id,
                       msg->key(),
                       locktype,
@@ -111,24 +121,84 @@ void Shard::process_ado_request(Connection_handler* handler,
     error_func("ADO!ALREADY_LOCKED");
     return;
   }
-  PLOG("Shard_ado: locked KV pair (value=%p, value_len=%lu)", value, value_len);
+
+  if(key_handle == Component::IKVStore::KEY_NONE)
+    throw Logic_exception("lock gave KEY_NONE");
+
+  if (option_DEBUG > 2)
+    PLOG("Shard_ado: locked KV pair (value=%p, value_len=%lu)", value, value_len);
 
   /* register outstanding work */
-  auto wr = new work_request_t { msg->pool_id, key_handle, locktype };
-  _outstanding_work.insert(wr);
+  auto wr = new work_request_t { msg->pool_id, key_handle, locktype, msg->request_id };
+  auto wr_key = reinterpret_cast<work_request_key_t>(wr);
+  _outstanding_work.insert(wr_key);
 
   /* now send the work request */
-  ado->send_work_request(wr, value, value_len, msg->command());
+  ado->send_work_request(wr_key, value, value_len, msg->request(), msg->request_len());
 
-  /* finally, send a response.  We don't wait around for the
-     work to finish.  This would drag the shard thread */
-  response = new (response_iob->base())
-    Protocol::Message_ado_response(response_iob->length(),
-                                   handler->auth_id(),
-                                   msg->request_id,
-                                   response_string);
+  if (option_DEBUG > 2)
+    PLOG("Shard_ado: sent work request (len=%lu, key=%lu)", msg->request_len(), wr_key);
+ 
+  handler->free_buffer(response_iob);
 
-  response->status = S_OK;
-  response_iob->set_length(response->message_size());
-  handler->post_send_buffer(response_iob);
+  /* we don't send a response to the client until the work completion
+     has been picked up.  Of course this gives synchronous semantics
+     on the client side.  We may need to extend this to asynchronous
+     semantics for longer ADO operations */
+  
 }
+  
+
+void Shard::process_messages_from_ado()
+{
+  for(auto record: _ado_map) {
+    Component::IADO_proxy* ado = record.second.first;
+    Connection_handler * handler = record.second.second;
+
+    assert(ado);
+    assert(handler);
+
+    void * response = nullptr;
+    size_t response_len = 0;
+    work_request_key_t request_key = 0;
+    while(ado->check_work_completions(request_key, response, response_len) > 0) {
+
+      if(_outstanding_work.count(request_key) == 0)
+        throw General_exception("bad record key from ADO (%lu)", request_key);
+
+      auto request_record = request_key_to_record(request_key);
+      PMAJOR("Shard: collected WORK completion (request_record=%p)", request_record);
+
+      _outstanding_work.erase(request_key);
+
+      /* unlock the KV pair */
+      if( _i_kvstore->unlock(request_record->pool,
+                             request_record->key_handle) != S_OK)
+        throw Logic_exception("unlock for KV after ADO work completion failed");
+
+      if (option_DEBUG > 2)
+        PLOG("Unlocked KV pair (pool=%lx, key_handle=%p)", request_record->pool, request_record->key_handle);
+      
+      /* send response to client */
+      {
+        auto iob = handler->allocate();
+
+        assert(iob);
+        Protocol::Message_ado_response* response_msg;
+
+        response_msg = new (iob->base())
+          Protocol::Message_ado_response(iob->length(),
+                                         handler->auth_id(),
+                                         request_record->request_id, // TODOmsg->request_id,
+                                         response,
+                                         response_len);
+
+        response_msg->status = S_OK;
+        iob->set_length(response_msg->message_size());
+        handler->post_send_buffer(iob);
+      }
+      
+      ::free(response);
+    }
+  }
+}            

@@ -283,7 +283,7 @@ public:
    * 
    * @param pool Pool handle
    * @param key Key
-   * @param command String-based command
+   * @param request Request data
    * @param flags Flags for invocation (see ADO_FLAG_XXX)
    * @param out_response Response from invocation
    * @param value_size Optional parameter to define value size to create for on-demand
@@ -292,9 +292,9 @@ public:
    */
   virtual status_t invoke_ado(const IKVStore::pool_t pool,
                               const std::string& key,
-                              const std::string& command,
+                              const std::vector<uint8_t>& request,
                               const uint32_t flags,                              
-                              std::string& out_response,
+                              std::vector<uint8_t>& out_response,
                               const size_t value_size = 0) = 0;
 
   /** 
