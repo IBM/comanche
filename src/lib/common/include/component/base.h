@@ -69,6 +69,13 @@
   static Component::uuid_t NAME                                             \
       __attribute__((unused)) = {f1, f2, f3, f4, {f5, f6, f7, f8, f9, f10}}
 
+#define DECLARE_STATIC_INTERFACE_UUID(NAME, f1, f2, f3, f4, f5, f6, f7, f8, \
+                                      f9, f10)                              \
+  static Component::uuid_t NAME                                             \
+      __attribute__((unused)) = {f1, f2, f3, f4, {f5, f6, f7, f8, f9, f10}}
+
+
+
 #define DUMMY_IBASE_CONTROL                           \
   status_t start() override { return E_NOT_IMPL; }    \
   status_t stop() override { return E_NOT_IMPL; }     \

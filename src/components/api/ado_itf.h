@@ -29,6 +29,8 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <functional>
+#include <bits/types/struct_iovec.h>
 
 namespace Component
 {
@@ -36,7 +38,63 @@ namespace Component
 class SLA; /* to be defined - placeholder only */
 
 /** 
- * ADO interface.  This is actually a proxy interface communicating with an external process.
+ * Component for ADO process plugins
+ * 
+ */
+class IADO_plugin : public Component::IBase
+{
+public:
+  // clang-format off
+  DECLARE_INTERFACE_UUID(0xacb20ef2,0xe796,0x4619,0x845d,0x4e,0x8e,0x6b,0x5c,0x35,0xaa);
+  // clang-format on
+
+
+  /** 
+   * Inform the plugin of memory mapped into the ADO process (normally pool memory)
+   * 
+   * @param shard_vaddr Virtual address as mapped in shard
+   * @param local_vaddr Virtual address as mapped in local ADO process
+   * @param len Size of mapping in bytes
+   * 
+   * @return S_OK on success
+   */
+  virtual status_t register_mapped_memory(void * shard_vaddr,
+                                          void * local_vaddr,
+                                          size_t len) = 0;
+  
+  /** 
+   * Perform ADO operation on a key's value
+   * 
+   * @param key Key
+   * @param shard_value_vaddr 
+   * @param value_len 
+   * @param work_request 
+   * @param work_response 
+   * 
+   * @return S_OK on success
+   */
+  virtual status_t do_work(const std::string& key,
+                           void * shard_value_vaddr,
+                           size_t value_len,
+                           const ::iovec work_request,
+                           ::iovec& work_response) = 0;
+
+  /** 
+   * Register callbacks, so the plugin can perform KV-pair operations (sent to shard to perform)
+   * 
+   * @param create_key Callback function to create a new key in the current pool
+   * @param erase_key Callback function to erase a key from the current pool
+   */
+  virtual void register_callbacks(std::function<status_t(const std::string& key_name,
+                                                         const size_t value_size,
+                                                         void*& out_value_addr)> create_key,
+                                  std::function<status_t(const std::string& key_name)> erase_key) = 0;
+  
+};  
+
+
+/** 
+ * ADO interface.  This is actually a proxy interface communicating with the external process.
  * 
  */
 class IADO_proxy : public Component::IBase
@@ -52,22 +110,59 @@ public:
   /* ADO-to-SHARD (and vice versa) protocol */
   virtual status_t bootstrap_ado() = 0;
 
+  /** 
+   * Send a memory map request to ADO
+   * 
+   * @param token Token from MCAS expose_memory call
+   * @param size Size of the memory
+   * @param value_vaddr Virtual address as mapped by shard (may be different in ADO)
+   * 
+   * @return S_OK on success
+   */
   virtual status_t send_memory_map(uint64_t token,
                                    size_t size,
                                    void * value_vaddr) = 0;
 
 
+  /** 
+   * Send a work request to the ADO
+   * 
+   * @param work_request_key Unique key that identifies request
+   * @param value_addr Virtual address of value (as mapped by shard)
+   * @param value_len Length of value in bytes
+   * @param invocation_data Data representing the work request (may be binary or string)
+   * @param invocation_len Length of data representing work
+   * 
+   * @return S_OK on success
+   */
   virtual status_t send_work_request(uint64_t work_request_key,
+                                     const std::string& work_key_str,
                                      const void * value_addr,
                                      const size_t value_len,
                                      const void * invocation_data,
                                      const size_t invocation_len) = 0;
 
-  
+
+  /** 
+   * Check for completion of work
+   * 
+   * @param work_request_key 
+   * @param out_response 
+   * @param out_response_len
+   * 
+   * @return S_OK if work completion taken, E_FAIL if no more work
+   */
   virtual status_t check_work_completions(uint64_t& work_request_key,
                                           void *& out_response, /* use ::free to release */
-                                          size_t & out_response_length) = 0;
+                                          size_t & out_response_len) = 0;
 
+  /** 
+   * Indicate whether ADO has shutdown
+   * 
+   * 
+   * @return 
+   */
+  virtual bool has_exited() = 0;
 };
 
 /** 
