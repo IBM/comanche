@@ -114,6 +114,16 @@ status_t persist_session::erase(const std::string& key)
  */
 status_t persist_session::check_exists(const std::string in_key) const
 {
+#if 1
+  void*  raw_objinfo = nullptr;
+  size_t obj_info_length;
+
+  status_t rc = _meta_store->get(_meta_pool, in_key, raw_objinfo, obj_info_length);
+  if(raw_objinfo){
+    _meta_store->free_memory(raw_objinfo);
+  }
+  return (rc == IKVStore::E_KEY_NOT_FOUND) ? E_NOT_FOUND : S_OK;
+#else
   std::set<uint64_t> all_hashkeys;
   _meta_store->map_keys(
       _meta_pool, [&all_hashkeys](const std::string& key) -> int {
@@ -126,6 +136,7 @@ status_t persist_session::check_exists(const std::string in_key) const
     return E_NOT_FOUND;
   }
   return S_OK;
+#endif
 }
 
 status_t persist_session::may_ajust_io_mem(size_t value_len)

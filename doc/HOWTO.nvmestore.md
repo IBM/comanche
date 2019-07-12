@@ -1,12 +1,29 @@
-Setup
+Prepare
 =================
 
-Run the [prepare_nvmestore.sh][comanche/tools/prepare_nvmestore.sh] with sudo
+Find setup nvme device
+----------------------
+
+1. Get your pcie address of the nvme:
+```
+lspci|grep Non
+```
+
+2. sudo ./tools/attach_to_vfio.sh 11:00.0
+(there is also a attach_to_nvme.sh to deattach nvme device)
+
+
+Environment checks
+------------------
+
+```
+sudo ./tools/prepare_nvmestore.sh
+```
 
 The script does the following check to ensure nvmestore can run properly:
 1. check kernel boot cmdline
 2. check pmem configurations
-3. check spdk related setup(vfi, hugepage)
+3. check spdk related setup(vfio, hugepage)
 4. check comanche-specific setup(xms and /dev/hugepages permissions)
 5. etc..
 
@@ -16,39 +33,64 @@ Mostly you may want to use the script in those two occasions:
 1. after a fresh installation of comanche, and before running the unit test
 2. someone else has did some thing with vfio and changed the permissions, then you need to change it back.
 
-Test and performance
-=====================
+Backends(METAstore)
+-------------------
 
-unit test
---------------
+nvmestore can use hstore or filestore as metastore to save block allocation data and object metadata.
+By default filestore will be used. 
 
-This will check basic functionality:
-1. test-nvmestore.
-2. test-integrity
-3. test-throughput
+When FileStore is used, ...... 
+ 
+When hstore is used and there is no pmem available in the system, one can emulate it with(required for each shell which initiates nvmestore component):
+
+```
+export USE_DRAM=24; export NO_CLFLUSHOPT=1; export DAX_RESET=1.
+```
+
+
+Unit Test
+==========
+
+In build/src/components/store/nvmestore/unit_test/:
+1. test-nvmestore-basic(basic functionality)
+2. test-nvmestore-integrity(check data integrity of nvmestore using crc32 checksums)
+3. test-nvmestore-throughput
 
 Performance
------------
+============
 
-Currently nvmestore supports put/get/get_direct.
+Currently nvmestore supports put/get/get_direct in kvperf --test.
 
 1. run the test
 ```
 ./testing/kvstore/kvstore-perf --component nvmestore --pci_addr 11:00.0 --test=put --value_length=1048576 --elements=1000
 ```
-(if not specify --test=put, all tests will run some might fail but results for put/get/get_direct will be generated)
+(if not specifying --test=put, all tests will run some might fail but results for put/get/get_direct will be generated)
 
 2. Generate result plot
 ```
-python testing/kvstore/plot_results/plot_everything_in_file.py ./build/results/nvmestore/results_2019_05_21_17_19.json
+python ../testing/kvstore/plot_results/plot_everything_in_file.py results/nvmestore/results_2019_05_21_17_19.json
 ```
 
 DAWN test
 ------------
 
-1. ./src/servers/dawn/dawn --config ./nvmestore-dawn.conf
+**In Build directory**
 
-2. ./src/components/client/dawn/unit_test/dawn-client-test1 --server-addr=xxx
+1. Prepare the server
+```
+./src/servers/dawn/dawn --config ../src/components/store/nvmestore/nvmestore-dawn.conf
+```
+
+2. Test with simple dawn-client
+```
+./src/components/client/dawn/unit_test/dawn-client-test1 --server-addr=10.0.0.82:11911
+```
+
+3. Test with kvstorre-pef dawn client
+```
+./dist/bin/kvstore-perf --component dawn --cores 22 --test get --server 10.0.0.82 --port 11911 --device_name mlx5_0
+```
 
 Other Information
 ==================
@@ -75,18 +117,6 @@ mount -t hugetlbfs nodev /mnt/huge
 
 ```
 
-pmem setup
-----------
-
-```
-./setup_pmem.sh
-```
-
-bypass clflush/msync
-```
-PMEM_IS_PMEM_FORCE=1 ./you-program
-```
-
 Memlock limit
 ---------------
 
@@ -99,12 +129,4 @@ Add those two lines to /et/security/limits.conf(this allows users in the sudo gr
 ```  
   @sudo hard memlock unlimited 
   @sudo soft memlock unlimited
-```
-
-Remove Metadata
------------------
-
-you can use this to remove all metadata
-```
-rm -rf /mnt/pmem0/* 
 ```
