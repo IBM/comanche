@@ -11,6 +11,9 @@
 #include <numpy/arrayobject.h>
 #include "pool_type.h"
 
+/* size of values created on demand from ADO invocation */
+static constexpr unsigned long DEFAULT_ADO_ONDEMAND_VALUE_SIZE = 64;
+
 extern PyTypeObject PoolType;
 
 static PyObject * pool_close(Pool* self);
@@ -381,7 +384,7 @@ static PyObject * pool_invoke_ado(Pool* self, PyObject *args, PyObject *kwds)
 
   const char * key = nullptr;
   const char * command = nullptr;
-  unsigned long ondemand_size = 4096;
+  unsigned long ondemand_size = DEFAULT_ADO_ONDEMAND_VALUE_SIZE;
   
   
   if (! PyArg_ParseTupleAndKeywords(args,

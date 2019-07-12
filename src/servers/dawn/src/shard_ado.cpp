@@ -151,6 +151,10 @@ void Shard::process_ado_request(Connection_handler* handler,
 }
   
 
+/** 
+ * Handle messages coming back from the ADO process
+ * 
+ */
 void Shard::process_messages_from_ado()
 {
   for(auto record: _ado_map) {
