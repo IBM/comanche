@@ -414,6 +414,13 @@ void Shard::process_message_pool_request(Connection_handler* handler,
       PLOG("actually closing pool %p", (void*) msg->pool_id);
       response->status = _i_kvstore->close_pool(msg->pool_id);
       assert(response->status == S_OK);
+
+      /* close ADO process on pool close */
+      auto i = _ado_map.find(msg->pool_id);
+      if( i != _ado_map.end() ) {
+        Component::IADO_proxy * ado_itf = (*i).second.first;
+        ado_itf->shutdown();
+      }
     }
     else {
       response->status = S_OK;

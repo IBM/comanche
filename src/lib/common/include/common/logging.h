@@ -108,6 +108,7 @@
           ##__VA_ARGS__, ESC_END);
 #define PMAJOR(f, ...) \
   fprintf(stdout, "%s[+] " f "%s\n", NORMAL_BLUE, ##__VA_ARGS__, ESC_END);
+
 #define POK(f, ...)                                                  \
   fprintf(stderr, "%sOK %s:" f "%s\n", NORMAL_MAGENTA, __FUNCTION__, \
           ##__VA_ARGS__, ESC_END);

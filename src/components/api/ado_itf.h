@@ -30,7 +30,6 @@
 #include <string>
 #include <vector>
 #include <functional>
-#include <sys/uio.h>
 
 namespace Component
 {
@@ -48,7 +47,6 @@ public:
   DECLARE_INTERFACE_UUID(0xacb20ef2,0xe796,0x4619,0x845d,0x4e,0x8e,0x6b,0x5c,0x35,0xaa);
   // clang-format on
 
-
   /** 
    * Inform the plugin of memory mapped into the ADO process (normally pool memory)
    * 
@@ -65,19 +63,23 @@ public:
   /** 
    * Perform ADO operation on a key's value
    * 
-   * @param key Key
+   * @param key 
    * @param shard_value_vaddr 
    * @param value_len 
-   * @param work_request 
-   * @param work_response 
+   * @param in_work_request 
+   * @param in_work_request_len 
+   * @param out_work_response
+   * @param out_work_response_len 
    * 
-   * @return S_OK on success
+   * @return 
    */
   virtual status_t do_work(const std::string& key,
                            void * shard_value_vaddr,
                            size_t value_len,
-                           const ::iovec work_request,
-                           ::iovec& work_response) = 0;
+                           const void * in_work_request, /* don't use iovec because of non-const */
+                           const size_t in_work_request_len,
+                           void*& out_work_response,
+                           size_t& out_work_response_len) = 0;
 
   /** 
    * Register callbacks, so the plugin can perform KV-pair operations (sent to shard to perform)
@@ -89,7 +91,14 @@ public:
                                                          const size_t value_size,
                                                          void*& out_value_addr)> create_key,
                                   std::function<status_t(const std::string& key_name)> erase_key) = 0;
-  
+
+  /** 
+   * Request graceful shutdown
+   * 
+   * 
+   * @return S_OK on success
+   */
+  virtual status_t shutdown() = 0;
 };  
 
 
@@ -163,6 +172,15 @@ public:
    * @return 
    */
   virtual bool has_exited() = 0;
+
+  /** 
+   * Request graceful shutdown
+   * 
+   * 
+   * @return S_OK on success
+   */
+  virtual status_t shutdown() = 0;
+
 };
 
 /** 
