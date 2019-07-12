@@ -1,5 +1,11 @@
 # Changelog
 This is the changelog for nvmestore
+[2019-07-10]:
+* Added:
+  1. use meta_store->get instead of meta_store->map_keys to check whether key exists, solve performance issue in #11.
+[2019-07-9]:
+* tried
+  1. Map partial DMA memory to ADO process. Not successful, tracked in https://github.com/fengggli/comanche/issues/6.
 [2019-06-20]:
 * Added:
   1. Use hstore/filestore as backend of nvmestore. 
