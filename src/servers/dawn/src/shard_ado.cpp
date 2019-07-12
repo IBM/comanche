@@ -1,14 +1,14 @@
 /*
-   Copyright [2017-2019] [IBM Corporation]
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
-       http://www.apache.org/licenses/LICENSE-2.0
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
+  Copyright [2017-2019] [IBM Corporation]
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+  http://www.apache.org/licenses/LICENSE-2.0
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
 */
 
 /*< #included in shard.cpp */
@@ -56,7 +56,7 @@ void Shard::process_ado_request(Connection_handler* handler,
     if (option_DEBUG > 2)
       PLOG("Launching ADO path: (%s), plugin (%s)", _default_ado_path.c_str(), _default_ado_plugin.c_str());
     
-    ado = _i_ado_mgr->create(_default_ado_path, args, 0);
+    ado = _i_ado_mgr->create(msg->pool_id, _default_ado_path, args, 0);
 
     if (option_DEBUG > 2)
       PLOG("ADO process launched OK.");
@@ -119,10 +119,10 @@ void Shard::process_ado_request(Connection_handler* handler,
                       value,
                       value_len,
                       key_handle) != S_OK)                 
-  {
-    error_func("ADO!ALREADY_LOCKED");
-    return;
-  }
+    {
+      error_func("ADO!ALREADY_LOCKED");
+      return;
+    }
 
   if(key_handle == Component::IKVStore::KEY_NONE)
     throw Logic_exception("lock gave KEY_NONE");
@@ -167,6 +167,8 @@ void Shard::process_messages_from_ado()
     void * response = nullptr;
     size_t response_len = 0;
     work_request_key_t request_key = 0;
+
+    /* work completion */
     while(ado->check_work_completions(request_key, response, response_len) > 0) {
 
       if(_outstanding_work.count(request_key) == 0)
@@ -181,9 +183,20 @@ void Shard::process_messages_from_ado()
       if( _i_kvstore->unlock(request_record->pool,
                              request_record->key_handle) != S_OK)
         throw Logic_exception("unlock for KV after ADO work completion failed");
-
+      
       if (option_DEBUG > 2)
         PLOG("Unlocked KV pair (pool=%lx, key_handle=%p)", request_record->pool, request_record->key_handle);
+
+      /* unlock deferred locks, e.g., resulting from table operation create */
+      {
+        std::vector<Component::IKVStore::key_t> keys_to_unlock;
+        ado->get_deferred_unlocks(request_key, keys_to_unlock);
+        for(auto k: keys_to_unlock) {
+          if(_i_kvstore->unlock(request_record->pool, k) != S_OK)
+            throw Logic_exception("deferred unlock failed");
+          PLOG("Shard: deferred unlock (%p)", (void*) k);
+        }
+      }                                     
       
       /* send response to client */
       {
@@ -205,6 +218,46 @@ void Shard::process_messages_from_ado()
       }
       
       ::free(response);
+    }
+
+    /* table requests (e.g., create new KV pair) */
+    uint64_t work_id;
+    int op;
+    std::string key;
+    size_t value_len;
+    
+    while(ado->check_table_ops(work_id, op, key, value_len) > 0)
+    {
+      switch(op) {
+      case Component::IADO_proxy::OP_CREATE:
+        {
+          PLOG("Shard: received table op create");
+          Component::IKVStore::key_t key_handle;          
+          auto locktype = Component::IKVStore::STORE_LOCK_WRITE;
+          void * value = nullptr;
+          
+          if(_i_kvstore->lock(ado->pool_id(),
+                              key,
+                              locktype,
+                              value,
+                              value_len,
+                              key_handle) != S_OK)
+            throw General_exception("ADO OP_CREATE request failed");
+          if(option_DEBUG > 2)
+            PLOG("Shard: created and locked new KV pair (%p, %p,%lu)", (void*) key_handle, value, value_len);
+          ado->add_deferred_unlock(work_id, key_handle);
+          ado->send_table_op_response(S_OK, (void*) value);
+          break;
+        }
+      case Component::IADO_proxy::OP_ERASE:
+        PLOG("Shard: received table op create");
+        PERR("Not implemented");
+        assert(0);
+        break;
+      default:
+        throw Logic_exception("unknown table op code");
+      }
+
     }
   }
 }            

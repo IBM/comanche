@@ -25,6 +25,7 @@
 #include <common/errors.h>
 #include <common/types.h>
 #include <component/base.h>
+#include <api/kvstore_itf.h>
 
 #include <map>
 #include <string>
@@ -73,7 +74,8 @@ public:
    * 
    * @return 
    */
-  virtual status_t do_work(const std::string& key,
+  virtual status_t do_work(const uint64_t work_key,
+                           const std::string& key,
                            void * shard_value_vaddr,
                            size_t value_len,
                            const void * in_work_request, /* don't use iovec because of non-const */
@@ -86,8 +88,9 @@ public:
    * 
    * @param create_key Callback function to create a new key in the current pool
    * @param erase_key Callback function to erase a key from the current pool
-   */
-  virtual void register_callbacks(std::function<status_t(const std::string& key_name,
+   */  
+  virtual void register_callbacks(std::function<status_t(const uint64_t work_key,
+                                                         const std::string& key_name,
                                                          const size_t value_size,
                                                          void*& out_value_addr)> create_key,
                                   std::function<status_t(const std::string& key_name)> erase_key) = 0;
@@ -113,7 +116,11 @@ public:
   DECLARE_INTERFACE_UUID(0xbbbfa389,0x1665,0x4e5b,0xa1b1,0x3c,0xff,0x4a,0x5e,0xe2,0x63);
   // clang-format on
 
-
+  enum { /* this should match ado_proto.fbs */
+    OP_CREATE = 0,
+    OP_ERASE = 1,
+  };
+  
   using work_id_t = uint64_t; /*< work handle/identifier */
 
   /* ADO-to-SHARD (and vice versa) protocol */
@@ -144,7 +151,7 @@ public:
    * 
    * @return S_OK on success
    */
-  virtual status_t send_work_request(uint64_t work_request_key,
+  virtual status_t send_work_request(const uint64_t work_request_key,
                                      const std::string& work_key_str,
                                      const void * value_addr,
                                      const size_t value_len,
@@ -159,11 +166,35 @@ public:
    * @param out_response 
    * @param out_response_len
    * 
-   * @return S_OK if work completion taken, E_FAIL if no more work
+   * @return Number of bytes received or -1
    */
-  virtual status_t check_work_completions(uint64_t& work_request_key,
+  virtual ssize_t check_work_completions(uint64_t& work_request_key,
                                           void *& out_response, /* use ::free to release */
                                           size_t & out_response_len) = 0;
+
+  /** 
+   * Check for table operations (e.g., create_key)
+   * 
+   * @param op Operation type (see ado_proto.fbs)
+   * @param key Name of key
+   * @param size Size in bytes (optional)
+   * 
+   * @return Number of bytes received or -1
+   */
+  virtual ssize_t check_table_ops(uint64_t& work_request_id,
+                                  int& op,
+                                  std::string& key,
+                                  size_t& size) = 0;
+
+  /** 
+   * Send response to ADO for table operation
+   * 
+   * @param s Status
+   * @param value_addr Address of new value (optional)
+   * 
+   */
+  virtual void send_table_op_response(status_t s,
+                                      void * value_addr) = 0;
 
   /** 
    * Indicate whether ADO has shutdown
@@ -181,6 +212,31 @@ public:
    */
   virtual status_t shutdown() = 0;
 
+  /** 
+   * Get pool id proxy is associated with
+   * 
+   * 
+   * @return Pool id
+   */
+  virtual Component::IKVStore::pool_t pool_id() const = 0;
+
+  /** 
+   * Add a key-value pair for deferred unlock
+   * 
+   * @param work_request_id 
+   * @param key 
+   */
+  virtual void add_deferred_unlock(const uint64_t work_request_id,
+                                   const Component::IKVStore::key_t key) = 0;
+
+  /** 
+   * Retrive (and clear) keys that need to be unlock on associated pool
+   * 
+   * @param work_request_id
+   * @param keys Out vector of keys
+   */
+  virtual void get_deferred_unlocks(const uint64_t work_request_id,
+                                    std::vector<Component::IKVStore::key_t>& keys) = 0;
 };
 
 /** 
@@ -210,7 +266,8 @@ public:
    * @return Proxy interface, with reference count 1. Use release_ref() to
    * destroy.
    */
-  virtual IADO_proxy* create(const std::string&        filename,
+  virtual IADO_proxy* create(Component::IKVStore::pool_t pool_id,
+                             const std::string&        filename,
                              std::vector<std::string>& args,
                              numa_node_t               value_memory_numa_zone,
                              SLA*                      sla = nullptr) = 0;
@@ -232,6 +289,7 @@ public:
    * @return S_OK on success
    */
   virtual status_t shutdown(IADO_proxy* ado) = 0;
+
 };
 
 class IADO_manager_proxy_factory : public Component::IBase {
@@ -249,7 +307,8 @@ class IADO_proxy_factory : public Component::IBase {
   DECLARE_INTERFACE_UUID(0xfacbb389,0x1665,0x4e5b,0xa1b1,0x3c,0xff,0x4a,0x5e,0xe2,0x63);
   // clang-format on
 
-  virtual IADO_proxy* create(const std::string& filename,
+  virtual IADO_proxy* create(Component::IKVStore::pool_t pool_id,
+                             const std::string& filename,
                              std::vector<std::string>& args,
                              std::string cores,
                              int memory) = 0;
