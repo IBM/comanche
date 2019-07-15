@@ -147,8 +147,12 @@ IKVStore::pool_t NVME_store::create_pool(const std::string& name,
   size_t estimated_obj_map_size = MB(4);  // 32B per entry, that's 2^17
   IKVStore::pool_t obj_info_pool =
       _metastore.get_store()->create_pool(name, estimated_obj_map_size, flags);
+
+  // Creating pool with same name
   if (obj_info_pool == POOL_ERROR) {
-    throw General_exception("Creating objmap pool failed");
+    PWRN("[%s:%d]:Creating objmap pool failed with name %s, size = %ld, flags = 0x, pool already exists?%x", __FUNCTION__, __LINE__,
+        name.c_str(), estimated_obj_map_size, flags);
+    return POOL_ERROR;
   }
   open_session_t* session =
       new open_session_t(_metastore.get_store(), obj_info_pool, name,
@@ -301,6 +305,16 @@ status_t NVME_store::put(IKVStore::pool_t   pool,
     throw API_exception("NVME_store::put invalid pool identifier");
 
   return session->put(key, value, value_len, flags);
+}
+
+status_t NVME_store::put_direct(IKVStore::pool_t   pool,
+                         const std::string& key,
+                         const void*        value,
+                         size_t             value_len,
+                         memory_handle_t memory_handle,
+                         unsigned int       flags)
+{
+  NVME_store::put(pool, key, value, value_len, flags);
 }
 
 status_t NVME_store::get(const pool_t       pool,
