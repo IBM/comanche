@@ -96,7 +96,7 @@ public:
                                   std::function<status_t(const std::string& key_name)> erase_key) = 0;
 
   /** 
-   * Request graceful shutdown
+   * Request graceful shutdown. This will be called by ADO process on shutdown.
    * 
    * 
    * @return S_OK on success
@@ -143,7 +143,7 @@ public:
   /** 
    * Send a work request to the ADO
    * 
-   * @param work_request_key Unique key that identifies request
+   * @param work_request_key Unique request identifier
    * @param value_addr Virtual address of value (as mapped by shard)
    * @param value_len Length of value in bytes
    * @param invocation_data Data representing the work request (may be binary or string)
@@ -162,26 +162,27 @@ public:
   /** 
    * Check for completion of work
    * 
-   * @param work_request_key 
-   * @param out_response 
-   * @param out_response_len
+   * @param out_work_request_key [out] Work request identifier of completed work
+   * @param out_response [out] Response data
+   * @param out_response_len [out] Size of response data
    * 
    * @return Number of bytes received or -1
    */
-  virtual ssize_t check_work_completions(uint64_t& work_request_key,
-                                          void *& out_response, /* use ::free to release */
-                                          size_t & out_response_len) = 0;
+  virtual ssize_t check_work_completions(uint64_t& out_work_request_key,
+                                         void *& out_response, /* use ::free to release */
+                                         size_t & out_response_len) = 0;
 
   /** 
    * Check for table operations (e.g., create_key)
    * 
-   * @param op Operation type (see ado_proto.fbs)
-   * @param key Name of key
-   * @param size Size in bytes (optional)
+   * @param out_work_request_key [out] Work request identifier of completed work
+   * @param op [out] Operation type (see ado_proto.fbs)
+   * @param key [out] Name of corresponding key
+   * @param size [out] Size in bytes (optional)
    * 
    * @return Number of bytes received or -1
    */
-  virtual ssize_t check_table_ops(uint64_t& work_request_id,
+  virtual ssize_t check_table_ops(uint64_t& out_work_request_key,
                                   int& op,
                                   std::string& key,
                                   size_t& size) = 0;
@@ -189,12 +190,12 @@ public:
   /** 
    * Send response to ADO for table operation
    * 
-   * @param s Status
-   * @param value_addr Address of new value (optional)
+   * @param s Status code
+   * @param value_addr Address of new value (may be nullptr)
    * 
    */
-  virtual void send_table_op_response(status_t s,
-                                      void * value_addr) = 0;
+  virtual void send_table_op_response(const status_t s,
+                                      const void * value_addr) = 0;
 
   /** 
    * Indicate whether ADO has shutdown
