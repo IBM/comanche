@@ -174,7 +174,7 @@ status_t Pool_handle::get(const std::string& key,
   
   std::string full_path = path.string() + "/" + key;
   if(!fs::exists(full_path)) {
-    PERR("key not found: (%s)", full_path.c_str());
+    PWRN("key not found: (%s)", full_path.c_str());
     return IKVStore::E_KEY_NOT_FOUND;
   }
 
