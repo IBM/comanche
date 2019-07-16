@@ -1,11 +1,5 @@
 #!/usr/bin/env bash
 
-# First created: 
-# Last modified: 2018 Jan 26
-
-# Author: Feng Li
-# email: fengggli@yahoo.com
-
 PCI_ADDR="11:00.0"
 NR_ELEMS=100000  # nr_elem for 4k
 for VAL_LEN in 4096 65536 1048576 16777216 268435456
