@@ -11,6 +11,9 @@
 #include <numpy/arrayobject.h>
 #include "pool_type.h"
 
+/* size of values created on demand from ADO invocation */
+static constexpr unsigned long DEFAULT_ADO_ONDEMAND_VALUE_SIZE = 64;
+
 extern PyTypeObject PoolType;
 
 static PyObject * pool_close(Pool* self);
@@ -19,12 +22,14 @@ static PyObject * pool_put(Pool* self, PyObject *args, PyObject *kwds);
 static PyObject * pool_get(Pool* self, PyObject *args, PyObject *kwds);
 static PyObject * pool_put_direct(Pool* self, PyObject *args, PyObject *kwds);
 static PyObject * pool_get_direct(Pool* self, PyObject *args, PyObject *kwds);
+static PyObject * pool_invoke_ado(Pool* self, PyObject *args, PyObject *kwds);
 static PyObject * pool_get_size(Pool* self, PyObject *args, PyObject *kwds);
 static PyObject * pool_erase(Pool* self, PyObject *args, PyObject *kwds);
 static PyObject * pool_configure(Pool* self, PyObject *args, PyObject *kwds);
 static PyObject * pool_find_key(Pool* self, PyObject *args, PyObject *kwds);
 static PyObject * pool_get_attribute(Pool* self, PyObject* args, PyObject* kwds);
 static PyObject * pool_type(Pool* self);
+
 
 static PyObject *
 Pool_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
@@ -62,6 +67,7 @@ PyDoc_STRVAR(put_direct_doc,"Pool.put_direct(key,value) -> Write bytearray value
 PyDoc_STRVAR(get_doc,"Pool.get(key) -> Read value from pool.");
 PyDoc_STRVAR(get_size_doc,"Pool.get_size(key) -> Get size of a value.");
 PyDoc_STRVAR(get_direct_doc,"Pool.get_direct(key) -> Read bytearray value from pool using zero-copy.");
+PyDoc_STRVAR(invoke_ado_doc,"Pool.invoke_ado(key,msg) -> Send ADO message.");
 PyDoc_STRVAR(close_doc,"Pool.close() -> Forces pool closure. Otherwise close happens on deletion.");
 PyDoc_STRVAR(count_doc,"Pool.count() -> Get number of objects in the pool.");
 PyDoc_STRVAR(erase_doc,"Pool.erase(key) -> Erase object from the pool.");
@@ -77,6 +83,7 @@ static PyMethodDef Pool_methods[] = {
   {"put_direct",(PyCFunction) pool_put_direct, METH_VARARGS | METH_KEYWORDS, put_direct_doc},
   {"get",(PyCFunction) pool_get, METH_VARARGS | METH_KEYWORDS, get_doc},
   {"get_direct",(PyCFunction) pool_get_direct, METH_VARARGS | METH_KEYWORDS, get_direct_doc},
+  {"invoke_ado",(PyCFunction) pool_invoke_ado, METH_VARARGS | METH_KEYWORDS, invoke_ado_doc},
   {"get_size",(PyCFunction) pool_get_size, METH_VARARGS | METH_KEYWORDS, get_size_doc},
   {"erase",(PyCFunction) pool_erase, METH_VARARGS | METH_KEYWORDS, erase_doc},
   {"configure",(PyCFunction) pool_configure, METH_VARARGS | METH_KEYWORDS, configure_doc},
@@ -367,6 +374,55 @@ static PyObject * pool_get_direct(Pool* self, PyObject *args, PyObject *kwds)
   return result;
 }
 
+
+static PyObject * pool_invoke_ado(Pool* self, PyObject *args, PyObject *kwds)
+{
+  static const char *kwlist[] = {"key",
+                                 "command",
+                                 "ondemand_size",
+                                 NULL};
+
+  const char * key = nullptr;
+  const char * command = nullptr;
+  unsigned long ondemand_size = DEFAULT_ADO_ONDEMAND_VALUE_SIZE;
+  
+  
+  if (! PyArg_ParseTupleAndKeywords(args,
+                                    kwds,
+                                    "ss|k",
+                                    const_cast<char**>(kwlist),
+                                    &key,
+                                    &command,
+                                    &ondemand_size)) {
+    PyErr_SetString(PyExc_RuntimeError,"bad arguments");
+    return NULL;
+  }
+
+  assert(self->_dawn);
+  assert(self->_pool);
+
+  std::vector<uint8_t> request(strlen(command));
+  memcpy(request.data(), command, strlen(command));
+  assert(request.size() > 0);
+
+  std::vector<uint8_t> out_response;
+  
+  status_t hr = self->_dawn->invoke_ado(self->_pool,
+                                        key,
+                                        request,
+                                        0, // flags
+                                        out_response,
+                                        ondemand_size);
+
+  if(hr != S_OK) {
+    std::stringstream ss;
+    ss << "invoke_ado failed (" << hr << ")";
+    PyErr_SetString(PyExc_RuntimeError,ss.str().c_str());
+    return NULL;
+  }
+
+  return PyUnicode_DecodeUTF8((const char *) out_response.data(), out_response.size(), "strict");
+}
 
 
 static PyObject * pool_get_size(Pool* self, PyObject *args, PyObject *kwds)

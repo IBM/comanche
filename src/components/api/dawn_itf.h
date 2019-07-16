@@ -42,12 +42,18 @@ public:
     uint64_t op_get_count;
     uint64_t op_put_direct_count;
     uint64_t op_get_twostage_count;
+    uint64_t op_ado_count;
     uint64_t op_erase_count;
     uint64_t op_failed_request_count;
     uint64_t last_op_count_snapshot;
     uint16_t client_count;
   } __attribute__((aligned(8)));
 
+  enum {
+    ADO_FLAG_ASYNC            = 0x1, /*< operation is asynchronous */
+    ADO_FLAG_CREATE_ON_DEMAND = 0x2, /*< create KV pair if needed */
+  };
+  
 public:
   
   /** 
@@ -271,6 +277,25 @@ public:
    * @return S_OK on success
    */
   virtual status_t free_memory(void * p) = 0;
+
+  /** 
+   * Used to invoke an operation on an active data object
+   * 
+   * @param pool Pool handle
+   * @param key Key
+   * @param request Request data
+   * @param flags Flags for invocation (see ADO_FLAG_XXX)
+   * @param out_response Response from invocation
+   * @param value_size Optional parameter to define value size to create for on-demand
+   * 
+   * @return S_OK on success
+   */
+  virtual status_t invoke_ado(const IKVStore::pool_t pool,
+                              const std::string& key,
+                              const std::vector<uint8_t>& request,
+                              const uint32_t flags,                              
+                              std::vector<uint8_t>& out_response,
+                              const size_t value_size = 0) = 0;
 
   /** 
    * Debug routine

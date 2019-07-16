@@ -17,6 +17,7 @@
 #include <api/kvindex_itf.h>
 #include <common/dump_utils.h>
 #include <common/utils.h>
+#include <nupm/mcas_mod.h>
 
 #ifdef PROFILE
 #include <gperftools/profiler.h>
@@ -136,6 +137,33 @@ void Shard::initialize_components(const std::string& backend,
     }
     fact->release_ref();
   }
+
+  /* optional ADO components */
+  {
+    /* check MCAS kernel module */
+    if(nupm::check_mcas_kernel_module() == false) {
+      PMAJOR("MCAS kernel module not found. Disabling ADO.");
+      return;
+    }
+    
+    IBase * comp = load_component("libado-manager-proxy.so", ado_manager_proxy_factory);
+    if(comp) {
+      IADO_manager_proxy_factory* fact =
+          static_cast<IADO_manager_proxy_factory*>(
+              comp->query_interface(IADO_manager_proxy_factory::iid()));
+      assert(fact);
+
+      _i_ado_mgr = fact->create(option_DEBUG, 13); /* todo configure ADO CORE */
+      if(_i_ado_mgr == nullptr)
+        throw General_exception("Instantiation of ADO manager failed unexpectedly.");
+      PMAJOR("ADO manager created.");
+      
+      fact->release_ref();
+    }
+    else {
+      PMAJOR("ADO not found and thus not enabled.");
+    }
+  }
 }
 
 void Shard::main_loop()
@@ -229,14 +257,23 @@ void Shard::main_loop()
             process_info_request(handler,
                                  static_cast<Protocol::Message_INFO_request*>(p_msg));
             break;
+          case MSG_TYPE_ADO_REQUEST:
+            process_ado_request(handler,
+                                static_cast<Protocol::Message_ado_request*>(p_msg));
+            break;
           default:
             throw General_exception("unrecognizable message type");
           }
           handler->free_recv_buffer();
-        }
+        }        
       }  // handler iter
 
-    
+      /* handle messages send back from ADO */
+      process_messages_from_ado();
+
+      /* handle tasks */
+      process_tasks(idle);
+
       /* handle pending close sessions */
       if (!pending_close.empty()) {
         for (auto& h : pending_close) {
@@ -253,8 +290,6 @@ void Shard::main_loop()
         pending_close.clear();
       }
 
-      /* handle tasks */
-      process_tasks(idle);
     }
 
     idle++;
@@ -379,6 +414,13 @@ void Shard::process_message_pool_request(Connection_handler* handler,
       PLOG("actually closing pool %p", (void*) msg->pool_id);
       response->status = _i_kvstore->close_pool(msg->pool_id);
       assert(response->status == S_OK);
+
+      /* close ADO process on pool close */
+      auto i = _ado_map.find(msg->pool_id);
+      if( i != _ado_map.end() ) {
+        Component::IADO_proxy * ado_itf = (*i).second.first;
+        ado_itf->shutdown();
+      }
     }
     else {
       response->status = S_OK;
@@ -728,6 +770,18 @@ void Shard::process_info_request(Connection_handler* handler,
   if (msg->type == Protocol::INFO_TYPE_FIND_KEY) {
     if (option_DEBUG > 1)
       PLOG("Shard: INFO request INFO_TYPE_FIND_KEY (%s)", msg->c_str());
+
+    if(_index_map == nullptr) { /* index does not exist */
+      PLOG("Shard: cannot perform regex request, no index!! use configure('AddIndex::VolatileTree') ");
+      const auto iob = handler->allocate();
+      Protocol::Message_INFO_response* response = new (iob->base())
+        Protocol::Message_INFO_response(handler->auth_id());
+      
+      response->status = E_INVAL;
+      handler->post_send_buffer(iob);
+      return;
+    }
+    
     try {
       add_task_list(new Key_find_task(msg->c_str(),
                                       msg->offset,
@@ -814,10 +868,10 @@ void Shard::process_info_request(Connection_handler* handler,
         size_t p_len = 0;
         Component::IKVStore::key_t key_handle;
         status_t rc = _i_kvstore->lock(msg->pool_id,
-                                           key,
-                                           Component::IKVStore::STORE_LOCK_READ,
-                                           p,
-                                           p_len, key_handle);
+                                       key,
+                                       Component::IKVStore::STORE_LOCK_READ,
+                                       p,
+                                       p_len, key_handle);
 
         if(rc != S_OK || key_handle == Component::IKVStore::KEY_NONE) {
           response->status = E_FAIL;
@@ -846,6 +900,7 @@ void Shard::process_info_request(Connection_handler* handler,
   handler->post_send_buffer(iob);  
   return;
 }
+
 
 void Shard::process_tasks(unsigned& idle)
 {
@@ -985,4 +1040,7 @@ status_t Shard::process_configure(Protocol::Message_IO_request* msg)
 
 }
 
+#include "shard_ado.cpp"
+
 }  // namespace Dawn
+

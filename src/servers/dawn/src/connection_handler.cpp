@@ -68,6 +68,12 @@ int Connection_handler::tick()
         set_state(POST_MSG_RECV);
         break;
       }
+      case MSG_TYPE_ADO_REQUEST: {
+        if (option_DEBUG > 2) PMAJOR("Shard: ADO_REQUEST");
+        _pending_msgs.push_back(iob);
+        set_state(POST_MSG_RECV);
+        break;
+      }
       case MSG_TYPE_CLOSE_SESSION: {
         if (option_DEBUG > 2) PMAJOR("Shard: CLOSE_SESSION!");
         free_recv_buffer();

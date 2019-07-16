@@ -39,12 +39,12 @@ enum {
   MSG_TYPE_IO_RESPONSE     = 0x21,
   MSG_TYPE_INFO_REQUEST    = 0x30,
   MSG_TYPE_INFO_RESPONSE   = 0x31,
+  MSG_TYPE_ADO_REQUEST     = 0x40,
+  MSG_TYPE_ADO_RESPONSE    = 0x41,
   MSG_TYPE_MAX             = 0xFF,
 };
 
 enum {
-//   INFO_TYPE_VALUE_LEN = 0x1,
-//   INFO_TYPE_COUNT     = 0x1,
   /* must be above IKVStore::Attributes */
   INFO_TYPE_FIND_KEY  = 0xF0,
   INFO_TYPE_GET_STATS = 0xF1,
@@ -76,6 +76,8 @@ enum {
   OP_COUNT       = 10,
   OP_CONFIGURE   = 11,
   OP_STATS       = 12,
+  OP_SYNC        = 13,
+  OP_ASYNC       = 14,
   OP_INVALID     = 0xFE,
   OP_MAX         = 0xFF
 };
@@ -85,7 +87,7 @@ enum { S_OK = 0, E_KEY_EXISTS = 1, STATUS_MAX = 0xFF };
 enum {
   IO_READ      = 0x1,
   IO_WRITE     = 0x2,
-  IO_ERASE = 0x4,
+  IO_ERASE     = 0x4,
   IO_MAX       = 0xFF,
 };
 
@@ -127,14 +129,14 @@ struct Message {
   }
 
   uint64_t auth_id;  // authorization token
-  uint32_t msg_len;
-  uint8_t  version;
+  uint32_t msg_len;  // message length in bytes
+  uint8_t  version;  // protocol version
   uint8_t  type_id;  // message type id
   union {
-    uint8_t op;
-    int8_t  status;
+    uint8_t op;      // operation code 
+    int8_t  status;  // return status
   };
-  uint8_t resvd;
+  uint8_t resvd;     // reserved
 } __attribute__((packed));
 
 namespace
@@ -145,7 +147,8 @@ namespace
     assert(pm->version == PROTOCOL_VERSION);
     if (pm->version != PROTOCOL_VERSION)
     {
-      Protocol_exception e("expected protocol version 0x%x, got got 0x%x", PROTOCOL_VERSION,
+      Protocol_exception e("expected protocol version 0x%x, got got 0x%x",
+                           PROTOCOL_VERSION,
                            pm->version);
 #if 0
       throw e;
@@ -535,6 +538,102 @@ struct Message_stats : public Message {
   // fields
   Component::IDawn::Shard_stats stats; 
 } __attribute__((packed));
+
+
+
+////////////////////////////////////////////////////////////////////////
+// ADO MESSAGES
+
+struct Message_ado_request : public Message {
+
+  static constexpr uint8_t id = MSG_TYPE_ADO_REQUEST;
+  static constexpr const char *description = "Message_ado_request";
+
+  Message_ado_request(size_t buffer_size,
+                      uint64_t auth_id,
+                      uint64_t request_id,
+                      uint64_t pool_id,
+                      const std::string& key,
+                      const void * invocation_data,
+                      size_t invocation_data_len,
+                      size_t odvl = 4096) :
+    Message(auth_id, id),
+    request_id(request_id),
+    pool_id(pool_id), ondemand_val_len(odvl) {
+
+    assert(invocation_data);
+    assert(invocation_data_len > 0);
+    
+    this->invocation_data_len = invocation_data_len;
+    key_len = key.size();
+    msg_len = message_size();
+    
+    
+    if (buffer_size < message_size())
+      throw API_exception("%s::%s - insufficient buffer for Message_ado_request",
+                          description, __func__);
+
+    memcpy(data, key.c_str(), key.size());
+    data[key_len] = '\0';
+    memcpy(&data[key_len+1], invocation_data, invocation_data_len);
+  }
+  
+  size_t message_size() const { return sizeof(Message_ado_request) + key_len + invocation_data_len + 1; }
+  //  std::string command() const { return std::string(data); }
+  const char* key() const { return reinterpret_cast<const char*>(data); }
+  const uint8_t * request() const { return static_cast<const uint8_t*>(&data[key_len+1]); }
+  size_t request_len() const { return this->invocation_data_len; }
+  
+  // fields
+  uint64_t request_id; /*< id or sender timestamp counter */
+  uint64_t pool_id;
+  uint64_t key_len; /*< does not include null terminator */
+  uint64_t ondemand_val_len;
+  uint32_t invocation_data_len; /*< does not include null terminator */
+  uint32_t flags;
+  uint8_t  data[];
+  
+} __attribute__((packed));
+
+
+
+struct Message_ado_response : public Message {
+
+  static constexpr uint8_t id = MSG_TYPE_ADO_RESPONSE;
+  static constexpr const char *description = "Message_ado_response";
+
+  Message_ado_response(size_t buffer_size,
+                       uint64_t auth_id,
+                       uint64_t request_id,
+                       void * response_data,
+                       size_t response_data_len) :   Message(auth_id, id),
+                                                     request_id(request_id) {
+
+    response_len = response_data_len;
+
+    if (buffer_size < message_size())
+      throw API_exception("%s::%s - insufficient buffer for Message_ado_response",
+                          description, __func__);
+
+    msg_len = message_size();
+    memcpy(data, response_data, response_len);
+    data[response_len] = '\0';
+  }
+  
+  size_t message_size() const { return sizeof(Message_ado_response) + response_len + 1; }
+  const uint8_t * response() const { return data; }
+  size_t response_length() const { return response_len; }
+  
+  // fields
+  uint64_t request_id; /*< id or sender timestamp counter */
+  uint32_t response_len; /*< does not include null terminator */
+  uint32_t flags;
+  uint8_t  data[];
+  
+} __attribute__((packed));
+
+
+
 
 
 

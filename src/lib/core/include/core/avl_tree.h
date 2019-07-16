@@ -59,15 +59,15 @@ enum traversal_order_t { LTREE, KEY, RTREE };
 template <class T>
 class AVL_node {
   /* utility functions */
-  inline static int node_min(int a, int b) { return (a < b) ? a : b; }
+  inline static constexpr int node_min(int a, int b) { return (a < b) ? a : b; }
 
-  inline static int node_max(int a, int b) { return (a > b) ? a : b; }
+  inline static constexpr int node_max(int a, int b) { return (a > b) ? a : b; }
 
   /** Returns true if the tree is too heavy on the left side. */
-  inline static int LEFT_IMBALANCE(short bal) { return (bal < LEFT_HEAVY); }
+  inline static int constexpr LEFT_IMBALANCE(short bal) { return (bal < LEFT_HEAVY); }
 
   /** Returns true if the tree is too heavy on the right side. */
-  inline static int RIGHT_IMBALANCE(short bal) { return (bal > RIGHT_HEAVY); }
+  inline static constexpr int RIGHT_IMBALANCE(short bal) { return (bal > RIGHT_HEAVY); }
 
  public:
   AVL_node<T> *subtree[2];
