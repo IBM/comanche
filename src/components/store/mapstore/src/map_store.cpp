@@ -259,43 +259,46 @@ IKVStore::key_t Pool_handle::lock(const std::string& key,
                                   size_t& out_value_len)
 {
   void * buffer = nullptr;
-  
-  /* on-demand create */
-  try
-  {
-    RWLock_guard guard(_map_lock, RWLock_guard::WRITE);
 
-    auto i = _map.find(key);
-    //    PLOG("looking for key:(%s)%lu", key.c_str(),key.length());
-    
-    if(i == _map.end()) {
-
-      if(out_value_len == 0) {
-        for(auto& i : _map) {
-           PLOG("key:(%s) length=%lu", i.first.c_str(), i.first.length());
-         }
-        return IKVStore::KEY_NONE; 
-      }
-
-      buffer = scalable_aligned_malloc(out_value_len, OBJECT_ALIGNMENT);
-
-      if(buffer == nullptr)
-        throw General_exception("Pool_handle::lock on-demand create scalable_aligned_malloc failed (len=%lu)",
-                                out_value_len);
-        
-      assert(buffer);
-      PLOG("lock emplacing key=(%s)", key.c_str());
-      _map.emplace(key, Value_pair{buffer, out_value_len});
-    }   
-  }
-  catch(...) {
-    return IKVStore::KEY_NONE;
-  }
-  
-  if(type == IKVStore::STORE_LOCK_READ)
+  if(type == IKVStore::STORE_LOCK_READ) {
     _map_lock.read_lock();
-  else if(type == IKVStore::STORE_LOCK_WRITE)
+  }
+  else if(type == IKVStore::STORE_LOCK_WRITE) {
+
+    /* on-demand create */
+    try
+      {
+        RWLock_guard guard(_map_lock, RWLock_guard::WRITE);
+
+        auto i = _map.find(key);
+        //    PLOG("looking for key:(%s)%lu", key.c_str(),key.length());
+    
+        if(i == _map.end()) {
+
+          if(out_value_len == 0) {
+            for(auto& i : _map) {
+              PLOG("key:(%s) length=%lu", i.first.c_str(), i.first.length());
+            }
+            return IKVStore::KEY_NONE; 
+          }
+
+          buffer = scalable_aligned_malloc(out_value_len, OBJECT_ALIGNMENT);
+
+          if(buffer == nullptr)
+            throw General_exception("Pool_handle::lock on-demand create scalable_aligned_malloc failed (len=%lu)",
+                                    out_value_len);
+        
+          assert(buffer);
+          PLOG("lock emplacing key=(%s)", key.c_str());
+          _map.emplace(key, Value_pair{buffer, out_value_len});
+        }   
+      }
+    catch(...) {
+      return IKVStore::KEY_NONE;
+    }
+
     _map_lock.write_lock();
+  }  
   else throw API_exception("invalid lock type");
 
   if(!buffer) {
