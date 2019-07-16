@@ -163,6 +163,14 @@ public:
     delete this;
   }
 
+  virtual Component::IKVStore * create(const std::string& owner,
+                                       const std::string& name) override
+  {
+    Component::IKVStore * obj = static_cast<Component::IKVStore*>(new File_store("/"));
+    obj->add_ref();
+    return obj;
+  }
+  
   virtual Component::IKVStore * create(unsigned debug_level,
                                        std::map<std::string,std::string>& params) {
     assert(params.find("pm_path") != params.end());
