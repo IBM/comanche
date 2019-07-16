@@ -142,7 +142,7 @@ void eal_init(size_t memory_limit_MB)
     rc = rte_eal_init(sizeof(ealargs) / sizeof(ealargs[0]),
                       (char**)(ealargs));
     if (rc < 0) {
-      throw new API_exception("could not initialize DPDK EAL");
+      throw API_exception("could not initialize DPDK EAL");
     }
     PLOG("EAL initialized OK.");
 

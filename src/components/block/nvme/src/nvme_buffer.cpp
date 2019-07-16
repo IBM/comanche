@@ -40,18 +40,11 @@ void* Nvme_buffer::allocate_io_buffer(size_t size_to_allocate,
 
   void* ptr;
 
-  if (zero_init) {
-    ptr = rte_zmalloc_socket(NULL, size_to_allocate, 4096 /*alignment*/,
-                             numa_socket);
-  } else {
-    ptr = rte_malloc_socket(NULL, size_to_allocate, 4096 /*alignment*/,
-                            numa_socket);
-  }
-
-  //  PLOG("allocated Nvme_buffer @ phys:%lx", rte_malloc_virt2phy(ptr));
+  auto funcptr = zero_init ? rte_zmalloc_socket : rte_malloc_socket;
+  if((ptr = funcptr(NULL, size_to_allocate, 4096 /*alignment*/, numa_socket)) == nullptr)
 
   if (!ptr)
-    throw new Constructor_exception(
+    throw Constructor_exception(
         "rte_zmalloc failed in Nvme_buffer::allocate_io_buffer");
 
   return ptr;
