@@ -330,17 +330,17 @@ void Nvme_device::initialize(const char* device_id) {
    */
   if (spdk_nvme_probe(NULL /* transport for NVMe-oF */, (void*) &_probed_device,
                       probe_cb, attach_cb, NULL) != 0) {
-    throw new Device_exception("spdk_nvme_probe() failed\n");
+    throw Device_exception("spdk_nvme_probe() failed\n");
   }
 
   PLOG("Probe complete (%p,%p) %s", _probed_device.ctrlr, _probed_device.ns,
        _probed_device.device_id);
 
   if (!_probed_device.ctrlr)
-    throw new General_exception(
+    throw General_exception(
         "NVMe device (%s) not found (check VFIO/UIO binding)", device_id);
   if (!_probed_device.ns)
-    throw new General_exception("NVMe device (%s) invalid namespace info",
+    throw General_exception("NVMe device (%s) invalid namespace info",
                                 device_id);
 
 #ifdef FORMAT_ON_INIT
@@ -452,7 +452,7 @@ void* Nvme_device::allocate_io_buffer(size_t num_bytes, bool zero_init,
   PLOG("allocated Nvme_buffer @ phys:%lx", rte_malloc_virt2iova(ptr));
 
   if (!ptr)
-    throw new Constructor_exception("rte_zmalloc failed in Buffer constructor");
+    throw Constructor_exception("rte_zmalloc failed in Buffer constructor");
 
   return ptr;
 }

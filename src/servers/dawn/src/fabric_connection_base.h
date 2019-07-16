@@ -278,7 +278,7 @@ class Fabric_connection_base {
           if(_posted_value_buffer_outstanding)
             check_for_posted_value_complete(&added_deferred_unlock);
         }
-        catch (std::logic_error e) {
+        catch (std::logic_error &e) {
           return Completion_state::CLIENT_DISCONNECT;
         }
 

@@ -64,13 +64,13 @@ class IPC_server {
    */
   IPC_server(const std::string url) : _url(url) {
     if (_fd < 0)
-      throw new Constructor_exception("IPC_server constructor nn_socket: %s\n",
+      throw Constructor_exception("IPC_server constructor nn_socket: %s\n",
                                       nn_strerror(nn_errno()));
 
     if (option_DEBUG) PLOG("IPC server endpoint (url=%s)", _url.c_str());
 
     if ((_epid = nn_bind(_fd, _url.c_str())) < 0)
-      throw new Constructor_exception("IPC_server constructor nn_bind: %s\n",
+      throw Constructor_exception("IPC_server constructor nn_bind: %s\n",
                                       nn_strerror(nn_errno()));
 
     std::string unix_file = _url.substr(5);
@@ -216,11 +216,11 @@ class IPC_client {
    */
   IPC_client(const std::string url) {
     if (_fd < 0)
-      throw new Constructor_exception("IPC_client constructor nn_socket: %s\n",
+      throw Constructor_exception("IPC_client constructor nn_socket: %s\n",
                                       nn_strerror(nn_errno()));
 
     if (nn_connect(_fd, url.c_str()) < 0)
-      throw new Constructor_exception("IPC_client constructor nn_connect: %s\n",
+      throw Constructor_exception("IPC_client constructor nn_connect: %s\n",
                                       nn_strerror(nn_errno()));
 
     PDBG("IPC (nanogmsg) ctor (url=%s)", url.c_str());
