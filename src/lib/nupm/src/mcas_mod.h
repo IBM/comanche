@@ -32,6 +32,7 @@ using Memory_token = uint64_t;
 
 /* NOTE: these APIs require the MCAS kernel module to be loaded */
 
+bool check_mcas_kernel_module();
 status_t expose_memory(Memory_token token, void * vaddr, size_t vaddr_size);
 status_t revoke_memory(Memory_token token);
 void *   mmap_exposed_memory(Memory_token token,

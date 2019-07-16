@@ -7,12 +7,14 @@ execute_process( COMMAND uname -m COMMAND tr -d '\n' OUTPUT_VARIABLE ARCHITECTUR
 
 if(BOOTSTRAP_DEPS)
 
+  add_subdirectory(flatbuffers)
+  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/flatbuffers/flatc DESTINATION bin PERMISSIONS OWNER_EXECUTE GROUP_EXECUTE OWNER_READ GROUP_READ)
+
   add_subdirectory(dpdk)
   add_subdirectory(spdk)
   add_subdirectory(ndctl)
   add_subdirectory(libfabric)
   add_subdirectory(pmdk)
-  add_subdirectory(flatbuffers)
   add_subdirectory(cityhash)
   add_subdirectory(memkind)
   add_subdirectory(tbb)
@@ -52,11 +54,13 @@ if( ${ARCHITECTURE} STREQUAL "x86_64" )
   add_subdirectory(nupm)
 endif()
 
-  add_subdirectory(common)
-  add_subdirectory(core)
-  add_subdirectory(tbb)
-#  add_subdirectory(dawn-client)
-  
+add_subdirectory(common)
+add_subdirectory(core)
+
+#  add_subdirectory(tbb)
+  #  add_subdirectory(dawn-client)
+#
+
 endif(BOOTSTRAP_DEPS)
 
 

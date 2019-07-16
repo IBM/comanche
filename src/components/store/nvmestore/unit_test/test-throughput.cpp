@@ -27,11 +27,6 @@
 #include <gperftools/profiler.h>
 
 
-#define PMEM_PATH "/mnt/pmem0/pool-nvmestore"
-#define POOL_NAME "test-basic.pool"
-
-#define DO_BASIC_TEST
-
 //#define USE_FILESTORE
 #undef USE_FILESTORE
 
@@ -73,7 +68,6 @@ class KVStore_test : public ::testing::Test {
 
   using kv_t = std::tuple<std::string, std::string>;
   static std::vector<kv_t> kvv;
-  static constexpr unsigned single_value_length = MB(8);
 };
 
 
@@ -82,7 +76,6 @@ Component::IKVStore * KVStore_test::_kvstore2;
 Component::IKVStore::pool_t KVStore_test::_pool;
 bool KVStore_test::_pool_is_reopen;
 
-constexpr unsigned KVStore_test::single_value_length;
 std::vector<KVStore_test::kv_t> KVStore_test::kvv;
 
 TEST_F(KVStore_test, Instantiate)
@@ -100,6 +93,7 @@ TEST_F(KVStore_test, Instantiate)
   params["name"] = "testname";
   params["pci"] = opt.pci;
   params["pm_path"] = "/mnt/pmem0/";
+  params["persist_type"] = "hstore";
   unsigned debug_level = 0;
 
   _kvstore = fact->create(debug_level, params);

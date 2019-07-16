@@ -939,6 +939,56 @@ status_t Connection_handler::find(const IKVStore::pool_t pool,
 }
 
 
+status_t Connection_handler::invoke_ado(const IKVStore::pool_t pool,
+                                        const std::string& key,
+                                        const std::vector<uint8_t>& request,
+                                        const uint32_t flags,                              
+                                        std::vector<uint8_t>& out_response,
+                                        const size_t value_size)
+{
+  API_LOCK();
+
+  const auto iobs = std::unique_ptr<buffer_t, iob_free>(allocate(), this);
+  const auto iobr = std::unique_ptr<buffer_t, iob_free>(allocate(), this);
+  assert(iobs);
+  assert(iobr);
+  assert(request.size() > 0);
+  status_t status;
+
+  try {
+    const auto msg = new (iobs->base()) Dawn::Protocol::Message_ado_request(iobs->length(),
+                                                                            auth_id(),
+                                                                            ++_request_id,
+                                                                            pool,
+                                                                            key,
+                                                                            request.data(),
+                                                                            request.size(),
+                                                                            value_size);
+    iobs->set_length(msg->message_size());
+
+    post_recv(&*iobr);
+    sync_send(&*iobs);
+    wait_for_completion(&*iobr);
+
+    const auto response_msg =
+      response_ptr<const Dawn::Protocol::Message_ado_response>(iobr->base());
+
+    status = response_msg->status;
+
+    if(status == S_OK) {
+      out_response.resize(response_msg->response_len);
+      memcpy(out_response.data(), response_msg->response(), response_msg->response_len);
+    }
+  }
+  catch(...) {
+    status = E_FAIL;
+  }
+
+  return status;
+
+}
+
+
 
 int Connection_handler::tick()
 {

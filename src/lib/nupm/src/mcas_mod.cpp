@@ -41,6 +41,12 @@ __attribute__((packed)) IOCTL_QUERY_msg;
 //------------------------------------------------------------
 
 
+bool nupm::check_mcas_kernel_module()
+{
+  int fd = open("/dev/mcas", O_RDWR, 0666);
+  close(fd);
+  return (fd != -1);
+}  
 
 status_t nupm::expose_memory(Memory_token token, void * vaddr, size_t vaddr_size)
 {

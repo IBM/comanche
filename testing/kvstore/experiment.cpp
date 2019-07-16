@@ -967,7 +967,7 @@ rapidjson::Value Experiment::_add_statistics_to_report(BinStatistics& stats, rap
       .AddMember("count", double(stats.getBin(i).getCount()), document.GetAllocator())
       .AddMember("min", double(stats.getBin(i).getMin()), document.GetAllocator())
       .AddMember("max", double(stats.getBin(i).getMax()), document.GetAllocator())
-      .AddMember("mean", double(stats.getBin(i).getMax()), document.GetAllocator())
+      .AddMember("mean", double(stats.getBin(i).getMean()), document.GetAllocator())
       .AddMember("std", double(stats.getBin(i).getStd()), document.GetAllocator())
       ;
 

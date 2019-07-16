@@ -1,14 +1,14 @@
 /*
-   Copyright [2017-2019] [IBM Corporation]
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
-       http://www.apache.org/licenses/LICENSE-2.0
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
+  Copyright [2017-2019] [IBM Corporation]
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+  http://www.apache.org/licenses/LICENSE-2.0
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
 */
 #ifndef __DAWN_SHARD_H__
 #define __DAWN_SHARD_H__
@@ -20,6 +20,8 @@
 #include <api/fabric_itf.h>
 #include <api/kvstore_itf.h>
 #include <api/kvindex_itf.h>
+#include <api/ado_itf.h>
+
 #include <common/cpu.h>
 #include <common/exceptions.h>
 #include <common/logging.h>
@@ -43,19 +45,18 @@ using Shard_transport = Fabric_transport;
 
 class Shard : public Shard_transport {
 
- private:
+private:
   static constexpr size_t TWO_STAGE_THREADSHOLD = KiB(64); /* above this two stage is used */
   
- private:
-
-  using pool_t             = Component::IKVStore::pool_t;
+private:
 
   struct lock_info_t {
     Component::IKVStore::pool_t pool;
     Component::IKVStore::key_t  key;
     int                         count;
   };
-  
+
+  using pool_t             = Component::IKVStore::pool_t;
   using buffer_t           = Shard_transport::buffer_t;
   using index_map_t        = std::unordered_map<pool_t, Component::IKVIndex*>;
   using locked_value_map_t = std::map<const void*, lock_info_t>;
@@ -63,7 +64,10 @@ class Shard : public Shard_transport {
   
   unsigned option_DEBUG;
 
- public:
+  const std::string _default_ado_path;
+  const std::string _default_ado_plugin;
+
+public:
   Shard(int               core,
         unsigned int      port,
         const std::string provider,
@@ -74,17 +78,23 @@ class Shard : public Shard_transport {
         const std::string pci_addr,
         const std::string pm_path,
         const std::string dax_config,
+        const std::string default_ado_path,
+        const std::string default_ado_plugin,
         unsigned          debug_level,
         bool              forced_exit)
-      : Shard_transport(provider, net, port), _core(core),
-        _forced_exit(forced_exit), _thread(&Shard::thread_entry,
-                                           this,
-                                           backend,
-                                           index,
-                                           pci_addr,
-                                           dax_config,
-					   pm_path,
-                                           debug_level)
+    : Shard_transport(provider, net, port),
+      _core(core),
+      _default_ado_path(default_ado_path),
+      _default_ado_plugin(default_ado_plugin),
+      _forced_exit(forced_exit),
+      _thread(&Shard::thread_entry,
+              this,
+              backend,
+              index,
+              pci_addr,
+              dax_config,
+              pm_path,
+              debug_level)
   {
     option_DEBUG = Dawn::Global::debug_level = debug_level;
   }
@@ -98,6 +108,9 @@ class Shard : public Shard_transport {
     assert(_i_kvstore);
     _i_kvstore->release_ref();
 
+    if(_i_ado_mgr)
+      _i_ado_mgr->release_ref();
+
     if (_index_map) {
       for(auto i : *_index_map) {
         assert(i.second);
@@ -109,7 +122,7 @@ class Shard : public Shard_transport {
 
   bool exited() const { return _thread_exit; }
 
- private:
+private:
   void thread_entry(const std::string& backend,
                     const std::string& index,
                     const std::string& pci_addr,
@@ -165,6 +178,11 @@ class Shard : public Shard_transport {
   void process_info_request(Connection_handler* handler,
                             Protocol::Message_INFO_request* msg);
 
+  void process_ado_request(Connection_handler* handler,
+                           Protocol::Message_ado_request* msg);
+
+  void process_messages_from_ado();
+
   status_t process_configure(Protocol::Message_IO_request* msg);
 
   void process_tasks(unsigned& idle);
@@ -202,6 +220,8 @@ class Shard : public Shard_transport {
   
 private:
 
+  bool ado_enabled() const { return _i_ado_mgr != nullptr; }
+
   /* per-shard statistics */
   Component::IDawn::Shard_stats _stats __attribute__((aligned(8))) = {0};
 
@@ -215,14 +235,30 @@ private:
     PINF("PUT_DIRECT count   : %lu", _stats.op_put_direct_count);
     PINF("GET 2-stage count  : %lu", _stats.op_get_twostage_count);
     PINF("ERASE count        : %lu", _stats.op_erase_count);
+    PINF("ADO count          : %lu (enabled=%s)", _stats.op_ado_count, ado_enabled() ? "yes":"no");
     PINF("Failed count       : %lu", _stats.op_failed_request_count);    
     PINF("Session count      : %lu", session_count());
     PINF("------------------------------------------------");
   }
 
+private:
 
+  struct work_request_t {
+    Component::IKVStore::pool_t pool;
+    Component::IKVStore::key_t key_handle;
+    Component::IKVStore::lock_type_t lock_type;
+    uint64_t request_id; /* original client request */
+  };
 
- private:
+  using ado_map_t = std::map<Component::IKVStore::pool_t,
+                             std::pair<Component::IADO_proxy*,Connection_handler*>>;
+  using work_request_key_t = uint64_t;
+
+  static inline work_request_t * request_key_to_record(work_request_key_t key) {
+    return reinterpret_cast<work_request_t *>(key);
+  }
+
+  
   static Pool_manager              pool_manager; /* instance shared across connections */
   
   index_map_t*                     _index_map = nullptr;
@@ -232,9 +268,12 @@ private:
   std::thread                      _thread;
   size_t                           _max_message_size;
   Component::IKVStore*             _i_kvstore;
+  Component::IADO_manager_proxy*   _i_ado_mgr = nullptr;
+  ado_map_t                        _ado_map;
   std::vector<Connection_handler*> _handlers;
   locked_value_map_t               _locked_values;
   task_list_t                      _tasks;
+  std::set<work_request_key_t>     _outstanding_work;
 };
 
 
