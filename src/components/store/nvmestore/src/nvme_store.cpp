@@ -325,7 +325,7 @@ status_t NVME_store::get(const pool_t       pool,
   open_session_t* session = reinterpret_cast<open_session_t*>(pool);
 
   if (g_sessions.find(session) == g_sessions.end())
-    throw API_exception("NVME_store::put invalid pool identifier");
+    throw API_exception("NVME_store::get invalid pool identifier");
 
   return session->get(key, out_value, out_value_len);
 }
@@ -339,7 +339,7 @@ status_t NVME_store::get_direct(const pool_t       pool,
   open_session_t* session = reinterpret_cast<open_session_t*>(pool);
 
   if (g_sessions.find(session) == g_sessions.end())
-    throw API_exception("NVME_store::put invalid pool identifier");
+    throw API_exception("NVME_store::get_direct invalid pool identifier");
 
   return session->get_direct(key, out_value, out_value_len,
                              reinterpret_cast<buffer_t*>(handle));
