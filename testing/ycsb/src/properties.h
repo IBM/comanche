@@ -35,10 +35,12 @@ class Properties {
 
   void setProperty(const std::string &key, const std::string &value);
   bool load(std::ifstream &input);
+  void log(const std::string &str);
 
  private:
   std::map<std::string, std::string> properties_;
   std::string                        trim(const std::string &str);
+  std::ofstream logfile;
 };
 
 inline std::string Properties::getProperty(
@@ -51,6 +53,12 @@ inline std::string Properties::getProperty(
   }
   else
     return it->second;
+}
+
+inline void Properties::log(const std::string &str){
+  logfile.open("/tmp/latency-sla", std::ofstream::out|std::ofstream::app);
+  logfile<<str;
+  logfile.close();
 }
 
 inline const std::string &Properties::operator[](const std::string &key) const

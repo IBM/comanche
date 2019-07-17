@@ -106,8 +106,8 @@ void Workload::load()
     }
     wr.stop();
     double elapse = wr.get_lap_time_in_seconds();
-    // cout << timer.get_lap_time_in_seconds() << endl;
-    if (elapse * 1000000 >= 900) wr_stat.add_value(elapse);
+    props.log(to_string(elapse));
+    //    if (elapse * 1000000 >= 900) wr_stat.add_value(elapse);
     wr_cnt++;
   }
 }
