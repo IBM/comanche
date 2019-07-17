@@ -22,8 +22,10 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <boost/program_options.hpp>
+#include <chrono>
 #include <iostream>
 #include <string>
+#include <thread>
 
 using namespace Component;
 using namespace Common;
@@ -76,7 +78,14 @@ void DawnDB::init(Properties &props, unsigned core)
   fact->release_ref();
   IDawn::Shard_stats stats;
   client->get_statistics(stats);
-  
+  int opstart = stats.op_request_count;
+  props.log("client number: " + to_string(stats.client_count));
+  std::this_thread::sleep_for(std::chrono::seconds(5));
+  client->get_statistics(stats);
+  double req_per_sec = (stats.op_request_count - opstart) / 5.0;
+  props.log("request per sec server: " + to_string(req_per_sec));
+  props.log("request per sec client: " + props.getProperty("request"));
+
   pool = client->open_pool("table" + to_string(core), 0);
 
   if (pool == Component::IKVStore::POOL_ERROR) {
