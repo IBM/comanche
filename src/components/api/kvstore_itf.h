@@ -268,7 +268,7 @@ class IKVStore : public Component::IBase {
   }
 
   /**
-   * Dynamically expand a pool.
+   * Dynamically expand a pool.  Typically, this will add to the regions belonging to a pool.
    *
    * @param pool Pool handle
    * @param increment_size Size in bytes to expand by

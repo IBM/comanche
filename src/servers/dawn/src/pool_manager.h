@@ -150,11 +150,13 @@ public:
     return _open_pools;
   }
 
+  inline size_t open_pool_count() const { return _open_pools.size(); }
+
  private:
   std::map<pool_t, unsigned>    _open_pools;
   std::map<std::string, pool_t> _name_map;
-  std::map<pool_t, std::vector<Connection_base::memory_region_t>>
-      _memory_regions;
+  //  std::map<pool_t, std::vector<Connection_base::memory_region_t>>
+  //      _memory_regions;
 };
 }  // namespace Dawn
 
