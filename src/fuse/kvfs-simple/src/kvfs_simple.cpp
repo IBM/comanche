@@ -58,7 +58,7 @@ class Mount_info{
     Mount_info(const std::string owner, const std::string name, Component::IKVStore *store)
       :_owner(owner), _name(name), _store(store), _asigned_ids(0){
 
-      _pool = _store->create_pool("/mnt/pmem0", "pool-kvfs-simple", MB(12));
+      _pool = _store->create_pool("pool-kvfs-simple", MB(12));
     }
 
     ~Mount_info(){
@@ -169,7 +169,12 @@ void * kvfs_simple_init (struct fuse_conn_info *conn){
 
   Component::IKVStore_factory * fact = (Component::IKVStore_factory *) comp->query_interface(Component::IKVStore_factory::iid());
 
-  store = fact->create("owner","name");
+  std::map<std::string, std::string> params;
+  params["pm_path"]    = "/mnt/pmem0/";
+  unsigned debug_level = 0;
+
+  store = fact->create(debug_level, params);
+
   fact->release_ref();
 
   PINF("[%s]: fs loaded using component %s ", __func__, component.c_str());
