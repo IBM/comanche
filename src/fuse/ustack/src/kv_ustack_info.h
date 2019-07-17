@@ -31,8 +31,7 @@ using pool_t     = uint64_t;
       :_owner(owner), _name(name), _store(store), _asigned_ids(0){
 
 
-      _pool = _store->create_pool("/mnt/pmem0", "pool-kvfs-simple", MB(12));
-("");
+      _pool = _store->create_pool("pool-kvfs-simple", MB(12));
     }
 
     ~KV_ustack_info(){
