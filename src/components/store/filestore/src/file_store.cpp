@@ -170,8 +170,6 @@ status_t Pool_handle::get(const std::string& key,
                           void*& out_value,
                           size_t& out_value_len)
 {
-  PLOG("get: key=(%s) path=(%s)", key.c_str(), path.string().c_str());
-  
   std::string full_path = path.string() + "/" + key;
   if(!fs::exists(full_path)) {
     PERR("key not found: (%s)", full_path.c_str());
