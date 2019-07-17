@@ -16,8 +16,11 @@
 #include <core/dpdk.h>
 #include <core/task.h>
 #include <gtest/gtest.h>
+#include <mpi.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/mman.h>
+#include <unistd.h>
 #include <boost/program_options.hpp>
 #include <iostream>
 #include <string>
@@ -47,6 +50,26 @@ void DawnDB::init(Properties &props, unsigned core)
       (IDawn_factory *) comp->query_interface(IDawn_factory::iid());
   string username = "luna";
   string address  = props.getProperty("address");
+  size_t mid      = address.find(":");
+  int    port     = stoi(address.substr(mid + 1));
+  int    rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  port += rank / 6;
+
+  char hostname[MPI_MAX_PROCESSOR_NAME];
+  int name_len;
+  MPI_Get_processor_name(hostname, &name_len);
+  char *s = strstr(hostname, "bio"); //if bio1
+  if (s == NULL) {
+    address.replace(address.begin() + mid + 1, address.end(), to_string(port));
+  }
+  else {
+      port=11914;
+      port+=(rank-48)/6;
+    address.assign("10.0.1.94:" + to_string(port));
+  }
+  cout << "host: " + string(hostname) + ", rank: "+ to_string(rank) +", address: " + address << endl;
+
   string dev      = props.getProperty("dev");
   int    debug    = stoi(props.getProperty("debug_level", "1"));
   client          = fact->dawn_create(debug, username, address, dev);
@@ -58,7 +81,7 @@ void DawnDB::init(Properties &props, unsigned core)
 
   if (pool == Component::IKVStore::POOL_ERROR) {
     /* ok, try to create pool instead */
-    pool = client->create_pool("table" + to_string(core), GB(1));
+    pool = client->create_pool(poolname, GB(1));
   }
 }
 
@@ -136,7 +159,7 @@ int DawnDB::erase(const string &table, const string &key)
   }
   */
   int ret = client->erase(pool, key);
-  // client->close_pool(pool);
+  client->close_pool(pool);
   return ret;
 }
 
@@ -151,5 +174,6 @@ int DawnDB::scan(const string &                table,
 void DawnDB::clean()
 {
   client->close_pool(pool);
+  client->delete_pool(poolname);
   client->release_ref();
 }
