@@ -37,10 +37,13 @@ if(MPI_LINK_FLAGS)
     LINK_FLAGS "${MPI_LINK_FLAGS}")
 endif()
 
+#target_link_libraries(ycsb-perf comanche-core common numa gtest pthread dl
+#    boost_program_options ${TBB_LIBRARIES} profiler boost_system
+#    boost_filesystem tbbmalloc memcached memcachedutil aerospike ssl crypto m z
+#    hiredis ${MPI_LIBRARIES})
 target_link_libraries(ycsb-perf comanche-core common numa gtest pthread dl
     boost_program_options ${TBB_LIBRARIES} profiler boost_system
-    boost_filesystem tbbmalloc memcached memcachedutil aerospike ssl crypto m z
-    hiredis ${MPI_LIBRARIES})
+    boost_filesystem tbbmalloc ssl crypto m z ${MPI_LIBRARIES})
 #
 set_target_properties(${PROJECT_NAME} PROPERTIES 
   INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib)
