@@ -13,8 +13,7 @@
 #ifndef __YCSB_DAWNDB_H__
 #define __YCSB_DAWNDB_H__
 
-#include <api/components.h>
-#include <api/kvstore_itf.h>
+#include <api/dawn_itf.h>
 #include "../../kvstore/stopwatch.h"
 #include "db.h"
 #include "properties.h"
@@ -48,7 +47,7 @@ class DawnDB : public DB {
    virtual void clean() override;
 
   private:
-   Component::IKVStore *       client;
+   Component::IDawn *       client;
    Component::IKVStore::pool_t pool;
 };
 

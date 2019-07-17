@@ -43,14 +43,17 @@ void DawnDB::init(Properties &props, unsigned core)
   Component::IBase *comp = Component::load_component(
       "libcomanche-dawn-client.so", dawn_client_factory);
 
-  IKVStore_factory *fact =
-      (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
+  IDawn_factory *fact =
+      (IDawn_factory *) comp->query_interface(IDawn_factory::iid());
   string username = "luna";
   string address  = props.getProperty("address");
   string dev      = props.getProperty("dev");
   int    debug    = stoi(props.getProperty("debug_level", "1"));
-  client          = fact->create(debug, username, address, dev);
+  client          = fact->dawn_create(debug, username, address, dev);
   fact->release_ref();
+  IDawn::Shard_stats stats;
+  client->get_statistics(stats);
+  
   pool = client->open_pool("table" + to_string(core), 0);
 
   if (pool == Component::IKVStore::POOL_ERROR) {
