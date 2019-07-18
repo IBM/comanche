@@ -4,6 +4,7 @@
 #include "get_vector_from_string.h"
 #include "program_options.h"
 
+#include <common/str_utils.h>
 #include "rapidjson/filereadstream.h"
 #include "rapidjson/prettywriter.h"
 #include "rapidjson/stringbuffer.h"
@@ -1049,6 +1050,9 @@ std::string Experiment::create_report(const std::string component_)
   document.Accept(writer);
 
   std::string output_file_name = specific_results_path + "/results_" + timestring + ".json";
+  if(boost::filesystem::exists(output_file_name)){ // Don't overwrite
+    output_file_name = specific_results_path + "/results_" + timestring + "-copy(" + Common::random_string(3) +").json";
+  }
   std::ofstream outf(output_file_name);
 
   if ( outf )
