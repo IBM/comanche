@@ -64,7 +64,8 @@ void * kvfs_ustack_init (struct fuse_conn_info *conn){
   Component::IKVStore *store;
   Component::IBase * comp; 
 
-  std::string component("filestore");
+  //std::string component("filestore");
+  std::string component("nvmestore");
 
   if(component == "pmstore") {
     comp = Component::load_component(PMSTORE_PATH, Component::pmstore_factory);
@@ -82,7 +83,12 @@ void * kvfs_ustack_init (struct fuse_conn_info *conn){
   Component::IKVStore_factory * fact = (Component::IKVStore_factory *) comp->query_interface(Component::IKVStore_factory::iid());
 
   std::map<std::string, std::string> params;
-  params["pm_path"]    = "/mnt/pmem0/";
+  params["owner"] = "testowner";
+  params["name"] = "testname";
+  params["pci"] = "11:00.0";
+  params["pm_path"] = "/mnt/pmem0/";
+  params["persist_type"] = "hstore";
+
   unsigned debug_level = 0;
 
   store = fact->create(debug_level, params);
