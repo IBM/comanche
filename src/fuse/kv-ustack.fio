@@ -6,10 +6,10 @@ bs=32k
 direct=1
 size=64m
 numjobs=1
-directory=/home/fengggli/WorkSpace/comanche/build/mount
+directory=/tmp/mount
 
-[random-write]
-rw=randwrite
+;[random-write]
+;rw=randwrite
 
 [random-read]
 rw=randread
