@@ -16,6 +16,7 @@
 #include <chrono>
 #include <iostream>
 #include <string>
+#include <time.h>
 #include <thread>
 #include "../../kvstore/stopwatch.h"
 #include "counter_generator.h"
@@ -92,6 +93,12 @@ void Workload::load()
 {
   int ret;
   wr.reset();
+  int req_per_sec = stoi(props.getProperty("request"));
+  int size;
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
+  req_per_sec/=size;
+  double sec=(double)records/req_per_sec;
+
   MPI_Barrier(MPI_COMM_WORLD);
   for (int i = 0; i < records; i++) {
     pair<string, string>& kv = kvs[i];
@@ -107,6 +114,12 @@ void Workload::load()
     wr.stop();
     double elapse = wr.get_lap_time_in_seconds();
     props.log(to_string(elapse));
+    if (elapse < sec) {
+      struct timespec ts;
+      ts.tv_sec=0;
+      ts.tv_nsec=(int)((sec-elapse)*1000000000);
+      nanosleep(&ts, NULL);
+    }
     //    if (elapse * 1000000 >= 900) wr_stat.add_value(elapse);
     wr_cnt++;
   }
