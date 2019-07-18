@@ -1,5 +1,11 @@
 # Changelog
 This is the changelog for nvmestore
+[2019-07-16]:
+Updates:
+* tweaked nvmestore for kvperf-local, see issue #12 for performance evaluation.
+* Nees more work on kvperf-dawn. Since shard cannot wait for expensive lock/unlock operation in nvmestore, I could either (I will focus on 2): 
+  1. improve dawn protocal to support asynchronous lock/unlock.
+  2. switch to file system integration instead, benchmarking with fio etc.
 [2019-07-10]:
 * Added:
   1. use meta_store->get instead of meta_store->map_keys to check whether key exists, solve performance issue in #11.
