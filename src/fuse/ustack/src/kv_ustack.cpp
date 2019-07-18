@@ -88,6 +88,7 @@ void * kvfs_ustack_init (struct fuse_conn_info *conn){
   params["pci"] = "11:00.0";
   params["pm_path"] = "/mnt/pmem0/";
   params["persist_type"] = "hstore";
+  // params["persist_type"] = "filestore";
 
   unsigned debug_level = 0;
 

@@ -52,9 +52,6 @@ Ustack::~Ustack()
     for(auto& iomem: i.second)
       delete iomem;
   }
-
-  store->release_ref();
-  block->release_ref();
 }
 
 int Ustack::process_message(void* msg,

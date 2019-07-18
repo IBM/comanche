@@ -19,8 +19,6 @@ public:
   Ustack(const std::string endpoint, KV_ustack_info * kv_ustack_info);
   ~Ustack();
 public:
-  Component::IBlock_device * block = nullptr;
-  Component::IBlob * store = nullptr;
 
 protected:
   virtual int process_message(void* msg,
