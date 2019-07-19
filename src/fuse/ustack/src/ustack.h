@@ -16,7 +16,7 @@
 
 class Ustack : public Core::IPC_server {
 public:
-  Ustack(const std::string endpoint, KV_ustack_info * kv_ustack_info);
+  Ustack(const std::string endpoint, KV_ustack_info * kv_ustack_info = nullptr);
   ~Ustack();
 public:
 

@@ -33,6 +33,7 @@ public:
     assert(ptr);
     _virt_base = reinterpret_cast<addr_t>(ptr);
     _offset_virt_phys = _virt_base - _phys_base;
+    _size = n_bytes;
 
     PMAJOR("IO_memory_allocator: %ld bytes (%p)", n_bytes, ptr);
   }
@@ -158,6 +159,7 @@ public:
 
     assert(fbb.GetSize() > 0);
     size_t reply_len = 0;
+    PDBG("[client]: sent  channel request");
     void * reply = send_and_wait((const char *) fbb.GetBufferPointer(),
                                  fbb.GetSize(),
                                  &reply_len);
@@ -165,15 +167,18 @@ public:
     const Message * reply_msg = Protocol::GetMessage(reply);
     if(reply_msg->type() != MessageType_Channel_reply)
       throw General_exception("bad response to Memory_request");
+
+    PDBG("[client]: got first channel reply");
     
     if(reply_msg->element_type() == Element_ElementChannelReply) {
       std::string channel_id = reply_msg->element_as_ElementChannelReply()->uipc_id()->str();
       PLOG("response: channel(%s)", channel_id.c_str());
+      // This will wait till server side channel is up and then connects
       _channel = new Core::UIPC::Channel(channel_id);
       PLOG("channel acquired (%s)", channel_id.c_str());
     }
     else throw General_exception("unexpected reply message");    
-
+    PMAJOR("[client]: channel connected");
   }
   
   void get_shared_memory(size_t n_bytes) {
@@ -201,11 +206,12 @@ public:
     
     if(reply_msg->element_type() == Element_ElementMemoryReply) {
       std::string shmem_id = reply_msg->element_as_ElementMemoryReply()->shmem_id()->str();
-      PLOG("response: %s", shmem_id.c_str());
+      PLOG("response: shmem(%s)", shmem_id.c_str());
       _shmem.push_back(new Core::UIPC::Shared_memory(shmem_id));
       PLOG("shared memory acquired (%s)", shmem_id.c_str());
     }
     else throw General_exception("unexpected reply message");    
+    PMAJOR("[client]: got shared memory");
   }
 
   void send_command()
@@ -217,8 +223,8 @@ public:
     _channel->send(cmd);
 
     void * reply = nullptr;
-    while(_channel->recv(reply));
     PLOG("waiting for IO channel reply...");
+    while(_channel->recv(reply));
     _channel->free_msg(reply);
     PLOG("send command and got reply.");
   }
@@ -380,7 +386,7 @@ cleanup:
 
 
 private:
-  IO_memory_allocator                      _iomem_allocator;
+  IO_memory_allocator                      _iomem_allocator; // IO memory allocated from server and mmaped to this client
   std::vector<Core::UIPC::Shared_memory *> _shmem;
   Core::UIPC::Channel *                    _channel = nullptr;
   std::unordered_map<int, uint64_t> _fd_map; //map from filesystem fd to fuse daemon fh
