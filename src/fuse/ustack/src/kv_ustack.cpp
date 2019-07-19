@@ -46,7 +46,11 @@
 #define FILESTORE_PATH "libcomanche-storefile.so"
 #define NVMESTORE_PATH "libcomanche-nvmestore.so"
 
-// ustack: the userspace zero copy communiation mechenism
+/**
+ * ustack: the userspace zero copy communiation mechenism.
+ *
+ * Client can also direct issue posix file operations.
+ */
 Ustack *_ustack;
 
 /**
@@ -102,7 +106,7 @@ void * kvfs_ustack_init (struct fuse_conn_info *conn){
 
   // init ustack and start accepting connections
   std::string ustack_name = "ipc:///tmp//kv-ustack.ipc";
-  DPDK::eal_init(1024);
+  // DPDK::eal_init(1024);
 
   _ustack = new Ustack(ustack_name.c_str(), info);
   return info;

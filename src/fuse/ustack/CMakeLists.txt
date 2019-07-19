@@ -35,8 +35,11 @@ foreach(fs ${USTACK_FS})
   target_link_libraries(${fs} ${ASAN_LIB} common comanche-core numa dl z ${Nanomsg_LIBRARIES} boost_system boost_program_options pthread ${TBB_LIBRARIES} fuse)
 endforeach(fs ${USTACK_FS})
 
+
 # test for ustack client
 add_executable(iotest src/iotest.cpp)
 target_link_libraries(iotest ${ASAN_LIB} common comanche-core numa dl z ${Nanomsg_LIBRARIES} boost_system boost_program_options pthread ${TBB_LIBRARIES} fuse)
+
+add_subdirectory(unit_test)
 
 endif(Flatbuffers_FOUND)
