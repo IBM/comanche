@@ -22,6 +22,7 @@
  */
 class KV_ustack_info{
 using pool_t     = uint64_t;
+using fuse_fd_t = uint64_t;
   public:
     struct File_meta{
       size_t size;
@@ -41,19 +42,19 @@ using pool_t     = uint64_t;
       return _store;
     }
 
-    std::unordered_map<uint64_t, std::string> get_all_items(){
+    std::unordered_map<fuse_fd_t, std::string> get_all_items(){
       return _items;
     }; 
 
     /*
      * get a available file id
      */
-    uint64_t alloc_id(){
+    fuse_fd_t alloc_id(){
       return ++_asigned_ids;
     }
 
-    uint64_t insert_item(uint64_t id, std::string key){
-      _items.insert(std::pair<uint64_t, std::string>(id, key));
+    uint64_t insert_item(fuse_fd_t id, std::string key){
+      _items.insert(std::pair<fuse_fd_t, std::string>(id, key));
     }
 
     /*
@@ -61,7 +62,7 @@ using pool_t     = uint64_t;
      *
      * @return 0 if not found
      */
-    uint64_t get_id(std::string item){
+    fuse_fd_t get_id(std::string item){
       for(const auto & i : _items){
         if(i.second == item)
           return i.first;
@@ -71,21 +72,21 @@ using pool_t     = uint64_t;
 
     /* get the file size 
      */
-    size_t get_item_size(uint64_t id){
+    size_t get_item_size(fuse_fd_t id){
       return _file_meta[id].size;
     }
 
-    void set_item_size(uint64_t id, size_t size){
+    void set_item_size(fuse_fd_t id, size_t size){
       _file_meta[id].size = size;
     }
 
-    status_t write(uint64_t id, const void * value, size_t size){
+    status_t write(fuse_fd_t id, const void * value, size_t size){
       const std::string key = _items[id];
       assert(value !=  NULL);
       return _store->put(_pool, key, value, size);
     }
 
-    status_t read(uint64_t id, void * value, size_t size){
+    status_t read(fuse_fd_t id, void * value, size_t size){
       const std::string key = _items[id];
       void * tmp;
       size_t rd_size;
@@ -107,9 +108,9 @@ using pool_t     = uint64_t;
       Component::IKVStore *_store;
       pool_t _pool;
 
-      std::unordered_map<uint64_t, std::string> _items; // file id and key TODO: put the key to the File_meta!
-      std::unordered_map<uint64_t, File_meta> _file_meta;  
-      std::atomic<uint64_t> _asigned_ids; //current assigned ids, to identify each file
+      std::unordered_map<fuse_fd_t, std::string> _items; // file id and key TODO: put the key to the File_meta!
+      std::unordered_map<fuse_fd_t, File_meta> _file_meta;  
+      std::atomic<fuse_fd_t> _asigned_ids; //current assigned ids, to identify each file
 };
 
 

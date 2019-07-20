@@ -15,6 +15,7 @@
 #include "protocol_channel.h"
 
 
+// TODO: Do we need this at all?
 /*
  * IO Memory mapper for client.
  *

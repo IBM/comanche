@@ -8,6 +8,7 @@
 
 #include "ustack_client.h"
 
+static const std::string k_mount_dir = "/tmp/mymount";
 
 int main()
 {
@@ -31,6 +32,9 @@ int main()
   ustack.get_uipc_channel();
   PINF("[test]: got channel and shared memory");
 
+  std::string data_path = k_mount_dir + "/test.data";
+  PINF("[test]: using data path %s", data_path.c_str());
+
   char * data;
   size_t data_sz = 4096; 
   data = (char *)ustack.malloc(data_sz);
@@ -38,7 +42,7 @@ int main()
   strcpy(data, "helloworld, this is written using ustack writes");
   assert(data);
 
-  int fd = ustack.open("./mymount/test.dat",O_CREAT|O_RDWR, 0666);
+  int fd = ustack.open(data_path.c_str(),O_CREAT|O_RDWR, 0666);
   //int fd = ustack.open("./regular.dat",O_CREAT|O_RDWR, 0666);
   assert(fd >0);
   PINF("[test]: file opened write");
@@ -54,7 +58,7 @@ int main()
   /*
    * reopen the file and verify the results read
    */
-  fd = ustack.open("./mymount/test.dat",O_RDONLY);
+  fd = ustack.open(data_path.c_str(),O_RDONLY);
   assert(fd >0);
   PINF("[test]: file opened for read");
 
