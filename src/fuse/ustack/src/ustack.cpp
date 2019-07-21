@@ -61,7 +61,7 @@ int Ustack::process_message(void* msg,
 
   const Message * pmsg = Protocol::GetMessage(msg);
   auto sender_id = pmsg->sender_id();
-  PLOG("sender_id: %lu", sender_id);
+  PLOG("## sender_id: %lu", sender_id);
 
   /* message: MemoryRequest */
   switch(pmsg->type())

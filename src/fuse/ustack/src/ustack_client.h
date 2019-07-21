@@ -368,7 +368,16 @@ cleanup:
    * Memory management
    ********************************/
   void * malloc(size_t n_bytes) {
-    return _iomem_allocator.malloc(n_bytes);
+    void* virt_addr;
+    try{
+      virt_addr =  _iomem_allocator.malloc(n_bytes);
+    }
+    catch(...){
+      PERR("ustack client malloc error");
+      return nullptr;
+    }
+
+    return virt_addr;
   }
 
   void free(void * ptr) {
