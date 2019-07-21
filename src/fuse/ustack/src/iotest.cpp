@@ -35,14 +35,17 @@ int main()
   std::string data_path = k_mount_dir + "/test.data";
   PINF("[test]: using data path %s", data_path.c_str());
 
-  char * data;
+  char * data, *data2;
   size_t data_sz = 4096; 
+  int fd;
   data = (char *)ustack.malloc(data_sz);
+  if(!data) 
+    goto cleanup;
 
   strcpy(data, "helloworld, this is written using ustack writes");
   assert(data);
 
-  int fd = ustack.open(data_path.c_str(),O_CREAT|O_RDWR, 0666);
+  fd = ustack.open(data_path.c_str(),O_CREAT|O_RDWR, 0666);
   //int fd = ustack.open("./regular.dat",O_CREAT|O_RDWR, 0666);
   assert(fd >0);
   PINF("[test]: file opened write");
@@ -62,7 +65,7 @@ int main()
   assert(fd >0);
   PINF("[test]: file opened for read");
 
-  char *data2 = (char *)ustack.malloc(data_sz);
+  data2 = (char *)ustack.malloc(data_sz);
 
   ustack.read(fd, data2, data_sz);
   PINF("file content read:\n\t%s", data2);
@@ -72,5 +75,6 @@ int main()
   ustack.free(data2);
 
 #endif
+cleanup:
   return 0;
 }
