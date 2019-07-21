@@ -997,7 +997,7 @@ class Region_allocator {
   addr_t alloc(size_t size, size_t alignment) {
     if (size == 0) size = 1;
 
-    Memory_region* mr = _range_allocator.alloc(size);
+    Memory_region* mr = _range_allocator.alloc(size, alignment);
 
     if (mr == nullptr) throw General_exception("no memory.");
 
