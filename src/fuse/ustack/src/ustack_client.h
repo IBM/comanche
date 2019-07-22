@@ -13,9 +13,6 @@
 #include "protocol_generated.h"
 #include "protocol_channel.h"
 
-static std::unordered_map<int, uint64_t> _fd_map = {}; //map from filesystem fd to fuse daemon fh
-
-
 /**
  * IO Memory mapper for client.
  *
@@ -47,8 +44,13 @@ public:
     return get_virt(alloc(n_bytes, 8 /* alignment */));
   }
 
-  void free(void * ptr) {
-    return Core::Region_allocator::free(get_phys(ptr));
+  status_t free(void * ptr) {
+    addr_t phys_addr = get_phys(ptr);
+    if(Core::Region_allocator::contains(phys_addr)){
+      Core::Region_allocator::free(phys_addr);
+      return S_OK;
+    }
+    else return E_FAIL;
   }
 
   void * get_virt(addr_t paddr) {
@@ -147,7 +149,7 @@ public:
     return phys_addr;
   }
 
-  void get_uipc_channel() {
+  Core::UIPC::Channel* get_uipc_channel() {
     using namespace Protocol;
     using namespace flatbuffers;
     flatbuffers::FlatBufferBuilder fbb(256);
@@ -180,6 +182,7 @@ public:
     }
     else throw General_exception("unexpected reply message");    
     PMAJOR("[client]: channel connected");
+    return _channel;
   }
   
   void get_shared_memory(size_t n_bytes) {
@@ -230,115 +233,8 @@ public:
     PLOG("send command and got reply.");
   }
 
-  /********************************************
-   * File operations
-   *
-   * parameters are consistent with posix calls. 
-   *********************************************/
-
-
-
-   int open(const char *pathname, mode_t mode){
-  // full path to fd
-     int fd = -1;
-
-     // fall into the mountdir?
-     fd = ::open(pathname, mode);
-     
-     //if( _is_ustack_path(pathname, fullpath) && fd >0){
-     uint64_t fuse_fh = 0;
-     if(0 == ioctl(fd, USTACK_GET_FUSE_FH, &fuse_fh)){
-       PLOG("{ustack_client]: register file %s with fd %d, fuse_fh = %lu", pathname, fd, fuse_fh);
-       assert(fuse_fh > 0);
-       _fd_map.insert(std::pair<int, uint64_t>(fd, fuse_fh));
-     }
-
-     return fd;
-   }
-
-  /*
-   * file write and read
-   * TODO: intercept posix ops
-   *
-   * the message will be like(fd, phys(buf), count)
-   */
-  size_t write(int fd, const void *buf, size_t count){
-    auto search = _fd_map.find(fd);
-    if(search != _fd_map.end()){
-      int ret = -1;
-      uint64_t fuse_fh = search->second;
-      /* ustack tracked file */
-      PLOG("[stack-write]: try to write from %p to fuse_fh %lu, size %lu", buf, fuse_fh, count);
-      assert(_channel);
-      struct IO_command * cmd = static_cast<struct IO_command *>(_channel->alloc_msg());
-
-      // TODO: local cache of the fd->fuse-fd?
-      cmd->fuse_fh = fuse_fh;
-      cmd->type = IO_TYPE_WRITE;
-      cmd->offset = _iomem_allocator.get_offset(buf);
-      cmd->sz_bytes = count;
-
-      //strcpy(cmd->data, "hello");
-      _channel->send(cmd);
-
-      void * reply = nullptr;
-      while(_channel->recv(reply));
-      PLOG("waiting for IO channel reply...");
-      //PLOG("get IO channel reply with type %d", static_cast<struct IO_command *>(reply)->type);
-      if(IO_WRITE_OK !=static_cast<struct IO_command *>(reply)->type){
-        PERR("[%s]: ustack write failed", __func__);
-        goto cleanup;
-      }
-      ret = 0;
-cleanup:
-      _channel->free_msg(reply);
-      PLOG("send write command and got reply.");
-      return ret;
-    }
-    else{
-      /* regular file */
-      return ::write(fd, buf, count);
-    }
-
-  }
-
-  size_t read(int fd, void *buf, size_t count){
-     auto search = _fd_map.find(fd);
-    if(search != _fd_map.end()){
-      int ret = -1;
-      uint64_t fuse_fh = search->second;
-      /* ustack tracked file */
-      PLOG("[stack-write]: try to write from %p to fuse_fh %lu, size %lu", buf, fuse_fh, count);
-      assert(_channel);
-      struct IO_command * cmd = static_cast<struct IO_command *>(_channel->alloc_msg());
-
-      // TODO: local cache of the fd->fuse-fd?
-      cmd->fuse_fh = fuse_fh;
-      cmd->type = IO_TYPE_READ;
-      cmd->offset = _iomem_allocator.get_offset(buf);
-      cmd->sz_bytes = count;
-
-      //strcpy(cmd->data, "hello");
-      _channel->send(cmd);
-
-      void * reply = nullptr;
-      while(_channel->recv(reply));
-      PLOG("waiting for IO channel reply...");
-      //PLOG("get IO channel reply with type %d", static_cast<struct IO_command *>(reply)->type);
-      if(IO_READ_OK !=static_cast<struct IO_command *>(reply)->type){
-        PERR("[%s]: ustack write failed", __func__);
-        goto cleanup;
-      }
-      ret = 0;
-cleanup:
-      _channel->free_msg(reply);
-      PLOG("send read command and got reply.");
-      return ret;
-    }
-    else{
-      /* regular file */
-      return ::read(fd, buf, count);
-    }
+  size_t get_offset(const void *vaddr){
+    return _iomem_allocator.get_offset(vaddr);
   }
 
 
@@ -358,7 +254,7 @@ cleanup:
     return virt_addr;
   }
 
-  void free(void * ptr) {
+  addr_t free(void * ptr) {
     return _iomem_allocator.free(ptr);
   }
 
