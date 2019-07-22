@@ -1,46 +1,43 @@
-#include "ustack_client.h"
 #include <common/logging.h>
 #include <stdarg.h>
-static constexpr size_t k_nr_files = 64; /** Intial capacity(num of files)*/
-static Ustack_client *_this_client = NULL;
-static Core::UIPC::Channel * _uipc_channel = NULL;
+#include "ustack_client.h"
+static constexpr size_t k_nr_files   = 64; /** Intial capacity(num of files)*/
+static Ustack_client *  _this_client = NULL;
 
-static int * _fd_array = NULL;
+static int *_fd_array = NULL;
 
-enum{
+enum {
   FD_ARRAY_INVALID = -1,
-  FD_ARRAY_OK = 0,
+  FD_ARRAY_OK      = 0,
 };
 static int _fd_array_initialized = FD_ARRAY_INVALID;
 
-enum{
+enum {
   FUSE_FD_INVALID = -1,
 };
 
-
 typedef int (*close_t)(int);
 typedef int (*open64_t)(const char *pathname, int flags, ...);
-typedef void * (*malloc_t)(size_t size);
+typedef void *(*malloc_t)(size_t size);
 typedef void (*free_t)(void *ptr);
 typedef ssize_t (*read_t)(int fd, void *buf, size_t count);
 typedef ssize_t (*write_t)(int fd, const void *buf, size_t count);
 
-
 open64_t orig_open64;
-close_t orig_close;
+close_t  orig_close;
 malloc_t orig_malloc;
-free_t orig_free;
-read_t orig_read;
-write_t orig_write;
-
+free_t   orig_free;
+read_t   orig_read;
+write_t  orig_write;
 
 /** Constructor*/
-void __attribute__((constructor)) ustack_ctor(); 
+void __attribute__((constructor)) ustack_ctor();
 
 /** Destructor*/
-void __attribute__((destructor)) ustack_dtor(); 
+void __attribute__((destructor)) ustack_dtor();
 
-void ustack_ctor(){
+void ustack_ctor()
+{
   size_t fd_array_size;
 
   /* Save default calls*/
@@ -66,66 +63,66 @@ void ustack_ctor(){
 
   /* Initialize ustack
    * Attention, open/close is also used for xms
-   **/ 
+   **/
   _this_client = new Ustack_client("ipc:///tmp//kv-ustack.ipc", 64);
   PINF("Ustack Preloaded");
 
   /* Allocate space for fd mappings*/
-  fd_array_size = k_nr_files* sizeof(int);
-  _fd_array = (int *)orig_malloc(fd_array_size);
+  fd_array_size = k_nr_files * sizeof(int);
+  _fd_array     = (int *) orig_malloc(fd_array_size);
   assert(_fd_array);
-  memset((void*)(_fd_array), 0xff, fd_array_size);
-  
+  memset((void *) (_fd_array), 0xff, fd_array_size);
 
   _fd_array_initialized = FD_ARRAY_OK;
   PINF("fd_array init at %p", _fd_array);
 
-  _uipc_channel = _this_client->get_uipc_channel();
-  assert(_uipc_channel);
+  assert(_this_client->get_uipc_channel());
 }
 
-void ustack_dtor(){
+void ustack_dtor()
+{
   _fd_array_initialized = FD_ARRAY_INVALID;
-  if(_fd_array) orig_free(_fd_array);
+  if (_fd_array) orig_free(_fd_array);
   PINF("ustack preload --unloading");
   delete _this_client;
 }
 
-
-/** 
+/**
  * Overwriting of open.
  *
  * If the file falls into fuse-enabled folder, tracks the fd
  */
-int open64 (const char * pathname, int flags, ...){
-// int open(const char *pathname, int flags, mode_t mode){
- PLOG("Ustack open64 intercepted at path (%s)", pathname);
+int open64(const char *pathname, int flags, ...)
+{
+  // int open(const char *pathname, int flags, mode_t mode){
+  PLOG("Ustack open64 intercepted at path (%s)", pathname);
 
- // full path to fd
- int fd = -1;
- uint64_t fuse_fh;
- va_list vl;
- va_start(vl, flags);
- 
- // fall into the mountdir?
- fd = orig_open64(pathname, flags, vl);
- if(fd >= k_nr_files){
-   PERR("needs to increase k_nr_files(currently =%lu)", k_nr_files);
-   goto end;
- }
- 
- fuse_fh = 0;
- if(0 == ioctl(fd, USTACK_GET_FUSE_FH, &fuse_fh)){
-   assert(_fd_array_initialized == FD_ARRAY_OK);
-   PLOG("{ustack_client]: register file %s with fd %d, fuse_fh = %lu", pathname, fd, fuse_fh);
-  PINF("fd_array is at %p", _fd_array);
-   assert(fuse_fh > 0);
-   _fd_array[fd] = fuse_fh;
- }
+  // full path to fd
+  int      fd = -1;
+  uint64_t fuse_fh;
+  va_list  vl;
+  va_start(vl, flags);
+
+  // fall into the mountdir?
+  fd = orig_open64(pathname, flags, vl);
+  if (fd >= k_nr_files) {
+    PERR("needs to increase k_nr_files(currently =%lu)", k_nr_files);
+    goto end;
+  }
+
+  fuse_fh = 0;
+  if (0 == ioctl(fd, USTACK_GET_FUSE_FH, &fuse_fh)) {
+    assert(_fd_array_initialized == FD_ARRAY_OK);
+    PLOG("{ustack_client]: register file %s with fd %d, fuse_fh = %lu",
+         pathname, fd, fuse_fh);
+    PINF("fd_array is at %p", _fd_array);
+    assert(fuse_fh > 0);
+    _fd_array[fd] = fuse_fh;
+  }
 
 end:
- va_end(vl);
- return fd;
+  va_end(vl);
+  return fd;
 }
 
 #if 0
@@ -148,14 +145,15 @@ void free(void * ptr) {
 #endif
 
 /** Overwriting of posix close*/
-int close(int fd){
+int close(int fd)
+{
   int ret = -1;
 
-  ret =  orig_close(fd);
+  ret = orig_close(fd);
 
   PLOG("Ustack close intercepted for fd (%d)", fd);
-  
-  if(ret == 0 && fd >= 0 && _fd_array_initialized == FD_ARRAY_OK){
+
+  if (ret == 0 && fd >= 0 && _fd_array_initialized == FD_ARRAY_OK) {
     _fd_array[fd] = FUSE_FD_INVALID;
   }
   return ret;
@@ -167,83 +165,37 @@ int close(int fd){
  *
  * the message will be like(fd, phys(buf), count)
  */
-ssize_t write(int fd, const void *buf, size_t count){
+ssize_t write(int fd, const void *buf, size_t count)
+{
   int search;
-  if(_fd_array_initialized == FD_ARRAY_OK && (search = _fd_array[fd]) != FUSE_FD_INVALID){
-    int ret = -1;
+  if (_fd_array_initialized == FD_ARRAY_OK &&
+      (search = _fd_array[fd]) != FUSE_FD_INVALID) {
     uint64_t fuse_fh = search;
-    /* ustack tracked file */
-    PLOG("[stack-write]: try to write from %p to fuse_fh %lu, size %lu", buf, fuse_fh, count);
-    assert(_uipc_channel);
-    struct IO_command * cmd = static_cast<struct IO_command *>(_uipc_channel->alloc_msg());
-
-    // TODO: local cache of the fd->fuse-fd?
-    cmd->fuse_fh = fuse_fh;
-    cmd->type = IO_TYPE_WRITE;
-    cmd->offset = _this_client->get_offset(buf);
-    cmd->sz_bytes = count;
-
-    //strcpy(cmd->data, "hello");
-    _uipc_channel->send(cmd);
-
-    void * reply = nullptr;
-    while(_uipc_channel->recv(reply));
-    PLOG("waiting for IO channel reply...");
-    //PLOG("get IO channel reply with type %d", static_cast<struct IO_command *>(reply)->type);
-    if(IO_WRITE_OK !=static_cast<struct IO_command *>(reply)->type){
-      PERR("[%s]: ustack write failed", __func__);
-      goto cleanup;
-    }
-    ret = 0;
-cleanup:
-    _uipc_channel->free_msg(reply);
-    PLOG("send write command and got reply.");
-    return ret;
+    PLOG("[stack-write]: try to write from %p to fuse_fh %lu, size %lu", buf,
+         fuse_fh, count);
+    return _this_client->write(fuse_fh, buf, count);
   }
-  else{
+  else {
     /* regular file */
     PLOG("[stack-write]: fall back to orig_write fd(%d)", fd);
     return orig_write(fd, buf, count);
   }
 }
 
-ssize_t read(int fd, void *buf, size_t count){
+ssize_t read(int fd, void *buf, size_t count)
+{
   int search;
-  if(_fd_array_initialized == FD_ARRAY_OK && (search = _fd_array[fd]) != FUSE_FD_INVALID){
-    int ret = -1;
+  if (_fd_array_initialized == FD_ARRAY_OK &&
+      (search = _fd_array[fd]) != FUSE_FD_INVALID) {
     uint64_t fuse_fh = search;
-    /* ustack tracked file */
-    PLOG("[stack-write]: try to write from %p to fuse_fh %lu, size %lu", buf, fuse_fh, count);
-    assert(_uipc_channel);
-    struct IO_command * cmd = static_cast<struct IO_command *>(_uipc_channel->alloc_msg());
 
-    // TODO: local cache of the fd->fuse-fd?
-    cmd->fuse_fh = fuse_fh;
-    cmd->type = IO_TYPE_READ;
-    cmd->offset = _this_client->get_offset(buf);
-    cmd->sz_bytes = count;
-
-    //strcpy(cmd->data, "hello");
-    _uipc_channel->send(cmd);
-
-    void * reply = nullptr;
-    while(_uipc_channel->recv(reply));
-    PLOG("waiting for IO channel reply...");
-    //PLOG("get IO channel reply with type %d", static_cast<struct IO_command *>(reply)->type);
-    if(IO_READ_OK !=static_cast<struct IO_command *>(reply)->type){
-      PERR("[%s]: ustack write failed", __func__);
-      goto cleanup;
-    }
-    ret = 0;
-cleanup:
-    _uipc_channel->free_msg(reply);
-    PLOG("send read command and got reply.");
-    return ret;
+    PLOG("[stack-write]: try to write from %p to fuse_fh %lu, size %lu", buf,
+         fuse_fh, count);
+    return _this_client->read(fuse_fh, buf, count);
   }
-  else{
+  else {
     /* regular file */
     PLOG("[stack-write]: fall back to orig_write fd(%d)", fd);
     return orig_read(fd, buf, count);
   }
 }
-
