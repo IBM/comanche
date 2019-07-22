@@ -3,6 +3,7 @@
 
 #include <assert.h>
 #include <unordered_map>
+#include <dlfcn.h>
 #include <core/ipc.h>
 #include <core/uipc.h>
 #include <core/avl_malloc.h>
@@ -11,6 +12,8 @@
 #include "ustack_client_ioctl.h"
 #include "protocol_generated.h"
 #include "protocol_channel.h"
+
+static std::unordered_map<int, uint64_t> _fd_map = {}; //map from filesystem fd to fuse daemon fh
 
 
 /**
@@ -233,24 +236,7 @@ public:
    * parameters are consistent with posix calls. 
    *********************************************/
 
-   int open(const char *pathname, int flags, mode_t mode){
-     
-     // full path to fd
-     int fd = -1;
 
-     // fall into the mountdir?
-     fd = ::open(pathname, flags, mode);
-     
-     //if( _is_ustack_path(pathname, fullpath) && fd >0){
-     uint64_t fuse_fh = 0;
-     if(0 == ioctl(fd, USTACK_GET_FUSE_FH, &fuse_fh)){
-       PLOG("{ustack_client]: register file %s with fd %d, fuse_fh = %lu", pathname, fd, fuse_fh);
-       assert(fuse_fh > 0);
-       _fd_map.insert(std::pair<int, uint64_t>(fd, fuse_fh));
-     }
-
-     return fd;
-   }
 
    int open(const char *pathname, mode_t mode){
   // full path to fd
@@ -355,11 +341,6 @@ cleanup:
     }
   }
 
-  int close(int fd){
-    /* TODO: free the maps*/
-    _fd_map.erase(fd);
-    return ::close(fd);
-  };
 
   /******************************** 
    * Memory management
@@ -396,7 +377,6 @@ private:
   IO_memory_allocator                      _iomem_allocator; // IO memory allocated from server and mmaped to this client
   std::vector<Core::UIPC::Shared_memory *> _shmem;
   Core::UIPC::Channel *                    _channel = nullptr;
-  std::unordered_map<int, uint64_t> _fd_map; //map from filesystem fd to fuse daemon fh
 }; // end of UStack_Client
 
 

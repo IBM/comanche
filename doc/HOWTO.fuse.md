@@ -65,3 +65,14 @@ Run status group 0 (all jobs):
   WRITE: bw=150MiB/s (157MB/s), 150MiB/s-150MiB/s (157MB/s-157MB/s), io=64.0MiB (67.1MB), run=427-427msec
 ```
 
+Preload
+============
+
+This will overwrite:
+1. malloc/free
+2. open/close
+3. read/write
+
+```
+D_PRELOAD=./src/fuse/ustack/libustack_client.so ./src/fuse/ustack/unit_test/test-preload
+```
