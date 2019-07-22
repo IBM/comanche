@@ -1,8 +1,6 @@
 #ifndef __USTACK_CLIENT_H__
 #define __USTACK_CLIENT_H__
 
-
-
 #include <assert.h>
 #include <unordered_map>
 #include <core/ipc.h>
@@ -15,15 +13,14 @@
 #include "protocol_channel.h"
 
 
-// TODO: Do we need this at all?
-/*
+/**
  * IO Memory mapper for client.
  *
- * Client maps the iomem to its virtual space after get reply of IO_buffer_request
+ * Client maps the iomem to its virtual space after get reply of IO_buffer_request.
  */
 class IO_memory_allocator : private Core::Region_allocator
 {
-   std::string MOUNT_ROOT="/home/fengggli/comanche/build/mymount";
+   // std::string MOUNT_ROOT="/home/fengggli/comanche/build/mymount";
 
 public:
   IO_memory_allocator(addr_t phys_base, size_t n_bytes) :
