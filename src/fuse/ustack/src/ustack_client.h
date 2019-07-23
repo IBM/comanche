@@ -276,6 +276,8 @@ class Ustack_client : public Core::IPC_client {
     cmd->offset   = _iomem_allocator.get_offset(buf);
     cmd->sz_bytes = count;
 
+    if(count > GB(4)) PWRN("32bit field for sz_bytes is not enough");
+
     // strcpy(cmd->data, "hello");
     _channel->send(cmd);
 

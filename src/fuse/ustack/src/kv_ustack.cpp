@@ -89,7 +89,7 @@ void * kvfs_ustack_init (struct fuse_conn_info *conn){
   std::map<std::string, std::string> params;
   params["owner"] = "testowner";
   params["name"] = "testname";
-  params["pci"] = "11:00.0";
+  params["pci"] = "20:00.0";
   params["pm_path"] = "/mnt/pmem0/";
   params["persist_type"] = "hstore";
   // params["persist_type"] = "filestore";
@@ -155,6 +155,19 @@ int kvfs_ustack_create (const char *path, mode_t mode, struct fuse_file_info * f
   info->insert_item(handle, path+1);
   fi->fh = handle;
   PINF("[%s]: create entry No. %lu: key %s", __func__, handle, path+1);
+  return 0;
+}
+
+/** Remove a file */
+int kvfs_ustack_unlink(const char *path){
+  KV_ustack_info *info = reinterpret_cast<KV_ustack_info *>(fuse_get_context()->private_data);
+
+  uint64_t handle = info->get_id(path+1);
+  /** remove obj from pool*/
+  if(S_OK != info->remove_item(handle)){
+    PWRN("%s remove fuse_fh(%lu) failed", __func__, handle);
+  }
+
   return 0;
 }
 
@@ -231,6 +244,18 @@ static int kvfs_ustack_open(const char *path, struct fuse_file_info *fi)
     PINF("[%s]: open not found exsiting!",__func__);
     return -ENOENT;
   }
+}
+
+int kvfs_ustack_fallocate (const char *path, int mode, off_t offset, off_t length,
+      struct fuse_file_info *){
+
+    PWRN("[%s]: fallocate doesn't do anything ", __func__);
+    return 0;
+}
+
+int kvfs_ustack_flush(const char *, struct fuse_file_info *){
+    PWRN("[%s]: flush doesn't do anything ", __func__);
+    return 0;
 }
 
 /* 
@@ -311,6 +336,9 @@ int main(int argc, char *argv[])
   oper.create = kvfs_ustack_create;
   oper.destroy = kvfs_ustack_destroy;
   oper.ioctl = kvfs_ustack_ioctl;
+  oper.unlink = kvfs_ustack_unlink;
+  oper.fallocate = kvfs_ustack_fallocate;
+  oper.flush = kvfs_ustack_flush;
 
 	return fuse_main(argc, argv, &oper, NULL);
 }
