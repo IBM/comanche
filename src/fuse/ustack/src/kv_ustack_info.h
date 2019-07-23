@@ -57,6 +57,14 @@ using fuse_fd_t = uint64_t;
       _items.insert(std::pair<fuse_fd_t, std::string>(id, key));
     }
 
+    status_t remove_item(uint64_t id){
+      status_t ret;
+
+      ret = _store->erase(_pool, _items[id]);
+      _items.erase(id);
+      return ret;
+    }
+
     /*
      * look up this file based on the filename
      *
