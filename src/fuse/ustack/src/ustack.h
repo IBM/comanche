@@ -68,9 +68,12 @@ private:
     }
     PDBG("mapped to virtual address %p", buf);
 
-    _kv_ustack_info->write(fuse_fh, buf, io_sz);
+    if(io_sz >0){
+      _kv_ustack_info->write(fuse_fh, buf, io_sz);
 
-    _kv_ustack_info->set_item_size(fuse_fh, io_sz);
+      _kv_ustack_info->set_item_size(fuse_fh, io_sz);
+    }
+    else PWRN("io size = 0");
     
     return S_OK;
   }
@@ -99,7 +102,11 @@ private:
       PERR("write size larger than file size");
       return -1;
     }
-    _kv_ustack_info->read(fuse_fh, buf, io_sz);
+
+    if(io_sz >0){
+      _kv_ustack_info->read(fuse_fh, buf, io_sz);
+    }
+      else PWRN("io size = 0");
     return S_OK;
   }
   

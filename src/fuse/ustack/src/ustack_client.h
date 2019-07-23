@@ -47,6 +47,7 @@ class IO_memory_allocator : private Core::Region_allocator {
 
   status_t free(void *ptr)
   {
+    PLOG("try to free");
     addr_t phys_addr = get_phys(ptr);
     if (Core::Region_allocator::contains(phys_addr)) {
       Core::Region_allocator::free(phys_addr);
@@ -253,7 +254,7 @@ class Ustack_client : public Core::IPC_client {
     return virt_addr;
   }
 
-  addr_t free(void *ptr) { return _iomem_allocator.free(ptr); }
+  void free(void *ptr) { _iomem_allocator.free(ptr); }
 
   /**
    * File write and read
