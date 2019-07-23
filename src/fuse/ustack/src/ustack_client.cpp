@@ -1,7 +1,7 @@
 #include <common/logging.h>
 #include <stdarg.h>
 #include "ustack_client.h"
-static constexpr size_t k_nr_files   = 64; /** Intial capacity(num of files)*/
+static constexpr int k_nr_files   = 64; /** Intial capacity(num of files)*/
 static Ustack_client *  _this_client = NULL;
 
 static int *_fd_array = NULL;
@@ -22,6 +22,9 @@ typedef void *(*malloc_t)(size_t size);
 typedef void (*free_t)(void *ptr);
 typedef ssize_t (*read_t)(int fd, void *buf, size_t count);
 typedef ssize_t (*write_t)(int fd, const void *buf, size_t count);
+typedef void *(*mmap_t)(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
+typedef int (*munmap_t)(void *addr, size_t length);
+
 
 open64_t orig_open64;
 close_t  orig_close;
@@ -29,6 +32,8 @@ malloc_t orig_malloc;
 free_t   orig_free;
 read_t   orig_read;
 write_t  orig_write;
+mmap_t orig_mmap;
+munmap_t orig_munmap;
 
 /** Constructor*/
 void __attribute__((constructor)) ustack_ctor();
@@ -59,12 +64,18 @@ void ustack_ctor()
   orig_write = (write_t)(dlsym(RTLD_NEXT, "write"));
   assert(orig_write);
 
+  orig_mmap = (mmap_t)(dlsym(RTLD_NEXT, "mmap"));
+  assert(orig_mmap);
+
+  orig_munmap = (munmap_t)(dlsym(RTLD_NEXT, "munmap"));
+  assert(orig_munmap);
+
   PINF("Original open64/close/malloc intialized");
 
   /* Initialize ustack
    * Attention, open/close is also used for xms
    **/
-  _this_client = new Ustack_client("ipc:///tmp//kv-ustack.ipc", 64);
+  _this_client = new Ustack_client("ipc:///tmp//kv-ustack.ipc", 8192); // 32M IO memory
   PINF("Ustack Preloaded");
 
   /* Allocate space for fd mappings*/
@@ -87,6 +98,8 @@ void ustack_dtor()
   delete _this_client;
 }
 
+
+
 /**
  * Overwriting of open.
  *
@@ -95,20 +108,33 @@ void ustack_dtor()
 int open64(const char *pathname, int flags, ...)
 {
   // int open(const char *pathname, int flags, mode_t mode){
-  PLOG("Ustack open64 intercepted at path (%s)", pathname);
 
   // full path to fd
   int      fd = -1;
   uint64_t fuse_fh;
+
+  /* Get the mode if it's a creation*/
+  mode_t mode;
   va_list  vl;
-  va_start(vl, flags);
+  if(flags & O_CREAT){
+    va_start(vl, flags);
+    mode = (mode_t)va_arg(vl, mode_t);
+    va_end(vl);
+
+    fd = orig_open64(pathname, flags, mode);
+  }
+  else{
+    fd = orig_open64(pathname, flags);
+  }
+
 
   // fall into the mountdir?
-  fd = orig_open64(pathname, flags, vl);
   if (fd >= k_nr_files) {
-    PERR("needs to increase k_nr_files(currently =%lu)", k_nr_files);
+    PERR("needs to increase k_nr_files(currently =%d), limit(%d)", fd, k_nr_files);
     goto end;
   }
+
+  PLOG("Ustack open64 intercepted at path (%s), fd(%d)", pathname, fd);
 
   fuse_fh = 0;
   if (0 == ioctl(fd, USTACK_GET_FUSE_FH, &fuse_fh)) {
@@ -121,25 +147,35 @@ int open64(const char *pathname, int flags, ...)
   }
 
 end:
-  va_end(vl);
+
   return fd;
 }
 
 #if 0
 void * malloc(size_t n_bytes) {
+  void * ret = NULL;
   if(_fd_array_initialized == FD_ARRAY_OK){
-    return _this_client->malloc(n_bytes);
+    ret =  _this_client->malloc(n_bytes);
+    PLOG("malloc %lu bytes using ustack memory at (%p)", n_bytes, ret);
   }
-  else return orig_malloc(n_bytes);
+  else{ 
+    ret =  orig_malloc(n_bytes);
+    PLOG("malloc %lu bytes using regular heap memory at (%p)", n_bytes, ret);
+  }
+  return ret;
 }
 
 void free(void * ptr) {
   status_t ret = E_FAIL;
-  if(_fd_array_initialized == FD_ARRAY_OK && S_OK == _this_client->free(ptr))
+  if(_fd_array_initialized == FD_ARRAY_OK && S_OK == _this_client->free(ptr)){
+
+    PLOG("free ustack memory at (%p)", ptr);
       return;
+  }
   else{
-    PWRN("ustack_client: intercep free not handled %p", ptr);
+    PLOG("free regular heap memory at (%p)", ptr);
     orig_free(ptr);
+    return;
   }
 }
 #endif
@@ -158,6 +194,36 @@ int close(int fd)
   }
   return ret;
 };
+
+
+
+
+void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset){
+  void * ret;
+  if(flags & MAP_HUGETLB){
+    ret =  _this_client->malloc(length);
+    assert(memset(ret, 0, length));
+    PLOG("intercep HUGETLB mmap with flags(%x) size(%ld), return %p", flags, length, ret);
+  }
+  else{
+    PLOG("[mmap]: fall back mmap with flags(%x) size(%ld)", flags, length);
+    ret =  orig_mmap(addr, length, prot, flags, fd, offset);
+  }
+  return ret;
+}
+
+int munmap(void *addr, size_t length){
+  int ret = -1;
+
+  PLOG("[munmap with addr %p, length = %ld", addr, length);
+  ret =  orig_munmap(addr, length);
+  if(ret){ // is ustack-managed
+    _this_client->free(addr);
+    ret = 0;
+  }
+
+  return ret;
+}
 
 /**
  * File write and read
@@ -189,13 +255,13 @@ ssize_t read(int fd, void *buf, size_t count)
       (search = _fd_array[fd]) != FUSE_FD_INVALID) {
     uint64_t fuse_fh = search;
 
-    PLOG("[stack-write]: try to write from %p to fuse_fh %lu, size %lu", buf,
+    PLOG("[stack-read]: try to write from %p to fuse_fh %lu, size %lu", buf,
          fuse_fh, count);
     return _this_client->read(fuse_fh, buf, count);
   }
   else {
     /* regular file */
-    PLOG("[stack-write]: fall back to orig_write fd(%d)", fd);
+    PLOG("[stack-read]: fall back to orig_read fd(%d), buf(%p), count(%ld)", fd, buf, count);
     return orig_read(fd, buf, count);
   }
 }
