@@ -53,6 +53,7 @@ private:
     //get the virtual address and issue the io
     void *buf; //the mapped io mem
 
+    // TODO: need to control offset 
     auto iomem_list = _iomem_map[client_id] ;
     if(iomem_list.empty()){
       PERR("iomem for pid %d is empty", client_id);
