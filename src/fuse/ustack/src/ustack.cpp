@@ -293,7 +293,7 @@ void Ustack::uipc_channel_thread_entry(Core::UIPC::Channel * channel, pid_t clie
       break;
     if(!msg) continue;
     
-    PMAJOR("recv'ed UIPC msg:status=%d, type=%d (%s)",s, msg->type, msg->data);
+    PLOG("recv'ed UIPC msg:status=%d, type=%d (%s)",s, msg->type, msg->data);
     
     assert(msg);
     switch(msg->type){

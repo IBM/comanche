@@ -9,7 +9,8 @@ project(fuse-ustack CXX)
 
 include_directories(${Nanomsg_INCLUDE_DIRS} ${TBB_INCLUDE_DIRS} ${Flatbuffers_INCLUDE_DIRS} ${CMAKE_CURRENT_BINARY_DIR}/src)
 
-add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG -D_FILE_OFFSET_BITS=64)
+add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -D_FILE_OFFSET_BITS=64)
+#add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG -D_FILE_OFFSET_BITS=64)
 
 # if not having this, src won't be in the build dir
 configure_file(

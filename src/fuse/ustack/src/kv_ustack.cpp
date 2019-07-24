@@ -275,7 +275,7 @@ static int kvfs_ustack_read(const char *path, char *buf, size_t size, off_t offs
     return -1;
   }
 
-  PINF("[%s]: read value %s from path %s ", __func__, buf, path);
+  PLOG("[%s]: read value %s from path %s ", __func__, buf, path);
 
   return size;
 }
@@ -293,7 +293,7 @@ int (kvfs_ustack_write) (const char *path, const char *buf, size_t size, off_t o
 
   uint64_t id;
 
-  PINF("[%s]: write content %s to path %s", __func__,buf, path);
+  PLOG("[%s]: write content %s to path %s", __func__,buf, path);
 
   KV_ustack_info *info = reinterpret_cast<KV_ustack_info *>(fuse_get_context()->private_data);
 
