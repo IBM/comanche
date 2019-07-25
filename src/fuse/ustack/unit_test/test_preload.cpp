@@ -15,14 +15,14 @@
 
 static size_t file_size=KB(4);
 static constexpr unsigned nr_buffer_copies=3; // make sure each time using different buffer
-static constexpr unsigned ITERATIONS = 1000;
+static constexpr unsigned ITERATIONS = 50000;
 
 /* TODO: direct start 4k write will be slow*/
 status_t do_warm_up(std::string dir_name, int open_flags){
   void* buffer;
 
   for(uint warmup_size  = KB(4);warmup_size < MB(32); warmup_size *= 4){
-    PMAJOR("Warmup with size %lu)", warmup_size);
+    PLOG("Warmup with size %u)", warmup_size);
     std::string filepath = dir_name + "/warmupfile-size" + std::to_string(warmup_size)+  ".dat";
     int fd = open(filepath.c_str(), open_flags, S_IRWXU);
     assert(fd>0);
@@ -48,11 +48,15 @@ int                main(int argc, char * argv[])
     return -1;
   }
   file_size= KB(atoi(argv[2]));
-  int open_flags = O_WRONLY | O_CREAT | O_DIRECT |O_SYNC;
-  // int open_flags = O_WRONLY | O_CREAT  |O_SYNC;
+  int use_O_DIRECT = 1;
+
+  int open_flags = O_RDWR | O_CREAT |O_SYNC;
+  if(use_O_DIRECT)
+    open_flags |= O_DIRECT;
 
   int use_preload = (getenv("LD_PRELOAD"))?1:0;
   std::string dir_name(argv[1]);
+  int is_read = 1;
 
   assert(S_OK == do_warm_up(dir_name, open_flags));
 
@@ -77,13 +81,28 @@ int                main(int argc, char * argv[])
     offset += file_size;
   }
 
-  _start_time = std::chrono::high_resolution_clock::now();
-  for (unsigned i = 0; i < ITERATIONS; i++) {
-    char* ptr = (char*)buffer  + file_size*(i % nr_buffer_copies);
+  if(is_read){
+    char* ptr = (char*)buffer;
     ssize_t res = write(fd, ptr, file_size);
     fsync(fd);
     if(res > file_size || res < 0){
-      PWRN("write return %lu in iteration %u, ptr = %p", res, i, ptr);
+      PWRN("write return %lu , ptr = %p", res, ptr);
+    }
+    lseek(fd, 0, SEEK_SET);
+  }
+
+  _start_time = std::chrono::high_resolution_clock::now();
+  for (unsigned i = 0; i < ITERATIONS; i++) {
+    char* ptr = (char*)buffer  + file_size*(i % nr_buffer_copies);
+    ssize_t res;
+    if(is_read)
+      res = read(fd, ptr, file_size);
+    else{
+      res = write(fd, ptr, file_size);
+      fsync(fd);
+    }
+    if(res > file_size || res < 0){
+      PWRN("write/read return %lu in iteration %u, ptr = %p", res, i, ptr);
     }
     lseek(fd, 0, SEEK_SET);
   }
