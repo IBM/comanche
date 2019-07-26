@@ -143,6 +143,13 @@ class NVME_store : public Component::IKVStore {
                        const void*        value,
                        const size_t       value_len,
                        unsigned int       flags = FLAGS_NONE) override;
+  virtual status_t put_direct(const pool_t       pool,
+                       const std::string& key,
+                       const void*        value,
+                       const size_t       value_len,
+                       memory_handle_t memory_handle,
+                       unsigned int       flags = FLAGS_NONE) override;
+
 
   virtual status_t get(const pool_t       pool,
                        const std::string& key,

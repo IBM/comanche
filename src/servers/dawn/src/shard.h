@@ -257,10 +257,7 @@ private:
   static inline work_request_t * request_key_to_record(work_request_key_t key) {
     return reinterpret_cast<work_request_t *>(key);
   }
-
-  
-  static Pool_manager              pool_manager; /* instance shared across connections */
-  
+    
   index_map_t*                     _index_map = nullptr;
   bool                             _thread_exit = false;
   bool                             _forced_exit;

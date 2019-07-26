@@ -11,27 +11,35 @@
    limitations under the License.
 */
 #include "ycsb_perf.h"
+#include <mpi.h>
 #include <stdlib.h>
 #include <iostream>
 #include "../../kvstore/get_cpu_mask_from_string.h"
 #include "../../kvstore/stopwatch.h"
 #include "db_fact.h"
 #include "workload.h"
+#include <string>
 
 using namespace std;
+using namespace ycsb;
 
 int main(int argc, char * argv[])
 {
-    if(argc<4)
-        show_program_options();
+  MPI_Init(NULL, NULL);
+  int world_size;
+  MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    string operation = argv[1];
-    string filename=argv[3];
+  if (argc < 4) show_program_options();
 
-    ifstream input(filename);
+  string operation = argv[1];
+  string filename  = argv[3];
 
-    try {
-      props.load(input);
+  ifstream input(filename);
+
+  try {
+    props.load(input);
     }
     catch (const string &msg) {
       cerr << msg << endl;
@@ -41,23 +49,13 @@ int main(int argc, char * argv[])
 
     input.close();
 
-    cpu_mask_t cpus;
-
-    try {
-      cpus =
-          get_cpu_mask_from_string(props.getProperty("cores", "0"));
-    }
-    catch (...) {
-      PERR("%s", "couldn't create CPU mask. Exiting.");
-      return 1;
-    }
-
     if (operation == "run") props.setProperty("run", "1");
 
-    Core::Per_core_tasking<ycsb::Workload, Properties &> exp(cpus, props);
-    exp.wait_for_all();
-    auto first_exp = exp.tasklet(cpus.first_core());
-    first_exp->summarize();
+    Workload *wl = new Workload(props);
+    wl->do_work();
+    delete wl;
+
+    MPI_Finalize();
 
     return 0;
 }

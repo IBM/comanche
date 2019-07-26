@@ -16,11 +16,16 @@
 #include <core/dpdk.h>
 #include <core/task.h>
 #include <gtest/gtest.h>
+#include <mpi.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/mman.h>
+#include <unistd.h>
 #include <boost/program_options.hpp>
+#include <chrono>
 #include <iostream>
 #include <string>
+#include <thread>
 
 using namespace Component;
 using namespace Common;
@@ -43,19 +48,49 @@ void DawnDB::init(Properties &props, unsigned core)
   Component::IBase *comp = Component::load_component(
       "libcomanche-dawn-client.so", dawn_client_factory);
 
-  IKVStore_factory *fact =
-      (IKVStore_factory *) comp->query_interface(IKVStore_factory::iid());
+  IDawn_factory *fact =
+      (IDawn_factory *) comp->query_interface(IDawn_factory::iid());
   string username = "luna";
   string address  = props.getProperty("address");
+  size_t mid      = address.find(":");
+  int    port     = stoi(address.substr(mid + 1));
+  int    rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  port += rank / 6;
+
+  char hostname[MPI_MAX_PROCESSOR_NAME];
+  int name_len;
+  MPI_Get_processor_name(hostname, &name_len);
+  char *s = strstr(hostname, "bio"); //if bio1
+  if (s == NULL) {
+    address.replace(address.begin() + mid + 1, address.end(), to_string(port));
+  }
+  else {
+      port=11914;
+      port+=(rank-48)/6;
+    address.assign("10.0.1.94:" + to_string(port));
+  }
+  cout << "host: " + string(hostname) + ", rank: "+ to_string(rank) +", address: " + address << endl;
+
   string dev      = props.getProperty("dev");
   int    debug    = stoi(props.getProperty("debug_level", "1"));
-  client          = fact->create(debug, username, address, dev);
+  client          = fact->dawn_create(debug, username, address, dev);
   fact->release_ref();
+  IDawn::Shard_stats stats;
+  client->get_statistics(stats);
+  int opstart = stats.op_request_count;
+  props.log("client number: " + to_string(stats.client_count));
+  std::this_thread::sleep_for(std::chrono::seconds(5));
+  client->get_statistics(stats);
+  double req_per_sec = (stats.op_request_count - opstart) / 5.0;
+  props.log("request per sec server: " + to_string(req_per_sec));
+  props.log("request per sec client: " + props.getProperty("request"));
+
   pool = client->open_pool("table" + to_string(core), 0);
 
   if (pool == Component::IKVStore::POOL_ERROR) {
     /* ok, try to create pool instead */
-    pool = client->create_pool("table" + to_string(core), GB(1));
+    pool = client->create_pool(poolname, GB(1));
   }
 }
 
@@ -133,7 +168,7 @@ int DawnDB::erase(const string &table, const string &key)
   }
   */
   int ret = client->erase(pool, key);
-  // client->close_pool(pool);
+  client->close_pool(pool);
   return ret;
 }
 
@@ -148,5 +183,6 @@ int DawnDB::scan(const string &                table,
 void DawnDB::clean()
 {
   client->close_pool(pool);
+  client->delete_pool(poolname);
   client->release_ref();
 }

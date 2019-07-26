@@ -8,6 +8,10 @@
 #include <city.h>
 #include <set>
 #include "persist_session.h"
+#include <sys/mman.h>
+extern "C" {
+#include <spdk/env.h>
+}
 
 namespace nvmestore
 {
@@ -38,7 +42,7 @@ status_t persist_session::alloc_new_object(const std::string& key,
   // get free block range
   uint64_t lba =
       _blk_manager->alloc_blk_region(nr_io_blocks, &(objinfo->block_region));
-  PDBG("write to lba %lu with length %lu, key %lx", lba, value_len, hashkey);
+  // PDBG("write to lba %lu with length %lu, key %lx", lba, value_len, hashkey);
 
   objinfo->size      = value_len;
   objinfo->lba_start = lba;
@@ -57,7 +61,7 @@ status_t persist_session::alloc_new_object(const std::string& key,
 
   _num_objs += 1;
 
-  PDBG("Allocated obj with obj %p, ,handle %p", objinfo, objinfo->handle);
+  PDBG("Allocated obj with obj %p", objinfo);
 
   out_objinfo = objinfo;
   return S_OK;
@@ -84,8 +88,7 @@ status_t persist_session::erase(const std::string& key)
   if (!p_state_map->state_get_write_lock(pool, objinfo->block_region))
     throw API_exception("unable to remove, value locked");
 
-  PDBG("Tring to Remove obj with obj %p,handle %p", D_RO(objinfo),
-       D_RO(objinfo)->handle);
+  PDBG("Tring to Remove obj with obj %p",objinfo);
 
   // Free objinfo from meta_pool
   rc = _meta_store->erase(_meta_pool, key);
@@ -181,7 +184,7 @@ status_t persist_session::get(const std::string& key,
   auto        val_len = objinfo->size;
   auto        lba     = objinfo->lba_start;
 
-  PDBG("prepare to read lba %d with length %d, key %lx", lba, val_len, hashkey);
+  PDBG("prepare to read lba 0x%lx with length %d", lba, val_len);
 
   may_ajust_io_mem(val_len);
   size_t nr_io_blocks = (val_len + blk_sz - 1) / blk_sz;
@@ -218,7 +221,7 @@ status_t persist_session::get_direct(const std ::string& key,
   auto        val_len = objinfo->size;
   auto        lba     = objinfo->lba_start;
 
-  PDBG("prepare to read lba %lu with length %lu", lba, val_len);
+  PDBG("prepare to read lba 0x%lx with length %d", lba, val_len);
   assert(out_value);
 
   io_buffer_t mem;
@@ -367,22 +370,35 @@ persist_session::key_t persist_session::lock(const std::string& key,
   auto value_len = objinfo->size;  // the length allocated before
   auto lba       = objinfo->lba_start;
 
-  /* fetch the data to block io mem */
-  size_t      nr_io_blocks = (value_len + blk_sz - 1) / blk_sz;
-  io_buffer_t mem          = _blk_manager->allocate_io_buffer(
-      nr_io_blocks * blk_sz, 4096, Component::NUMA_NODE_ANY);
+  /* Prepare io mem, memory needs to be specially aligned to register in spdk*/
+  size_t data_size =round_up(value_len, MB(2));
+  size_t      nr_io_blocks = data_size/ blk_sz;
+  assert(data_size%blk_sz == 0);
 
+  int flags = MAP_PRIVATE|MAP_ANONYMOUS|MAP_HUGETLB|MAP_FIXED;
+  char *target_addr = ((char*) 0x900000000);
+  char *data = (char *) mmap(target_addr, data_size, PROT_READ|PROT_WRITE, flags, -1, 0);
+
+  assert(data != MAP_FAILED);
+  memset(data, 0, data_size);
+  int rc = spdk_mem_register(data, data_size);
+  if(rc){
+    PERR("register returns %d", rc);
+    return 0;
+  }
+  io_buffer_t mem = (io_buffer_t)(data);
+  out_value = data;
+
+  /* Actual IO */
   _blk_manager->do_block_io(operation_type, mem, lba, nr_io_blocks);
 
   get_locked_regions().emplace(mem, key);
   PDBG("[nvmestore_session]: allocating io mem at %p, virt addr %p",
        (void*) mem, _blk_manager->virt_addr(mem));
 
-  /* set output values */
-  out_value     = _blk_manager->virt_addr(mem);
   out_value_len = value_len;
 
-  PDBG("NVME_store: obtained the lock");
+  PDBG("NVME_store: obtained the lock for key %s", key.c_str());
 
   return reinterpret_cast<persist_session::key_t>(out_value);
 }
@@ -408,7 +424,10 @@ status_t persist_session::unlock(persist_session::key_t key_handle)
   auto        val_len = objinfo->size;
   auto        lba     = objinfo->lba_start;
 
-  size_t nr_io_blocks = (val_len + blk_sz - 1) / blk_sz;
+  size_t data_size =round_up(val_len, MB(2));
+  size_t      nr_io_blocks = data_size/ blk_sz;
+  assert(data_size%blk_sz == 0);
+
 
   /*flush and release iomem*/
 #ifdef USE_ASYNC
@@ -419,12 +438,15 @@ status_t persist_session::unlock(persist_session::key_t key_handle)
 #endif
 
   PDBG("[nvmestore_session]: freeing io mem at %p", (void*) mem);
-  _blk_manager->free_io_buffer(mem);
+
+  /* free io buffer*/
+  assert(0 == spdk_mem_unregister((void *)mem, data_size));
+  assert(0 == munmap((void*)mem, data_size));
 
   /*release the lock*/
   p_state_map->state_unlock(pool, objinfo->block_region);
 
-  PDBG("NVME_store: released the lock");
+  PDBG("NVME_store: released the lock for key %s\n", key.c_str());
 
   get_locked_regions().erase(mem);
   return S_OK;
