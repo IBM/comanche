@@ -29,7 +29,7 @@ namespace ycsb
 {
 enum Operation { INSERT, READ, UPDATE, SCAN, READMODIFYWRITE };
 
-class Workload : public Core::Tasklet {
+class Workload {
  public:
   static const int    SIZE;
   const string        TABLE;
@@ -37,11 +37,9 @@ class Workload : public Core::Tasklet {
   void load();
   void run();
   virtual ~Workload();
-  virtual void initialize(unsigned core) override;
-  virtual bool do_work(
-      unsigned core) override; /*< called in tight loop; return false to exit */
-  virtual void cleanup(unsigned core) override; /*< called once */
-  virtual bool ready() override;
+  virtual void initialize();
+  virtual bool do_work();
+  virtual void cleanup();
   void         summarize();
 
  private:

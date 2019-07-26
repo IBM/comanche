@@ -232,7 +232,13 @@ class Connection_handler
     return _stall_tick;
   }
 
-  inline void stall() {  _stall_tick = STALL_TICKS;  }
+  inline void stall() {
+    _stall_tick = STALL_TICKS;
+  }
+
+  inline Pool_manager& pool_manager() {
+    return _pool_manager;
+  }
 
  private:
   struct {
@@ -252,6 +258,7 @@ class Connection_handler
     PINF("| Connection Handler Statistics         |");
     PINF("-----------------------------------------");
     PINF("Ticks                       : %lu", _tick_count);
+    PINF("Open pools                  : %lu", _pool_manager.open_pool_count());
     PINF("NEW_MSG_RECV misses         : %lu", _stats.wait_msg_recv_misses);
     PINF("Recv message count          : %lu", _stats.recv_msg_count);
     PINF("Send message count          : %lu", _stats.send_msg_count);
@@ -271,6 +278,8 @@ class Connection_handler
   std::vector<buffer_t*> _pending_msgs;
   std::vector<action_t>  _pending_actions;
   float                  _freq_mhz;
+  Pool_manager           _pool_manager; /* instance shared across connections */
+
 };
 
 }  // namespace Dawn

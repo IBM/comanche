@@ -19,6 +19,9 @@
 
 #include <iostream>
 #include <regex>
+#include <thread>
+#include <random>
+#include <chrono>
 
 using namespace Component;
 
@@ -72,8 +75,10 @@ void Dawn_client::open_transport(const std::string& device,
                                  const int          port,
                                  const std::string& provider)
 {
+    PMAJOR("Enter LOAD component pid %d", int(getpid()));
   {
     IBase* comp = load_component("libcomanche-fabric.so", net_fabric_factory);
+    PMAJOR("LOADED component pid %d", int(getpid()));
     assert(comp);
     _factory = static_cast<IFabric_factory*>(
         comp->query_interface(IFabric_factory::iid()));
@@ -97,12 +102,20 @@ void Dawn_client::open_transport(const std::string& device,
                                   ","
                                   " \"ep_attr\" : { \"type\" : \"FI_EP_MSG\" }"
                                   "}"};
+    PMAJOR("TRY TO OPEN FABRIC pid %d", int(getpid()));
 
     _fabric = _factory->make_fabric(fabric_spec);
     const std::string client_spec{"{}"};
+
+    std::mt19937_64 eng{std::random_device{}()};  // or seed however you want
+    std::uniform_int_distribution<> dist{10, 100};
+    std::this_thread::sleep_for(std::chrono::milliseconds{dist(eng)});
+
     _transport = _fabric->open_client(client_spec, ip_addr, port);
     assert(_transport);
   }
+
+  PMAJOR("FABRIC OPEN CLIENT");
 
   assert(_transport);
   _connection = new Dawn::Client::Connection_handler(_transport);

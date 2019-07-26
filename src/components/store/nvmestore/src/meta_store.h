@@ -37,7 +37,7 @@ class MetaStore {
     if (_persist_type ==
         PERSIST_FILE) { /* components that support debug level */
       std::map<std::string, std::string> params;
-      params["pm_path"] = pm_path + "meta/";
+      params["pm_path"] = pm_path + "/meta/";
       _store            = fact->create(debug_level, params);
     }
     else if (_persist_type == PERSIST_HSTORE) {

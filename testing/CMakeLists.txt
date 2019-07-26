@@ -4,4 +4,7 @@ set(CMAKE_CXX_STANDARD 11)
 
 add_subdirectory (kvstore)
 add_subdirectory (integrity)
+find_package(MPI)
+IF(MPI_FOUND)
 add_subdirectory (ycsb)
+ENDIF()
