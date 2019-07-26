@@ -338,7 +338,7 @@ persist_session::key_t persist_session::lock(const std::string& key,
   if (check_exists(key) == E_NOT_FOUND) {
     if (!out_value_len) {
       throw General_exception(
-          "%s: Need value length to lock a unexsiting object", __func__);
+          "%s: Need value length to lock a unexisiting object", __func__);
     }
     alloc_new_object(key, out_value_len, objinfo);
   }
@@ -375,9 +375,9 @@ persist_session::key_t persist_session::lock(const std::string& key,
   size_t      nr_io_blocks = data_size/ blk_sz;
   assert(data_size%blk_sz == 0);
 
-  int flags = MAP_PRIVATE|MAP_ANONYMOUS|MAP_HUGETLB|MAP_FIXED;
-  char *target_addr = ((char*) 0x900000000);
-  char *data = (char *) mmap(target_addr, data_size, PROT_READ|PROT_WRITE, flags, -1, 0);
+  int flags = MAP_PRIVATE|MAP_ANONYMOUS|MAP_HUGETLB;
+  // TODO: needs a region manager here
+  char *data = (char *) mmap(NULL, data_size, PROT_READ|PROT_WRITE, flags, -1, 0);
 
   assert(data != MAP_FAILED);
   memset(data, 0, data_size);
