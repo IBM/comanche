@@ -252,7 +252,9 @@ void Shared_memory::open_shared_memory(std::string name, bool master) {
   if (ptr != _vaddr)
     throw Constructor_exception("mmap failed in Shared_memory");
 
-  memset(ptr, 0, _size_in_pages * PAGE_SIZE);
+  if(master)
+    memset(ptr, 0, _size_in_pages * PAGE_SIZE);
+  
   close(fd);
 }
 
