@@ -13,8 +13,8 @@ if( ${ARCHITECTURE} STREQUAL "x86_64" )
     DEPENDS ndctl
     BUILD_IN_SOURCE 1
     UPDATE_DISCONNECTED 1
-    GIT_REPOSITORY https://github.com/dwaddington/pmdk.git
-    GIT_TAG master
+    GIT_REPOSITORY https://github.com/pmem/pmdk.git
+    GIT_TAG 1.6
     CONFIGURE_COMMAND ""
     BUILD_COMMAND PKG_CONFIG_PATH=${CMAKE_INSTALL_PREFIX}/lib/pkgconfig:${CMAKE_INSTALL_PREFIX}/lib64/pkgconfig make EXTRA_LDFLAGS=-Wl,-rpath=${CMAKE_INSTALL_PREFIX}/lib BUILD_RPMEM=n
     INSTALL_COMMAND PKG_CONFIG_PATH=${CMAKE_INSTALL_PREFIX}/lib/pkgconfig:${CMAKE_INSTALL_PREFIX}/lib64/pkgconfig make EXTRA_LDFLAGS=-Wl,-rpath,${CMAKE_INSTALL_PREFIX}/lib prefix=${CMAKE_INSTALL_PREFIX} install
