@@ -7,8 +7,8 @@ direct=1; O_DIRECT
 sync=1; O_SYNC
 size=4m
 numjobs=1
-directory=/tmp/mount
-;directory=/tmp/mymount ; kvustack
+directory=/tmp/kvfs
+;directory=/tmp/kvfs-ustack ; kvustack
 thread ;unless it will fork
 iomem=mmaphuge
 hugepage-size=2m

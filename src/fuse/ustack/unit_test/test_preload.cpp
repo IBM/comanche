@@ -56,7 +56,7 @@ int                main(int argc, char * argv[])
 
   int use_preload = (getenv("LD_PRELOAD"))?1:0;
   std::string dir_name(argv[1]);
-  int is_read = 1;
+  int is_read = 0;
 
   assert(S_OK == do_warm_up(dir_name, open_flags));
 
