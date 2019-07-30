@@ -230,8 +230,9 @@ void Shard::process_messages_from_ado()
     {
       switch(op) {
       case Component::IADO_proxy::OP_CREATE:
+      case Component::IADO_proxy::OP_OPEN:
         {
-          PLOG("Shard: received table op create");
+          PLOG("Shard: received table op create/open");
           Component::IKVStore::key_t key_handle;          
           auto locktype = Component::IKVStore::STORE_LOCK_WRITE;
           void * value = nullptr;
@@ -242,18 +243,20 @@ void Shard::process_messages_from_ado()
                               value,
                               value_len,
                               key_handle) != S_OK)
-            throw General_exception("ADO OP_CREATE request failed");
+            throw General_exception("ADO OP_CREATE/OP_OPEN request failed");
           if(option_DEBUG > 2)
-            PLOG("Shard: created and locked new KV pair (%p, %p,%lu)", (void*) key_handle, value, value_len);
+            PLOG("Shard: locked KV pair (%p, %p,%lu)", (void*) key_handle, value, value_len);
           ado->add_deferred_unlock(work_id, key_handle);
-          ado->send_table_op_response(S_OK, (void*) value);
+          ado->send_table_op_response(S_OK, (void*) value, value_len);
           break;
         }
       case Component::IADO_proxy::OP_ERASE:
-        PLOG("Shard: received table op create");
-        PERR("Not implemented");
-        assert(0);
-        break;
+        {
+          PLOG("Shard: received table op erase");
+          status_t rc = _i_kvstore->erase(ado->pool_id(), key);          
+          ado->send_table_op_response(rc);
+          break;
+        }
       default:
         throw Logic_exception("unknown table op code");
       }

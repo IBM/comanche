@@ -46,7 +46,11 @@
 #define FILESTORE_PATH "libcomanche-storefile.so"
 #define NVMESTORE_PATH "libcomanche-nvmestore.so"
 
-// ustack: the userspace zero copy communiation mechenism
+/**
+ * ustack: the userspace zero copy communiation mechenism.
+ *
+ * Client can also direct issue posix file operations.
+ */
 Ustack *_ustack;
 
 /**
@@ -64,7 +68,8 @@ void * kvfs_ustack_init (struct fuse_conn_info *conn){
   Component::IKVStore *store;
   Component::IBase * comp; 
 
-  std::string component("filestore");
+  //std::string component("filestore");
+  std::string component("nvmestore");
 
   if(component == "pmstore") {
     comp = Component::load_component(PMSTORE_PATH, Component::pmstore_factory);
@@ -81,7 +86,18 @@ void * kvfs_ustack_init (struct fuse_conn_info *conn){
 
   Component::IKVStore_factory * fact = (Component::IKVStore_factory *) comp->query_interface(Component::IKVStore_factory::iid());
 
-  store = fact->create("owner","name");
+  std::map<std::string, std::string> params;
+  params["owner"] = "testowner";
+  params["name"] = "testname";
+  params["pci"] = "20:00.0";
+  params["pm_path"] = "/mnt/pmem0/";
+  params["persist_type"] = "hstore";
+  // params["persist_type"] = "filestore";
+
+  unsigned debug_level = 0;
+
+  store = fact->create(debug_level, params);
+
   fact->release_ref();
 
   PINF("[%s]: fs loaded using component %s ", __func__, component.c_str());
@@ -90,7 +106,7 @@ void * kvfs_ustack_init (struct fuse_conn_info *conn){
 
   // init ustack and start accepting connections
   std::string ustack_name = "ipc:///tmp//kv-ustack.ipc";
-  DPDK::eal_init(1024);
+  // DPDK::eal_init(1024);
 
   _ustack = new Ustack(ustack_name.c_str(), info);
   return info;
@@ -139,6 +155,19 @@ int kvfs_ustack_create (const char *path, mode_t mode, struct fuse_file_info * f
   info->insert_item(handle, path+1);
   fi->fh = handle;
   PINF("[%s]: create entry No. %lu: key %s", __func__, handle, path+1);
+  return 0;
+}
+
+/** Remove a file */
+int kvfs_ustack_unlink(const char *path){
+  KV_ustack_info *info = reinterpret_cast<KV_ustack_info *>(fuse_get_context()->private_data);
+
+  uint64_t handle = info->get_id(path+1);
+  /** remove obj from pool*/
+  if(S_OK != info->remove_item(handle)){
+    PWRN("%s remove fuse_fh(%lu) failed", __func__, handle);
+  }
+
   return 0;
 }
 
@@ -217,6 +246,18 @@ static int kvfs_ustack_open(const char *path, struct fuse_file_info *fi)
   }
 }
 
+int kvfs_ustack_fallocate (const char *path, int mode, off_t offset, off_t length,
+      struct fuse_file_info *){
+
+    PWRN("[%s]: fallocate doesn't do anything ", __func__);
+    return 0;
+}
+
+int kvfs_ustack_flush(const char *, struct fuse_file_info *){
+    PWRN("[%s]: flush doesn't do anything ", __func__);
+    return 0;
+}
+
 /* 
  * read and write are called if you don't use the file operations from the ustack_client.
  * e.g. run "echo "hello world" > ./mymount/tmp.data"
@@ -234,7 +275,7 @@ static int kvfs_ustack_read(const char *path, char *buf, size_t size, off_t offs
     return -1;
   }
 
-  PINF("[%s]: read value %s from path %s ", __func__, buf, path);
+  PLOG("[%s]: read value %s from path %s ", __func__, buf, path);
 
   return size;
 }
@@ -252,7 +293,7 @@ int (kvfs_ustack_write) (const char *path, const char *buf, size_t size, off_t o
 
   uint64_t id;
 
-  PINF("[%s]: write content %s to path %s", __func__,buf, path);
+  PLOG("[%s]: write content %s to path %s", __func__,buf, path);
 
   KV_ustack_info *info = reinterpret_cast<KV_ustack_info *>(fuse_get_context()->private_data);
 
@@ -295,6 +336,9 @@ int main(int argc, char *argv[])
   oper.create = kvfs_ustack_create;
   oper.destroy = kvfs_ustack_destroy;
   oper.ioctl = kvfs_ustack_ioctl;
+  oper.unlink = kvfs_ustack_unlink;
+  oper.fallocate = kvfs_ustack_fallocate;
+  oper.flush = kvfs_ustack_flush;
 
 	return fuse_main(argc, argv, &oper, NULL);
 }

@@ -93,6 +93,10 @@ public:
                                                          const std::string& key_name,
                                                          const size_t value_size,
                                                          void*& out_value_addr)> create_key,
+                                  std::function<status_t(const uint64_t work_key,
+                                                         const std::string& key_name,
+                                                         void*& out_value_addr,
+                                                         size_t& out_value_len)> open_key,
                                   std::function<status_t(const std::string& key_name)> erase_key) = 0;
 
   /** 
@@ -118,7 +122,8 @@ public:
 
   enum { /* this should match ado_proto.fbs */
     OP_CREATE = 0,
-    OP_ERASE = 1,
+    OP_OPEN = 1,
+    OP_ERASE = 2,
   };
   
   using work_id_t = uint64_t; /*< work handle/identifier */
@@ -191,11 +196,13 @@ public:
    * Send response to ADO for table operation
    * 
    * @param s Status code
-   * @param value_addr Address of new value (may be nullptr)
+   * @param value_addr [optional] Address of new
+   * @param value_len [optional] Length of value in bytes
    * 
    */
   virtual void send_table_op_response(const status_t s,
-                                      const void * value_addr) = 0;
+                                      const void * value_addr = nullptr,
+                                      size_t value_len = 0) = 0;
 
   /** 
    * Indicate whether ADO has shutdown

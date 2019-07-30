@@ -171,11 +171,12 @@ status_t Channel::free_msg(void* msg) {
 Shared_memory::Shared_memory(std::string name, size_t n_pages)
     : _master(true), _name(name) {
   std::string fifo_name = "fifo." + name;
+  if (option_DEBUG) PLOG("try to negotiate_shared_memory(%s): master", name.c_str());
   _vaddr = negotiate_addr_create(fifo_name.c_str(), n_pages * PAGE_SIZE);
   assert(_vaddr);
   _size_in_pages = n_pages;
 
-  if (option_DEBUG) PLOG("open_shared_memory: master");
+  if (option_DEBUG) PLOG("open_shared_memory(%s): master", name.c_str());
 
   open_shared_memory(name.c_str(), true);
 }
@@ -183,10 +184,11 @@ Shared_memory::Shared_memory(std::string name, size_t n_pages)
 Shared_memory::Shared_memory(std::string name)
     : _master(false), _name(name), _size_in_pages(0) {
   std::string fifo_name = "fifo." + name;
+  if (option_DEBUG) PLOG("try to negotiate_shared_memory(%s): slave", name.c_str());
   _vaddr = negotiate_addr_connect(fifo_name.c_str(), &_size_in_pages);
   assert(_vaddr);
 
-  if (option_DEBUG) PLOG("open_shared_memory: slave");
+  if (option_DEBUG) PLOG("open_shared_memory(%s): slave", name.c_str());
 
   open_shared_memory(name.c_str(), false);
 }
@@ -250,7 +252,9 @@ void Shared_memory::open_shared_memory(std::string name, bool master) {
   if (ptr != _vaddr)
     throw Constructor_exception("mmap failed in Shared_memory");
 
-  memset(ptr, 0, _size_in_pages * PAGE_SIZE);
+  if(master)
+    memset(ptr, 0, _size_in_pages * PAGE_SIZE);
+  
   close(fd);
 }
 
@@ -353,9 +357,16 @@ void* Shared_memory::negotiate_addr_connect(std::string name,
   std::string name_s2c = name + ".s2c";
   std::string name_c2s = name + ".c2s";
 
-  int fd_s2c = open(name_s2c.c_str(), O_RDONLY);
-  int fd_c2s = open(name_c2s.c_str(), O_WRONLY);
-  assert(fd_c2s && fd_s2c);
+  // Wait till master creates the fifo.
+  int fd_s2c = -1, fd_c2s = -1;
+  while(fd_s2c <=0){
+    fd_s2c = open(name_s2c.c_str(), O_RDONLY);
+    usleep(100);
+  }
+  while(fd_c2s <=0){
+    fd_c2s = open(name_c2s.c_str(), O_WRONLY);
+    usleep(100);
+  }
   assert(fd_c2s != ENXIO);
 
   _fifo_names.push_back(name_c2s);
