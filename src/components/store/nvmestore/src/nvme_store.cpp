@@ -147,8 +147,12 @@ IKVStore::pool_t NVME_store::create_pool(const std::string& name,
   size_t estimated_obj_map_size = MB(4);  // 32B per entry, that's 2^17
   IKVStore::pool_t obj_info_pool =
       _metastore.get_store()->create_pool(name, estimated_obj_map_size, flags);
+
+  // Creating pool with same name
   if (obj_info_pool == POOL_ERROR) {
-    throw General_exception("Creating objmap pool failed");
+    PWRN("[%s:%d]:Creating objmap pool failed with name %s, size = %ld, flags = 0x, pool already exists?%x", __FUNCTION__, __LINE__,
+        name.c_str(), estimated_obj_map_size, flags);
+    return POOL_ERROR;
   }
   open_session_t* session =
       new open_session_t(_metastore.get_store(), obj_info_pool, name,
@@ -303,6 +307,16 @@ status_t NVME_store::put(IKVStore::pool_t   pool,
   return session->put(key, value, value_len, flags);
 }
 
+status_t NVME_store::put_direct(IKVStore::pool_t   pool,
+                         const std::string& key,
+                         const void*        value,
+                         size_t             value_len,
+                         memory_handle_t memory_handle,
+                         unsigned int       flags)
+{
+  NVME_store::put(pool, key, value, value_len, flags);
+}
+
 status_t NVME_store::get(const pool_t       pool,
                          const std::string& key,
                          void*&             out_value,
@@ -311,7 +325,7 @@ status_t NVME_store::get(const pool_t       pool,
   open_session_t* session = reinterpret_cast<open_session_t*>(pool);
 
   if (g_sessions.find(session) == g_sessions.end())
-    throw API_exception("NVME_store::put invalid pool identifier");
+    throw API_exception("NVME_store::get invalid pool identifier");
 
   return session->get(key, out_value, out_value_len);
 }
@@ -325,7 +339,7 @@ status_t NVME_store::get_direct(const pool_t       pool,
   open_session_t* session = reinterpret_cast<open_session_t*>(pool);
 
   if (g_sessions.find(session) == g_sessions.end())
-    throw API_exception("NVME_store::put invalid pool identifier");
+    throw API_exception("NVME_store::get_direct invalid pool identifier");
 
   return session->get_direct(key, out_value, out_value_len,
                              reinterpret_cast<buffer_t*>(handle));
@@ -505,7 +519,7 @@ IKVStore* NVME_store_factory::create(unsigned debug_level,
     }
     else if (params["persist_type"] == "hstore") {
       meta_persist_type = PERSIST_HSTORE;
-      if ( fs::exists("/dev/dax0.1") &&
+      if ( fs::exists("/dev/dax0.1") ||
           (getenv("USE_DRAM") == NULL)) {
         throw General_exception(
             "[nvmestore factory]: Need to set in current shell: \n \texport "

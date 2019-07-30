@@ -1,0 +1,3 @@
+add_subdirectory(conv_bench)
+add_subdirectory(rnn_bench)
+add_subdirectory(gemm_bench)

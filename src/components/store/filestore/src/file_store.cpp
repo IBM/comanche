@@ -172,7 +172,7 @@ status_t Pool_handle::get(const std::string& key,
 {
   std::string full_path = path.string() + "/" + key;
   if(!fs::exists(full_path)) {
-    PERR("key not found: (%s)", full_path.c_str());
+    PWRN("key not found: (%s)", full_path.c_str());
     return IKVStore::E_KEY_NOT_FOUND;
   }
 
@@ -254,6 +254,7 @@ IKVStore::key_t Pool_handle::lock(const std::string& key,
     int rc = ::ftruncate(fd, out_value_len);
     if(rc != 0)
       throw General_exception("file_store::lock ::ftruncate failed %s", strerror(errno));
+    ::fsync(fd);
     ::close(fd);
     created = true;
   }
@@ -266,10 +267,22 @@ IKVStore::key_t Pool_handle::lock(const std::string& key,
   /* this component doesn't really lock, we simulate it though */
   int fd = ::open(full_path.c_str(), O_RDWR, 0644);
 
+  if (info.st_size != out_value_len) {
+	  int fd_resize = open(full_path.c_str(), O_WRONLY | O_APPEND | O_CREAT, 0644);
+	  if(fd_resize == -1)
+	  	throw General_exception("file_store::lock ::open failed %s", strerror(errno));
+	  int rc = ::ftruncate(fd_resize, out_value_len);
+	  if(rc != 0)
+		throw General_exception("file_store::lock ::ftruncate failed %s", strerror(errno));
+	  ::fsync(fd_resize);
+	  ::close(fd_resize);
+	  if(stat(full_path.c_str(), &info))
+	      throw General_exception("stat failed on file (%s)", full_path.c_str());
+  }
+  assert(out_value_len == info.st_size);
   auto sl = new Simulated_locked_item(fd, info.st_size);
   assert(sl);
   
-  out_value_len = info.st_size;
   out_value = sl->p;
 
   if(!created) { /* reload from file */

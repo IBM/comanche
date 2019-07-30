@@ -20,7 +20,7 @@ if(BOOTSTRAP_DEPS)
   add_subdirectory(tbb)
   add_subdirectory(rapidjson)
   add_subdirectory(libdocker)
-  
+
   find_package(GTest)
   if( NOT GTEST_FOUND) # libgtest-dev in ubuntu 1604 only installs headers
     add_subdirectory(/usr/src/gtest ${CMAKE_CURRENT_BINARY_DIR}/gtest)
@@ -29,13 +29,13 @@ if(BOOTSTRAP_DEPS)
   endif()
 
 
-  # ExternalProject_Add(nanomsg
-  #   BUILD_IN_SOURCE 1
-  #   SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/nanomsg
-  #   CONFIGURE_COMMAND cmake . -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_INSTALL_PREFIX}
-  #   BUILD_COMMAND make -j2
-  #   INSTALL_COMMAND make install
-  #   )
+  ExternalProject_Add(nanomsg
+    BUILD_IN_SOURCE 1
+    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/nanomsg
+    CONFIGURE_COMMAND cmake . -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_INSTALL_PREFIX} -DNN_ENABLE_DOC=OFF
+    BUILD_COMMAND make -j2
+    INSTALL_COMMAND make install
+   )
 
   find_package(CUDA)
   if(CUDA_FOUND AND CUDA_VERSION GREATER 7.5)
@@ -62,6 +62,3 @@ add_subdirectory(core)
 #
 
 endif(BOOTSTRAP_DEPS)
-
-
-
