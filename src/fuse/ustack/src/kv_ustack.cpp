@@ -102,7 +102,8 @@ void * kvfs_ustack_init (struct fuse_conn_info *conn){
 
   PINF("[%s]: fs loaded using component %s ", __func__, component.c_str());
 
-  KV_ustack_info * info = new KV_ustack_info("owner", "name", store);
+  // KV_ustack_info * info = new KV_ustack_info("owner", "name", store);
+  KV_ustack_info * info = new KV_ustack_info_cached("owner", "name", store);
 
   // init ustack and start accepting connections
   std::string ustack_name = "ipc:///tmp//kv-ustack.ipc";
@@ -152,9 +153,12 @@ int kvfs_ustack_create (const char *path, mode_t mode, struct fuse_file_info * f
   handle = info->alloc_id();
   assert(handle);
 
+  PDBG("[%s]: create new file(%s)!",__func__, path);
+
   info->insert_item(handle, path+1);
+  assert(S_OK == info->open_file(handle));
   fi->fh = handle;
-  PINF("[%s]: create entry No. %lu: key %s", __func__, handle, path+1);
+  PLOG("[%s]: create entry No.%lu: key(%s)", __func__, handle, path+1);
   return 0;
 }
 
@@ -190,7 +194,7 @@ static int kvfs_ustack_getattr(const char *path, struct stat *stbuf)
 		stbuf->st_size = info->get_item_size(handle);
   }
   else{
-    PINF("[%s]: open not found exsiting!",__func__);
+    PWRN("[%s]: path(%s) cannot found!",__func__, path);
 		res = -ENOENT;
   }
 
@@ -236,12 +240,37 @@ static int kvfs_ustack_open(const char *path, struct fuse_file_info *fi)
   //TODO: check access: return -EACCES;
   handle = info->get_id(path+1);
   if(handle){
-    PINF("[%s]: open found exsiting!",__func__);
+    PDBG("[%s]: open existing file (%s)!",__func__, path);
     fi->fh = handle;
+    assert(S_OK == info->open_file(handle));
     return 0;
   }
   else{
     PINF("[%s]: open not found exsiting!",__func__);
+    return -ENOENT;
+  }
+}
+
+
+/** Release an open file
+ *
+ * Release is called when there are no more references to an open file
+ */
+int kvfs_ustack_release(const char *path, struct fuse_file_info *fi){
+  //PLOG("create: %s", filename);
+
+  KV_ustack_info *info = reinterpret_cast<KV_ustack_info *>(fuse_get_context()->private_data);
+
+  //TODO: check access: return -EACCES;
+  uint64_t handle = fi->fh;
+  
+  if(handle){
+    PDBG("[%s]: closing file!",__func__);
+    assert(S_OK == info->close_file(handle));
+    return 0;
+  }
+  else{
+    PWRN("[%s]: file not opened!",__func__);
     return -ENOENT;
   }
 }
@@ -323,6 +352,7 @@ static int kvfs_ustack_ioctl(const char *path, int cmd, void *arg,
 
 	return -EINVAL;
 }
+
 int main(int argc, char *argv[])
 {
   static struct fuse_operations oper;
@@ -339,6 +369,7 @@ int main(int argc, char *argv[])
   oper.unlink = kvfs_ustack_unlink;
   oper.fallocate = kvfs_ustack_fallocate;
   oper.flush = kvfs_ustack_flush;
+  oper.release = kvfs_ustack_release;
 
 	return fuse_main(argc, argv, &oper, NULL);
 }

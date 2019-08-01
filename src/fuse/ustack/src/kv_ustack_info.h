@@ -21,9 +21,10 @@
  * Allocate the fuse daemon internal fh; interact with kvstore
  */
 class KV_ustack_info{
-using pool_t     = uint64_t;
-using fuse_fd_t = uint64_t;
   public:
+    using pool_t     = uint64_t;
+    using fuse_fd_t = uint64_t;
+
     struct File_meta{
       size_t size;
     };
@@ -32,10 +33,11 @@ using fuse_fd_t = uint64_t;
       :_owner(owner), _name(name), _store(store), _asigned_ids(0){
 
 
+      // TODO: why hardcopied size?
       _pool = _store->create_pool("pool-kvfs-simple", MB(12));
     }
 
-    ~KV_ustack_info(){
+    virtual ~KV_ustack_info(){
     }
 
     Component::IKVStore *get_store(){
@@ -88,16 +90,29 @@ using fuse_fd_t = uint64_t;
       _file_meta[id].size = size;
     }
 
-    status_t write(fuse_fd_t id, const void * value, size_t size){
+    /**
+     * kvstore interaction
+     */
+    virtual status_t open_file(fuse_fd_t) {return S_OK;};
+    virtual status_t close_file(fuse_fd_t) {return S_OK;};
+
+    virtual status_t write(fuse_fd_t id, const void * value, size_t size, size_t file_offset = 0 ){
+      if(file_offset){
+        throw General_exception("kv_ustack_basic doesn't support offset");
+      }
       const std::string key = _items[id];
       assert(value !=  NULL);
       return _store->put(_pool, key, value, size);
     }
 
-    status_t read(fuse_fd_t id, void * value, size_t size){
+    virtual status_t read(fuse_fd_t id, void * value, size_t size, size_t file_offset = 0){
       const std::string key = _items[id];
       void * tmp;
       size_t rd_size;
+      if(file_offset){
+        throw General_exception("kv_ustack_basic doesn't support offset");
+      }
+
       // tmp will be redirected
       if(S_OK != _store->get(_pool, key, tmp, rd_size)){
         return -1;
@@ -121,5 +136,47 @@ using fuse_fd_t = uint64_t;
       std::atomic<fuse_fd_t> _asigned_ids; //current assigned ids, to identify each file
 };
 
+struct page_cache{
+  size_t offset;
+  bool is_dirty;
 
+};
+
+/** Use lock/unlock to provide page cache*/
+class KV_ustack_info_cached: public KV_ustack_info{
+
+  public:
+
+    KV_ustack_info_cached(const std::string owner, const std::string name, Component::IKVStore *store): KV_ustack_info(owner, name, store){
+  };
+
+
+    virtual ~KV_ustack_info_cached(){
+    }
+
+    virtual status_t open_file(fuse_fd_t) override
+    {
+      PDBG("cached open called");
+      return S_OK;
+    }
+
+    virtual status_t close_file(fuse_fd_t) override{
+      PDBG("cached close called");
+      return S_OK;
+    }
+
+    virtual status_t write(fuse_fd_t id, const void * value, size_t size, size_t file_offset = 0 ) override{
+      PDBG("cached write called");
+      return S_OK;
+    }
+
+    virtual status_t read(fuse_fd_t id, const void * value, size_t size, size_t file_offset = 0 ){
+
+      PDBG("cached read called");
+      return S_OK;
+    }
+
+  private:
+
+};
 #endif
