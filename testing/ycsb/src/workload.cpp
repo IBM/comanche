@@ -17,7 +17,6 @@
 #include <chrono>
 #include <iostream>
 #include <string>
-#include <thread>
 #include "../../kvstore/stopwatch.h"
 #include "counter_generator.h"
 #include "db_fact.h"
@@ -89,16 +88,18 @@ bool Workload::do_work()
   req_per_sec /= n;
   double sec = 1.0 / (double) req_per_sec;
 
-  thread load_threads[n];
-  req_barrier = new barrier(n);
+  pthread_t ids[n];
+  pthread_barrier_init(&req_barrier, NULL, n);
 
   for (int i = 0; i < n; i++) {
-    load_threads[i] = thread(load, sec);
+    pthread_create(&ids[i], NULL, load, (void*) sec);
   }
 
   for (int i = 0; i < n; i++) {
-    load_threads[i].join();
+    pthread_join(ids[i], NULL);
   }
+
+  pthread_barrier_destroy(&req_barrier);
 
   if (props.getProperty("run", "0") == "1") {
     run();
@@ -106,15 +107,16 @@ bool Workload::do_work()
   return false;
 }
 
-void Workload::load(double sec)
+void* Workload::load(void* args)
 {
-  int ret;
+  double sec = (double) args;
+  int    ret;
   wr.reset();
   rd.reset();
   up.reset();
 
   MPI_Barrier(MPI_COMM_WORLD);
-  req_barrier->arrive_and_wait();
+  pthread_barrier_wait(&req_barrier);
 
   rd.start();
   for (int i = 0; i < records; i++) {
