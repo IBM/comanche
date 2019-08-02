@@ -14,16 +14,16 @@
 #include <mpi.h>
 #include <stdlib.h>
 #include <iostream>
+#include <string>
 #include "../../kvstore/get_cpu_mask_from_string.h"
 #include "../../kvstore/stopwatch.h"
 #include "db_fact.h"
 #include "workload.h"
-#include <string>
 
 using namespace std;
 using namespace ycsb;
 
-int main(int argc, char * argv[])
+int main(int argc, char *argv[])
 {
   MPI_Init(NULL, NULL);
   int world_size;
@@ -34,7 +34,8 @@ int main(int argc, char * argv[])
   if (argc < 4) show_program_options();
 
   string operation = argv[1];
-  string filename  = argv[3];
+  string filename  = argv[2];
+  int    thread    = atoi(argv[3]);
 
   ifstream input(filename);
   props.logfile.open("/tmp/latency-sla",
@@ -42,30 +43,29 @@ int main(int argc, char * argv[])
 
   try {
     props.load(input);
-    }
-    catch (const string &msg) {
-      cerr << msg << endl;
-      input.close();
-      return -1;
-    }
-
+  }
+  catch (const string &msg) {
+    cerr << msg << endl;
     input.close();
+    return -1;
+  }
 
-    if (operation == "run") props.setProperty("run", "1");
+  input.close();
 
-    Workload *wl = new Workload(props);
-    wl->do_work();
-    delete wl;
+  if (operation == "run") props.setProperty("run", "1");
 
-    props.logfile.close();
-    MPI_Finalize();
+  Workload *wl = new Workload(props, thread);
+  wl->do_work();
+  delete wl;
 
-    return 0;
+  props.logfile.close();
+  MPI_Finalize();
+
+  return 0;
 }
-
 
 void show_program_options()
 {
-    cout<<"./ycsb_perf load/run -P <workload file>"<<endl;
-    exit(-1);
+  cout << "./ycsb_perf load/run -P <workload file>" << endl;
+  exit(-1);
 }
