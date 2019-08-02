@@ -93,7 +93,7 @@ bool Workload::do_work()
   thread ids[n];
 
   for (int i = 0; i < n; i++) {
-    ids[i] = thread(load, sec);
+    ids[i] = thread(&Workload::load, this, sec);
   }
 
   for (int i = 0; i < n; i++) {
@@ -106,7 +106,7 @@ bool Workload::do_work()
   return false;
 }
 
-void Workload::load(double sed)
+void Workload::load(double sec)
 {
   int ret;
   wr.reset();
