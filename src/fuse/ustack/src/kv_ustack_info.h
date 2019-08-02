@@ -16,6 +16,7 @@
 #include <api/components.h>
 #include <api/kvstore_itf.h>
 
+using namespace Component;
 /*
  * private information for this mounting.
  * Allocate the fuse daemon internal fh; interact with kvstore
@@ -26,6 +27,10 @@ class KV_ustack_info{
     using fuse_fd_t = uint64_t;
 
     struct File_meta{
+      File_meta() = delete;
+      File_meta(std::string name): name(name), size(0){}
+
+      std::string name;
       size_t size;
     };
 
@@ -44,8 +49,13 @@ class KV_ustack_info{
       return _store;
     }
 
-    std::unordered_map<fuse_fd_t, std::string> get_all_items(){
-      return _items;
+    /* All files in this mount*/
+    std::vector<std::string> get_filenames(){
+      std::vector<std::string> filenames;
+      for(auto item = _items.begin(); item!= _items.end(); item++){
+        filenames.push_back(item->second.name);
+      }
+      return filenames;
     }; 
 
     /*
@@ -55,15 +65,20 @@ class KV_ustack_info{
       return ++_asigned_ids;
     }
 
-    uint64_t insert_item(fuse_fd_t id, std::string key){
-      _items.insert(std::pair<fuse_fd_t, std::string>(id, key));
+    fuse_fd_t insert_item(std::string key){
+      fuse_fd_t id=  ++_asigned_ids;
+
+      _items.insert(std::make_pair(id, File_meta(key)));
+      return id;
     }
 
     status_t remove_item(uint64_t id){
       status_t ret;
+      std::string key =  _items.at(id).name;
 
-      ret = _store->erase(_pool, _items[id]);
+      ret = _store->erase(_pool, key);
       _items.erase(id);
+      --_asigned_ids;
       return ret;
     }
 
@@ -74,7 +89,7 @@ class KV_ustack_info{
      */
     fuse_fd_t get_id(std::string item){
       for(const auto & i : _items){
-        if(i.second == item)
+        if(i.second.name == item)
           return i.first;
       }
       return 0;
@@ -83,11 +98,11 @@ class KV_ustack_info{
     /* get the file size 
      */
     size_t get_item_size(fuse_fd_t id){
-      return _file_meta[id].size;
+      return _items.at(id).size;
     }
 
     void set_item_size(fuse_fd_t id, size_t size){
-      _file_meta[id].size = size;
+      _items.at(id).size = size;
     }
 
     /**
@@ -100,13 +115,13 @@ class KV_ustack_info{
       if(file_offset){
         throw General_exception("kv_ustack_basic doesn't support offset");
       }
-      const std::string key = _items[id];
+      const std::string key = _items.at(id).name;
       assert(value !=  NULL);
       return _store->put(_pool, key, value, size);
     }
 
     virtual status_t read(fuse_fd_t id, void * value, size_t size, size_t file_offset = 0){
-      const std::string key = _items[id];
+      const std::string key = _items.at(id).name;
       void * tmp;
       size_t rd_size;
       if(file_offset){
@@ -131,21 +146,28 @@ class KV_ustack_info{
       Component::IKVStore *_store;
       pool_t _pool;
 
-      std::unordered_map<fuse_fd_t, std::string> _items; // file id and key TODO: put the key to the File_meta!
-      std::unordered_map<fuse_fd_t, File_meta> _file_meta;  
+      std::map<fuse_fd_t, File_meta> _items;  
       std::atomic<fuse_fd_t> _asigned_ids; //current assigned ids, to identify each file
 };
 
-struct page_cache{
-  size_t offset;
+struct page_cache_entry{
+  size_t pg_offset;
   bool is_dirty;
-
+  IKVStore::key_t locked_key;
+  void * vaddr; /** pointer to this locked object*/
 };
 
 /** Use lock/unlock to provide page cache*/
 class KV_ustack_info_cached: public KV_ustack_info{
 
   public:
+    /** Info for each file*/
+    struct File_meta{
+      size_t size;
+      
+      std::vector<page_cache_entry> _pg_cache; /** just an array of locked regions*/
+
+    };
 
     KV_ustack_info_cached(const std::string owner, const std::string name, Component::IKVStore *store): KV_ustack_info(owner, name, store){
   };

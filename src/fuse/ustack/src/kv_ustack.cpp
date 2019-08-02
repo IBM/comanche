@@ -102,8 +102,8 @@ void * kvfs_ustack_init (struct fuse_conn_info *conn){
 
   PINF("[%s]: fs loaded using component %s ", __func__, component.c_str());
 
-  // KV_ustack_info * info = new KV_ustack_info("owner", "name", store);
-  KV_ustack_info * info = new KV_ustack_info_cached("owner", "name", store);
+  KV_ustack_info * info = new KV_ustack_info("owner", "name", store);
+  // KV_ustack_info * info = new KV_ustack_info_cached("owner", "name", store);
 
   // init ustack and start accepting connections
   std::string ustack_name = "ipc:///tmp//kv-ustack.ipc";
@@ -150,12 +150,11 @@ int kvfs_ustack_create (const char *path, mode_t mode, struct fuse_file_info * f
 
   //unsigned long ino = (fuse_get_context()->fuse->ctr); // this require lowlevel api
 
-  handle = info->alloc_id();
-  assert(handle);
 
   PDBG("[%s]: create new file(%s)!",__func__, path);
 
-  info->insert_item(handle, path+1);
+  handle = info->insert_item(path+1);
+  assert(handle);
   assert(S_OK == info->open_file(handle));
   fi->fh = handle;
   PLOG("[%s]: create entry No.%lu: key(%s)", __func__, handle, path+1);
@@ -213,11 +212,9 @@ static int kvfs_ustack_readdir(const char *path, void *buf, fuse_fill_dir_t fill
   filler(buf, "..", NULL, 0);
 
 	if (strcmp(path, "/") == 0){
-    std::unordered_map<uint64_t,  std::string> all_items;
-    all_items = info->get_all_items();
-    for(const auto &item : all_items){
-      PINF("item name: %s", item.second.c_str());
-      filler(buf, item.second.c_str(), NULL, 0);
+    for(const auto &item : info->get_filenames()){
+      PINF("item name: %s", item.c_str());
+      filler(buf, item.c_str(), NULL, 0);
     }
   }else{
     return -1;
