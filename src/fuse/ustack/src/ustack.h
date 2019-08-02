@@ -16,11 +16,9 @@
 
 class Ustack : public Core::IPC_server {
 public:
-  Ustack(const std::string endpoint, KV_ustack_info * kv_ustack_info);
+  Ustack(const std::string endpoint, KV_ustack_info * kv_ustack_info = nullptr);
   ~Ustack();
 public:
-  Component::IBlock_device * block = nullptr;
-  Component::IBlob * store = nullptr;
 
 protected:
   virtual int process_message(void* msg,
@@ -55,6 +53,7 @@ private:
     //get the virtual address and issue the io
     void *buf; //the mapped io mem
 
+    // TODO: need to control offset 
     auto iomem_list = _iomem_map[client_id] ;
     if(iomem_list.empty()){
       PERR("iomem for pid %d is empty", client_id);
@@ -70,9 +69,12 @@ private:
     }
     PDBG("mapped to virtual address %p", buf);
 
-    _kv_ustack_info->write(fuse_fh, buf, io_sz);
+    if(io_sz >0){
+      _kv_ustack_info->write(fuse_fh, buf, io_sz);
 
-    _kv_ustack_info->set_item_size(fuse_fh, io_sz);
+      _kv_ustack_info->set_item_size(fuse_fh, io_sz);
+    }
+    else PWRN("io size = 0");
     
     return S_OK;
   }
@@ -101,7 +103,11 @@ private:
       PERR("write size larger than file size");
       return -1;
     }
-    _kv_ustack_info->read(fuse_fh, buf, io_sz);
+
+    if(io_sz >0){
+      _kv_ustack_info->read(fuse_fh, buf, io_sz);
+    }
+      else PWRN("io size = 0");
     return S_OK;
   }
   

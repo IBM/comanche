@@ -340,24 +340,26 @@ status_t PM_store::delete_pool(const std::string& name)
 
 status_t PM_store::get_pool_regions(const pool_t pool, std::vector<::iovec>& out_regions)
 {
-  open_session_t * session = get_session(pool);
-  const auto& pop = session->pop;
-
-  /* calls pmemobj extensions in modified version of PMDK */
-  unsigned idx = 0;
-  void * base = nullptr;
-  size_t len = 0;
+  return E_NOT_IMPL;
   
-  while(pmemobj_ex_pool_get_region(pop, idx, &base, &len) == 0) {
-    assert(base);
-    assert(len);
-    out_regions.push_back(::iovec{base,len});
-    base = nullptr;
-    len = 0;
-    idx++;
-  }
+  // open_session_t * session = get_session(pool);
+  // const auto& pop = session->pop;
+
+  // /* calls pmemobj extensions in modified version of PMDK */
+  // unsigned idx = 0;
+  // void * base = nullptr;
+  // size_t len = 0;
+  
+  // while(pmemobj_pool_get_region(pop, idx, &base, &len) == 0) {
+  //   assert(base);
+  //   assert(len);
+  //   out_regions.push_back(::iovec{base,len});
+  //   base = nullptr;
+  //   len = 0;
+  //   idx++;
+  // }
     
-  return S_OK;
+  // return S_OK;
 }
 
 status_t PM_store::put_direct(const pool_t pool,

@@ -12,7 +12,7 @@ if( ${ARCHITECTURE} STREQUAL "x86_64" )
     DEPENDS libfabric
     DEPENDS ndctl
     BUILD_IN_SOURCE 1
-    UPDATE_DISCONNECTED 1
+    UPDATE_DISCONNECTED 1    
     GIT_REPOSITORY https://github.com/dwaddington/pmdk.git
     GIT_TAG master
     CONFIGURE_COMMAND ""

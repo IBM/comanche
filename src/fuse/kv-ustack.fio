@@ -1,0 +1,22 @@
+; -- start job file --
+[global]
+ioengine=sync
+iodepth=1
+bs=32k
+direct=1; O_DIRECT
+sync=1; O_SYNC
+size=4m
+numjobs=1
+directory=/tmp/mount
+;directory=/tmp/mymount ; kvustack
+thread ;unless it will fork
+iomem=mmaphuge
+hugepage-size=2m
+
+[random-write]
+rw=randwrite
+
+;[random-read]
+; rw=randread
+
+; -- end job file --

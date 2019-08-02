@@ -2,13 +2,15 @@ cmake_minimum_required (VERSION 3.5.1 FATAL_ERROR)
 
 include($ENV{COMANCHE_HOME}/mk/common.cmake)
 
+find_package(Flatbuffers REQUIRED)
 if(Flatbuffers_FOUND)
 
 project(fuse-ustack CXX)
 
 include_directories(${Nanomsg_INCLUDE_DIRS} ${TBB_INCLUDE_DIRS} ${Flatbuffers_INCLUDE_DIRS} ${CMAKE_CURRENT_BINARY_DIR}/src)
 
-add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG -D_FILE_OFFSET_BITS=64)
+add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -D_FILE_OFFSET_BITS=64)
+#add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG -D_FILE_OFFSET_BITS=64)
 
 # if not having this, src won't be in the build dir
 configure_file(
@@ -19,7 +21,7 @@ configure_file(
 add_custom_command(
   OUTPUT src/protocol_generated.h
   PRE_BUILD
-  COMMAND COMMAND ${CONF_COMANCHE_HOME}/src/lib/flatbuffers/flatc --cpp protocol.fbs
+  COMMAND COMMAND ${CMAKE_INSTALL_PREFIX}/bin/flatc --cpp protocol.fbs
   DEPENDS "src/protocol.fbs"
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/src)
 
@@ -34,8 +36,13 @@ foreach(fs ${USTACK_FS})
   target_link_libraries(${fs} ${ASAN_LIB} common comanche-core numa dl z ${Nanomsg_LIBRARIES} boost_system boost_program_options pthread ${TBB_LIBRARIES} fuse)
 endforeach(fs ${USTACK_FS})
 
+add_library(ustack_client SHARED src/ustack_client.cpp)
+target_link_libraries(ustack_client ${ASAN_LIB} common comanche-core numa dl z ${Nanomsg_LIBRARIES} boost_system boost_program_options pthread ${TBB_LIBRARIES} fuse)
+
 # test for ustack client
 #add_executable(iotest src/iotest.cpp)
-target_link_libraries(iotest ${ASAN_LIB} common comanche-core numa dl z ${Nanomsg_LIBRARIES} boost_system boost_program_options pthread ${TBB_LIBRARIES} fuse)
+#target_link_libraries(iotest ${ASAN_LIB} common comanche-core numa dl z ${Nanomsg_LIBRARIES} boost_system boost_program_options pthread ${TBB_LIBRARIES} fuse)
+
+add_subdirectory(unit_test)
 
 endif(Flatbuffers_FOUND)

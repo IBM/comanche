@@ -8,7 +8,7 @@ add_subdirectory(./unit_test)
 
 enable_language(CXX)
 add_compile_options(-g -pedantic -Wall -Werror -Wextra -Wcast-align -Wcast-qual -Wconversion -Weffc++ -Wold-style-cast -Wredundant-decls -Wshadow -Wtype-limits -Wunused-parameter -Wwrite-strings)
-add_compile_options("$<$<CONFIG:Debug>:-O0>")
+#add_compile_options("$<$<CONFIG:Debug>:-O0>")
 
 set(SOURCES src/dax_map.cpp src/heap_rc.cpp src/hop_hash_log.cpp src/hstore.cpp src/hstore_factory.cpp src/hop_hash.cpp src/owner.cpp src/perishable.cpp)
 
