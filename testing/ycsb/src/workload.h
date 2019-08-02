@@ -14,6 +14,7 @@
 #define __YCSB_WL_H__
 
 #include <core/task.h>
+#include <experimental/barrier>
 #include <mutex>
 #include <vector>
 #include "../../kvstore/statistics.h"
@@ -31,10 +32,10 @@ enum Operation { INSERT, READ, UPDATE, SCAN, READMODIFYWRITE };
 
 class Workload {
  public:
-  static const int    SIZE;
-  const string        TABLE;
-  Workload(Properties& props);
-  void load();
+  static const int SIZE;
+  const string     TABLE;
+  Workload(Properties& props, int n);
+  void load(double sec);
   void run();
   virtual ~Workload();
   virtual void initialize();
@@ -45,9 +46,9 @@ class Workload {
  private:
   Properties&                         props;
   DB*                                 db;
-  vector<pair<string, string>> kvs;
+  vector<pair<string, string>>        kvs;
   ycsbc::DiscreteGenerator<Operation> op;
-  ycsbc::Generator<uint64_t>*  gen;
+  ycsbc::Generator<uint64_t>*         gen;
   static std::mutex                   _iops_lock;
   static unsigned long                _iops;
   static std::mutex                   _iops_load_lock;
@@ -61,16 +62,18 @@ class Workload {
   RunningStatistics                   rd_stat;
   RunningStatistics                   wr_stat;
   RunningStatistics                   up_stat;
+  int                                 n;
+  barrier*                            req_barrier;
 
-  int                          records;
-  int                          operations;
-  inline string                buildKeyName(uint64_t key_num);
-  inline string                buildValue(uint64_t size);
-  void                         doRead();
-  void                         doInsert();
-  void                         doUpdate();
-  void                         doScan();
-  bool                         isready = false;
+  int           records;
+  int           operations;
+  inline string buildKeyName(uint64_t key_num);
+  inline string buildValue(uint64_t size);
+  void          doRead();
+  void          doInsert();
+  void          doUpdate();
+  void          doScan();
+  bool          isready = false;
 };
 
 }  // namespace ycsb

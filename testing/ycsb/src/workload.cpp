@@ -13,10 +13,10 @@
 #include "workload.h"
 #include <assert.h>
 #include <mpi.h>
+#include <time.h>
 #include <chrono>
 #include <iostream>
 #include <string>
-#include <time.h>
 #include <thread>
 #include "../../kvstore/stopwatch.h"
 #include "counter_generator.h"
@@ -37,18 +37,21 @@ mutex         Workload::_iops_lock;
 mutex         Workload::_iops_load_lock;
 // DB*           Workload::db;
 
-Workload::Workload(Properties& props) : props(props) { initialize(); }
+Workload::Workload(Properties& props, int n) : props(props), n(n)
+{
+  initialize();
+}
 
 void Workload::initialize()
 {
   int core;
   MPI_Comm_rank(MPI_COMM_WORLD, &core);
   Generator<uint64_t>* loadkeygen = new CounterGenerator(0);
-  db = ycsb::DBFactory::create(props, core);
+  db                              = ycsb::DBFactory::create(props, core);
   assert(db);
   string TABLE = "table" + to_string(core);
-  records = stoi(props.getProperty("recordcount"));
-  operations = stoi(props.getProperty("operationcount"));
+  records      = stoi(props.getProperty("recordcount"));
+  operations   = stoi(props.getProperty("operationcount"));
   for (int i = 0; i < records; i++) {
     pair<string, string> kv(Workload::buildKeyName(loadkeygen->Next()),
                             Workload::buildValue(Workload::SIZE));
@@ -82,26 +85,36 @@ void Workload::initialize()
 
 bool Workload::do_work()
 {
-  load();
+  int req_per_sec = stoi(props.getProperty("request"));
+  req_per_sec /= n;
+  double sec = 1.0 / (double) req_per_sec;
+
+  thread load_threads[n];
+  req_barrier = new barrier(n);
+
+  for (int i = 0; i < n; i++) {
+    load_threads[i] = thread(load, sec);
+  }
+
+  for (int i = 0; i < n; i++) {
+    load_threads[i].join();
+  }
+
   if (props.getProperty("run", "0") == "1") {
     run();
-  } 
+  }
   return false;
 }
 
-void Workload::load()
+void Workload::load(double sec)
 {
   int ret;
   wr.reset();
   rd.reset();
   up.reset();
-  int req_per_sec = stoi(props.getProperty("request"));
-  int size;
-  MPI_Comm_size(MPI_COMM_WORLD, &size);
-  req_per_sec/=size;
-  double sec = 1.0 / (double) req_per_sec;
 
   MPI_Barrier(MPI_COMM_WORLD);
+  req_barrier->arrive_and_wait();
 
   rd.start();
   for (int i = 0; i < records; i++) {
@@ -111,7 +124,7 @@ void Workload::load()
     wr.start();
     ret = db->put(Workload::TABLE, kv.first, kv.second);
     //  std::this_thread::sleep_for(std::chrono::seconds(1));
-    //ret = db->put(Workload::TABLE, "abc", "edf");
+    // ret = db->put(Workload::TABLE, "abc", "edf");
     if (ret != 0) {
       throw "Insertion failed in loading phase";
       exit(-1);
@@ -123,7 +136,7 @@ void Workload::load()
     up.stop();
     if (up.get_lap_time_in_seconds() < sec) {
       struct timespec ts;
-      ts.tv_sec=0;
+      ts.tv_sec  = 0;
       ts.tv_nsec = (int) ((sec - up.get_lap_time_in_seconds()) * 1000000000);
       nanosleep(&ts, NULL);
     }
@@ -165,9 +178,9 @@ void Workload::doRead()
     exit(-1);
   }
   string& key = kvs[index].first;
-  char   value[Workload::SIZE];
+  char    value[Workload::SIZE];
   rd.start();
-  int    ret = db->get(Workload::TABLE, key, value);
+  int ret = db->get(Workload::TABLE, key, value);
   if (ret != 0) {
     throw "Read fail!";
     exit(-1);
@@ -187,9 +200,9 @@ void Workload::doUpdate()
     exit(-1);
   }
   string& key   = kvs[index].first;
-  string value = buildValue(Workload::SIZE);
+  string  value = buildValue(Workload::SIZE);
   up.start();
-  int    ret   = db->update(Workload::TABLE, key, value.c_str());
+  int ret = db->update(Workload::TABLE, key, value.c_str());
   if (ret != 0) {
     throw "Update fail!";
     exit(-1);
@@ -231,9 +244,9 @@ void Workload::summarize()
 {
   unsigned long global_iops_load = 0;
   unsigned long global_iops      = 0;
-  unsigned long   local_lat        = 0;
-  unsigned long   global_lat       = 0;
-  int             rank;
+  unsigned long local_lat        = 0;
+  unsigned long global_lat       = 0;
+  int           rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   int size;
   MPI_Comm_size(MPI_COMM_WORLD, &size);
@@ -275,17 +288,20 @@ void Workload::summarize()
   }
 
   if (rank == 0) {
-    cout << "[Overall], Load Throughput (ops/sec), " << global_iops_load << endl;
-    cout << "[Overall], Operation Throughput (ops/sec), " << global_iops << endl;
+    cout << "[Overall], Load Throughput (ops/sec), " << global_iops_load
+         << endl;
+    cout << "[Overall], Operation Throughput (ops/sec), " << global_iops
+         << endl;
   }
 }
 
 Workload::~Workload()
 {
-    cleanup();
+  cleanup();
   kvs.clear();
   delete gen;
   delete db;
+  delete req_barrier;
 }
 
 inline string Workload::buildKeyName(uint64_t key_num)
@@ -301,4 +317,3 @@ inline string Workload::buildValue(uint64_t size)
 {
   return std::string().append(size, RandomPrintChar());
 }
-
