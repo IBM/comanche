@@ -37,6 +37,8 @@ int main(int argc, char * argv[])
   string filename  = argv[3];
 
   ifstream input(filename);
+  props.logfile.open("/tmp/latency-sla",
+                     std::ofstream::out | std::ofstream::app);
 
   try {
     props.load(input);
@@ -55,6 +57,7 @@ int main(int argc, char * argv[])
     wl->do_work();
     delete wl;
 
+    props.logfile.close();
     MPI_Finalize();
 
     return 0;

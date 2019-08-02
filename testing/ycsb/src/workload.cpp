@@ -93,14 +93,19 @@ void Workload::load()
 {
   int ret;
   wr.reset();
+  rd.reset();
+  up.reset();
   int req_per_sec = stoi(props.getProperty("request"));
   int size;
   MPI_Comm_size(MPI_COMM_WORLD, &size);
   req_per_sec/=size;
-  double sec=(double)records/req_per_sec;
+  double sec = 1.0 / (double) req_per_sec;
 
   MPI_Barrier(MPI_COMM_WORLD);
+
+  rd.start();
   for (int i = 0; i < records; i++) {
+    up.start();
     pair<string, string>& kv = kvs[i];
     // cout << "insert" << endl;
     wr.start();
@@ -113,16 +118,19 @@ void Workload::load()
     }
     wr.stop();
     double elapse = wr.get_lap_time_in_seconds();
-    props.log(to_string(elapse));
-    if (elapse < sec) {
+    props.log(to_string(elapse * 1000000));
+    wr_cnt++;
+    up.stop();
+    if (up.get_lap_time_in_seconds() < sec) {
       struct timespec ts;
       ts.tv_sec=0;
-      ts.tv_nsec=(int)((sec-elapse)*1000000000);
+      ts.tv_nsec = (int) ((sec - up.get_lap_time_in_seconds()) * 1000000000);
       nanosleep(&ts, NULL);
     }
     //    if (elapse * 1000000 >= 900) wr_stat.add_value(elapse);
-    wr_cnt++;
   }
+  rd.stop();
+  props.log("total time: " + to_string(rd.get_lap_time_in_seconds()) + " sec");
 }
 
 void Workload::run()
@@ -284,7 +292,9 @@ inline string Workload::buildKeyName(uint64_t key_num)
 {
   key_num = ycsbutils::Hash(key_num);
   // return std::string("user").append(std::to_string(key_num));
-  return (Workload::TABLE + std::to_string(key_num)).substr(0, 16);
+  return (Workload::TABLE + std::to_string(key_num))
+      .append(buildValue(1024))
+      .substr(0, 16);
 }
 
 inline string Workload::buildValue(uint64_t size)
