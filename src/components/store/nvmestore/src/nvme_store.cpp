@@ -519,7 +519,7 @@ IKVStore* NVME_store_factory::create(unsigned debug_level,
     }
     else if (params["persist_type"] == "hstore") {
       meta_persist_type = PERSIST_HSTORE;
-      if ( fs::exists("/dev/dax0.1") &&
+      if ( fs::exists("/dev/dax0.1") ||
           (getenv("USE_DRAM") == NULL)) {
         throw General_exception(
             "[nvmestore factory]: Need to set in current shell: \n \texport "

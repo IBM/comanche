@@ -76,6 +76,7 @@ else(BOOTSTRAP_DEPS)
   add_subdirectory(src/components)
   add_subdirectory(src/servers)
   add_subdirectory(src/python)
+  add_subdirectory(src/fuse)
   add_subdirectory(apps)
   add_subdirectory(testing)
 

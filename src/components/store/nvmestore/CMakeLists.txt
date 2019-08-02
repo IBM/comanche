@@ -12,7 +12,11 @@ include_directories(./src)
 
 # add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG)
 
-file(GLOB SOURCES ./src/*.cpp)
+file(GLOB SOURCES 
+  ./src/block_manager.cpp
+  ./src/nvme_store.cpp
+  ./src/persist_session.cpp
+  ./src/state_map.cpp)
 
 add_library(${PROJECT_NAME} SHARED ${SOURCES})
 

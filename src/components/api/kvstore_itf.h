@@ -409,6 +409,7 @@ class IKVStore : public Component::IBase {
    * @param handle memory handle
    *
    */
+  
   virtual status_t allocate_direct_memory(void*&           vaddr,
                                           size_t           len,
                                           memory_handle_t& handle)
