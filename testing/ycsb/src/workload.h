@@ -15,7 +15,6 @@
 
 #include <core/task.h>
 #include <mutex>
-#include <pthread>
 #include <vector>
 #include "../../kvstore/statistics.h"
 #include "../../kvstore/stopwatch.h"
@@ -35,8 +34,8 @@ class Workload {
   static const int SIZE;
   const string     TABLE;
   Workload(Properties& props, int n);
-  void* load(void* args);
-  void  run();
+  void load(double sec);
+  void run();
   virtual ~Workload();
   virtual void initialize();
   virtual bool do_work();
@@ -63,7 +62,6 @@ class Workload {
   RunningStatistics                   wr_stat;
   RunningStatistics                   up_stat;
   int                                 n;
-  pthread_barrier_t                   req_barrier;
 
   int           records;
   int           operations;

@@ -17,6 +17,7 @@
 #include <chrono>
 #include <iostream>
 #include <string>
+#include <thread>
 #include "../../kvstore/stopwatch.h"
 #include "counter_generator.h"
 #include "db_fact.h"
@@ -50,7 +51,8 @@ void Workload::initialize()
   assert(db);
   string TABLE = "table" + to_string(core);
   records      = stoi(props.getProperty("recordcount"));
-  operations   = stoi(props.getProperty("operationcount"));
+  records /= n;
+  operations = stoi(props.getProperty("operationcount"));
   for (int i = 0; i < records; i++) {
     pair<string, string> kv(Workload::buildKeyName(loadkeygen->Next()),
                             Workload::buildValue(Workload::SIZE));
@@ -88,18 +90,15 @@ bool Workload::do_work()
   req_per_sec /= n;
   double sec = 1.0 / (double) req_per_sec;
 
-  pthread_t ids[n];
-  pthread_barrier_init(&req_barrier, NULL, n);
+  thread ids[n];
 
   for (int i = 0; i < n; i++) {
-    pthread_create(&ids[i], NULL, load, (void*) sec);
+    ids[i] = thread(load, sec);
   }
 
   for (int i = 0; i < n; i++) {
-    pthread_join(ids[i], NULL);
+    ids[i].join();
   }
-
-  pthread_barrier_destroy(&req_barrier);
 
   if (props.getProperty("run", "0") == "1") {
     run();
@@ -107,16 +106,14 @@ bool Workload::do_work()
   return false;
 }
 
-void* Workload::load(void* args)
+void Workload::load(double sed)
 {
-  double sec = (double) args;
-  int    ret;
+  int ret;
   wr.reset();
   rd.reset();
   up.reset();
 
   MPI_Barrier(MPI_COMM_WORLD);
-  pthread_barrier_wait(&req_barrier);
 
   rd.start();
   for (int i = 0; i < records; i++) {
@@ -303,7 +300,6 @@ Workload::~Workload()
   kvs.clear();
   delete gen;
   delete db;
-  delete req_barrier;
 }
 
 inline string Workload::buildKeyName(uint64_t key_num)
