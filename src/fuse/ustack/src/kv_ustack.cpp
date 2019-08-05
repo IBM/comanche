@@ -279,8 +279,9 @@ int kvfs_ustack_fallocate (const char *path, int mode, off_t offset, off_t lengt
     return 0;
 }
 
-int kvfs_ustack_flush(const char *, struct fuse_file_info *){
+int kvfs_ustack_flush(const char *path, struct fuse_file_info *fi){
     PWRN("[%s]: flush doesn't do anything ", __func__);
+
     return 0;
 }
 

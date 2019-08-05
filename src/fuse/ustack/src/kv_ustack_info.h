@@ -186,13 +186,14 @@ class KV_ustack_info_cached{
 
       ~File_meta(){}
 
-      std::queue<page_cache_entry *> _cached_pages; /** just an array of locked regions*/
 
       status_t populate_cache(){
         PDBG("cached open called");
         page_cache_entry * entry = new page_cache_entry();
         std::string obj_key = name + "#seg-0";
         size_t out_value_len;
+
+        // If same file is opened again, contents shall be the same
         if(S_OK!= _store->lock(_pool, obj_key, IKVStore::STORE_LOCK_WRITE, entry->vaddr, out_value_len, entry->locked_key)){
           throw General_exception("lock file cached failed");
           }
@@ -202,6 +203,7 @@ class KV_ustack_info_cached{
         return S_OK;
       }
 
+      /* TODO: I can only flush one time!*/
       status_t flush_cache(){
         while(! _cached_pages.empty()){
           auto entry = _cached_pages.front();
@@ -214,6 +216,8 @@ class KV_ustack_info_cached{
 
       std::string name;
       size_t size = 0;
+
+      std::queue<page_cache_entry *> _cached_pages; /** just an array of locked regions*/
 
       private:
       IKVStore * _store;
@@ -295,8 +299,10 @@ class KV_ustack_info_cached{
       return S_OK;
     }
 
+
+    /* This will unlock the obj, thus writing persist data to pool*/
     status_t close_file(fuse_fd_t id){
-      PDBG("cached close called");
+      PDBG("sync cached file called");
       File_meta* fileinfo;
       try{
         fileinfo = _items.at(id);
@@ -309,14 +315,28 @@ class KV_ustack_info_cached{
       return S_OK;
     }
 
+    /* This will write to locked virt-addr*/
     status_t write(fuse_fd_t id, const void * value, size_t size, size_t file_offset = 0 ){
       PDBG("cached write called");
+
+      File_meta* fileinfo = _items.at(id);
+      if(fileinfo->_cached_pages.size()>1 || size + file_offset > PAGE_CACHE_SIZE)
+        throw General_exception("Need more than one cache page");
+      void* buf = (fileinfo->_cached_pages.front())->vaddr;
+      memcpy(buf, value, size);
       return S_OK;
     }
 
-    status_t read(fuse_fd_t id, const void * value, size_t size, size_t file_offset = 0 ){
+    status_t read(fuse_fd_t id, void * value, size_t size, size_t file_offset = 0 ){
 
       PDBG("cached read called");
+
+      File_meta* fileinfo = _items.at(id);
+      if(fileinfo->_cached_pages.size()>1 || size + file_offset > PAGE_CACHE_SIZE)
+        throw General_exception("Need more than one cache page");
+      void* buf = (fileinfo->_cached_pages.front())->vaddr;
+      memcpy(value, buf, size);
+
       return S_OK;
     }
 
