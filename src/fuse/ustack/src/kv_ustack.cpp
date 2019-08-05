@@ -292,12 +292,12 @@ int kvfs_ustack_flush(const char *path, struct fuse_file_info *fi){
 static int kvfs_ustack_read(const char *path, char *buf, size_t size, off_t offset,
 		      struct fuse_file_info *fi)
 {
-  (void) offset;
 	(void) fi;
 
 
+  (void) offset;
   kv_ustack_info_t *info = reinterpret_cast<kv_ustack_info_t *>(fuse_get_context()->private_data);
-  if(S_OK!=info->read(fi->fh, buf , size)){
+  if(S_OK!=info->read(fi->fh, buf , size, offset)){
     PERR("[%s]: read error", __func__);
     return -1;
   }
@@ -316,7 +316,6 @@ static int kvfs_ustack_read(const char *path, char *buf, size_t size, off_t offs
  * Changed in version 2.2
  */
 int (kvfs_ustack_write) (const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi){
-  (void)offset;
 
   uint64_t id;
 
@@ -325,7 +324,7 @@ int (kvfs_ustack_write) (const char *path, const char *buf, size_t size, off_t o
   kv_ustack_info_t *info = reinterpret_cast<kv_ustack_info_t *>(fuse_get_context()->private_data);
 
   id = fi->fh;
-  info->write(id, buf, size);
+  info->write(id, buf, size, offset);
 
   info->set_item_size(id, size);
   return size;

@@ -15,13 +15,13 @@
 
 static size_t file_size=KB(4);
 static constexpr unsigned nr_buffer_copies=3; // make sure each time using different buffer
-static constexpr unsigned ITERATIONS = 50000;
+static constexpr unsigned ITERATIONS = 10;
 
 /* TODO: direct start 4k write will be slow*/
 status_t do_warm_up(std::string dir_name, int open_flags){
   void* buffer;
 
-  for(uint warmup_size  = KB(4);warmup_size < MB(32); warmup_size *= 4){
+  for(uint warmup_size  = KB(4);warmup_size < MB(2); warmup_size *= 4){
     PLOG("Warmup with size %u)", warmup_size);
     std::string filepath = dir_name + "/warmupfile-size" + std::to_string(warmup_size)+  ".dat";
     int fd = open(filepath.c_str(), open_flags, S_IRWXU);

@@ -36,7 +36,7 @@ foreach(fs ${USTACK_FS})
   target_link_libraries(${fs} ${ASAN_LIB} common comanche-core numa dl z ${Nanomsg_LIBRARIES} boost_system boost_program_options pthread ${TBB_LIBRARIES} fuse)
 endforeach(fs ${USTACK_FS})
 
-add_library(ustack_client SHARED src/ustack_client.cpp src/ustack_intercepted_io.cpp)
+add_library(ustack_client SHARED src/ustack_client.cpp)
 target_link_libraries(ustack_client ${ASAN_LIB} common comanche-core numa dl z ${Nanomsg_LIBRARIES} boost_system boost_program_options pthread ${TBB_LIBRARIES} fuse)
 
 # test for ustack client
