@@ -38,7 +38,6 @@
 #include <api/components.h>
 #include <api/kvstore_itf.h>
 
-#include "ustack.h"
 #include "ustack_client_ioctl.h"
 #include "kv_ustack_info.h"
 
@@ -47,11 +46,12 @@
 #define NVMESTORE_PATH "libcomanche-nvmestore.so"
 
 /**
- * ustack: the userspace zero copy communiation mechenism.
- *
- * Client can also direct issue posix file operations.
- */
+ *  * ustack: the userspace zero copy communiation mechenism.
+ *   *
+ *    * Client can also direct issue posix file operations.
+ *     */
 Ustack *_ustack;
+
 
 /**
  * Initialize filesystem
@@ -102,14 +102,14 @@ void * kvfs_ustack_init (struct fuse_conn_info *conn){
 
   PINF("[%s]: fs loaded using component %s ", __func__, component.c_str());
 
-  KV_ustack_info * info = new KV_ustack_info("owner", "name", store);
-  // KV_ustack_info * info = new KV_ustack_info_cached("owner", "name", store);
-
   // init ustack and start accepting connections
   std::string ustack_name = "ipc:///tmp//kv-ustack.ipc";
-  // DPDK::eal_init(1024);
 
-  _ustack = new Ustack(ustack_name.c_str(), info);
+  kv_ustack_info_t * info = new kv_ustack_info_t(ustack_name, "owner", "name", store);
+
+  // DPDK::eal_init(1024);
+  _ustack = new Ustack(ustack_name, info);
+
   return info;
 }
 
@@ -120,13 +120,14 @@ void * kvfs_ustack_init (struct fuse_conn_info *conn){
  * fuse-api: alled on filesystem exit.
  */
 void kvfs_ustack_destroy (void *user_data){
-  KV_ustack_info *info = reinterpret_cast<KV_ustack_info *>(user_data);
+  kv_ustack_info_t *info = reinterpret_cast<kv_ustack_info_t *>(user_data);
 
   Component::IKVStore *store = info->get_store();
-  store->release_ref();
   
   delete info;
   delete _ustack;
+
+  store->release_ref();
 };
 
 
@@ -146,7 +147,7 @@ int kvfs_ustack_create (const char *path, mode_t mode, struct fuse_file_info * f
   uint64_t handle;
   //PLOG("create: %s", filename);
 
-  KV_ustack_info *info = reinterpret_cast<KV_ustack_info *>(fuse_get_context()->private_data);
+  kv_ustack_info_t *info = reinterpret_cast<kv_ustack_info_t *>(fuse_get_context()->private_data);
 
   //unsigned long ino = (fuse_get_context()->fuse->ctr); // this require lowlevel api
 
@@ -157,13 +158,13 @@ int kvfs_ustack_create (const char *path, mode_t mode, struct fuse_file_info * f
   assert(handle);
   assert(S_OK == info->open_file(handle));
   fi->fh = handle;
-  PLOG("[%s]: create entry No.%lu: key(%s)", __func__, handle, path+1);
+  PDBG("[%s]: create entry No.%lu: key(%s)", __func__, handle, path+1);
   return 0;
 }
 
 /** Remove a file */
 int kvfs_ustack_unlink(const char *path){
-  KV_ustack_info *info = reinterpret_cast<KV_ustack_info *>(fuse_get_context()->private_data);
+  kv_ustack_info_t *info = reinterpret_cast<kv_ustack_info_t *>(fuse_get_context()->private_data);
 
   uint64_t handle = info->get_id(path+1);
   /** remove obj from pool*/
@@ -178,7 +179,7 @@ static int kvfs_ustack_getattr(const char *path, struct stat *stbuf)
 {
 	int res = 0;
 
-  KV_ustack_info *info = reinterpret_cast<KV_ustack_info *>(fuse_get_context()->private_data);
+  kv_ustack_info_t *info = reinterpret_cast<kv_ustack_info_t *>(fuse_get_context()->private_data);
 
   uint64_t handle = info->get_id(path+1);
 
@@ -200,13 +201,12 @@ static int kvfs_ustack_getattr(const char *path, struct stat *stbuf)
 	return res;
 }
 
-static int kvfs_ustack_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
-			 off_t offset, struct fuse_file_info *fi)
+static int kvfs_ustack_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi)
 {
 	(void) offset;
 	(void) fi;
 
-  KV_ustack_info *info = reinterpret_cast<KV_ustack_info *>(fuse_get_context()->private_data);
+  kv_ustack_info_t *info = reinterpret_cast<kv_ustack_info_t *>(fuse_get_context()->private_data);
 
   filler(buf, ".", NULL, 0);
   filler(buf, "..", NULL, 0);
@@ -231,7 +231,7 @@ static int kvfs_ustack_open(const char *path, struct fuse_file_info *fi)
   uint64_t handle;
   //PLOG("create: %s", filename);
 
-  KV_ustack_info *info = reinterpret_cast<KV_ustack_info *>(fuse_get_context()->private_data);
+  kv_ustack_info_t *info = reinterpret_cast<kv_ustack_info_t *>(fuse_get_context()->private_data);
 
 
   //TODO: check access: return -EACCES;
@@ -256,13 +256,13 @@ static int kvfs_ustack_open(const char *path, struct fuse_file_info *fi)
 int kvfs_ustack_release(const char *path, struct fuse_file_info *fi){
   //PLOG("create: %s", filename);
 
-  KV_ustack_info *info = reinterpret_cast<KV_ustack_info *>(fuse_get_context()->private_data);
+  kv_ustack_info_t *info = reinterpret_cast<kv_ustack_info_t *>(fuse_get_context()->private_data);
 
   //TODO: check access: return -EACCES;
   uint64_t handle = fi->fh;
   
   if(handle){
-    PDBG("[%s]: closing file!",__func__);
+    PDBG("[%s]: closing file!(fuse_handle=%lu)",__func__, handle);
     assert(S_OK == info->close_file(handle));
     return 0;
   }
@@ -295,7 +295,7 @@ static int kvfs_ustack_read(const char *path, char *buf, size_t size, off_t offs
 	(void) fi;
 
 
-  KV_ustack_info *info = reinterpret_cast<KV_ustack_info *>(fuse_get_context()->private_data);
+  kv_ustack_info_t *info = reinterpret_cast<kv_ustack_info_t *>(fuse_get_context()->private_data);
   if(S_OK!=info->read(fi->fh, buf , size)){
     PERR("[%s]: read error", __func__);
     return -1;
@@ -321,7 +321,7 @@ int (kvfs_ustack_write) (const char *path, const char *buf, size_t size, off_t o
 
   PLOG("[%s]: write content %s to path %s", __func__,buf, path);
 
-  KV_ustack_info *info = reinterpret_cast<KV_ustack_info *>(fuse_get_context()->private_data);
+  kv_ustack_info_t *info = reinterpret_cast<kv_ustack_info_t *>(fuse_get_context()->private_data);
 
   id = fi->fh;
   info->write(id, buf, size);

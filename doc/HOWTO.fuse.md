@@ -76,3 +76,9 @@ This will overwrite:
 ```
 D_PRELOAD=./src/fuse/ustack/libustack_client.so ./src/fuse/ustack/unit_test/test-preload
 ```
+
+Design 
+=======
+
+1. First version only support wholefile operation without fileoffset.
+2. Second version is a different design, daemon side will lock fixed-size objects for each file during file open. Unlock will be called during file flush(which is called implicitedly by file close.)

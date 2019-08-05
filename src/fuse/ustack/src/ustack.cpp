@@ -8,9 +8,14 @@
 using namespace Component;
 
 
-Ustack::Ustack(const std::string endpoint, KV_ustack_info *info ) : IPC_server(endpoint), _kv_ustack_info(info)
+Ustack::Ustack(const std::string endpoint) : IPC_server(endpoint)
 {
 
+  _ipc_thread = new std::thread([=]() { ipc_start(); });
+}
+
+/** With kvfs daemon info*/
+Ustack::Ustack(const std::string endpoint, kv_ustack_info_t * kv_ustack_info):_kv_ustack_info(kv_ustack_info), IPC_server(endpoint){
   _ipc_thread = new std::thread([=]() { ipc_start(); });
 }
 
