@@ -27,9 +27,13 @@ class KV_ustack_info_cached;
 using kv_ustack_info_t = KV_ustack_info_cached;
 
 #include "ustack.h"
-/*
- * private information for this mounting.
+
+#if 0
+/**
+ * Private information for this mounting.
+ *
  * Allocate the fuse daemon internal fh; interact with kvstore
+ * Deprecated, use the cached version below instead.
  */
 class KV_ustack_info{
   public:
@@ -64,7 +68,7 @@ class KV_ustack_info{
     /* All files in this mount*/
     std::vector<std::string> get_filenames(){
       std::vector<std::string> filenames;
-      for(auto item = _items.begin(); item!= _items.end(); item++){
+      for(auto item = _files.begin(); item!= _files.end(); item++){
         filenames.push_back(item->second->name);
       }
       return filenames;
@@ -73,17 +77,17 @@ class KV_ustack_info{
     fuse_fd_t insert_item(std::string key){
       fuse_fd_t id=  ++_asigned_ids;
 
-      _items.insert(std::make_pair(id, new File_meta(key)));
+      _files.insert(std::make_pair(id, new File_meta(key)));
       return id;
     }
 
     status_t remove_item(uint64_t id){
       status_t ret;
-      std::string key =  _items.at(id)->name;
+      std::string key =  _files.at(id)->name;
 
       ret = _store->erase(_pool, key);
-      delete _items.at(id);
-      _items.erase(id);
+      delete _files.at(id);
+      _files.erase(id);
       --_asigned_ids;
       return ret;
     }
@@ -94,7 +98,7 @@ class KV_ustack_info{
      * @return 0 if not found
      */
     fuse_fd_t get_id(std::string item){
-      for(const auto & i : _items){
+      for(const auto & i : _files){
         if(i.second->name == item)
           return i.first;
       }
@@ -104,11 +108,11 @@ class KV_ustack_info{
     /* get the file size 
      */
     size_t get_item_size(fuse_fd_t id){
-      return _items.at(id)->size;
+      return _files.at(id)->size;
     }
 
     void set_item_size(fuse_fd_t id, size_t size){
-      _items.at(id)->size = size;
+      _files.at(id)->size = size;
     }
 
     /**
@@ -121,13 +125,13 @@ class KV_ustack_info{
       if(file_offset){
         throw General_exception("kv_ustack_basic doesn't support offset");
       }
-      const std::string key = _items.at(id)->name;
+      const std::string key = _files.at(id)->name;
       assert(value !=  NULL);
       return _store->put(_pool, key, value, size);
     }
 
     status_t read(fuse_fd_t id, void * value, size_t size, size_t file_offset = 0){
-      const std::string key = _items.at(id)->name;
+      const std::string key = _files.at(id)->name;
       void * tmp;
       size_t rd_size;
       if(file_offset){
@@ -150,13 +154,15 @@ class KV_ustack_info{
 
       Component::IKVStore *_store;
       pool_t _pool;
-      std::map<fuse_fd_t, File_meta *> _items;  
+      std::map<fuse_fd_t, File_meta *> _files;  
 
   private:
 
       std::atomic<fuse_fd_t> _asigned_ids; //current assigned ids, to identify each file
 
 };
+#endif
+
 
 struct page_cache_entry{
   size_t pg_offset;
@@ -182,42 +188,74 @@ class KV_ustack_info_cached{
     /** Per-file structure*/
     struct File_meta{
       File_meta() = delete;
-      File_meta(std::string name, IKVStore * store, IKVStore::pool_t pool): name(name), _store(store), _pool(pool){}
+      File_meta(std::string name, IKVStore * store, IKVStore::pool_t pool): filename(name), _store(store), _pool(pool){}
 
       ~File_meta(){}
 
+      inline status_t cache_add_entry(size_t nr_entries = 1){
+        for(auto i = 0; i < nr_entries ; i++){
+          page_cache_entry * entry = new page_cache_entry();
+          std::string obj_key = filename + "#seg-" + std::to_string(_nr_cached_pages);
+          size_t value_len = PAGE_CACHE_SIZE;
 
-      status_t populate_cache(){
-        PDBG("cached open called");
-        page_cache_entry * entry = new page_cache_entry();
-        std::string obj_key = name + "#seg-0";
-        size_t out_value_len;
+          // If same file is opened again, contents shall be the same
+          if(S_OK!= _store->lock(_pool, obj_key, IKVStore::STORE_LOCK_WRITE, entry->vaddr, value_len, entry->locked_key)){
+            throw General_exception("lock file cached failed");
+            }
 
-        // If same file is opened again, contents shall be the same
-        if(S_OK!= _store->lock(_pool, obj_key, IKVStore::STORE_LOCK_WRITE, entry->vaddr, out_value_len, entry->locked_key)){
-          throw General_exception("lock file cached failed");
-          }
-
-        PDBG("%s: get locked_key 0x%lx", __func__,  uint64_t(entry->locked_key));
-        _cached_pages.push(entry);
-        return S_OK;
-      }
-
-      /* TODO: I can only flush one time!*/
-      status_t flush_cache(){
-        while(! _cached_pages.empty()){
-          auto entry = _cached_pages.front();
-          PDBG("%s: trying to use locked_key 0x%lx", __func__,  uint64_t(entry->locked_key));
-          _store->unlock(_pool, entry->locked_key);
-          _cached_pages.pop();
+          PDBG("%s: get locked_key 0x%lx", __func__,  uint64_t(entry->locked_key));
+          _cached_pages.push_back(entry);
+          _nr_cached_pages += 1;
         }
         return S_OK;
       }
 
-      std::string name;
+      status_t populate_cache(){
+        PDBG("cached open called");
+        return cache_add_entry();
+      }
+
+      status_t might_enlarge_file(size_t new_size){
+        status_t ret = E_FAIL;
+        if(new_size <= size) return S_OK;
+        if(new_size <= allocated_space()) {
+          size = new_size;
+          return S_OK;
+        }
+
+        // actually lock more objs
+        size_t requested_nr_pages = (new_size + PAGE_CACHE_SIZE -1) / PAGE_CACHE_SIZE - _nr_cached_pages;
+        assert(requested_nr_pages > 0);
+
+        ret =  cache_add_entry(requested_nr_pages);
+        size = new_size;
+        return ret;
+      }
+
+
+      /* TODO: I can only flush one time!*/
+      status_t flush_cache(){
+        // while(! _cached_pages.empty()){
+        for(auto it = _cached_pages.begin(); it != _cached_pages.end();){
+
+          auto entry = *it;
+          PDBG("%s: trying to use locked_key 0x%lx", __func__,  uint64_t(entry->locked_key));
+          _store->unlock(_pool, entry->locked_key);
+          _cached_pages.erase(it);
+        }
+        return S_OK;
+      }
+
+
+      std::string filename;
       size_t size = 0;
 
-      std::queue<page_cache_entry *> _cached_pages; /** just an array of locked regions*/
+      size_t _nr_cached_pages = 0;
+      std::vector<page_cache_entry *> _cached_pages; /** just an array of locked regions*/
+
+      inline size_t allocated_space(){
+        return _nr_cached_pages* PAGE_CACHE_SIZE;
+      }
 
       private:
       IKVStore * _store;
@@ -243,27 +281,27 @@ class KV_ustack_info_cached{
     /* All files in this mount*/
     std::vector<std::string> get_filenames(){
       std::vector<std::string> filenames;
-      for(auto item = _items.begin(); item!= _items.end(); item++){
-        filenames.push_back(item->second->name);
+      for(auto item = _files.begin(); item!= _files.end(); item++){
+        filenames.push_back(item->second->filename);
       }
       return filenames;
     }; 
 
-    fuse_fd_t insert_item(std::string key){
+    fuse_fd_t insert_item(std::string filename){
       fuse_fd_t id=  ++_assigned_ids;
 
       assert(_pool);
-      _items.insert(std::make_pair(id, new File_meta(key, _store, _pool)));
+      _files.insert(std::make_pair(id, new File_meta(filename, _store, _pool)));
       return id;
     }
 
     status_t remove_item(uint64_t id){
       status_t ret;
-      std::string key =  _items.at(id)->name;
+      std::string key =  _files.at(id)->filename;
 
       ret = _store->erase(_pool, key);
-      delete _items.at(id);
-      _items.erase(id);
+      delete _files.at(id);
+      _files.erase(id);
       --_assigned_ids;
       return ret;
     }
@@ -274,8 +312,8 @@ class KV_ustack_info_cached{
      * @return 0 if not found
      */
     fuse_fd_t get_id(std::string item){
-      for(const auto & i : _items){
-        if(i.second->name == item)
+      for(const auto & i : _files){
+        if(i.second->filename == item)
           return i.first;
       }
       return 0;
@@ -284,17 +322,17 @@ class KV_ustack_info_cached{
     /* get the file size 
      */
     size_t get_item_size(fuse_fd_t id){
-      return _items.at(id)->size;
+      return _files.at(id)->size;
     }
 
     void set_item_size(fuse_fd_t id, size_t size){
-      _items.at(id)->size = size;
+      _files.at(id)->size = size;
     }
 
 
     status_t open_file(fuse_fd_t id)
     {
-      File_meta* fileinfo = _items.at(id);
+      File_meta* fileinfo = _files.at(id);
       fileinfo->populate_cache();
       return S_OK;
     }
@@ -305,7 +343,7 @@ class KV_ustack_info_cached{
       PDBG("sync cached file called");
       File_meta* fileinfo;
       try{
-        fileinfo = _items.at(id);
+        fileinfo = _files.at(id);
       }
       catch(std::out_of_range e){
         PERR("close failed");
@@ -315,15 +353,41 @@ class KV_ustack_info_cached{
       return S_OK;
     }
 
+
     /* This will write to locked virt-addr*/
     status_t write(fuse_fd_t id, const void * value, size_t size, size_t file_offset = 0 ){
       PDBG("cached write called");
 
-      File_meta* fileinfo = _items.at(id);
-      if(fileinfo->_cached_pages.size()>1 || size + file_offset > PAGE_CACHE_SIZE)
-        throw General_exception("Need more than one cache page");
-      void* buf = (fileinfo->_cached_pages.front())->vaddr;
-      memcpy(buf, value, size);
+      File_meta* fileinfo = _files.at(id);
+      fileinfo->might_enlarge_file(size + file_offset);
+
+      size_t bytes_left = size;
+      char * p = (char *)value;
+      size_t io_size;
+      auto cur_page = fileinfo->_cached_pages.begin();
+      // First page touched
+      if(file_offset % PAGE_CACHE_SIZE){
+        size_t page_leftover = PAGE_CACHE_SIZE - (file_offset%PAGE_CACHE_SIZE);
+        io_size = size < page_leftover? size: page_leftover;
+        char * target_addr =  (char *)((*cur_page++)->vaddr) + file_offset;
+
+        memcpy(target_addr, p , io_size);
+
+        p += io_size;
+        bytes_left -= io_size;
+        file_offset = round_up(file_offset, PAGE_CACHE_SIZE);
+      }
+
+      while(bytes_left > 0){
+        io_size = bytes_left<PAGE_CACHE_SIZE? bytes_left:PAGE_CACHE_SIZE;
+        char * target_addr =  (char *)((*cur_page++)->vaddr);
+
+        memcpy(target_addr, p , io_size);
+
+        p += io_size;
+        bytes_left -= io_size;
+      }
+
       return S_OK;
     }
 
@@ -331,12 +395,34 @@ class KV_ustack_info_cached{
 
       PDBG("cached read called");
 
-      File_meta* fileinfo = _items.at(id);
-      if(fileinfo->_cached_pages.size()>1 || size + file_offset > PAGE_CACHE_SIZE)
-        throw General_exception("Need more than one cache page");
-      void* buf = (fileinfo->_cached_pages.front())->vaddr;
-      memcpy(value, buf, size);
+      File_meta* fileinfo = _files.at(id);
 
+      size_t bytes_left = size;
+      char * p = (char *)value;
+      size_t io_size;
+      auto cur_page = fileinfo->_cached_pages.begin();
+      // First page touched
+      if(file_offset % PAGE_CACHE_SIZE){
+        size_t page_leftover = PAGE_CACHE_SIZE - (file_offset%PAGE_CACHE_SIZE);
+        io_size = size < page_leftover? size: page_leftover;
+        char * source_addr =  (char *)((*cur_page++)->vaddr) + file_offset;
+
+        memcpy(p , source_addr, io_size);
+
+        p += io_size;
+        bytes_left -= io_size;
+        file_offset = round_up(file_offset, PAGE_CACHE_SIZE);
+      }
+
+      while(bytes_left > 0){
+        io_size = bytes_left<PAGE_CACHE_SIZE? bytes_left:PAGE_CACHE_SIZE;
+        char * source_addr =  (char *)((*cur_page++)->vaddr);
+
+        memcpy(p, source_addr, io_size);
+
+        p += io_size;
+        bytes_left -= io_size;
+      }
       return S_OK;
     }
 
@@ -348,7 +434,7 @@ class KV_ustack_info_cached{
 
       Component::IKVStore *_store;
       pool_t _pool;
-      std::map<fuse_fd_t, File_meta *> _items;  
+      std::map<fuse_fd_t, File_meta *> _files;  
       std::atomic<fuse_fd_t> _assigned_ids; //current assigned ids, to identify each file
 };
 #endif

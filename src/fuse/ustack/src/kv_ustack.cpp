@@ -326,7 +326,6 @@ int (kvfs_ustack_write) (const char *path, const char *buf, size_t size, off_t o
   id = fi->fh;
   info->write(id, buf, size, offset);
 
-  info->set_item_size(id, size);
   return size;
 }
 

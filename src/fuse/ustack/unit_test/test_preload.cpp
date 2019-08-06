@@ -21,7 +21,7 @@ static constexpr unsigned ITERATIONS = 10;
 status_t do_warm_up(std::string dir_name, int open_flags){
   void* buffer;
 
-  for(uint warmup_size  = KB(4);warmup_size < MB(2); warmup_size *= 4){
+  for(uint warmup_size  = KB(4);warmup_size < MB(32); warmup_size *= 4){
     PLOG("Warmup with size %u)", warmup_size);
     std::string filepath = dir_name + "/warmupfile-size" + std::to_string(warmup_size)+  ".dat";
     int fd = open(filepath.c_str(), open_flags, S_IRWXU);
