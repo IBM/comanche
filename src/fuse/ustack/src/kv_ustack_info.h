@@ -253,7 +253,10 @@ class KV_ustack_info_cached{
           PDBG("%s:filename:(%s): \n\t trying to unlock locked_key[%d] 0x%lx", __func__,  filename.c_str(), i ,uint64_t(entry->locked_key));
           _store->unlock(_pool, entry->locked_key);
           _cached_pages.erase(it);
+          _nr_cached_pages --;
         }
+        assert(_nr_cached_pages == 0);
+        PDBG("%s:filename:(%s): \n\t All flushed", __func__, filename.c_str());
         return S_OK;
       }
 
