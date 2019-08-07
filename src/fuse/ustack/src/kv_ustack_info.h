@@ -204,7 +204,7 @@ class KV_ustack_info_cached{
             throw General_exception("lock file cached failed");
             }
 
-          PDBG("%s: get locked_key 0x%lx", __func__,  uint64_t(entry->locked_key));
+          PDBG("%s: filename (%s): \n\t get locked_key[%lu] 0x%lx", __func__, filename.c_str(), _nr_cached_pages -1, uint64_t(entry->locked_key));
           _cached_pages.push_back(entry);
           _nr_cached_pages += 1;
         }
@@ -233,7 +233,11 @@ class KV_ustack_info_cached{
         size_t requested_nr_pages = (new_size + PAGE_CACHE_SIZE -1) / PAGE_CACHE_SIZE - _nr_cached_pages;
         assert(requested_nr_pages > 0);
 
+        try{
         ret =  cache_add_entry(requested_nr_pages);
+        }catch(...){
+          PERR("failed in lock more objs, %lu + %lu", _nr_cached_pages, requested_nr_pages);
+        }
         size = new_size;
         return ret;
       }
@@ -242,10 +246,11 @@ class KV_ustack_info_cached{
       /* TODO: I can only flush one time!*/
       status_t flush_cache(){
         // while(! _cached_pages.empty()){
+        int i = 0;
         for(auto it = _cached_pages.begin(); it != _cached_pages.end();){
 
           auto entry = *it;
-          PDBG("%s: trying to use locked_key 0x%lx", __func__,  uint64_t(entry->locked_key));
+          PDBG("%s:filename:(%s): \n\t trying to unlock locked_key[%d] 0x%lx", __func__,  filename.c_str(), i ,uint64_t(entry->locked_key));
           _store->unlock(_pool, entry->locked_key);
           _cached_pages.erase(it);
         }
@@ -370,24 +375,25 @@ class KV_ustack_info_cached{
       size_t bytes_left = size;
       char * p = (char *)value;
       size_t io_size;
-      auto cur_page = fileinfo->_cached_pages.begin();
-      // First page touched
-      if(file_offset % PAGE_CACHE_SIZE){
-        size_t page_leftover = PAGE_CACHE_SIZE - (file_offset%PAGE_CACHE_SIZE);
-        io_size = size < page_leftover? size: page_leftover;
-        char * target_addr =  (char *)((*cur_page++)->vaddr) + file_offset;
 
-        memcpy(target_addr, p , io_size);
+      size_t cur_pageid = file_offset/PAGE_CACHE_SIZE;
+      size_t cur_pageoff = file_offset%PAGE_CACHE_SIZE;
 
-        p += io_size;
-        bytes_left -= io_size;
-      }
 
       while(bytes_left > 0){
-        io_size = bytes_left<PAGE_CACHE_SIZE? bytes_left:PAGE_CACHE_SIZE;
-        char * target_addr =  (char *)((*cur_page++)->vaddr);
+        char * target_addr;
+        if(cur_pageoff){
+          size_t page_leftover = PAGE_CACHE_SIZE - (file_offset%PAGE_CACHE_SIZE);
+          io_size = size < page_leftover? size: page_leftover;
+          target_addr =  (char *)((fileinfo->_cached_pages[cur_pageid++])->vaddr) + cur_pageoff;
+          cur_pageoff = 0;
+        }
+        else{
+          io_size = bytes_left<PAGE_CACHE_SIZE? bytes_left:PAGE_CACHE_SIZE;
+          target_addr =  (char *)((fileinfo->_cached_pages[cur_pageid++])->vaddr);
+        }
 
-        memcpy(target_addr, p , io_size);
+        memcpy(target_addr, p, io_size);
 
         p += io_size;
         bytes_left -= io_size;
@@ -405,22 +411,22 @@ class KV_ustack_info_cached{
       size_t bytes_left = size;
       char * p = (char *)value;
       size_t io_size;
-      auto cur_page = fileinfo->_cached_pages.begin();
-      // First page touched
-      if(file_offset % PAGE_CACHE_SIZE){
-        size_t page_leftover = PAGE_CACHE_SIZE - (file_offset%PAGE_CACHE_SIZE);
-        io_size = size < page_leftover? size: page_leftover;
-        char * source_addr =  (char *)((*cur_page++)->vaddr) + file_offset;
 
-        memcpy(p , source_addr, io_size);
-
-        p += io_size;
-        bytes_left -= io_size;
-      }
+      size_t cur_pageid = file_offset/PAGE_CACHE_SIZE;
+      size_t cur_pageoff = file_offset%PAGE_CACHE_SIZE;
 
       while(bytes_left > 0){
-        io_size = bytes_left<PAGE_CACHE_SIZE? bytes_left:PAGE_CACHE_SIZE;
-        char * source_addr =  (char *)((*cur_page++)->vaddr);
+        char * source_addr;
+        if(cur_pageoff){
+          size_t page_leftover = PAGE_CACHE_SIZE - (file_offset%PAGE_CACHE_SIZE);
+          io_size = size < page_leftover? size: page_leftover;
+          source_addr =  (char *)((fileinfo->_cached_pages[cur_pageid++])->vaddr) + cur_pageoff;
+          cur_pageoff = 0;
+        }
+        else{
+          io_size = bytes_left<PAGE_CACHE_SIZE? bytes_left:PAGE_CACHE_SIZE;
+          source_addr =  (char *)((fileinfo->_cached_pages[cur_pageid++])->vaddr);
+        }
 
         memcpy(p, source_addr, io_size);
 
