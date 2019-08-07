@@ -192,6 +192,7 @@ class KV_ustack_info_cached{
 
       ~File_meta(){}
 
+      /** lock objects as page cache*/
       inline status_t cache_add_entry(size_t nr_entries = 1){
         for(auto i = 0; i < nr_entries ; i++){
           page_cache_entry * entry = new page_cache_entry();
@@ -211,10 +212,15 @@ class KV_ustack_info_cached{
       }
 
       status_t populate_cache(){
-        PDBG("cached open called");
-        return cache_add_entry();
+        size_t requested_nr_pages = 1; // for new file use one page 
+        if(size){ // a previous file
+          requested_nr_pages = (size + PAGE_CACHE_SIZE -1) / PAGE_CACHE_SIZE;
+          assert(requested_nr_pages > 0);
+        }
+        return  cache_add_entry(requested_nr_pages);
       }
 
+      /** Need to expand current file*/
       status_t might_enlarge_file(size_t new_size){
         status_t ret = E_FAIL;
         if(new_size <= size) return S_OK;
@@ -355,7 +361,7 @@ class KV_ustack_info_cached{
 
 
     /* This will write to locked virt-addr*/
-    status_t write(fuse_fd_t id, const void * value, size_t size, size_t file_offset = 0 ){
+    status_t write(fuse_fd_t id, const void * value, size_t size, size_t file_offset){
       PDBG("cached write called");
 
       File_meta* fileinfo = _files.at(id);
@@ -375,7 +381,6 @@ class KV_ustack_info_cached{
 
         p += io_size;
         bytes_left -= io_size;
-        file_offset = round_up(file_offset, PAGE_CACHE_SIZE);
       }
 
       while(bytes_left > 0){
@@ -391,7 +396,7 @@ class KV_ustack_info_cached{
       return S_OK;
     }
 
-    status_t read(fuse_fd_t id, void * value, size_t size, size_t file_offset = 0 ){
+    status_t read(fuse_fd_t id, void * value, size_t size, size_t file_offset){
 
       PDBG("cached read called");
 
@@ -411,7 +416,6 @@ class KV_ustack_info_cached{
 
         p += io_size;
         bytes_left -= io_size;
-        file_offset = round_up(file_offset, PAGE_CACHE_SIZE);
       }
 
       while(bytes_left > 0){

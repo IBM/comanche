@@ -1,6 +1,6 @@
 ; -- start job file --
 [global]
-ioengine=sync
+ioengine=psync
 iodepth=1
 bs=32k
 direct=1; O_DIRECT

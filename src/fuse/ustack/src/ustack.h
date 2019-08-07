@@ -47,11 +47,12 @@ private:
    *
    * @param client_id  client who issue this io, we need this to find the right iomem
    * @param fuse_fh fuse daemon file handler
-   * @param offset offset of iobuffer inside the iomem
+   * @param buffer_offset offset of iobuffer inside the iomem
    * @param io_sz  I/O size
+   * @param file_off offset of the file
    */
-  status_t do_kv_write(pid_t client_id, uint64_t fuse_fh, size_t offset, size_t io_sz );
-  status_t do_kv_read(pid_t client_id, uint64_t fuse_fh, size_t offset, size_t io_sz); 
+  status_t do_kv_write(pid_t client_id, uint64_t fuse_fh, size_t buffer_offset, size_t io_sz, size_t file_off );
+  status_t do_kv_read(pid_t client_id, uint64_t fuse_fh, size_t buffer_offset, size_t io_sz, size_t file_off); 
 
   struct Shared_memory_instance
   {

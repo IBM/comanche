@@ -27,7 +27,7 @@ status_t do_warm_up(std::string dir_name, int open_flags){
     int fd = open(filepath.c_str(), open_flags, S_IRWXU);
     assert(fd>0);
     if(posix_memalign(&buffer, 4096, warmup_size)){PERR("aligned alloc files"); return -1;}
-      ssize_t res = write(fd, buffer, warmup_size);
+      ssize_t res = pwrite(fd, buffer, warmup_size,0);
     if(res > warmup_size || res < 0){
       PWRN("write return %lu  ptr = %p", res,buffer);
     }
@@ -83,12 +83,11 @@ int                main(int argc, char * argv[])
 
   if(is_read){
     char* ptr = (char*)buffer;
-    ssize_t res = write(fd, ptr, file_size);
+    ssize_t res = pwrite(fd, ptr, file_size, 0);
     fsync(fd);
     if(res > file_size || res < 0){
       PWRN("write return %lu , ptr = %p", res, ptr);
     }
-    lseek(fd, 0, SEEK_SET);
   }
 
   _start_time = std::chrono::high_resolution_clock::now();
@@ -96,15 +95,14 @@ int                main(int argc, char * argv[])
     char* ptr = (char*)buffer  + file_size*(i % nr_buffer_copies);
     ssize_t res;
     if(is_read)
-      res = read(fd, ptr, file_size);
+      res = pread(fd, ptr, file_size, 0);
     else{
-      res = write(fd, ptr, file_size);
+      res = pwrite(fd, ptr, file_size, 0);
       fsync(fd);
     }
     if(res > file_size || res < 0){
       PWRN("write/read return %lu in iteration %u, ptr = %p", res, i, ptr);
     }
-    lseek(fd, 0, SEEK_SET);
   }
   _end_time = std::chrono::high_resolution_clock::now();
 

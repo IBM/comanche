@@ -5,3 +5,6 @@ target_link_libraries(test-ustack ${ASAN_LIB} common comanche-core numa dl z ${N
 
 add_executable(test-preload test_preload.cpp)
 target_link_libraries(test-preload dl)
+
+add_executable(test-kvfs test-kvfs.cpp)
+target_link_libraries(test-kvfs gtest dl)

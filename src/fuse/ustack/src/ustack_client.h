@@ -262,7 +262,7 @@ class Ustack_client : public Core::IPC_client {
    *
    * the message will be like(fd, phys(buf), count)
    */
-  ssize_t write(int fuse_fh, const void *buf, size_t count)
+  ssize_t write(int fuse_fh, const void *buf, size_t count, off_t file_off)
   {
     int ret = -1;
     /* ustack tracked file */
@@ -275,6 +275,7 @@ class Ustack_client : public Core::IPC_client {
     cmd->type     = IO_TYPE_WRITE;
     cmd->offset   = _iomem_allocator.get_offset(buf);
     cmd->sz_bytes = count;
+    cmd->file_off = file_off;
 
     if(count > GB(4)) PWRN("32bit field for sz_bytes is not enough");
 
@@ -282,23 +283,23 @@ class Ustack_client : public Core::IPC_client {
     _channel->send(cmd);
 
     void *reply = nullptr;
+    PLOG("waiting for IO channel reply...");
     while (_channel->recv(reply))
       ;
-    PLOG("waiting for IO channel reply...");
     // PLOG("get IO channel reply with type %d", static_cast<struct IO_command
     // *>(reply)->type);
     if (IO_WRITE_OK != static_cast<struct IO_command *>(reply)->type) {
       PERR("[%s]: ustack write failed", __func__);
       goto cleanup;
     }
-    ret = 0;
+    ret = count;
   cleanup:
     _channel->free_msg(reply);
     PLOG("send write command and got reply.");
     return ret;
   }
 
-  ssize_t read(int fuse_fh, void *buf, size_t count)
+  ssize_t read(int fuse_fh, void *buf, size_t count, off_t file_off)
   {
     int ret = -1;
     /* ustack tracked file */
@@ -311,6 +312,7 @@ class Ustack_client : public Core::IPC_client {
     cmd->type     = IO_TYPE_READ;
     cmd->offset   = _iomem_allocator.get_offset(buf);
     cmd->sz_bytes = count;
+    cmd->file_off = file_off;
 
     // strcpy(cmd->data, "hello");
     _channel->send(cmd);
@@ -325,7 +327,7 @@ class Ustack_client : public Core::IPC_client {
       PERR("[%s]: ustack write failed", __func__);
       goto cleanup;
     }
-    ret = 0;
+    ret = count;
   cleanup:
     _channel->free_msg(reply);
     PLOG("send read command and got reply.");
