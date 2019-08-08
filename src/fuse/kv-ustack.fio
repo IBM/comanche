@@ -2,19 +2,23 @@
 [global]
 ioengine=psync
 iodepth=1
-bs=32k
+bs=128k
 direct=1; O_DIRECT
 sync=1; O_SYNC
-size=2m
+size=1M
 numjobs=1
-directory=/tmp/kvfs
-;directory=/tmp/kvfs-ustack ; kvustack
+; directory=/tmp/kvfs
+directory=/tmp/kvfs-ustack ; kvustack
 thread ;unless it will fork
 iomem=mmaphuge
 hugepage-size=2m
 
-[random-write]
-rw=randwrite
+; [random-write]
+; rw=randomwrite
+
+[verify]
+verify=md5
+verify_pattern=%o
 
 ;[random-read]
 ; rw=randread

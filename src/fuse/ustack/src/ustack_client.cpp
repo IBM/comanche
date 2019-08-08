@@ -80,7 +80,7 @@ void ustack_ctor()
   orig_munmap = (munmap_t)(dlsym(RTLD_NEXT, "munmap"));
   assert(orig_munmap);
 
-  PINF("Original open64/close/malloc intialized");
+  PMAJOR("Original open64/close/malloc intialized, trying to connect to kvfs-ustack server");
 
   /* Initialize ustack
    * Attention, open/close is also used for xms

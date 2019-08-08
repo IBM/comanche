@@ -402,9 +402,9 @@ class KV_ustack_info_cached{
 
         memcpy(target_addr, p, io_size);
 
-        if(((char*)target_addr)[0] == 0 ){
-          PWRN("zero value written!");
-        }
+/*        if(((char*)target_addr)[0] == 0 ){*/
+          //PWRN("zero value written!");
+        /*}*/
 
         p += io_size;
         bytes_left -= io_size;
@@ -439,9 +439,9 @@ class KV_ustack_info_cached{
           source_addr =  (char *)((fileinfo->_cached_pages[cur_pageid++])->vaddr);
         }
 
-        if(((char*)source_addr)[0]== 0){
-          PWRN("zero value read!");
-        }
+        //if(((char*)source_addr)[0]== 0){
+          //PWRN("zero value read!");
+        /*}*/
         memcpy(p, source_addr, io_size);
 
         p += io_size;

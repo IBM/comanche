@@ -9,8 +9,7 @@ project(fuse-ustack CXX)
 
 include_directories(${Nanomsg_INCLUDE_DIRS} ${TBB_INCLUDE_DIRS} ${Flatbuffers_INCLUDE_DIRS} ${CMAKE_CURRENT_BINARY_DIR}/src)
 
-#add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -D_FILE_OFFSET_BITS=64)
-add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -DCONFIG_DEBUG -D_FILE_OFFSET_BITS=64)
+add_definitions(${GCC_COVERAGE_COMPILE_FLAGS} -D_FILE_OFFSET_BITS=64)
 
 # if not having this, src won't be in the build dir
 configure_file(
@@ -27,14 +26,12 @@ add_custom_command(
 
 add_custom_target(proto ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/src/protocol_generated.h)
 
-set(USTACK_FS kv_ustack) #blob_ustack is deprecated
-foreach(fs ${USTACK_FS})
-  # ustack fs built upon blobstore
-  add_executable(${fs} src/${fs}.cpp src/ustack.cpp src/ustack_intercepted_io.cpp)
-  add_dependencies(${fs} proto)
+# ustack fs built upon blobstore
+add_executable(kv_ustack src/kv_ustack.cpp src/ustack.cpp src/ustack_intercepted_io.cpp)
+add_dependencies(kv_ustack proto)
+target_compile_definitions(kv_ustack PRIVATE CONFIG_DEBUG=1)
 
-  target_link_libraries(${fs} ${ASAN_LIB} common comanche-core numa dl z ${Nanomsg_LIBRARIES} boost_system boost_program_options pthread ${TBB_LIBRARIES} fuse)
-endforeach(fs ${USTACK_FS})
+target_link_libraries(kv_ustack ${ASAN_LIB} common comanche-core numa dl z ${Nanomsg_LIBRARIES} boost_system boost_program_options pthread ${TBB_LIBRARIES} fuse)
 
 add_library(ustack_client SHARED src/ustack_client.cpp)
 target_link_libraries(ustack_client ${ASAN_LIB} common comanche-core numa dl z ${Nanomsg_LIBRARIES} boost_system boost_program_options pthread ${TBB_LIBRARIES} fuse)

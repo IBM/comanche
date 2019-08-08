@@ -1,3 +1,16 @@
+Changelog
+==========
+
+[19-08-09]:
+  * Improved the kvfs-test unit test.
+  * a different design, daemon side will lock fixed-size objects(default=2M) for each file during file open. Unlock will be called during file flush(which is called implicitedly by file close.). Fixed-sized objects serve as page cache in userspace.
+  * Also support other ikvstore as backend, e.g. filestore.
+  * wip on fio test.
+
+[19-07-30]: Added 
+  * 1-1 kvfs-ustack, where each file is mapped to one key-value pair.
+  * First version only support wholefile operation without fileoffset.
+
 Prepare
 ==========
 
@@ -74,11 +87,5 @@ This will overwrite:
 3. read/write
 
 ```
-D_PRELOAD=./src/fuse/ustack/libustack_client.so ./src/fuse/ustack/unit_test/test-preload
+LD_PRELOAD=./src/fuse/ustack/libustack_client.so ./src/fuse/ustack/unit_test/test-preload
 ```
-
-Design 
-=======
-
-1. First version only support wholefile operation without fileoffset.
-2. Second version is a different design, daemon side will lock fixed-size objects for each file during file open. Unlock will be called during file flush(which is called implicitedly by file close.)

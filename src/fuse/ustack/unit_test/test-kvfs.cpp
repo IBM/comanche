@@ -60,12 +60,12 @@ TEST_F(KVFS_test, DISABLED_warmup){
 }
 
 /** Write each mb in the file and verify*/
-TEST_F(KVFS_test, PartialFileWrite){
+TEST_F(KVFS_test, PartialFileWriteRead){
   void * buffer;
   size_t file_size = MB(8);
   bool is_read = false;
 
-  size_t slab_size = MB(1);
+  size_t slab_size = KB(32);
   size_t nr_slabs = file_size/slab_size;
 
   // EXPECT_EQ(0, posix_memalign(&buffer, 4096, slab_size));
@@ -90,9 +90,6 @@ TEST_F(KVFS_test, PartialFileWrite){
     file_off += slab_size;
   }
   close(fd);
-  // TODO: somehow it's not totally flushed here
-
-  // sleep(2);
 
   // reopen for read
   fd = open(filepath.c_str(), opt.open_flags, S_IRWXU);
