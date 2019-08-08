@@ -156,7 +156,7 @@ int kvfs_ustack_create (const char *path, mode_t mode, struct fuse_file_info * f
 
   handle = info->insert_item(path+1);
   assert(handle);
-  assert(S_OK == info->open_file(handle));
+  assert(S_OK == info->open_file(handle, fi->flags));
   fi->fh = handle;
   PDBG("[%s]: create entry No.%lu: key(%s)", __func__, handle, path+1);
   return 0;
@@ -239,7 +239,7 @@ static int kvfs_ustack_open(const char *path, struct fuse_file_info *fi)
   if(handle){
     PDBG("[%s]: open existing file (%s)!",__func__, path);
     fi->fh = handle;
-    assert(S_OK == info->open_file(handle));
+    assert(S_OK == info->open_file(handle, fi->flags));
     return 0;
   }
   else{
@@ -282,7 +282,7 @@ int kvfs_ustack_fallocate (const char *path, int mode, off_t offset, off_t lengt
   return info->fallocate(id, length, offset);
 }
 
-/* This is not fsync, this is just flush data to kernel, doesn't gagarantee data persistence*/
+/* This is not fsync, this is just flush data to kernel, doesn't guarantee data persistence*/
 int kvfs_ustack_flush(const char *path, struct fuse_file_info *fi){
     return 0;
 }

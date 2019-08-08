@@ -8,4 +8,4 @@ if [ "x"${NO_PRELOAD} == "x" ]; then
   export LD_PRELOAD=./src/fuse/ustack/libustack_client.so
 fi
 
-BS=1m SIZE=1m DIRECTORY=/tmp/kvfs-ustack fio ../src/fuse/kv-ustack.fio
+BS=4m SIZE=4m DIRECTORY=/tmp/kvfs-ustack SYNC=1 fio ../src/fuse/kv-ustack.fio

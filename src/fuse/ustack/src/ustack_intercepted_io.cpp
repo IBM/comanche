@@ -40,7 +40,14 @@
 
     if(io_sz >0){
       _kv_ustack_info->write(fuse_fh, buf, io_sz, file_off);
+
+      // if the file is opened with O_SYNC from the client, persist it.
+      if(_kv_ustack_info->get_flags(fuse_fh) & O_SYNC){
+        PDBG("sync fuse_fh(%lu) ", fuse_fh);
+        _kv_ustack_info->fsync_file(fuse_fh);
+      }
     }
+
     else PWRN("io size = 0");
     
     return S_OK;

@@ -262,6 +262,7 @@ class KV_ustack_info_cached{
 
 
       std::string filename;
+      int open_flags;
       size_t size = 0;
 
       size_t _nr_cached_pages = 0;
@@ -345,14 +346,19 @@ class KV_ustack_info_cached{
     }
 
     // Currently cannot open before previous close is not persistent
-    status_t open_file(fuse_fd_t id)
+    status_t open_file(fuse_fd_t id, int flags)
     {
       File_meta* fileinfo = _files.at(id);
       fileinfo->file_mutex.lock();
       fileinfo->populate_cache();
+      fileinfo->open_flags = flags;
       return S_OK;
     }
 
+
+    int get_flags(fuse_fd_t id){
+      return _files.at(id)->open_flags;
+    }
 
     /* This will unlock the obj, thus writing persist data to pool*/
     status_t close_file(fuse_fd_t id){
