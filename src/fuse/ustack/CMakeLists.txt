@@ -29,7 +29,7 @@ add_custom_target(proto ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/src/protocol_gen
 # ustack fs built upon blobstore
 add_executable(kv_ustack src/kv_ustack.cpp src/ustack.cpp src/ustack_intercepted_io.cpp)
 add_dependencies(kv_ustack proto)
-target_compile_definitions(kv_ustack PRIVATE CONFIG_DEBUG=1)
+# target_compile_definitions(kv_ustack PRIVATE CONFIG_DEBUG=1)
 
 target_link_libraries(kv_ustack ${ASAN_LIB} common comanche-core numa dl z ${Nanomsg_LIBRARIES} boost_system boost_program_options pthread ${TBB_LIBRARIES} fuse)
 

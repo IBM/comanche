@@ -356,7 +356,7 @@ class KV_ustack_info_cached{
 
     /* This will unlock the obj, thus writing persist data to pool*/
     status_t close_file(fuse_fd_t id){
-      PDBG("sync cached file called");
+      PDBG("close cached file called");
       File_meta* fileinfo;
       try{
         fileinfo = _files.at(id);
@@ -368,6 +368,22 @@ class KV_ustack_info_cached{
       fileinfo->flush_cache();
 
       fileinfo->file_mutex.unlock();
+      return S_OK;
+    }
+
+    status_t fsync_file(fuse_fd_t id){
+      PDBG("fsync cached file called");
+      File_meta* fileinfo;
+      try{
+        fileinfo = _files.at(id);
+      }
+      catch(std::out_of_range e){
+        PERR("try to sync an unmanaged file");
+        return E_FAIL;
+      }
+      fileinfo->flush_cache();
+      fileinfo->populate_cache();
+
       return S_OK;
     }
 

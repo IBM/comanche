@@ -282,9 +282,8 @@ int kvfs_ustack_fallocate (const char *path, int mode, off_t offset, off_t lengt
   return info->fallocate(id, length, offset);
 }
 
+/* This is not fsync, this is just flush data to kernel, doesn't gagarantee data persistence*/
 int kvfs_ustack_flush(const char *path, struct fuse_file_info *fi){
-    PWRN("[%s]: flush doesn't do anything ", __func__);
-
     return 0;
 }
 
@@ -352,6 +351,15 @@ static int kvfs_ustack_ioctl(const char *path, int cmd, void *arg,
 	return -EINVAL;
 }
 
+static	int kvfs_ustack_fsync (const char *path, int datasync, struct fuse_file_info *fi){
+  uint64_t id;
+  kv_ustack_info_t *info = reinterpret_cast<kv_ustack_info_t *>(fuse_get_context()->private_data);
+
+  id = fi->fh;
+  info->fsync_file(id);
+  return 0;
+}
+
 int main(int argc, char *argv[])
 {
   static struct fuse_operations oper;
@@ -369,6 +377,7 @@ int main(int argc, char *argv[])
   oper.fallocate = kvfs_ustack_fallocate;
   oper.flush = kvfs_ustack_flush;
   oper.release = kvfs_ustack_release;
+  oper.fsync = kvfs_ustack_fsync;
 
 	return fuse_main(argc, argv, &oper, NULL);
 }
