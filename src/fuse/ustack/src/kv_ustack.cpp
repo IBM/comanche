@@ -69,7 +69,7 @@ void * kvfs_ustack_init (struct fuse_conn_info *conn){
   Component::IBase * comp; 
 
   std::string component("filestore");
-  //std::string component("nvmestore");
+  // std::string component("nvmestore");
 
   if(component == "pmstore") {
     comp = Component::load_component(PMSTORE_PATH, Component::pmstore_factory);

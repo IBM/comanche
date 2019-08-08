@@ -92,7 +92,7 @@ TEST_F(KVFS_test, PartialFileWrite){
   close(fd);
   // TODO: somehow it's not totally flushed here
 
-  sleep(2);
+  // sleep(2);
 
   // reopen for read
   fd = open(filepath.c_str(), opt.open_flags, S_IRWXU);

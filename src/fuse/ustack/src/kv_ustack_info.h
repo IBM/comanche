@@ -266,6 +266,7 @@ class KV_ustack_info_cached{
 
       size_t _nr_cached_pages = 0;
       std::vector<page_cache_entry *> _cached_pages; /** just an array of locked regions*/
+      std::mutex file_mutex;
 
       inline size_t allocated_space(){
         return _nr_cached_pages* PAGE_CACHE_SIZE;
@@ -343,10 +344,11 @@ class KV_ustack_info_cached{
       _files.at(id)->size = size;
     }
 
-
+    // Currently cannot open before previous close is not persistent
     status_t open_file(fuse_fd_t id)
     {
       File_meta* fileinfo = _files.at(id);
+      fileinfo->file_mutex.lock();
       fileinfo->populate_cache();
       return S_OK;
     }
@@ -364,6 +366,8 @@ class KV_ustack_info_cached{
         return E_FAIL;
       }
       fileinfo->flush_cache();
+
+      fileinfo->file_mutex.unlock();
       return S_OK;
     }
 
