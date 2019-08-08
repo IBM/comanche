@@ -68,13 +68,14 @@ void * kvfs_ustack_init (struct fuse_conn_info *conn){
   Component::IKVStore *store;
   Component::IBase * comp; 
 
-  //std::string component("filestore");
-  std::string component("nvmestore");
+  std::string component("filestore");
+  //std::string component("nvmestore");
 
   if(component == "pmstore") {
     comp = Component::load_component(PMSTORE_PATH, Component::pmstore_factory);
   }
   else if(component == "filestore") {
+    DPDK::eal_init(1024);
     comp = Component::load_component(FILESTORE_PATH, Component::filestore_factory);
   }
   else if(component == "nvmestore") {
@@ -107,7 +108,6 @@ void * kvfs_ustack_init (struct fuse_conn_info *conn){
 
   kv_ustack_info_t * info = new kv_ustack_info_t(ustack_name, "owner", "name", store);
 
-  // DPDK::eal_init(1024);
   _ustack = new Ustack(ustack_name, info);
 
   return info;

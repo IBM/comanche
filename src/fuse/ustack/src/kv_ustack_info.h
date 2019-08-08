@@ -204,7 +204,7 @@ class KV_ustack_info_cached{
             throw General_exception("lock file cached failed");
             }
 
-          PDBG("%s: filename (%s): \n\t get locked_key[%lu] 0x%lx", __func__, filename.c_str(), _nr_cached_pages -1, uint64_t(entry->locked_key));
+          PDBG("%s: filename (%s): \n\t get locked_key[%lu] 0x%lx", __func__, filename.c_str(), _nr_cached_pages, uint64_t(entry->locked_key));
           _cached_pages.push_back(entry);
           _nr_cached_pages += 1;
         }
@@ -250,7 +250,7 @@ class KV_ustack_info_cached{
         for(auto it = _cached_pages.begin(); it != _cached_pages.end();){
 
           auto entry = *it;
-          PDBG("%s:filename:(%s): \n\t trying to unlock locked_key[%d] 0x%lx", __func__,  filename.c_str(), i ,uint64_t(entry->locked_key));
+          PDBG("%s:filename:(%s): \n\t trying to unlock locked_key[%d] 0x%lx", __func__,  filename.c_str(), i++ ,uint64_t(entry->locked_key));
           _store->unlock(_pool, entry->locked_key);
           _cached_pages.erase(it);
           _nr_cached_pages --;
@@ -398,6 +398,10 @@ class KV_ustack_info_cached{
 
         memcpy(target_addr, p, io_size);
 
+        if(((char*)target_addr)[0] == 0 ){
+          PWRN("zero value written!");
+        }
+
         p += io_size;
         bytes_left -= io_size;
       }
@@ -431,6 +435,9 @@ class KV_ustack_info_cached{
           source_addr =  (char *)((fileinfo->_cached_pages[cur_pageid++])->vaddr);
         }
 
+        if(((char*)source_addr)[0]== 0){
+          PWRN("zero value read!");
+        }
         memcpy(p, source_addr, io_size);
 
         p += io_size;

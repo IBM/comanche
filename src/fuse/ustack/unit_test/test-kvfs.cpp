@@ -4,6 +4,7 @@
 #include <api/kvstore_itf.h>
 #include <chrono> /* milliseconds */
 #include <common/utils.h>
+#include <sys/mman.h>
 struct {
   std::string dir_name;
 
@@ -61,14 +62,15 @@ TEST_F(KVFS_test, DISABLED_warmup){
 /** Write each mb in the file and verify*/
 TEST_F(KVFS_test, PartialFileWrite){
   void * buffer;
-  size_t file_size = MB(32);
+  size_t file_size = MB(8);
   bool is_read = false;
 
   size_t slab_size = MB(1);
   size_t nr_slabs = file_size/slab_size;
 
-  // buffer = malloc(file_size*nr_buffer_copies);
-  EXPECT_EQ(0, posix_memalign(&buffer, 4096, slab_size));
+  // EXPECT_EQ(0, posix_memalign(&buffer, 4096, slab_size));
+  buffer = mmap(NULL, slab_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, 0);
+  EXPECT_NE(buffer, nullptr);
 
   // prepare file
   std::string method_str = "-preload"+ std::to_string(opt.use_preload) + "-sz" + std::to_string(file_size) + "-f" + std::to_string(opt.open_flags);
@@ -105,8 +107,7 @@ TEST_F(KVFS_test, PartialFileWrite){
   }
   close(fd);
 
-
-  free(buffer);
+  munmap(buffer, slab_size);
   PLOG("done!");
 }
 
