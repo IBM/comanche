@@ -273,10 +273,13 @@ int kvfs_ustack_release(const char *path, struct fuse_file_info *fi){
 }
 
 int kvfs_ustack_fallocate (const char *path, int mode, off_t offset, off_t length,
-      struct fuse_file_info *){
+      struct fuse_file_info *fi){
+  uint64_t id;
 
-    PWRN("[%s]: fallocate doesn't do anything ", __func__);
-    return 0;
+  kv_ustack_info_t *info = reinterpret_cast<kv_ustack_info_t *>(fuse_get_context()->private_data);
+
+  id = fi->fh;
+  return info->fallocate(id, length, offset);
 }
 
 int kvfs_ustack_flush(const char *path, struct fuse_file_info *fi){

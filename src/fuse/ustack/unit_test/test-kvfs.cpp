@@ -65,7 +65,7 @@ TEST_F(KVFS_test, PartialFileWriteRead){
   size_t file_size = MB(8);
   bool is_read = false;
 
-  size_t slab_size = KB(32);
+  size_t slab_size = MB(1);
   size_t nr_slabs = file_size/slab_size;
 
   // EXPECT_EQ(0, posix_memalign(&buffer, 4096, slab_size));
@@ -85,7 +85,7 @@ TEST_F(KVFS_test, PartialFileWriteRead){
   /* write to each slab*/
   off_t file_off = 0;
   for(unsigned i = 0; i < nr_slabs; i+= 1){
-    memset((char *)buffer, 'a'+i, slab_size);
+    memset((unsigned char *)buffer, 'a'+i, slab_size);
     EXPECT_EQ(slab_size, pwrite(fd, buffer, slab_size, file_off));
     file_off += slab_size;
   }
@@ -100,7 +100,7 @@ TEST_F(KVFS_test, PartialFileWriteRead){
   for(unsigned i = 0; i < nr_slabs; i+= 1){
     EXPECT_EQ(slab_size, pread(fd, buffer, slab_size, file_off));
     file_off += slab_size;
-    EXPECT_EQ(((char *)buffer)[0], 'a' + i);
+    EXPECT_EQ('a' + i, ((unsigned char *)buffer)[0]);
   }
   close(fd);
 

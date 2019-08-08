@@ -371,6 +371,10 @@ class KV_ustack_info_cached{
       return S_OK;
     }
 
+    status_t fallocate(fuse_fd_t id,size_t size, size_t file_offset){
+      File_meta* fileinfo = _files.at(id);
+      return fileinfo->might_enlarge_file(size + file_offset);
+    }
 
     /* This will write to locked virt-addr*/
     status_t write(fuse_fd_t id, const void * value, size_t size, size_t file_offset){
