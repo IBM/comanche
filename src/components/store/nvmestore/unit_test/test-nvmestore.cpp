@@ -287,6 +287,10 @@ TEST_F(KVStore_test, LockBasic)
     EXPECT_EQ(value3_len, single_value_length);
     EXPECT_NE(value3, nullptr);
 
+    // try to sync a obj
+    unsigned debug_cmd = 1993;
+    _kvstore->debug(pool, debug_cmd, (uint64_t)out_key0);
+
     auto r0x = _kvstore->unlock(pool, out_key0);
     EXPECT_EQ(r0x, S_OK);
     auto r1x = _kvstore->unlock(pool, out_key1);

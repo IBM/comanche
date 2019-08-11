@@ -243,7 +243,7 @@ class KV_ustack_info_cached{
       }
 
 
-      /* TODO: I can only flush one time!*/
+      /* This will only be used when closing a file!*/
       status_t flush_cache(){
         // while(! _cached_pages.empty()){
         int i = 0;
@@ -259,6 +259,18 @@ class KV_ustack_info_cached{
         PDBG("%s:filename:(%s): \n\t All flushed", __func__, filename.c_str());
         return S_OK;
       }
+
+      status_t sync_cache(){
+        // while(! _cached_pages.empty()){
+        int i = 0;
+        for(auto it = _cached_pages.begin(); it != _cached_pages.end(); it++){
+          auto entry = *it;
+          unsigned cmd = 1993;// NVMESTORE_CMD_SYNC
+          _store->debug(_pool, cmd, (uint64_t)(entry->locked_key));
+        }
+        return S_OK;
+      }
+
 
 
       std::string filename;
@@ -307,6 +319,7 @@ class KV_ustack_info_cached{
     fuse_fd_t insert_item(std::string filename){
       fuse_fd_t id=  ++_assigned_ids;
 
+      assert(id > 0);
       assert(_pool);
       _files.insert(std::make_pair(id, new File_meta(filename, _store, _pool, PAGE_CACHE_SIZE)));
       return id;
@@ -319,6 +332,7 @@ class KV_ustack_info_cached{
       ret = _store->erase(_pool, key);
       delete _files.at(id);
       _files.erase(id);
+      assert(_assigned_ids > 0);
       --_assigned_ids;
       return ret;
     }
@@ -388,8 +402,7 @@ class KV_ustack_info_cached{
         PERR("try to sync an unmanaged file");
         return E_FAIL;
       }
-      fileinfo->flush_cache();
-      fileinfo->populate_cache();
+      fileinfo->sync_cache();
 
       return S_OK;
     }

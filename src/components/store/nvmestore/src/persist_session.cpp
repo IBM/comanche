@@ -440,4 +440,33 @@ status_t persist_session::unlock(persist_session::key_t key_handle)
   get_locked_regions().erase(mem);
   return S_OK;
 }
+
+status_t persist_session::sync(uint64_t key_handle)
+{
+  auto         pool = reinterpret_cast<uint64_t>(this);
+  io_buffer_t  mem  = reinterpret_cast<io_buffer_t>(key_handle);
+  std::string& key  = get_locked_regions().at(mem);
+
+  if (check_exists(key) == E_NOT_FOUND) return IKVStore::E_KEY_NOT_FOUND;
+  size_t blk_sz = _blk_manager->blk_sz();
+
+  void*  raw_objinfo = nullptr;
+  size_t obj_info_length;
+
+  status_t rc = _meta_store->get(_meta_pool, key, raw_objinfo, obj_info_length);
+  if (rc != S_OK || obj_info_length < sizeof(obj_info_t)) {
+    throw General_exception("get objinfo from meta_pool failed");
+  }
+
+  obj_info_t* objinfo = reinterpret_cast<obj_info_t*>(raw_objinfo);
+  auto        val_len = objinfo->size;
+  auto        lba     = objinfo->lba_start;
+
+  size_t data_size =round_up(val_len, KB(4));
+  size_t      nr_io_blocks = data_size/ blk_sz;
+
+  _blk_manager->do_block_io(nvmestore::BLOCK_IO_WRITE, mem, lba, nr_io_blocks);
+
+  return S_OK;
+}
 }  // namespace nvmestore

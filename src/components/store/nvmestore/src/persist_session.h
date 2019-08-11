@@ -121,6 +121,7 @@ class persist_session {
              size_t&            out_value_len);
 
   status_t unlock(key_t obj_key);
+  status_t sync(key_t obj_key);
 
   status_t map(std::function<int(const std::string& key,
                                  const void*        value,
