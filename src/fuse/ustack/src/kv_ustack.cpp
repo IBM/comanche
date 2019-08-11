@@ -68,8 +68,10 @@ void * kvfs_ustack_init (struct fuse_conn_info *conn){
   Component::IKVStore *store;
   Component::IBase * comp; 
 
-  std::string component("filestore");
-  // std::string component("nvmestore");
+  char * env_kvfs_backend = std::getenv("KVFS_BACKEND");
+  std::string component("nvmestore");
+  if(env_kvfs_backend)
+      component = env_kvfs_backend;
 
   if(component == "pmstore") {
     comp = Component::load_component(PMSTORE_PATH, Component::pmstore_factory);
