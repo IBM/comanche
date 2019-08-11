@@ -108,7 +108,9 @@ void * kvfs_ustack_init (struct fuse_conn_info *conn){
   // init ustack and start accepting connections
   std::string ustack_name = "ipc:///tmp//kv-ustack.ipc";
 
-  kv_ustack_info_t * info = new kv_ustack_info_t(ustack_name, "owner", "name", store);
+  size_t page_cache_sz= KB(4);
+  // size_t page_cache_sz= MB(2);
+  kv_ustack_info_t * info = new kv_ustack_info_t(ustack_name, "owner", "name", store, page_cache_sz);
 
   _ustack = new Ustack(ustack_name, info);
 

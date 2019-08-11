@@ -181,14 +181,14 @@ class KV_ustack_info_cached{
   using pool_t     = uint64_t;
   using fuse_fd_t = uint64_t;
   static constexpr size_t k_pool_size = MB(256); /** To save all objs in this mount*/
-  static constexpr size_t PAGE_CACHE_SIZE = MB(2);
+  size_t PAGE_CACHE_SIZE;
 
   public:
 
     /** Per-file structure*/
     struct File_meta{
       File_meta() = delete;
-      File_meta(std::string name, IKVStore * store, IKVStore::pool_t pool): filename(name), _store(store), _pool(pool){}
+      File_meta(std::string name, IKVStore * store, IKVStore::pool_t pool, size_t page_cache_sz): filename(name), _store(store), _pool(pool), PAGE_CACHE_SIZE(page_cache_sz){}
 
       ~File_meta(){}
 
@@ -276,10 +276,11 @@ class KV_ustack_info_cached{
       private:
       IKVStore * _store;
       IKVStore::pool_t _pool;
+      size_t PAGE_CACHE_SIZE;
     }; // end of File_meta
 
-    KV_ustack_info_cached(const std::string ustack_name, const std::string owner, const std::string name, Component::IKVStore *store): 
-      _owner(owner), _name(name), _store(store), _assigned_ids(0){
+    KV_ustack_info_cached(const std::string ustack_name, const std::string owner, const std::string name, Component::IKVStore *store, size_t page_cache_sz = MB(2)): 
+      _owner(owner), _name(name), _store(store), _assigned_ids(0), PAGE_CACHE_SIZE(page_cache_sz){
       _pool = _store->create_pool(name, k_pool_size);
       if(IKVStore::POOL_ERROR == _pool){
         throw General_exception("%s: initial pool creation failed", __func__);
@@ -307,7 +308,7 @@ class KV_ustack_info_cached{
       fuse_fd_t id=  ++_assigned_ids;
 
       assert(_pool);
-      _files.insert(std::make_pair(id, new File_meta(filename, _store, _pool)));
+      _files.insert(std::make_pair(id, new File_meta(filename, _store, _pool, PAGE_CACHE_SIZE)));
       return id;
     }
 

@@ -12,4 +12,5 @@ if [ "x"${NO_PRELOAD} == "x" ]; then
 fi
 
 
-BS=4k SIZE=32m DIRECTORY=/tmp/kvfs-ustack SYNC=1 fio ../src/fuse/kv-ustack.fio
+# exp1 4k random writes
+BS=4k SIZE=16m DIRECTORY=/tmp/kvfs-ustack SYNC=0 fio ../src/fuse/kv-ustack.fio

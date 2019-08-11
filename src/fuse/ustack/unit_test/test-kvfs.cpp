@@ -105,7 +105,7 @@ TEST_F(KVFS_test, PartialFileWriteRead){
   close(fd);
 
   munmap(buffer, slab_size);
-  PLOG("done!");
+  PINF("read verified, done!");
 }
 
 #if 0
