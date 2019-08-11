@@ -370,24 +370,15 @@ persist_session::key_t persist_session::lock(const std::string& key,
   auto value_len = objinfo->size;  // the length allocated before
   auto lba       = objinfo->lba_start;
 
-  /* Prepare io mem, memory needs to be specially aligned to register in spdk*/
-  size_t data_size =round_up(value_len, MB(2));
+  /* Prepare io mem, we can also provide our own heap allocator backed by 2M hugepages(spdk_mem_registered with spdk
+   * For simplicity i just used allocate_io_buffer)*/
+  size_t data_size =round_up(value_len, KB(4));
   size_t      nr_io_blocks = data_size/ blk_sz;
-  assert(data_size%blk_sz == 0);
 
-  int flags = MAP_PRIVATE|MAP_ANONYMOUS|MAP_HUGETLB;
-  // TODO: needs a region manager here
-  char *data = (char *) mmap(NULL, data_size, PROT_READ|PROT_WRITE, flags, -1, 0);
-
-  assert(data != MAP_FAILED);
-  memset(data, 0, data_size);
-  int rc = spdk_mem_register(data, data_size);
-  if(rc){
-    PERR("register returns %d", rc);
-    return 0;
+  io_buffer_t mem = _blk_manager->allocate_io_buffer(data_size, 4096, NUMA_NODE_ANY);
+  if(mem == 0){
+    throw General_exception("no iomem space left for lock objects");
   }
-  io_buffer_t mem = (io_buffer_t)(data);
-  out_value = data;
 
   /* Actual IO */
   _blk_manager->do_block_io(operation_type, mem, lba, nr_io_blocks);
@@ -400,7 +391,8 @@ persist_session::key_t persist_session::lock(const std::string& key,
 
   PDBG("NVME_store: obtained the lock for key %s", key.c_str());
 
-  return reinterpret_cast<persist_session::key_t>(out_value);
+  out_value = _blk_manager->virt_addr(mem);
+  return reinterpret_cast<persist_session::key_t>(mem);
 }
 
 status_t persist_session::unlock(persist_session::key_t key_handle)
@@ -424,10 +416,8 @@ status_t persist_session::unlock(persist_session::key_t key_handle)
   auto        val_len = objinfo->size;
   auto        lba     = objinfo->lba_start;
 
-  size_t data_size =round_up(val_len, MB(2));
+  size_t data_size =round_up(val_len, KB(4));
   size_t      nr_io_blocks = data_size/ blk_sz;
-  assert(data_size%blk_sz == 0);
-
 
   /*flush and release iomem*/
 #ifdef USE_ASYNC
@@ -440,8 +430,7 @@ status_t persist_session::unlock(persist_session::key_t key_handle)
   PDBG("[nvmestore_session]: freeing io mem at %p", (void*) mem);
 
   /* free io buffer*/
-  assert(0 == spdk_mem_unregister((void *)mem, data_size));
-  assert(0 == munmap((void*)mem, data_size));
+  _blk_manager->free_io_buffer(mem);
 
   /*release the lock*/
   p_state_map->state_unlock(pool, objinfo->block_region);
