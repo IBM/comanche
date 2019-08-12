@@ -5,6 +5,7 @@
 #include "ustack.h"
 #include "kv_ustack_info.h"
 #include "protocol_generated.h"
+#include <gperftools/profiler.h>
 
   /*
    * Do the write through the kvfs daemon
@@ -19,6 +20,8 @@
    */
   status_t Ustack::do_kv_write(pid_t client_id, uint64_t fuse_fh, size_t offset, size_t io_sz, size_t file_off ){
     PDBG("[%s]: fuse_fh=%lu, offset=%lu, io_sz=%lu, file_off=%lu", __func__, fuse_fh, offset, io_sz, file_off);
+
+    ProfilerEnable();
 
     //get the virtual address and issue the io
     void *buf; //the mapped io mem
@@ -82,6 +85,8 @@
       _kv_ustack_info->read(fuse_fh, buf, io_sz, file_off);
     }
       else PWRN("io size = 0");
+
+    ProfilerDisable();
     return S_OK;
   }
 

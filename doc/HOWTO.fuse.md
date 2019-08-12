@@ -89,3 +89,34 @@ This will overwrite:
 ```
 LD_PRELOAD=./src/fuse/ustack/libustack_client.so ./src/fuse/ustack/unit_test/test-preload
 ```
+
+
+Notes
+=============
+
+Profiler
+-------------
+
+LD_PRELOAD=/usr/lib/libprofiler.so PROFILESELECTED=1 ./src/fuse/ustack/kv_ustack /tmp/kvfs-ustack -o max_write=131072 -o big_writes -d
+
+(with x-forwarding enabled):
+google-pprof --gv src/fuse/ustack/kv_ustack cpu.profile
+
+
+Mount with Linux ext4
+------------------------
+
+```
+sudo ../tools/attach_to_nvme.sh  20:00.0
+sudo mount  /dev/nvme0n1  /tmp/ext4-mount/
+sudo chown -R lifen /tmp/ext4-mount/
+```
+
+Mount to comanche stack
+```
+sudo umount /tmp/ext4-mount
+sudo ../tools/attach_to_vfio.sh  20:00.0
+
+```
+
+(test with DIRECTORY=/tmp/ext4-mount/ ../src/fuse/ustack/run_fio_exp.sh)

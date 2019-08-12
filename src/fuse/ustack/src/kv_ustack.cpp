@@ -366,6 +366,7 @@ static	int kvfs_ustack_fsync (const char *path, int datasync, struct fuse_file_i
 
 int main(int argc, char *argv[])
 {
+
   static struct fuse_operations oper;
   memset(&oper, 0, sizeof(struct fuse_operations));
 	oper.getattr	= kvfs_ustack_getattr;
@@ -383,5 +384,7 @@ int main(int argc, char *argv[])
   oper.release = kvfs_ustack_release;
   oper.fsync = kvfs_ustack_fsync;
 
-	return fuse_main(argc, argv, &oper, NULL);
+	int ret =  fuse_main(argc, argv, &oper, NULL);
+  return ret;
+
 }
