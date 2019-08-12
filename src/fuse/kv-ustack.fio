@@ -14,13 +14,15 @@ hugepage-size=2m
 time_based
 runtime=10
 
-; [random-write]
-; rw=randwrite
+[random-write]
+rw=randwrite
 
-[sequential-write]
-rw=write
+; [sequential-write]
+; rw=write
 
+; shall test it with ext4 first
 ; [verify]
+; wait_for=random-write
 ; verify=md5
 ; verify_pattern=%o
 

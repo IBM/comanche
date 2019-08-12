@@ -244,6 +244,16 @@ class KV_ustack_info_cached{
         return ret;
       }
 
+      // TODO: i need previously control cache here.
+      status_t  truncate_file(size_t new_size){
+        if(new_size <= size)
+          size = new_size;
+        else{
+          might_enlarge_file(new_size);
+        }
+        return S_OK;
+      }
+
 
       /* This will only be used when closing a file!*/
       status_t flush_cache(){
@@ -420,6 +430,12 @@ class KV_ustack_info_cached{
       File_meta* fileinfo = _files.at(id);
       return fileinfo->might_enlarge_file(size + file_offset);
     }
+
+    status_t ftruncate(fuse_fd_t id,size_t size){
+      File_meta* fileinfo = _files.at(id);
+      return fileinfo->truncate_file(size);
+    }
+
 
     /* This will write to locked virt-addr*/
     status_t write(fuse_fd_t id, const void * value, size_t size, size_t file_offset){
