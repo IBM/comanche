@@ -19,4 +19,4 @@ fi
 
 
 # exp1 4k random writes
-BS=4k SIZE=4k SYNC=0 fio ../src/fuse/kv-ustack.fio
+BS=4k SIZE=16m SYNC=1 fio ../src/fuse/kv-ustack.fio

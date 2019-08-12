@@ -16,6 +16,7 @@
 #include <queue>
 #include <api/components.h>
 #include <api/kvstore_itf.h>
+#include <set>
 
 using namespace Component;
 
@@ -187,6 +188,7 @@ class KV_ustack_info_cached{
 
     /** Per-file structure*/
     struct File_meta{
+      using page_id_t= unsigned int;
       File_meta() = delete;
       File_meta(std::string name, IKVStore * store, IKVStore::pool_t pool, size_t page_cache_sz): filename(name), _store(store), _pool(pool), PAGE_CACHE_SIZE(page_cache_sz){}
 
@@ -260,18 +262,24 @@ class KV_ustack_info_cached{
         return S_OK;
       }
 
-      status_t sync_cache(){
-        // while(! _cached_pages.empty()){
-        int i = 0;
-        for(auto it = _cached_pages.begin(); it != _cached_pages.end(); it++){
-          auto entry = *it;
-          unsigned cmd = 1993;// NVMESTORE_CMD_SYNC
-          _store->debug(_pool, cmd, (uint64_t)(entry->locked_key));
-        }
+      /** Mark a cached page dirty*/
+      status_t mark_page_dirty(page_id_t page_id){
+        _dirty_pages.insert(page_id);
         return S_OK;
       }
 
-
+      /* Sync dirty pages to kvstore*/
+      status_t sync_cache(){
+        // while(! _cached_pages.empty()){
+        int i = 0;
+        for(const page_id_t &pageid : _dirty_pages){
+          auto entry = _cached_pages[pageid];
+          unsigned cmd = 1993;// NVMESTORE_CMD_SYNC
+          _store->debug(_pool, cmd, (uint64_t)(entry->locked_key));
+        }
+        _dirty_pages.clear();
+        return S_OK;
+      }
 
       std::string filename;
       int open_flags;
@@ -279,6 +287,7 @@ class KV_ustack_info_cached{
 
       size_t _nr_cached_pages = 0;
       std::vector<page_cache_entry *> _cached_pages; /** just an array of locked regions*/
+      std::set<page_id_t> _dirty_pages;
       std::mutex file_mutex;
 
       inline size_t allocated_space(){
@@ -432,20 +441,23 @@ class KV_ustack_info_cached{
         if(cur_pageoff){
           size_t page_leftover = PAGE_CACHE_SIZE - (file_offset%PAGE_CACHE_SIZE);
           io_size = size < page_leftover? size: page_leftover;
-          target_addr =  (char *)((fileinfo->_cached_pages[cur_pageid++])->vaddr) + cur_pageoff;
+          target_addr =  (char *)((fileinfo->_cached_pages[cur_pageid])->vaddr) + cur_pageoff;
           cur_pageoff = 0;
         }
         else{
           io_size = bytes_left<PAGE_CACHE_SIZE? bytes_left:PAGE_CACHE_SIZE;
-          target_addr =  (char *)((fileinfo->_cached_pages[cur_pageid++])->vaddr);
+          target_addr =  (char *)((fileinfo->_cached_pages[cur_pageid])->vaddr);
         }
 
+        // Add Dirty_pages
+        fileinfo->mark_page_dirty(cur_pageid);
         memcpy(target_addr, p, io_size);
 
 /*        if(((char*)target_addr)[0] == 0 ){*/
           //PWRN("zero value written!");
         /*}*/
 
+        cur_pageid += 1;
         p += io_size;
         bytes_left -= io_size;
       }
