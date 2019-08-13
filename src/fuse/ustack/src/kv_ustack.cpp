@@ -109,6 +109,10 @@ void * kvfs_ustack_init (struct fuse_conn_info *conn){
   std::string ustack_name = "ipc:///tmp//kv-ustack.ipc";
 
   size_t page_cache_sz= KB(4);
+  char * opt_page_size = getenv("USTACK_PAGE_SIZE");
+  if(opt_page_size) page_cache_sz = atoi(opt_page_size);
+
+  PMAJOR("Ustack use page size %lu", page_cache_sz);
   // size_t page_cache_sz= MB(2);
   kv_ustack_info_t * info = new kv_ustack_info_t(ustack_name, "owner", "name", store, page_cache_sz);
 

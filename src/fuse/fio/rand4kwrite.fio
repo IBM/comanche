@@ -14,7 +14,7 @@ hugepage-size=2m
 time_based
 runtime=10
 
-[random-write-4k]
+[random-write]
 rw=randwrite
 
 
