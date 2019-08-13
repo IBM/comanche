@@ -2,7 +2,7 @@
 [global]
 ioengine=psync
 iodepth=1
-direct=1; O_DIRECT
+direct=${DIRECT}; O_DIRECT
 sync=${SYNC}; O_SYNC
 bs=${BS}
 size=${FILESIZE}

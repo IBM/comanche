@@ -28,8 +28,9 @@ mkdir -p ${RESULTDIR}
 for exp in {1..1}; do
   echo "run exp ${exp}:"
   export SYNC=1
+  export DIRECT=1
   export BS=4k 
-  export RESULTPATH=${RESULTDIR}/fio-${METHOD}-bs-${BS}-sync-${SYNC}.json
+  export RESULTPATH=${RESULTDIR}/fio-${METHOD}-bs-${BS}-direct-${DIRECT}-sync-${SYNC}.json
   LD_PRELOAD=${PRELOAD_CMD} fio ../src/fuse/fio/rand4kwrite.fio --output-format=json+ 1> $RESULTPATH
   echo "Results saved in ${RESULTPATH}"
 done
