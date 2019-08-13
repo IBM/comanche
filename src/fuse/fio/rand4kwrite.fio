@@ -1,0 +1,21 @@
+; -- start job file --
+[global]
+ioengine=psync
+iodepth=1
+direct=1; O_DIRECT
+sync=${SYNC}; O_SYNC
+bs=${BS}
+size=${FILESIZE}
+numjobs=1
+directory=${DIRECTORY}
+thread ;unless it will fork
+iomem=mmaphuge
+hugepage-size=2m
+time_based
+runtime=10
+
+[random-write-4k]
+rw=randwrite
+
+
+; -- end job file --

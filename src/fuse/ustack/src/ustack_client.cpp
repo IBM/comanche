@@ -95,7 +95,7 @@ void ustack_ctor()
   memset((void *) (_fd_array), 0xff, fd_array_size);
 
   _fd_array_initialized = FD_ARRAY_OK;
-  PINF("fd_array init at %p", _fd_array);
+  PDBG("fd_array init at %p", _fd_array);
 
   assert(_this_client->get_uipc_channel());
 }
