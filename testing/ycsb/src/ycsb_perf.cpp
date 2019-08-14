@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <iostream>
 #include <string>
+#include <thread>
 #include "../../kvstore/get_cpu_mask_from_string.h"
 #include "../../kvstore/stopwatch.h"
 #include "db_fact.h"
@@ -22,6 +23,13 @@
 
 using namespace std;
 using namespace ycsb;
+
+void threadfunc(int total, int id)
+{
+  Workload *wl = new Workload(props, n, id);
+  wl->do_work();
+  delete wl;
+}
 
 int main(int argc, char *argv[])
 {
@@ -35,7 +43,7 @@ int main(int argc, char *argv[])
 
   string operation = argv[1];
   string filename  = argv[2];
-  int    thread    = atoi(argv[3]);
+  int    n         = atoi(argv[3]);
 
   ifstream input(filename);
   props.logfile.open("/tmp/latency-sla",
@@ -54,9 +62,14 @@ int main(int argc, char *argv[])
 
   if (operation == "run") props.setProperty("run", "1");
 
-  Workload *wl = new Workload(props, thread);
-  wl->do_work();
-  delete wl;
+  thread ids[n];
+  for (int i = 0; i < n; i++) {
+    ids[i] = thread(threadfunc, n, i);
+  }
+
+  for (int i = 0; i < n; i++) {
+    ids[i].join();
+  }
 
   props.logfile.close();
   MPI_Finalize();
@@ -66,6 +79,6 @@ int main(int argc, char *argv[])
 
 void show_program_options()
 {
-  cout << "./ycsb_perf load/run -P <workload file>" << endl;
+  cout << "./ycsb_perf load/run <workload file> <thread num>" << endl;
   exit(-1);
 }
