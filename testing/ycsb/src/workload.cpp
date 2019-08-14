@@ -290,7 +290,6 @@ Workload::~Workload()
   cleanup();
   kvs.clear();
   delete gen;
-  delete db;
 }
 
 inline string Workload::buildKeyName(uint64_t key_num)
