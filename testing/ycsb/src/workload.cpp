@@ -18,6 +18,7 @@
 #include <iostream>
 #include <string>
 #include <thread>
+#include <vector>
 #include "../../kvstore/stopwatch.h"
 #include "counter_generator.h"
 #include "db_fact.h"
@@ -35,6 +36,8 @@ unsigned long Workload::_iops      = 0;
 unsigned long Workload::_iops_load = 0;
 mutex         Workload::_iops_lock;
 mutex         Workload::_iops_load_lock;
+vector<double> latencies;
+
 // DB*           Workload::db;
 
 Workload::Workload(Properties& props, int n, int id, DB*& db)
@@ -121,7 +124,8 @@ void Workload::load(double sec)
     }
     wr.stop();
     double elapse = wr.get_lap_time_in_seconds();
-    props.log(to_string(elapse * 1000000));
+    latencies.insert(elapse*1000000);
+    //props.log(to_string(elapse * 1000000));
     wr_cnt++;
     up.stop();
     if (up.get_lap_time_in_seconds() < sec) {
@@ -134,6 +138,9 @@ void Workload::load(double sec)
   }
   rd.stop();
   props.log("total time: " + to_string(rd.get_lap_time_in_seconds()) + " sec");
+  for(auto i:latencies){
+    props.log(i);
+  }
 }
 
 void Workload::run()
