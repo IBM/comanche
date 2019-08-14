@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
   if (operation == "run") props.setProperty("run", "1");
 
   //open db and pass to workload:
-  DB* db = ycsb::DBFactory::create(props, core);
+  DB* db = ycsb::DBFactory::create(props, rank);
   assert(db);
 
   thread ids[n];
@@ -74,6 +74,8 @@ int main(int argc, char *argv[])
   for (int i = 0; i < n; i++) {
     ids[i].join();
   }
+
+  delete db;
 
   props.logfile.close();
   MPI_Finalize();
