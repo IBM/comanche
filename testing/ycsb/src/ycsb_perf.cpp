@@ -24,9 +24,9 @@
 using namespace std;
 using namespace ycsb;
 
-void threadfunc(int total, int id)
+void threadfunc(int total, int id, DB*& db)
 {
-  Workload *wl = new Workload(props, n, id);
+  Workload *wl = new Workload(props, total, id, db);
   wl->do_work();
   delete wl;
 }
@@ -62,9 +62,13 @@ int main(int argc, char *argv[])
 
   if (operation == "run") props.setProperty("run", "1");
 
+  //open db and pass to workload:
+  DB* db = ycsb::DBFactory::create(props, core);
+  assert(db);
+
   thread ids[n];
   for (int i = 0; i < n; i++) {
-    ids[i] = thread(threadfunc, n, i);
+    ids[i] = thread(threadfunc, n, i, std::ref(db));
   }
 
   for (int i = 0; i < n; i++) {

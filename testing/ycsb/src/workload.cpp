@@ -37,8 +37,8 @@ mutex         Workload::_iops_lock;
 mutex         Workload::_iops_load_lock;
 // DB*           Workload::db;
 
-Workload::Workload(Properties& props, int n, int id)
-    : props(props), n(n), id(id)
+Workload::Workload(Properties& props, int n, int id, DB*& db)
+    : props(props), n(n), id(id), db(db)
 {
   initialize();
 }
@@ -47,8 +47,7 @@ void Workload::initialize()
 {
   int core;
   MPI_Comm_rank(MPI_COMM_WORLD, &core);
-  db = ycsb::DBFactory::create(props, core);
-  assert(db);
+
   string TABLE = "table" + to_string(core);
   records      = stoi(props.getProperty("recordcount"));
   records /= n;
