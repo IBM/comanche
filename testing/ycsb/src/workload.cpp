@@ -36,7 +36,6 @@ unsigned long Workload::_iops      = 0;
 unsigned long Workload::_iops_load = 0;
 mutex         Workload::_iops_lock;
 mutex         Workload::_iops_load_lock;
-vector<double> latencies;
 
 // DB*           Workload::db;
 
@@ -106,6 +105,7 @@ void Workload::load(double sec)
   wr.reset();
   rd.reset();
   up.reset();
+  vector<double> latencies;
 
   MPI_Barrier(MPI_COMM_WORLD);
 
@@ -124,7 +124,7 @@ void Workload::load(double sec)
     }
     wr.stop();
     double elapse = wr.get_lap_time_in_seconds();
-    latencies.insert(elapse*1000000);
+    latencies.push_back(elapse*1000000);
     //props.log(to_string(elapse * 1000000));
     wr_cnt++;
     up.stop();
@@ -139,7 +139,7 @@ void Workload::load(double sec)
   rd.stop();
   props.log("total time: " + to_string(rd.get_lap_time_in_seconds()) + " sec");
   for(auto i:latencies){
-    props.log(i);
+    props.log(to_string(i));
   }
 }
 
