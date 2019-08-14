@@ -37,7 +37,8 @@ mutex         Workload::_iops_lock;
 mutex         Workload::_iops_load_lock;
 // DB*           Workload::db;
 
-Workload::Workload(Properties& props, int n) : props(props), n(n)
+Workload::Workload(Properties& props, int n, int id)
+    : props(props), n(n), id(id)
 {
   initialize();
 }
@@ -46,13 +47,13 @@ void Workload::initialize()
 {
   int core;
   MPI_Comm_rank(MPI_COMM_WORLD, &core);
-  Generator<uint64_t>* loadkeygen = new CounterGenerator(0);
-  db                              = ycsb::DBFactory::create(props, core);
+  db = ycsb::DBFactory::create(props, core);
   assert(db);
   string TABLE = "table" + to_string(core);
   records      = stoi(props.getProperty("recordcount"));
   records /= n;
-  operations = stoi(props.getProperty("operationcount"));
+  operations                      = stoi(props.getProperty("operationcount"));
+  Generator<uint64_t>* loadkeygen = new CounterGenerator(0 + id * records + 1);
   for (int i = 0; i < records; i++) {
     pair<string, string> kv(Workload::buildKeyName(loadkeygen->Next()),
                             Workload::buildValue(Workload::SIZE));
@@ -90,16 +91,7 @@ bool Workload::do_work()
   req_per_sec /= n;
   double sec = 1.0 / (double) req_per_sec;
 
-  thread ids[n];
-
-  for (int i = 0; i < n; i++) {
-    ids[i] = thread(&Workload::load, this, sec);
-  }
-
-  for (int i = 0; i < n; i++) {
-    ids[i].join();
-  }
-
+  load(sec);
   if (props.getProperty("run", "0") == "1") {
     run();
   }
