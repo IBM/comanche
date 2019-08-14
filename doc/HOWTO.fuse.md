@@ -14,17 +14,21 @@ Changelog
 Prepare
 ==========
 
-1. In terminal(build directory), start the fs service:
+1. In terminal(build directory), start the kvfs daemon:
 ```
-mkdir -p mount
-fusermount -u mount
-./src/fuse/ustack/kv_ustack -d ./mount/
-```
+MOUNTDIR=/tmp/kvfs-ustack
+mkdir -p ${MOUNTDIR}
+
+# you might need to unmount previous mount before doing this.
+../src/fuse/ustack/start_kvfs_daemon.sh -d
+
+(start_kvfs_daemon -h for more options)
+
 (Dont ctrl-C to end the service, instead use the unmount command below)
 
 2. Unmount
 ```
-fusermount -u mount
+fusermount -u mount-dir
 ```
 
 Basic Test
@@ -78,7 +82,7 @@ Run status group 0 (all jobs):
   WRITE: bw=150MiB/s (157MB/s), 150MiB/s-150MiB/s (157MB/s-157MB/s), io=64.0MiB (67.1MB), run=427-427msec
 ```
 
-Preload
+Preload(the client)
 ============
 
 This will overwrite:
@@ -90,14 +94,12 @@ This will overwrite:
 LD_PRELOAD=./src/fuse/ustack/libustack_client.so ./src/fuse/ustack/unit_test/test-preload
 ```
 
-
 Notes
 =============
 
-Profiler
--------------
-
-LD_PRELOAD=/usr/lib/libprofiler.so PROFILESELECTED=1 ./src/fuse/ustack/kv_ustack /tmp/kvfs-ustack -o max_write=131072 -o big_writes -d
+Profiling the daemon
+--------------------
+start the daemon with -p, will turn on profiler.
 
 (with x-forwarding enabled):
 google-pprof --gv src/fuse/ustack/kv_ustack cpu.profile

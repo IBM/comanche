@@ -5,7 +5,6 @@
 #include "ustack.h"
 #include "protocol_generated.h"
 #include <gperftools/profiler.h>
-#define PROFILE
 
 using namespace Component;
 
@@ -16,7 +15,7 @@ Ustack::Ustack(const std::string endpoint) : IPC_server(endpoint)
   _ipc_thread = new std::thread([=]() { ipc_start(); });
 
 #ifdef PROFILE
-    ProfilerStart("cpu.profile");
+    ProfilerStart("kvfs-daemon.profile");
 #endif
 }
 
@@ -25,7 +24,7 @@ Ustack::Ustack(const std::string endpoint, kv_ustack_info_t * kv_ustack_info):_k
   _ipc_thread = new std::thread([=]() { ipc_start(); });
 
 #ifdef PROFILE
-    ProfilerStart("cpu.profile");
+    ProfilerStart("kvfs-daemon.profile");
 #endif
 }
 

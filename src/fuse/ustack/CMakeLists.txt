@@ -33,6 +33,12 @@ add_dependencies(kv_ustack proto)
 
 target_link_libraries(kv_ustack ${ASAN_LIB} common comanche-core numa dl z ${Nanomsg_LIBRARIES} boost_system boost_program_options pthread ${TBB_LIBRARIES} fuse profiler)
 
+add_executable(kv_ustack_with_profiler src/kv_ustack.cpp src/ustack.cpp src/ustack_intercepted_io.cpp)
+add_dependencies(kv_ustack_with_profiler proto)
+target_compile_definitions(kv_ustack_with_profiler PRIVATE PROFILE=1)
+
+target_link_libraries(kv_ustack_with_profiler ${ASAN_LIB} common comanche-core numa dl z ${Nanomsg_LIBRARIES} boost_system boost_program_options pthread ${TBB_LIBRARIES} fuse profiler)
+
 add_library(ustack_client SHARED src/ustack_client.cpp)
 target_link_libraries(ustack_client ${ASAN_LIB} common comanche-core numa dl z ${Nanomsg_LIBRARIES} boost_system boost_program_options pthread ${TBB_LIBRARIES} fuse)
 
