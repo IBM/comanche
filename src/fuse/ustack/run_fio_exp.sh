@@ -8,34 +8,41 @@
 
 unset PRELOAD_CMD
 
-if [ "x"${DIRECTORY} == "x" ]; then
-  METHOD=kvfs
-  export DIRECTORY=/tmp/kvfs-ustack
-else
-  METHOD=ext4
-  NO_PRELOAD="1"
-fi
+KB=1024
 
-if [ "x"${NO_PRELOAD} == "x" ]; then
-  PRELOAD_CMD=./src/fuse/ustack/libustack_client.so
-  METHOD=${METHOD}-ustack
-fi
-
+#default opts
+METHOD=kvfs-ustack
+mount_dir_ustack=/tmp/kvfs-ustack
+mount_dir_ext4=/tmp/ext4-mount
 export FILESIZE=16m
+
+export SYNC=1
+export DIRECT=1
+
+function usage()
+{
+    echo "help info for kvfs-ustack daemon"
+    echo ""
+    printf "./$0\n"
+    printf "\t-h| --help\n"
+    printf "\t--method=$METHOD(kvfs-ustack|kvfs-naive|ext4) \n"
+    printf "\t--pgsize=$USTACK_PAGE_SIZE(4096|65536|2097152, the pgsize set in daemon) \n"
+    printf "\t--o_direct=${DIERCT}(0|1)\n"
+    echo ""
+}
+
+
 CURDATE=`date '+%F'`
 CURTIME=`date '+%F-%H-%M'`
 RESULTDIR=results/fio/${CURDATE}
 mkdir -p ${RESULTDIR}
 
-export SYNC=1
-KB=1024
 
 # run 4k random write for latency percentile
 run_latency_percentile_exp() {
 # exp1 4k random writes
 for exp in {1..1}; do
   echo "run exp ${exp}:"
-  export DIRECT=1
   export BS=4k 
   local RESULTPATH=${RESULTDIR}/fio-${METHOD}-bs-${BS}-direct-${DIRECT}-sync-${SYNC}.json
   LD_PRELOAD=${PRELOAD_CMD} fio ../src/fuse/fio/rand4kwrite.fio --output-format=json+ 1> $RESULTPATH
@@ -44,13 +51,15 @@ done
 }
 
 # increasing io size
-# use the following cmd to print statistics:
+# use the following cmd to print statistics (in kb):
 # less results/fio/fio-kvfs-ustack-varied-iosizes-direct-1-sync-1.json|grep "\"write\"" -A 6|grep bw
 
 run_randwrite_exp() {
-export DIRECT=1
-
-export USTACK_PAGE_SIZE=$((4*KB))
+if [ "x"$USTACK_PAGE_SIZE == "x" ] && [ $METHOD != "ext4" ]; then
+  echo "ERROR: ustack page size not specified"
+  exit
+fi
+#export USTACK_PAGE_SIZE=$((4*KB))
 #export USTACK_PAGE_SIZE=$((64*KB))
 #export USTACK_PAGE_SIZE=$((1024*KB))
 
@@ -67,5 +76,54 @@ done
 echo "Results saved in ${RESULTPATH}"
 }
 
-run_latency_percentile_exp
-#run_randwrite_exp
+while [ "$1" != "" ]; do
+    PARAM=`echo $1 | awk -F= '{print $1}'`
+    VALUE=`echo $1 | awk -F= '{print $2}'`
+    case $PARAM in
+        -h | --help)
+            usage
+            exit
+            ;;
+
+        --pgsize)
+						export USTACK_PAGE_SIZE=$VALUE
+            ;;
+        --method)
+            if [ $VALUE == "kvfs-ustack" ]; then
+              PRELOAD_CMD=./src/fuse/ustack/libustack_client.so
+              export DIRECTORY=${mount_dir_ustack}
+
+            elif [ $VALUE == "kvfs-naive" ]; then
+              unset PRELOAD_CMD
+              export DIRECTORY=${mount_dir_ustack}
+
+            elif [ $VALUE == "ext4" ]; then
+              mount|grep ${mount_dir_ext4} |grep -q nvme
+              if [ $? != 0 ]; then
+                echo "ERROR: path $mount_dir_ext4 not mounted on nvme"
+                exit
+              fi
+              unset PRELOAD_CMD
+              export DIRECTORY=${mount_dir_ext4}
+            else
+              echo "method $VALUE not supported"
+              usage
+              exit
+            fi
+            METHOD=$VALUE
+            ;;
+        --o_direct)
+						export DIRECT=${VALUE}
+            ;;
+        *)
+            echo "ERROR: unknown parameter \"$PARAM\""
+            usage
+            exit 1
+            ;;
+    esac
+    shift
+done
+
+
+#run_latency_percentile_exp
+run_randwrite_exp

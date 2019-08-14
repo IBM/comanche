@@ -15,8 +15,8 @@ function usage()
     printf "\t-h| --help"
     printf "\t-d|--debug"
     printf "\t-p|--profile"
-    printf "\t-m|--mount-dir=${mount_dir}"
-    printf "\t--pgsize=$USTACK_PAGE_SIZE \n"
+    printf "\t--mount-dir=${mount_dir}"
+    printf "\t--pgsize=$USTACK_PAGE_SIZE(4096|65536|2097152) \n"
     echo ""
 }
 
@@ -47,7 +47,7 @@ while [ "$1" != "" ]; do
         --pgsize)
 						export USTACK_PAGE_SIZE=$VALUE
             ;;
-        -m | --mount-dir)
+        --mount-dir)
             if [ ! -d $VALUE ]; then
               echo "ERROR: mount dir $VALUE doesn't exists"
               exit
