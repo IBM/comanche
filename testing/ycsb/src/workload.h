@@ -33,7 +33,7 @@ class Workload {
  public:
   static const int SIZE;
   const string     TABLE;
-  Workload(Properties& props, int n, int id);
+  Workload(Properties& props, int n, int id, DB*& db);
   void load(double sec);
   void run();
   virtual ~Workload();
