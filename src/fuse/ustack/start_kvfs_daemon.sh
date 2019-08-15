@@ -16,7 +16,7 @@ function usage()
     printf "\t-d|--debug"
     printf "\t-p|--profile"
     printf "\t--mount-dir=${mount_dir}"
-    printf "\t--pgsize=$USTACK_PAGE_SIZE(4096|65536|2097152) \n"
+    printf "\t--pgsize=$USTACK_PAGE_SIZE(4096|65536|131072|262144|2097152) \n"
     echo ""
 }
 

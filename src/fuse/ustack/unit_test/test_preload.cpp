@@ -7,7 +7,8 @@
 #include <string>
 #include <chrono> /* milliseconds */
 #include <common/utils.h>
-/** Preload the ustack libray and those operations will be intecepted
+/**  Single file write test.
+ * Preload the ustack libray and those operations will be intecepted
  * 1. malloc free
  * 2. open/read/write
  * Without preload: ./src/fuse/ustack/unit_test/test-preload /tmp/mymount/

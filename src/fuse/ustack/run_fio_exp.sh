@@ -9,11 +9,14 @@
 unset PRELOAD_CMD
 
 KB=1024
+EXP_NAMES=("latency-percentile" "randwrite")
 
 #default opts
+EXPERIMENT=0
 METHOD=kvfs-ustack
 mount_dir_ustack=/tmp/kvfs-ustack
 mount_dir_ext4=/tmp/ext4-mount
+export DIRECTORY=${mount_dir_ustack}
 export FILESIZE=16m
 
 export SYNC=1
@@ -25,9 +28,11 @@ function usage()
     echo ""
     printf "./$0\n"
     printf "\t-h| --help\n"
+    printf "\t--exp=$EXPERIMENT(0.${EXP_NAMES[0]}|1.${EXP_NAMES[1]}) \n"
     printf "\t--method=$METHOD(kvfs-ustack|kvfs-naive|ext4) \n"
-    printf "\t--pgsize=$USTACK_PAGE_SIZE(4096|65536|2097152, the pgsize set in daemon) \n"
+    printf "\t--pgsize=$USTACK_PAGE_SIZE(4096|65536|131072|262144|2097152, the pgsize set in daemon) \n"
     printf "\t--o_direct=${DIERCT}(0|1)\n"
+    printf "\t--suffix= (don't overwrite previous results)\n"
     echo ""
 }
 
@@ -44,7 +49,12 @@ run_latency_percentile_exp() {
 for exp in {1..1}; do
   echo "run exp ${exp}:"
   export BS=4k 
+
   local RESULTPATH=${RESULTDIR}/fio-${METHOD}-bs-${BS}-direct-${DIRECT}-sync-${SYNC}.json
+  if [ "x"$SUFFIX != "x" ]; then
+    RESULTPATH="${RESULTPATH}.${SUFFIX}"
+  fi
+
   LD_PRELOAD=${PRELOAD_CMD} fio ../src/fuse/fio/rand4kwrite.fio --output-format=json+ 1> $RESULTPATH
   echo "Results saved in ${RESULTPATH}"
 done
@@ -64,6 +74,9 @@ fi
 #export USTACK_PAGE_SIZE=$((1024*KB))
 
 RESULTPATH=${RESULTDIR}/fio-${METHOD}-varied-iosizes-pgsize-${USTACK_PAGE_SIZE}-direct-${DIRECT}-sync-${SYNC}.json
+if [ "x"$SUFFIX != "x" ]; then
+  RESULTPATH="${RESULTPATH}.${SUFFIX}"
+fi
 echo "Results Generated from $HOSTNAME at ${CURTIME}:" > $RESULTPATH
 for exp in {1..1}; do
   echo "## run exp ${exp}:"
@@ -87,6 +100,17 @@ while [ "$1" != "" ]; do
 
         --pgsize)
 						export USTACK_PAGE_SIZE=$VALUE
+            ;;
+        --suffix)
+						export SUFFIX=$VALUE
+            ;;
+        --exp)
+            if [ $VALUE == "0" ] || [ $VALUE == "1" ]; then
+              EXPERIMENT=$VALUE
+            else
+              echo "ERROR: wrong exp name"
+              exit
+            fi
             ;;
         --method)
             if [ $VALUE == "kvfs-ustack" ]; then
@@ -124,6 +148,20 @@ while [ "$1" != "" ]; do
     shift
 done
 
+#  check service is up
+if [ $METHOD != "ext4" ]; then
+  echo "## Checking/waitig for kvfs service."
+  mount|grep ${mount_dir_ustack} |grep -q ustack
+  if [ $? != 0 ]; then
+    echo "ERROR: path $mount_dir_ustack not mounted with kvustack"
+    exit
+  fi
+fi
 
-#run_latency_percentile_exp
-run_randwrite_exp
+if [ $EXPERIMENT == "0" ]; then
+  run_latency_percentile_exp
+elif [ $EXPERIMENT == "1" ]; then
+  run_randwrite_exp
+else
+  echo "doing nothing"
+fi
