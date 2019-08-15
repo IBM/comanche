@@ -1,9 +1,15 @@
 Changelog
 ==========
 [19-08-15]:
-  * scripts to start kvfs daemon and fio workloads
+  * Improved the partial write and fsync. 
+    - Use pwrite(fio with ioengine=psync), instead of write.
+    - I had to use ikvstore->debug api to sync an locked nvme object(instead of unlock followed by lock)
+    - O_SYNC will be obtained in the fuse_info, and kvfs daemon will decide whether sync or not.
+    - Currently dirty pages references are saved in std::set for simplicity.
+    - Note: tradeoff in page cache size: smaller size cannot utilize nvme bandwidth, large size has write amplification.
+  * scripts to start kvfs daemon(start_kvfs_daemon.sh) and fio workloads(run_fio_exp.sh)
   * results reporting(4k latency plot and varied-io-sizes throughput plot)
-  * tradeoff in page cache size: smaller size cannot utilize nvme bandwidth, large size has write amplification.
+  * Add profiling, use -p when start the daemon
 
 [19-08-09]:
   * Improved the kvfs-test unit test.
