@@ -7,7 +7,8 @@
 #include <string>
 #include <chrono> /* milliseconds */
 #include <common/utils.h>
-/** Preload the ustack libray and those operations will be intecepted
+/**  Single file write test.
+ * Preload the ustack libray and those operations will be intecepted
  * 1. malloc free
  * 2. open/read/write
  * Without preload: ./src/fuse/ustack/unit_test/test-preload /tmp/mymount/
@@ -15,7 +16,7 @@
 
 static size_t file_size=KB(4);
 static constexpr unsigned nr_buffer_copies=3; // make sure each time using different buffer
-static constexpr unsigned ITERATIONS = 50000;
+static constexpr unsigned ITERATIONS = 10;
 
 /* TODO: direct start 4k write will be slow*/
 status_t do_warm_up(std::string dir_name, int open_flags){
@@ -27,7 +28,7 @@ status_t do_warm_up(std::string dir_name, int open_flags){
     int fd = open(filepath.c_str(), open_flags, S_IRWXU);
     assert(fd>0);
     if(posix_memalign(&buffer, 4096, warmup_size)){PERR("aligned alloc files"); return -1;}
-      ssize_t res = write(fd, buffer, warmup_size);
+      ssize_t res = pwrite(fd, buffer, warmup_size,0);
     if(res > warmup_size || res < 0){
       PWRN("write return %lu  ptr = %p", res,buffer);
     }
@@ -56,7 +57,7 @@ int                main(int argc, char * argv[])
 
   int use_preload = (getenv("LD_PRELOAD"))?1:0;
   std::string dir_name(argv[1]);
-  int is_read = 1;
+  int is_read = 0;
 
   assert(S_OK == do_warm_up(dir_name, open_flags));
 
@@ -83,12 +84,11 @@ int                main(int argc, char * argv[])
 
   if(is_read){
     char* ptr = (char*)buffer;
-    ssize_t res = write(fd, ptr, file_size);
+    ssize_t res = pwrite(fd, ptr, file_size, 0);
     fsync(fd);
     if(res > file_size || res < 0){
       PWRN("write return %lu , ptr = %p", res, ptr);
     }
-    lseek(fd, 0, SEEK_SET);
   }
 
   _start_time = std::chrono::high_resolution_clock::now();
@@ -96,15 +96,14 @@ int                main(int argc, char * argv[])
     char* ptr = (char*)buffer  + file_size*(i % nr_buffer_copies);
     ssize_t res;
     if(is_read)
-      res = read(fd, ptr, file_size);
+      res = pread(fd, ptr, file_size, 0);
     else{
-      res = write(fd, ptr, file_size);
+      res = pwrite(fd, ptr, file_size, 0);
       fsync(fd);
     }
     if(res > file_size || res < 0){
       PWRN("write/read return %lu in iteration %u, ptr = %p", res, i, ptr);
     }
-    lseek(fd, 0, SEEK_SET);
   }
   _end_time = std::chrono::high_resolution_clock::now();
 

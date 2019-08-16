@@ -70,6 +70,10 @@ class NVME_store : public Component::IKVStore {
   block_manager_t _blk_manager;  // shared across all nvmestore
 
  public:
+  /** Used in debug api for syncing an obj*/
+  enum{
+    NVMESTORE_CMD_SYNC=1993
+  };
   /**
    * Constructor
    *
