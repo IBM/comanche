@@ -49,6 +49,7 @@ int main(int argc, char * argv[])
     PMAJOR("[server]: tried to start");
 		ustack = new Ustack("ipc:///tmp//kv-ustack.ipc");
     PMAJOR("[server]: started, press Enter to exit");
+    PMAJOR("in another terminal run ./exe 1 to start client");
     getchar();
 
   }

@@ -476,7 +476,20 @@ status_t NVME_store::map_keys(
   return session->map_keys(function);
 }
 
-void NVME_store::debug(const pool_t pool, unsigned cmd, uint64_t arg) {}
+/**
+ * Debug routine. In nvmestore this api is used to sync object
+ * This is currently only needed for nvmestore so that we don't need lock/unlock for a persistent update.
+ */
+void NVME_store::debug(const pool_t pool, unsigned cmd, uint64_t arg) {
+  if(cmd != NVMESTORE_CMD_SYNC){
+    throw General_exception("debug command not supported");
+  }
+  open_session_t* session = get_session(pool);
+
+  if(S_OK != session->sync((uint64_t) arg)){// i.e. virt addr
+      throw General_exception("nvmestore sync failed");
+  }
+}
 
 /**
  * Factory entry point
