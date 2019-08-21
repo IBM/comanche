@@ -1,22 +1,21 @@
 ; -- start job file --
 [global]
-ioengine=sync
+ioengine=psync
 iodepth=1
-bs=32k
-direct=1; O_DIRECT
-sync=1; O_SYNC
-size=4m
+direct=${DIRECT}; O_DIRECT
+sync=${SYNC}; O_SYNC
+bs=${BS}
+size=${FILESIZE}
 numjobs=1
-directory=/tmp/mount
-;directory=/tmp/mymount ; kvustack
+directory=${DIRECTORY}
 thread ;unless it will fork
 iomem=mmaphuge
 hugepage-size=2m
+time_based
+runtime=10
 
 [random-write]
 rw=randwrite
 
-;[random-read]
-; rw=randread
 
 ; -- end job file --

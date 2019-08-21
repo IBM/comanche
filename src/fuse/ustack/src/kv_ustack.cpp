@@ -38,7 +38,6 @@
 #include <api/components.h>
 #include <api/kvstore_itf.h>
 
-#include "ustack.h"
 #include "ustack_client_ioctl.h"
 #include "kv_ustack_info.h"
 
@@ -47,11 +46,12 @@
 #define NVMESTORE_PATH "libcomanche-nvmestore.so"
 
 /**
- * ustack: the userspace zero copy communiation mechenism.
- *
- * Client can also direct issue posix file operations.
- */
+ *  * ustack: the userspace zero copy communiation mechenism.
+ *   *
+ *    * Client can also direct issue posix file operations.
+ *     */
 Ustack *_ustack;
+
 
 /**
  * Initialize filesystem
@@ -68,13 +68,16 @@ void * kvfs_ustack_init (struct fuse_conn_info *conn){
   Component::IKVStore *store;
   Component::IBase * comp; 
 
-  //std::string component("filestore");
+  char * env_kvfs_backend = std::getenv("KVFS_BACKEND");
   std::string component("nvmestore");
+  if(env_kvfs_backend)
+      component = env_kvfs_backend;
 
   if(component == "pmstore") {
     comp = Component::load_component(PMSTORE_PATH, Component::pmstore_factory);
   }
   else if(component == "filestore") {
+    DPDK::eal_init(1024);
     comp = Component::load_component(FILESTORE_PATH, Component::filestore_factory);
   }
   else if(component == "nvmestore") {
@@ -102,13 +105,19 @@ void * kvfs_ustack_init (struct fuse_conn_info *conn){
 
   PINF("[%s]: fs loaded using component %s ", __func__, component.c_str());
 
-  KV_ustack_info * info = new KV_ustack_info("owner", "name", store);
-
   // init ustack and start accepting connections
   std::string ustack_name = "ipc:///tmp//kv-ustack.ipc";
-  // DPDK::eal_init(1024);
 
-  _ustack = new Ustack(ustack_name.c_str(), info);
+  size_t page_cache_sz= KB(4);
+  char * opt_page_size = getenv("USTACK_PAGE_SIZE");
+  if(opt_page_size) page_cache_sz = atoi(opt_page_size);
+
+  PMAJOR("Ustack use page size %lu", page_cache_sz);
+  // size_t page_cache_sz= MB(2);
+  kv_ustack_info_t * info = new kv_ustack_info_t(ustack_name, "owner", "name", store, page_cache_sz);
+
+  _ustack = new Ustack(ustack_name, info);
+
   return info;
 }
 
@@ -119,13 +128,14 @@ void * kvfs_ustack_init (struct fuse_conn_info *conn){
  * fuse-api: alled on filesystem exit.
  */
 void kvfs_ustack_destroy (void *user_data){
-  KV_ustack_info *info = reinterpret_cast<KV_ustack_info *>(user_data);
+  kv_ustack_info_t *info = reinterpret_cast<kv_ustack_info_t *>(user_data);
 
   Component::IKVStore *store = info->get_store();
-  store->release_ref();
   
   delete info;
   delete _ustack;
+
+  store->release_ref();
 };
 
 
@@ -145,22 +155,24 @@ int kvfs_ustack_create (const char *path, mode_t mode, struct fuse_file_info * f
   uint64_t handle;
   //PLOG("create: %s", filename);
 
-  KV_ustack_info *info = reinterpret_cast<KV_ustack_info *>(fuse_get_context()->private_data);
+  kv_ustack_info_t *info = reinterpret_cast<kv_ustack_info_t *>(fuse_get_context()->private_data);
 
   //unsigned long ino = (fuse_get_context()->fuse->ctr); // this require lowlevel api
 
-  handle = info->alloc_id();
-  assert(handle);
 
-  info->insert_item(handle, path+1);
+  PDBG("[%s]: create new file(%s)!",__func__, path);
+
+  handle = info->insert_item(path+1);
+  assert(handle);
+  assert(S_OK == info->open_file(handle, fi->flags));
   fi->fh = handle;
-  PINF("[%s]: create entry No. %lu: key %s", __func__, handle, path+1);
+  PDBG("[%s]: create entry No.%lu: key(%s)", __func__, handle, path+1);
   return 0;
 }
 
 /** Remove a file */
 int kvfs_ustack_unlink(const char *path){
-  KV_ustack_info *info = reinterpret_cast<KV_ustack_info *>(fuse_get_context()->private_data);
+  kv_ustack_info_t *info = reinterpret_cast<kv_ustack_info_t *>(fuse_get_context()->private_data);
 
   uint64_t handle = info->get_id(path+1);
   /** remove obj from pool*/
@@ -175,7 +187,7 @@ static int kvfs_ustack_getattr(const char *path, struct stat *stbuf)
 {
 	int res = 0;
 
-  KV_ustack_info *info = reinterpret_cast<KV_ustack_info *>(fuse_get_context()->private_data);
+  kv_ustack_info_t *info = reinterpret_cast<kv_ustack_info_t *>(fuse_get_context()->private_data);
 
   uint64_t handle = info->get_id(path+1);
 
@@ -190,30 +202,27 @@ static int kvfs_ustack_getattr(const char *path, struct stat *stbuf)
 		stbuf->st_size = info->get_item_size(handle);
   }
   else{
-    PINF("[%s]: open not found exsiting!",__func__);
+    PWRN("[%s]: path(%s) cannot found!",__func__, path);
 		res = -ENOENT;
   }
 
 	return res;
 }
 
-static int kvfs_ustack_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
-			 off_t offset, struct fuse_file_info *fi)
+static int kvfs_ustack_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi)
 {
 	(void) offset;
 	(void) fi;
 
-  KV_ustack_info *info = reinterpret_cast<KV_ustack_info *>(fuse_get_context()->private_data);
+  kv_ustack_info_t *info = reinterpret_cast<kv_ustack_info_t *>(fuse_get_context()->private_data);
 
   filler(buf, ".", NULL, 0);
   filler(buf, "..", NULL, 0);
 
 	if (strcmp(path, "/") == 0){
-    std::unordered_map<uint64_t,  std::string> all_items;
-    all_items = info->get_all_items();
-    for(const auto &item : all_items){
-      PINF("item name: %s", item.second.c_str());
-      filler(buf, item.second.c_str(), NULL, 0);
+    for(const auto &item : info->get_filenames()){
+      PINF("item name: %s", item.c_str());
+      filler(buf, item.c_str(), NULL, 0);
     }
   }else{
     return -1;
@@ -230,14 +239,15 @@ static int kvfs_ustack_open(const char *path, struct fuse_file_info *fi)
   uint64_t handle;
   //PLOG("create: %s", filename);
 
-  KV_ustack_info *info = reinterpret_cast<KV_ustack_info *>(fuse_get_context()->private_data);
+  kv_ustack_info_t *info = reinterpret_cast<kv_ustack_info_t *>(fuse_get_context()->private_data);
 
 
   //TODO: check access: return -EACCES;
   handle = info->get_id(path+1);
   if(handle){
-    PINF("[%s]: open found exsiting!",__func__);
+    PDBG("[%s]: open existing file (%s)!",__func__, path);
     fi->fh = handle;
+    assert(S_OK == info->open_file(handle, fi->flags));
     return 0;
   }
   else{
@@ -246,15 +256,50 @@ static int kvfs_ustack_open(const char *path, struct fuse_file_info *fi)
   }
 }
 
-int kvfs_ustack_fallocate (const char *path, int mode, off_t offset, off_t length,
-      struct fuse_file_info *){
 
-    PWRN("[%s]: fallocate doesn't do anything ", __func__);
+/** Release an open file
+ *
+ * Release is called when there are no more references to an open file
+ */
+int kvfs_ustack_release(const char *path, struct fuse_file_info *fi){
+  //PLOG("create: %s", filename);
+
+  kv_ustack_info_t *info = reinterpret_cast<kv_ustack_info_t *>(fuse_get_context()->private_data);
+
+  //TODO: check access: return -EACCES;
+  uint64_t handle = fi->fh;
+  
+  if(handle){
+    PDBG("[%s]: closing file!(fuse_handle=%lu)",__func__, handle);
+    assert(S_OK == info->close_file(handle));
     return 0;
+  }
+  else{
+    PWRN("[%s]: file not opened!",__func__);
+    return -ENOENT;
+  }
 }
 
-int kvfs_ustack_flush(const char *, struct fuse_file_info *){
-    PWRN("[%s]: flush doesn't do anything ", __func__);
+int kvfs_ustack_fallocate (const char *path, int mode, off_t offset, off_t length,
+      struct fuse_file_info *fi){
+  uint64_t id;
+
+  kv_ustack_info_t *info = reinterpret_cast<kv_ustack_info_t *>(fuse_get_context()->private_data);
+
+  id = fi->fh;
+  return info->fallocate(id, length, offset);
+}
+
+int (kvfs_ftruncate) (const char *, off_t length, struct fuse_file_info *fi){
+  kv_ustack_info_t *info = reinterpret_cast<kv_ustack_info_t *>(fuse_get_context()->private_data);
+
+  uint64_t id = fi->fh;
+  return info->ftruncate(id, length);
+
+}
+
+/* This is not fsync, this is just flush data to kernel, doesn't guarantee data persistence*/
+int kvfs_ustack_flush(const char *path, struct fuse_file_info *fi){
     return 0;
 }
 
@@ -265,12 +310,12 @@ int kvfs_ustack_flush(const char *, struct fuse_file_info *){
 static int kvfs_ustack_read(const char *path, char *buf, size_t size, off_t offset,
 		      struct fuse_file_info *fi)
 {
-  (void) offset;
 	(void) fi;
 
 
-  KV_ustack_info *info = reinterpret_cast<KV_ustack_info *>(fuse_get_context()->private_data);
-  if(S_OK!=info->read(fi->fh, buf , size)){
+  (void) offset;
+  kv_ustack_info_t *info = reinterpret_cast<kv_ustack_info_t *>(fuse_get_context()->private_data);
+  if(S_OK!=info->read(fi->fh, buf , size, offset)){
     PERR("[%s]: read error", __func__);
     return -1;
   }
@@ -289,18 +334,16 @@ static int kvfs_ustack_read(const char *path, char *buf, size_t size, off_t offs
  * Changed in version 2.2
  */
 int (kvfs_ustack_write) (const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi){
-  (void)offset;
 
   uint64_t id;
 
   PLOG("[%s]: write content %s to path %s", __func__,buf, path);
 
-  KV_ustack_info *info = reinterpret_cast<KV_ustack_info *>(fuse_get_context()->private_data);
+  kv_ustack_info_t *info = reinterpret_cast<kv_ustack_info_t *>(fuse_get_context()->private_data);
 
   id = fi->fh;
-  info->write(id, buf, size);
+  info->write(id, buf, size, offset);
 
-  info->set_item_size(id, size);
   return size;
 }
 
@@ -323,8 +366,19 @@ static int kvfs_ustack_ioctl(const char *path, int cmd, void *arg,
 
 	return -EINVAL;
 }
+
+static	int kvfs_ustack_fsync (const char *path, int datasync, struct fuse_file_info *fi){
+  uint64_t id;
+  kv_ustack_info_t *info = reinterpret_cast<kv_ustack_info_t *>(fuse_get_context()->private_data);
+
+  id = fi->fh;
+  info->fsync_file(id);
+  return 0;
+}
+
 int main(int argc, char *argv[])
 {
+
   static struct fuse_operations oper;
   memset(&oper, 0, sizeof(struct fuse_operations));
 	oper.getattr	= kvfs_ustack_getattr;
@@ -338,7 +392,13 @@ int main(int argc, char *argv[])
   oper.ioctl = kvfs_ustack_ioctl;
   oper.unlink = kvfs_ustack_unlink;
   oper.fallocate = kvfs_ustack_fallocate;
-  oper.flush = kvfs_ustack_flush;
+  oper.ftruncate = kvfs_ftruncate;
 
-	return fuse_main(argc, argv, &oper, NULL);
+  oper.flush = kvfs_ustack_flush;
+  oper.release = kvfs_ustack_release;
+  oper.fsync = kvfs_ustack_fsync;
+
+	int ret =  fuse_main(argc, argv, &oper, NULL);
+  return ret;
+
 }

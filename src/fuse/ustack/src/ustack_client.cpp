@@ -20,8 +20,10 @@ typedef int (*close_t)(int);
 typedef int (*open64_t)(const char *pathname, int flags, ...);
 typedef void *(*malloc_t)(size_t size);
 typedef void (*free_t)(void *ptr);
-typedef ssize_t (*read_t)(int fd, void *buf, size_t count);
-typedef ssize_t (*write_t)(int fd, const void *buf, size_t count);
+/*typedef ssize_t (*read_t)(int fd, void *buf, size_t count);*/
+/*typedef ssize_t (*write_t)(int fd, const void *buf, size_t count);*/
+typedef ssize_t (*pread_t)(int fd, void *buf, size_t count, off_t offset);
+typedef ssize_t (*pwrite_t)(int fd, const void *buf, size_t count, off_t offset);
 typedef void *(*mmap_t)(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
 typedef int (*munmap_t)(void *addr, size_t length);
 
@@ -30,8 +32,10 @@ open64_t orig_open64;
 close_t  orig_close;
 malloc_t orig_malloc;
 free_t   orig_free;
-read_t   orig_read;
-write_t  orig_write;
+/*read_t   orig_read;*/
+/*write_t  orig_write;*/
+pread_t   orig_pread;
+pwrite_t  orig_pwrite;
 mmap_t orig_mmap;
 munmap_t orig_munmap;
 
@@ -58,11 +62,17 @@ void ustack_ctor()
   orig_free = (free_t)(dlsym(RTLD_NEXT, "free"));
   assert(orig_free);
 
-  orig_read = (read_t)(dlsym(RTLD_NEXT, "read"));
-  assert(orig_read);
+/*  orig_read = (read_t)(dlsym(RTLD_NEXT, "read"));*/
+  //assert(orig_read);
 
-  orig_write = (write_t)(dlsym(RTLD_NEXT, "write"));
-  assert(orig_write);
+  //orig_write = (write_t)(dlsym(RTLD_NEXT, "write"));
+  /*assert(orig_write);*/
+
+  orig_pread = (pread_t)(dlsym(RTLD_NEXT, "pread"));
+  assert(orig_pread);
+
+  orig_pwrite = (pwrite_t)(dlsym(RTLD_NEXT, "pwrite"));
+  assert(orig_pwrite);
 
   orig_mmap = (mmap_t)(dlsym(RTLD_NEXT, "mmap"));
   assert(orig_mmap);
@@ -70,7 +80,7 @@ void ustack_ctor()
   orig_munmap = (munmap_t)(dlsym(RTLD_NEXT, "munmap"));
   assert(orig_munmap);
 
-  PINF("Original open64/close/malloc intialized");
+  PMAJOR("Original open64/close/malloc intialized, trying to connect to kvfs-ustack server");
 
   /* Initialize ustack
    * Attention, open/close is also used for xms
@@ -85,7 +95,7 @@ void ustack_ctor()
   memset((void *) (_fd_array), 0xff, fd_array_size);
 
   _fd_array_initialized = FD_ARRAY_OK;
-  PINF("fd_array init at %p", _fd_array);
+  PDBG("fd_array init at %p", _fd_array);
 
   assert(_this_client->get_uipc_channel());
 }
@@ -229,39 +239,38 @@ int munmap(void *addr, size_t length){
  * File write and read
  * TODO: intercept posix ops
  *
- * the message will be like(fd, phys(buf), count)
  */
-ssize_t write(int fd, const void *buf, size_t count)
+ssize_t pwrite(int fd, const void *buf, size_t count, off_t file_off)
 {
   int search;
   if (_fd_array_initialized == FD_ARRAY_OK &&
       (search = _fd_array[fd]) != FUSE_FD_INVALID) {
     uint64_t fuse_fh = search;
-    PLOG("[stack-write]: try to write from %p to fuse_fh %lu, size %lu", buf,
-         fuse_fh, count);
-    return _this_client->write(fuse_fh, buf, count);
+    PLOG("[stack-write]: try to write from %p to fuse_fh %lu, size %lu, offset %lu", buf,
+         fuse_fh, count, file_off);
+    return _this_client->write(fuse_fh, buf, count, file_off);
   }
   else {
     /* regular file */
-    PLOG("[stack-write]: fall back to orig_write fd(%d)", fd);
-    return orig_write(fd, buf, count);
+    PLOG("[stack-write]: fall back to orig_pwrite fd(%d)", fd);
+    return orig_pwrite(fd, buf, count, file_off);
   }
 }
 
-ssize_t read(int fd, void *buf, size_t count)
+ssize_t pread(int fd, void *buf, size_t count, off_t file_off)
 {
   int search;
   if (_fd_array_initialized == FD_ARRAY_OK &&
       (search = _fd_array[fd]) != FUSE_FD_INVALID) {
     uint64_t fuse_fh = search;
 
-    PLOG("[stack-read]: try to write from %p to fuse_fh %lu, size %lu", buf,
-         fuse_fh, count);
-    return _this_client->read(fuse_fh, buf, count);
+    PLOG("[stack-read]: try to write from %p to fuse_fh %lu, size %lu, offset %lu", buf,
+         fuse_fh, count, file_off);
+    return _this_client->read(fuse_fh, buf, count, file_off);
   }
   else {
     /* regular file */
     PLOG("[stack-read]: fall back to orig_read fd(%d), buf(%p), count(%ld)", fd, buf, count);
-    return orig_read(fd, buf, count);
+    return orig_pread(fd, buf, count, file_off);
   }
 }
