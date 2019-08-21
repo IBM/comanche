@@ -128,12 +128,14 @@ void Workload::load(double sec)
     //props.log(to_string(elapse * 1000000));
     wr_cnt++;
     up.stop();
+/*
     if (up.get_lap_time_in_seconds() < sec) {
       struct timespec ts;
       ts.tv_sec  = 0;
       ts.tv_nsec = (int) ((sec - up.get_lap_time_in_seconds()) * 1000000000);
       nanosleep(&ts, NULL);
     }
+*/
     //    if (elapse * 1000000 >= 900) wr_stat.add_value(elapse);
   }
   rd.stop();

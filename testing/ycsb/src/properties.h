@@ -20,6 +20,7 @@
 #include <map>
 #include <random>
 #include <string>
+#include <mutex>
 
 using namespace std;
 
@@ -41,6 +42,7 @@ class Properties {
  private:
   std::map<std::string, std::string> properties_;
   std::string                        trim(const std::string &str);
+mutex m;
 };
 
 inline std::string Properties::getProperty(
@@ -56,7 +58,9 @@ inline std::string Properties::getProperty(
 }
 
 inline void Properties::log(const std::string &str){
+m.lock();
   logfile << str << endl;
+m.unlock();
 }
 
 inline const std::string &Properties::operator[](const std::string &key) const
