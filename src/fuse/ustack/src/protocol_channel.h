@@ -22,6 +22,7 @@ struct IO_command
   uint8_t       flags;
   uint16_t      offset; // this corresponds to the actual physical addr
   uint32_t      sz_bytes; // requested  io size
+  uint64_t      file_off; // file offset
   uint64_t      fuse_fh;
   char          data[64];
 }

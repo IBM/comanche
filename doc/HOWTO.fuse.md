@@ -1,21 +1,49 @@
+Changelog
+==========
+[19-08-15]:
+  * Improved the partial write and fsync. 
+    - Use pwrite(fio with ioengine=psync), instead of write.
+    - I had to use ikvstore->debug api to sync an locked nvme object(instead of unlock followed by lock)
+    - O_SYNC will be obtained in the fuse_info, and kvfs daemon will decide whether sync or not.
+    - Currently dirty pages references are saved in std::set for simplicity.
+    - Note: tradeoff in page cache size: smaller size cannot utilize nvme bandwidth, large size has write amplification.
+  * scripts to start kvfs daemon(start_kvfs_daemon.sh) and fio workloads(run_fio_exp.sh)
+  * results reporting(4k latency plot and varied-io-sizes throughput plot)
+  * Add profiling, use -p when start the daemon
+
+[19-08-09]:
+  * Improved the kvfs-test unit test.
+  * a different design, daemon side will lock fixed-size objects(default=2M) for each file during file open. Unlock will be called during file flush(which is called implicitedly by file close.). Fixed-sized objects serve as page cache in userspace.
+  * Also support other ikvstore as backend, e.g. filestore.
+  * wip on fio test.
+
+[19-07-30]: Added 
+  * 1-1 kvfs-ustack, where each file is mapped to one key-value pair.
+  * First version only support wholefile operation without fileoffset.
+
 Prepare
 ==========
 
-1. In terminal(build directory), start the fs service:
+1. In terminal(build directory), start the kvfs daemon:
 ```
-mkdir -p mount
-fusermount -u mount
-./src/fuse/ustack/kv_ustack -d ./mount/
-```
+MOUNTDIR=/tmp/kvfs-ustack
+mkdir -p ${MOUNTDIR}
+
+# you might need to unmount previous mount before doing this.
+../src/fuse/ustack/start_kvfs_daemon.sh -d
+
+(start_kvfs_daemon -h for more options), one important option is --pgsize, which changes the page cache size in the daemon.
+
 (Dont ctrl-C to end the service, instead use the unmount command below)
 
 2. Unmount
 ```
-fusermount -u mount
+fusermount -u mount-dir
 ```
 
-Basic Test
-==========
+Basic Test of naive mode
+========================
+
 ```
 (base) fengggli@ribbit5(:):~/WorkSpace/comanche/build$echo "filecontent1" > mount/tmp.txt
 $echo "filecontent2" > mount/tmp2.txt
@@ -29,44 +57,24 @@ filecontent2
 
 FIO Test
 =========
+
+There are two experiments:
+0. 4k persist writes in single file( to get latency percentile)
+1. partial random persist write in a single file(to get throughput of different io sizes)
+
+--pgsize is the pagesize set for daemon, this only used to generated the path name for the results..
 ```
-(base) fengggli@ribbit5(:):~/WorkSpace/comanche/build/src/fuse$fio ../../../src/fuse/kv-ustack.fio
-random-write: (g=0): rw=randwrite, bs=(R) 32.0KiB-32.0KiB, (W) 32.0KiB-32.0KiB, (T) 32.0KiB-32.0KiB, ioengine=libaio, iodepth=4
-random-read: (g=0): rw=randread, bs=(R) 32.0KiB-32.0KiB, (W) 32.0KiB-32.0KiB, (T) 32.0KiB-32.0KiB, ioengine=libaio, iodepth=4
-fio-3.1
-Starting 2 processes
-random-write: Laying out IO file (1 file / 64MiB)
-fio: native_fallocate call failed: Operation not supported
-random-read: Laying out IO file (1 file / 64MiB)
-fio: native_fallocate call failed: Operation not supported
-fio: pid=0, err=38/file:filesetup.c:184, func=ftruncate, error=Function not implemented
-
-random-write: (groupid=0, jobs=1): err= 0: pid=19073: Wed Jul 17 17:05:18 2019
-  write: IOPS=4796, BW=150MiB/s (157MB/s)(64.0MiB/427msec)
-    slat (usec): min=151, max=641, avg=206.20, stdev=39.58
-    clat (nsec): min=1937, max=1241.5k, avg=624376.38, stdev=82689.73
-     lat (usec): min=161, max=1890, avg=830.79, stdev=107.80
-    clat percentiles (usec):
-     |  1.00th=[  482],  5.00th=[  498], 10.00th=[  537], 20.00th=[  553],
-     | 30.00th=[  594], 40.00th=[  603], 50.00th=[  611], 60.00th=[  652],
-     | 70.00th=[  668], 80.00th=[  668], 90.00th=[  693], 95.00th=[  758],
-     | 99.00th=[  906], 99.50th=[  979], 99.90th=[ 1156], 99.95th=[ 1156],
-     | 99.99th=[ 1237]
-  lat (usec)   : 2=0.05%, 250=0.05%, 500=5.13%, 750=89.11%, 1000=5.27%
-  lat (msec)   : 2=0.39%
-  cpu          : usr=5.63%, sys=0.00%, ctx=2050, majf=0, minf=10
-  IO depths    : 1=0.1%, 2=0.1%, 4=99.9%, 8=0.0%, 16=0.0%, 32=0.0%, >=64=0.0%
-     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
-     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
-     issued rwt: total=0,2048,0, short=0,0,0, dropped=0,0,0
-     latency   : target=0, window=0, percentile=100.00%, depth=4
-
-Run status group 0 (all jobs):
-  WRITE: bw=150MiB/s (157MB/s), 150MiB/s-150MiB/s (157MB/s-157MB/s), io=64.0MiB (67.1MB), run=427-427msec
+../src/fuse/ustack/run_fio_exp.sh --method=kvfs-ustack --pgsize=4096 --exp=0
 ```
+Results will be saved in a json file, whose path will be printed when job is done
 
-Preload
-============
+Notes:
+
+* run script with -h to see more options
+* For exp.1, less xxx.json | grep "\"write\"" -A 6|grep bw, to see the bw(in KiB/s)
+
+Preload(the client)
+======================
 
 This will overwrite:
 1. malloc/free
@@ -74,5 +82,34 @@ This will overwrite:
 3. read/write
 
 ```
-D_PRELOAD=./src/fuse/ustack/libustack_client.so ./src/fuse/ustack/unit_test/test-preload
+LD_PRELOAD=./src/fuse/ustack/libustack_client.so ./src/fuse/ustack/unit_test/test-preload
 ```
+
+Notes
+=============
+
+Profiling the daemon
+--------------------
+start the daemon with -p, will turn on profiler.
+
+(with x-forwarding enabled):
+google-pprof --gv src/fuse/ustack/kv_ustack cpu.profile
+
+
+Mount with Linux ext4
+------------------------
+
+```
+sudo ../tools/attach_to_nvme.sh  20:00.0
+sudo mount  /dev/nvme0n1  /tmp/ext4-mount/
+sudo chown -R lifen /tmp/ext4-mount/
+```
+
+Mount to comanche stack
+```
+sudo umount /tmp/ext4-mount
+sudo ../tools/attach_to_vfio.sh  20:00.0
+
+```
+
+(test with DIRECTORY=/tmp/ext4-mount/ ../src/fuse/ustack/run_fio_exp.sh)

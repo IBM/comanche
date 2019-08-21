@@ -4,19 +4,37 @@
 #include <future>
 #include "ustack.h"
 #include "protocol_generated.h"
+#include <gperftools/profiler.h>
 
 using namespace Component;
 
 
-Ustack::Ustack(const std::string endpoint, KV_ustack_info *info ) : IPC_server(endpoint), _kv_ustack_info(info)
+Ustack::Ustack(const std::string endpoint) : IPC_server(endpoint)
 {
 
   _ipc_thread = new std::thread([=]() { ipc_start(); });
+
+#ifdef PROFILE
+    ProfilerStart("kvfs-daemon.profile");
+#endif
+}
+
+/** With kvfs daemon info*/
+Ustack::Ustack(const std::string endpoint, kv_ustack_info_t * kv_ustack_info):_kv_ustack_info(kv_ustack_info), IPC_server(endpoint){
+  _ipc_thread = new std::thread([=]() { ipc_start(); });
+
+#ifdef PROFILE
+    ProfilerStart("kvfs-daemon.profile");
+#endif
 }
 
 
 Ustack::~Ustack()
 {
+#ifdef PROFILE
+    ProfilerStop();
+#endif
+
   TRACE();
   _shutdown = true;
   signal_exit();
@@ -300,7 +318,7 @@ void Ustack::uipc_channel_thread_entry(Core::UIPC::Channel * channel, pid_t clie
 
       case IO_TYPE_WRITE:
         /*write to kvstore*/
-        if(S_OK == do_kv_write(client_id, msg->fuse_fh, msg->offset, msg->sz_bytes)){
+        if(S_OK == do_kv_write(client_id, msg->fuse_fh, msg->offset, msg->sz_bytes, msg->file_off)){
           msg->type = IO_WRITE_OK;
         }
         else 
@@ -309,7 +327,7 @@ void Ustack::uipc_channel_thread_entry(Core::UIPC::Channel * channel, pid_t clie
 
       case IO_TYPE_READ:
         /*read from kvstore*/
-        if(S_OK == do_kv_read(client_id, msg->fuse_fh, msg->offset, msg->sz_bytes)){
+        if(S_OK == do_kv_read(client_id, msg->fuse_fh, msg->offset, msg->sz_bytes, msg->file_off)){
           msg->type = IO_READ_OK;
         }
         else 
