@@ -90,7 +90,7 @@ void DawnDB::init(Properties &props, unsigned core)
 
   if (pool == Component::IKVStore::POOL_ERROR) {
     /* ok, try to create pool instead */
-    pool = client->create_pool(poolname, GB(1));
+    pool = client->create_pool(poolname, GB(atoi(props.getProperty("poolsize").c_str())));
   }
 }
 

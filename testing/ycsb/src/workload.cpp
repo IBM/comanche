@@ -13,6 +13,7 @@
 #include "workload.h"
 #include <assert.h>
 #include <mpi.h>
+#include <stdlib.h>
 #include <time.h>
 #include <chrono>
 #include <iostream>
@@ -55,13 +56,15 @@ void Workload::initialize()
   records /= n;
 //  props.log("records: "+to_string(records));
   operations                      = stoi(props.getProperty("operationcount"));
-  Generator<uint64_t>* loadkeygen = new CounterGenerator(0 + id * records + 1);
+  //Generator<uint64_t>* loadkeygen = new CounterGenerator(0 + id * records + 1);
+/*
   for (int i = 0; i < records; i++) {
     pair<string, string> kv(Workload::buildKeyName(loadkeygen->Next()),
                             Workload::buildValue(Workload::SIZE));
     kvs.push_back(kv);
   }
-  delete loadkeygen;
+*/
+  //delete loadkeygen;
 
   double readproportion   = stod(props.getProperty("readproportion", "0"));
   double updateproportion = stod(props.getProperty("updateproportion", "0"));
@@ -108,15 +111,19 @@ void Workload::load(double sec)
   up.reset();
   vector<double> latencies;
 
+  Generator<uint64_t>* loadkeygen = new CounterGenerator(0 + id * records + 1);
   MPI_Barrier(MPI_COMM_WORLD);
 
   rd.start();
   for (int i = 0; i < records; i++) {
     up.start();
-    pair<string, string>& kv = kvs[i];
+    //pair<string, string>& kv = kvs[i];
     // cout << "insert" << endl;
+string key=Workload::buildKeyName(loadkeygen->Next());
+string value=Workload::buildValue(atoll(props.getProperty("valuebyte").c_str()));
     wr.start();
-    ret = db->put(Workload::TABLE, kv.first, kv.second);
+//    ret = db->put(Workload::TABLE, kv.first, kv.second);
+    ret = db->put(Workload::TABLE, key, value);
     //  std::this_thread::sleep_for(std::chrono::seconds(1));
     // ret = db->put(Workload::TABLE, "abc", "edf");
     if (ret != 0) {
@@ -139,6 +146,7 @@ void Workload::load(double sec)
     */
     //    if (elapse * 1000000 >= 900) wr_stat.add_value(elapse);
   }
+delete loadkeygen;
   rd.stop();
   props.log("total time: " + to_string(rd.get_lap_time_in_seconds()) + " sec");
   for(auto i:latencies){
@@ -307,8 +315,8 @@ inline string Workload::buildKeyName(uint64_t key_num)
   key_num = ycsbutils::Hash(key_num);
   // return std::string("user").append(std::to_string(key_num));
   return (Workload::TABLE + std::to_string(key_num))
-      .append(buildValue(1024))
-      .substr(0, 16);
+      .append(buildValue(atoll(props.getProperty("keybyte").c_str())))
+      .substr(0, atoll(props.getProperty("keybyte").c_str()));
 }
 
 inline string Workload::buildValue(uint64_t size)
