@@ -24,13 +24,6 @@
 using namespace std;
 using namespace ycsb;
 
-void threadfunc(int total, int id, DB*& db)
-{
-  Workload *wl = new Workload(props, total, id, db);
-  wl->do_work();
-  delete wl;
-}
-
 int main(int argc, char *argv[])
 {
   MPI_Init(NULL, NULL);
@@ -39,15 +32,12 @@ int main(int argc, char *argv[])
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  if (argc < 4) show_program_options();
+  if (argc < 3) show_program_options();
 
   string operation = argv[1];
   string filename  = argv[2];
-  int    n         = atoi(argv[3]);
 
   ifstream input(filename);
-  props.logfile.open("/tmp/latency-sla",
-                     std::ofstream::out | std::ofstream::app);
 
   try {
     props.load(input);
@@ -62,22 +52,15 @@ int main(int argc, char *argv[])
 
   if (operation == "run") props.setProperty("run", "1");
 
-  //open db and pass to workload:
-  DB* db = ycsb::DBFactory::create(props, rank);
+  // open db and pass to workload:
+  DB *db = ycsb::DBFactory::create(props, rank);
   assert(db);
 
-  thread ids[n];
-  for (int i = 0; i < n; i++) {
-    ids[i] = thread(threadfunc, n, i, std::ref(db));
-  }
-
-  for (int i = 0; i < n; i++) {
-    ids[i].join();
-  }
+  Workload *wl = new Workload(props, db);
+  wl->do_work();
+  delete wl;
 
   delete db;
-
-  props.logfile.close();
   MPI_Finalize();
 
   return 0;

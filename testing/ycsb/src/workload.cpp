@@ -32,16 +32,12 @@ using namespace std;
 using namespace ycsb;
 using namespace ycsbc;
 
-const int     Workload::SIZE       = 64;
 unsigned long Workload::_iops      = 0;
 unsigned long Workload::_iops_load = 0;
 mutex         Workload::_iops_lock;
 mutex         Workload::_iops_load_lock;
 
-// DB*           Workload::db;
-
-Workload::Workload(Properties& props, int n, int id, DB*& db)
-    : props(props), n(n), id(id), db(db)
+Workload::Workload(Properties& props, DB*& db) : props(props), db(db)
 {
   initialize();
 }
@@ -51,20 +47,21 @@ void Workload::initialize()
   int core;
   MPI_Comm_rank(MPI_COMM_WORLD, &core);
 
+  _value_size = stoul(props.getProperty("valuebyte"));
+
   string TABLE = "table" + to_string(core);
   records      = stoi(props.getProperty("recordcount"));
-  records /= n;
-//  props.log("records: "+to_string(records));
+  //  props.log("records: "+to_string(records));
   operations                      = stoi(props.getProperty("operationcount"));
-  //Generator<uint64_t>* loadkeygen = new CounterGenerator(0 + id * records + 1);
-/*
+  Generator<uint64_t>* loadkeygen = new CounterGenerator(0);
+
   for (int i = 0; i < records; i++) {
     pair<string, string> kv(Workload::buildKeyName(loadkeygen->Next()),
-                            Workload::buildValue(Workload::SIZE));
+                            Workload::buildValue(_value_size);
     kvs.push_back(kv);
   }
-*/
-  //delete loadkeygen;
+
+  // delete loadkeygen;
 
   double readproportion   = stod(props.getProperty("readproportion", "0"));
   double updateproportion = stod(props.getProperty("updateproportion", "0"));
@@ -92,65 +89,28 @@ void Workload::initialize()
 
 bool Workload::do_work()
 {
-  int req_per_sec = stoi(props.getProperty("request"));
-  req_per_sec /= n;
-  double sec = 1.0 / (double) req_per_sec;
-
-  load(sec);
+  load();
   if (props.getProperty("run", "0") == "1") {
     run();
   }
   return false;
 }
 
-void Workload::load(double sec)
+void Workload::load()
 {
   int ret;
   wr.reset();
   rd.reset();
   up.reset();
-  vector<double> latencies;
-
-  Generator<uint64_t>* loadkeygen = new CounterGenerator(0 + id * records + 1);
   MPI_Barrier(MPI_COMM_WORLD);
 
-  rd.start();
   for (int i = 0; i < records; i++) {
-    up.start();
-    //pair<string, string>& kv = kvs[i];
-    // cout << "insert" << endl;
-string key=Workload::buildKeyName(loadkeygen->Next());
-string value=Workload::buildValue(atoll(props.getProperty("valuebyte").c_str()));
-    wr.start();
-//    ret = db->put(Workload::TABLE, kv.first, kv.second);
-    ret = db->put(Workload::TABLE, key, value);
-    //  std::this_thread::sleep_for(std::chrono::seconds(1));
-    // ret = db->put(Workload::TABLE, "abc", "edf");
+    pair<string, string>& kv = kvs[i];
+    ret                      = db->put(Workload::TABLE, kv.first, kv.second);
     if (ret != 0) {
       throw "Insertion failed in loading phase";
       exit(-1);
     }
-    wr.stop();
-    double elapse = wr.get_lap_time_in_seconds();
-    latencies.push_back(elapse*1000000);
-    //props.log(to_string(elapse * 1000000));
-    wr_cnt++;
-    up.stop();
-    /*
-    if (up.get_lap_time_in_seconds() < sec) {
-      struct timespec ts;
-      ts.tv_sec  = 0;
-      ts.tv_nsec = (int) ((sec - up.get_lap_time_in_seconds()) * 1000000000);
-      nanosleep(&ts, NULL);
-    }
-    */
-    //    if (elapse * 1000000 >= 900) wr_stat.add_value(elapse);
-  }
-delete loadkeygen;
-  rd.stop();
-  props.log("total time: " + to_string(rd.get_lap_time_in_seconds()) + " sec");
-  for(auto i:latencies){
-    props.log(to_string(i));
   }
 }
 
@@ -186,7 +146,7 @@ void Workload::doRead()
     exit(-1);
   }
   string& key = kvs[index].first;
-  char    value[Workload::SIZE];
+  char    value[_value_size];
   rd.start();
   int ret = db->get(Workload::TABLE, key, value);
   if (ret != 0) {
@@ -196,7 +156,7 @@ void Workload::doRead()
   rd.stop();
   rd_cnt++;
   double elapse = rd.get_lap_time_in_seconds();
-  if (elapse * 1000000 >= 900) rd_stat.add_value(elapse);
+  rd_stat.add_value(elapse);
 }
 
 void Workload::doUpdate()
@@ -208,7 +168,7 @@ void Workload::doUpdate()
     exit(-1);
   }
   string& key   = kvs[index].first;
-  string  value = buildValue(Workload::SIZE);
+  string  value = buildValue(_value_size);
   up.start();
   int ret = db->update(Workload::TABLE, key, value.c_str());
   if (ret != 0) {
@@ -218,7 +178,7 @@ void Workload::doUpdate()
   up.stop();
   up_cnt++;
   double elapse = up.get_lap_time_in_seconds();
-  if (elapse * 1000000 >= 900) up_stat.add_value(elapse);
+  up_stat.add_value(elapse);
 }
 
 void Workload::doInsert() {}
@@ -263,37 +223,6 @@ void Workload::summarize()
              MPI_COMM_WORLD);
   MPI_Reduce(&_iops, &global_iops, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0,
              MPI_COMM_WORLD);
-  if (rd_cnt > 0) {
-    local_lat = rd_stat.getCount();
-    MPI_Reduce(&local_lat, &global_lat, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0,
-               MPI_COMM_WORLD);
-    if (rank == 0) {
-      double p = global_lat / (rd_cnt * size);
-      cout << "[Overall], Read percentage of more than 900 us: , " << p << endl;
-    }
-  }
-
-  if (wr_cnt > 0) {
-    local_lat = wr_stat.getCount();
-    MPI_Reduce(&local_lat, &global_lat, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0,
-               MPI_COMM_WORLD);
-    if (rank == 0) {
-      double p = global_lat / (wr_cnt * size);
-      cout << "[Overall], Write percentage of more than 900 us: , " << p
-           << endl;
-    }
-  }
-
-  if (up_cnt > 0) {
-    local_lat = up_stat.getCount();
-    MPI_Reduce(&local_lat, &global_lat, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0,
-               MPI_COMM_WORLD);
-    if (rank == 0) {
-      double p = global_lat / (up_cnt * size);
-      cout << "[Overall], Update percentage of more than 900 us: , " << p
-           << endl;
-    }
-  }
 
   if (rank == 0) {
     cout << "[Overall], Load Throughput (ops/sec), " << global_iops_load

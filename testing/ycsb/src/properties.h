@@ -20,7 +20,6 @@
 #include <map>
 #include <random>
 #include <string>
-#include <mutex>
 
 using namespace std;
 
@@ -36,13 +35,10 @@ class Properties {
 
   void setProperty(const std::string &key, const std::string &value);
   bool load(std::ifstream &input);
-  void log(const std::string &str);
-  std::ofstream logfile;
 
  private:
   std::map<std::string, std::string> properties_;
   std::string                        trim(const std::string &str);
-mutex m;
 };
 
 inline std::string Properties::getProperty(
@@ -55,12 +51,6 @@ inline std::string Properties::getProperty(
   }
   else
     return it->second;
-}
-
-inline void Properties::log(const std::string &str){
-m.lock();
-  logfile << str << endl;
-m.unlock();
 }
 
 inline const std::string &Properties::operator[](const std::string &key) const
@@ -137,5 +127,3 @@ inline char RandomPrintChar() { return rand() % 94 + 33; }
 }  // namespace ycsbutils
 
 #endif
-
-
