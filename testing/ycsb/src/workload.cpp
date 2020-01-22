@@ -57,7 +57,7 @@ void Workload::initialize()
 
   for (int i = 0; i < records; i++) {
     pair<string, string> kv(Workload::buildKeyName(loadkeygen->Next()),
-                            Workload::buildValue(_value_size);
+                            Workload::buildValue(_value_size));
     kvs.push_back(kv);
   }
 

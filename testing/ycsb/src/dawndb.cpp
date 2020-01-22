@@ -62,6 +62,7 @@ void DawnDB::init(Properties &props, unsigned core)
   int name_len;
   MPI_Get_processor_name(hostname, &name_len);
   char *s = strstr(hostname, "bio"); //if bio1
+  /*
   if (s == NULL) {
     address.replace(address.begin() + mid + 1, address.end(), to_string(port));
   }
@@ -70,23 +71,23 @@ void DawnDB::init(Properties &props, unsigned core)
       port+=(rank-48)/6;
     address.assign("10.0.1.94:" + to_string(port));
   }
+  */
   cout << "host: " + string(hostname) + ", rank: "+ to_string(rank) +", address: " + address << endl;
 
   string dev      = props.getProperty("dev");
   int    debug    = stoi(props.getProperty("debug_level", "1"));
   client          = fact->dawn_create(debug, username, address, dev);
   fact->release_ref();
+  /*
   IDawn::Shard_stats stats;
   client->get_statistics(stats);
   int opstart = stats.op_request_count;
-  props.log("client number: " + to_string(stats.client_count));
   std::this_thread::sleep_for(std::chrono::seconds(5));
   client->get_statistics(stats);
   double req_per_sec = (stats.op_request_count - opstart) / 5.0;
-  props.log("request per sec server: " + to_string(req_per_sec));
-  props.log("request per sec client: " + props.getProperty("request"));
 
   pool = client->open_pool("table" + to_string(core), 0);
+  */
 
   if (pool == Component::IKVStore::POOL_ERROR) {
     /* ok, try to create pool instead */
