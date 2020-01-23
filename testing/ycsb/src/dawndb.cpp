@@ -60,7 +60,7 @@ void DawnDB::init(Properties &props, unsigned core)
   }
   else {
     port = 11914;
-    port += (rank - 48) / 6;
+    port += (core - 48) / 6;
     address.assign("10.0.1.94:" + to_string(port));
   }
   cout << "host: " + string(hostname) + ", rank: " + to_string(core) + ", address: " + address << endl;
