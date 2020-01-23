@@ -10,7 +10,6 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 */
-#include "workload.h"
 #include <assert.h>
 #include <mpi.h>
 #include <stdlib.h>
@@ -26,6 +25,7 @@
 #include "generator.h"
 #include "properties.h"
 #include "uniform_generator.h"
+#include "workload.h"
 #include "zipfian_generator.h"
 
 using namespace std;
@@ -37,10 +37,7 @@ unsigned long Workload::_iops_load = 0;
 mutex         Workload::_iops_lock;
 mutex         Workload::_iops_load_lock;
 
-Workload::Workload(Properties& props, DB*& db) : props(props), db(db)
-{
-  initialize();
-}
+Workload::Workload(Properties& props, DB*& db) : props(props), db(db) { initialize(); }
 
 void Workload::initialize()
 {
@@ -49,15 +46,13 @@ void Workload::initialize()
 
   _value_size = stoul(props.getProperty("valuebyte"));
 
-  string TABLE = "table" + to_string(core);
-  records      = stoi(props.getProperty("recordcount"));
-  //  props.log("records: "+to_string(records));
+  string TABLE                    = "table" + to_string(core);
+  records                         = stoi(props.getProperty("recordcount"));
   operations                      = stoi(props.getProperty("operationcount"));
   Generator<uint64_t>* loadkeygen = new CounterGenerator(0);
 
   for (int i = 0; i < records; i++) {
-    pair<string, string> kv(Workload::buildKeyName(loadkeygen->Next()),
-                            Workload::buildValue(_value_size));
+    pair<string, string> kv(Workload::buildKeyName(loadkeygen->Next()), Workload::buildValue(_value_size));
     kvs.push_back(kv);
   }
 
@@ -89,8 +84,10 @@ void Workload::initialize()
 
 bool Workload::do_work()
 {
+  cout << "now loading..." << endl;
   load();
   if (props.getProperty("run", "0") == "1") {
+    cout << "now running..." << endl;
     run();
   }
   return false;
@@ -100,8 +97,6 @@ void Workload::load()
 {
   int ret;
   wr.reset();
-  rd.reset();
-  up.reset();
   MPI_Barrier(MPI_COMM_WORLD);
 
   for (int i = 0; i < records; i++) {
@@ -148,20 +143,13 @@ void Workload::doRead()
   string& key = kvs[index].first;
   char    value[_value_size];
   rd.start();
-  int ret = db->get(Workload::TABLE, key, value);
-  if (ret != 0) {
-    throw "Read fail!";
-    exit(-1);
-  }
+  assert(db->get(Workload::TABLE, key, value) == 0);
   rd.stop();
   rd_cnt++;
-  double elapse = rd.get_lap_time_in_seconds();
-  rd_stat.add_value(elapse);
 }
 
 void Workload::doUpdate()
 {
-  // cout << "update" << endl;
   int index = gen->Next();
   if (index > records - 1) {
     throw "Key index overflow!";
@@ -170,15 +158,9 @@ void Workload::doUpdate()
   string& key   = kvs[index].first;
   string  value = buildValue(_value_size);
   up.start();
-  int ret = db->update(Workload::TABLE, key, value.c_str());
-  if (ret != 0) {
-    throw "Update fail!";
-    exit(-1);
-  }
+  assert(db->update(Workload::TABLE, key, value) == 0);
   up.stop();
   up_cnt++;
-  double elapse = up.get_lap_time_in_seconds();
-  up_stat.add_value(elapse);
 }
 
 void Workload::doInsert() {}
@@ -194,16 +176,8 @@ void Workload::cleanup()
 
   if (rd_cnt > 0 || up_cnt > 0) {
     cout << "read: " << rd_cnt << ", update: " << up_cnt << endl;
-    cout << "Time: " << rd.get_time_in_seconds() + up.get_time_in_seconds()
-         << endl;
-    unsigned long iops = (rd_cnt + up_cnt) /
-                         (rd.get_time_in_seconds() + up.get_time_in_seconds());
-    std::lock_guard<std::mutex> g(_iops_lock);
-    _iops += iops;
-  }
-  {
-    std::lock_guard<std::mutex> g(_iops_load_lock);
-    _iops_load += wr_cnt / wr.get_time_in_seconds();
+    cout << "Time: " << rd.get_time_in_seconds() + up.get_time_in_seconds() << endl;
+    _iops = (rd_cnt + up_cnt) / (rd.get_time_in_seconds() + up.get_time_in_seconds());
   }
   summarize();
 }
@@ -219,16 +193,12 @@ void Workload::summarize()
   int size;
   MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-  MPI_Reduce(&_iops_load, &global_iops_load, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0,
-             MPI_COMM_WORLD);
-  MPI_Reduce(&_iops, &global_iops, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0,
-             MPI_COMM_WORLD);
+  MPI_Reduce(&_iops_load, &global_iops_load, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce(&_iops, &global_iops, 1, MPI_UNSIGNED_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
 
   if (rank == 0) {
-    cout << "[Overall], Load Throughput (ops/sec), " << global_iops_load
-         << endl;
-    cout << "[Overall], Operation Throughput (ops/sec), " << global_iops
-         << endl;
+    cout << "[Overall], Load Throughput (ops/sec), " << global_iops_load << endl;
+    cout << "[Overall], Operation Throughput (ops/sec), " << global_iops << endl;
   }
 }
 
@@ -242,13 +212,10 @@ Workload::~Workload()
 inline string Workload::buildKeyName(uint64_t key_num)
 {
   key_num = ycsbutils::Hash(key_num);
-  // return std::string("user").append(std::to_string(key_num));
+  return std::string("user").append(std::to_string(key_num)).substr(0, 16);
   return (Workload::TABLE + std::to_string(key_num))
       .append(buildValue(atoll(props.getProperty("keybyte").c_str())))
       .substr(0, atoll(props.getProperty("keybyte").c_str()));
 }
 
-inline string Workload::buildValue(uint64_t size)
-{
-  return std::string().append(size, RandomPrintChar());
-}
+inline string Workload::buildValue(uint64_t size) { return std::string().append(size, RandomPrintChar()); }
