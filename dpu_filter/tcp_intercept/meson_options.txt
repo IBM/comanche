@@ -1,0 +1,74 @@
+#
+# Copyright (c) 2021-2023 NVIDIA CORPORATION & AFFILIATES, ALL RIGHTS RESERVED.
+#
+# This software product is a proprietary product of NVIDIA CORPORATION &
+# AFFILIATES (the "Company") and all right, title, and interest in and to the
+# software product, including all associated intellectual property rights, are
+# and shall remain exclusively with the Company.
+#
+# This software product is governed by the End User License Agreement
+# provided with the software product.
+#
+
+option('enable_all_applications', type: 'boolean', value: false,
+	description: 'Enable all DOCA applications.')
+
+option('enable_grpc_support', type: 'boolean', value: false,
+	description: 'Enable all gRPC based DOCA applications.')
+
+option('enable_gpu_support', type: 'boolean', value: false,
+	description: 'Enable all GPU based DOCA applications.')
+
+option('enable_cross_compilation_to_dpu', type: 'boolean', value: false,
+	description: 'Enable cross-compilation mode from host to DPU.')
+
+option('enable_driver_flexio', type: 'boolean', value: true,
+	description: 'Activate the FlexIO driver support when accessible.')
+
+option('enable_driver_ucx', type: 'boolean', value: true,
+	description: 'Activate the UCX driver support when accessible.')
+
+option('enable_developer_log', type: 'boolean', value: false,
+	description: 'Enable developer log.')
+
+# Enables per application - turned off by default
+option('enable_dpa_all_to_all', type: 'boolean', value: false,
+	description: 'Enable All to All DPA application.')
+option('enable_allreduce', type: 'boolean', value: false,
+	description: 'Enable Allreduce application.')
+option('enable_app_shield_agent', type: 'boolean', value: false,
+	description: 'Enable the App Shield Agent application.')
+option('enable_application_recognition', type: 'boolean', value: false,
+	description: 'Enable the Application Recognition application.')
+option('enable_dma_copy', type: 'boolean', value: false,
+	description: 'Enable the DMA copy application.')
+option('enable_dns_filter', type: 'boolean', value: false,
+	description: 'Enable the DNS filter application.')
+option('enable_file_compression', type: 'boolean', value: false,
+	description: 'Enable the File Compression application.')
+option('enable_file_integrity', type: 'boolean', value: false,
+	description: 'Enable the File Integrity application.')
+option('enable_file_scan', type: 'boolean', value: false,
+	description: 'Enable the File Scan application.')
+option('enable_firewall', type: 'boolean', value: false,
+	description: 'Enable Firewall application.')
+option('enable_gpu_packet_processing', type: 'boolean', value: false,
+	description: 'Enable GPUNetIO packet processing application.')
+option('enable_ips', type: 'boolean', value: true,
+	description: 'Enable IPS application.')
+option('enable_ipsec_security_gw', type: 'boolean', value: false,
+	description: 'Enable IPsec Security Gateway application.')
+option('enable_l2_reflector', type: 'boolean', value: false,
+	description: 'Enable L2 Reflector application.')
+option('enable_nat', type: 'boolean', value: false,
+	description: 'Enable NAT application.')
+option('enable_secure_channel', type: 'boolean', value: false,
+	description: 'Enable Secure Channel application.')
+option('enable_simple_fwd_vnf', type: 'boolean', value: false,
+	description: 'Enable Simple Forward VNF application.')
+option('enable_switch', type: 'boolean', value: false,
+	description: 'Enable Switch application.')
+option('enable_url_filter', type: 'boolean', value: false,
+	description: 'Enable URL Filter application.')
+option('enable_yara_inspection', type: 'boolean', value: false,
+	description: 'Enable Yara Inspection application.')
