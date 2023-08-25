@@ -1,0 +1,52 @@
+/*
+ * Copyright (c) 2021-2023 NVIDIA CORPORATION & AFFILIATES, ALL RIGHTS RESERVED.
+ *
+ * This software product is a proprietary product of NVIDIA CORPORATION &
+ * AFFILIATES (the "Company") and all right, title, and interest in and to the
+ * software product, including all associated intellectual property rights, are
+ * and shall remain exclusively with the Company.
+ *
+ * This software product is governed by the End User License Agreement
+ * provided with the software product.
+ *
+ */
+{
+"doca_dpdk_flags":{
+	// -a - Add a device to the allow list.
+	"devices":[
+		{
+			"device": "sf",
+			"id": "4",
+			"sft": true
+		},
+		{
+			"device": "sf",
+			"id": "5",
+			"sft": true
+		}
+	],
+
+	// Additional DPDK (EAL) flags (if needed)
+	"flags": ""
+},
+"doca_general_flags":{
+	// -l - sets the log level for the application DEBUG=60, CRITICAL=20
+	"log-level": 60
+},
+"doca_program_flags":{
+	// -c <path> - Suricata signature file
+	"cdo": "/tmp/ips.cdo",
+
+	// -p - prints FID when matched in DPI engine
+	"print-match": true,
+
+	// -n - collect netflow statistics and set source_id if value is set
+	"netflow": 0,
+
+	// -o - provide a path to the output of the CSV file
+	"output-csv": "",
+
+	// -a - set the regex engine pci address
+	"pci-addr": "03:00.0"
+}
+}

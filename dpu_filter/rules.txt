@@ -1,0 +1,2 @@
+alert udp 10.10.10.112 any -> any any (msg:"Test Message Alert"; flow:to_server; content:"test"; nocase; sid:1000001; rev:1;)
+
