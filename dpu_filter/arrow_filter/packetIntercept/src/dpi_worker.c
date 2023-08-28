@@ -19,6 +19,8 @@
 #include "dpdk_utils.h"
 #include "offload_rules.h"
 #include "doca_compress.h"
+#include "process_data.h" 
+#include "process_buffer.h" 
 
 DOCA_LOG_REGISTER(DWRKR);
 
@@ -262,7 +264,7 @@ static void checksum_calculate(struct rte_mbuf *new_packet)
 	//tcp_hdr = rte_pktmbuf_mtod_offset(new_packet, struct rte_tcp_hdr *, new_packet->l2_len + new_packet->l3_len);
     udp = (struct rte_udp_hdr *)(ipv4_hdr + 1);
 
-
+    
     ptype = rte_net_get_ptype(new_packet, &tx_offload, RTE_PTYPE_ALL_MASK);
 	ipv4_hdr->total_length = rte_cpu_to_be_16(new_packet->pkt_len - sizeof(*eth_hdr));
 
@@ -1566,7 +1568,10 @@ process_packet(struct worker_ctx *ctx)
 				if (new){
 					
    					size_t filtered_size;
-                    unsigned char *filtered_buffer = process_data(data_buffer, total_data_size, &filtered_size);
+
+					unsigned char *filtered_buffer = processParquetData(data_buffer, total_data_size, &filtered_size);
+
+                    //unsigned char *filtered_buffer = process_data(data_buffer, total_data_size, &filtered_size);
                     
     				if (filtered_buffer != NULL) {
         			

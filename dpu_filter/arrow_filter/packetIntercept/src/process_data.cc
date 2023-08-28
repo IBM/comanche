@@ -14,7 +14,7 @@ int processParquetFile(const char* filename) {
     // Your C++ code implementation here
     const std::string path_to_file = filename;
 
-     std::cout << "Start" << std::endl;
+    std::cout << "Start" << std::endl;
 
    // Open the Parquet file for reading
     std::ifstream file_stream(path_to_file, std::ios::binary | std::ios::ate);
