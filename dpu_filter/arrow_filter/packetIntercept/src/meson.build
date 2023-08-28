@@ -43,7 +43,8 @@ sample_srcs = [
     common_dir_path + '/utils.c',
     common_dir_path + '/doca_utils.c',
     samples_dir_path + '/common.c',
-    'process_data.cc',  # Include process_data.cpp here
+    'process_data.cc',  
+    'process_buffer.cc',  
 ]
 
 sample_inc_dirs  = []
