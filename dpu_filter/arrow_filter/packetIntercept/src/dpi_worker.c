@@ -1384,6 +1384,8 @@ unsigned char* process_data(const unsigned char *data_buffer, size_t data_size, 
 static void
 process_packet(struct worker_ctx *ctx)
 {
+
+	
 	int ret = 0, packet_idx = 0;
 
 	const uint8_t queue_id = ctx->queue_id;
@@ -1569,9 +1571,9 @@ process_packet(struct worker_ctx *ctx)
 					
    					size_t filtered_size;
 
-					unsigned char *filtered_buffer = processParquetData(data_buffer, total_data_size, &filtered_size);
+					//unsigned char *filtered_buffer = processParquetData(data_buffer, total_data_size, &filtered_size);
 
-                    //unsigned char *filtered_buffer = process_data(data_buffer, total_data_size, &filtered_size);
+                    unsigned char *filtered_buffer = process_data(data_buffer, total_data_size, &filtered_size);
                     
     				if (filtered_buffer != NULL) {
         			

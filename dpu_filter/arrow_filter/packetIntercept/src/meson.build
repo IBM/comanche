@@ -56,7 +56,9 @@ sample_inc_dirs += include_directories('/opt/mellanox/doca/applications/common/s
 sample_link_args = [
     '-larrow',     # Link with Arrow library
     '-lparquet',   # Link with Parquet library
-	'-Wl,-rpath=/usr/local/lib',  # Add rpath to the library directory
+    '-larrow_dataset',
+    '-larrow_acero',
+    '-Wl,-rpath=/usr/local/lib',  # Add rpath to the library directory
 ]
 
 executable('doca_' + SAMPLE_NAME, sample_srcs,

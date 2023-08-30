@@ -1,14 +1,22 @@
-// process_data.cpp
 #include <iostream>
-#include <fstream>
 #include <vector>
+#include <fstream> 
 #include <arrow/api.h>
 #include <arrow/io/api.h>
 #include <parquet/arrow/reader.h>
+#include <parquet/arrow/writer.h>
+#include <chrono>
+#include <arrow/dataset/api.h>
+#include <arrow/dataset/dataset.h>
+#include <arrow/dataset/discovery.h>
+#include <arrow/compute/api.h>
+#include <arrow/compute/expression.h> // Include this header
+#include <arrow/builder.h>
 
 #include "process_data.h" // Include your header file
 
 extern "C" {
+
 
 int processParquetFile(const char* filename) {
     // Your C++ code implementation here
@@ -16,7 +24,7 @@ int processParquetFile(const char* filename) {
 
     std::cout << "Start" << std::endl;
 
-   // Open the Parquet file for reading
+    // Open the Parquet file for reading
     std::ifstream file_stream(path_to_file, std::ios::binary | std::ios::ate);
     if (!file_stream.is_open()) {
         std::cerr << "Error opening Parquet file" << std::endl;
@@ -62,11 +70,43 @@ int processParquetFile(const char* filename) {
         return 1;
     }
 
+    // Define the filtering condition
+    auto filter_id = 120;
+    auto id_field = arrow::compute::field_ref("ID");
+    auto filter_id_scalar = arrow::compute::literal(filter_id);
+
+
+    auto dataset = std::make_shared<arrow::dataset::InMemoryDataset>(table);
+
+
+    // 2: Build ScannerOptions for a Scanner to do a basic filter operation
+    auto options = std::make_shared<arrow::dataset::ScanOptions>();
+    options->filter = arrow::compute::less(id_field, filter_id_scalar);
+
+
+
+    // 3: Build the Scanner
+    auto builder = arrow::dataset::ScannerBuilder(dataset, options);
+    auto scanner = builder.Finish();
+
+     
+
+    // 4: Perform the Scan and make a Table with the result
+    arrow::Result<std::shared_ptr<arrow::Table>> result = scanner.ValueUnsafe()->ToTable();
+    if (!result.ok()) {
+        std::cerr << "Error filtering Arrow Table: " << result.status().ToString() << std::endl;
+        return 1;
+    }
+    auto filtered_table = result.ValueOrDie();
+
+   
+
     // Display the Arrow table's schema
-    std::cout << "Tablesssd Schema:\n" << table->schema()->ToString() << std::endl;
+    std::cout << "Filtered Table Schema:\n" << filtered_table->schema()->ToString() << std::endl;
 
     // Display the Arrow table's data
-    std::cout << "Table Data:\n" << table->ToString() << std::endl;
+    std::cout << "Filtered Table Data:\n" << filtered_table->ToString() << std::endl;
+
 
     return 0; // Return an appropriate value
 }
