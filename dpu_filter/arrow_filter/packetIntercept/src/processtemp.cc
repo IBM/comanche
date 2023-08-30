@@ -8,9 +8,6 @@
 #include <arrow/dataset/api.h>
 #include <arrow/dataset/dataset.h>
 #include <arrow/dataset/discovery.h>
-#include <arrow/compute/api.h>
-#include <arrow/compute/expression.h> // Include this header
-
 
 #include "process_buffer.h"
 
@@ -18,8 +15,6 @@
 extern "C" {
 
 unsigned char* processParquetData(const unsigned char* data_buffer, size_t data_size, size_t* filtered_buffer_size) {
-    
-    std::cout << "Arrow table  " << std::endl;
     // Initialize Arrow
     arrow::Status status = arrow::Status::OK();
 
@@ -48,47 +43,13 @@ unsigned char* processParquetData(const unsigned char* data_buffer, size_t data_
         return nullptr;
     }
 
-    std::cout << "Arrow table  " << std::endl;
-
     // Modify the Arrow table, e.g., filter rows
     // For simplicity, let's just use the first half of the table
-    //auto sliced_table = table->Slice(0, table->num_rows() / 2);
-
-    // Define the filtering condition
-    // Create an InMemoryDataset from the original table
-   // auto dataset = std::make_shared<arrow::dataset::InMemoryDataset>(table);
-
-    auto filter_date = std::chrono::system_clock::from_time_t(1678320000); // August 7, 2023
-    auto timestamp_type = arrow::timestamp(arrow::TimeUnit::SECOND);
-    auto filter_date_scalar = arrow::MakeScalar(timestamp_type, filter_date).ValueOrDie();
-
-    std::cout << "Filter Date Scalar: " << filter_date_scalar->ToString() << std::endl;
-
-    // 1: Wrap the Table in a Dataset so we can use a Scanner
-    //just (table)?
-    auto dataset = std::make_shared<arrow::dataset::InMemoryDataset>(table);
-
-    // 2: Build ScannerOptions for a Scanner to do a basic filter operation
-    auto options = std::make_shared<arrow::dataset::ScanOptions>();
-    options->filter = arrow::compute::less(
-        arrow::compute::field_ref("timestamp"),
-        arrow::compute::literal(filter_date_scalar));
-
-    // 3: Build the Scanner
-    auto builder = arrow::dataset::ScannerBuilder(dataset, options);
-    auto scanner = builder.Finish();
-
-    // 4: Perform the Scan and make a Table with the result
-    arrow::Result<std::shared_ptr<arrow::Table>> result = scanner.ValueUnsafe()->ToTable();
-    if (!result.ok()) {
-        std::cerr << "Error filtering Arrow Table: " << result.status().ToString() << std::endl;
-        return nullptr;
-    }
-    auto filtered_table = result.ValueOrDie();
+    auto sliced_table = table->Slice(0, table->num_rows() / 2);
 
     // Serialize the modified table to a Parquet buffer
     auto parquet_stream = arrow::io::BufferOutputStream::Create(1024).ValueOrDie();
-    status = parquet::arrow::WriteTable(*filtered_table, arrow::default_memory_pool(), parquet_stream);
+    status = parquet::arrow::WriteTable(*sliced_table, arrow::default_memory_pool(), parquet_stream);
     if (!status.ok()) {
         std::cerr << "Error writing modified Arrow table to Parquet buffer: " << status.ToString() << std::endl;
         return nullptr;

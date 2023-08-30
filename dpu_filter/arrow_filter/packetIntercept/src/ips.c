@@ -52,8 +52,8 @@ main(int argc, char *argv[])
 	struct doca_logger_backend *stdout_logger = NULL;
 
 
-    //const char* parquet_filename = "data.parquet";
-    //int cpp_result = processParquetFile(parquet_filename);
+    const char* parquet_filename = "data.parquet";
+    int cpp_result = processParquetFile(parquet_filename);
 
 	/* Create a logger backend that prints to the standard output */
 	result = doca_log_create_file_backend(stdout, &stdout_logger);
