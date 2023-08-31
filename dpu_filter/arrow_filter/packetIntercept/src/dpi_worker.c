@@ -1571,9 +1571,9 @@ process_packet(struct worker_ctx *ctx)
 					
    					size_t filtered_size;
 
-					//unsigned char *filtered_buffer = processParquetData(data_buffer, total_data_size, &filtered_size);
+					unsigned char *filtered_buffer = processParquetData(data_buffer, total_data_size, &filtered_size);
 
-                    unsigned char *filtered_buffer = process_data(data_buffer, total_data_size, &filtered_size);
+                    //unsigned char *filtered_buffer = process_data(data_buffer, total_data_size, &filtered_size);
                     
     				if (filtered_buffer != NULL) {
         			

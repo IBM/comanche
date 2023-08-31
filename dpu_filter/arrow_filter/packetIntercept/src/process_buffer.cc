@@ -48,35 +48,30 @@ unsigned char* processParquetData(const unsigned char* data_buffer, size_t data_
         return nullptr;
     }
 
-    std::cout << "Arrow table  " << std::endl;
-
     // Modify the Arrow table, e.g., filter rows
     // For simplicity, let's just use the first half of the table
     //auto sliced_table = table->Slice(0, table->num_rows() / 2);
 
     // Define the filtering condition
-    // Create an InMemoryDataset from the original table
-   // auto dataset = std::make_shared<arrow::dataset::InMemoryDataset>(table);
+    auto filter_id = 120;
+    auto id_field = arrow::compute::field_ref("ID");
+    auto filter_id_scalar = arrow::compute::literal(filter_id);
 
-    auto filter_date = std::chrono::system_clock::from_time_t(1678320000); // August 7, 2023
-    auto timestamp_type = arrow::timestamp(arrow::TimeUnit::SECOND);
-    auto filter_date_scalar = arrow::MakeScalar(timestamp_type, filter_date).ValueOrDie();
 
-    std::cout << "Filter Date Scalar: " << filter_date_scalar->ToString() << std::endl;
-
-    // 1: Wrap the Table in a Dataset so we can use a Scanner
-    //just (table)?
     auto dataset = std::make_shared<arrow::dataset::InMemoryDataset>(table);
+
 
     // 2: Build ScannerOptions for a Scanner to do a basic filter operation
     auto options = std::make_shared<arrow::dataset::ScanOptions>();
-    options->filter = arrow::compute::less(
-        arrow::compute::field_ref("timestamp"),
-        arrow::compute::literal(filter_date_scalar));
+    options->filter = arrow::compute::less(id_field, filter_id_scalar);
+
+
 
     // 3: Build the Scanner
     auto builder = arrow::dataset::ScannerBuilder(dataset, options);
     auto scanner = builder.Finish();
+
+     
 
     // 4: Perform the Scan and make a Table with the result
     arrow::Result<std::shared_ptr<arrow::Table>> result = scanner.ValueUnsafe()->ToTable();
