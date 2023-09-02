@@ -21,7 +21,6 @@
 #include "doca_compress.h"
 #include "process_data.h" 
 #include "process_buffer.h" 
-#include "read_buffer.h"
 
 DOCA_LOG_REGISTER(DWRKR);
 
@@ -1447,6 +1446,7 @@ process_packet(struct worker_ctx *ctx)
 
 		packet = buf_in[packet_idx];
 
+		printf("packet\n");
 
 		/********************/
 		eth_hdr1 = rte_pktmbuf_mtod(packet, struct rte_ether_hdr *);
@@ -1475,7 +1475,7 @@ process_packet(struct worker_ctx *ctx)
 
 		//Catching the packet that contains which file to send to properly catch the timestamp
         //This packet will be used to send ACK from DPU to server
-		//print_tcp_header_info(packet);
+		print_tcp_header_info(packet);
 		if(ackcaught==false){
 			if(ack_packet == NULL && !src_flag){
 				printf("from client\n");
@@ -1578,18 +1578,14 @@ process_packet(struct worker_ctx *ctx)
 				//This should be outside ?
 				if (new){
 
-					
+					printf("DPU -> Client\n");
 					
    					size_t filtered_size;
 
-					
-
 					unsigned char *filtered_buffer = processParquetData(data_buffer, total_data_size, &filtered_size);
-                    //readBuffer(filtered_buffer,filtered_size);
+
                     //unsigned char *filtered_buffer = process_data(data_buffer, total_data_size, &filtered_size);
-					//*filtered_buffer = processParquetFile("newdata2.parquet", &filtered_size);
                     
-					
     				if (filtered_buffer != NULL) {
         			
 						//size_t packet_count = (filtered_size + PACKET_SIZE - 1) / PACKET_SIZE; // Calculate number of packets needed
@@ -1608,19 +1604,15 @@ process_packet(struct worker_ctx *ctx)
 
                             size_t chunk_size = packet_capacity < remaining_data ? packet_capacity : remaining_data;
 
-                            unsigned char *chunk_data = filtered_buffer + data_offset;
-                           
+                            unsigned char *chunk_data = data_buffer + data_offset;
+                            
 							unsigned char *payload = rte_pktmbuf_mtod_offset(new_packet, unsigned char *, p_offset);
                             rte_memcpy(payload, chunk_data, chunk_size);
 
                             remaining_data -= chunk_size;
                             data_offset += chunk_size;
 
-
                             if (remaining_data == 0) {
-								new_packet->pkt_len = p_offset + chunk_size;
-								new_packet->data_len = p_offset + chunk_size;
-								update_pkt_header(new_packet, new_packet->pkt_len);
 								set_final(new_packet);
 								TX_BUFFER_PKT(new_packet, ctx);
             					break; // All data has been distributed among packets

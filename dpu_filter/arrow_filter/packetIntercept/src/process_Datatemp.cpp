@@ -1,5 +1,6 @@
 #include <iostream>
 #include <vector>
+#include <fstream> 
 #include <arrow/api.h>
 #include <arrow/io/api.h>
 #include <parquet/arrow/reader.h>
@@ -10,24 +11,45 @@
 #include <arrow/dataset/discovery.h>
 #include <arrow/compute/api.h>
 #include <arrow/compute/expression.h> // Include this header
+#include <arrow/builder.h>
 
-
-#include "process_buffer.h"
-
+#include "process_data.h" // Include your header file
 
 extern "C" {
 
-unsigned char* processParquetData(const unsigned char* data_buffer, size_t data_size, size_t* filtered_buffer_size) {
-    
-    std::cout << "Arrow table  " << std::endl;
+
+int processParquetFile(const char* filename) {
+    // Your C++ code implementation here
+    const std::string path_to_file = filename;
+
+    std::cout << "Start" << std::endl;
+
+    // Open the Parquet file for reading
+    std::ifstream file_stream(path_to_file, std::ios::binary | std::ios::ate);
+    if (!file_stream.is_open()) {
+        std::cerr << "Error opening Parquet file" << std::endl;
+        return 1;
+    }
+
+    // Get the size of the file
+    std::streamsize file_size = file_stream.tellg();
+    file_stream.seekg(0, std::ios::beg);
+
+    // Read the file content into a buffer
+    std::vector<unsigned char> buffer(file_size);
+    if (!file_stream.read(reinterpret_cast<char*>(buffer.data()), file_size)) {
+        std::cerr << "Error reading Parquet file" << std::endl;
+        return 1;
+    }
+
     // Initialize Arrow
     arrow::Status status = arrow::Status::OK();
 
     // Create an Arrow memory pool
     arrow::MemoryPool* pool = arrow::default_memory_pool();
 
-    // Convert the data buffer to an Arrow buffer
-    auto arrow_buffer = std::make_shared<arrow::Buffer>(data_buffer, data_size);
+    // Convert the buffer to an Arrow buffer
+    auto arrow_buffer = std::make_shared<arrow::Buffer>(buffer.data(), file_size);
 
     // Create an Arrow BufferReader from the Arrow buffer
     auto buffer_reader = std::make_shared<arrow::io::BufferReader>(arrow_buffer);
@@ -37,7 +59,7 @@ unsigned char* processParquetData(const unsigned char* data_buffer, size_t data_
     status = parquet::arrow::OpenFile(buffer_reader, pool, &arrow_reader);
     if (!status.ok()) {
         std::cerr << "Error opening Parquet file reader: " << status.ToString() << std::endl;
-        return nullptr;
+        return 1;
     }
 
     // Read entire file as a single Arrow table
@@ -45,15 +67,8 @@ unsigned char* processParquetData(const unsigned char* data_buffer, size_t data_
     status = arrow_reader->ReadTable(&table);
     if (!status.ok()) {
         std::cerr << "Error reading Arrow table: " << status.ToString() << std::endl;
-        return nullptr;
+        return 1;
     }
-
-    // Display the Arrow table's schema
-    //std::cout << "Table Schema:\n" << table->schema()->ToString() << std::endl;
-
-    // Display the Arrow table's data
-    //std::cout << "Table Data:\n" << table->ToString() << std::endl;
-
 
     // Define the filtering condition
     auto filter_id = 120;
@@ -80,40 +95,20 @@ unsigned char* processParquetData(const unsigned char* data_buffer, size_t data_
     arrow::Result<std::shared_ptr<arrow::Table>> result = scanner.ValueUnsafe()->ToTable();
     if (!result.ok()) {
         std::cerr << "Error filtering Arrow Table: " << result.status().ToString() << std::endl;
-        return nullptr;
+        return 1;
     }
     auto filtered_table = result.ValueOrDie();
 
+   
+
     // Display the Arrow table's schema
-    //std::cout << "Filtered Table Schema:\n" << filtered_table->schema()->ToString() << std::endl;
+    std::cout << "Filtered Table Schema:\n" << filtered_table->schema()->ToString() << std::endl;
 
     // Display the Arrow table's data
-    //std::cout << "Table Data:\n" << filtered_table->ToString() << std::endl;
-    std::cout << "Table Data:\n" << std::endl;
+    std::cout << "Filtered Table Data:\n" << filtered_table->ToString() << std::endl;
 
- // Serialize the modified table to a Parquet buffer
-auto parquet_stream = arrow::io::BufferOutputStream::Create().ValueOrDie();
-status = parquet::arrow::WriteTable(*filtered_table, arrow::default_memory_pool(), parquet_stream);
-if (!status.ok()) {
-    std::cerr << "Error writing modified Arrow table to Parquet buffer: " << status.ToString() << std::endl;
-    return nullptr;
-}
-parquet_stream->Close();
 
-// Get the Parquet buffer from the stream
-arrow::Result<std::shared_ptr<arrow::Buffer>> parquet_result = parquet_stream->Finish();
-if (!parquet_result.ok()) {
-    std::cerr << "Error finishing Parquet stream: " << parquet_result.status().ToString() << std::endl;
-    return nullptr;
-}
-std::shared_ptr<arrow::Buffer> parquet_buffer = parquet_result.ValueOrDie();
-*filtered_buffer_size = parquet_buffer->size();
-
-unsigned char* filtered_buffer = static_cast<unsigned char*>(malloc(*filtered_buffer_size));
-memcpy(filtered_buffer, parquet_buffer->data(), *filtered_buffer_size);
-
-return filtered_buffer;
+    return 0; // Return an appropriate value
 }
 
 }
-
