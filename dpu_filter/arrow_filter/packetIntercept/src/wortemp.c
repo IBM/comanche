@@ -25,7 +25,7 @@
 
 DOCA_LOG_REGISTER(DWRKR);
 
-#define BURST_SIZE (1024)			/* Receive burst size */
+#define BURST_SIZE 1024			/* Receive burst size */
 #define NETFLOW_UPDATE_RATE 2000	/* Send netflow update every 2000 packet */
 #define RECEIVER (0x0)			/* Receiver index */
 #define INITIATOR (0x1)			/* Initiator index */
@@ -68,10 +68,8 @@ DOCA_LOG_REGISTER(DWRKR);
 
 
 // Initial size of the dynamic buffer
-#define INITIAL_BUFFER_SIZE 1024*1024*1024
+#define INITIAL_BUFFER_SIZE 1024
 #define PACKET_SIZE 1500 // Define your desired packet size here
-#define GROWTH_FACTOR 1.5 // Adjust as needed
-
 
 unsigned char *data_buffer;
 size_t total_data_size;
@@ -86,11 +84,11 @@ bool first = true;
 bool end;
 bool new = false;
 bool secondpart = false;
-bool stop = false;
-size_t count = 0;
 
 struct rte_mempool *mod_packet_pool; //modified packet pool
 struct rte_mbuf* ack_packet;
+struct rte_mbuf* data_packet;
+struct rte_mbuf* last_packet;
 struct rte_mbuf *ackpacket;
 
 /* To contain packet references of data packets*/
@@ -1427,8 +1425,8 @@ process_packet(struct worker_ctx *ctx)
 	uint32_t finalack = 0;
 	bool tx = true;
 	bool done = false;
-	uint32_t tempack = 0;
-	uint32_t tempseq = 0;
+	uint32_t tempack;
+	uint32_t tempseq;
 	
 
 	struct rte_ether_hdr *eth_hdr1;
@@ -1442,21 +1440,20 @@ process_packet(struct worker_ctx *ctx)
 
 	uint32_t tsval; 
     uint32_t tsecr; 
-    
-	int packet_counter = 0; // Initialize a counter
+
 	
 	/* Inspect each packet in the buffer */
 	for (packet_idx = 0; packet_idx < nb_rx; packet_idx++) {
 		DOCA_DLOG_DBG("================================ port = %d =============================================", ingress_port);
 
 		packet = buf_in[packet_idx];
-        packet_counter++;
+
 
 		/********************/
 		eth_hdr1 = rte_pktmbuf_mtod(packet, struct rte_ether_hdr *);
     	ip_hdr1 = (struct rte_ipv4_hdr *)(eth_hdr1 + 1);
     	tcp_hdr1 = (struct rte_tcp_hdr *)(ip_hdr1 + 1);
-        //count++;
+
 		payload_offset = get_payload_offset(packet);
 		bool src_flag = get_src(packet);
 
@@ -1464,7 +1461,18 @@ process_packet(struct worker_ctx *ctx)
 
 
         // Check if the dynamic buffer has enough space for the new data
-
+        if (total_data_size + p_length - 1 > buffer_size) {
+            // If not, resize the buffer using realloc
+            size_t new_buffer_size = buffer_size * 2;  // Double the size, for example
+            uint8_t *new_data_buffer = (uint8_t *)realloc(data_buffer, new_buffer_size);
+            if (new_data_buffer == NULL) {
+                fprintf(stderr, "Memory reallocation failed\n");
+                free(data_buffer);
+                return 1;
+            }
+            data_buffer = new_data_buffer;
+            buffer_size = new_buffer_size;
+        }
 
 		//Catching the packet that contains which file to send to properly catch the timestamp
         //This packet will be used to send ACK from DPU to server
@@ -1478,63 +1486,43 @@ process_packet(struct worker_ctx *ctx)
 					ack_packet = rte_pktmbuf_copy(packet, mod_packet_pool, 0, payload_offset);
 					ack_packet->pkt_len = payload_offset;
 					ackcaught = true;
-					TX_BUFFER_PKT(packet, ctx);
 		    	}
 		    }
 		}
 
 
         //Catching payload data from server and buffer in the DPU
-		if (new ==false){
         if (src_flag && p_length > 0){
 
-    		size_t required_space = total_data_size + p_length - 1;
-    		if (required_space > buffer_size) {
-   			
-        		size_t new_buffer_size = buffer_size;
+			// Catch the first packet with a payload from server
+			//Do we need it?
+			if(first == true){    
+				//Copying first ACK,PUSH packet from server side
+				data_packet = rte_pktmbuf_copy(packet, mod_packet_pool, 0,  packet->pkt_len);
+				data_packet->pkt_len =  packet->pkt_len;
+				first = false;
+			}
 
-        		while (new_buffer_size < required_space) {
-            		new_buffer_size = (size_t)(new_buffer_size * GROWTH_FACTOR); // Increase buffer size
-        		}
-
-
-        		uint8_t *new_data_buffer = (uint8_t *)realloc(data_buffer, new_buffer_size);
-        		if (new_data_buffer == NULL) {
-            		fprintf(stderr, "Memory reallocation failed\n");
-            		free(data_buffer);
-            		return 1;
-        		}
-
-        		data_buffer = new_data_buffer;
-        		buffer_size = new_buffer_size;
-    		}
-
-
-            printf("Before copy%d\n", total_data_size);
         	// Copy payload data to the buffer
         	rte_memcpy(data_buffer + total_data_size, rte_pktmbuf_mtod_offset(packet, unsigned char*, payload_offset), p_length);
 			total_data_size += p_length;
-			
-	
+
             //Packet array is used later to send packets from DPU to client
 			add_packet(&packet_array, packet);
-			
 
 			print_tcp_header_info(packet);
-			
 
 			//Catch last packet that indicates end of session
 			if (tcp_hdr1->tcp_flags & TCP_FIN_FLAG) {
-
 				end = true;
+				//do we need it?
+				last_packet = rte_pktmbuf_copy(packet, mod_packet_pool, 0,  packet->pkt_len);
+				last_packet->pkt_len =  packet->pkt_len;
 			}
-            
-			printf("Copied data%d\n", total_data_size);
+
 
             //If we already have caught the ACK packet from client, send ACKs from DPU -> Server
 			if(ack_packet!= NULL){  
-
-				printf("Sending ack\n");
 
 				struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(ack_packet, struct rte_ether_hdr *);
     			struct rte_ipv4_hdr *ip_hdr = (struct rte_ipv4_hdr *)(eth_hdr + 1);
@@ -1547,10 +1535,8 @@ process_packet(struct worker_ctx *ctx)
 				update_pkt_header(ack_packet, ack_packet->pkt_len);
 
 	            //TODO: check if this is actually needed or not
-				//if (total_data_size > 1024*1024){
-				//uint16_t tmpwin = 3000;//rte_be_to_cpu_16(tcp_hdr->rx_win);
-                //tcp_hdr->rx_win = rte_cpu_to_be_16(tmpwin);
-				//}
+				uint16_t tmpwin = rte_be_to_cpu_16(tcp_hdr->rx_win);
+                tcp_hdr->rx_win = rte_cpu_to_be_16(tmpwin);
 
 				ack_packet->ol_flags |= RTE_MBUF_F_TX_IEEE1588_TMST;
 				//Offload checksum calculation to the hardware
@@ -1561,8 +1547,7 @@ process_packet(struct worker_ctx *ctx)
 
 			    if (end) {
 
-				    //printf("final ack oack\n");
-					//printf("Sequence Number: %u\n", tempack);
+				
 
 				    tempack += 1; // Not sure why we have to add 1, but it works this way for the last packet
 					tcp_hdr->sent_seq = rte_cpu_to_be_32(tempseq);
@@ -1573,16 +1558,10 @@ process_packet(struct worker_ctx *ctx)
                     tcp_hdr->tcp_flags |= RTE_TCP_ACK_FLAG | RTE_TCP_FIN_FLAG;
 					
 					new = true;
-                //TX_BUFFER_PKT(ack_packet, ctx);
-				//rte_eth_tx_buffer_flush(egress_port, queue_id, ctx->tx_buffer[egress_port]);
-                 rte_eth_tx_burst(ingress_port, queue_id, &ack_packet, 1);
 
 				}else{
 
-				    printf("ack oack\n");
-					printf("ack Number: %u\n", tempack);
-
-					
+				
 
 					tcp_hdr->tcp_flags &= RTE_TCP_ACK_FLAG;
                     // Set the ACK flag
@@ -1590,35 +1569,15 @@ process_packet(struct worker_ctx *ctx)
 
 	                tcp_hdr->sent_seq = rte_cpu_to_be_32(tempseq);
 				    tcp_hdr->recv_ack = rte_cpu_to_be_32(tempack);
-					//print_tcp_header_info(ack_packet);
-                    
-					
-        			
-        				
-
-if( packet_idx%10 == 0){
-	rte_eth_tx_burst(ingress_port, queue_id, &ack_packet, 1);
-				//	TX_BUFFER_PKT(ack_packet, ctx);
-				//rte_eth_tx_buffer(ack_packet->port, ctx->queue_id, ctx->tx_buffer[ingress_port], ack_packet);
-				//rte_eth_tx_buffer_flush(egress_port, queue_id, ctx->tx_buffer[egress_port]);
-
-}
-                
 				}
 
+                TX_BUFFER_PKT(ack_packet, ctx);
+				rte_eth_tx_buffer_flush(egress_port, queue_id, ctx->tx_buffer[egress_port]);
 
-                
 
                 //Send data packets from DPU to client
 				//This should be outside ?
-
-
-			}
-            //do not send the packets that have data
-			continue;
-		}
-
-		}else{
+				if (new){
 
 					
 					
@@ -1679,7 +1638,6 @@ if( packet_idx%10 == 0){
 							
 					
         				// Filter the data buffer
-						stop = true;
         				free(filtered_buffer);
     				}
 					
@@ -1688,20 +1646,20 @@ if( packet_idx%10 == 0){
 					new == false;
 				}
 
+			}
+            //do not send the packets that have data
+			continue;
+		}
+
 		//if (ackcaught == true && !src_flag){
 			// Do not transfer packets from client after catching the packet with file name
 		//	continue;
 		//}
-		if(ackcaught == false){
-			TX_BUFFER_PKT(packet, ctx);
-			
-		}else{
-			//if(new == false ){
-			//	TX_BUFFER_PKT(packet, ctx);
-			//}
-		}
-		//new flag indicates the connection from DPU to client, aka after receiving packets from server in the DPU buffer
 
+		//new flag indicates the connection from DPU to client, aka after receiving packets from server in the DPU buffer
+		if(new == false){
+			TX_BUFFER_PKT(packet, ctx);
+		}
 		//else free the packet?
 
 
@@ -1712,11 +1670,11 @@ if( packet_idx%10 == 0){
 		DOCA_DLOG_DBG("\n");
 	}
 
+
 	//dequeue_from_dpi(ctx);
 	/* Flush ready to send packets */
 	rte_eth_tx_buffer_flush(egress_port, queue_id, ctx->tx_buffer[egress_port]);
-	//rte_eth_tx_buffer_flush(ingress_port, queue_id, ctx->tx_buffer[ingress_port]);
-
+	
 	clear_aged_flows(ctx);
 }
 
@@ -1767,8 +1725,8 @@ dpi_worker(void *worker)
 	ackcaught=false;
 	ack_packet = NULL;
     ackpacket = NULL;
-
-
+	data_packet = NULL;
+	last_packet = NULL;
 	end = false;
 	init_packet_array(&packet_array);
 
@@ -1800,28 +1758,14 @@ dpi_worker(void *worker)
 	/* Run until the application is quit or killed */
 	while (!force_quit) {
 		for (port = 0; port < nb_ports; port++) {
-			//clear_aged_flows(ctx);
 			ctx->ingress_port = port;
-			if (stop == false){
 			process_packet(ctx);
-			}else{
-				break;
-			}
-		}
-		if(stop == true){
-			printf("Breaking\n");
-			free(data_buffer);
-			free(packet_array.packets);
-			total_data_size = 0;
-            buffer_size = INITIAL_BUFFER_SIZE;
-			clear_aged_flows(ctx);
-			break;
 		}
 	}
 
-    
+    free(packet_array.packets);
   // Open a file for writing
-  /*  FILE *output_file = fopen("output.txt", "wb"); // "wb" for binary mode
+    FILE *output_file = fopen("output.txt", "wb"); // "wb" for binary mode
 
     if (output_file == NULL) {
         fprintf(stderr, "Failed to open output file\n");
@@ -1835,8 +1779,8 @@ dpi_worker(void *worker)
     }
 
     // Close the file
-    fclose(output_file);*/
-	
+    fclose(output_file);
+	free(data_buffer);
 
 thread_out:
 	for (port = 0; port < nb_ports; port++)
