@@ -1,97 +1,128 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 #include <arpa/inet.h>
 
-#define SERVER_IP "192.168.0.42"
-#define SERVER_PORT 8888
-#define MIDDLE_PORT 8888
-#define FILENAME_SIZE 256
+#define CLIENT_TCP_PORT 8888
+#define SERVER_TCP_PORT 8888
+#define CLIENT_IP "192.168.0.154" // Client's IP address
+#define SERVER_IP "192.168.0.42"  // Server's IP address
+#define BUFFER_SIZE 1024
 
 int main() {
-    int middle_sock, server_sock, client_sock;
-    struct sockaddr_in middle_addr, server_addr, client_addr;
-    socklen_t client_len = sizeof(client_addr);
-    char filename[FILENAME_SIZE];
-    FILE *file;
+    int serverSock, clientSock;
+    struct sockaddr_in serverAddr, clientAddr;
+    socklen_t clientAddrLen = sizeof(clientAddr); // Initialize clientAddrLen
+    char buffer[BUFFER_SIZE];
 
-    middle_sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (middle_sock < 0) {
-        perror("Error creating middle socket");
-        exit(EXIT_FAILURE);
+    // Create a TCP socket to wait for the client connection
+    serverSock = socket(AF_INET, SOCK_STREAM, 0);
+    if (serverSock < 0) {
+        perror("Error creating server socket");
+        exit(1);
     }
 
-    memset(&middle_addr, 0, sizeof(middle_addr));
-    middle_addr.sin_family = AF_INET;
-    middle_addr.sin_addr.s_addr = INADDR_ANY;
-    middle_addr.sin_port = htons(MIDDLE_PORT);
+    memset(&serverAddr, 0, sizeof(serverAddr));
 
-    if (bind(middle_sock, (struct sockaddr *)&middle_addr, sizeof(middle_addr)) < 0) {
-        perror("Error binding middle socket");
-        close(middle_sock);
-        exit(EXIT_FAILURE);
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_port = htons(CLIENT_TCP_PORT);
+    serverAddr.sin_addr.s_addr = INADDR_ANY;
+
+    // Bind the socket to the specified IP address and port
+    if (bind(serverSock, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
+        perror("Error in bind");
+        exit(1);
     }
 
-    if (listen(middle_sock, 1) < 0) {
-        perror("Error listening on middle socket");
-        close(middle_sock);
-        exit(EXIT_FAILURE);
+    // Listen for incoming client connections
+    if (listen(serverSock, 5) < 0) {
+        perror("Error in listen");
+        exit(1);
     }
+
+    printf("Middle machine waiting for client connection.\n");
 
     while (1) {
-        client_sock = accept(middle_sock, (struct sockaddr *)&client_addr, &client_len);
-        if (client_sock < 0) {
-            perror("Error accepting client connection");
-            continue;
+        // Accept incoming client connection
+        clientSock = accept(serverSock, (struct sockaddr *)&clientAddr, &clientAddrLen);
+        if (clientSock < 0) {
+            perror("Error in accept");
+            continue;  // Continue waiting for the next client
         }
 
-        // Receive file name from client
-        memset(filename, 0, sizeof(filename));
-        recv(client_sock, filename, sizeof(filename), 0);
+        printf("Connected to the client.\n");
 
-        // Request file from server
-        server_sock = socket(AF_INET, SOCK_STREAM, 0);
-        if (server_sock < 0) {
+        // Receive the filename from the client
+        memset(buffer, 0, BUFFER_SIZE);
+        int bytesReadFromClient = recv(clientSock, buffer, BUFFER_SIZE, 0);
+        if (bytesReadFromClient <= 0) {
+            perror("Error receiving filename from client");
+            close(clientSock);
+            continue;  // Continue waiting for the next client
+        }
+
+        // Create a TCP socket to connect to the server
+        int serverSock = socket(AF_INET, SOCK_STREAM, 0);
+        if (serverSock < 0) {
             perror("Error creating server socket");
-            close(client_sock);
-            continue;
+            close(clientSock);
+            continue;  // Continue waiting for the next client
         }
 
-        memset(&server_addr, 0, sizeof(server_addr));
-        server_addr.sin_family = AF_INET;
-        server_addr.sin_addr.s_addr = inet_addr(SERVER_IP);
-        server_addr.sin_port = htons(SERVER_PORT);
+        memset(&serverAddr, 0, sizeof(serverAddr));
 
-        if (connect(server_sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        serverAddr.sin_family = AF_INET;
+        serverAddr.sin_port = htons(SERVER_TCP_PORT);
+        if (inet_aton(SERVER_IP, &serverAddr.sin_addr) == 0) {
+            perror("Error in inet_aton for server");
+            close(clientSock);
+            close(serverSock);
+            continue;  // Continue waiting for the next client
+        }
+
+        // Connect to the server
+        if (connect(serverSock, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
             perror("Error connecting to server");
-            close(server_sock);
-            close(client_sock);
-            continue;
+            close(clientSock);
+            close(serverSock);
+            continue;  // Continue waiting for the next client
         }
 
-        send(server_sock, filename, strlen(filename), 0);
+        printf("Connected to the server.\n");
 
-        // Send the file back to the client
-        file = fopen(filename, "rb");
-        if (file == NULL) {
-            perror("Error opening file");
-            close(server_sock);
-            close(client_sock);
-            continue;
+        // Send the filename to the server
+        int bytesSentToServer = send(serverSock, buffer, bytesReadFromClient, 0);
+        if (bytesSentToServer <= 0) {
+            perror("Error sending filename to server");
+            close(clientSock);
+            close(serverSock);
+            continue;  // Continue waiting for the next client
         }
 
-        char buffer[1024];
-        int bytes_read;
-        while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0) {
-            send(client_sock, buffer, bytes_read, 0);
+        // Receive data from the server and forward it to the client
+        while (1) {
+            int bytesReadFromServer = recv(serverSock, buffer, BUFFER_SIZE, 0);
+            if (bytesReadFromServer <= 0) {
+                // End of file or error receiving from server
+                break;
+            }
+
+            // Send data to the client
+            int bytesSentToClient = send(clientSock, buffer, bytesReadFromServer, 0);
+            if (bytesSentToClient <= 0) {
+                perror("Error sending data to client");
+                break;
+            }
         }
 
-        fclose(file);
-        close(server_sock);
-        close(client_sock);
+        printf("File forwarded between the client and the server.\n");
+
+        // Close the sockets
+        close(clientSock);
+        close(serverSock);
     }
 
-    close(middle_sock);
     return 0;
 }

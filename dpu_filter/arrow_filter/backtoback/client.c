@@ -1,55 +1,88 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 
-#define MIDDLE_IP "192.168.0.156"
-#define MIDDLE_PORT 8888
-#define FILENAME_SIZE 256
+#define TCP_PORT 8888
+#define SERVER_IP "192.168.0.156" // Replace with the server's IP address
+#define BUFFER_SIZE 1024
 
 int main() {
     int sockfd;
-    struct sockaddr_in middle_addr;
-    char filename[FILENAME_SIZE];
-    FILE *file;
+    struct sockaddr_in serverAddr;
+    char buffer[BUFFER_SIZE];
 
+    // Create a TCP socket
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
-        perror("Error creating socket");
-        exit(EXIT_FAILURE);
+        perror("Error in socket");
+        exit(1);
     }
 
-    memset(&middle_addr, 0, sizeof(middle_addr));
-    middle_addr.sin_family = AF_INET;
-    middle_addr.sin_addr.s_addr = inet_addr(MIDDLE_IP);
-    middle_addr.sin_port = htons(MIDDLE_PORT);
+    memset(&serverAddr, 0, sizeof(serverAddr));
 
-    if (connect(sockfd, (struct sockaddr *)&middle_addr, sizeof(middle_addr)) < 0) {
-        perror("Error connecting to middle machine");
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_port = htons(TCP_PORT);
+    if (inet_aton(SERVER_IP, &serverAddr.sin_addr) == 0) {
+        perror("Error in inet_aton");
+        exit(1);
+    }
+
+    // Connect to the server
+    if (connect(sockfd, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
+        perror("Error in connect");
+        exit(1);
+    }
+
+    printf("Connected to the server.\n");
+
+    // Get the filename from the user
+    printf("Enter the filename you want to request: ");
+    scanf("%s", buffer);
+
+    // Send the filename to the server
+    int bytesSent = send(sockfd, buffer, strlen(buffer), 0);
+    if (bytesSent <= 0) {
+        perror("Error in sending filename");
         close(sockfd);
-        exit(EXIT_FAILURE);
+        exit(1);
     }
 
-    printf("Enter file name: ");
-    scanf("%s", filename);
-    send(sockfd, filename, strlen(filename), 0);
-
-    // Receive file from middle machine
-    file = fopen(filename, "wb");
+    // Open the file for writing
+    FILE *file = fopen(buffer, "wb");
     if (file == NULL) {
         perror("Error opening file");
         close(sockfd);
-        exit(EXIT_FAILURE);
+        exit(1);
     }
 
-    char buffer[1024];
-    int bytes_received;
-    while ((bytes_received = recv(sockfd, buffer, sizeof(buffer), 0)) > 0) {
-        fwrite(buffer, 1, bytes_received, file);
+    // Receive file contents from the server
+    while (1) {
+        // Receive data from the server
+        int bytesRead = recv(sockfd, buffer, BUFFER_SIZE, 0);
+        if (bytesRead < 0) {
+            // Error receiving
+            perror("Error receiving data from server");
+            break;
+        } else if (bytesRead == 0) {
+            // End of file
+            break;
+        }
+
+        // Write data to the file
+        int bytesWritten = fwrite(buffer, 1, bytesRead, file);
+        if (bytesWritten < bytesRead) {
+            perror("Error writing to file");
+            break;
+        }
     }
 
+    printf("File received from the server.\n");
+
+    // Close the file and the socket
     fclose(file);
     close(sockfd);
+
     return 0;
 }
