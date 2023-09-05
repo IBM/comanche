@@ -6,28 +6,19 @@
 #include <arpa/inet.h>
 
 #define UDP_PORT 12345
+#define FILE_DIRECTORY "/mnt/ssd/"
 #define BUFFER_SIZE 1024
-#define INTERFACE_NAME "ens785f0np0"
-#define SERVER_IP "10.10.10.111"
-#define RESPONSE_MESSAGE "Hello client!"
 
 int main() {
     int sockfd;
     struct sockaddr_in serverAddr, clientAddr;
-    socklen_t clientAddrLen = sizeof(clientAddr);  // Initialize clientAddrLen
+    socklen_t clientAddrLen = sizeof(clientAddr); // Initialize clientAddrLen
     char buffer[BUFFER_SIZE];
 
     // Create a UDP socket
-    
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     if (sockfd < 0) {
         perror("Error in socket");
-        exit(1);
-    }
-
-    // Set the network interface for socket binding
-    if (setsockopt(sockfd, SOL_SOCKET, SO_BINDTODEVICE, INTERFACE_NAME, strlen(INTERFACE_NAME)) < 0) {
-        perror("Error in setsockopt");
         exit(1);
     }
 
@@ -35,7 +26,7 @@ int main() {
 
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_port = htons(UDP_PORT);
-    serverAddr.sin_addr.s_addr = inet_addr(SERVER_IP);
+    serverAddr.sin_addr.s_addr = INADDR_ANY;
 
     // Bind the socket to the specified IP address and port
     if (bind(sockfd, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
@@ -43,33 +34,56 @@ int main() {
         exit(1);
     }
 
-    printf("Server listening on %s:%d\n", SERVER_IP, UDP_PORT);
+    printf("Server listening on port %d\n", UDP_PORT);
 
     while (1) {
+        // Receive the filename requested by the client
         memset(buffer, 0, BUFFER_SIZE);
-
-        // Receive incoming messages
-        ssize_t numBytes = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&clientAddr, &clientAddrLen);
+        ssize_t numBytes = recvfrom(sockfd, buffer, BUFFER_SIZE - 1, 0, (struct sockaddr *)&clientAddr, &clientAddrLen);
         if (numBytes < 0) {
-            perror("Error in recvfrom");
-            exit(1);
+            perror("Error in receiving filename");
+            continue;
         }
 
-        char clientIP[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET, &(clientAddr.sin_addr), clientIP, INET_ADDRSTRLEN);
+        // Null-terminate the received filename
+        buffer[numBytes] = '\0';
 
-        printf("Received message: '%s' from %s:%d\n", buffer, clientIP, ntohs(clientAddr.sin_port));
+        // Create the complete path to the file
+        char filepath[BUFFER_SIZE];
+        snprintf(filepath, sizeof(filepath), "%s%s", FILE_DIRECTORY, buffer);
 
-        // Send response back to the client
-        serverAddr.sin_addr.s_addr = clientAddr.sin_addr.s_addr; // Update the server address to the client's address
-        numBytes = sendto(sockfd, RESPONSE_MESSAGE, strlen(RESPONSE_MESSAGE), 0, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
-        if (numBytes < 0) {
-            perror("Error in sendto");
-            exit(1);
+        // Open the file for reading
+        FILE *file = fopen(filepath, "rb");
+        if (file == NULL) {
+            perror("Error opening file");
+            continue;
         }
 
-        printf("Sent response: '%s' to %s:%d\n", RESPONSE_MESSAGE, clientIP, ntohs(clientAddr.sin_port));
+        // Send file contents to the client
+        while (1) {
+            // Read data from the file
+            int bytesRead = fread(buffer, 1, BUFFER_SIZE, file);
+            if (bytesRead <= 0) {
+                // End of file or error reading
+                break;
+            }
+
+            // Send data to the client
+            ssize_t bytesSent = sendto(sockfd, buffer, bytesRead, 0, (struct sockaddr *)&clientAddr, clientAddrLen);
+            if (bytesSent <= 0) {
+                perror("Error in sending file");
+                break;
+            }
+        }
+
+        printf("File sent to the client.\n");
+
+        // Close the file
+        fclose(file);
     }
+
+    // Close the socket
+    close(sockfd);
 
     return 0;
 }
