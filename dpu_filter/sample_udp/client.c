@@ -5,14 +5,12 @@
 #include <netinet/in.h>
 
 #define UDP_PORT 12345
-#define SERVER_IP "10.10.10.111"
-#define CLIENT_IP "10.10.10.112"
-#define MESSAGE "test"
+#define SERVER_IP "10.10.10.111" // Replace with the server's IP address
 #define BUFFER_SIZE 1024
 
 int main() {
     int sockfd;
-    struct sockaddr_in serverAddr, clientAddr;
+    struct sockaddr_in serverAddr;
     char buffer[BUFFER_SIZE];
 
     // Create a UDP socket
@@ -31,40 +29,50 @@ int main() {
         exit(1);
     }
 
-    memset(&clientAddr, 0, sizeof(clientAddr));
+    // Get the filename from the user
+    printf("Enter the filename you want to request: ");
+    scanf("%s", buffer);
 
-    clientAddr.sin_family = AF_INET;
-    clientAddr.sin_port = htons(UDP_PORT);
-    if (inet_aton(CLIENT_IP, &clientAddr.sin_addr) == 0) {
-        perror("Error in inet_aton");
+    // Send the filename to the server
+    int bytesSent = sendto(sockfd, buffer, strlen(buffer), 0, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
+    if (bytesSent <= 0) {
+        perror("Error in sending filename");
+        close(sockfd);
         exit(1);
     }
 
-    // Bind the socket to the specified IP address and port
-    if (bind(sockfd, (struct sockaddr *)&clientAddr, sizeof(clientAddr)) < 0) {
-        perror("Error in bind");
+    // Open the file for writing
+    FILE *file = fopen(buffer, "wb");
+    if (file == NULL) {
+        perror("Error opening file");
+        close(sockfd);
         exit(1);
     }
 
-    printf("Client sending message: '%s' to %s:%d\n", MESSAGE, SERVER_IP, UDP_PORT);
+    // Receive file contents from the server
+    while (1) {
+        // Receive data from the server
+        struct sockaddr_in clientAddr;
+        socklen_t clientAddrLen = sizeof(clientAddr);
+        int bytesRead = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&clientAddr, &clientAddrLen);
+        if (bytesRead <= 0) {
+            // End of file or error receiving
+            break;
+        }
 
-    // Send message to the server
-    ssize_t numBytes = sendto(sockfd, MESSAGE, strlen(MESSAGE), 0, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
-    if (numBytes < 0) {
-        perror("Error in sendto");
-        exit(1);
+        // Write data to the file
+        int bytesWritten = fwrite(buffer, 1, bytesRead, file);
+        if (bytesWritten < bytesRead) {
+            perror("Error writing to file");
+            break;
+        }
     }
 
-    memset(buffer, 0, BUFFER_SIZE);
+    printf("File received from the server.\n");
 
-    // Receive response from the server
-    numBytes = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, NULL, NULL);
-    if (numBytes < 0) {
-        perror("Error in recvfrom");
-        exit(1);
-    }
-
-    printf("Received response: '%s'\n", buffer);
+    // Close the file and the socket
+    fclose(file);
+    close(sockfd);
 
     return 0;
 }
