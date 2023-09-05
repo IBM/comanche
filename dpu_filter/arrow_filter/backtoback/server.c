@@ -5,7 +5,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#define TCP_PORT 8888  // Change this to the desired port
+#define TCP_PORT 8888
 #define FILE_DIRECTORY "/mnt/ssd/"
 #define BUFFER_SIZE 1024
 
