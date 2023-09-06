@@ -10,7 +10,7 @@
 #define SERVER_TCP_PORT 8888
 #define CLIENT_IP "192.168.0.154" // Client's IP address
 #define SERVER_IP "192.168.0.42"  // Server's IP address
-#define BUFFER_SIZE 1024
+#define BUFFER_SIZE (1024*1024)
 #define FILE_DATA_BUFFER_SIZE (1024 * 1024 * 1024) // 1024KB
 
 int main() {
@@ -153,7 +153,7 @@ int main() {
             perror("Error filtering buffer");
             exit(1);
         }
-        printf("Not Filtered.\n");
+    
         
         // Forward data from the buffer to the client
         size_t bytesSentToClient = 0;
