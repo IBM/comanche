@@ -3,18 +3,21 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <time.h>
+#include <sys/time.h>
 
 #define TCP_PORT 8888
 #define SERVER_IP "192.168.0.156" // Replace with the server's IP address
 #define BUFFER_SIZE 1024
 
+long long get_elapsed_milliseconds(struct timeval start_time, struct timeval end_time) {
+    return (end_time.tv_sec - start_time.tv_sec) * 1000LL +
+           (end_time.tv_usec - start_time.tv_usec) / 1000LL;
+}
 
 int main() {
     int sockfd;
     struct sockaddr_in serverAddr;
     char buffer[BUFFER_SIZE];
-    clock_t start_time, end_time;
 
     // Create a TCP socket
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -45,7 +48,8 @@ int main() {
     scanf("%s", buffer);
 
     // Measure the time before sending the file name
-    start_time = clock();
+    struct timeval start_time;
+    gettimeofday(&start_time, NULL);
 
     // Send the filename to the server
     int bytesSent = send(sockfd, buffer, strlen(buffer), 0);
@@ -85,9 +89,10 @@ int main() {
     }
 
     // Measure the time after receiving the file
-    end_time = clock();
-    double elapsed_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
-    printf("File received in %.2f seconds\n", elapsed_time);   
+    struct timeval end_time;
+    gettimeofday(&end_time, NULL);
+    long long elapsed_time_ms = get_elapsed_milliseconds(start_time, end_time);
+    printf("File received in %lld milliseconds\n", elapsed_time_ms);
 
     // Close the file and the socket
     fclose(file);
