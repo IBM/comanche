@@ -1,128 +1,74 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
 #include <arpa/inet.h>
+#include <unistd.h>
 
-#define CLIENT_TCP_PORT 8888
-#define SERVER_TCP_PORT 8888
-#define CLIENT_IP "192.168.0.154" // Client's IP address
-#define SERVER_IP "192.168.0.42"  // Server's IP address
+#define SERVER_IP "10.10.10.111"
+#define SERVER_PORT 8888
 #define BUFFER_SIZE 1024
 
 int main() {
-    int serverSock, clientSock;
-    struct sockaddr_in serverAddr, clientAddr;
-    socklen_t clientAddrLen = sizeof(clientAddr);
+    int sockfd;
+    struct sockaddr_in server_addr;
+    char filename[BUFFER_SIZE];
     char buffer[BUFFER_SIZE];
-    char received_data[BUFFER_SIZE]; // Buffer to store received data
+    FILE *file;
+    clock_t start_time, end_time;
 
-    // Create a TCP socket to wait for the client connection
-    serverSock = socket(AF_INET, SOCK_STREAM, 0);
-    if (serverSock < 0) {
-        perror("Error creating server socket");
-        exit(1);
+    // Create UDP socket
+    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sockfd < 0) {
+        perror("Error creating socket");
+        exit(EXIT_FAILURE);
     }
 
-    memset(&serverAddr, 0, sizeof(serverAddr));
-    serverAddr.sin_family = AF_INET;
-    serverAddr.sin_port = htons(CLIENT_TCP_PORT);
-    serverAddr.sin_addr.s_addr = INADDR_ANY;
-
-    // Bind the socket to the specified IP address and port
-    if (bind(serverSock, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
-        perror("Error in bind");
-        exit(1);
-    }
-
-    // Listen for incoming client connections
-    if (listen(serverSock, 5) < 0) {
-        perror("Error in listen");
-        exit(1);
-    }
-
-    printf("Middle machine waiting for client connection.\n");
+    // Configure server address
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = inet_addr(SERVER_IP);
+    server_addr.sin_port = htons(SERVER_PORT);
 
     while (1) {
-        // Accept incoming client connection
-        clientSock = accept(serverSock, (struct sockaddr *)&clientAddr, &clientAddrLen);
-        if (clientSock < 0) {
-            perror("Error in accept");
-            continue;  // Continue waiting for the next client
+        printf("Enter file name: ");
+        scanf("%s", filename);
+        
+        // Measure the time before sending the file name
+        start_time = clock();
+        // Send file name request to server
+        sendto(sockfd, filename, strlen(filename), 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
+
+        // Create file to store received data
+        file = fopen(filename, "wb");
+        if (file == NULL) {
+            perror("Error opening file");
+            continue;
         }
 
-        printf("Connected to the client.\n");
-
-        // Receive the filename from the client
-        memset(buffer, 0, BUFFER_SIZE);
-        int bytesReadFromClient = recv(clientSock, buffer, BUFFER_SIZE, 0);
-        if (bytesReadFromClient <= 0) {
-            perror("Error receiving filename from client");
-            close(clientSock);
-            continue;  // Continue waiting for the next client
-        }
-
-        // Create a TCP socket to connect to the server
-        int serverSock = socket(AF_INET, SOCK_STREAM, 0);
-        if (serverSock < 0) {
-            perror("Error creating server socket");
-            close(clientSock);
-            continue;  // Continue waiting for the next client
-        }
-
-        memset(&serverAddr, 0, sizeof(serverAddr));
-
-        serverAddr.sin_family = AF_INET;
-        serverAddr.sin_port = htons(SERVER_TCP_PORT);
-        if (inet_aton(SERVER_IP, &serverAddr.sin_addr) == 0) {
-            perror("Error in inet_aton for server");
-            close(clientSock);
-            close(serverSock);
-            continue;  // Continue waiting for the next client
-        }
-
-        // Connect to the server
-        if (connect(serverSock, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
-            perror("Error connecting to server");
-            close(clientSock);
-            close(serverSock);
-            continue;  // Continue waiting for the next client
-        }
-
-        printf("Connected to the server.\n");
-
-        // Send the filename to the server
-        int bytesSentToServer = send(serverSock, buffer, bytesReadFromClient, 0);
-        if (bytesSentToServer <= 0) {
-            perror("Error sending filename to server");
-            close(clientSock);
-            close(serverSock);
-            continue;  // Continue waiting for the next client
-        }
-
-        // Receive data from the server and store it in received_data
-        size_t total_received_size = 0;
+        // Receive and write file data
         while (1) {
-            int bytesReadFromServer = recv(serverSock, received_data + total_received_size, BUFFER_SIZE, 0);
-            if (bytesReadFromServer <= 0) {
-                // End of file or error receiving from server
+            memset(buffer, 0, sizeof(buffer));
+            int bytes_received = recvfrom(sockfd, buffer, sizeof(buffer), 0, NULL, NULL);
+            if (bytes_received <= 0) {
                 break;
             }
-            total_received_size += bytesReadFromServer;
+
+            // Check for the END marker
+            if (strcmp(buffer, "END") == 0) {
+                break;
+            }
+
+            fwrite(buffer, 1, bytes_received, file);
         }
 
-        // Send the received_data to the client
-        int bytesSentToClient = send(clientSock, received_data, total_received_size, 0);
-        if (bytesSentToClient <= 0) {
-            perror("Error sending data to client");
-        }
+        fclose(file);
+        // Measure the time after receiving the file
+        end_time = clock();
+        double elapsed_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
+        printf("File received: %s, Time taken: %.2f seconds\n", filename, elapsed_time);
 
-        printf("File forwarded between the client and the server.\n");
-
-        // Close the sockets
-        close(clientSock);
-        close(serverSock);
     }
 
+    close(sockfd);
     return 0;
 }
