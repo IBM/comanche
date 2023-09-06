@@ -7,7 +7,7 @@
 
 #define TCP_PORT 8888
 #define SERVER_IP "192.168.0.156" // Replace with the server's IP address
-#define BUFFER_SIZE 1024
+#define BUFFER_SIZE (1024*1024) //1024
 
 long long get_elapsed_milliseconds(struct timeval start_time, struct timeval end_time) {
     return (end_time.tv_sec - start_time.tv_sec) * 1000LL +
