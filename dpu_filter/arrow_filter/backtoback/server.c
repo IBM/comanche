@@ -7,7 +7,7 @@
 
 #define TCP_PORT 8888
 #define FILE_DIRECTORY "/mnt/ssd/"
-#define BUFFER_SIZE 1024
+#define BUFFER_SIZE (1024*1024) //1024
 
 int main() {
     int sockfd, newsockfd;
