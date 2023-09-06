@@ -1,0 +1,3 @@
+#./filtertime.sh ./processFile 110:/mnt/ssd/data_100.parquet 200:/mnt/ssd/data_1000.parquet 1100:/mnt/ssd/data_10000.parquet 10100:/mnt/ssd/data_100000.parquet 100100:/mnt/ssd/data_1000000.parquet 1000100:/mnt/ssd/data_10000000.parquet 10000100:/mnt/ssd/data_100000000.parquet 100000100:/mnt/ssd/data_1000000000.parquet
+./filtertime.sh ./processFile 101:/mnt/ssd/data_100.parquet	110:/mnt/ssd/data_1000.parquet	200:/mnt/ssd/data_10000.parquet	1100:/mnt/ssd/data_100000.parquet	10100:/mnt/ssd/data_1000000.parquet	100100:/mnt/ssd/data_10000000.parquet	1000100:/mnt/ssd/data_100000000.parquet	10000100:/mnt/ssd/data_1000000000.parquet
+
