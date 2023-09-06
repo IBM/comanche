@@ -9,9 +9,10 @@
 #define SERVER_TCP_PORT 8888
 #define CLIENT_IP "192.168.0.154" // Client's IP address
 #define SERVER_IP "192.168.0.42"  // Server's IP address
-#define BUFFER_SIZE 1024
-#define FILE_DATA_BUFFER_SIZE (1024 * 1024) // 1024KB
+#define BUFFER_SIZE (1024*1024)
+#define FILE_DATA_BUFFER_SIZE (1024 * 1024 * 1024) // 1024KB
 
+//This program uses a buffer to store content from the server
 int main() {
     int serverSock, clientSock;
     struct sockaddr_in serverAddr, clientAddr;

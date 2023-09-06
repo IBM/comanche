@@ -9,7 +9,9 @@
 #define SERVER_TCP_PORT 8888
 #define CLIENT_IP "192.168.0.154" // Client's IP address
 #define SERVER_IP "192.168.0.42"  // Server's IP address
-#define BUFFER_SIZE 1024
+#define BUFFER_SIZE (1024*1024)
+
+//This program uses a temp file to buffer content from server
 
 int main() {
     int serverSock, clientSock;
