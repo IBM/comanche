@@ -1,74 +1,97 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <arpa/inet.h>
-#include <unistd.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <time.h>
 
-#define SERVER_IP "10.10.10.111"
-#define SERVER_PORT 8888
+#define TCP_PORT 8888
+#define SERVER_IP "192.168.0.156" // Replace with the server's IP address
 #define BUFFER_SIZE 1024
+
 
 int main() {
     int sockfd;
-    struct sockaddr_in server_addr;
-    char filename[BUFFER_SIZE];
+    struct sockaddr_in serverAddr;
     char buffer[BUFFER_SIZE];
-    FILE *file;
     clock_t start_time, end_time;
 
-    // Create UDP socket
-    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    // Create a TCP socket
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
-        perror("Error creating socket");
-        exit(EXIT_FAILURE);
+        perror("Error in socket");
+        exit(1);
     }
 
-    // Configure server address
-    memset(&server_addr, 0, sizeof(server_addr));
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = inet_addr(SERVER_IP);
-    server_addr.sin_port = htons(SERVER_PORT);
+    memset(&serverAddr, 0, sizeof(serverAddr));
 
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_port = htons(TCP_PORT);
+    if (inet_aton(SERVER_IP, &serverAddr.sin_addr) == 0) {
+        perror("Error in inet_aton");
+        exit(1);
+    }
+
+    // Connect to the server
+    if (connect(sockfd, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
+        perror("Error in connect");
+        exit(1);
+    }
+
+    printf("Connected to the server.\n");
+
+    // Get the filename from the user
+    printf("Enter the filename you want to request: ");
+    scanf("%s", buffer);
+
+    // Measure the time before sending the file name
+    start_time = clock();
+
+    // Send the filename to the server
+    int bytesSent = send(sockfd, buffer, strlen(buffer), 0);
+    if (bytesSent <= 0) {
+        perror("Error in sending filename");
+        close(sockfd);
+        exit(1);
+    }
+
+    // Open the file for writing
+    FILE *file = fopen(buffer, "wb");
+    if (file == NULL) {
+        perror("Error opening file");
+        close(sockfd);
+        exit(1);
+    }
+
+    // Receive file contents from the server
     while (1) {
-        printf("Enter file name: ");
-        scanf("%s", filename);
-        
-        // Measure the time before sending the file name
-        start_time = clock();
-        // Send file name request to server
-        sendto(sockfd, filename, strlen(filename), 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
-
-        // Create file to store received data
-        file = fopen(filename, "wb");
-        if (file == NULL) {
-            perror("Error opening file");
-            continue;
+        // Receive data from the server
+        int bytesRead = recv(sockfd, buffer, BUFFER_SIZE, 0);
+        if (bytesRead < 0) {
+            // Error receiving
+            perror("Error receiving data from server");
+            break;
+        } else if (bytesRead == 0) {
+            // End of file
+            break;
         }
 
-        // Receive and write file data
-        while (1) {
-            memset(buffer, 0, sizeof(buffer));
-            int bytes_received = recvfrom(sockfd, buffer, sizeof(buffer), 0, NULL, NULL);
-            if (bytes_received <= 0) {
-                break;
-            }
-
-            // Check for the END marker
-            if (strcmp(buffer, "END") == 0) {
-                break;
-            }
-
-            fwrite(buffer, 1, bytes_received, file);
+        // Write data to the file
+        int bytesWritten = fwrite(buffer, 1, bytesRead, file);
+        if (bytesWritten < bytesRead) {
+            perror("Error writing to file");
+            break;
         }
-
-        fclose(file);
-        // Measure the time after receiving the file
-        end_time = clock();
-        double elapsed_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
-        printf("File received: %s, Time taken: %.2f seconds\n", filename, elapsed_time);
-
     }
 
+    // Measure the time after receiving the file
+    end_time = clock();
+    double elapsed_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
+    printf("File received in %.2f seconds\n", elapsed_time);   
+
+    // Close the file and the socket
+    fclose(file);
     close(sockfd);
+
     return 0;
 }
