@@ -1,0 +1,25 @@
+cmake_minimum_required(VERSION 3.10)
+
+project(writearrow)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Find the Arrow package
+find_package(Arrow REQUIRED)
+
+# Add your source code file
+add_executable(processFile processFile.cc)
+
+# Link the Arrow libraries
+target_link_libraries(processFile Arrow::arrow_shared parquet arrow_dataset)
+
+
+# Set compiler flags (if needed)
+target_compile_options(processFile
+    PRIVATE
+    -DUTF8PROC_EXPORTS
+    -DCARES_STATICLIB
+    -I/opt/mellanox/grpc/include
+    -I/usr/include/x86_64-linux-gnu
+)
