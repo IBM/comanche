@@ -9,15 +9,14 @@
 #define SERVER_TCP_PORT 8888
 #define CLIENT_IP "192.168.0.154" // Client's IP address
 #define SERVER_IP "192.168.0.42"  // Server's IP address
-#define BUFFER_SIZE (1024*1024)
+#define BUFFER_SIZE (1024 * 1024)
 #define FILE_DATA_BUFFER_SIZE (1024 * 1024 * 1024) // 1024KB
 
-//This program uses a buffer to store content from the server
+// This program uses a buffer to store content from the server
 int main() {
     int serverSock, clientSock;
     struct sockaddr_in serverAddr, clientAddr;
     socklen_t clientAddrLen = sizeof(clientAddr); // Initialize clientAddrLen
-    char buffer[BUFFER_SIZE];
     
     // Pre-allocate the file data buffer
     unsigned char *fileDataBuffer = malloc(FILE_DATA_BUFFER_SIZE);
@@ -25,10 +24,6 @@ int main() {
         perror("Error allocating memory for file data buffer");
         exit(1);
     }
-    
-    size_t bufferCapacity = FILE_DATA_BUFFER_SIZE;
-    
-    size_t totalBytesReceived = 0;
     
     // Create a TCP socket to wait for the client connection
     serverSock = socket(AF_INET, SOCK_STREAM, 0);
@@ -68,6 +63,7 @@ int main() {
         printf("Connected to the client.\n");
         
         // Receive the filename from the client
+        char buffer[BUFFER_SIZE];
         memset(buffer, 0, BUFFER_SIZE);
         int bytesReadFromClient = recv(clientSock, buffer, BUFFER_SIZE, 0);
         if (bytesReadFromClient <= 0) {
@@ -114,35 +110,20 @@ int main() {
             continue;  // Continue waiting for the next client
         }
         
-        // Receive data from the server
-        while (1) {
-            int bytesReadFromServer = recv(serverSock, buffer, BUFFER_SIZE, 0);
+        // Receive data from the server and store it directly in the fileDataBuffer
+        size_t totalBytesReceived = 0;
+        while (totalBytesReceived < FILE_DATA_BUFFER_SIZE) {
+            int bytesReadFromServer = recv(serverSock, fileDataBuffer + totalBytesReceived, FILE_DATA_BUFFER_SIZE - totalBytesReceived, 0);
             if (bytesReadFromServer <= 0) {
                 // End of file or error receiving from server
                 break;
             }
-            
-            // Resize the buffer to accommodate the new data
-            size_t newCapacity = totalBytesReceived + bytesReadFromServer;
-            if (newCapacity > bufferCapacity) {
-                while (newCapacity > bufferCapacity) {
-                    bufferCapacity *= 2; // Double the buffer capacity
-                }
-                fileDataBuffer = realloc(fileDataBuffer, bufferCapacity);
-                if (fileDataBuffer == NULL) {
-                    perror("Error reallocating memory for file data buffer");
-                    break;
-                }
-            }
-            
-            // Copy received data to the buffer
-            memcpy(fileDataBuffer + totalBytesReceived, buffer, bytesReadFromServer);
             totalBytesReceived += bytesReadFromServer;
         }
         
         printf("Received the full file from the server.\n");
         
-        // Forward data from the buffer to the client
+        // Forward data from the fileDataBuffer to the client
         size_t bytesSentToClient = 0;
         while (bytesSentToClient < totalBytesReceived) {
             size_t remainingBytesToSend = totalBytesReceived - bytesSentToClient;
@@ -161,7 +142,6 @@ int main() {
         printf("File forwarded between the client and the server.\n");
         
         // Clean up
-        totalBytesReceived = 0;
         
         // Close the sockets
         close(clientSock);
