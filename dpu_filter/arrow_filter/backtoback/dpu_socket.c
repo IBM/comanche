@@ -5,6 +5,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include "process_buffer.h"
+#include <sys/time.h>
 
 #define CLIENT_TCP_PORT 8888
 #define SERVER_TCP_PORT 8888
@@ -13,11 +14,21 @@
 #define BUFFER_SIZE (1024*1024)
 #define FILE_DATA_BUFFER_SIZE (1024 * 1024 * 1024) // 1024KB
 
+long long get_elapsed_milliseconds(struct timeval start_time, struct timeval end_time) {
+    return (end_time.tv_sec - start_time.tv_sec) * 1000LL +
+           (end_time.tv_usec - start_time.tv_usec) / 1000LL;
+}
+
 int main() {
     int serverSock, clientSock;
     struct sockaddr_in serverAddr, clientAddr;
     socklen_t clientAddrLen = sizeof(clientAddr); // Initialize clientAddrLen
-    
+    struct timeval fetch_start;
+    struct timeval fetch_end;
+    struct timeval filter_start;
+    struct timeval filter_end;
+    struct timeval all_start;
+    struct timeval all_end;  
     // Pre-allocate the file data buffer
     unsigned char *fileDataBuffer = malloc(FILE_DATA_BUFFER_SIZE);
     if (fileDataBuffer == NULL) {
@@ -116,6 +127,7 @@ int main() {
             continue;  // Continue waiting for the next client
         }
         
+        gettimeofday(&fetch_start, NULL);
         // Receive data from the server and store it directly in the fileDataBuffer
         size_t totalBytesReceived = 0;
         while (totalBytesReceived < FILE_DATA_BUFFER_SIZE) {
@@ -128,10 +140,13 @@ int main() {
         }
         
         printf("Received the full file from the server.\n");
+        gettimeofday(&fetch_end, NULL);
         
+        gettimeofday(&filter_start, NULL);
         size_t filtered_size;
         filteredBuffer = processParquetData(fileDataBuffer, totalBytesReceived, &filtered_size);
-        
+        gettimeofday(&filter_end, NULL);
+
         if (fileDataBuffer == NULL) {
             perror("Error filtering buffer");
             exit(1);
@@ -149,6 +164,14 @@ int main() {
         }
         
         printf("File forwarded between the client and the server.\n");
+        	
+        long long fetch_time_ms = get_elapsed_milliseconds(fetch_start, fetch_end);
+        printf("File received in %lld milliseconds\n", fetch_time_ms);
+
+
+	    long long filter_time_ms = get_elapsed_milliseconds(filter_start, filter_end);
+        printf("Filtered in %lld milliseconds\n", filter_time_ms);
+
         
         // Clean up
         
