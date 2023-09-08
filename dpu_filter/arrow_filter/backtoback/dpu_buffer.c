@@ -8,7 +8,7 @@
 #define CLIENT_TCP_PORT 8888
 #define SERVER_TCP_PORT 8888
 #define CLIENT_IP "192.168.0.154" // Client's IP address
-#define SERVER_IP "192.168.0.42"  // Server's IP address
+#define SERVER_IP "192.168.10.1"  // Server's IP address
 #define BUFFER_SIZE (1024 * 1024)
 #define FILE_DATA_BUFFER_SIZE (1024 * 1024 * 1024) // 1024KB
 

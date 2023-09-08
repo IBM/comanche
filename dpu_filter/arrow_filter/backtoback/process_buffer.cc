@@ -56,7 +56,7 @@ unsigned char* processParquetData(const unsigned char* data_buffer, size_t data_
 
 
     // Define the filtering condition
-    auto filter_id = 120;
+    auto filter_id = 120; 
     auto id_field = arrow::compute::field_ref("ID");
     auto filter_id_scalar = arrow::compute::literal(filter_id);
 
