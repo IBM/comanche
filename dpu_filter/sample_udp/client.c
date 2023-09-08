@@ -52,9 +52,9 @@ int main() {
     // Receive file contents from the server
     while (1) {
         // Receive data from the server
-        struct sockaddr_in clientAddr;
-        socklen_t clientAddrLen = sizeof(clientAddr);
-        int bytesRead = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&clientAddr, &clientAddrLen);
+        struct sockaddr_in serverReplyAddr;
+        socklen_t serverReplyAddrLen = sizeof(serverReplyAddr);
+        int bytesRead = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&serverReplyAddr, &serverReplyAddrLen);
         if (bytesRead <= 0) {
             // End of file or error receiving
             break;
