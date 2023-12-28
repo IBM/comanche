@@ -85,35 +85,35 @@ unsigned char* processParquetData(const unsigned char* data_buffer, size_t data_
     auto filtered_table = result.ValueOrDie();
 
     // Display the Arrow table's schema
-    //std::cout << "Filtered Table Schema:\n" << filtered_table->schema()->ToString() << std::endl;
+   // std::cout << "Filtered Table Schema:\n" << filtered_table->schema()->ToString() << std::endl;
 
     // Display the Arrow table's data
     //std::cout << "Table Data:\n" << filtered_table->ToString() << std::endl;
-    std::cout << "Table Data:\n" << std::endl;
+    //std::cout << "Table Data:\n" << std::endl;
 
- // Serialize the modified table to a Parquet buffer
-auto parquet_stream = arrow::io::BufferOutputStream::Create().ValueOrDie();
-status = parquet::arrow::WriteTable(*filtered_table, arrow::default_memory_pool(), parquet_stream);
-if (!status.ok()) {
-    std::cerr << "Error writing modified Arrow table to Parquet buffer: " << status.ToString() << std::endl;
+    // Serialize the modified table to a Parquet buffer
+    auto parquet_stream = arrow::io::BufferOutputStream::Create().ValueOrDie();
+    status = parquet::arrow::WriteTable(*filtered_table, arrow::default_memory_pool(), parquet_stream);
+    if (!status.ok()) {
+        std::cerr << "Error writing modified Arrow table to Parquet buffer: " << status.ToString() << std::endl;
+        return nullptr;
+    }
+    parquet_stream->Close();
+
+    // Get the Parquet buffer from the stream
+    arrow::Result<std::shared_ptr<arrow::Buffer>> parquet_result = parquet_stream->Finish();
+    if (!parquet_result.ok()) {
+        std::cerr << "Error finishing Parquet stream: " << parquet_result.status().ToString() << std::endl;
     return nullptr;
-}
-parquet_stream->Close();
+    }
+    std::shared_ptr<arrow::Buffer> parquet_buffer = parquet_result.ValueOrDie();
+    *filtered_buffer_size = parquet_buffer->size();
 
-// Get the Parquet buffer from the stream
-arrow::Result<std::shared_ptr<arrow::Buffer>> parquet_result = parquet_stream->Finish();
-if (!parquet_result.ok()) {
-    std::cerr << "Error finishing Parquet stream: " << parquet_result.status().ToString() << std::endl;
-    return nullptr;
-}
-std::shared_ptr<arrow::Buffer> parquet_buffer = parquet_result.ValueOrDie();
-*filtered_buffer_size = parquet_buffer->size();
+    unsigned char* filtered_buffer = static_cast<unsigned char*>(malloc(*filtered_buffer_size));
+    memcpy(filtered_buffer, parquet_buffer->data(), *filtered_buffer_size);
 
-unsigned char* filtered_buffer = static_cast<unsigned char*>(malloc(*filtered_buffer_size));
-memcpy(filtered_buffer, parquet_buffer->data(), *filtered_buffer_size);
-
-return filtered_buffer;
-}
+    return filtered_buffer;
+    }
 
 }
 

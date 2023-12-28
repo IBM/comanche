@@ -14,7 +14,7 @@ extern volatile bool force_quit; /* Used to communicate between the DPDK workers
 
 #define MBUFS_WATERMARK (0.8)      /* limit num of mbuf which dpi library can use to X percentage of mbuf per core */
 #define MAX_MBUFS_FOR_FLOW (10)    /* assuming this is the max number of packets each flow can hold - 
-				    * this will help calculate max num of flows per workq (num of buf/ max bufs per flow)
+				    /* this will help calculate max num of flows per workq (num of buf/ max bufs per flow)
 				    */
 
 struct doca_dpi_worker_ctx {
