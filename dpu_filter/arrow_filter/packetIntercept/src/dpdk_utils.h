@@ -32,14 +32,14 @@ extern "C" {
 
 #define RX_RING_SIZE 1024       /* RX ring size */
 #define TX_RING_SIZE 1024       /* TX ring size */
-#define NUM_MBUFS (8 * 1024)    /* Number of mbufs to be allocated in the mempool */
+#define NUM_MBUFS (64 * 1024)  //*186 * 1024)    /* Number of mbufs to be allocated in the mempool huuchin 8 bsn, 16 bval 40MB hurtel, 186 bval 550MB, 128 n 372MB*/
 #define MBUF_CACHE_SIZE 250     /* mempool cache size */
 
 struct doca_dev;
 struct dpdk_mempool_shadow;
 struct doca_buf_inventory;
 struct doca_buf;
-
+  
 /*
  * Initialize DPDK environment
  *

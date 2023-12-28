@@ -13,7 +13,7 @@
 #include <sig_db.h>
 #include </opt/mellanox/doca/samples/common.h>
 #include <utils.h>
-#include <doca_utils.h>
+//#include <doca_utils.h>
 
 #include "ips_core.h"
 
@@ -207,7 +207,7 @@ ips_init(const struct application_dpdk_config *app_dpdk_config,
 	struct ips_config *ips_config, struct dpi_worker_attr *dpi_worker)
 {
 	doca_error_t result;
-	struct doca_pci_bdf pci_bdf;
+//	struct doca_pci_bdf pci_bdf;
 	struct doca_dev *dev;
 
 	(void)app_dpdk_config;
@@ -217,12 +217,12 @@ ips_init(const struct application_dpdk_config *app_dpdk_config,
 		return -1;
 
 	/* Find doca_dev */
-	result = doca_pci_bdf_from_string(ips_config->pci_address, &pci_bdf);
-	if (result != DOCA_SUCCESS) {
-		DOCA_LOG_ERR("Failed to parse pci address: %s", doca_get_error_string(result));
-		return -1;
-	}
-	result = open_doca_device_with_pci(&pci_bdf, &dpi_job_is_supported, &dev);
+	//result = doca_pci_bdf_from_string(ips_config->pci_address, &pci_bdf);
+	//if (result != DOCA_SUCCESS) {
+	//	DOCA_LOG_ERR("Failed to parse pci address: %s", doca_get_error_string(result));
+	//	return -1;
+	//}
+	result = open_doca_device_with_pci(ips_config->pci_address, &dpi_job_is_supported, &dev);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to open device with pci address: %s", doca_get_error_string(result));
 		return -1;
