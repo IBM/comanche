@@ -1,0 +1,2 @@
+1) Configure scalable functions using this guide : https://docs.nvidia.com/doca/sdk/nvidia+bluefield+dpu+scalable+function+user+guide/index.html
+2) 
