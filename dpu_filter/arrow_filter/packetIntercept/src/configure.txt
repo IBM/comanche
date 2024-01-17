@@ -30,7 +30,27 @@ pci/0000:03:00.1/294946: type eth netdev en3f1pf1sf5 flavour pcisf controller 0 
     hw_addr 00:00:00:00:00:00 state active opstate attached roce true max_uc_macs 128 trust on
 
 
-root@localhost:/home/ubuntu# ovs-vsctl show
+6) root@localhost:/home/ubuntu# ovs-vsctl show
+
+7) Delete existing bridges: 
+ovs-vsctl del-br ovsbr1
+
+ovs-vsctl del-br ovsbr2
+
+8) Add bridges:
+
+ovs-vsctl add-br sf_bridge1
+ovs-vsctl add-br sf_bridge2
+
+9) Add ports:
+
+ovs-vsctl add-port sf_bridge1 p1
+ovs-vsctl add-port sf_bridge1 en3f1pf1sf4
+
+ovs-vsctl add-port sf_bridge2 pf1hpf
+ovs-vsctl add-port sf_bridge2 en3f1pf1sf5
+
+10) Result
 6ba006f8-c10b-420a-97af-523adc56cffd
     Bridge sf_bridge2
         Port sf_bridge2
