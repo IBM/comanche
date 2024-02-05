@@ -3,15 +3,17 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <time.h> // Include the time.h library for time measurement
 
 #define TCP_PORT 12345
-#define SERVER_IP "10.10.10.111" // Replace with the server's IP address
+#define SERVER_IP "10.10.10.18" // Replace with the server's IP address
 #define BUFFER_SIZE 1024
 
 int main() {
     int sockfd;
     struct sockaddr_in serverAddr;
     char buffer[BUFFER_SIZE];
+    clock_t start_time, end_time; // Variables for measuring time
 
     // Create a TCP socket
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -57,6 +59,9 @@ int main() {
         exit(1);
     }
 
+    // Record the start time
+    start_time = clock();
+
     // Receive file contents from the server
     while (1) {
         // Receive data from the server
@@ -74,7 +79,12 @@ int main() {
         }
     }
 
-    printf("File received from the server.\n");
+    // Record the end time
+    end_time = clock();
+
+    // Calculate and print the elapsed time in milliseconds
+    double elapsed_time = ((double)(end_time - start_time) / CLOCKS_PER_SEC) * 1000.0;
+    printf("File received from the server in %.2f milliseconds.\n", elapsed_time);
 
     // Close the file and the socket
     fclose(file);
