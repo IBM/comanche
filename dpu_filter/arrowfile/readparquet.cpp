@@ -5,7 +5,7 @@
 
 int main() {
     // Path to the Parquet file
-    const std::string path_to_file = "data.parquet";
+    const std::string path_to_file = "../dataStat_1000.parquet";
 
     // Initialize Arrow
     arrow::Status status = arrow::Status::OK();

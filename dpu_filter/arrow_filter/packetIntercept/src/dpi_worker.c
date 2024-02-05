@@ -23,6 +23,9 @@
 #include "process_buffer.h" 
 #include "read_buffer.h"
 #include <sys/time.h>
+#include <time.h>
+#include <rte_cycles.h>
+#include <netinet/tcp.h>
 
 DOCA_LOG_REGISTER(DWRKR);
 
@@ -100,6 +103,15 @@ struct timeval filter_start;
 struct timeval filter_end;
 struct timeval all_start;
 struct timeval all_end;  
+clock_t start_time;
+clock_t end_time;
+
+clock_t start_filter;
+clock_t end_filter;
+
+uint32_t tsval_p; 
+uint32_t tsecr_p; 
+
 
 /* To contain packet references of data packets*/
 struct PacketArray {
@@ -177,7 +189,7 @@ bool get_src(struct rte_mbuf *pkt) {
     if (ipv4_hdr->version_ihl >> 4 == 4) {
         // IPv4 packet
         uint32_t src_ip = rte_be_to_cpu_32(ipv4_hdr->src_addr);
-		uint32_t expected_ip = MAKE_IPV4_ADDRESS(10, 10, 10, 111);
+		uint32_t expected_ip = MAKE_IPV4_ADDRESS(10, 10, 10, 18);
        
 		if (src_ip == expected_ip) {
 		    //printf("Source IP address: %u.%u.%u.%u\n", 
@@ -349,11 +361,11 @@ void print_tcp_header_info(struct rte_mbuf *pkt) {
     struct rte_ipv4_hdr *ipv4_hdr = rte_pktmbuf_mtod_offset(pkt, struct rte_ipv4_hdr *, sizeof(struct rte_ether_hdr));
     struct tcphdr *tcp_hdr = (struct tcphdr *)((char *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
 
-    printf("Source Port: %u\n", rte_be_to_cpu_16(tcp_hdr->th_sport));
-    printf("Destination Port: %u\n", rte_be_to_cpu_16(tcp_hdr->th_dport));
-    /*printf("Sequence Number: %u\n", rte_be_to_cpu_32(tcp_hdr->th_seq));
+    //printf("Source Port: %u\n", rte_be_to_cpu_16(tcp_hdr->th_sport));
+    //printf("Destination Port: %u\n", rte_be_to_cpu_16(tcp_hdr->th_dport));
+    printf("Sequence Number: %u\n", rte_be_to_cpu_32(tcp_hdr->th_seq));
     printf("Acknowledgment Number: %u\n", rte_be_to_cpu_32(tcp_hdr->th_ack));
-    printf("Data Offset: %u bytes\n", tcp_hdr->th_off * 4); // th_off is the number of 32-bit words, so we multiply by 4 to get bytes
+    /*printf("Data Offset: %u bytes\n", tcp_hdr->th_off * 4); // th_off is the number of 32-bit words, so we multiply by 4 to get bytes
     printf("Flags:\n");
     if (tcp_hdr->th_flags & TH_FIN)
         printf("FIN\n");
@@ -1451,11 +1463,10 @@ process_packet(struct worker_ctx *ctx)
 	ctx->processed_packets += nb_rx;
 
     int len;
-
-	uint32_t tsval; 
-    uint32_t tsecr; 
+	
     
 	int packet_counter = 0; // Initialize a counter
+
 	
 	/* Inspect each packet in the buffer */
 	for (packet_idx = 0; packet_idx < nb_rx; packet_idx++) {
@@ -1468,37 +1479,57 @@ process_packet(struct worker_ctx *ctx)
 		eth_hdr1 = rte_pktmbuf_mtod(packet, struct rte_ether_hdr *);
     	ip_hdr1 = (struct rte_ipv4_hdr *)(eth_hdr1 + 1);
     	tcp_hdr1 = (struct rte_tcp_hdr *)(ip_hdr1 + 1);
+
+
         //count++;
 		payload_offset = get_payload_offset(packet);
 		bool src_flag = get_src(packet);
 
 		uint16_t p_length = packet->pkt_len - payload_offset;	
 
+		if (src_flag){
+			if (tcp_hdr1->tcp_flags & TCP_FIN_FLAG) {
+
+				end = true;
+				printf("Caught the fin\n");
+				
+			}
+		}
+
 
 
 		//Catching the packet that contains which file to send to properly catch the timestamp
         //This packet will be used to send ACK from DPU to server
 		//print_tcp_header_info(packet);
-		if(ackcaught==false){
+		/*if(ackcaught==false){
 			if(ack_packet == NULL && !src_flag){
 				
 				if (tcp_hdr1->tcp_flags & RTE_TCP_ACK_FLAG && p_length > 0){
 
+				    printf("Caught the ack\n");
+
 					gettimeofday(&fetch_start, NULL);
+					start_time = clock();
 					//need to create new ack packet without timestamp in the mod_packet_pool
+					
 					ack_packet = rte_pktmbuf_copy(packet, mod_packet_pool, 0, payload_offset);
 					ack_packet->pkt_len = payload_offset;
 					ackcaught = true;
-					TX_BUFFER_PKT(packet, ctx);
 		    	}
 		    }
-		}
+			TX_BUFFER_PKT(packet, ctx);
+		}*/
 
-
+        if(ackcaught){
         //Catching payload data from server and buffer in the DPU
-		if (new ==false){
+		if (new == false){
+		
         	if (src_flag && p_length > 0){
-            
+
+				printf("packet coming in\n");
+
+
+
         		// Check if the dynamic buffer has enough space for the new data
 
     			size_t required_space = total_data_size + p_length - 1;
@@ -1527,56 +1558,105 @@ process_packet(struct worker_ctx *ctx)
         		// Copy payload data to the buffer
         		rte_memcpy(data_buffer + total_data_size, rte_pktmbuf_mtod_offset(packet, unsigned char*, payload_offset), p_length);
 				total_data_size += p_length;
-			
+
+		
+				
 	
             	//Packet array is used later to send packets from DPU to client
 				add_packet(&packet_array, packet);
-			
+			     
+			    printf("Catch payload\n");
 
-				print_tcp_header_info(packet);
+				//print_tcp_header_info(packet);
 			
 
 				//Catch last packet that indicates end of session
-				if (tcp_hdr1->tcp_flags & TCP_FIN_FLAG) {
+				/*if (tcp_hdr1->tcp_flags & TCP_FIN_FLAG) {
 
 					end = true;
+					printf("Caught the fin\n");
 				
-				}
-            
+				}*/
+
+   
+    			uint8_t *tcp_options = (uint8_t *)(tcp_hdr1 + 1);
+   		
+				if (tcp_options[2] == 8 && tcp_options[3] == 10) {
+        			// The Timestamps option is present with the correct size
+        			tsval_p = rte_be_to_cpu_32(*(uint32_t *)(tcp_options + 4));
+       	 			tsecr_p = rte_be_to_cpu_32(*(uint32_t *)(tcp_options + 8));
+
+        			// Now you have the TSVal and TSecr values
+        			//printf("TSVal: %u, TSecr: %u\n", tsval, tsecr);
+    			}
+
 			
 
             	//If we already have caught the ACK packet from client, send ACKs from DPU -> Server
 				if(ack_packet!= NULL){  
 
-					printf("Sending ack\n");
+					printf("ackpacket\n");
 
-					struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(ack_packet, struct rte_ether_hdr *);
+					struct rte_mbuf* a_packet = rte_pktmbuf_clone(ack_packet, mod_packet_pool);
+
+				
+
+					struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(a_packet, struct rte_ether_hdr *);
     				struct rte_ipv4_hdr *ip_hdr = (struct rte_ipv4_hdr *)(eth_hdr + 1);
     				struct rte_tcp_hdr *tcp_hdr = (struct rte_tcp_hdr *)(ip_hdr + 1);
+
+
+       				uint8_t *tcp_options_ackpacket = (uint8_t *)(tcp_hdr + 1);
+
+	   				// Swap TSVal and TSecr values between 'packet' and 'ackpacket'
+					uint32_t tsval_ackpacket = tsval_p; // Store TSVal from 'packet' temporarily
+					uint32_t tsecr_ackpacket = tsecr_p; // Store TSecr from 'packet' temporarily
+
+
+        			// Check if 'ackpacket' already has the Timestamps option (Kind 8 and 10 bytes length)
+        			if (tcp_options_ackpacket[2] == 8 && tcp_options_ackpacket[3] == 10) {
+            			// Update TSVal and TSecr values in 'ackpacket' with values from 'packet'
+						// Update TSVal and TSecr values in 'ackpacket' with values from 'packet'
+
+						//tsecr_ackpacket += rte_cpu_to_be_32(10);
+						*(uint32_t *)(tcp_options_ackpacket + 4) = rte_cpu_to_be_32(tsecr_ackpacket);
+				        *(uint32_t *)(tcp_options_ackpacket + 8) = rte_cpu_to_be_32(tsval_ackpacket);
+                    }
+ 
+
 
                
 					tempack = rte_be_to_cpu_32(tcp_hdr1->sent_seq) + p_length;
 					tempseq = rte_be_to_cpu_32(tcp_hdr1->recv_ack);
 
-					update_pkt_header(ack_packet, ack_packet->pkt_len);
+					update_pkt_header(a_packet, a_packet->pkt_len);
 
 	            	//TODO: setup automatic window calculation
-					//if (total_data_size > 1024*1024){
-						//uint16_t tmpwin = 3000;//rte_be_to_cpu_16(tcp_hdr->rx_win);
-                		//tcp_hdr->rx_win = rte_cpu_to_be_16(tmpwin);
-					//}
+					/*if (total_data_size > 1024*1024){
+						uint16_t tmpwin = 100;//rte_be_to_cpu_16(tcp_hdr->rx_win);
+                		tcp_hdr->rx_win = rte_cpu_to_be_16(tmpwin);
+					}*/
 
-					ack_packet->ol_flags |= RTE_MBUF_F_TX_IEEE1588_TMST;
+					a_packet->ol_flags |= RTE_MBUF_F_TX_IEEE1588_TMST;
 					//Offload checksum calculation to the hardware
                 	ip_hdr->hdr_checksum = 0;
 		        	tcp_hdr->cksum = 0;	   
-    				ack_packet->ol_flags |= RTE_MBUF_F_TX_IPV4 |  RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_TCP_CKSUM;
+    				a_packet->ol_flags |= RTE_MBUF_F_TX_IPV4 |  RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_TCP_CKSUM;
+
+					
 
 
 			    	if (end) {
 
-						gettimeofday(&fetch_end, NULL);
+						end_time = clock();
+    					double duration = ((double)(end_time - start_time)) / CLOCKS_PER_SEC * 1000.0;
 
+    					printf("fetched: %.2f milliseconds\n", duration);
+
+						gettimeofday(&fetch_end, NULL);
+						long long fetch_time_ms = get_elapsed_milliseconds(fetch_start, fetch_end);
+    					printf("File received in %lld milliseconds\n", fetch_time_ms);
+                      
 
 				    	tempack += 1; // Not sure why we have to add 1, but it works this way for the last packet
 						tcp_hdr->sent_seq = rte_cpu_to_be_32(tempseq);
@@ -1589,7 +1669,8 @@ process_packet(struct worker_ctx *ctx)
 						new = true;
                 		//TX_BUFFER_PKT(ack_packet, ctx);
 						//rte_eth_tx_buffer_flush(egress_port, queue_id, ctx->tx_buffer[egress_port]);
-                 		rte_eth_tx_burst(ingress_port, queue_id, &ack_packet, 1);
+						printf("last  ack\n");
+                 		rte_eth_tx_burst(ingress_port, queue_id, &a_packet, 1);
 
 					}else{
 
@@ -1603,14 +1684,19 @@ process_packet(struct worker_ctx *ctx)
 					
 								
                         //Send delayed ACKs for every 2 packets/
-						if( packet_idx%2 == 0){
-							rte_eth_tx_burst(ingress_port, queue_id, &ack_packet, 1);
+						//if( packet_idx%10 == 0){
+
+						printf("sending ack\n");
+						rte_eth_tx_burst(ingress_port, queue_id, &a_packet, 1);
+						printf("sent ack\n");
 						//	TX_BUFFER_PKT(ack_packet, ctx);
 						//rte_eth_tx_buffer(ack_packet->port, ctx->queue_id, ctx->tx_buffer[ingress_port], ack_packet);
 						//rte_eth_tx_buffer_flush(egress_port, queue_id, ctx->tx_buffer[egress_port]);
-						}
+						//}
                 
 					}
+
+					//print_tcp_header_info(ack_packet);
 
 				}
            	 //do not send the packets that have data
@@ -1619,14 +1705,23 @@ process_packet(struct worker_ctx *ctx)
 
 		}else{
 
-					
+			
 					
    				size_t filtered_size;
 
 				gettimeofday(&filter_start, NULL);
+				start_filter = clock();
 				//Filter buffer*/
+				printf("before filter %u\n", total_data_size);
 				unsigned char *filtered_buffer = processParquetData(data_buffer, total_data_size, &filtered_size);
-		
+				//unsigned char *filtered_buffer = data_buffer;
+				//filtered_size = total_data_size;
+
+				
+		        end_filter = clock();
+		        double duration = ((double)(end_filter - start_filter)) / CLOCKS_PER_SEC * 1000.0;
+
+                printf("Filtered: %.2f milliseconds\n", duration);
 				gettimeofday(&filter_end, NULL);
                 //readBuffer(filtered_buffer,filtered_size);
                 //unsigned char *filtered_buffer = process_data(data_buffer, total_data_size, &filtered_size);
@@ -1689,26 +1784,52 @@ process_packet(struct worker_ctx *ctx)
     			}
 					
 				//After this need to re initialize everything to get new connection
-				printf("flushed");
+				
 				new == false;
-			}
+		}
+		}else{
 
-		if(ackcaught == false){
+			if(ack_packet == NULL && !src_flag){
+				
+				if (tcp_hdr1->tcp_flags & RTE_TCP_ACK_FLAG && p_length > 0){
+
+				    printf("Caught the ack\n");
+
+					gettimeofday(&fetch_start, NULL);
+					start_time = clock();
+					//need to create new ack packet without timestamp in the mod_packet_pool
+					
+					ack_packet = rte_pktmbuf_copy(packet, mod_packet_pool, 0, payload_offset);
+					ack_packet->pkt_len = payload_offset;
+					ackcaught = true;
+		    	}
+		    }
+			TX_BUFFER_PKT(packet, ctx);
+
+		}
+
+
+
+		/*if(ackcaught == false){
 				//Don't catch packets until you receive file name
 			TX_BUFFER_PKT(packet, ctx);
 			
-		}
+		}*/
 		
 		    //New flag indicates the connection from DPU to client, aka after receiving packets from server in the DPU buffer
 		    //Not freeing the packets here
 
-            TX_BUFFER_PKT(packet, ctx);
+            //TX_BUFFER_PKT(packet, ctx);
+
+
+			
 		
 /*End*/
 		DOCA_DLOG_DBG("================================================================================");
 		/* Add additional new lines for output readability */
 		DOCA_DLOG_DBG("\n");
 	}
+
 
 	//dequeue_from_dpi(ctx);
 	/* Flush ready to send packets */
@@ -1817,8 +1938,8 @@ dpi_worker(void *worker)
 		}
 	}
 
-	long long fetch_time_ms = get_elapsed_milliseconds(fetch_start, fetch_end);
-    printf("File received in %lld milliseconds\n", fetch_time_ms);
+	//long long fetch_time_ms = get_elapsed_milliseconds(fetch_start, fetch_end);
+   // printf("File received in %lld milliseconds\n", fetch_time_ms);
 
 
 	long long filter_time_ms = get_elapsed_milliseconds(filter_start, filter_end);

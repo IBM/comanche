@@ -51,6 +51,16 @@ std::string processParquetFile(const char* filename, int filter_id) { // Add fil
         return "";
     }
 
+
+    // Display the Arrow table's schema
+    std::cout << "Table Schema:\n" << table->schema()->ToString() << std::endl;
+
+    // Display the Arrow table's data
+    std::cout << "Table Data:\n" << table->ToString() << std::endl;
+
+
+
+
     // Define the filtering condition
     
     auto id_field = arrow::compute::field_ref("ID");
@@ -83,13 +93,13 @@ std::string processParquetFile(const char* filename, int filter_id) { // Add fil
    
 
     // Display the Arrow table's schema
-    //std::cout << "Filtered Table Schema:\n" << filtered_table->schema()->ToString() << std::endl;
+    std::cout << "Filtered Table Schema:\n" << filtered_table->schema()->ToString() << std::endl;
 
     // Display the Arrow table's data
-    //std::cout << "Filtered Table Data:\n" << filtered_table->ToString() << std::endl;
+    std::cout << "Filtered Table Data:\n" << filtered_table->ToString() << std::endl;
     auto now = std::chrono::system_clock::now();
     std::time_t now_time = std::chrono::system_clock::to_time_t(now);
-    std::string output_filename = "/mnt/ssd/filtered_output_" + std::to_string(filter_id) + ".parquet";
+    std::string output_filename = "filtered_output_" + std::to_string(filter_id) + ".parquet";
 
     // Serialize the filtered table to the output Parquet file
     status = parquet::arrow::WriteTable(*filtered_table, arrow::default_memory_pool(),
