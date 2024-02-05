@@ -3,7 +3,7 @@ project('SAMPLE_PI', 'C', 'CPP',
     version: run_command(find_program('cat'),
         files('/opt/mellanox/doca/applications/VERSION'), check: true).stdout().strip(),
     license: 'Proprietary',
-    default_options: ['buildtype=debug'],
+    default_options: ['buildtype=release'],
     meson_version: '>= 0.61.2'
 )
 
@@ -34,14 +34,14 @@ sample_srcs = [
     'dpdk_utils.c',
     '/opt/mellanox/doca/applications/common/src/offload_rules.c',
     # Common code for all DOCA applications
-    '/opt/mellanox/doca/applications/common/src/doca_utils.c',
+    #'/opt/mellanox/doca/applications/common/src/doca_utils.c',
     'dpdk_utils.c',
     'dpi_worker.c',
     common_dir_path + '/offload_rules.c',
     common_dir_path + '/sig_db.c',
     common_dir_path + '/telemetry.c',
     common_dir_path + '/utils.c',
-    common_dir_path + '/doca_utils.c',
+    #common_dir_path + '/doca_utils.c',
     samples_dir_path + '/common.c',
     'process_data.cc',  
     'read_buffer.cc',  

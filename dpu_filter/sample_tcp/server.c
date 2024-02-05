@@ -4,16 +4,20 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <unistd.h> // for sleep function
 
 #define TCP_PORT 12345
-#define FILE_DIRECTORY "/mnt/ssd/"
+#define FILE_DIRECTORY "/mnt/sda4/"
 #define BUFFER_SIZE 1024
+#define SLEEP_INTERVAL 1 // Sleep interval in seconds
+#define MAX_DATA_SIZE (64 * 1024) // Maximum data size before sleeping
 
 int main() {
     int sockfd, newsockfd;
     struct sockaddr_in serverAddr, clientAddr;
     socklen_t clientAddrLen = sizeof(clientAddr); // Initialize clientAddrLen
     char buffer[BUFFER_SIZE];
+    size_t totalBytesSent = 0;
 
     // Create a TCP socket
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -76,6 +80,8 @@ int main() {
             continue;
         }
 
+        totalBytesSent = 0; // Reset the byte count
+
         // Send file contents to the client
         while (1) {
             // Read data from the file
@@ -91,6 +97,14 @@ int main() {
                 perror("Error in sending file");
                 break;
             }
+
+            /*totalBytesSent += bytesSent;
+
+            // Check if the total data size sent exceeds 64KB and introduce a 1-second delay
+            if (totalBytesSent >= MAX_DATA_SIZE) {
+                sleep(SLEEP_INTERVAL); // Introduce a 1-second delay
+                totalBytesSent = 0;    // Reset the byte count
+            }*/
         }
 
         printf("File sent to the client.\n");
