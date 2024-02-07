@@ -1,0 +1,18 @@
+sudo apt-get install nginx
+sudo systemctl start nginx
+sudo systemctl enable nginx
+
+sudo nano /etc/nginx/conf.d/reverse_proxy.conf
+#use the reverse_proxy.conf file
+
+sudo systemctl reload nginx
+
+#Generate self signed SSL/TLS certificate
+
+sudo mkdir -p /etc/nginx/ssl/
+sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/nginx/ssl/selfsigned.key -out /etc/nginx/ssl/selfsigned.crt
+sudo chown root:root /etc/nginx/ssl/selfsigned.*
+
+sudo systemctl restart nginx
+
+
