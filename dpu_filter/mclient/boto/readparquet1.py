@@ -9,7 +9,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 s3 = boto3.client('s3',
-                  endpoint_url='https://192.168.100.1:9000',
+                  endpoint_url='https://10.10.10.18:9000',
                   aws_access_key_id='minioadmin',
                   aws_secret_access_key='minioadmin',
                   verify=False)
@@ -25,4 +25,3 @@ parquet_data = io.BytesIO(response['Body'].read())
 parquet_file = parquet.read_table(parquet_data)
 
 print(parquet_file.to_pandas())
-
