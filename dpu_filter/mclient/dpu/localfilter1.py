@@ -40,42 +40,33 @@ def intercepted_s3_select():
         # Read the Parquet data as a Pandas DataFrame
         df = pq.read_table(parquet_data).to_pandas()
 
-        # If no SQL expression is provided, return the entire DataFrame
-        if not sql_expression:
-            json_response = df.to_json(orient='records')
-            return json_response, 200
-
-        # Parse the SQL expression to extract the SELECT and WHERE clauses
+        # Parse the SQL expression
         parsed_sql = sqlparse.parse(sql_expression)[0]
 
-        # Initialize selected_column to None
+        # Check if the SELECT clause is specified and extract the column name
         selected_column = None
-
-        # Check if the SELECT clause is not wildcard
-        if parsed_sql.tokens[2].value != '*':
-            # Extract the column name from the SELECT clause token
-            selected_column = parsed_sql.tokens[2]
-
-        # Initialize where_clause_value to an empty string
-        where_clause_value = ''
-
-        # Look for the WHERE clause in the parsed SQL tokens
         for token in parsed_sql.tokens:
-            if isinstance(token, sqlparse.sql.Where):
-                # Extract the WHERE clause value and remove the word "WHERE"
-                where_clause_value = token.value.replace("WHERE", "", 1).strip()
+            if isinstance(token, sqlparse.sql.IdentifierList):
+                identifiers = token.get_identifiers()
+                if len(identifiers) == 1:  # Assuming only one column is selected
+                    selected_column = identifiers[0].get_name()
                 break
 
-        # If no WHERE clause is found, set result to the entire DataFrame
-        if not where_clause_value:
-            result = df
-        else:
-            # Filter the DataFrame based on the WHERE clause value
-            result = df.query(where_clause_value)
+        # Filter the DataFrame based on the WHERE clause value (if present)
+        where_clause = None
+        for token in parsed_sql.tokens:
+            if isinstance(token, sqlparse.sql.Where):
+                where_clause = token
+                break
 
-        # If a specific column is selected, filter the DataFrame to include only that column
-        if selected_column is not None:
-            selected_column = selected_column.get_name()
+        if where_clause is not None:
+            where_clause_value = where_clause.value.replace("WHERE", "", 1).strip()
+            result = df.query(where_clause_value)
+        else:
+            result = df
+
+        # If a specific column is selected (not wildcard), filter the DataFrame to include only that column
+        if selected_column is not None and selected_column != '*':
             result = result[[selected_column]]
 
         # Convert the filtered DataFrame to JSON

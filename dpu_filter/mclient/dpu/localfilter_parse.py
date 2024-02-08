@@ -3,6 +3,7 @@ import io
 import pyarrow.parquet as pq
 from flask import Flask, request, jsonify
 import sqlparse
+import re
 
 app = Flask(__name__)
 
@@ -19,7 +20,7 @@ s3_client = boto3.client(
     verify=False
 )
 
-# Endpoint to handle intercepted S3 select_object_content requests
+# Endpoint to handle intercepted S3 get_object requests
 @app.route('/intercepted_s3_get', methods=['POST'])
 def intercepted_s3_select():
     data = request.get_json()
@@ -40,30 +41,44 @@ def intercepted_s3_select():
         # Read the Parquet data as a Pandas DataFrame
         df = pq.read_table(parquet_data).to_pandas()
 
-        # Parse the SQL expression to extract the WHERE clause
-        parsed_sql = sqlparse.parse(sql_expression)[0]
+        # Parse the SQL expression to extract column name and value for filtering
+        parsed_sql = sqlparse.parse(sql_expression)
+        print("Parsed SQL:", parsed_sql)
+        if len(parsed_sql) != 1 or not isinstance(parsed_sql[0], sqlparse.sql.Statement):
+            raise ValueError("Invalid SQL expression format")
 
+        stmt = parsed_sql[0]
+        print("SQL Statement tokens:", stmt.tokens)
+
+        # Extract the WHERE clause
         where_clause = None
-        for token in parsed_sql.tokens:
-            print(token)
+        for token in stmt.tokens:
             if isinstance(token, sqlparse.sql.Where):
                 where_clause = token
                 break
 
         if where_clause is None:
             raise ValueError("WHERE clause not found in SQL expression")
-        
-        print(where_clause.value)
-        # Extract the WHERE clause value and remove the word "WHERE"
-        # Remove the word "WHERE" from the string
-        where_clause_value = where_clause.value.replace("WHERE", "", 1).strip()
-        print(where_clause_value)
 
-        # Filter the DataFrame based on the WHERE clause value
-        result = df.query(where_clause_value)
- 
+        # Extract the comparison operator and value using regular expressions
+        match = re.match(r'.*?(\S+)\s*([<>!=]+)\s*(\S+)', where_clause.value)
+        if match is None:
+            raise ValueError("Invalid comparison format in WHERE clause")
+
+        column_name, comparison_operator, value_str = match.groups()
+        value = int(value_str)
+
+        # Filter the DataFrame based on the extracted column name, comparison operator, and value
+        if comparison_operator == '<':
+            filtered_df = df[df[column_name] < value]
+        elif comparison_operator == '>':
+            filtered_df = df[df[column_name] > value]
+        elif comparison_operator == '=':
+            filtered_df = df[df[column_name] == value]
+        # Add support for other comparison operators as needed
+
         # Convert the filtered DataFrame to JSON
-        json_response = result.to_json(orient='records')
+        json_response = filtered_df.to_json(orient='records')
 
         return json_response, 200
 
