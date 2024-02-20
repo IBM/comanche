@@ -16,7 +16,7 @@ s3 = boto3.client('s3',
 
 response = s3.get_object(
     Bucket='mycsvbucket',
-    Key='sampledata/dataStat_10000.parquet'
+    Key='sampledata/dataStat_100000.parquet'
 )
 
 # Read the Parquet data from the response content
