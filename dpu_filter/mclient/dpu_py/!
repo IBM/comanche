@@ -1,0 +1,24 @@
+server {
+    listen 443 ssl;  # Listen on port 443 (HTTPS)
+    server_name 10.10.10.20;  # Your server's IP address
+
+    ssl_certificate /etc/nginx/ssl/selfsigned.crt;
+    ssl_certificate_key /etc/nginx/ssl/selfsigned.key;
+
+    location / {
+        proxy_pass http://localhost:8080;  # Forward requests to your Flask app
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
+	        # Set proxy timeouts to 180 seconds
+        proxy_connect_timeout       180s;
+        proxy_send_timeout          180s;
+        proxy_read_timeout          180s;
+        send_timeout                180s;
+
+    }
+
+    # Additional Nginx SSL settings as needed
+}
+
