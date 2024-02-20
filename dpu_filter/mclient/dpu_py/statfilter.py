@@ -39,8 +39,50 @@ def intercepted_s3_select():
 
         # Read the Parquet data as a Pandas DataFrame
         df = pq.read_table(parquet_data).to_pandas()
+       
+        # Fetch Parquet file metadata
+        metadata = pq.ParquetFile(parquet_data).metadata
 
-        # If no SQL expression is provided, return the entire DataFrame
+
+        print(metadata.schema)
+
+
+        # Print min and max statistics for the 'ID' column in each row group
+        for row_group_index in range(metadata.num_row_groups):
+            row_group = metadata.row_group(row_group_index)
+
+            print(f"Row Group {row_group_index} Statistics:")
+    
+            # Access column chunks in the row group
+            for column_index in range(row_group.num_columns):
+                column_chunk = row_group.column(column_index)
+
+                # Access statistics for the column chunk (assuming 'ID' is the column name)
+                if column_chunk.name == 'ID':
+                    print("Column 'ID' Statistics:")
+                    print("Min:", column_chunk.statistics.min)
+                    print("Max:", column_chunk.statistics.max)
+      
+        # Fetch Parquet file metadata
+        metadata = pq.ParquetFile(parquet_data).metadata
+        print(metadata)
+        # Get the schema of the Parquet file
+        schema = metadata.schema
+
+        # Print column information
+        print("Columns:")
+        for i, column in enumerate(schema):
+            print(f"Column {i+1}: {column.name}")
+            print(f"  Min: {column.min()}")
+            print(f"  Max: {column.max()}")
+        # Print row groups and min-max values
+        print("Row groups:")
+        for i, row_group in enumerate(metadata.row_groups):
+            print(f"Row group {i+1}:")
+            for column in row_group.columns:
+                print(f"Column {column.path_in_schema}: Min={column.statistics.min}, Max={column.statistics.max}")
+         
+         # If no SQL expression is provided, return the entire DataFrame
         if not sql_expression:
             json_response = df.to_json(orient='records')
             return json_response, 200

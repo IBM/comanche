@@ -43,8 +43,7 @@ def intercepted_s3_select():
                 records = event['Records']['Payload'].decode('utf-8')
                # print(records)
                 return records, 200
-        
-
+    
         return 'No records found', 4040
     except Exception as e:
         return str(e), 500  # Handle exceptions gracefully
