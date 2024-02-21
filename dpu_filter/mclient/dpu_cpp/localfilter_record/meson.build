@@ -20,6 +20,7 @@ sample_link_args = [
     '-lparquet',   # Link with Parquet library
     '-larrow_dataset',
     '-larrow_acero',
+    '-lgandiva',
     '-Wl,-rpath=/usr/local/lib',  # Add rpath to the library directory
 ]
 

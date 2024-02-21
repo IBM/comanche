@@ -1,4 +1,4 @@
-project('dpucpp_stat', 'cpp', default_options : ['cpp_std=c++17'])
+project('dpucpp', 'cpp', default_options : ['cpp_std=c++17'])
 
 # Define components
 service_components = ['s3']
@@ -10,7 +10,7 @@ arrow_dep = dependency('arrow')
 aws_sdk_dep = dependency('aws-cpp-sdk-s3')
 
 # Define your source files
-source_files = files('localfilter.cpp')
+source_files = files(['localfilter.cpp', 'SQLParser.cpp'])
 
 # Define Pistache dependency using pkg-config
 pistache_dep = dependency('libpistache')
@@ -25,9 +25,10 @@ sample_link_args = [
 
 sample_inc_dirs  = []
 # Common DOCA library logic
-sample_inc_dirs += include_directories('/home/ubuntu/json/include')
+# Define include directories for the SQL parser
+sample_inc_dirs += include_directories('..')
 
-
+sample_inc_dirs+=include_directories('/home/ubuntu/json/include')
 
 # Add executable target
 executable('localfilter', source_files,
