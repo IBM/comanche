@@ -18,7 +18,7 @@
 #include <arrow/compute/api.h>
 #include <arrow/compute/expression.h> // Include this header
 #include "/home/ubuntu/json/include/nlohmann/json.hpp"
-
+#include "SQLParser.h"
 
 using namespace Pistache;
 using json = nlohmann::json;
@@ -58,7 +58,53 @@ struct S3Handler : public Http::Handler {
         // Create S3 client
         Aws::S3::S3Client s3Client(credentials, clientConfig,
                                     Aws::Client::AWSAuthV4Signer::PayloadSigningPolicy::Never, false);
+///////////////////////////////////////////
 
+
+        // Parse the SQL expression
+        std::vector<Token> tokens = SQLParser::parse(sqlExpression);
+
+        // Example: Analyze tokens and construct a filter (Basic and specific case handling)
+        std::string columnName;
+        std::string operatorSymbol;
+        std::string value;
+
+        for (const auto& token : tokens) {
+            if (token.type == TokenType::COLUMN) {
+                columnName = token.value;
+            } else if (token.type == TokenType::OPERATOR) {
+                operatorSymbol = token.value;
+            } else if (token.type == TokenType::LITERAL) {
+                value = token.value;
+            }
+    // Extend with more complex logic as needed
+        }
+
+             
+        auto field_ref = arrow::compute::field_ref(columnName);
+        int l_value = std::stoi(value);
+        auto literal_value = arrow::compute::literal(l_value);
+
+        arrow::compute::Expression filter_expression;
+
+        // Build expression based on the operator
+        if (operatorSymbol == "=") {
+            filter_expression = arrow::compute::equal(field_ref,literal_value);
+        } else if (operatorSymbol == ">") {
+            filter_expression = arrow::compute::greater(field_ref,literal_value);
+        } else if (operatorSymbol == ">=") {
+            filter_expression = arrow::compute::greater_equal(field_ref,literal_value);
+        } else if (operatorSymbol == "<") {
+            filter_expression = arrow::compute::less(field_ref, literal_value);
+        } else if (operatorSymbol == "<=") {
+            filter_expression = arrow::compute::less_equal(field_ref,literal_value);
+        } else if (operatorSymbol == "!=") {
+            filter_expression = arrow::compute::not_equal(field_ref, literal_value);
+        }
+
+
+
+/////////////////////////////////////////////////
 
         try {
             // Get the object from S3
@@ -112,10 +158,7 @@ struct S3Handler : public Http::Handler {
                     std::cerr << "No row groups found in the Parquet file." << std::endl;
                     return;
                 }
-                // Define the filtering condition, hardcoded, need to parse from SQL statement
-                int filter_id = 120;
-                auto id_field = arrow::compute::field_ref("ID");
-                auto filter_id_scalar = arrow::compute::literal(filter_id);
+
 
                 //Need to read schema to determine column ID, then based on schema, find row groups
 
@@ -126,14 +169,14 @@ struct S3Handler : public Http::Handler {
                 arrowReader->GetSchema(&schema);
                 int column_index = -1;
                 for (int i = 0; i < schema->num_fields(); ++i) {
-                    if (schema->field(i)->name() == "ID") {
+                    if (schema->field(i)->name() == columnName) {
                         column_index = i;
                         break;
                     }
                 }
 
                 if (column_index == -1) {
-                    std::cerr << "Column 'ID' not found in the schema." << std::endl;
+                    std::cerr << "Column  not found in the schema." << std::endl;
                     return;
                 }
 
@@ -154,7 +197,7 @@ struct S3Handler : public Http::Handler {
                         int64_t min_value = static_cast<const parquet::Int64Statistics*>(stats.get())->min();
                         int64_t max_value = static_cast<const parquet::Int64Statistics*>(stats.get())->max();
 
-                            if (min_value <= filter_id && max_value >= filter_id) {
+                            if (min_value <= l_value && max_value >= l_value) {
                                 matching_row_groups.push_back(row_group_index);
                                 //std::cout << "Matching Row Group: " << row_group_index << std::endl;  // Print matching row group index
                             }
@@ -162,43 +205,62 @@ struct S3Handler : public Http::Handler {
                     }
                 }
 
-                if (matching_row_groups.empty()) {
-                    std::cerr << "No matching row groups found." << std::endl;
-                    return;
-                }
 
-                std::vector<std::shared_ptr<arrow::Table>> tables;
-                for (int row_group_index : matching_row_groups) {
-                    std::shared_ptr<arrow::Table> table;
-                    auto status = arrowReader->ReadRowGroup(row_group_index, &table);
-                    if (!status.ok()) {
-                        std::cerr << "Error reading Arrow table from RowGroup " << row_group_index << ": " << status.ToString() << std::endl;
-                        continue;
+                std::shared_ptr<arrow::Table> concatenated_table;
+
+                if (!matching_row_groups.empty()) {
+
+
+                    std::vector<std::shared_ptr<arrow::Table>> tables;
+                    for (int row_group_index : matching_row_groups) {
+                        std::shared_ptr<arrow::Table> table;
+                        auto status = arrowReader->ReadRowGroup(row_group_index, &table);
+                        if (!status.ok()) {
+                            std::cerr << "Error reading Arrow table from RowGroup " << row_group_index << ": " << status.ToString() << std::endl;
+                            continue;
+                        }
+                        tables.push_back(table);
                     }
-                    tables.push_back(table);
-                }
 
-                // Assuming you want to concatenate all matching tables into a single table
-                // Assuming 'tables' is a std::vector<std::shared_ptr<arrow::Table>> containing your tables
-                arrow::Result<std::shared_ptr<arrow::Table>> concatenated_table_result = arrow::ConcatenateTables(tables);
+                    // Assuming you want to concatenate all matching tables into a single table
+                    // Assuming 'tables' is a std::vector<std::shared_ptr<arrow::Table>> containing your tables
+                    arrow::Result<std::shared_ptr<arrow::Table>> concatenated_table_result = arrow::ConcatenateTables(tables);
 
-                if (!concatenated_table_result.ok()) {
-                    // Handle error
-                    std::cerr << "Failed to concatenate tables: " << concatenated_table_result.status() << std::endl;
+                    if (!concatenated_table_result.ok()) {
+                        // Handle error
+                        std::cerr << "Failed to concatenate tables: " << concatenated_table_result.status() << std::endl;
+                        return;
+                    }
+
+                    concatenated_table = *concatenated_table_result;
+
+
+                }else{
+
+                    auto t_status = arrowReader->ReadTable(&concatenated_table);
+                    if (!t_status.ok()) {
+                        std::cerr << "Error reading Arrow table: " << status.ToString() << std::endl;
                     return;
+                    }
+
+
                 }
-
-                std::shared_ptr<arrow::Table> concatenated_table = *concatenated_table_result;
-
 
                 auto dataset = std::make_shared<arrow::dataset::InMemoryDataset>(concatenated_table);
 
                 // 2: Build ScannerOptions for a Scanner to do a basic filter operation
                 auto options = std::make_shared<arrow::dataset::ScanOptions>();
-                options->filter = arrow::compute::less(id_field, filter_id_scalar);
 
-                // 3: Build the Scanner
-                auto builder = arrow::dataset::ScannerBuilder(dataset, options);
+
+                // Build the Scanner
+                auto builder = arrow::dataset::ScannerBuilder(dataset);
+                // Set the filter
+                arrow::Status build_status = builder.Filter(filter_expression);
+                if (!build_status.ok()) {
+                    std::cerr << "Failed to apply filter: " << status.ToString() << std::endl;
+                    return;
+                }
+
                 auto scanner = builder.Finish();
 
                 // Perform the Scan and retrieve filtered result as Table
@@ -234,6 +296,10 @@ struct S3Handler : public Http::Handler {
 };
 
 int main() {
+
+    if (setenv("AWS_EC2_METADATA_DISABLED", "true", 1) != 0) {
+        // Handle error if needed
+    }
     Http::listenAndServe<S3Handler>(Pistache::Address("*:8080"));
     return 0;
 }

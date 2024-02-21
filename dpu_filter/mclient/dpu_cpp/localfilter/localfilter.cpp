@@ -16,6 +16,7 @@
 #include <arrow/compute/api.h>
 #include <arrow/compute/expression.h> // Include this header
 #include "/home/ubuntu/json/include/nlohmann/json.hpp"
+#include "SQLParser.h"
 
 
 using namespace Pistache;
@@ -57,6 +58,55 @@ struct S3Handler : public Http::Handler {
         Aws::S3::S3Client s3Client(credentials, clientConfig,
                                     Aws::Client::AWSAuthV4Signer::PayloadSigningPolicy::Never, false);
 
+
+
+///////////////////////////////////////////
+
+
+        // Parse the SQL expression
+        std::vector<Token> tokens = SQLParser::parse(sqlExpression);
+
+        // Example: Analyze tokens and construct a filter (Basic and specific case handling)
+        std::string columnName;
+        std::string operatorSymbol;
+        std::string value;
+
+        for (const auto& token : tokens) {
+            if (token.type == TokenType::COLUMN) {
+                columnName = token.value;
+            } else if (token.type == TokenType::OPERATOR) {
+                operatorSymbol = token.value;
+            } else if (token.type == TokenType::LITERAL) {
+                value = token.value;
+            }
+    // Extend with more complex logic as needed
+        }
+
+             
+        auto field_ref = arrow::compute::field_ref(columnName);
+        int l_value = std::stoi(value);
+        auto literal_value = arrow::compute::literal(l_value);
+
+        arrow::compute::Expression filter_expression;
+
+        // Build expression based on the operator
+        if (operatorSymbol == "=") {
+            filter_expression = arrow::compute::equal(field_ref,literal_value);
+        } else if (operatorSymbol == ">") {
+            filter_expression = arrow::compute::greater(field_ref,literal_value);
+        } else if (operatorSymbol == ">=") {
+            filter_expression = arrow::compute::greater_equal(field_ref,literal_value);
+        } else if (operatorSymbol == "<") {
+            filter_expression = arrow::compute::less(field_ref, literal_value);
+        } else if (operatorSymbol == "<=") {
+            filter_expression = arrow::compute::less_equal(field_ref,literal_value);
+        } else if (operatorSymbol == "!=") {
+            filter_expression = arrow::compute::not_equal(field_ref, literal_value);
+        }
+
+
+
+/////////////////////////////////////////////////
 
         try {
             // Get the object from S3
@@ -119,14 +169,19 @@ struct S3Handler : public Http::Handler {
 
                 // Build ScannerOptions for a Scanner to apply filter operation
                 auto options = std::make_shared<arrow::dataset::ScanOptions>();
-                options->filter = arrow::compute::less(
+                //options->filter = arrow::compute::less(id_field, filter_id_scalar);
             
-                //Need to parse http request
-                arrow::compute::field_ref("ID"), 
-                arrow::compute::literal(120)); // Adjust filter condition as needed
+
 
                 // Build the Scanner
-                auto builder = arrow::dataset::ScannerBuilder(dataset, options);
+                auto builder = arrow::dataset::ScannerBuilder(dataset);
+                // Set the filter
+                arrow::Status build_status = builder.Filter(filter_expression);
+                if (!build_status.ok()) {
+                    std::cerr << "Failed to apply filter: " << status.ToString() << std::endl;
+                    return;
+                }
+
                 auto scanner = builder.Finish();
 
                 // Perform the Scan and retrieve filtered result as Table
@@ -158,8 +213,7 @@ std::string filtered_data_parquet = oss.str();
 
 response.send(Http::Code::Ok, filtered_data_parquet, MIME(Application, Parquet));*/
 
-                // Send the JSON response
-            
+               
                 //response.send(Http::Code::Ok, "jo");
             } else {
                 // Error handling
@@ -178,6 +232,10 @@ response.send(Http::Code::Ok, filtered_data_parquet, MIME(Application, Parquet))
 };
 
 int main() {
+
+    if (setenv("AWS_EC2_METADATA_DISABLED", "true", 1) != 0) {
+        // Handle error if needed
+    }
     Http::listenAndServe<S3Handler>(Pistache::Address("*:8080"));
     return 0;
 }
