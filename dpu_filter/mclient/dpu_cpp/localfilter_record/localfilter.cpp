@@ -46,13 +46,15 @@ struct S3Handler : public Http::Handler {
         std::string bucket = requestJson["bucket"];
         std::string key = requestJson["key"];
         std::string sqlExpression = requestJson["sql"];
-        // Parse the SQL expression
-        std::vector<Token> tokens = SQLParser::parse(sqlExpression);
+
 
 
         // Initialize AWS SDK
         Aws::SDKOptions options;
         Aws::InitAPI(options);
+
+        // Example for measuring S3 fetch time
+        auto start_s3_fetch = std::chrono::high_resolution_clock::now();
 
         // MinIO server connection parameters
         Aws::String minioEndpointUrl = "https://10.10.10.18:9000";
@@ -84,7 +86,14 @@ struct S3Handler : public Http::Handler {
             if (getObjectOutcome.IsSuccess()) {
                 // Read the Parquet data from S3
                 auto& objectStream = getObjectOutcome.GetResult().GetBody();
-                
+
+                auto end_s3_fetch = std::chrono::high_resolution_clock::now();
+                std::chrono::duration<double> s3_fetch_duration = end_s3_fetch - start_s3_fetch;
+                std::cout << "Time to fetch object from S3: " << s3_fetch_duration.count() << " seconds" << std::endl; 
+
+/////////////////////////////////////            
+                auto start_stream = std::chrono::high_resolution_clock::now();
+    
                 // Read the stream into a vector: takes long time
                 //std::vector<char> data(std::istreambuf_iterator<char>(objectStream), {});
 
@@ -107,6 +116,13 @@ struct S3Handler : public Http::Handler {
                     data.insert(data.end(), buffer, buffer + objectStream.gcount());
                 }
 
+                auto end_stream = std::chrono::high_resolution_clock::now();
+                std::chrono::duration<double> stream_duration = end_stream - start_stream;
+                std::cout << "Time to read stream: " << stream_duration.count() << " seconds" << std::endl;
+
+////////////////////////////////////////////////////////////////////
+
+                auto start_buffer = std::chrono::high_resolution_clock::now();
                 // Create an Arrow buffer from the vector
                 auto arrowBuffer = arrow::Buffer::Wrap(data.data(), data.size());
                 // Create an Arrow BufferReader from the Arrow buffer
@@ -121,14 +137,20 @@ struct S3Handler : public Http::Handler {
                     return;
                 }
 
+
+                auto end_buffer = std::chrono::high_resolution_clock::now();
+                std::chrono::duration<double> buffer_duration = end_buffer - start_buffer;
+                std::cout << "Time to preparse arrow buffer and arrowreader: " << buffer_duration.count() << " seconds" << std::endl;
+
                 std::shared_ptr<arrow::Schema> schema;
                 arrowReader->GetSchema(&schema);
 
-///////////////////////////////////////////////
- 
-
 ///////////////////////////////////////////
 
+                auto start_sql = std::chrono::high_resolution_clock::now();
+
+                // Parse the SQL expression
+                std::vector<Token> tokens = SQLParser::parse(sqlExpression);
 
                 std::string columnName;
                 std::string operatorSymbol;
@@ -180,17 +202,14 @@ struct S3Handler : public Http::Handler {
                     condition = gandiva::TreeExprBuilder::MakeCondition(gandiva::TreeExprBuilder::MakeFunction("not_equal", {field_node, literal_node}, arrow::boolean()));
                 }
 
+                auto end_sql = std::chrono::high_resolution_clock::now();
+                std::chrono::duration<double> sql_duration = end_sql - start_sql;
+                std::cout << "Time to sql parse and create filter expression: " << sql_duration.count() << " seconds" << std::endl; 
+
 /////////////////////////////////////////////////
 
-                std::shared_ptr<gandiva::Filter> gandiva_filter;
-                auto filter_status = gandiva::Filter::Make(schema, condition, &gandiva_filter);
-                if (!filter_status.ok()) {
-                    std::cerr << "Error creating Gandiva filter: " << filter_status.message() << std::endl;
-                    response.send(Http::Code::Internal_Server_Error, "Error applying filter");
-                    return;
-                }
+                auto start_stats = std::chrono::high_resolution_clock::now();
 
-////////////////////////////////////////////////
 /*Stats based row group filtering*/
 
                 int column_index = -1;
@@ -247,14 +266,17 @@ struct S3Handler : public Http::Handler {
                     }
                 }
 
-
+                auto end_stats = std::chrono::high_resolution_clock::now();
+                std::chrono::duration<double> stats_duration = end_stats - start_stats;
+                std::cout << "Time to read statistics and find row groups: " << stats_duration.count() << " seconds" << std::endl; 
+//
 
 ///////////////////////////////////////////////
 //Read Table
-
+                auto start_table = std::chrono::high_resolution_clock::now();
                 std::shared_ptr<arrow::Table> concatenated_table;
 
-               if (!matching_row_groups.empty()) {
+                if (!matching_row_groups.empty()) {
 
 
                     std::vector<std::shared_ptr<arrow::Table>> tables;
@@ -291,7 +313,21 @@ struct S3Handler : public Http::Handler {
 
                 }
 
+                auto end_table = std::chrono::high_resolution_clock::now();
+                std::chrono::duration<double> table_duration = end_table - start_table;
+                std::cout << "Time to read table: " << buffer_duration.count() << " seconds" << std::endl;  
+
 ///////////////////////////////////////////////
+
+                auto start_filter = std::chrono::high_resolution_clock::now();
+
+                std::shared_ptr<gandiva::Filter> gandiva_filter;
+                auto filter_status = gandiva::Filter::Make(schema, condition, &gandiva_filter);
+                if (!filter_status.ok()) {
+                    std::cerr << "Error creating Gandiva filter: " << filter_status.message() << std::endl;
+                    response.send(Http::Code::Internal_Server_Error, "Error applying filter");
+                    return;
+                }
 
                 arrow::TableBatchReader reader(*concatenated_table);
                 auto pool = arrow::default_memory_pool();
@@ -348,6 +384,10 @@ struct S3Handler : public Http::Handler {
                 arrow::Result<std::shared_ptr<arrow::Table>> result = arrow::Table::FromRecordBatches(filtered_batches);
                 std::shared_ptr<arrow::Table> result_table = result.ValueOrDie();
 
+                auto end_filter = std::chrono::high_resolution_clock::now();
+                std::chrono::duration<double> filter_duration = end_filter - start_filter;
+                std::cout << "Time to wrap in recordbatch and filter: " << filter_duration.count() << " seconds" << std::endl; 
+//
                 // Print the Arrow table's schema
                 //std::cout << "Table Schema:\n" << table->schema()->ToString() << std::endl;
                 // Print the Arrow table's data
