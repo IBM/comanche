@@ -23,12 +23,26 @@ download_start_time = time.time()
 
 response = s3.get_object(
     Bucket='mycsvbucket',
-    Key='sampledata/dataStat_100000.parquet'
+    Key='sampledata/dataStat_1000000.parquet'
 )
 
+# Define the chunk size (e.g., 1MB)
+CHUNK_SIZE = 1024 * 1024  # 1MB
 
+# Create a BytesIO object for accumulating the chunks
+parquet_data = io.BytesIO()
 
-parquet_data = io.BytesIO(response['Body'].read())
+# Read the data in chunks
+stream = response['Body']
+while True:
+    data = stream.read(CHUNK_SIZE)
+    if not data:
+        break
+    parquet_data.write(data)
+
+# It's important to seek back to the start of the BytesIO object after writing
+parquet_data.seek(0)
+
 #read() used to retrieve the data from an object in S3
 
 download_end_time = time.time()
