@@ -20,8 +20,6 @@ sample_link_args = [
     '-lparquet',   # Link with Parquet library
     '-larrow_dataset',
     '-larrow_acero',
-    '-lgandiva',
-    '-Wl,-rpath=/usr/local/lib',  # Add rpath to the library directory
 ]
 
 sample_inc_dirs  = []
@@ -29,7 +27,7 @@ sample_inc_dirs  = []
 # Define include directories for the SQL parser
 sample_inc_dirs += include_directories('..')
 
-sample_inc_dirs+=include_directories('/home/ubuntu/json/include')
+sample_inc_dirs+=include_directories('/home/nara/json/include')
 
 # Add executable target
 executable('localfilter', source_files,
