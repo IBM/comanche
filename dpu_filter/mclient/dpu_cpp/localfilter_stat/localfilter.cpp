@@ -92,17 +92,22 @@ struct S3Handler : public Http::Handler {
                 objectStream.seekg(0, std::ios::beg);
 
                 if (size > 0) {
+                    data.resize(static_cast<size_t>(size)); // Resize the vector to the exact size of the stream
+                    objectStream.read(data.data(), size); // Read the entire stream at once
+                }
+
+                /*if (size > 0) {
                     data.reserve(static_cast<size_t>(size));
                 }
 
                 // Use a buffer to read chunks of the stream
                 constexpr std::streamsize bufferSize = 8192*8; // Example buffer size, adjust as needed
-                char buffer[bufferSize];
+                auto buffer = std::make_unique<char[]>(bufferSize); // Heap allocation with unique_ptr
 
-                while (objectStream.read(buffer, bufferSize) || objectStream.gcount() > 0) {
-                    data.insert(data.end(), buffer, buffer + objectStream.gcount());
-                }
-
+                while (objectStream.read(buffer.get(), bufferSize) || objectStream.gcount() > 0) {
+                    data.insert(data.end(), buffer.get(), buffer.get() + objectStream.gcount());
+                }*/
+    
                 auto end_stream = std::chrono::high_resolution_clock::now();
                 std::chrono::duration<double> stream_duration = end_stream - start_stream;
                 std::cout << "Time to read stream: " << stream_duration.count() << " seconds" << std::endl;
