@@ -15,7 +15,7 @@
 #include <arrow/dataset/discovery.h>
 #include <arrow/compute/api.h>
 #include <arrow/compute/expression.h> // Include this header
-#include "/home/nara/json/include/nlohmann/json.hpp"
+#include "/home/ubuntu/json/include/nlohmann/json.hpp"
 #include "SQLParser.h"
 
 
@@ -33,7 +33,7 @@ int main() {
 
             // Extract bucket, key, and SQL expression
         std::string bucket = "mycsvbucket" ;
-        std::string key = "sampledata/dataStat_100000.parquet";
+        std::string key = "sampledata/dataStat_1000000.parquet";
         std::string sqlExpression = "SELECT * FROM s3object WHERE ID < 120";
 
         // Initialize AWS SDK
