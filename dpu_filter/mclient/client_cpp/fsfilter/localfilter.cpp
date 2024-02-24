@@ -7,6 +7,7 @@
 #include <parquet/arrow/reader.h>
 #include <iostream>
 #include <chrono>
+#include <arrow/pretty_print.h>
 
 int main() {
     // Initialize S3
@@ -98,7 +99,7 @@ int main() {
     auto result_table = scanner.ValueOrDie()->ToTable();
 
 
-    //std::cout << "Table Data:\n" << result_table.ValueUnsafe()->ToString() << std::endl;
+    std::cout << "Table Data:\n" << result_table.ValueUnsafe()->ToString() << std::endl;
     // Finalize S3 subsystem when done
     status = arrow::fs::FinalizeS3();
     if (!status.ok()) {
