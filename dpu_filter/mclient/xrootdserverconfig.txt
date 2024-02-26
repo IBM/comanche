@@ -22,6 +22,8 @@ export LD_LIBRARY_PATH=/path/to/xrootd/libraries:$LD_LIBRARY_PATH
 
 sudo mkdir -p /var/run/xrootd
 
+sudo ldconfig
 
 #start root server
 xrootd -c /etc/xrootd/xrootd.cf
+
