@@ -1,0 +1,29 @@
+sudo apt update
+sudo apt install cmake gcc g++ make libssl-dev libxml2-dev
+git clone https://github.com/xrootd/xrootd.git
+cd xrootd
+mkdir build
+cd build
+cmake ..
+make
+sudo make install
+sudo mkdir -p /etc/xrootd
+sudo nano /etc/xrootd/xrootd.cf
+
+xrd.port 1094
+all.export /tmp      (ffolder that contains root files)
+all.adminpath /var/run/xrootd
+xrootd.trace all
+xrd.network keepalive kaparms 10m,1m,5
+xrd.timeout idle 60m
+
+
+export LD_LIBRARY_PATH=/path/to/xrootd/libraries:$LD_LIBRARY_PATH
+
+sudo mkdir -p /var/run/xrootd
+
+sudo ldconfig
+
+#start root server
+xrootd -c /etc/xrootd/xrootd.cf
+
