@@ -108,10 +108,10 @@ int main() {
                     data.insert(data.end(), buffer.get(), buffer.get() + objectStream.gcount());
                 }*/
 
-		if (size > 0) {
-    		   data.resize(static_cast<size_t>(size)); // Resize the vector to the exact size of the stream
-    	           objectStream.read(data.data(), size); // Read the entire stream at once
-		}
+		        if (size > 0) {
+    		        data.resize(static_cast<size_t>(size)); // Resize the vector to the exact size of the stream
+    	            objectStream.read(data.data(), size); // Read the entire stream at once
+		        }
 
                 auto end_stream = std::chrono::high_resolution_clock::now();
                 std::chrono::duration<double> stream_duration = end_stream - start_stream;
@@ -134,17 +134,9 @@ int main() {
                 std::cout << "Time to preparse arrow buffer and arrowreader: " << buffer_duration.count() << " seconds" << std::endl;
 
 ////////////////////////////////////////////
+   // Apply SQL filter expression to the table (if needed)
+    // Your existing filter logic here...
 
-                auto start_table = std::chrono::high_resolution_clock::now();
-                // Read entire file as a single Arrow table
-                std::shared_ptr<arrow::Table> table;
-                status = arrowReader->ReadTable(&table);
-  
-
-                auto end_table = std::chrono::high_resolution_clock::now();
-                std::chrono::duration<double> table_duration = end_table - start_table;
-                std::cout << "Time to read table: " << table_duration.count() << " seconds" << std::endl;  
-      
 ////////////////////////////////////////////////////
 
                 auto start_sql = std::chrono::high_resolution_clock::now();
@@ -195,8 +187,28 @@ int main() {
 
 //////////////////////////////////////////////////////////////////
 
-                auto start_filter = std::chrono::high_resolution_clock::now();
 
+///////////
+
+                auto start_table = std::chrono::high_resolution_clock::now();
+                // Read entire file as a single Arrow table
+                //std::shared_ptr<arrow::Table> table;
+                //status = arrowReader->ReadTable(&table);
+  
+int num_row_groups = arrowReader->num_row_groups();
+
+// Process each row group individually
+for (int row_group_index = 0; row_group_index < num_row_groups; ++row_group_index) {
+    // Read data from the current row group
+    std::shared_ptr<arrow::Table> table;
+    status = arrowReader->RowGroup(row_group_index)->ReadTable(&table);
+    if (!status.ok()) {
+        std::cerr << "Error reading row group " << row_group_index << ": " << status.message() << std::endl;
+        continue; // Skip to the next row group
+    }
+
+ 
+              
                 // Wrap the Table in an InMemoryDataset
                 std::shared_ptr<arrow::dataset::Dataset> dataset = std::make_shared<arrow::dataset::InMemoryDataset>(table);
 
@@ -213,18 +225,20 @@ int main() {
                 // Perform the Scan and retrieve filtered result as Table
                 auto result_table = scanner.ValueOrDie()->ToTable();
 
-                auto end_filter = std::chrono::high_resolution_clock::now();
-                std::chrono::duration<double> filter_duration = end_filter - start_filter;
-                std::cout << "Time to wrap in dataset and filter: " << filter_duration.count() << " seconds" << std::endl; 
-///////////////////////////////////////////////////////////////////
-
+               
                 // Print the Arrow table's schema
                 //std::cout << "Table Schema:\n" << table->schema()->ToString() << std::endl;
                 // Print the Arrow table's data
-                std::cout << "Table Data:\n" << result_table.ValueUnsafe()->ToString() << std::endl;
+               // std::cout << "Table Data:\n" << result_table.ValueUnsafe()->ToString() << std::endl;
 
 
-                
+    
+}
+
+                auto end_table = std::chrono::high_resolution_clock::now();
+                std::chrono::duration<double> table_duration = end_table - start_table;
+                std::cout << "Time to read table: " << table_duration.count() << " seconds" << std::endl;  
+                  
 
          
                 //response.send(Http::Code::Ok, "jo");
@@ -248,3 +262,24 @@ int main() {
 }
 
 
+/*
+// Get the number of row groups in the file
+int num_row_groups = arrowReader->num_row_groups();
+
+// Process each row group individually
+for (int row_group_index = 0; row_group_index < num_row_groups; ++row_group_index) {
+    // Read data from the current row group
+    std::shared_ptr<arrow::Table> table;
+    status = arrowReader->RowGroup(row_group_index)->ReadTable(&table);
+    if (!status.ok()) {
+        std::cerr << "Error reading row group " << row_group_index << ": " << status.message() << std::endl;
+        continue; // Skip to the next row group
+    }
+
+    // Apply SQL filter expression to the table (if needed)
+    // Your existing filter logic here...
+
+    // Print the Arrow table's data
+    std::cout << "Table Data (Row Group " << row_group_index << "):\n" << table->ToString() << std::endl;
+}
+*/
