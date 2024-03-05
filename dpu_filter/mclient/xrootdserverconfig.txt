@@ -24,6 +24,8 @@ sudo mkdir -p /var/run/xrootd
 
 sudo ldconfig
 
+sudo chmod -R 777 /var/run/xrootd
+
 #start root server
 xrootd -c /etc/xrootd/xrootd.cf
 
