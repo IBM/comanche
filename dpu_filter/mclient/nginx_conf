@@ -22,6 +22,8 @@ sudo ln -s /etc/nginx/sites-available/config /etc/nginx/sites-enabled/config
 sudo nginx -t
 
 sudo systemctl restart nginx
+#if restart doesn't work do
+#sudo systemctl stop apache2
 
 #on client side use
 curl http://10.10.10.18/52557D67-72C0-754B-AC60-7AEE7FF1FD4A.root
