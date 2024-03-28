@@ -1,0 +1,2 @@
+#https://blog.min.io/how-to-benchmark-minio-warp-speedtest/
+WARP_ACCESS_KEY=minioadmin WARP_SECRET_KEY=minioadmin warp get --duration=1m --obj.size=1MB --concurrent=10
