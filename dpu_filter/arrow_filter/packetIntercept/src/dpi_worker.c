@@ -97,6 +97,8 @@ struct rte_mempool *mod_packet_pool; //modified packet pool
 struct rte_mbuf* ack_packet;
 struct rte_mbuf *ackpacket;
 // Measure the time before sending the file name
+struct timeval send_start;
+struct timeval send_stop;
 struct timeval fetch_start;
 struct timeval fetch_end;
 struct timeval filter_start;
@@ -1491,7 +1493,11 @@ process_packet(struct worker_ctx *ctx)
 			if (tcp_hdr1->tcp_flags & TCP_FIN_FLAG) {
 
 				end = true;
-				printf("Caught the fin\n");
+				//printf("Caught the fin\n");
+				//Capture time to catch final packet
+				gettimeofday(&send_stop, NULL);
+				long long send_ms = get_elapsed_milliseconds(send_start, send_stop);
+    			printf("Packets received in %lld milliseconds\n", send_ms);
 				
 			}
 		}
@@ -1526,7 +1532,7 @@ process_packet(struct worker_ctx *ctx)
 		
         	if (src_flag && p_length > 0){
 
-				printf("packet coming in\n");
+				// in\n");
 
 
 
@@ -1565,7 +1571,7 @@ process_packet(struct worker_ctx *ctx)
             	//Packet array is used later to send packets from DPU to client
 				add_packet(&packet_array, packet);
 			     
-			    printf("Catch payload\n");
+			    //printf("Catch payload\n");
 
 				//print_tcp_header_info(packet);
 			
@@ -1595,7 +1601,7 @@ process_packet(struct worker_ctx *ctx)
             	//If we already have caught the ACK packet from client, send ACKs from DPU -> Server
 				if(ack_packet!= NULL){  
 
-					printf("ackpacket\n");
+					//printf("ackpacket\n");
 
 					struct rte_mbuf* a_packet = rte_pktmbuf_clone(ack_packet, mod_packet_pool);
 
@@ -1686,9 +1692,9 @@ process_packet(struct worker_ctx *ctx)
                         //Send delayed ACKs for every 2 packets/
 						//if( packet_idx%10 == 0){
 
-						printf("sending ack\n");
+						//printf("sending ack\n");
 						rte_eth_tx_burst(ingress_port, queue_id, &a_packet, 1);
-						printf("sent ack\n");
+						//printf("sent ack\n");
 						//	TX_BUFFER_PKT(ack_packet, ctx);
 						//rte_eth_tx_buffer(ack_packet->port, ctx->queue_id, ctx->tx_buffer[ingress_port], ack_packet);
 						//rte_eth_tx_buffer_flush(egress_port, queue_id, ctx->tx_buffer[egress_port]);
@@ -1802,6 +1808,8 @@ process_packet(struct worker_ctx *ctx)
 					ack_packet = rte_pktmbuf_copy(packet, mod_packet_pool, 0, payload_offset);
 					ack_packet->pkt_len = payload_offset;
 					ackcaught = true;
+					gettimeofday(&send_start, NULL);
+					
 		    	}
 		    }
 			TX_BUFFER_PKT(packet, ctx);

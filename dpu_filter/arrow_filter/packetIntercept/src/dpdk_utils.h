@@ -30,8 +30,8 @@
 extern "C" {
 #endif
 
-#define RX_RING_SIZE 1024       /* RX ring size */
-#define TX_RING_SIZE 1024       /* TX ring size */
+#define RX_RING_SIZE 1024*8       /* RX ring size */ //Before was just 1024
+#define TX_RING_SIZE 1024*8       /* TX ring size */ //Before was just 1024
 #define NUM_MBUFS (64 * 1024)  //*186 * 1024)    /* Number of mbufs to be allocated in the mempool huuchin 8 bsn, 16 bval 40MB hurtel, 186 bval 550MB, 128 n 372MB*/
 #define MBUF_CACHE_SIZE 250     /* mempool cache size */
 

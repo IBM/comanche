@@ -1,0 +1,17 @@
+#
+# Copyright (c) 2021 NVIDIA CORPORATION & AFFILIATES, ALL RIGHTS RESERVED.
+#
+# This software product is a proprietary product of NVIDIA CORPORATION &
+# AFFILIATES (the "Company") and all right, title, and interest in and to the
+# software product, including all associated intellectual property rights, are
+# and shall remain exclusively with the Company.
+#
+# This software product is governed by the End User License Agreement
+# provided with the software product.
+#
+
+drop tcp any any -> any 445 (msg:"ET NETBIOS Remote SMB2.0 DoS Exploit"; flow:to_server; pcre:"/\xffSMB\x72\x00\x00\x00\x00\x18\x53\xc8/";  sid:1; rev:1;)
+drop tcp any any -> any any (msg:"ET SHELLCODE Bindshell2 Decoder Shellcode";  pcre:"/\x53\x53\x53\x53\x53\x43\x53\x43\x53\xFF\xD0\x66\x68\x66\x53\x89\xE1\x95\x68\xA4\x1A/"; sid:2; rev:1;)
+drop tcp any 440 -> any any (msg:"ET WORM Shell Bot Code Download";  content:"##################### IRC #######################";  sid:3; rev:1;)
+drop tcp any any -> any 7777 (msg:"ET MALWARE Arucer Command Execution";  pcre:"/\xC2\xE5\xE5\xE5\x9E\xDD\xA4\xA3\xD4\xA6\xD4\xD3\xD1\xC8\xA0\xA7\xA1\xD3\xC8\xD1\x87\xD7\x87\xC8\xA7\xA6\xD4\xA3\xC8\xD3\xD1\xD3\xD2\xD1\xA0\xDC\xDD\xA4\xD2\xD4\xD5\x98\xE5/"; sid:4; rev:1;)
+alert tcp any any -> any any (msg:"ET HUNTING Suspicious User Agent (ClickAdsByIE)"; pcre:"/\x0d\x0aUser-Agent\x3a ClickAdsByIE/";sid:5; rev:1;)

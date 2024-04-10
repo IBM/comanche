@@ -40,7 +40,7 @@ int main() {
     std::cout << "Time to make filesystem: " << s3_fetch_duration.count() << " seconds" << std::endl;
 
     // Specify the file path in S3
-    std::string file_path = "mycsvbucket/sampledata/dataStat_1000000.parquet";
+    std::string file_path = "mycsvbucket/sampledata/dataStat_100000.parquet";
 
     // Open the file for reading using the new Result pattern
     auto file_result = s3fs->OpenInputFile(file_path);
@@ -61,16 +61,16 @@ int main() {
     }
 
     auto start_table = std::chrono::high_resolution_clock::now();
-    /*std::shared_ptr<arrow::Table> table;
+    std::shared_ptr<arrow::Table> table;
     status = reader->ReadTable(&table);
     if (!status.ok()) {
         std::cerr << "Could not read table from Parquet file: " << status.ToString() << std::endl;
         arrow::fs::FinalizeS3();
         return -1;
-    }*/
+    }
 
         // Read only the first row group instead of the entire table
-    std::shared_ptr<arrow::Table> table;
+    /*std::shared_ptr<arrow::Table> table;
     if (reader->num_row_groups() > 0) {
         status = reader->ReadRowGroup(0, &table); // Reading only the first row group
         if (!status.ok()) {
@@ -82,7 +82,7 @@ int main() {
         std::cerr << "The Parquet file has no row groups." << std::endl;
         arrow::fs::FinalizeS3();
         return -1;
-    }
+    }*/
     
 
     auto end_table = std::chrono::high_resolution_clock::now();

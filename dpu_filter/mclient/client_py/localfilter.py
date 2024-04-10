@@ -23,7 +23,7 @@ download_start_time = time.time()
 
 response = s3.get_object(
     Bucket='mycsvbucket',
-    Key='sampledata/dataStat_1000000.parquet'
+    Key='sampledata/dataStat_500000.parquet'
 )
 
 

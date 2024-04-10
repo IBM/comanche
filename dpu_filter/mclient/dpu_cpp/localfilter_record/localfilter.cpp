@@ -315,7 +315,7 @@ struct S3Handler : public Http::Handler {
 
                 auto end_table = std::chrono::high_resolution_clock::now();
                 std::chrono::duration<double> table_duration = end_table - start_table;
-                std::cout << "Time to read table: " << buffer_duration.count() << " seconds" << std::endl;  
+                std::cout << "Time to read table: " << table_duration.count() << " seconds" << std::endl;  
 
 ///////////////////////////////////////////////
 
