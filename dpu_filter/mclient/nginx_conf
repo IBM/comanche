@@ -28,3 +28,16 @@ sudo systemctl restart nginx
 #on client side use
 curl http://10.10.10.18/52557D67-72C0-754B-AC60-7AEE7FF1FD4A.root
 
+#nginx server that serves folder/ wors with libcurl
+
+server {
+    listen 80;
+    server_name 10.10.10.18;
+
+    location / {
+        root /mnt/sda4;
+        autoindex on;  # Optional: Enables directory listing
+        # The index directive is not needed unless you have a specific default file to serve
+        # index index.html; # Example for serving a specific index file by default
+    }
+}
