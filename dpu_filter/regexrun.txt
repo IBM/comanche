@@ -6,3 +6,5 @@ time sudo ./doca_regex_scan -p 03:00.0 -r /tmp/scanrules.rof2.binary -d /tmp/sca
 
 dream.txt                1, dre\S*
 scandate.txt             1, /((0[1-9]|[12]\d|3[01])-(0[1-9]|1[0-2])-[12]\d{3})/
+
+rxpc -V bf3 -f dream.txt -p 0.01 -o /tmp/dream
