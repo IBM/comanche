@@ -3,6 +3,51 @@
 #include <vector>
 #include <string>
 #include <chrono>
+#include <algorithm> // For std::transform
+#include <cctype>    // For std::tolower
+#include <locale>    // For std::locale
+
+size_t header_callback(char *buffer, size_t size, size_t nitems, void *userdata) {
+    std::string header(buffer, size * nitems);
+    std::locale loc;  // Use the C++ locale to handle characters properly
+
+    // Transform header to lowercase
+    std::transform(header.begin(), header.end(), header.begin(),
+                   [&loc](char c) { return std::tolower(c, loc); }); // Using locale
+
+    // Find and parse the Content-Length header
+    std::string content_length_key = "content-length: ";
+    auto pos = header.find(content_length_key);
+    if (pos != std::string::npos) {
+        std::string content_length_str = header.substr(pos + content_length_key.length());
+        *static_cast<size_t*>(userdata) = std::stoll(content_length_str);
+    }
+    return nitems * size;
+}
+
+bool GetContentSize(const std::string& url, size_t& content_size) {
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+        std::cerr << "CURL initialization failed." << std::endl;
+        return false;
+    }
+
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, header_callback);
+    curl_easy_setopt(curl, CURLOPT_HEADERDATA, &content_size);
+    curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);  // Perform a HEAD request
+
+    CURLcode res = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
+
+    if (res != CURLE_OK) {
+        std::cerr << "curl_easy_perform() failed: " << curl_easy_strerror(res) << std::endl;
+        return false;
+    }
+
+    return true;
+}
+
 
 // Callback function for writing data received from the server into memory
 size_t WriteMemoryCallback(void* contents, size_t size, size_t nmemb, void* userp) {
@@ -33,14 +78,14 @@ bool DownloadFileAsync(const std::string& url, std::vector<char>& data) {
         std::cerr << "curl initialization failed" << std::endl;
         return false;
     }
-    data.resize(746619286);
+    //data.resize(746619286);
 
     // Set URL and other options
     //curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
     curl_easy_setopt(curl, CURLOPT_TCP_NODELAY, 1L);
-    curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, 1024*1024*1L); 
+    curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, 1024*1024*2L); 
     
    
 
@@ -76,13 +121,19 @@ int main() {
     curl_global_init(CURL_GLOBAL_DEFAULT);
 
     std::string url = "http://10.10.10.18/dataStat_1000000.parquet"; // Change to your actual URL
-    std::vector<char> memoryData; // Vector to hold the fetched data
+    size_t content_size = 0;
+    if (GetContentSize(url, content_size)) {
+        std::cout << "Content size: " << content_size << " bytes." << std::endl;
+        std::vector<char> memoryData;
+        memoryData.resize(content_size);  // Reserve the exact amount of data
 
-
-    if (DownloadFileAsync(url, memoryData)) {
-       std::cout << "Data fetched successfully. Size: " << memoryData.size() << " bytes." << std::endl;
+        if (DownloadFileAsync(url, memoryData)) {
+            std::cout << "Data fetched successfully. Size: " << memoryData.size() << " bytes." << std::endl;
+        } else {
+            std::cerr << "Data fetch failed" << std::endl;
+        }
     } else {
-        std::cerr << "Data fetch failed" << std::endl;
+        std::cerr << "Failed to retrieve content size." << std::endl;
     }
 
     curl_global_cleanup();
