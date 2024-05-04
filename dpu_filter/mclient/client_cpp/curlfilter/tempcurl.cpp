@@ -6,7 +6,7 @@
 
 // Callback function for writing data received from the server into memory
 size_t WriteMemoryCallback(void* contents, size_t size, size_t nmemb, void* userp) {
-    //auto& memory = *static_cast<std::vector<char>*>(userp);
+    auto& memory = *static_cast<std::vector<char>*>(userp);
     size_t totalSize = size * nmemb;
     static size_t currentOffset = 0; // Maintains the current offset where data is to be written
 
@@ -17,8 +17,8 @@ size_t WriteMemoryCallback(void* contents, size_t size, size_t nmemb, void* user
     }*/
 
     // Copy the received data into the vector at the current offset
-    //std::copy(static_cast<char*>(contents), static_cast<char*>(contents) + totalSize, memory.begin() + currentOffset);
-    //currentOffset += totalSize; // Update the offset
+    std::copy(static_cast<char*>(contents), static_cast<char*>(contents) + totalSize, memory.begin() + currentOffset);
+    currentOffset += totalSize; // Update the offset
     //std::cout << "Received " << totalSize << " bytes this call." << std::endl; // Print the amount of data received in this chunk
 
     return totalSize;
@@ -40,11 +40,11 @@ bool DownloadFileAsync(const std::string& url, std::vector<char>& data) {
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
     curl_easy_setopt(curl, CURLOPT_TCP_NODELAY, 1L);
-    curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, 1024*1024*2L); 
+    curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, 1024*1024*1L); 
     
    
 
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, nullptr);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &data);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L); // Follow redirects
 
     // Start timing

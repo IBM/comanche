@@ -20,6 +20,7 @@ sample_link_args = [
     '-lparquet',   # Link with Parquet library
     '-larrow_dataset',
     '-larrow_acero',
+   # '-lcurl',
 ]
 
 sample_inc_dirs  = []
@@ -29,9 +30,12 @@ sample_inc_dirs += include_directories('..')
 
 sample_inc_dirs+=include_directories('/home/ubuntu/json/include')
 
-# Add executable target
+# Add this line to find libcurl using pkg-config
+curl_dep = dependency('libcurl', version : '>= 7.x', fallback : ['curl', 'libcurl_dep'])
+
+# Now update your executable definition to use this dependency
 executable('localfilter', source_files,
-           dependencies: [arrow_dep, pistache_dep, aws_sdk_dep],
+           dependencies: [arrow_dep, pistache_dep, aws_sdk_dep, curl_dep],
            include_directories: sample_inc_dirs,
            c_args: ['-D_FILE_OFFSET_BITS=64',
                     '-Wall',
