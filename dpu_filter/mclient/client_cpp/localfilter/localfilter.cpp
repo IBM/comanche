@@ -45,14 +45,14 @@ int main() {
 
 
         // MinIO server connection parameters
-        Aws::String minioEndpointUrl = "https://10.10.10.18:9000";
+        Aws::String minioEndpointUrl = "http://10.10.10.18:9000";
         Aws::String awsAccessKey = "minioadmin";
         Aws::String awsSecretKey = "minioadmin";
 
         // Create S3 client configuration
         Aws::Client::ClientConfiguration clientConfig;
         clientConfig.endpointOverride = minioEndpointUrl;
-        clientConfig.scheme = Aws::Http::Scheme::HTTPS;
+        clientConfig.scheme = Aws::Http::Scheme::HTTP;//S;
         clientConfig.verifySSL = false;
 
         // Create AWSCredentials object

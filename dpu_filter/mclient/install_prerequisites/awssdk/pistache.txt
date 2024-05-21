@@ -1,3 +1,2 @@
 sudo add-apt-repository ppa:pistache+team/unstable
-sudo apt update
 sudo apt install libpistache-dev

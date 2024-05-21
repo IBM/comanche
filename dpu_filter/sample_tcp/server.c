@@ -8,7 +8,7 @@
 
 #define TCP_PORT 12345
 #define FILE_DIRECTORY "/mnt/sda4/"
-#define BUFFER_SIZE 1024
+#define BUFFER_SIZE (1024 * 8)
 #define SLEEP_INTERVAL 1 // Sleep interval in seconds
 #define MAX_DATA_SIZE (64 * 1024) // Maximum data size before sleeping
 

@@ -30,10 +30,17 @@ conversion_start_time = time.time()
 # Load the dataset with a filter
 dataset = ds.dataset(s3_path, filesystem=fs, format="parquet")
 conversion_end_time = time.time()
+<<<<<<< HEAD
 
 table = dataset.to_table(filter=ds.field('ID') < 120)
 
 
+=======
+table = dataset.to_table(filter=ds.field('ID') < 120)
+
+
+
+>>>>>>> 165cbe02d38de4867a5e604a3af34e0ab07d71c2
 # Calculate the conversion time
 conversion_time = conversion_end_time - conversion_start_time
 print("Conversion time:", conversion_time, "seconds")

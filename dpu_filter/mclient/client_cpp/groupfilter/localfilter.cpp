@@ -40,19 +40,18 @@ int main() {
         Aws::SDKOptions options;
         Aws::InitAPI(options);
 
-        // Example for measuring S3 fetch time
-        auto start_s3_fetch = std::chrono::high_resolution_clock::now();
+
 
 
         // MinIO server connection parameters
-        Aws::String minioEndpointUrl = "https://10.10.10.18:9000";
+        Aws::String minioEndpointUrl = "http://10.10.10.18:9000";
         Aws::String awsAccessKey = "minioadmin";
         Aws::String awsSecretKey = "minioadmin";
 
         // Create S3 client configuration
         Aws::Client::ClientConfiguration clientConfig;
         clientConfig.endpointOverride = minioEndpointUrl;
-        clientConfig.scheme = Aws::Http::Scheme::HTTPS;
+        clientConfig.scheme = Aws::Http::Scheme::HTTP;//HTTPS;
         clientConfig.verifySSL = false;
 
         // Create AWSCredentials object
@@ -71,15 +70,23 @@ int main() {
             getObjectRequest.SetBucket(bucket.c_str());
             getObjectRequest.SetKey(key.c_str());
 
+
+            // Example for measuring S3 fetch time
+            auto start_s3_fetch = std::chrono::high_resolution_clock::now();
+
             auto getObjectOutcome = s3Client.GetObject(getObjectRequest);
-            if (getObjectOutcome.IsSuccess()) {
+
+                            auto end_s3_fetch = std::chrono::high_resolution_clock::now();
+                std::chrono::duration<double> s3_fetch_duration = end_s3_fetch - start_s3_fetch;
+                std::cout << "Time to fetch object from S3: " << s3_fetch_duration.count() << " seconds" << std::endl;
+            
+            bool kiki = false;
+            if (kiki/*getObjectOutcome.IsSuccess()*/) {
                 // Read the Parquet data from S3
+
                 auto& objectStream = getObjectOutcome.GetResult().GetBody();
 
 
-                auto end_s3_fetch = std::chrono::high_resolution_clock::now();
-                std::chrono::duration<double> s3_fetch_duration = end_s3_fetch - start_s3_fetch;
-                std::cout << "Time to fetch object from S3: " << s3_fetch_duration.count() << " seconds" << std::endl;
 
  ////////////////////////////////////////////////////////
 
@@ -244,7 +251,7 @@ for (int row_group_index = 0; row_group_index < num_row_groups; ++row_group_inde
                 //response.send(Http::Code::Ok, "jo");
             } else {
                 // Error handling
-                std::cerr << "Failed to get object: " << getObjectOutcome.GetError().GetMessage() << std::endl;
+                //std::cerr << "Failed to get object: " << getObjectOutcome.GetError().GetMessage() << std::endl;
             }
         } catch (const std::exception& e) {
             // Exception handling

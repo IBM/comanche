@@ -64,11 +64,11 @@ int main() {
     std::shared_ptr<arrow::Schema> schema;
     parquet_reader->GetSchema(&schema);
 
-    std::vector<int> row_groups(num_row_groups);
-    std::iota(row_groups.begin(), row_groups.end(), 0); // Fill with all row group indices
+    //std::vector<int> row_groups(num_row_groups);
+    //std::iota(row_groups.begin(), row_groups.end(), 0); // Fill with all row group indices
 
-    //std::vector<int> row_groups(1); // Create a vector to hold one row group index
-    //row_groups[0] = 0; // Set the index of the first row group
+    std::vector<int> row_groups(1); // Create a vector to hold one row group index
+    row_groups[0] = 0; // Set the index of the first row group
 
     // Create RecordBatchReader for specified row groups
     

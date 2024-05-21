@@ -7,7 +7,7 @@
 
 #define TCP_PORT 12345
 #define SERVER_IP "10.10.10.18" // Replace with the server's IP address
-#define BUFFER_SIZE 1024
+#define BUFFER_SIZE (1024*64)
 
 int main() {
     int sockfd;

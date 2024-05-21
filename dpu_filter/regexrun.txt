@@ -1,0 +1,12 @@
+time ./grep '(0[1-9]|[12]\d|3[01])-(0[1-9]|1[0-2])-[12]\d{3}' scandata.txt
+time ./grep dre\S* sh.txt
+
+time sudo ./doca_regex_scan -p 03:00.0 -r /tmp/dream.rof2.binary -d /tmp/sh.txt
+time sudo ./doca_regex_scan -p 03:00.0 -r /tmp/scanrules.rof2.binary -d /tmp/scandata.txt
+
+dream.txt                1, dre\S*
+scandate.txt             1, /((0[1-9]|[12]\d|3[01])-(0[1-9]|1[0-2])-[12]\d{3})/
+
+rxpc -V bf3 -f dream.txt -p 0.01 -o /tmp/dream
+
+sudo ./doca_rxpbench -D "-l5,6 -n 1 -a 03:00.0,class=regex" --input-mode text_file -f /tmp/sh.txt -d doca -r /tmp/dream.rof2.binary -c 1 -s 10 -l 4096

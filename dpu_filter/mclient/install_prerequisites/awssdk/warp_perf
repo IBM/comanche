@@ -1,0 +1,9 @@
+#https://blog.min.io/how-to-benchmark-minio-warp-speedtest/
+#releases: https://github.com/minio/warp/releases 
+
+wget https://github.com/minio/warp/releases/download/v0.9.0/warp_Linux_arm64.deb
+sudo dpkg -i warp_Linux_arm64.deb
+sudo apt-get install -f
+
+#WARP_ACCESS_KEY=minioadmin WARP_SECRET_KEY=minioadmin warp get --duration=1m --obj.size=1MB --concurrent=10
+WARP_ACCESS_KEY=minioadmin WARP_SECRET_KEY=minioadmin warp get --host=10.10.10.18:9000 --duration=1m --obj.size=1MB --concurrent=10
