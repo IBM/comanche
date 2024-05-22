@@ -6,6 +6,23 @@
 #include <algorithm> // For std::transform
 #include <cctype>    // For std::tolower
 #include <locale>    // For std::locale
+#include <sys/mman.h>
+#include <iostream>
+#include <vector>
+#include <arrow/table.h> 
+#include <arrow/api.h>
+#include <arrow/io/api.h>
+#include <parquet/arrow/reader.h>
+#include <parquet/arrow/writer.h>
+#include <parquet/statistics.h>
+#include <chrono>
+#include <arrow/dataset/api.h>
+#include <arrow/dataset/dataset.h>
+#include <arrow/dataset/discovery.h>
+#include <arrow/compute/api.h>
+#include <arrow/compute/expression.h> // Include this header
+#include "/home/ubuntu/json/include/nlohmann/json.hpp"
+#include "SQLParser.h"
 
 size_t header_callback(char *buffer, size_t size, size_t nitems, void *userdata) {
     std::string header(buffer, size * nitems);
@@ -120,15 +137,239 @@ bool DownloadFileAsync(const std::string& url, std::vector<char>& data) {
 int main() {
     curl_global_init(CURL_GLOBAL_DEFAULT);
 
-    std::string url = "http://10.10.10.18/dataStat_1000000.parquet"; // Change to your actual URL
+    std::string url = "http://10.10.10.18/dataStat_600000.parquet"; // Change to your actual URL
     size_t content_size = 0;
+
+    std::string sqlExpression = "SELECT * FROM s3object WHERE Age > 60";
+
+
+            struct timeval start, end, start_filter, end_filter, start_f, end_f;
+            double time_taken = 0;
+
     if (GetContentSize(url, content_size)) {
         std::cout << "Content size: " << content_size << " bytes." << std::endl;
-        std::vector<char> memoryData;
-        memoryData.resize(content_size);  // Reserve the exact amount of data
+        std::vector<char> decrypted_data;
+        decrypted_data.resize(content_size);  // Reserve the exact amount of data
 
-        if (DownloadFileAsync(url, memoryData)) {
-            std::cout << "Data fetched successfully. Size: " << memoryData.size() << " bytes." << std::endl;
+        if (DownloadFileAsync(url, decrypted_data)) {
+            std::cout << "Data fetched successfully. Size: " << decrypted_data.size() << " bytes." << std::endl;
+
+                                auto start_total = std::chrono::high_resolution_clock::now();
+
+
+                                //Filter
+
+                                auto start_stream = std::chrono::high_resolution_clock::now();
+
+                               //mlock(decrypted_data, output_size);  // Lock the memory
+
+                               size_t output_size = content_size;
+
+                                auto arrowBuffer = arrow::Buffer::Wrap((const uint8_t*)decrypted_data.data(), decrypted_data.size());
+                                auto bufferReader = std::make_shared<arrow::io::BufferReader>(arrowBuffer);
+                                std::unique_ptr<parquet::arrow::FileReader> arrowReader;
+                                auto status = parquet::arrow::OpenFile(bufferReader, arrow::default_memory_pool(), &arrowReader);
+
+                                auto end_stream = std::chrono::high_resolution_clock::now();
+                                std::chrono::duration<double> stream_duration = end_stream - start_stream;
+                                std::cout << "Time to read stream: " << stream_duration.count() << " seconds" << std::endl;
+
+                                
+                                    //Parse SQL
+                                auto start_sql = std::chrono::high_resolution_clock::now();
+                                std::vector<Token> tokens = SQLParser::parse(sqlExpression);
+
+                                // Example: Analyze tokens and construct a filter (Basic and specific case handling)
+                                std::string columnName;
+                                std::string operatorSymbol;
+                                std::string value;
+
+                                for (const auto& token : tokens) {
+                                    if (token.type == TokenType::COLUMN) {
+                                        columnName = token.value;
+                                    } else if (token.type == TokenType::OPERATOR) {
+                                        operatorSymbol = token.value;
+                                    } else if (token.type == TokenType::LITERAL) {
+                                        value = token.value;
+                                    }
+                            // Extend with more complex logic as needed
+                                }
+
+                                    
+                                auto field_ref = arrow::compute::field_ref(columnName);
+                                int l_value = std::stoi(value);
+                                auto literal_value = arrow::compute::literal(l_value);
+
+                                arrow::compute::Expression filter_expression;
+
+                                // Build expression based on the operator
+                                if (operatorSymbol == "=") {
+                                    filter_expression = arrow::compute::equal(field_ref,literal_value);
+                                } else if (operatorSymbol == ">") {
+                                    filter_expression = arrow::compute::greater(field_ref,literal_value);
+                                } else if (operatorSymbol == ">=") {
+                                    filter_expression = arrow::compute::greater_equal(field_ref,literal_value);
+                                } else if (operatorSymbol == "<") {
+                                    filter_expression = arrow::compute::less(field_ref, literal_value);
+                                } else if (operatorSymbol == "<=") {
+                                    filter_expression = arrow::compute::less_equal(field_ref,literal_value);
+                                } else if (operatorSymbol == "!=") {
+                                    filter_expression = arrow::compute::not_equal(field_ref, literal_value);
+                                }
+
+                                auto end_sql = std::chrono::high_resolution_clock::now();
+                                std::chrono::duration<double> sql_duration = end_sql - start_sql;
+                                std::cout << "Time to sql parse and create filter expression: " << sql_duration.count() << " seconds" << std::endl; 
+
+
+                    /////////////////////////////////////////////////
+                                
+                                auto start_stats = std::chrono::high_resolution_clock::now();
+
+                                
+                        
+
+                                int num_row_groups = arrowReader->num_row_groups();
+
+                                // Ensure there is at least one row group
+                                if (num_row_groups == 0) {
+                                    std::cerr << "No row groups found in the Parquet file." << std::endl;
+                                 
+                                }
+
+                                std::cout << "Number of row groups: " << num_row_groups  << std::endl; 
+                        
+                        
+
+                                // Find schema and find ID of parsed column
+                                std::shared_ptr<arrow::Schema> schema;
+                                arrowReader->GetSchema(&schema);
+                                int column_index = -1;
+                                for (int i = 0; i < schema->num_fields(); ++i) {
+                                    if (schema->field(i)->name() == columnName) {
+                                        column_index = i;
+                                        break;
+                                    }
+                                }
+
+                                if (column_index == -1) {
+                                    std::cerr << "Column  not found in the schema." << std::endl;
+                                   
+                                }
+
+                                std::vector<int> matching_row_groups;
+                                bool useMatchingGroups = false;
+
+                                for (int row_group_index = 0; row_group_index < arrowReader->num_row_groups(); ++row_group_index) {
+                                    auto metadata = arrowReader->parquet_reader()->metadata();
+                                    auto row_group_metadata = metadata->RowGroup(row_group_index);
+                                    auto column_metadata = row_group_metadata->ColumnChunk(column_index);
+                    
+                                    if (column_metadata->is_stats_set()) {
+                                        auto stats = column_metadata->statistics();
+                                        if (stats->HasMinMax()) {
+                                        // Assuming the ID column is of integer type; adjust the type as necessary
+                                        // Need to check the type of filter columns
+                                        int64_t min_value = static_cast<const parquet::Int64Statistics*>(stats.get())->min();
+                                        int64_t max_value = static_cast<const parquet::Int64Statistics*>(stats.get())->max();
+
+                                            if (min_value <= l_value && max_value >= l_value) {
+                                                matching_row_groups.push_back(row_group_index);
+                                                //std::cout << "Matching Row Group: " << row_group_index << std::endl;  // Print matching row group index
+                                            }
+                                        }
+                                    }
+                                }
+
+                                auto end_stats = std::chrono::high_resolution_clock::now();
+                                std::chrono::duration<double> stats_duration = end_stats - start_stats;
+                                std::cout << "Time to read statistics and find row groups: " << stats_duration.count() << " seconds" << std::endl; 
+                ///////////////////////////////////////////////////////////
+
+
+                                // Check if there are any matching row groups
+                                if (!matching_row_groups.empty()) {
+                                    useMatchingGroups = true;
+                                }
+
+                                auto start_table = std::chrono::high_resolution_clock::now();
+
+
+
+
+                                // Processing row groups based on whether there are matching row groups
+                                if (useMatchingGroups) {
+                                    for (int row_group_index : matching_row_groups) {
+
+                                        std::shared_ptr<arrow::Table> table;
+                                        status = arrowReader->RowGroup(row_group_index)->ReadTable(&table);
+
+                                        // Wrap the Table in an InMemoryDataset
+                                        std::shared_ptr<arrow::dataset::Dataset> dataset = std::make_shared<arrow::dataset::InMemoryDataset>(table);
+
+                                        // Build ScannerOptions for a Scanner to apply filter operation
+                                        auto options = std::make_shared<arrow::dataset::ScanOptions>();
+
+                                        // Build the Scanner
+                                        auto builder = arrow::dataset::ScannerBuilder(dataset);     
+                                         // Set the filter
+                                        arrow::Status build_status = builder.Filter(filter_expression);
+
+                                        auto scanner = builder.Finish();
+
+                                        // Perform the Scan and retrieve filtered result as Table
+                                        auto result_table = scanner.ValueOrDie()->ToTable();
+
+                                        std::string filtered_result_json = result_table.ValueUnsafe()->ToString();
+
+
+
+                                    }
+
+                                } else {
+
+                                    // If no specific matches, process all row groups
+                                    for (int row_group_index = 0; row_group_index < arrowReader->num_row_groups(); ++row_group_index) {
+
+                                        std::shared_ptr<arrow::Table> table;
+                                        status = arrowReader->RowGroup(row_group_index)->ReadTable(&table);
+
+
+                                         // Wrap the Table in an InMemoryDataset
+                                        std::shared_ptr<arrow::dataset::Dataset> dataset = std::make_shared<arrow::dataset::InMemoryDataset>(table);
+
+                                        // Build ScannerOptions for a Scanner to apply filter operation
+                                        auto options = std::make_shared<arrow::dataset::ScanOptions>();
+
+                                        // Build the Scanner
+                                        auto builder = arrow::dataset::ScannerBuilder(dataset);     
+                                        // Set the filter
+                                        arrow::Status build_status = builder.Filter(filter_expression);
+
+                                        auto scanner = builder.Finish();
+
+                                        // Perform the Scan and retrieve filtered result as Table
+                                        auto result_table = scanner.ValueOrDie()->ToTable();
+
+                                        std::string filtered_result_json = result_table.ValueUnsafe()->ToString();
+
+
+
+                                    }
+                                }
+
+
+
+
+
+                                
+              
+                                auto end_table = std::chrono::high_resolution_clock::now();
+                                std::chrono::duration<double> table_duration = end_table - start_table;
+                                std::cout << "Time to filter: " << table_duration.count() << " seconds" << std::endl; 
+
+
+
         } else {
             std::cerr << "Data fetch failed" << std::endl;
         }
