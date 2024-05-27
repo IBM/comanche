@@ -666,7 +666,7 @@ submit_aes_gcm_decrypt_task(struct aes_gcm_resources *resources, struct doca_buf
 	    
 	}else{ //from the second time
 		decrypt_task = resources->decrypt_task;
-        doca_aes_gcm_task_decrypt_set_dst(decrypt_task, dst_buf);
+        //doca_aes_gcm_task_encrypt_set_dst(encrypt_task, dst_buf);
 	    doca_aes_gcm_task_decrypt_set_src(decrypt_task, src_buf);
 
 	}

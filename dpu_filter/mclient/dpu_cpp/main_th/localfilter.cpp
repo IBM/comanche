@@ -26,10 +26,16 @@
 #include "/home/ubuntu/json/include/nlohmann/json.hpp"
 #include "SQLParser.h"
 #include <pistache/endpoint.h>
+#include <future>
+#include <thread>
+#include <mutex>
 
 
 using namespace Pistache;
 using json = nlohmann::json;
+
+std::mutex decryption_mutex;
+
 
 
 
@@ -41,6 +47,19 @@ extern "C" {
         // Initialize cryptographic or any other necessary resources
     void destroy_crypto_resources();
 }
+
+void decryptAndProcessData(char* data, size_t size, std::promise<uint8_t*>&& promise, size_t* output_size) {
+    std::lock_guard<std::mutex> lock(decryption_mutex);
+    uint8_t* decrypted_data = decrypt_buffer(data, size, output_size);
+    if (decrypted_data) {
+        std::cerr << "Decryption successful. Output size: " << *output_size << std::endl;
+        promise.set_value(decrypted_data);
+    } else {
+        std::cerr << "Decryption failed" << std::endl;
+        promise.set_value(nullptr);
+    }
+}
+
 
 size_t header_callback(char *buffer, size_t size, size_t nitems, void *userdata) {
     std::string header(buffer, size * nitems);
@@ -115,8 +134,9 @@ size_t WriteMemoryCallback(void* contents, size_t size, size_t nmemb, void* user
 
 
 // Function to download a file using HTTP GET without saving it to memory
-bool DownloadFileAsync(const std::string& url, std::vector<char>& data) {
+bool DownloadFileAsync(const std::string& url, std::vector<char>& data, std::promise<uint8_t*>&& promise, size_t* output_size) {
     CURL* curl = curl_easy_init();
+
     if (!curl) {
         std::cerr << "curl initialization failed" << std::endl;
         return false;
@@ -158,6 +178,10 @@ bool DownloadFileAsync(const std::string& url, std::vector<char>& data) {
 
     // Clean up
     curl_easy_cleanup(curl);
+
+    std::thread decryption_thread(decryptAndProcessData, data.data(), data.size(), std::move(promise), output_size);
+    decryption_thread.detach();  // Detach the thread to run independently
+
     return true;
 }
 
@@ -209,21 +233,23 @@ struct FilterHandler : public Http::Handler {
 
                  
                     size_t output_size = 0;
-                    uint8_t* decrypted_data = NULL;
+                    //uint8_t* decrypted_data = nullptr;
 
                     ResetWriteMemoryCallbackOffset();
 
+                    std::promise<uint8_t*> promise;
+                    std::future<uint8_t*> future = promise.get_future();
 
-                    if (DownloadFileAsync(url, memoryData)) {
+                    if (DownloadFileAsync(url, memoryData, std::move(promise), &output_size)) {
                         std::cout << "Data fetched successfully. Size: " << memoryData.size() << " bytes." << std::endl;
 
-                        if (!memoryData.empty()) {
+                        //if (!memoryData.empty()) {
 
                             gettimeofday(&start, NULL);
 
-                      
-
-                            decrypted_data = decrypt_buffer(memoryData.data(), memoryData.size(), &output_size);
+                    
+                            uint8_t* decrypted_data = future.get();  // Wait for the decryption to complete
+                           /// decrypted_data = decrypt_buffer(memoryData.data(), memoryData.size(), &output_size);
 
 
 
@@ -464,27 +490,25 @@ struct FilterHandler : public Http::Handler {
                                 printf("Total time taken: %.6f seconds from main\n", time_taken);
 
 
-                                // Send the JSON response
-                               // response.send(Http::Code::Ok, filtered_result_json, MIME(Application, Json));
 
+                                free(decrypted_data);
+                                decrypted_data = NULL;
+                                
 
                             } else {
                                 std::cout << "Decryption failed." << std::endl;
+                                response.send(Http::Code::Internal_Server_Error, "Decryption failed");
                             }
 
-                            
 
-                            free(decrypted_data);
-                            decrypted_data = NULL;
-
-
-
-                        }
+                        
                     } else {
                         std::cerr << "Data fetch failed" << std::endl;
+                        response.send(Http::Code::Internal_Server_Error, "Data fetch failed");
                     }
                 } else {
                     std::cerr << "Failed to retrieve content size." << std::endl;
+                    response.send(Http::Code::Internal_Server_Error, "Failed to retrieve content size");
                 }
 
             } catch (const std::exception& e) {

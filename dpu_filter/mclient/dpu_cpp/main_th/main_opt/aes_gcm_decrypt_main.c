@@ -97,11 +97,9 @@ uint8_t* decrypt_buffer(char* file_data, size_t file_size, size_t* output_size)
 	state = resources.state;
 
 	DOCA_LOG_INFO("Start sample");
-  
 
-    //setting num of doca bufs
 
-    result = create_core_objects(state, 300);
+    result = create_core_objects(state, 2);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Unable to create DOCA core objects: %s", doca_error_get_descr(result));
 	}
@@ -125,11 +123,17 @@ uint8_t* decrypt_buffer(char* file_data, size_t file_size, size_t* output_size)
 
 
 
+	gettimeofday(&start, NULL);
 
 	uint8_t *output_data = aes_gcm_decrypt(&aes_gcm_cfg, file_data, file_size, output_size, &resources);
 
 
-	
+	gettimeofday(&end, NULL);
+    double time_taken = (end.tv_sec - start.tv_sec) * 1e6;
+    time_taken = (time_taken + (end.tv_usec - start.tv_usec)) * 1e-6;
+    //printf("Decryption time taken: %.6f seconds\n", time_taken);
+    
+
 	
 
 	//DOCA_LOG_INFO("Decryption finished successfully");

@@ -1,3 +1,16 @@
+/*
+ * Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES, ALL RIGHTS RESERVED.
+ *
+ * This software product is a proprietary product of NVIDIA CORPORATION &
+ * AFFILIATES (the "Company") and all right, title, and interest in and to the
+ * software product, including all associated intellectual property rights, are
+ * and shall remain exclusively with the Company.
+ *
+ * This software product is governed by the End User License Agreement
+ * provided with the software product.
+ *
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -12,17 +25,8 @@
 
 #include "../common.h"
 #include "aes_gcm_common.h"
-#include <sys/time.h>
-#include <sys/mman.h>
-#include <time.h>
 
 DOCA_LOG_REGISTER(AES_GCM::COMMON);
-
-double time_diff(struct timespec *start, struct timespec *end) {
-    return (end->tv_sec - start->tv_sec) * 1000000.0 + (end->tv_nsec - start->tv_nsec) / 1000.0;
-}
-
-
 
 /*
  * Initialize AES-GCM parameters for the sample.
@@ -388,7 +392,6 @@ aes_gcm_state_changed_callback(const union doca_data user_data, struct doca_ctx 
 		DOCA_LOG_INFO("AES-GCM context has been stopped");
 		/* We can stop the main loop */
 		resources->run_main_loop = false;
-		resources->task_started = false;
 		break;
 	case DOCA_CTX_STATE_STARTING:
 		/**
@@ -464,18 +467,11 @@ allocate_aes_gcm_resources(const char *pci_addr, uint32_t max_bufs, struct aes_g
 
 	state->ctx = doca_aes_gcm_as_ctx(resources->aes_gcm);
 
-	result = doca_pe_create(&state->pe);
-	if (result != DOCA_SUCCESS) {
-		DOCA_LOG_ERR("Unable to create progress engine: %s", doca_error_get_descr(result));
-		goto destroy_core_objects;
-	}
-
-
-	/*result = create_core_objects(state, max_bufs);
+	result = create_core_objects(state, max_bufs);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Unable to create DOCA core objects: %s", doca_error_get_descr(result));
 		goto destroy_aes_gcm;
-	}*/
+	}
 
 	result = doca_pe_connect_ctx(state->pe, state->ctx);
 	if (result != DOCA_SUCCESS) {
@@ -578,40 +574,30 @@ submit_aes_gcm_encrypt_task(struct aes_gcm_resources *resources, struct doca_buf
 		.tv_nsec = SLEEP_IN_NANOS,
 	};
 	doca_error_t result, task_result;
-	
 
 	/* Include result in user data of task to be used in the callbacks */
 	task_user_data.ptr = &task_result;
 	/* Allocate and construct encrypt task */
-
 	//If first time called
-	if(resources->task_started==false){
-		result = doca_aes_gcm_task_encrypt_alloc_init(resources->aes_gcm, src_buf, dst_buf, key, iv, iv_length,
+	result = doca_aes_gcm_task_encrypt_alloc_init(resources->aes_gcm, src_buf, dst_buf, key, iv, iv_length,
 						      tag_size, aad_size, task_user_data, &encrypt_task);
-		if (result != DOCA_SUCCESS) {
-			DOCA_LOG_ERR("Failed to allocate encrypt task: %s", doca_error_get_descr(result));
-			return result;
-		}
-
-		resources->encrypt_task = encrypt_task;
-		resources->task_started = true;
-
-	    
-	}else{ //from the second time
-		encrypt_task = resources->encrypt_task;
-        //doca_aes_gcm_task_encrypt_set_dst(encrypt_task, dst_buf);
-	    doca_aes_gcm_task_encrypt_set_src(encrypt_task, src_buf);
-
+	if (result != DOCA_SUCCESS) {
+		DOCA_LOG_ERR("Failed to allocate encrypt task: %s", doca_error_get_descr(result));
+		return result;
 	}
 
-    task = doca_aes_gcm_task_encrypt_as_task(encrypt_task);
+	task = doca_aes_gcm_task_encrypt_as_task(encrypt_task);
+
+
+    ///////////////////////////////////////////////////////
+    //if called from the second time
+    doca_aes_gcm_task_encrypt_set_dst(task, dst_buf);
+	doca_aes_gcm_task_encrypt_set_src(task, src_buf);
+
 
 	///////////////////////////////////////////////////////
 	/* Submit encrypt task */
 	resources->num_remaining_tasks++;
-
-	
-
 	result = doca_task_submit(task);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to submit encrypt task: %s", doca_error_get_descr(result));
@@ -619,14 +605,13 @@ submit_aes_gcm_encrypt_task(struct aes_gcm_resources *resources, struct doca_buf
 		return result;
 	}
 
-	//resources->run_main_loop = true;
+	resources->run_main_loop = false; //true;
 
 	/* Wait for all tasks to be completed and context to stop */
 	while (resources->num_remaining_tasks > 0) {
 		if (doca_pe_progress(state->pe) == 0)
 			nanosleep(&ts, &ts);
 	}
-
 
 	return task_result;
 }
@@ -645,42 +630,22 @@ submit_aes_gcm_decrypt_task(struct aes_gcm_resources *resources, struct doca_buf
 		.tv_nsec = SLEEP_IN_NANOS,
 	};
 	doca_error_t result, task_result;
-	struct timespec start, end;
 
 	/* Include result in user data of task to be used in the callbacks */
 	task_user_data.ptr = &task_result;
 	/* Allocate and construct decrypt task */
-
-		//If first time called
-	if(resources->task_started==false){
-		result = doca_aes_gcm_task_decrypt_alloc_init(resources->aes_gcm, src_buf, dst_buf, key, iv, iv_length,
+	result = doca_aes_gcm_task_decrypt_alloc_init(resources->aes_gcm, src_buf, dst_buf, key, iv, iv_length,
 						      tag_size, aad_size, task_user_data, &decrypt_task);
-		if (result != DOCA_SUCCESS) {
-			DOCA_LOG_ERR("Failed to allocate decrypt task: %s", doca_error_get_descr(result));
-			return result;
-		}
-
-		resources->decrypt_task = decrypt_task;
-		resources->task_started = true;
-       
-	    
-	}else{ //from the second time
-		decrypt_task = resources->decrypt_task;
-        doca_aes_gcm_task_decrypt_set_dst(decrypt_task, dst_buf);
-	    doca_aes_gcm_task_decrypt_set_src(decrypt_task, src_buf);
-
+	if (result != DOCA_SUCCESS) {
+		DOCA_LOG_ERR("Failed to allocate decrypt task: %s", doca_error_get_descr(result));
+		return result;
 	}
-
 
 	task = doca_aes_gcm_task_decrypt_as_task(decrypt_task);
 
 
-	 
 	/* Submit decrypt task */
 	resources->num_remaining_tasks++;
-
-	//clock_gettime(CLOCK_MONOTONIC, &start);
-
 	result = doca_task_submit(task);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to submit decrypt task: %s", doca_error_get_descr(result));
@@ -688,17 +653,13 @@ submit_aes_gcm_decrypt_task(struct aes_gcm_resources *resources, struct doca_buf
 		return result;
 	}
 
-	//resources->run_main_loop = true;
+	resources->run_main_loop = true;
 
 	/* Wait for all tasks to be completed and context to stop */
-	while (resources->num_remaining_tasks > 0) {
+	while (resources->run_main_loop) {
 		if (doca_pe_progress(state->pe) == 0)
 			nanosleep(&ts, &ts);
 	}
-
-	/*clock_gettime(CLOCK_MONOTONIC, &end);
-    double elapsed_ms = time_diff(&start, &end);
-    printf("decryption %.6f nanos\n", elapsed_ms);*/
 
 	return task_result;
 }
@@ -762,17 +723,17 @@ decrypt_completed_callback(struct doca_aes_gcm_task_decrypt *decrypt_task,
 	struct aes_gcm_resources *resources = (struct aes_gcm_resources *)ctx_user_data.ptr;
 	doca_error_t *result = (doca_error_t *)task_user_data.ptr;
 
-	//DOCA_LOG_INFO("Decrypt task was done successfully");
+	DOCA_LOG_INFO("Decrypt task was done successfully");
 
 	/* Assign success to the result */
 	*result = DOCA_SUCCESS;
 	/* Free task */
-	//doca_task_free(doca_aes_gcm_task_decrypt_as_task(decrypt_task));
+	doca_task_free(doca_aes_gcm_task_decrypt_as_task(decrypt_task));
 	/* Decrement number of remaining tasks */
 	--resources->num_remaining_tasks;
 	/* Stop context once all tasks are completed */
-	//if (resources->num_remaining_tasks == 0)
-	//	(void)doca_ctx_stop(resources->state->ctx);
+	if (resources->num_remaining_tasks == 0)
+		(void)doca_ctx_stop(resources->state->ctx);
 }
 
 void

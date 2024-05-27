@@ -27,7 +27,6 @@
 #include "SQLParser.h"
 #include <pistache/endpoint.h>
 
-
 using namespace Pistache;
 using json = nlohmann::json;
 
@@ -36,10 +35,6 @@ using json = nlohmann::json;
 extern "C" {
     int encrypt_buffer(char* data, size_t size);
     uint8_t* decrypt_buffer(char* file_data, size_t file_size, size_t* output_size);
-        // Initialize cryptographic or any other necessary resources
-    void init_crypto_resources();
-        // Initialize cryptographic or any other necessary resources
-    void destroy_crypto_resources();
 }
 
 size_t header_callback(char *buffer, size_t size, size_t nitems, void *userdata) {
@@ -84,7 +79,7 @@ bool GetContentSize(const std::string& url, size_t& content_size) {
 }
 
 // Helper function to encapsulate the static offset
-static size_t& GetCurrentOffset() {
+/*static size_t& GetCurrentOffset() {
     static size_t currentOffset = 0;  // This maintains the offset
     return currentOffset;
 }
@@ -94,28 +89,31 @@ static size_t& GetCurrentOffset() {
 void ResetWriteMemoryCallbackOffset() {
     static size_t& currentOffset = GetCurrentOffset();  // Get reference to the static offset
     currentOffset = 0;  // Reset to zero
-}
+}*/
+
+struct CallbackData {
+    std::vector<char> buffer;
+    size_t currentOffset = 0;  // Start with an offset of 0
+};
 
 
 
-// Callback function for writing data received from the server into memory
 size_t WriteMemoryCallback(void* contents, size_t size, size_t nmemb, void* userp) {
-    auto& memory = *static_cast<std::vector<char>*>(userp);
+    CallbackData* data = static_cast<CallbackData*>(userp);
     size_t totalSize = size * nmemb;
-    size_t& currentOffset = GetCurrentOffset(); // Maintains the current offset where data is to be written
 
 
     // Copy the received data into the vector at the current offset
-    std::copy(static_cast<char*>(contents), static_cast<char*>(contents) + totalSize, memory.begin() + currentOffset);
-    currentOffset += totalSize; // Update the offset
-  
+    std::copy(static_cast<char*>(contents), static_cast<char*>(contents) + totalSize, data->buffer.begin() + data->currentOffset);
+    data->currentOffset += totalSize;  // Update the offset
+
     return totalSize;
 }
 
 
 
 // Function to download a file using HTTP GET without saving it to memory
-bool DownloadFileAsync(const std::string& url, std::vector<char>& data) {
+bool DownloadFileAsync(const std::string& url, CallbackData& data) {
     CURL* curl = curl_easy_init();
     if (!curl) {
         std::cerr << "curl initialization failed" << std::endl;
@@ -205,27 +203,26 @@ struct FilterHandler : public Http::Handler {
 
                     std::cout << "Content size: " << content_size << " bytes." << std::endl;
 
-                    std::vector<char> memoryData(content_size);  // Initialize vector with the content size
+                    //std::vector<char> memoryData(content_size);  // Initialize vector with the content size
 
-                 
+                    CallbackData downloadData;
+                    downloadData.buffer.resize(content_size);
+
+                    std::cout << "Data  bytes." << std::endl;
                     size_t output_size = 0;
                     uint8_t* decrypted_data = NULL;
 
-                    ResetWriteMemoryCallbackOffset();
+                    //ResetWriteMemoryCallbackOffset();
 
 
-                    if (DownloadFileAsync(url, memoryData)) {
-                        std::cout << "Data fetched successfully. Size: " << memoryData.size() << " bytes." << std::endl;
+                    if (DownloadFileAsync(url, downloadData)) {
+                        std::cout << "Data fetched successfully. Size: " << downloadData.buffer.size() << " bytes." << std::endl;
 
-                        if (!memoryData.empty()) {
+                        if (!downloadData.buffer.empty()) {
 
                             gettimeofday(&start, NULL);
 
-                      
-
-                            decrypted_data = decrypt_buffer(memoryData.data(), memoryData.size(), &output_size);
-
-
+                            decrypted_data = decrypt_buffer(downloadData.buffer.data(), downloadData.buffer.size(), &output_size);
 
                             gettimeofday(&end, NULL);
 
@@ -247,8 +244,6 @@ struct FilterHandler : public Http::Handler {
                                 //Filter
 
                                 auto start_stream = std::chrono::high_resolution_clock::now();
-
-                               //mlock(decrypted_data, output_size);  // Lock the memory
 
                                 auto arrowBuffer = arrow::Buffer::Wrap(decrypted_data, output_size);
                                 auto bufferReader = std::make_shared<arrow::io::BufferReader>(arrowBuffer);
@@ -311,18 +306,13 @@ struct FilterHandler : public Http::Handler {
                                 
                                 auto start_stats = std::chrono::high_resolution_clock::now();
 
-                                
-                        
-
-                                int num_row_groups = arrowReader->num_row_groups();
-
                                 // Ensure there is at least one row group
-                                if (num_row_groups == 0) {
+                                if (arrowReader->num_row_groups() == 0) {
                                     std::cerr << "No row groups found in the Parquet file." << std::endl;
                                     return;
                                 }
 
-                                std::cout << "Number of row groups: " << num_row_groups  << std::endl; 
+                                std::cout << "Number of row groups: " << arrowReader->num_row_groups()  << std::endl; 
                         
                         
 
@@ -343,7 +333,6 @@ struct FilterHandler : public Http::Handler {
                                 }
 
                                 std::vector<int> matching_row_groups;
-                                bool useMatchingGroups = false;
 
                                 for (int row_group_index = 0; row_group_index < arrowReader->num_row_groups(); ++row_group_index) {
                                     auto metadata = arrowReader->parquet_reader()->metadata();
@@ -371,114 +360,112 @@ struct FilterHandler : public Http::Handler {
                                 std::cout << "Time to read statistics and find row groups: " << stats_duration.count() << " seconds" << std::endl; 
                 ///////////////////////////////////////////////////////////
 
-
-                                // Check if there are any matching row groups
-                                if (!matching_row_groups.empty()) {
-                                    useMatchingGroups = true;
-                                }
-
                                 auto start_table = std::chrono::high_resolution_clock::now();
 
+                                std::shared_ptr<arrow::Table> concatenated_table;
+
+                                if (!matching_row_groups.empty()) {
 
 
-
-                                // Processing row groups based on whether there are matching row groups
-                                if (useMatchingGroups) {
+                                    std::vector<std::shared_ptr<arrow::Table>> tables;
                                     for (int row_group_index : matching_row_groups) {
-
                                         std::shared_ptr<arrow::Table> table;
-                                        status = arrowReader->RowGroup(row_group_index)->ReadTable(&table);
-
-                                        // Wrap the Table in an InMemoryDataset
-                                        std::shared_ptr<arrow::dataset::Dataset> dataset = std::make_shared<arrow::dataset::InMemoryDataset>(table);
-
-                                        // Build ScannerOptions for a Scanner to apply filter operation
-                                        auto options = std::make_shared<arrow::dataset::ScanOptions>();
-
-                                        // Build the Scanner
-                                        auto builder = arrow::dataset::ScannerBuilder(dataset);     
-                                         // Set the filter
-                                        arrow::Status build_status = builder.Filter(filter_expression);
-
-                                        auto scanner = builder.Finish();
-
-                                        // Perform the Scan and retrieve filtered result as Table
-                                        auto result_table = scanner.ValueOrDie()->ToTable();
-
-                                        std::string filtered_result_json = result_table.ValueUnsafe()->ToString();
-
-                                        response.send(Http::Code::Ok, filtered_result_json, MIME(Application, Json));
-
-
+                                        auto status = arrowReader->ReadRowGroup(row_group_index, &table);
+                                        if (!status.ok()) {
+                                            std::cerr << "Error reading Arrow table from RowGroup " << row_group_index << ": " << status.ToString() << std::endl;
+                                            continue;
+                                        }
+                                        tables.push_back(table);
                                     }
 
-                                } else {
+                                    // Assuming you want to concatenate all matching tables into a single table
+                                    // Assuming 'tables' is a std::vector<std::shared_ptr<arrow::Table>> containing your tables
+                                    arrow::Result<std::shared_ptr<arrow::Table>> concatenated_table_result = arrow::ConcatenateTables(tables);
 
-                                    // If no specific matches, process all row groups
-                                    for (int row_group_index = 0; row_group_index < arrowReader->num_row_groups(); ++row_group_index) {
-
-                                        std::shared_ptr<arrow::Table> table;
-                                        status = arrowReader->RowGroup(row_group_index)->ReadTable(&table);
-
-
-                                         // Wrap the Table in an InMemoryDataset
-                                        std::shared_ptr<arrow::dataset::Dataset> dataset = std::make_shared<arrow::dataset::InMemoryDataset>(table);
-
-                                        // Build ScannerOptions for a Scanner to apply filter operation
-                                        auto options = std::make_shared<arrow::dataset::ScanOptions>();
-
-                                        // Build the Scanner
-                                        auto builder = arrow::dataset::ScannerBuilder(dataset);     
-                                        // Set the filter
-                                        arrow::Status build_status = builder.Filter(filter_expression);
-
-                                        auto scanner = builder.Finish();
-
-                                        // Perform the Scan and retrieve filtered result as Table
-                                        auto result_table = scanner.ValueOrDie()->ToTable();
-
-                                        std::string filtered_result_json = result_table.ValueUnsafe()->ToString();
-
-                                        response.send(Http::Code::Ok, filtered_result_json, MIME(Application, Json));
-
-
+                                    if (!concatenated_table_result.ok()) {
+                                        // Handle error
+                                        std::cerr << "Failed to concatenate tables: " << concatenated_table_result.status() << std::endl;
+                                        return;
                                     }
+
+                                    concatenated_table = *concatenated_table_result;
+
+
+                                }else{
+
+                                    std::cout << "Matching Row Group Empty" << std::endl; 
+
+                                    auto t_status = arrowReader->ReadTable(&concatenated_table);
+                                    if (!t_status.ok()) {
+                                        std::cerr << "Error reading Arrow table: " << status.ToString() << std::endl;
+                                        return;
+                                    }
+
+
                                 }
 
-
-
-
-
-                                
-              
                                 auto end_table = std::chrono::high_resolution_clock::now();
                                 std::chrono::duration<double> table_duration = end_table - start_table;
-                                std::cout << "Time to filter: " << table_duration.count() << " seconds" << std::endl;  
+                                std::cout << "Time to read table: " << table_duration.count() << " seconds" << std::endl;  
                 ////////////////////////////////////////////////////
 
-                           
-                           
-                                gettimeofday(&end_f, NULL);
-                                time_taken = (end_f.tv_sec - start_f.tv_sec) * 1e6;
-                                time_taken = (time_taken + (end_f.tv_usec - start_f.tv_usec)) * 1e-6;
-                                printf("Total time taken: %.6f seconds from main\n", time_taken);
+                                
+                                auto dataset = std::make_shared<arrow::dataset::InMemoryDataset>(concatenated_table);
+
+                                // 2: Build ScannerOptions for a Scanner to do a basic filter operation
+                                auto options = std::make_shared<arrow::dataset::ScanOptions>();
+
+                                auto start_filter = std::chrono::high_resolution_clock::now();
+                                // Build the Scanner
+                                auto builder = arrow::dataset::ScannerBuilder(dataset);
+ 
+                                
+                                // Set the filter
+                                arrow::Status build_status = builder.Filter(filter_expression);
+                                if (!build_status.ok()) {
+                                    std::cerr << "Failed to apply filter: " << status.ToString() << std::endl;
+                                    return;
+                                }
+
+                                auto scanner = builder.Finish();
+
+                                    
+
+                                // Perform the Scan and retrieve filtered result as Table
+                                //this is the acyual filtering step
+                                //this takes  time, config og scan builder is fast
+                                auto result_table = scanner.ValueOrDie()->ToTable();
+
+                                //std::cout << "Table Data:\n" << result_table.ValueUnsafe()->ToString() << std::endl;
+
+                                auto end_filter = std::chrono::high_resolution_clock::now();
+                                std::chrono::duration<double> filter_duration = end_filter - start_filter;
+                        
+                        
+                                auto end_total = std::chrono::high_resolution_clock::now();
+                                auto t_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_total - start_total);
+                                printf("Time measured filter: %.3f milliseconds.\n", t_duration.count() * 1e-3);
+
+                                // Assuming 'filtered_result_json' contains the filtered data in JSON format
+                                std::string filtered_result_json = result_table.ValueUnsafe()->ToString();
 
 
                                 // Send the JSON response
-                               // response.send(Http::Code::Ok, filtered_result_json, MIME(Application, Json));
+                                response.send(Http::Code::Ok, filtered_result_json, MIME(Application, Json));
 
 
                             } else {
                                 std::cout << "Decryption failed." << std::endl;
                             }
 
-                            
+                            gettimeofday(&end_f, NULL);
 
                             free(decrypted_data);
-                            decrypted_data = NULL;
 
 
-
+                            time_taken = (end_f.tv_sec - start_f.tv_sec) * 1e6;
+                            time_taken = (time_taken + (end_f.tv_usec - start_f.tv_usec)) * 1e-6;
+                            printf("Total time taken: %.6f seconds from main\n", time_taken);
                         }
                     } else {
                         std::cerr << "Data fetch failed" << std::endl;
@@ -504,16 +491,9 @@ struct FilterHandler : public Http::Handler {
 
 int main() {
 
-
     curl_global_init(CURL_GLOBAL_DEFAULT);
 
-    // Initialize cryptographic or any other necessary resources
-    init_crypto_resources();
-
     Http::listenAndServe<FilterHandler>(Pistache::Address("*:8080"));
-
-    destroy_crypto_resources();
-    
 
 
     curl_global_cleanup();

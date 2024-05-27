@@ -27,7 +27,6 @@
 #include "SQLParser.h"
 #include <pistache/endpoint.h>
 
-
 using namespace Pistache;
 using json = nlohmann::json;
 
@@ -36,10 +35,6 @@ using json = nlohmann::json;
 extern "C" {
     int encrypt_buffer(char* data, size_t size);
     uint8_t* decrypt_buffer(char* file_data, size_t file_size, size_t* output_size);
-        // Initialize cryptographic or any other necessary resources
-    void init_crypto_resources();
-        // Initialize cryptographic or any other necessary resources
-    void destroy_crypto_resources();
 }
 
 size_t header_callback(char *buffer, size_t size, size_t nitems, void *userdata) {
@@ -221,11 +216,7 @@ struct FilterHandler : public Http::Handler {
 
                             gettimeofday(&start, NULL);
 
-                      
-
                             decrypted_data = decrypt_buffer(memoryData.data(), memoryData.size(), &output_size);
-
-
 
                             gettimeofday(&end, NULL);
 
@@ -247,8 +238,6 @@ struct FilterHandler : public Http::Handler {
                                 //Filter
 
                                 auto start_stream = std::chrono::high_resolution_clock::now();
-
-                               //mlock(decrypted_data, output_size);  // Lock the memory
 
                                 auto arrowBuffer = arrow::Buffer::Wrap(decrypted_data, output_size);
                                 auto bufferReader = std::make_shared<arrow::io::BufferReader>(arrowBuffer);
@@ -310,9 +299,6 @@ struct FilterHandler : public Http::Handler {
                     /////////////////////////////////////////////////
                                 
                                 auto start_stats = std::chrono::high_resolution_clock::now();
-
-                                
-                        
 
                                 int num_row_groups = arrowReader->num_row_groups();
 
@@ -382,81 +368,82 @@ struct FilterHandler : public Http::Handler {
 
 
 
-                                // Processing row groups based on whether there are matching row groups
-                                if (useMatchingGroups) {
-                                    for (int row_group_index : matching_row_groups) {
+// Processing row groups based on whether there are matching row groups
+if (useMatchingGroups) {
+    for (int row_group_index : matching_row_groups) {
 
-                                        std::shared_ptr<arrow::Table> table;
-                                        status = arrowReader->RowGroup(row_group_index)->ReadTable(&table);
+   std::shared_ptr<arrow::Table> table;
+    status = arrowReader->RowGroup(row_group_index)->ReadTable(&table);
 
-                                        // Wrap the Table in an InMemoryDataset
-                                        std::shared_ptr<arrow::dataset::Dataset> dataset = std::make_shared<arrow::dataset::InMemoryDataset>(table);
+             // Wrap the Table in an InMemoryDataset
+                std::shared_ptr<arrow::dataset::Dataset> dataset = std::make_shared<arrow::dataset::InMemoryDataset>(table);
 
-                                        // Build ScannerOptions for a Scanner to apply filter operation
-                                        auto options = std::make_shared<arrow::dataset::ScanOptions>();
+                // Build ScannerOptions for a Scanner to apply filter operation
+                auto options = std::make_shared<arrow::dataset::ScanOptions>();
 
-                                        // Build the Scanner
-                                        auto builder = arrow::dataset::ScannerBuilder(dataset);     
-                                         // Set the filter
-                                        arrow::Status build_status = builder.Filter(filter_expression);
+                // Build the Scanner
+                auto builder = arrow::dataset::ScannerBuilder(dataset);     
+                // Set the filter
+                arrow::Status build_status = builder.Filter(filter_expression);
 
-                                        auto scanner = builder.Finish();
+                auto scanner = builder.Finish();
 
-                                        // Perform the Scan and retrieve filtered result as Table
-                                        auto result_table = scanner.ValueOrDie()->ToTable();
-
-                                        std::string filtered_result_json = result_table.ValueUnsafe()->ToString();
-
-                                        response.send(Http::Code::Ok, filtered_result_json, MIME(Application, Json));
+                // Perform the Scan and retrieve filtered result as Table
+                auto result_table = scanner.ValueOrDie()->ToTable();
 
 
-                                    }
-
-                                } else {
-
-                                    // If no specific matches, process all row groups
-                                    for (int row_group_index = 0; row_group_index < arrowReader->num_row_groups(); ++row_group_index) {
-
-                                        std::shared_ptr<arrow::Table> table;
-                                        status = arrowReader->RowGroup(row_group_index)->ReadTable(&table);
 
 
-                                         // Wrap the Table in an InMemoryDataset
-                                        std::shared_ptr<arrow::dataset::Dataset> dataset = std::make_shared<arrow::dataset::InMemoryDataset>(table);
+        std::cout << "Processed matching row group: " << row_group_index << std::endl;
+    }
+} else {
+    // If no specific matches, process all row groups
+    for (int row_group_index = 0; row_group_index < arrowReader->num_row_groups(); ++row_group_index) {
 
-                                        // Build ScannerOptions for a Scanner to apply filter operation
-                                        auto options = std::make_shared<arrow::dataset::ScanOptions>();
-
-                                        // Build the Scanner
-                                        auto builder = arrow::dataset::ScannerBuilder(dataset);     
-                                        // Set the filter
-                                        arrow::Status build_status = builder.Filter(filter_expression);
-
-                                        auto scanner = builder.Finish();
-
-                                        // Perform the Scan and retrieve filtered result as Table
-                                        auto result_table = scanner.ValueOrDie()->ToTable();
-
-                                        std::string filtered_result_json = result_table.ValueUnsafe()->ToString();
-
-                                        response.send(Http::Code::Ok, filtered_result_json, MIME(Application, Json));
+   std::shared_ptr<arrow::Table> table;
+    status = arrowReader->RowGroup(row_group_index)->ReadTable(&table);
 
 
-                                    }
-                                }
+             // Wrap the Table in an InMemoryDataset
+                std::shared_ptr<arrow::dataset::Dataset> dataset = std::make_shared<arrow::dataset::InMemoryDataset>(table);
+
+                // Build ScannerOptions for a Scanner to apply filter operation
+                auto options = std::make_shared<arrow::dataset::ScanOptions>();
+
+                // Build the Scanner
+                auto builder = arrow::dataset::ScannerBuilder(dataset);     
+                // Set the filter
+                arrow::Status build_status = builder.Filter(filter_expression);
+
+                auto scanner = builder.Finish();
+
+                // Perform the Scan and retrieve filtered result as Table
+                auto result_table = scanner.ValueOrDie()->ToTable();
+
+
+
+
+        //std::cout << "Processed all row group: "  << std::endl;
+    }
+}
 
 
 
 
 
-                                
+
               
                                 auto end_table = std::chrono::high_resolution_clock::now();
                                 std::chrono::duration<double> table_duration = end_table - start_table;
-                                std::cout << "Time to filter: " << table_duration.count() << " seconds" << std::endl;  
+                                std::cout << "Time to read table: " << table_duration.count() << " seconds" << std::endl;  
                 ////////////////////////////////////////////////////
 
-                           
+                             
+                        
+                                auto end_total = std::chrono::high_resolution_clock::now();
+                                auto t_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_total - start_total);
+                                printf("Total Filter function: %.3f milliseconds.\n", t_duration.count() * 1e-3);
+
                            
                                 gettimeofday(&end_f, NULL);
                                 time_taken = (end_f.tv_sec - start_f.tv_sec) * 1e6;
@@ -475,7 +462,6 @@ struct FilterHandler : public Http::Handler {
                             
 
                             free(decrypted_data);
-                            decrypted_data = NULL;
 
 
 
@@ -504,16 +490,9 @@ struct FilterHandler : public Http::Handler {
 
 int main() {
 
-
     curl_global_init(CURL_GLOBAL_DEFAULT);
 
-    // Initialize cryptographic or any other necessary resources
-    init_crypto_resources();
-
     Http::listenAndServe<FilterHandler>(Pistache::Address("*:8080"));
-
-    destroy_crypto_resources();
-    
 
 
     curl_global_cleanup();
