@@ -81,11 +81,11 @@ uint8_t* aes_gcm_decrypt(struct aes_gcm_cfg *cfg, char *file_data, size_t file_s
 
 	//without mlock init takes 32 msec, 31 msec goes to mmap start
 	//mlock adds 81 msec
-	if (mlock(output_data, *output_size) != 0) {
+	/*if (mlock(output_data, *output_size) != 0) {
     	DOCA_LOG_INFO("can't mlock");
 		free(output_data);
     	return NULL;
-	}
+	}*/
 
 
 
@@ -290,9 +290,9 @@ uint8_t* aes_gcm_decrypt(struct aes_gcm_cfg *cfg, char *file_data, size_t file_s
 
     //without munlock clean takes 9 msec
 	//munlock adds 15 msec
-    if (munlock(output_data, *output_size) != 0) {
+   /* if (munlock(output_data, *output_size) != 0) {
         DOCA_LOG_ERR("Failed to unpin memory for the destination buffer: %s", strerror(errno));
-    }
+    }*/
 
 
 	//doca_task_free(doca_aes_gcm_task_decrypt_as_task(resources->decrypt_task));

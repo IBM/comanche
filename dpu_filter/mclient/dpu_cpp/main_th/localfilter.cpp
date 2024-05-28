@@ -41,16 +41,34 @@ std::mutex decryption_mutex;
 
 extern "C" {
     int encrypt_buffer(char* data, size_t size);
-    uint8_t* decrypt_buffer(char* file_data, size_t file_size, size_t* output_size);
+    uint8_t* decrypt_buffer(char* file_data, size_t file_size, size_t* output_size,   uint8_t* dst_buffer);
         // Initialize cryptographic or any other necessary resources
     void init_crypto_resources();
         // Initialize cryptographic or any other necessary resources
     void destroy_crypto_resources();
+    //prepare output doca buffer
+    uint8_t* prep_doca_buffer(size_t file_size);
+
+    void stop_mmap();
 }
 
-void decryptAndProcessData(char* data, size_t size, std::promise<uint8_t*>&& promise, size_t* output_size) {
+void PrepareBufferAsync(size_t file_size, std::promise<uint8_t*>&& promise) {
+    std::thread async_thread([file_size, promise = std::move(promise)]() mutable {
+        uint8_t* dst_buf = prep_doca_buffer(file_size);
+        if (dst_buf) {
+            promise.set_value(dst_buf);
+        } else {
+            std::cerr << "Failed to prepare DOCA buffer." << std::endl;
+            promise.set_value(nullptr);
+        }
+    });
+    async_thread.detach();
+}
+
+
+void decryptAndProcessData(char* data, size_t size, std::promise<uint8_t*>&& promise, size_t* output_size, uint8_t* dst_buffer) {
     std::lock_guard<std::mutex> lock(decryption_mutex);
-    uint8_t* decrypted_data = decrypt_buffer(data, size, output_size);
+    uint8_t* decrypted_data = decrypt_buffer(data, size, output_size, dst_buffer);
     if (decrypted_data) {
         std::cerr << "Decryption successful. Output size: " << *output_size << std::endl;
         promise.set_value(decrypted_data);
@@ -60,6 +78,13 @@ void decryptAndProcessData(char* data, size_t size, std::promise<uint8_t*>&& pro
     }
 }
 
+
+void stopMmapAsync() {
+    std::thread async_thread([]() {
+        stop_mmap();
+    });
+    async_thread.detach();
+}
 
 size_t header_callback(char *buffer, size_t size, size_t nitems, void *userdata) {
     std::string header(buffer, size * nitems);
@@ -134,7 +159,7 @@ size_t WriteMemoryCallback(void* contents, size_t size, size_t nmemb, void* user
 
 
 // Function to download a file using HTTP GET without saving it to memory
-bool DownloadFileAsync(const std::string& url, std::vector<char>& data, std::promise<uint8_t*>&& promise, size_t* output_size) {
+bool DownloadFileAsync(const std::string& url, std::vector<char>& data, size_t* output_size) {
     CURL* curl = curl_easy_init();
 
     if (!curl) {
@@ -179,11 +204,10 @@ bool DownloadFileAsync(const std::string& url, std::vector<char>& data, std::pro
     // Clean up
     curl_easy_cleanup(curl);
 
-    std::thread decryption_thread(decryptAndProcessData, data.data(), data.size(), std::move(promise), output_size);
-    decryption_thread.detach();  // Detach the thread to run independently
-
     return true;
 }
+
+
 
 struct FilterHandler : public Http::Handler {
     HTTP_PROTOTYPE(FilterHandler)
@@ -221,6 +245,13 @@ struct FilterHandler : public Http::Handler {
             
                 if (GetContentSize(url, content_size)) {
 
+                    // Create a promise for buffer preparation
+                    std::promise<uint8_t*> buffer_promise;
+                    std::future<uint8_t*> buffer_future = buffer_promise.get_future();
+                    
+                    // Start asynchronous buffer preparation
+                    PrepareBufferAsync(content_size, std::move(buffer_promise));
+
                     gettimeofday(&end, NULL);
 
                     time_taken = (end.tv_sec - start.tv_sec) * 1e6;
@@ -231,26 +262,32 @@ struct FilterHandler : public Http::Handler {
 
                     std::vector<char> memoryData(content_size);  // Initialize vector with the content size
 
-                 
+                    
                     size_t output_size = 0;
                     //uint8_t* decrypted_data = nullptr;
 
                     ResetWriteMemoryCallbackOffset();
 
-                    std::promise<uint8_t*> promise;
-                    std::future<uint8_t*> future = promise.get_future();
+     
 
-                    if (DownloadFileAsync(url, memoryData, std::move(promise), &output_size)) {
+                    if (DownloadFileAsync(url, memoryData, &output_size)) {
                         std::cout << "Data fetched successfully. Size: " << memoryData.size() << " bytes." << std::endl;
 
-                        //if (!memoryData.empty()) {
+                            uint8_t* dst_buf = buffer_future.get();
 
-                            gettimeofday(&start, NULL);
 
-                    
-                            uint8_t* decrypted_data = future.get();  // Wait for the decryption to complete
-                           /// decrypted_data = decrypt_buffer(memoryData.data(), memoryData.size(), &output_size);
+                         gettimeofday(&start, NULL);
+                        // Create a promise for decryption
+                        std::promise<uint8_t*> decryption_promise;
+                        std::future<uint8_t*> decryption_future = decryption_promise.get_future();
 
+                        // Start decryption asynchronously
+                        std::thread decryption_thread(decryptAndProcessData, memoryData.data(), memoryData.size(), std::move(decryption_promise), &output_size, dst_buf);
+                        decryption_thread.detach();
+
+                        // Wait for decryption to complete
+                        uint8_t* decrypted_data = decryption_future.get();
+                           
 
 
                             gettimeofday(&end, NULL);
@@ -482,14 +519,14 @@ struct FilterHandler : public Http::Handler {
                                 std::cout << "Time to filter: " << table_duration.count() << " seconds" << std::endl;  
                 ////////////////////////////////////////////////////
 
-                           
+                               
                            
                                 gettimeofday(&end_f, NULL);
                                 time_taken = (end_f.tv_sec - start_f.tv_sec) * 1e6;
                                 time_taken = (time_taken + (end_f.tv_usec - start_f.tv_usec)) * 1e-6;
                                 printf("Total time taken: %.6f seconds from main\n", time_taken);
 
-
+                                stopMmapAsync();
 
                                 free(decrypted_data);
                                 decrypted_data = NULL;

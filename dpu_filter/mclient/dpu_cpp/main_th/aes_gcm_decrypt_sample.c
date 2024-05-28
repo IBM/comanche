@@ -34,16 +34,15 @@ double get_time_diff(struct timespec *start, struct timespec *end) {
  * @return: DOCA_SUCCESS on success, DOCA_ERROR otherwise.
  */
 
-uint8_t* aes_gcm_decrypt(struct aes_gcm_cfg *cfg, char *file_data, size_t file_size, size_t* output_size, struct aes_gcm_resources *resources) 
+uint8_t* aes_gcm_decrypt(struct aes_gcm_cfg *cfg, char *file_data, size_t file_size, size_t* output_size, struct aes_gcm_resources *resources, uint8_t* dst_buffer)
 {
 	
 	struct program_core_objects *state = NULL;
 	struct doca_buf *src_doca_buf = NULL;
 	struct doca_buf *dst_doca_buf = NULL;
 	struct doca_buf **dst_doca_bufs = NULL;
-	/* The sample will use 2 doca buffers */
-	uint32_t max_bufs = 2;
-	uint8_t *dst_buffer = NULL;
+
+	
 	uint8_t *resp_head = NULL;
 	size_t data_len = 0;
 	char *dump = NULL;
@@ -51,7 +50,7 @@ uint8_t* aes_gcm_decrypt(struct aes_gcm_cfg *cfg, char *file_data, size_t file_s
 	struct doca_aes_gcm_key *key = NULL;
 	doca_error_t result = DOCA_SUCCESS;
 	doca_error_t tmp_result = DOCA_SUCCESS;
-	uint64_t max_decrypt_buf_size = 0;
+	
 	struct timeval start_time, end_time, st_time, e_time;
     double time_spent, total_time, t_spent, t_time, time_taken = 0.0;
 	size_t buffer_size = 0;
@@ -77,15 +76,12 @@ uint8_t* aes_gcm_decrypt(struct aes_gcm_cfg *cfg, char *file_data, size_t file_s
 	state = resources->state;
 	resources->task_started = false;
 
-
-
-
-
-	result = doca_aes_gcm_cap_task_decrypt_get_max_buf_size(doca_dev_as_devinfo(state->dev), &max_decrypt_buf_size);
-	if (result != DOCA_SUCCESS) {
-		DOCA_LOG_ERR("Failed to query AES-GCM decrypt max buf size: %s", doca_error_get_descr(result));
+    dst_doca_bufs = calloc(num_chunks, sizeof(struct doca_buf*));
+    if (dst_doca_bufs == NULL) {
+        DOCA_LOG_ERR("Failed to allocate memory for DOCA buffers");
+        result = DOCA_ERROR_NO_MEMORY;
 		return NULL;
-	}
+    }
 
 
     /* Create DOCA AES-GCM key */
@@ -97,33 +93,6 @@ uint8_t* aes_gcm_decrypt(struct aes_gcm_cfg *cfg, char *file_data, size_t file_s
 
 
 
-
-
-    //fast
-	dst_buffer = calloc(1, *output_size);
-	//dst_buffer = calloc(1, max_decrypt_buf_size); //only 1 msec, very fast
-	if (dst_buffer == NULL) {
-		result = DOCA_ERROR_NO_MEMORY;
-		DOCA_LOG_ERR("Failed to allocate memory: %s", doca_error_get_descr(result));
-		return NULL;
-	}
-
-	dst_doca_bufs = calloc(num_chunks, sizeof(struct doca_buf*));
-    if (dst_doca_bufs == NULL) {
-        DOCA_LOG_ERR("Failed to allocate memory for DOCA buffers");
-        result = DOCA_ERROR_NO_MEMORY;
-		return NULL;
-    }
-
-
-
-    //fast
-	result = doca_mmap_set_memrange(state->dst_mmap, dst_buffer, *output_size);
-	//result = doca_mmap_set_memrange(state->dst_mmap, dst_buffer, max_decrypt_buf_size);
-	if (result != DOCA_SUCCESS) {
-		DOCA_LOG_ERR("Failed to set mmap memory range: %s", doca_error_get_descr(result));
-		return NULL;
-	}
 
 	result = doca_mmap_set_memrange(state->src_mmap, file_data, file_size);
 	if (result != DOCA_SUCCESS) {
@@ -142,48 +111,9 @@ uint8_t* aes_gcm_decrypt(struct aes_gcm_cfg *cfg, char *file_data, size_t file_s
 		return NULL;
 	}
 
-    
-
-
-
-    //takes 116 msec
-	result = doca_mmap_start(state->dst_mmap);
-	if (result != DOCA_SUCCESS) {
-		DOCA_LOG_ERR("Failed to start mmap: %s", doca_error_get_descr(result));
-		return NULL;
-	}
 
     
 
-    
-	//fast
-	/* Construct DOCA buffer for each address range */
-	/*result = doca_buf_inventory_buf_get_by_addr(state->buf_inv, state->dst_mmap, dst_buffer, max_decrypt_buf_size,
-						    &dst_doca_buf);
-	if (result != DOCA_SUCCESS) {
-		DOCA_LOG_ERR("Unable to acquire DOCA buffer representing destination buffer: %s",
-			     doca_error_get_descr(result));
-		return NULL;
-	}*/
-    size_t decrypt_size = buffer_size - cfg->tag_size;
-
-	
-
-
-	   // Construct DOCA buffers for source and destination
-    for (uint32_t i = 0; i < num_chunks; i++) {
-
-        size_t chunk_size = (output_size - i * decrypt_size > decrypt_size) ? decrypt_size : output_size - i * decrypt_size;
-        result = doca_buf_inventory_buf_get_by_addr(state->buf_inv, state->dst_mmap, dst_buffer + i * decrypt_size, decrypt_size, &dst_doca_bufs[i]);
-        if (result != DOCA_SUCCESS) {
-            DOCA_LOG_ERR("Unable to acquire DOCA buffer for destination buffer: %s", doca_error_get_descr(result));
-			goto stop_mmap;
-        }
-    }
- 
-
-
-    
 	/* Construct DOCA buffer for each address range */
 	result = doca_buf_inventory_buf_get_by_addr(state->buf_inv, state->src_mmap, file_data, file_size, &src_doca_buf);
 		
@@ -193,6 +123,20 @@ uint8_t* aes_gcm_decrypt(struct aes_gcm_cfg *cfg, char *file_data, size_t file_s
 		goto stop_mmap;
 	}
     
+    size_t decrypt_size = buffer_size - cfg->tag_size;
+
+	
+	   // Construct DOCA buffers for source and destination
+    for (uint32_t i = 0; i < num_chunks; i++) {
+
+        size_t chunk_size = (output_size - i * decrypt_size > decrypt_size) ? decrypt_size : output_size - i * decrypt_size;
+        result = doca_buf_inventory_buf_get_by_addr(state->buf_inv, state->dst_mmap, dst_buffer + i * decrypt_size, decrypt_size, &dst_doca_bufs[i]);
+        if (result != DOCA_SUCCESS) {
+            DOCA_LOG_ERR("Unable to acquire DOCA buffer for destination buffer: %s", doca_error_get_descr(result));
+			return NULL;
+        }
+    }
+
 	clock_gettime(CLOCK_MONOTONIC, &end);
 
 	
@@ -282,55 +226,7 @@ uint8_t* aes_gcm_decrypt(struct aes_gcm_cfg *cfg, char *file_data, size_t file_s
 
 
 	//doca_task_free(doca_aes_gcm_task_decrypt_as_task(resources->decrypt_task));
-
-
-	if (state->buf_inv != NULL) {
-		tmp_result = doca_buf_inventory_destroy(state->buf_inv);
-		if (tmp_result != DOCA_SUCCESS) {
-			DOCA_ERROR_PROPAGATE(result, tmp_result);
-			DOCA_LOG_ERR("Failed to destroy buf inventory: %s", doca_error_get_descr(tmp_result));
-		}
-		state->buf_inv = NULL;
-	}
-
-	stop_mmap:
-
-	if (state->dst_mmap != NULL) {
-		tmp_result = doca_mmap_stop(state->dst_mmap);
-		if (tmp_result != DOCA_SUCCESS) {
-			DOCA_ERROR_PROPAGATE(result, tmp_result);
-			DOCA_LOG_ERR("Failed to destroy destination mmap: %s", doca_error_get_descr(tmp_result));
-		}
-		state->dst_mmap = NULL;
-	}
-
-	if (state->src_mmap != NULL) {
-		tmp_result = doca_mmap_stop(state->src_mmap);
-		if (tmp_result != DOCA_SUCCESS) {
-			DOCA_ERROR_PROPAGATE(result, tmp_result);
-			DOCA_LOG_ERR("Failed to destroy source mmap: %s", doca_error_get_descr(tmp_result));
-		}
-		state->src_mmap = NULL;
-	}
-
-	if (state->dst_mmap != NULL) {
-		tmp_result = doca_mmap_destroy(state->dst_mmap);
-		if (tmp_result != DOCA_SUCCESS) {
-			DOCA_ERROR_PROPAGATE(result, tmp_result);
-			DOCA_LOG_ERR("Failed to destroy destination mmap: %s", doca_error_get_descr(tmp_result));
-		}
-		state->dst_mmap = NULL;
-	}
-
-	if (state->src_mmap != NULL) {
-		tmp_result = doca_mmap_destroy(state->src_mmap);
-		if (tmp_result != DOCA_SUCCESS) {
-			DOCA_ERROR_PROPAGATE(result, tmp_result);
-			DOCA_LOG_ERR("Failed to destroy source mmap: %s", doca_error_get_descr(tmp_result));
-		}
-		state->src_mmap = NULL;
-	}
-
+stop_mmap:
 destroy_key:
 	tmp_result = doca_aes_gcm_key_destroy(key);
 	if (tmp_result != DOCA_SUCCESS) {

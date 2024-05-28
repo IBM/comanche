@@ -439,7 +439,7 @@ struct FilterHandler : public Http::Handler {
 
                                         std::string filtered_result_json = result_table.ValueUnsafe()->ToString();
 
-                                        response.send(Http::Code::Ok, filtered_result_json, MIME(Application, Json));
+                                         response.send(Http::Code::Ok, filtered_result_json, MIME(Application, Json));
 
 
                                     }
