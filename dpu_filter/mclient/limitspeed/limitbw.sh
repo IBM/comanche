@@ -3,8 +3,8 @@
 #uplink_speed_kbps=50000    # 50 Mbps = 50000 Kbps
 
 
-downlink_speed_kbps = 700000  # 150 Mbps = 150,000 Kbps
-uplink_speed_kbps = 700000    # 150 Mbps = 150,000 Kbps
+#downlink_speed_kbps = 700000  # 150 Mbps = 150,000 Kbps
+#uplink_speed_kbps = 700000    # 150 Mbps = 150,000 Kbps
 
 
 #downlink_speed_kbps = 300000  # 300 Mbps = 300,000 Kbps
