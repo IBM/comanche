@@ -96,6 +96,15 @@ uint8_t* aes_gcm_decrypt(struct aes_gcm_cfg *cfg, char *file_data, size_t file_s
 	state = resources.state;
 	resources.task_started = false;
 
+		/* Start AES-GCM context */
+	result = doca_ctx_start(state->ctx);
+	if (result != DOCA_SUCCESS) {
+		DOCA_LOG_ERR("Failed to start context: %s", doca_error_get_descr(result));
+		goto destroy_resources;
+	}
+
+
+
 	result = doca_aes_gcm_cap_task_decrypt_get_max_buf_size(doca_dev_as_devinfo(state->dev), &max_decrypt_buf_size);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to query AES-GCM decrypt max buf size: %s", doca_error_get_descr(result));
@@ -103,7 +112,7 @@ uint8_t* aes_gcm_decrypt(struct aes_gcm_cfg *cfg, char *file_data, size_t file_s
 	}
 
 
-    	/* Create DOCA AES-GCM key */
+    /* Create DOCA AES-GCM key */
 	result = doca_aes_gcm_key_create(resources.aes_gcm, cfg->raw_key, cfg->raw_key_type, &key);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Unable to create DOCA AES-GCM key: %s", doca_error_get_descr(result));
@@ -111,12 +120,6 @@ uint8_t* aes_gcm_decrypt(struct aes_gcm_cfg *cfg, char *file_data, size_t file_s
 	}
 
 
-	/* Start AES-GCM context */
-	result = doca_ctx_start(state->ctx);
-	if (result != DOCA_SUCCESS) {
-		DOCA_LOG_ERR("Failed to start context: %s", doca_error_get_descr(result));
-		goto destroy_resources;
-	}
 
     clock_gettime(CLOCK_MONOTONIC, &end);
     double elapsed_ms = get_time_diff(&start, &end);

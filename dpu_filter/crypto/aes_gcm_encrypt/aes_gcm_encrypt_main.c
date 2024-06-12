@@ -29,7 +29,7 @@
 
 DOCA_LOG_REGISTER(AES_GCM_ENCRYPT::MAIN);
 
-#define MAX_BUFFER_SIZE 2097152
+#define MAX_BUFFER_SIZE 1048576//2097152
 
 /* Sample's Logic */
 doca_error_t aes_gcm_encrypt(struct aes_gcm_cfg *cfg, char *file_data, size_t file_size, FILE *out_file);

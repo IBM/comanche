@@ -18,7 +18,7 @@
 
 DOCA_LOG_REGISTER(AES_GCM_ENCRYPT);
 
-#define MAX_BUFFER_SIZE 2097152  // Define the maximum buffer size, 2MB
+#define MAX_BUFFER_SIZE 1048576//2097152  // Define the maximum buffer size, 2MB
 
 double get_time_diff(struct timespec *start, struct timespec *end) {
     return (end->tv_sec - start->tv_sec) * 1000.0 + (end->tv_nsec - start->tv_nsec) / 1000000.0;

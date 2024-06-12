@@ -1,3 +1,4 @@
+
 project('DOCA_SAMPLE', 'c', 'cpp',
     version: run_command(find_program('cat'),
     files('/opt/mellanox/doca/applications/VERSION'), check: true).stdout().strip(),
@@ -42,8 +43,8 @@ link_args = [
 executable('localfilter', source_files,
     dependencies: dependencies,
     include_directories: include_dirs,
-    c_args: ['-Wno-missing-braces', '-O3'],
-    cpp_args: ['-std=c++17', '-fexceptions', '-O3'],
+    c_args: ['-Wno-missing-braces',  '-O3'],
+    cpp_args: ['-std=c++17', '-fexceptions','-O3'],
     link_args: link_args,
     install: false
 )

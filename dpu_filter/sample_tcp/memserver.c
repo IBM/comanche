@@ -8,7 +8,7 @@
 
 #define TCP_PORT 12345
 #define FILE_DIRECTORY "/path/to/directory/" // Update with your file directory
-#define BUFFER_SIZE 1024
+#define BUFFER_SIZE (1024*1024*2)
 
 int main() {
     int sockfd, newsockfd;

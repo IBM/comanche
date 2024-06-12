@@ -9,7 +9,7 @@
 #include <doca_aes_gcm.h>
 #include <doca_error.h>
 #include <doca_log.h>
-
+#include <errno.h>
 #include "common.h"
 #include "aes_gcm_common.h"
 #include <sys/time.h>
@@ -40,9 +40,10 @@ uint8_t* aes_gcm_decrypt(struct aes_gcm_cfg *cfg, char *file_data, size_t file_s
 	struct program_core_objects *state = NULL;
 	struct doca_buf *src_doca_buf = NULL;
 	struct doca_buf *dst_doca_buf = NULL;
+	struct doca_buf **dst_doca_bufs = NULL;
 	/* The sample will use 2 doca buffers */
 	uint32_t max_bufs = 2;
-	char *dst_buffer = NULL;
+	uint8_t *dst_buffer = NULL;
 	uint8_t *resp_head = NULL;
 	size_t data_len = 0;
 	char *dump = NULL;
@@ -58,7 +59,8 @@ uint8_t* aes_gcm_decrypt(struct aes_gcm_cfg *cfg, char *file_data, size_t file_s
 	uint8_t *output_data = NULL;
    
 
-	clock_gettime(CLOCK_MONOTONIC, &start);
+   clock_gettime(CLOCK_MONOTONIC, &start);
+
 
 
     //Max size that the crypto engine supports
@@ -71,22 +73,6 @@ uint8_t* aes_gcm_decrypt(struct aes_gcm_cfg *cfg, char *file_data, size_t file_s
 
     *output_size = file_size - num_chunks * cfg->tag_size;
 	
-       // Allocate memory for output data
-    output_data = (uint8_t*) calloc(1, *output_size);
-    if (!output_data) {
-        DOCA_LOG_ERR("Failed to allocate memory for output data");
-        destroy_aes_gcm_resources(&resources);
-        return NULL;
-    }
-
-	//without mlock init takes 32 msec, 31 msec goes to mmap start
-	//mlock adds 81 msec
-	if (mlock(output_data, *output_size) != 0) {
-    	DOCA_LOG_INFO("can't mlock");
-    	return NULL;
-	}
-
-
 
 	state = resources->state;
 	resources->task_started = false;
@@ -98,7 +84,7 @@ uint8_t* aes_gcm_decrypt(struct aes_gcm_cfg *cfg, char *file_data, size_t file_s
 	result = doca_aes_gcm_cap_task_decrypt_get_max_buf_size(doca_dev_as_devinfo(state->dev), &max_decrypt_buf_size);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to query AES-GCM decrypt max buf size: %s", doca_error_get_descr(result));
-		//goto destroy_resources;
+		return NULL;
 	}
 
 
@@ -114,27 +100,38 @@ uint8_t* aes_gcm_decrypt(struct aes_gcm_cfg *cfg, char *file_data, size_t file_s
 
 
     //fast
-	dst_buffer = calloc(1, max_decrypt_buf_size); //only 1 msec, very fast
+	dst_buffer = calloc(1, *output_size);
+	//dst_buffer = calloc(1, max_decrypt_buf_size); //only 1 msec, very fast
 	if (dst_buffer == NULL) {
 		result = DOCA_ERROR_NO_MEMORY;
 		DOCA_LOG_ERR("Failed to allocate memory: %s", doca_error_get_descr(result));
-		//goto destroy_resources;
+		return NULL;
 	}
+
+	dst_doca_bufs = calloc(num_chunks, sizeof(struct doca_buf*));
+    if (dst_doca_bufs == NULL) {
+        DOCA_LOG_ERR("Failed to allocate memory for DOCA buffers");
+        result = DOCA_ERROR_NO_MEMORY;
+		return NULL;
+    }
+
 
 
     //fast
-	result = doca_mmap_set_memrange(state->dst_mmap, dst_buffer, max_decrypt_buf_size);
+	result = doca_mmap_set_memrange(state->dst_mmap, dst_buffer, *output_size);
+	//result = doca_mmap_set_memrange(state->dst_mmap, dst_buffer, max_decrypt_buf_size);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to set mmap memory range: %s", doca_error_get_descr(result));
-		goto free_dst_buf;
+		return NULL;
 	}
 
 	result = doca_mmap_set_memrange(state->src_mmap, file_data, file_size);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to set mmap memory range: %s", doca_error_get_descr(result));
-		goto free_dst_buf;
+		return NULL;
 	}
 
+    
     
 
 
@@ -142,36 +139,63 @@ uint8_t* aes_gcm_decrypt(struct aes_gcm_cfg *cfg, char *file_data, size_t file_s
 	result = doca_mmap_start(state->src_mmap);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to start mmap: %s", doca_error_get_descr(result));
-		goto free_dst_buf;
+		return NULL;
 	}
 
+    
+
+
+
+    //takes 116 msec
 	result = doca_mmap_start(state->dst_mmap);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to start mmap: %s", doca_error_get_descr(result));
-		goto free_dst_buf;
+		return NULL;
 	}
+
+    
 
     
 	//fast
 	/* Construct DOCA buffer for each address range */
-	result = doca_buf_inventory_buf_get_by_addr(state->buf_inv, state->dst_mmap, dst_buffer, max_decrypt_buf_size,
+	/*result = doca_buf_inventory_buf_get_by_addr(state->buf_inv, state->dst_mmap, dst_buffer, max_decrypt_buf_size,
 						    &dst_doca_buf);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Unable to acquire DOCA buffer representing destination buffer: %s",
 			     doca_error_get_descr(result));
 		return NULL;
-	}
+	}*/
+    size_t decrypt_size = buffer_size - cfg->tag_size;
 
+	
+
+
+	   // Construct DOCA buffers for source and destination
+    for (uint32_t i = 0; i < num_chunks; i++) {
+
+        size_t chunk_size = (output_size - i * decrypt_size > decrypt_size) ? decrypt_size : output_size - i * decrypt_size;
+        result = doca_buf_inventory_buf_get_by_addr(state->buf_inv, state->dst_mmap, dst_buffer + i * decrypt_size, decrypt_size, &dst_doca_bufs[i]);
+        if (result != DOCA_SUCCESS) {
+            DOCA_LOG_ERR("Unable to acquire DOCA buffer for destination buffer: %s", doca_error_get_descr(result));
+			goto stop_mmap;
+        }
+    }
+ 
+
+
+    
 	/* Construct DOCA buffer for each address range */
 	result = doca_buf_inventory_buf_get_by_addr(state->buf_inv, state->src_mmap, file_data, file_size, &src_doca_buf);
 		
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Unable to acquire DOCA buffer representing source buffer: %s",
-			doca_error_get_descr(result));
-		goto free_dst_buf;
+		doca_error_get_descr(result));
+		goto stop_mmap;
 	}
-
+    
 	clock_gettime(CLOCK_MONOTONIC, &end);
+
+	
     double elapsed_ms = get_time_diff(&start, &end);
     printf("Initialization and alloc %.6f ms\n", elapsed_ms);
 
@@ -187,81 +211,48 @@ uint8_t* aes_gcm_decrypt(struct aes_gcm_cfg *cfg, char *file_data, size_t file_s
     clock_gettime(CLOCK_MONOTONIC, &start);
 	
 	//the loop is 53msec
-    while (offset < file_size) {
+    //while (offset < file_size) {
+
+	for (uint32_t i = 0; i < num_chunks; i++) {
 
 
+    
         current_chunk_size = (file_size - offset > buffer_size) ? buffer_size : file_size - offset;
 
-
-
-
-	
-
-        //Need to reset the length of buffer to reuse it
-		doca_buf_reset_data_len(dst_doca_buf);
 
 		/* Set data length in doca buffer */
 		result = doca_buf_set_data(src_doca_buf, file_data+offset, current_chunk_size);
 		if (result != DOCA_SUCCESS) {
 			DOCA_LOG_ERR("Unable to set DOCA buffer data: %s", doca_error_get_descr(result));
-			return NULL;
+			goto clean;
 		}
 
-        
-
-    
-        	// Inside the loop before calling submit_aes_gcm_encrypt_task
-    	gettimeofday(&start_time, NULL);
 
 
 		/* Submit AES-GCM decrypt task */
-		result = submit_aes_gcm_decrypt_task(resources, src_doca_buf, dst_doca_buf, key, (uint8_t *)cfg->iv,
+		result = submit_aes_gcm_decrypt_task(resources, src_doca_buf, dst_doca_bufs[i], key, (uint8_t *)cfg->iv,
 							cfg->iv_length, cfg->tag_size, cfg->aad_size);
 		if (result != DOCA_SUCCESS) {
 			DOCA_LOG_ERR("AES-GCM decrypt task failed: %s", doca_error_get_descr(result));
-			goto destroy_key;
+			goto clean;
 		}
 
-		
+		doca_buf_get_data_len(dst_doca_bufs[i], &data_len);
 
-
-		// Calculate the time taken and accumulate it
-		gettimeofday(&end_time, NULL);
-		time_spent = (end_time.tv_sec - start_time.tv_sec) * 1000.0;      // convert sec to ms
-		time_spent += (end_time.tv_usec - start_time.tv_usec) / 1000.0;   // convert us to ms
-		total_time += time_spent;
-
-		/* Write the result to output file */
-		doca_buf_get_head(dst_doca_buf, (void **)&resp_head);
-		doca_buf_get_data_len(dst_doca_buf, &data_len);
-		//fwrite(resp_head, sizeof(uint8_t), data_len, out_file);
-		//DOCA_LOG_INFO("File was decrypted successfully and saved in: %s", cfg->output_path);
-
-		memcpy(output_data + output_offset, resp_head, data_len);
+		//get output data size
 		output_offset += data_len;
-
-		/* Print destination buffer data */
-		/*dump = hex_dump(resp_head, data_len);
-		if (dump == NULL) {
-			DOCA_LOG_ERR("Failed to allocate memory for printing buffer content\n");
-			result = DOCA_ERROR_NO_MEMORY;
-			goto destroy_key;
-		}
-
-		DOCA_LOG_INFO("AES-GCM decrypted data:\n%s", dump);
-		free(dump);*/
 
 		offset += current_chunk_size;
 
-
 	}
+
+
 
 	*output_size = output_offset;
 
-	printf("Output size: %u ms\n", *output_size);
+	printf("Output size: %u\n", *output_size);
 
 
-	printf("Total time spent to decrypt: %.2f ms\n", total_time);
 
 	clock_gettime(CLOCK_MONOTONIC, &end);
     elapsed_ms = get_time_diff(&start, &end);
@@ -269,6 +260,8 @@ uint8_t* aes_gcm_decrypt(struct aes_gcm_cfg *cfg, char *file_data, size_t file_s
 
    
     clock_gettime(CLOCK_MONOTONIC, &start);
+
+	clean:
 
 	//Need to refcount src buffer as we are using different buffers
 	tmp_result = doca_buf_dec_refcount(src_doca_buf, NULL);
@@ -278,24 +271,17 @@ uint8_t* aes_gcm_decrypt(struct aes_gcm_cfg *cfg, char *file_data, size_t file_s
 		DOCA_ERROR_PROPAGATE(result, tmp_result);
 	}
 
-	tmp_result = doca_buf_dec_refcount(dst_doca_buf, NULL);
-	if (tmp_result != DOCA_SUCCESS) {
-		DOCA_LOG_ERR("Failed to decrease DOCA destination buffer reference count: %s",
-			     doca_error_get_descr(tmp_result));
-		DOCA_ERROR_PROPAGATE(result, tmp_result);
-	}
-
-    //without munlock clean takes 9 msec
-	//munlock adds 15 msec
-    if (munlock(output_data, output_size) != 0) {
-	DOCA_LOG_ERR("Failed to unpin memory for the destination buffer");
-	// Handle error appropriately
+	if (dst_doca_bufs != NULL) {
+        for (uint32_t i = 0; i < num_chunks; i++) {
+            if (dst_doca_bufs[i] != NULL) {
+                doca_buf_dec_refcount(dst_doca_bufs[i], NULL);
+            }
+        }
+        free(dst_doca_bufs);
     }
 
 
 	//doca_task_free(doca_aes_gcm_task_decrypt_as_task(resources->decrypt_task));
-
-   	
 
 
 	if (state->buf_inv != NULL) {
@@ -306,6 +292,8 @@ uint8_t* aes_gcm_decrypt(struct aes_gcm_cfg *cfg, char *file_data, size_t file_s
 		}
 		state->buf_inv = NULL;
 	}
+
+	stop_mmap:
 
 	if (state->dst_mmap != NULL) {
 		tmp_result = doca_mmap_stop(state->dst_mmap);
@@ -350,13 +338,11 @@ destroy_key:
 		DOCA_ERROR_PROPAGATE(result, tmp_result);
 	}
 
-free_dst_buf:
-	free(dst_buffer);
 
 	clock_gettime(CLOCK_MONOTONIC, &end);
 	
     elapsed_ms = get_time_diff(&start, &end);
     printf("Clean and destroy: %.6f ms\n", elapsed_ms);
 
-	return output_data;
+	return dst_buffer;
 }

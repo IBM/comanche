@@ -239,6 +239,8 @@ struct FilterHandler : public Http::Handler {
 
                                 auto start_stream = std::chrono::high_resolution_clock::now();
 
+                               //mlock(decrypted_data, output_size);  // Lock the memory
+
                                 auto arrowBuffer = arrow::Buffer::Wrap(decrypted_data, output_size);
                                 auto bufferReader = std::make_shared<arrow::io::BufferReader>(arrowBuffer);
                                 std::unique_ptr<parquet::arrow::FileReader> arrowReader;
@@ -300,13 +302,15 @@ struct FilterHandler : public Http::Handler {
                                 
                                 auto start_stats = std::chrono::high_resolution_clock::now();
 
+                                int num_row_groups = arrowReader->num_row_groups();
+
                                 // Ensure there is at least one row group
-                                if (arrowReader->num_row_groups() == 0) {
+                                if (num_row_groups == 0) {
                                     std::cerr << "No row groups found in the Parquet file." << std::endl;
                                     return;
                                 }
 
-                                std::cout << "Number of row groups: " << arrowReader->num_row_groups()  << std::endl; 
+                                std::cout << "Number of row groups: " << num_row_groups  << std::endl; 
                         
                         
 
@@ -327,6 +331,7 @@ struct FilterHandler : public Http::Handler {
                                 }
 
                                 std::vector<int> matching_row_groups;
+                                bool useMatchingGroups = false;
 
                                 for (int row_group_index = 0; row_group_index < arrowReader->num_row_groups(); ++row_group_index) {
                                     auto metadata = arrowReader->parquet_reader()->metadata();
@@ -354,98 +359,93 @@ struct FilterHandler : public Http::Handler {
                                 std::cout << "Time to read statistics and find row groups: " << stats_duration.count() << " seconds" << std::endl; 
                 ///////////////////////////////////////////////////////////
 
+
+                                // Check if there are any matching row groups
+                                if (!matching_row_groups.empty()) {
+                                    useMatchingGroups = true;
+                                }
+
                                 auto start_table = std::chrono::high_resolution_clock::now();
 
-                                std::shared_ptr<arrow::Table> concatenated_table;
-
-                                if (!matching_row_groups.empty()) {
 
 
-                                    std::vector<std::shared_ptr<arrow::Table>> tables;
+
+                                // Processing row groups based on whether there are matching row groups
+                                if (useMatchingGroups) {
                                     for (int row_group_index : matching_row_groups) {
+
                                         std::shared_ptr<arrow::Table> table;
-                                        auto status = arrowReader->ReadRowGroup(row_group_index, &table);
-                                        if (!status.ok()) {
-                                            std::cerr << "Error reading Arrow table from RowGroup " << row_group_index << ": " << status.ToString() << std::endl;
-                                            continue;
-                                        }
-                                        tables.push_back(table);
+                                        status = arrowReader->RowGroup(row_group_index)->ReadTable(&table);
+
+                                        // Wrap the Table in an InMemoryDataset
+                                        std::shared_ptr<arrow::dataset::Dataset> dataset = std::make_shared<arrow::dataset::InMemoryDataset>(table);
+
+                                        // Build ScannerOptions for a Scanner to apply filter operation
+                                        auto options = std::make_shared<arrow::dataset::ScanOptions>();
+
+                                        // Build the Scanner
+                                        auto builder = arrow::dataset::ScannerBuilder(dataset);     
+                                         // Set the filter
+                                        arrow::Status build_status = builder.Filter(filter_expression);
+
+                                        auto scanner = builder.Finish();
+
+                                        // Perform the Scan and retrieve filtered result as Table
+                                        auto result_table = scanner.ValueOrDie()->ToTable();
+
+                                        std::string filtered_result_json = result_table.ValueUnsafe()->ToString();
+
+                                        response.send(Http::Code::Ok, filtered_result_json, MIME(Application, Json));
+
+
                                     }
 
-                                    // Assuming you want to concatenate all matching tables into a single table
-                                    // Assuming 'tables' is a std::vector<std::shared_ptr<arrow::Table>> containing your tables
-                                    arrow::Result<std::shared_ptr<arrow::Table>> concatenated_table_result = arrow::ConcatenateTables(tables);
+                                } else {
 
-                                    if (!concatenated_table_result.ok()) {
-                                        // Handle error
-                                        std::cerr << "Failed to concatenate tables: " << concatenated_table_result.status() << std::endl;
-                                        return;
+                                    // If no specific matches, process all row groups
+                                    for (int row_group_index = 0; row_group_index < arrowReader->num_row_groups(); ++row_group_index) {
+
+                                        std::shared_ptr<arrow::Table> table;
+                                        status = arrowReader->RowGroup(row_group_index)->ReadTable(&table);
+
+
+                                         // Wrap the Table in an InMemoryDataset
+                                        std::shared_ptr<arrow::dataset::Dataset> dataset = std::make_shared<arrow::dataset::InMemoryDataset>(table);
+
+                                        // Build ScannerOptions for a Scanner to apply filter operation
+                                        auto options = std::make_shared<arrow::dataset::ScanOptions>();
+
+                                        // Build the Scanner
+                                        auto builder = arrow::dataset::ScannerBuilder(dataset);     
+                                        // Set the filter
+                                        arrow::Status build_status = builder.Filter(filter_expression);
+
+                                        auto scanner = builder.Finish();
+
+                                        // Perform the Scan and retrieve filtered result as Table
+                                        auto result_table = scanner.ValueOrDie()->ToTable();
+
+                                        std::string filtered_result_json = result_table.ValueUnsafe()->ToString();
+
+                                        response.send(Http::Code::Ok, filtered_result_json, MIME(Application, Json));
+
+
                                     }
-
-                                    concatenated_table = *concatenated_table_result;
-
-
-                                }else{
-
-                                    std::cout << "Matching Row Group Empty" << std::endl; 
-
-                                    auto t_status = arrowReader->ReadTable(&concatenated_table);
-                                    if (!t_status.ok()) {
-                                        std::cerr << "Error reading Arrow table: " << status.ToString() << std::endl;
-                                        return;
-                                    }
-
-
                                 }
 
+
+
+
+
+                                
+              
                                 auto end_table = std::chrono::high_resolution_clock::now();
                                 std::chrono::duration<double> table_duration = end_table - start_table;
-                                std::cout << "Time to read table: " << table_duration.count() << " seconds" << std::endl;  
+                                std::cout << "Time to filter: " << table_duration.count() << " seconds" << std::endl;  
                 ////////////////////////////////////////////////////
 
-                                
-                                auto dataset = std::make_shared<arrow::dataset::InMemoryDataset>(concatenated_table);
-
-                                // 2: Build ScannerOptions for a Scanner to do a basic filter operation
-                                auto options = std::make_shared<arrow::dataset::ScanOptions>();
-
-                                auto start_filter = std::chrono::high_resolution_clock::now();
-                                // Build the Scanner
-                                auto builder = arrow::dataset::ScannerBuilder(dataset);
- 
-                                
-                                // Set the filter
-                                arrow::Status build_status = builder.Filter(filter_expression);
-                                if (!build_status.ok()) {
-                                    std::cerr << "Failed to apply filter: " << status.ToString() << std::endl;
-                                    return;
-                                }
-
-                                auto scanner = builder.Finish();
-
-                                    
-
-                                // Perform the Scan and retrieve filtered result as Table
-                                //this is the acyual filtering step
-                                //this takes  time, config og scan builder is fast
-                                auto result_table = scanner.ValueOrDie()->ToTable();
-
-                                //std::cout << "Table Data:\n" << result_table.ValueUnsafe()->ToString() << std::endl;
-
-                                auto end_filter = std::chrono::high_resolution_clock::now();
-                                auto filter_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_filter - start_filter);
-
-                                printf("Time measured to filter: %.3f milliseconds.\n", filter_duration.count() * 1e-3);
-                        
-                        
-                                auto end_total = std::chrono::high_resolution_clock::now();
-                                auto t_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_total - start_total);
-                                printf("Total Filter function: %.3f milliseconds.\n", t_duration.count() * 1e-3);
-
-                                // Assuming 'filtered_result_json' contains the filtered data in JSON format
-                                std::string filtered_result_json = result_table.ValueUnsafe()->ToString();
-
-
+                           
+                           
                                 gettimeofday(&end_f, NULL);
                                 time_taken = (end_f.tv_sec - start_f.tv_sec) * 1e6;
                                 time_taken = (time_taken + (end_f.tv_usec - start_f.tv_usec)) * 1e-6;
@@ -453,7 +453,7 @@ struct FilterHandler : public Http::Handler {
 
 
                                 // Send the JSON response
-                                response.send(Http::Code::Ok, filtered_result_json, MIME(Application, Json));
+                               // response.send(Http::Code::Ok, filtered_result_json, MIME(Application, Json));
 
 
                             } else {

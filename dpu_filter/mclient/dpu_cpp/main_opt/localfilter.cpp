@@ -507,7 +507,7 @@ int main() {
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
 
-        // Initialize cryptographic or any other necessary resources
+    // Initialize cryptographic or any other necessary resources
     init_crypto_resources();
 
     Http::listenAndServe<FilterHandler>(Pistache::Address("*:8080"));

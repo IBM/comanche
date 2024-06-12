@@ -38,17 +38,17 @@ main(int argc, char **argv)
 	
 
 	/* Register a logger backend */
-	/*result = doca_log_backend_create_standard();
+	result = doca_log_backend_create_standard();
 	if (result != DOCA_SUCCESS)
 		goto sample_exit;
 
 	/* Register a logger backend for internal SDK errors and warnings */
-	/*result = doca_log_backend_create_with_file_sdk(stderr, &sdk_log);
+	result = doca_log_backend_create_with_file_sdk(stderr, &sdk_log);
 	if (result != DOCA_SUCCESS)
 		goto sample_exit;
 	result = doca_log_backend_set_sdk_level(sdk_log, DOCA_LOG_LEVEL_WARNING);
 	if (result != DOCA_SUCCESS)
-		goto sample_exit;*/
+		goto sample_exit;
 
 	DOCA_LOG_INFO("Starting the sample");
 
