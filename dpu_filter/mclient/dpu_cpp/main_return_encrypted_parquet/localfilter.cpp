@@ -31,20 +31,42 @@
 #include <queue>
 #include <pthread.h>
 #include <memory>
+#include <fstream>
+#include <arrow/io/memory.h>
+
 
 using namespace Pistache;
 using json = nlohmann::json;
 
 std::mutex decryption_mutex;
 std::mutex response_mutex;
+std::mutex encryption_mutex;
+
+const size_t chunk_size = 8 * 1024 * 1024; // 8 MB
+const size_t alloc_size = 1024 * 1024 * 1024; // 1 GB for memory allocations
+const size_t max_rowgroup_size = 512 * 1024 * 1024;
+
+std::chrono::duration<double, std::milli> total_encrypt_time(0); 
+
 
 extern "C" {
-    int encrypt_buffer(char* data, size_t size);
+
+    //Decrypt functions
     uint8_t* decrypt_buffer(char* file_data, size_t file_size, size_t* output_size, uint8_t* dst_buffer);
     void init_crypto_resources();
     void destroy_crypto_resources();
-    uint8_t* prep_doca_buffer(size_t file_size);
+    uint8_t* prep_doca_buffer_dst(const size_t file_size);
+    uint8_t* prep_doca_buffer_src(const size_t file_size, char* file_data);
     void stop_mmap();
+
+
+    //Encrypt functions
+    uint8_t* encrypt_buffer(char* file_data, size_t file_size, size_t* output_size, uint8_t* dst_buffer);
+    void enc_init_crypto_resources();
+    void enc_destroy_crypto_resources();
+    uint8_t* enc_prep_doca_buffer_dst(const size_t file_size);
+    uint8_t* enc_prep_doca_buffer_src(const size_t file_size, char* file_data);
+    void enc_stop_mmap();
 }
 
 // Thread pool class
@@ -146,7 +168,7 @@ bool DownloadChunk(const std::string& url, Chunk& chunk) {
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
     curl_easy_setopt(curl, CURLOPT_TCP_NODELAY, 1L);
-    curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, 16 * 1024 * 1024); // Increased buffer size
+    curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, chunk_size); // Increased buffer size
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &chunk);
     curl_easy_setopt(curl, CURLOPT_RANGE, (std::to_string(chunk.start) + "-" + std::to_string(chunk.end)).c_str());
     curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
@@ -207,7 +229,7 @@ bool GetContentSize(const std::string& url, size_t& content_size) {
 }
 
 bool DownloadFileParallel(const std::string& url, size_t content_size, std::vector<char>& data_buffer, std::vector<std::vector<char>>& chunk_buffers) {
-    const size_t chunk_size = 8 * 1024 * 1024; // 8 MB
+    
     size_t num_chunks = (content_size + chunk_size - 1) / chunk_size;
 
     std::vector<Chunk> chunks(num_chunks);
@@ -240,6 +262,17 @@ bool DownloadFileParallel(const std::string& url, size_t content_size, std::vect
     std::cout << "Time taken to download all chunks: " << download_elapsed.count() << " seconds." << std::endl;
 
     if (success) {
+
+        // Prefetch the data buffer before aggregation
+        //auto start_prefetch = std::chrono::high_resolution_clock::now();
+        for (size_t i = 0; i < data_buffer.size(); i += 4096) {
+            volatile char tmp = data_buffer[i];
+        }
+        /*auto end_prefetch = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> prefetch_elapsed = end_prefetch - start_prefetch;
+        std::cout << "Time taken to prefetch data buffer: " << prefetch_elapsed.count() << " seconds." << std::endl;*/
+
+
         auto start_aggregation = std::chrono::high_resolution_clock::now();
         std::vector<std::future<void>> aggregation_futures;
         for (const auto& chunk : chunks) {
@@ -260,24 +293,14 @@ bool DownloadFileParallel(const std::string& url, size_t content_size, std::vect
     return success;
 }
 
-void PrepareBufferAsync(size_t file_size, std::promise<uint8_t*>&& promise) {
-    thread_pool.enqueue([file_size, promise = std::move(promise)]() mutable {
-        uint8_t* dst_buf = prep_doca_buffer(file_size);
-        if (dst_buf) {
-            promise.set_value(dst_buf);
-        } else {
-            std::cerr << "Failed to prepare DOCA buffer." << std::endl;
-            promise.set_value(nullptr);
-        }
-    });
-}
+
 
 void decryptAndProcessData(char* data, size_t size, std::promise<uint8_t*>&& promise, size_t* output_size, uint8_t* dst_buffer) {
     thread_pool.enqueue([data, size, promise = std::move(promise), output_size, dst_buffer]() mutable {
         std::lock_guard<std::mutex> lock(decryption_mutex);
         uint8_t* decrypted_data = decrypt_buffer(data, size, output_size, dst_buffer);
         if (decrypted_data) {
-            std::cerr << "Decryption successful. Output size: " << *output_size << std::endl;
+            //std::cerr << "Decryption successful. Output size: " << *output_size << std::endl;
             promise.set_value(decrypted_data);
         } else {
             std::cerr << "Decryption failed" << std::endl;
@@ -286,11 +309,7 @@ void decryptAndProcessData(char* data, size_t size, std::promise<uint8_t*>&& pro
     });
 }
 
-void stopMmapAsync() {
-    thread_pool.enqueue([]() {
-        stop_mmap();
-    });
-}
+
 
 arrow::compute::Expression GetFilterExpression(const std::string& sqlExpression, std::string& columnName, int& l_value) {
     std::vector<Token> tokens = SQLParser::parse(sqlExpression);
@@ -360,7 +379,8 @@ std::vector<int> GetMatchingRowGroups(const std::unique_ptr<parquet::arrow::File
     return matching_row_groups;
 }
 
-void filterDataAsync(const arrow::compute::Expression& filter_expression, std::shared_ptr<arrow::io::BufferReader> bufferReader, int row_group_index, std::shared_ptr<Http::ResponseWriter> response) {
+
+void filterDataAsync(const arrow::compute::Expression& filter_expression, std::shared_ptr<arrow::io::BufferReader> bufferReader, int row_group_index, std::shared_ptr<Http::ResponseWriter> response, uint8_t* final_buf, std::vector<char>& decrypt_buf) {
     try {
         std::unique_ptr<parquet::arrow::FileReader> arrowReader;
         auto status = parquet::arrow::OpenFile(bufferReader, arrow::default_memory_pool(), &arrowReader);
@@ -405,21 +425,82 @@ void filterDataAsync(const arrow::compute::Expression& filter_expression, std::s
 
         auto result_table = result_table_result.ValueOrDie();
 
-        std::string filtered_result_json = result_table->ToString();
+        // Write the result to a Parquet buffer
+        std::shared_ptr<arrow::io::BufferOutputStream> buffer_output;
+        PARQUET_ASSIGN_OR_THROW(
+            buffer_output,
+            arrow::io::BufferOutputStream::Create()
+        );
 
-        std::lock_guard<std::mutex> lock(response_mutex);
-        response->send(Http::Code::Ok, filtered_result_json, MIME(Application, Json));
+        PARQUET_THROW_NOT_OK(
+            parquet::arrow::WriteTable(
+                *result_table,
+                arrow::default_memory_pool(),
+                buffer_output,
+                1024 * 1024 // 1MB row group size
+            )
+        );
+
+        // Get the buffer and send it as a response
+        std::shared_ptr<arrow::Buffer> buffer;
+        PARQUET_ASSIGN_OR_THROW(buffer, buffer_output->Finish());
+
+
+
+        {
+            // Lock for encryption operations
+            std::lock_guard<std::mutex> lock(encryption_mutex);
+
+            // Ensure decrypt_buf is large enough to hold the buffer data
+   
+            decrypt_buf.resize(buffer->size());
+            
+
+            // Move data to decrypt_buf
+            std::memcpy(decrypt_buf.data(), buffer->data(), buffer->size());
+
+            //auto encrypt_start = std::chrono::high_resolution_clock::now();
+
+            // Encrypt the data in decrypt_buf
+            size_t output_size = 0;
+            uint8_t* encrypted_data = encrypt_buffer(decrypt_buf.data(), buffer->size(), &output_size, final_buf);
+            /*auto encrypt_end = std::chrono::high_resolution_clock::now();
+            auto encrypt_duration = std::chrono::duration_cast<std::chrono::milliseconds>(encrypt_end - encrypt_start);
+
+            std::cout << "Encryption time for this operation: " << encrypt_duration.count() << " ms." << std::endl;
+
+            total_encrypt_time += encrypt_duration;*/
+
+
+            if (encrypted_data) {
+                response->send(Http::Code::Ok, std::string(reinterpret_cast<char*>(encrypted_data), output_size), MIME(Application, OctetStream));
+            } else {
+                std::cerr << "Encryption failed" << std::endl;
+                response->send(Http::Code::Internal_Server_Error, "Encryption failed");
+            }
+        }
+
+
+
     } catch (const std::exception& e) {
         std::lock_guard<std::mutex> lock(response_mutex);
         response->send(Http::Code::Internal_Server_Error, e.what());
     }
 }
 
-struct FilterHandler : public Http::Handler {
+void prefetchDataBuffer(std::vector<char>& buffer) {
+    for (size_t i = 0; i < buffer.size(); i += 4096) {
+        volatile char tmp = buffer[i];
+    }
+}
+
+class FilterHandler : public Http::Handler {
     HTTP_PROTOTYPE(FilterHandler)
 
-    FilterHandler(std::vector<std::vector<char>>& buffers, std::vector<char>& data_buf)
-        : chunk_buffers(buffers), data_buffer(data_buf) {}
+public:
+    FilterHandler(std::vector<std::vector<char>>& buffers, std::vector<char>& data_buf, uint8_t* dst_buf, uint8_t* final_buf, std::vector<char>& decrypt_buf)
+        : chunk_buffers(buffers), data_buffer(data_buf), dst_buffer(dst_buf), final_buffer(final_buf), decrypt_buffer(decrypt_buf) {}
+
 
     void onRequest(const Http::Request& req, Http::ResponseWriter response) override {
         if (req.resource() == "/data" && req.method() == Http::Method::Post) {
@@ -437,21 +518,10 @@ struct FilterHandler : public Http::Handler {
 
             try {
                 if (GetContentSize(url, content_size)) {
-                    // Create a promise for buffer preparation
-                    std::promise<uint8_t*> buffer_promise;
-                    std::future<uint8_t*> buffer_future = buffer_promise.get_future();
-
-                    // Start asynchronous buffer preparation
-                    PrepareBufferAsync(content_size, std::move(buffer_promise));
-
                     std::cout << "Content size: " << content_size << " bytes." << std::endl;
 
                     // Resize data buffer to content size
-                    auto start_alloc = std::chrono::high_resolution_clock::now();
                     data_buffer.resize(content_size);
-                    auto end_alloc = std::chrono::high_resolution_clock::now();
-                    std::chrono::duration<double> alloc_elapsed = end_alloc - start_alloc;
-                    std::cout << "Time taken to allocate data buffer: " << alloc_elapsed.count() << " seconds." << std::endl;
 
                     auto start_time = std::chrono::high_resolution_clock::now();
 
@@ -460,17 +530,16 @@ struct FilterHandler : public Http::Handler {
                         std::chrono::duration<double> elapsed = end_time - start_time;
                         std::cout << "Data fetched successfully. Total time taken to fetch data: " << elapsed.count() << " seconds." << std::endl;
 
-                        uint8_t* dst_buf = buffer_future.get();
+                        auto start_decrypt = std::chrono::high_resolution_clock::now();
 
                         size_t output_size = 0; // Declare output_size here
 
-                        auto start_decrypt = std::chrono::high_resolution_clock::now();
                         // Create a promise for decryption
                         std::promise<uint8_t*> decryption_promise;
                         std::future<uint8_t*> decryption_future = decryption_promise.get_future();
 
                         // Start decryption asynchronously
-                        decryptAndProcessData(data_buffer.data(), data_buffer.size(), std::move(decryption_promise), &output_size, dst_buf);
+                        decryptAndProcessData(data_buffer.data(), data_buffer.size(), std::move(decryption_promise), &output_size, dst_buffer);
 
                         // Wait for decryption to complete
                         uint8_t* decrypted_data = decryption_future.get();
@@ -510,16 +579,18 @@ struct FilterHandler : public Http::Handler {
                             // Create a shared pointer for the response writer
                             auto shared_response = std::make_shared<Http::ResponseWriter>(std::move(response));
 
+                            //total_encrypt_time = std::chrono::duration<double, std::milli>(0); // Reset total_encrypt_time
+
                             if (!matching_row_groups.empty()) {
                                 for (const auto& row_group_index : matching_row_groups) {
                                     thread_pool.enqueue([=, shared_response, bufferReader] {
-                                        filterDataAsync(filter_expression, bufferReader, row_group_index, shared_response);
+                                        filterDataAsync(filter_expression, bufferReader, row_group_index, shared_response, final_buffer, decrypt_buffer);
                                     });
                                 }
                             } else {
                                 for (int row_group_index = 0; row_group_index < num_row_groups; ++row_group_index) {
                                     thread_pool.enqueue([=, shared_response, bufferReader] {
-                                        filterDataAsync(filter_expression, bufferReader, row_group_index, shared_response);
+                                        filterDataAsync(filter_expression, bufferReader, row_group_index, shared_response, final_buffer, decrypt_buffer);
                                     });
                                 }
                             }
@@ -528,11 +599,17 @@ struct FilterHandler : public Http::Handler {
                             std::chrono::duration<double> filter_elapsed = end_filter - start_filter;
                             std::cout << "Filtering time taken: " << filter_elapsed.count() << " seconds." << std::endl;
 
+
+
+                            //std::lock_guard<std::mutex> lock(encryption_mutex);
+                            //std::cout << "Total encryption time: " << total_encrypt_time.count() << " ms." << std::endl;
+
+
                             auto end_f = std::chrono::high_resolution_clock::now();
                             std::chrono::duration<double> total_elapsed = end_f - start_f;
                             std::cout << "Total time taken: " << total_elapsed.count() << " seconds." << std::endl;
 
-                            stopMmapAsync();
+                            
 
                         } else {
                             std::cout << "Decryption failed." << std::endl;
@@ -559,30 +636,67 @@ struct FilterHandler : public Http::Handler {
 private:
     std::vector<std::vector<char>>& chunk_buffers;
     std::vector<char>& data_buffer;
+    uint8_t* dst_buffer;
+    uint8_t* final_buffer; // Added final_buffer
+    std::vector<char>& decrypt_buffer; // Added decrypt_buffer
 };
+
 
 int main() {
     curl_global_init(CURL_GLOBAL_DEFAULT);
 
     init_crypto_resources();
+    enc_init_crypto_resources();
 
-    const size_t chunk_size = 8 * 1024 * 1024; // 8 MB
-    size_t num_chunks = 1024 / 8;
+
+    size_t num_chunks = alloc_size/ chunk_size;
     std::vector<std::vector<char>> chunk_buffers(num_chunks, std::vector<char>(chunk_size)); // Pre-allocate chunk buffers
 
     // Pre-allocate data buffer with a size of 1GB
-    std::vector<char> data_buffer(1 * 1024 * 1024 * 1024); // 1GB
+    std::vector<char> data_buffer(alloc_size); // 1GB
+
+    std::vector<char> decrypt_buffer(max_rowgroup_size); // 1GB
+   
+
+
+
+    // Prepare destination buffer with 1GB size synchronously
+    uint8_t* dst_buf = prep_doca_buffer_dst(alloc_size);
+    if (!dst_buf) {
+        std::cerr << "Failed to prepare DOCA destination buffer." << std::endl;
+        return 1;
+    }
+
+
+    // Prepare source buffer with 1GB size synchronously
+    prep_doca_buffer_src(alloc_size, data_buffer.data());
+   
+
+    // Prepare destination buffer with 1GB size synchronously
+    uint8_t* final_buf = enc_prep_doca_buffer_dst(max_rowgroup_size);
+    if (!dst_buf) {
+        std::cerr << "Failed to prepare DOCA destination buffer." << std::endl;
+        return 1;
+    }
+
+     // Prepare source buffer with 1GB size synchronously
+    enc_prep_doca_buffer_src(max_rowgroup_size,  decrypt_buffer.data());
 
     Address addr(Ipv4::any(), Port(8080));
     auto opts = Http::Endpoint::options();
     auto endpoint = std::make_shared<Http::Endpoint>(addr);
-    auto handler = std::make_shared<FilterHandler>(chunk_buffers, data_buffer);
+    auto handler = std::make_shared<FilterHandler>(chunk_buffers, data_buffer, dst_buf, final_buf, decrypt_buffer); // Pass all parameters including decrypt_buffer
 
+    endpoint->init(opts);
     endpoint->init(opts);
     endpoint->setHandler(handler);
     endpoint->serve();
 
+    stop_mmap();
+    enc_stop_mmap();
+
     destroy_crypto_resources();
+    enc_destroy_crypto_resources();
 
     curl_global_cleanup();
 
