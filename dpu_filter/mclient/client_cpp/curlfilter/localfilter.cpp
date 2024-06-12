@@ -3,13 +3,12 @@
 #include <vector>
 #include <string>
 #include <chrono>
-#include <algorithm> // For std::transform
-#include <cctype>    // For std::tolower
-#include <locale>    // For std::locale
+#include <algorithm>
+#include <cctype>
+#include <locale>
 #include <sys/mman.h>
-#include <iostream>
-#include <vector>
-#include <arrow/table.h> 
+#include <pistache/endpoint.h>
+#include <arrow/table.h>
 #include <arrow/api.h>
 #include <arrow/io/api.h>
 #include <parquet/arrow/reader.h>
@@ -20,26 +19,138 @@
 #include <arrow/dataset/dataset.h>
 #include <arrow/dataset/discovery.h>
 #include <arrow/compute/api.h>
-#include <arrow/compute/expression.h> // Include this header
+#include <arrow/compute/expression.h>
 #include "/home/ubuntu/json/include/nlohmann/json.hpp"
 #include "SQLParser.h"
+#include <future>
+#include <thread>
+#include <mutex>
+#include <atomic>
+#include <condition_variable>
+#include <queue>
+#include <pthread.h>
+#include <memory>
 
-size_t header_callback(char *buffer, size_t size, size_t nitems, void *userdata) {
-    std::string header(buffer, size * nitems);
-    std::locale loc;  // Use the C++ locale to handle characters properly
+class ThreadPool {
+public:
+    ThreadPool(size_t num_threads);
+    ~ThreadPool();
 
-    // Transform header to lowercase
-    std::transform(header.begin(), header.end(), header.begin(),
-                   [&loc](char c) { return std::tolower(c, loc); }); // Using locale
+    template<class F>
+    auto enqueue(F&& f) -> std::future<typename std::result_of<F()>::type>;
 
-    // Find and parse the Content-Length header
-    std::string content_length_key = "content-length: ";
-    auto pos = header.find(content_length_key);
-    if (pos != std::string::npos) {
-        std::string content_length_str = header.substr(pos + content_length_key.length());
-        *static_cast<size_t*>(userdata) = std::stoll(content_length_str);
+private:
+    std::vector<std::thread> workers;
+    std::queue<std::function<void()>> task_queue;
+    std::mutex queue_mutex;
+    std::condition_variable condition;
+    bool stop;
+
+    void set_affinity(std::thread::native_handle_type handle, int core_id);
+};
+
+ThreadPool::ThreadPool(size_t num_threads) : stop(false) {
+    for (size_t i = 0; i < num_threads; ++i) {
+        workers.emplace_back([this, i] {
+            set_affinity(pthread_self(), i);
+            for (;;) {
+                std::function<void()> task;
+                {
+                    std::unique_lock<std::mutex> lock(this->queue_mutex);
+                    this->condition.wait(lock, [this] { return this->stop || !this->task_queue.empty(); });
+                    if (this->stop && this->task_queue.empty())
+                        return;
+                    task = std::move(this->task_queue.front());
+                    this->task_queue.pop();
+                }
+                task();
+            }
+        });
     }
-    return nitems * size;
+}
+
+void ThreadPool::set_affinity(std::thread::native_handle_type handle, int core_id) {
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(core_id, &cpuset);
+    pthread_setaffinity_np(handle, sizeof(cpu_set_t), &cpuset);
+}
+
+ThreadPool::~ThreadPool() {
+    {
+        std::unique_lock<std::mutex> lock(queue_mutex);
+        stop = true;
+    }
+    condition.notify_all();
+    for (std::thread &worker : workers)
+        worker.join();
+}
+
+template<class F>
+auto ThreadPool::enqueue(F&& f) -> std::future<typename std::result_of<F()>::type> {
+    using return_type = typename std::result_of<F()>::type;
+
+    auto task = std::make_shared<std::packaged_task<return_type()>>(std::forward<F>(f));
+    std::future<return_type> res = task->get_future();
+    {
+        std::unique_lock<std::mutex> lock(queue_mutex);
+        task_queue.emplace([task]() { (*task)(); });
+    }
+    condition.notify_one();
+    return res;
+}
+
+ThreadPool download_thread_pool(std::thread::hardware_concurrency());
+ThreadPool aggregation_thread_pool(std::thread::hardware_concurrency());
+
+struct Chunk {
+    size_t start;
+    size_t end;
+    std::vector<char>* data_buffer;
+    size_t received_size; // track the amount of data received
+};
+
+size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
+    size_t totalSize = size * nmemb;
+    Chunk* chunk = static_cast<Chunk*>(userp);
+
+    std::copy(static_cast<char*>(contents), static_cast<char*>(contents) + totalSize, chunk->data_buffer->begin() + chunk->received_size);
+    chunk->received_size += totalSize; // update the received size
+    return totalSize;
+}
+
+bool DownloadChunk(const std::string& url, Chunk& chunk) {
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+        std::cerr << "curl initialization failed" << std::endl;
+        return false;
+    }
+
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+    curl_easy_setopt(curl, CURLOPT_TCP_NODELAY, 1L);
+    curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, 8 * 1024 * 1024); // Increased buffer size
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &chunk);
+    curl_easy_setopt(curl, CURLOPT_RANGE, (std::to_string(chunk.start) + "-" + std::to_string(chunk.end)).c_str());
+    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 20L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 60L);
+    curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2_0);
+    curl_easy_setopt(curl, CURLOPT_MAX_RECV_SPEED_LARGE, (curl_off_t)0);
+    curl_easy_setopt(curl, CURLOPT_MAX_SEND_SPEED_LARGE, (curl_off_t)0);
+
+    CURLcode res = curl_easy_perform(curl);
+
+    if (res != CURLE_OK) {
+        std::cerr << "curl_easy_perform() failed: " << curl_easy_strerror(res) << std::endl;
+        curl_easy_cleanup(curl);
+        return false;
+    }
+
+    curl_easy_cleanup(curl);
+    return true;
 }
 
 bool GetContentSize(const std::string& url, size_t& content_size) {
@@ -50,9 +161,22 @@ bool GetContentSize(const std::string& url, size_t& content_size) {
     }
 
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, header_callback);
+    curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
+    curl_easy_setopt(curl, CURLOPT_HEADER, 1L);
+    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, +[](void* buffer, size_t size, size_t nitems, void* userdata) -> size_t {
+        std::string header((char*)buffer, size * nitems);
+        std::string content_length_key = "Content-Length: ";
+        auto found = header.find(content_length_key);
+        if (found != std::string::npos) {
+            size_t content_length = std::stoull(header.substr(found + content_length_key.size()));
+            *static_cast<size_t*>(userdata) = content_length;
+        }
+        return nitems * size;
+    });
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, &content_size);
-    curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);  // Perform a HEAD request
+
+    // Enable HTTP/2
+    curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2_0);
 
     CURLcode res = curl_easy_perform(curl);
     curl_easy_cleanup(curl);
@@ -65,73 +189,61 @@ bool GetContentSize(const std::string& url, size_t& content_size) {
     return true;
 }
 
+bool DownloadFileParallel(const std::string& url, size_t content_size, std::vector<char>& data_buffer, std::vector<std::vector<char>>& chunk_buffers) {
+    const size_t chunk_size = 8 * 1024 * 1024; // 16 MB
+    size_t num_chunks = (content_size + chunk_size - 1) / chunk_size;
 
-// Callback function for writing data received from the server into memory
-size_t WriteMemoryCallback(void* contents, size_t size, size_t nmemb, void* userp) {
-    auto& memory = *static_cast<std::vector<char>*>(userp);
-    size_t totalSize = size * nmemb;
-    static size_t currentOffset = 0; // Maintains the current offset where data is to be written
+    std::vector<Chunk> chunks(num_chunks);
 
-    // Check if the incoming data fits in the remaining buffer space
-    /*if (currentOffset + totalSize > memory.size()) {
-        std::cerr << "Buffer overflow detected: incoming data exceeds allocated buffer size." << std::endl;
-        return 0; // Return 0 to signal an error to libcurl and stop the transfer
-    }*/
-
-    // Copy the received data into the vector at the current offset
-    std::copy(static_cast<char*>(contents), static_cast<char*>(contents) + totalSize, memory.begin() + currentOffset);
-    currentOffset += totalSize; // Update the offset
-    //std::cout << "Received " << totalSize << " bytes this call." << std::endl; // Print the amount of data received in this chunk
-
-    return totalSize;
-}
-
-
-
-// Function to download a file using HTTP GET without saving it to memory
-bool DownloadFileAsync(const std::string& url, std::vector<char>& data) {
-    CURL* curl = curl_easy_init();
-    if (!curl) {
-        std::cerr << "curl initialization failed" << std::endl;
-        return false;
-    }
-    //data.resize(746619286);
-
-    // Set URL and other options
-    //curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
-    curl_easy_setopt(curl, CURLOPT_TCP_NODELAY, 1L);
-    curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, 1024*1024*2L); 
-    
-   
-
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &data);
-    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L); // Follow redirects
-
-    // Start timing
-    auto start = std::chrono::high_resolution_clock::now();
-
-    // Perform the request
-    CURLcode res = curl_easy_perform(curl);
-
-    // End timing
-    auto end = std::chrono::high_resolution_clock::now();
-
-    // Calculate elapsed time
-    std::chrono::duration<double> elapsed = end - start;
-    std::cout << "Time taken to fetch data: " << elapsed.count() << " seconds." << std::endl;
-
-    // Check for errors
-    if (res != CURLE_OK) {
-        std::cerr << "curl_easy_perform() failed: " << curl_easy_strerror(res) << std::endl;
-        curl_easy_cleanup(curl);
-        return false;
+    for (size_t i = 0; i < num_chunks; ++i) {
+        chunks[i].start = i * chunk_size;
+        chunks[i].end = std::min((i + 1) * chunk_size, content_size) - 1;
+        chunks[i].data_buffer = &chunk_buffers[i]; // Assign pre-allocated buffer
+        chunks[i].received_size = 0; // Initialize received size
     }
 
-    // Clean up
-    curl_easy_cleanup(curl);
-    return true;
+
+    std::vector<std::future<bool>> download_futures;
+    auto start_download = std::chrono::high_resolution_clock::now();
+
+    for (size_t i = 0; i < num_chunks; ++i) {
+        download_futures.push_back(download_thread_pool.enqueue([&, i] {
+            return DownloadChunk(url, chunks[i]);
+        }));
+    }
+
+    bool success = true;
+    for (size_t i = 0; i < download_futures.size(); ++i) {
+        if (!download_futures[i].get()) {
+            success = false;
+        }
+    }
+
+    auto end_download = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> download_elapsed = end_download - start_download;
+    std::cout << "Time taken to download all chunks: " << download_elapsed.count() << " seconds." << std::endl;
+
+    if (success) {
+        auto start_aggregation = std::chrono::high_resolution_clock::now();
+        std::vector<std::future<void>> aggregation_futures;
+        for (const auto& chunk : chunks) {
+            aggregation_futures.push_back(aggregation_thread_pool.enqueue([&data_buffer, &chunk] {
+                std::memcpy(data_buffer.data() + chunk.start, chunk.data_buffer->data(), chunk.received_size);
+            }));
+        }
+
+        for (auto& future : aggregation_futures) {
+            future.get();
+        }
+
+        auto end_aggregation = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> aggregation_elapsed = end_aggregation - start_aggregation;
+        std::cout << "Time taken to aggregate all chunks: " << aggregation_elapsed.count() << " seconds." << std::endl;
+    }
+
+
+
+    return success;
 }
 
 int main() {
@@ -140,235 +252,45 @@ int main() {
     std::string url = "http://10.10.10.18/dataStat_600000.parquet"; // Change to your actual URL
     size_t content_size = 0;
 
-    std::string sqlExpression = "SELECT * FROM s3object WHERE Age > 60";
-
-
-            struct timeval start, end, start_filter, end_filter, start_f, end_f;
-            double time_taken = 0;
-
     if (GetContentSize(url, content_size)) {
         std::cout << "Content size: " << content_size << " bytes." << std::endl;
-        std::vector<char> decrypted_data;
-        decrypted_data.resize(content_size);  // Reserve the exact amount of data
-
-        if (DownloadFileAsync(url, decrypted_data)) {
-            std::cout << "Data fetched successfully. Size: " << decrypted_data.size() << " bytes." << std::endl;
-
-                                auto start_total = std::chrono::high_resolution_clock::now();
-
-
-                                //Filter
-
-                                auto start_stream = std::chrono::high_resolution_clock::now();
-
-                               //mlock(decrypted_data, output_size);  // Lock the memory
-
-                               size_t output_size = content_size;
-
-                                auto arrowBuffer = arrow::Buffer::Wrap((const uint8_t*)decrypted_data.data(), decrypted_data.size());
-                                auto bufferReader = std::make_shared<arrow::io::BufferReader>(arrowBuffer);
-                                std::unique_ptr<parquet::arrow::FileReader> arrowReader;
-                                auto status = parquet::arrow::OpenFile(bufferReader, arrow::default_memory_pool(), &arrowReader);
-
-                                auto end_stream = std::chrono::high_resolution_clock::now();
-                                std::chrono::duration<double> stream_duration = end_stream - start_stream;
-                                std::cout << "Time to read stream: " << stream_duration.count() << " seconds" << std::endl;
-
-                                
-                                    //Parse SQL
-                                auto start_sql = std::chrono::high_resolution_clock::now();
-                                std::vector<Token> tokens = SQLParser::parse(sqlExpression);
-
-                                // Example: Analyze tokens and construct a filter (Basic and specific case handling)
-                                std::string columnName;
-                                std::string operatorSymbol;
-                                std::string value;
-
-                                for (const auto& token : tokens) {
-                                    if (token.type == TokenType::COLUMN) {
-                                        columnName = token.value;
-                                    } else if (token.type == TokenType::OPERATOR) {
-                                        operatorSymbol = token.value;
-                                    } else if (token.type == TokenType::LITERAL) {
-                                        value = token.value;
-                                    }
-                            // Extend with more complex logic as needed
-                                }
-
-                                    
-                                auto field_ref = arrow::compute::field_ref(columnName);
-                                int l_value = std::stoi(value);
-                                auto literal_value = arrow::compute::literal(l_value);
-
-                                arrow::compute::Expression filter_expression;
-
-                                // Build expression based on the operator
-                                if (operatorSymbol == "=") {
-                                    filter_expression = arrow::compute::equal(field_ref,literal_value);
-                                } else if (operatorSymbol == ">") {
-                                    filter_expression = arrow::compute::greater(field_ref,literal_value);
-                                } else if (operatorSymbol == ">=") {
-                                    filter_expression = arrow::compute::greater_equal(field_ref,literal_value);
-                                } else if (operatorSymbol == "<") {
-                                    filter_expression = arrow::compute::less(field_ref, literal_value);
-                                } else if (operatorSymbol == "<=") {
-                                    filter_expression = arrow::compute::less_equal(field_ref,literal_value);
-                                } else if (operatorSymbol == "!=") {
-                                    filter_expression = arrow::compute::not_equal(field_ref, literal_value);
-                                }
-
-                                auto end_sql = std::chrono::high_resolution_clock::now();
-                                std::chrono::duration<double> sql_duration = end_sql - start_sql;
-                                std::cout << "Time to sql parse and create filter expression: " << sql_duration.count() << " seconds" << std::endl; 
-
-
-                    /////////////////////////////////////////////////
-                                
-                                auto start_stats = std::chrono::high_resolution_clock::now();
-
-                                
-                        
-
-                                int num_row_groups = arrowReader->num_row_groups();
-
-                                // Ensure there is at least one row group
-                                if (num_row_groups == 0) {
-                                    std::cerr << "No row groups found in the Parquet file." << std::endl;
-                                 
-                                }
-
-                                std::cout << "Number of row groups: " << num_row_groups  << std::endl; 
-                        
-                        
-
-                                // Find schema and find ID of parsed column
-                                std::shared_ptr<arrow::Schema> schema;
-                                arrowReader->GetSchema(&schema);
-                                int column_index = -1;
-                                for (int i = 0; i < schema->num_fields(); ++i) {
-                                    if (schema->field(i)->name() == columnName) {
-                                        column_index = i;
-                                        break;
-                                    }
-                                }
-
-                                if (column_index == -1) {
-                                    std::cerr << "Column  not found in the schema." << std::endl;
-                                   
-                                }
-
-                                std::vector<int> matching_row_groups;
-                                bool useMatchingGroups = false;
-
-                                for (int row_group_index = 0; row_group_index < arrowReader->num_row_groups(); ++row_group_index) {
-                                    auto metadata = arrowReader->parquet_reader()->metadata();
-                                    auto row_group_metadata = metadata->RowGroup(row_group_index);
-                                    auto column_metadata = row_group_metadata->ColumnChunk(column_index);
-                    
-                                    if (column_metadata->is_stats_set()) {
-                                        auto stats = column_metadata->statistics();
-                                        if (stats->HasMinMax()) {
-                                        // Assuming the ID column is of integer type; adjust the type as necessary
-                                        // Need to check the type of filter columns
-                                        int64_t min_value = static_cast<const parquet::Int64Statistics*>(stats.get())->min();
-                                        int64_t max_value = static_cast<const parquet::Int64Statistics*>(stats.get())->max();
-
-                                            if (min_value <= l_value && max_value >= l_value) {
-                                                matching_row_groups.push_back(row_group_index);
-                                                //std::cout << "Matching Row Group: " << row_group_index << std::endl;  // Print matching row group index
-                                            }
-                                        }
-                                    }
-                                }
-
-                                auto end_stats = std::chrono::high_resolution_clock::now();
-                                std::chrono::duration<double> stats_duration = end_stats - start_stats;
-                                std::cout << "Time to read statistics and find row groups: " << stats_duration.count() << " seconds" << std::endl; 
-                ///////////////////////////////////////////////////////////
-
-
-                                // Check if there are any matching row groups
-                                if (!matching_row_groups.empty()) {
-                                    useMatchingGroups = true;
-                                }
-
-                                auto start_table = std::chrono::high_resolution_clock::now();
-
-
-
-
-                                // Processing row groups based on whether there are matching row groups
-                                if (useMatchingGroups) {
-                                    for (int row_group_index : matching_row_groups) {
-
-                                        std::shared_ptr<arrow::Table> table;
-                                        status = arrowReader->RowGroup(row_group_index)->ReadTable(&table);
-
-                                        // Wrap the Table in an InMemoryDataset
-                                        std::shared_ptr<arrow::dataset::Dataset> dataset = std::make_shared<arrow::dataset::InMemoryDataset>(table);
-
-                                        // Build ScannerOptions for a Scanner to apply filter operation
-                                        auto options = std::make_shared<arrow::dataset::ScanOptions>();
-
-                                        // Build the Scanner
-                                        auto builder = arrow::dataset::ScannerBuilder(dataset);     
-                                         // Set the filter
-                                        arrow::Status build_status = builder.Filter(filter_expression);
-
-                                        auto scanner = builder.Finish();
-
-                                        // Perform the Scan and retrieve filtered result as Table
-                                        auto result_table = scanner.ValueOrDie()->ToTable();
-
-                                        std::string filtered_result_json = result_table.ValueUnsafe()->ToString();
-
-
-
-                                    }
-
-                                } else {
-
-                                    // If no specific matches, process all row groups
-                                    for (int row_group_index = 0; row_group_index < arrowReader->num_row_groups(); ++row_group_index) {
-
-                                        std::shared_ptr<arrow::Table> table;
-                                        status = arrowReader->RowGroup(row_group_index)->ReadTable(&table);
-
-
-                                         // Wrap the Table in an InMemoryDataset
-                                        std::shared_ptr<arrow::dataset::Dataset> dataset = std::make_shared<arrow::dataset::InMemoryDataset>(table);
-
-                                        // Build ScannerOptions for a Scanner to apply filter operation
-                                        auto options = std::make_shared<arrow::dataset::ScanOptions>();
-
-                                        // Build the Scanner
-                                        auto builder = arrow::dataset::ScannerBuilder(dataset);     
-                                        // Set the filter
-                                        arrow::Status build_status = builder.Filter(filter_expression);
-
-                                        auto scanner = builder.Finish();
-
-                                        // Perform the Scan and retrieve filtered result as Table
-                                        auto result_table = scanner.ValueOrDie()->ToTable();
-
-                                        std::string filtered_result_json = result_table.ValueUnsafe()->ToString();
-
-
-
-                                    }
-                                }
-
-
-
-
-
-                                
-              
-                                auto end_table = std::chrono::high_resolution_clock::now();
-                                std::chrono::duration<double> table_duration = end_table - start_table;
-                                std::cout << "Time to filter: " << table_duration.count() << " seconds" << std::endl; 
-
-
+        std::vector<char> data_buffer(content_size);
+
+        const size_t chunk_size = 8 * 1024 * 1024; // 16 MB
+        size_t num_chunks = 1024 / 8;
+        //Pre allocating 1GB buffer chunks as that is max file size
+        std::vector<std::vector<char>> chunk_buffers(num_chunks, std::vector<char>(chunk_size)); // Pre-allocate chunk buffers
+
+        auto start_time = std::chrono::high_resolution_clock::now();
+
+
+        if (DownloadFileParallel(url, content_size, data_buffer, chunk_buffers)) {
+            auto end_time = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> elapsed = end_time - start_time;
+            std::cout << "Data fetched successfully. Total time taken to fetch data: " << elapsed.count() << " seconds." << std::endl;
+
+
+            auto arrowBuffer = std::make_shared<arrow::Buffer>(reinterpret_cast<const uint8_t*>(data_buffer.data()), data_buffer.size());
+            std::cout << "Arrow buffer created successfully." << std::endl;
+
+            auto bufferReader = std::make_shared<arrow::io::BufferReader>(arrowBuffer);
+            std::cout << "BufferReader created successfully." << std::endl;
+
+            std::unique_ptr<parquet::arrow::FileReader> arrowReader;
+            auto status = parquet::arrow::OpenFile(bufferReader, arrow::default_memory_pool(), &arrowReader);
+            if (!status.ok()) {
+                std::cerr << "Failed to open parquet file: " << status.ToString() << std::endl;
+                return 1;
+            }
+            std::cout << "Parquet file opened successfully." << std::endl;
+
+            std::shared_ptr<arrow::Table> table;
+            status = arrowReader->ReadTable(&table);
+            if (!status.ok()) {
+                std::cerr << "Failed to read parquet table: " << status.ToString() << std::endl;
+                return 1;
+            }
+            std::cout << "Table Schema:\n" << table->schema()->ToString() << std::endl;
 
         } else {
             std::cerr << "Data fetch failed" << std::endl;
@@ -378,5 +300,6 @@ int main() {
     }
 
     curl_global_cleanup();
+
     return 0;
 }

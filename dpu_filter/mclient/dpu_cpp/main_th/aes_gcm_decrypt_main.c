@@ -213,7 +213,6 @@ uint8_t* decrypt_buffer(char* file_data, size_t file_size, size_t* output_size, 
     //printf("Decryption time taken: %.6f seconds\n", time_taken);
     
 
-	stop_mmap();
 
 	//DOCA_LOG_INFO("Decryption finished successfully");
 	return output_data;
