@@ -15,72 +15,61 @@
 
 #define MAX_BUFFER_SIZE 1048576//2097152  // Define the maximum buffer size, 2MB
 
-struct aes_gcm_resources resources = {0};
-struct aes_gcm_cfg aes_gcm_cfg;
+struct aes_gcm_resources resources_enc = {0};
+struct aes_gcm_cfg aes_gcm_cfg_enc;
 
-DOCA_LOG_REGISTER(AES_GCM_DECRYPT::MAIN);
+DOCA_LOG_REGISTER(AES_GCM_ENCRYPT::MAIN);
 
 
-uint8_t* aes_gcm_decrypt(struct aes_gcm_cfg *cfg, char *file_data, size_t file_size, size_t* output_size, struct aes_gcm_resources *resources, uint8_t* dst_buffer);
+uint8_t* aes_gcm_encrypt(struct aes_gcm_cfg *cfg, char *file_data, size_t file_size, size_t* output_size, struct aes_gcm_resources *resources_enc, uint8_t* dst_buffer);
 
-void init_crypto_resources(){
+
+
+void enc_init_crypto_resources(){
 
 	doca_error_t result = DOCA_SUCCESS;
-    struct doca_log_backend *sdk_log;
+ 
+	init_aes_gcm_params(&aes_gcm_cfg_enc);  //trivial
 
-	/* Register a logger backend */
-	result = doca_log_backend_create_standard();
-	if (result != DOCA_SUCCESS)
-		return NULL;
-
-	/* Register a logger backend for internal SDK errors and warnings */
-	result = doca_log_backend_create_with_file_sdk(stderr, &sdk_log);
-	if (result != DOCA_SUCCESS)
-		return NULL;
-	result = doca_log_backend_set_sdk_level(sdk_log, DOCA_LOG_LEVEL_WARNING);
-	if (result != DOCA_SUCCESS)
-		return NULL;
-
-	init_aes_gcm_params(&aes_gcm_cfg);  //trivial
-
-	result = doca_argp_init("doca_aes_gcm_decrypt", &aes_gcm_cfg);  //trivial
+	result = doca_argp_init("doca_aes_gcm_encrypt", &aes_gcm_cfg_enc);  //trivial
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to init ARGP resources: %s", doca_error_get_descr(result));
 		return NULL;
 	}
-	resources.mode = AES_GCM_MODE_DECRYPT;
-	result = allocate_aes_gcm_resources(aes_gcm_cfg.pci_address, 2, &resources);
+
+	resources_enc.mode = AES_GCM_MODE_ENCRYPT;
+	result = allocate_aes_gcm_resources(aes_gcm_cfg_enc.pci_address, 2, &resources_enc);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to allocate AES-GCM resources: %s", doca_error_get_descr(result));
 	}
 
 		/* Start AES-GCM context */
-	result = doca_ctx_start(resources.state->ctx);
+	result = doca_ctx_start(resources_enc.state->ctx);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to start context: %s", doca_error_get_descr(result));
 	}
 
 }
 
-void destroy_crypto_resources(){
+void enc_destroy_crypto_resources(){
 
 	doca_error_t tmp_result = DOCA_SUCCESS;
 		
-	doca_ctx_stop(resources.state->ctx); //this alone takes 323 msec
+	doca_ctx_stop(resources_enc.state->ctx); //this alone takes 323 msec
 
 
-	tmp_result = destroy_aes_gcm_resources(&resources);
+	tmp_result = destroy_aes_gcm_resources(&resources_enc);
 	if (tmp_result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to destroy AES-GCM resources: %s", doca_error_get_descr(tmp_result));
 	}
 }
 
 
-void stop_mmap(){
+void enc_stop_mmap(){
 
 
 	doca_error_t tmp_result;
-    struct program_core_objects *state = resources.state;
+    struct program_core_objects *state = resources_enc.state;
 
 	if (state->buf_inv != NULL) {
 		tmp_result = doca_buf_inventory_destroy(state->buf_inv);
@@ -124,24 +113,29 @@ void stop_mmap(){
 	}
 
 }
-uint8_t* prep_doca_buffer_dst(size_t file_size) {
+uint8_t* enc_prep_doca_buffer_dst(size_t file_size) {
 
 	doca_error_t result;
-    struct program_core_objects *state = resources.state;
+    struct program_core_objects *state = resources_enc.state;
 	uint8_t *dst_buffer = NULL;
 
 	size_t buffer_size = 0;
-	uint64_t max_decrypt_buf_size = 0;
+	uint64_t max_encrypt_buf_size = 0;
 	size_t output_size = 0;
 
-	buffer_size = MAX_BUFFER_SIZE;
 
-    	
 
-	size_t num_chunks = (file_size + buffer_size - 1) / buffer_size;
-	output_size = file_size - num_chunks * aes_gcm_cfg.tag_size;
+	//Max size that the crypto engine supports
+	buffer_size = MAX_BUFFER_SIZE - aes_gcm_cfg_enc.tag_size;
+
+	// Calculate total buffer size
+    size_t num_chunks = (file_size + buffer_size - 1) / buffer_size;
 
     
+   output_size = file_size + num_chunks * aes_gcm_cfg_enc.tag_size;
+
+
+
     result = create_core_objects(state, num_chunks+1);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Unable to create DOCA core objects: %s", doca_error_get_descr(result));
@@ -149,9 +143,9 @@ uint8_t* prep_doca_buffer_dst(size_t file_size) {
 
 
 
-	result = doca_aes_gcm_cap_task_decrypt_get_max_buf_size(doca_dev_as_devinfo(state->dev), &max_decrypt_buf_size);
+	result = doca_aes_gcm_cap_task_encrypt_get_max_buf_size(doca_dev_as_devinfo(state->dev), &max_encrypt_buf_size);
 	if (result != DOCA_SUCCESS) {
-		DOCA_LOG_ERR("Failed to query AES-GCM decrypt max buf size: %s", doca_error_get_descr(result));
+		DOCA_LOG_ERR("Failed to query AES-GCM encrypt max buf size: %s", doca_error_get_descr(result));
 		return NULL;
 	}
 
@@ -165,7 +159,7 @@ uint8_t* prep_doca_buffer_dst(size_t file_size) {
 
     //fast
 	result = doca_mmap_set_memrange(state->dst_mmap, dst_buffer, output_size);
-	//result = doca_mmap_set_memrange(state->dst_mmap, dst_buffer, max_decrypt_buf_size);
+	//result = doca_mmap_set_memrange(state->dst_mmap, dst_buffer, max_encrypt_buf_size);
 	if (result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to set mmap memory range: %s", doca_error_get_descr(result));
 		return NULL;
@@ -183,13 +177,13 @@ uint8_t* prep_doca_buffer_dst(size_t file_size) {
 
 }
 
-uint8_t* prep_doca_buffer_src(size_t file_size, char* file_data) {
+uint8_t* enc_prep_doca_buffer_src(size_t file_size, char* file_data) {
     doca_error_t result;
-    struct program_core_objects *state = resources.state;
+    struct program_core_objects *state = resources_enc.state;
 
     result = doca_mmap_set_memrange(state->src_mmap, file_data, file_size);
     if (result != DOCA_SUCCESS) {
-        DOCA_LOG_ERR("Failed to set mmap memory range: %s", doca_error_get_descr(result));
+        DOCA_LOG_ERR("Failed to set mmap haha memory range: %s", doca_error_get_descr(result));
         return NULL;
     }
 
@@ -204,7 +198,7 @@ uint8_t* prep_doca_buffer_src(size_t file_size, char* file_data) {
 
 
 
-uint8_t* decrypt_buffer(char* file_data, size_t file_size, size_t* output_size,  uint8_t* dst_buffer)
+uint8_t* encrypt_buffer(char* file_data, size_t file_size, size_t* output_size,  uint8_t* dst_buffer)
 {
 	
 	
@@ -218,10 +212,12 @@ uint8_t* decrypt_buffer(char* file_data, size_t file_size, size_t* output_size, 
 	DOCA_LOG_INFO("Start sample");
 
 
+	uint8_t *output_data = aes_gcm_encrypt(&aes_gcm_cfg_enc, file_data, file_size, output_size, &resources_enc, dst_buffer);
 
-	uint8_t *output_data = aes_gcm_decrypt(&aes_gcm_cfg, file_data, file_size, output_size, &resources, dst_buffer);
 
-	
+
 	return output_data;
 
 }
+
+

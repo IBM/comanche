@@ -25,14 +25,6 @@ double get_time_diff(struct timespec *start, struct timespec *end) {
 }
 
 
-/*
- * Run aes_gcm_decrypt sample
- *
- * @cfg [in]: Configuration parameters
- * @file_data [in]: file data for the decrypt task
- * @file_size [in]: file size
- * @return: DOCA_SUCCESS on success, DOCA_ERROR otherwise.
- */
 
 uint8_t* aes_gcm_decrypt(struct aes_gcm_cfg *cfg, char *file_data, size_t file_size, size_t* output_size, struct aes_gcm_resources *resources, uint8_t* dst_buffer)
 {
@@ -109,7 +101,7 @@ uint8_t* aes_gcm_decrypt(struct aes_gcm_cfg *cfg, char *file_data, size_t file_s
     for (uint32_t i = 0; i < num_chunks; i++) {
 
         size_t chunk_size = (output_size - i * decrypt_size > decrypt_size) ? decrypt_size : output_size - i * decrypt_size;
-        result = doca_buf_inventory_buf_get_by_addr(state->buf_inv, state->dst_mmap, dst_buffer + i * chunk_size, chunk_size, &dst_doca_bufs[i]);
+        result = doca_buf_inventory_buf_get_by_addr(state->buf_inv, state->dst_mmap, dst_buffer + i * decrypt_size, decrypt_size, &dst_doca_bufs[i]);
         if (result != DOCA_SUCCESS) {
             DOCA_LOG_ERR("Unable to acquire DOCA buffer for destination buffer: %s", doca_error_get_descr(result));
 			return NULL;

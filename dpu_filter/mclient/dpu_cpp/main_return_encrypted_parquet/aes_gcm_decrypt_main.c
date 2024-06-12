@@ -20,7 +20,7 @@ struct aes_gcm_cfg aes_gcm_cfg;
 
 DOCA_LOG_REGISTER(AES_GCM_DECRYPT::MAIN);
 
-
+/* Sample's Logic */
 uint8_t* aes_gcm_decrypt(struct aes_gcm_cfg *cfg, char *file_data, size_t file_size, size_t* output_size, struct aes_gcm_resources *resources, uint8_t* dst_buffer);
 
 void init_crypto_resources(){
@@ -29,17 +29,17 @@ void init_crypto_resources(){
     struct doca_log_backend *sdk_log;
 
 	/* Register a logger backend */
-	result = doca_log_backend_create_standard();
+	/*result = doca_log_backend_create_standard();
 	if (result != DOCA_SUCCESS)
 		return NULL;
 
 	/* Register a logger backend for internal SDK errors and warnings */
-	result = doca_log_backend_create_with_file_sdk(stderr, &sdk_log);
+	/*result = doca_log_backend_create_with_file_sdk(stderr, &sdk_log);
 	if (result != DOCA_SUCCESS)
 		return NULL;
 	result = doca_log_backend_set_sdk_level(sdk_log, DOCA_LOG_LEVEL_WARNING);
 	if (result != DOCA_SUCCESS)
-		return NULL;
+		return NULL;*/
 
 	init_aes_gcm_params(&aes_gcm_cfg);  //trivial
 
@@ -219,9 +219,10 @@ uint8_t* decrypt_buffer(char* file_data, size_t file_size, size_t* output_size, 
 
 
 
+
 	uint8_t *output_data = aes_gcm_decrypt(&aes_gcm_cfg, file_data, file_size, output_size, &resources, dst_buffer);
 
-	
+
 	return output_data;
 
 }

@@ -45,7 +45,7 @@ const size_t chunk_size = 8 * 1024 * 1024; // 8 MB
 const size_t alloc_size = 1024 * 1024 * 1024; // 1 GB for memory allocations
 
 extern "C" {
-    int encrypt_buffer(char* data, size_t size);
+    //Decrypt functions
     uint8_t* decrypt_buffer(char* file_data, size_t file_size, size_t* output_size, uint8_t* dst_buffer);
     void init_crypto_resources();
     void destroy_crypto_resources();
@@ -364,60 +364,6 @@ std::vector<int> GetMatchingRowGroups(const std::unique_ptr<parquet::arrow::File
     return matching_row_groups;
 }
 
-/*void filterDataAsync(const arrow::compute::Expression& filter_expression, std::shared_ptr<arrow::io::BufferReader> bufferReader, int row_group_index, std::shared_ptr<Http::ResponseWriter> response) {
-    try {
-        std::unique_ptr<parquet::arrow::FileReader> arrowReader;
-        auto status = parquet::arrow::OpenFile(bufferReader, arrow::default_memory_pool(), &arrowReader);
-
-        if (!status.ok()) {
-            std::lock_guard<std::mutex> lock(response_mutex);
-            response->send(Http::Code::Internal_Server_Error, "Failed to open file");
-            return;
-        }
-
-        std::shared_ptr<parquet::arrow::FileReader> shared_arrowReader = std::shared_ptr<parquet::arrow::FileReader>(std::move(arrowReader));
-
-        std::shared_ptr<arrow::Table> table;
-        status = shared_arrowReader->RowGroup(row_group_index)->ReadTable(&table);
-        if (!status.ok()) {
-            std::lock_guard<std::mutex> lock(response_mutex);
-            response->send(Http::Code::Internal_Server_Error, "Failed to read row group.");
-            return;
-        }
-
-        std::shared_ptr<arrow::dataset::Dataset> dataset = std::make_shared<arrow::dataset::InMemoryDataset>(table);
-
-        auto options = std::make_shared<arrow::dataset::ScanOptions>();
-
-        auto builder = arrow::dataset::ScannerBuilder(dataset);
-        builder.Filter(filter_expression);
-
-        auto scanner_result = builder.Finish();
-        if (!scanner_result.ok()) {
-            std::lock_guard<std::mutex> lock(response_mutex);
-            response->send(Http::Code::Internal_Server_Error, "Failed to build scanner.");
-            return;
-        }
-        auto scanner = scanner_result.ValueOrDie();
-
-        auto result_table_result = scanner->ToTable();
-        if (!result_table_result.ok()) {
-            std::lock_guard<std::mutex> lock(response_mutex);
-            response->send(Http::Code::Internal_Server_Error, "Failed to convert to table.");
-            return;
-        }
-
-        auto result_table = result_table_result.ValueOrDie();
-
-        std::string filtered_result_json = result_table->ToString();
-
-        std::lock_guard<std::mutex> lock(response_mutex);
-        response->send(Http::Code::Ok, filtered_result_json, MIME(Application, Json));
-    } catch (const std::exception& e) {
-        std::lock_guard<std::mutex> lock(response_mutex);
-        response->send(Http::Code::Internal_Server_Error, e.what());
-    }
-}*/
 
 void filterDataAsync(const arrow::compute::Expression& filter_expression, std::shared_ptr<arrow::io::BufferReader> bufferReader, int row_group_index, std::shared_ptr<Http::ResponseWriter> response) {
     try {
