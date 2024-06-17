@@ -1,5 +1,4 @@
 #include <iostream>
-#include <fstream>
 #include <chrono>
 #include <string>
 #include <curl/curl.h>
@@ -53,23 +52,17 @@ cleanup:
     return success;
 }
 
-void decryptFile(const std::string& inputFilePath, const std::string& outputFilePath, const unsigned char *key, const unsigned char *iv) {
-    std::ifstream inputFile(inputFilePath, std::ios::binary);
-    std::ofstream outputFile(outputFilePath, std::ios::binary);
-
-    if (!inputFile.is_open() || !outputFile.is_open()) {
-        std::cerr << "Error opening file!" << std::endl;
-        return;
-    }
-
+std::vector<unsigned char> decryptBuffer(const std::vector<unsigned char>& encrypted_data, const unsigned char *key, const unsigned char *iv) {
     size_t bufferSize = MAX_BUFFER_SIZE - TAG_SIZE;
     std::vector<unsigned char> buffer(MAX_BUFFER_SIZE);
     std::vector<unsigned char> ciphertext(bufferSize);
     std::vector<unsigned char> tag(TAG_SIZE);
+    std::vector<unsigned char> decrypted_data;
 
-    while (inputFile.read(reinterpret_cast<char*>(buffer.data()), MAX_BUFFER_SIZE)) {
-        std::memcpy(ciphertext.data(), buffer.data(), bufferSize);
-        std::memcpy(tag.data(), buffer.data() + bufferSize, tag.size());
+    size_t offset = 0;
+    while (offset + MAX_BUFFER_SIZE <= encrypted_data.size()) {
+        std::memcpy(ciphertext.data(), encrypted_data.data() + offset, bufferSize);
+        std::memcpy(tag.data(), encrypted_data.data() + offset + bufferSize, tag.size());
 
         std::vector<unsigned char> plaintext(bufferSize);
 
@@ -77,18 +70,19 @@ void decryptFile(const std::string& inputFilePath, const std::string& outputFile
             handleErrors("Decryption failed!");
         }
 
-        outputFile.write(reinterpret_cast<char*>(plaintext.data()), plaintext.size());
+        decrypted_data.insert(decrypted_data.end(), plaintext.begin(), plaintext.end());
+        offset += MAX_BUFFER_SIZE;
     }
 
     // Handle the last chunk if it is smaller than MAX_BUFFER_SIZE
-    std::streamsize lastChunkSize = inputFile.gcount();
+    size_t lastChunkSize = encrypted_data.size() - offset;
     if (lastChunkSize > 0) {
         if (lastChunkSize > TAG_SIZE) {
             buffer.resize(lastChunkSize);
             ciphertext.resize(lastChunkSize - TAG_SIZE);
 
-            std::memcpy(ciphertext.data(), buffer.data(), lastChunkSize - TAG_SIZE);
-            std::memcpy(tag.data(), buffer.data() + lastChunkSize - TAG_SIZE, tag.size());
+            std::memcpy(ciphertext.data(), encrypted_data.data() + offset, lastChunkSize - TAG_SIZE);
+            std::memcpy(tag.data(), encrypted_data.data() + offset + lastChunkSize - TAG_SIZE, tag.size());
 
             std::vector<unsigned char> plaintext(lastChunkSize - TAG_SIZE);
 
@@ -96,29 +90,29 @@ void decryptFile(const std::string& inputFilePath, const std::string& outputFile
                 handleErrors("Decryption failed!");
             }
 
-            outputFile.write(reinterpret_cast<char*>(plaintext.data()), plaintext.size());
+            decrypted_data.insert(decrypted_data.end(), plaintext.begin(), plaintext.end());
         } else {
             handleErrors("Error: Last chunk is too small to contain valid data and tag.");
         }
     }
 
-    inputFile.close();
-    outputFile.close();
+    return decrypted_data;
 }
 
-// Function to write the response data to a string
-size_t WriteCallback(void* contents, size_t size, size_t nmemb, std::string* s) {
+// Function to write the response data to a vector
+size_t WriteCallback(void* contents, size_t size, size_t nmemb, std::vector<unsigned char>* s) {
     size_t totalSize = size * nmemb;
-    s->append((char*)contents, totalSize);
+    s->insert(s->end(), (unsigned char*)contents, (unsigned char*)contents + totalSize);
     return totalSize;
 }
 
+//        "sql": "SELECT SUM(l_extendedprice * l_discount) AS revenue FROM lineitem WHERE l_shipdate >= '1994-01-01' AND l_shipdate < '1995-01-01' AND l_discount BETWEEN 0.05 AND 0.07
 int main() {
     const std::string url = "http://10.10.10.20:8080/data";
     const std::string payload = R"({
         "bucket": "mycsvbucket",
-        "key": "sampledata/dataStat_1000000.parquet",
-        "sql": "SELECT * FROM s3object WHERE Age > 60"
+        "key": "enc_lineitem.parquet",
+        "sql": "SELECT SUM(l_extendedprice * l_discount) AS revenue FROM lineitem WHERE l_shipdate >= '1994-01-01' AND l_shipdate < '1995-01-01' AND l_discount BETWEEN 0.05 AND 0.07 l_quantity < 24000"
     })";
 
     struct curl_slist* headers = NULL;
@@ -130,15 +124,21 @@ int main() {
         return 1;
     }
 
-    std::string response_string;
+    std::vector<unsigned char> response_data;
     auto start_time = std::chrono::high_resolution_clock::now();
 
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, payload.c_str());
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_string);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_data);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+    curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, 2 * 1024 * 1024); // Increased buffer size
+    curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
+    curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, 120L);
+    curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 60L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L); // Set a timeout for the entire request
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L); // Set a connection timeout
 
     CURLcode res = curl_easy_perform(curl);
     auto end_time = std::chrono::high_resolution_clock::now();
@@ -151,32 +151,26 @@ int main() {
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
 
         if (http_code == 200) {
-            const std::string encryptedFilePath = "encrypted_output.parquet";
-            const std::string decryptedFilePath = "decrypted_file.parquet";
-
-            std::ofstream outfile(encryptedFilePath, std::ios::binary);
-            outfile.write(response_string.c_str(), response_string.size());
-            outfile.close();
-            std::cout << "Success: Encrypted file saved as " << encryptedFilePath << std::endl;
+            std::cout << "Success: Data received." << std::endl;
 
             const unsigned char key[KEY_SIZE] = {0}; // 256-bit key (all zeros)
             const unsigned char iv[IV_SIZE] = {0};  // 96-bit IV (all zeros)
 
-            decryptFile(encryptedFilePath, decryptedFilePath, key, iv);
+            std::vector<unsigned char> decrypted_data = decryptBuffer(response_data, key, iv);
             std::cout << "Decryption completed." << std::endl;
 
             // Read and print the Parquet file content
-            std::shared_ptr<arrow::io::ReadableFile> infile;
-            PARQUET_ASSIGN_OR_THROW(
-                infile, arrow::io::ReadableFile::Open(decryptedFilePath));
+            auto buffer = std::make_shared<arrow::Buffer>(decrypted_data.data(), decrypted_data.size());
+            auto input = std::make_shared<arrow::io::BufferReader>(buffer);
             std::unique_ptr<parquet::arrow::FileReader> reader;
-            PARQUET_THROW_NOT_OK(parquet::arrow::OpenFile(infile, arrow::default_memory_pool(), &reader));
+            PARQUET_THROW_NOT_OK(parquet::arrow::OpenFile(input, arrow::default_memory_pool(), &reader));
 
             std::shared_ptr<arrow::Table> table;
             PARQUET_THROW_NOT_OK(reader->ReadTable(&table));
 
             std::cout << "Table contents:" << std::endl;
             std::cout << table->ToString() << std::endl;
+            std::cout << "Total number of rows in the filtered table: " << table->num_rows() << std::endl;
         } else {
             std::cerr << "HTTP Error: " << http_code << std::endl;
         }

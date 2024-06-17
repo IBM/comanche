@@ -15,8 +15,10 @@
 #uplink_speed_kbps = 450000    # 450 Mbps = 450,000 Kbps
 
 # Set Wondershaper limits
-sudo wondershaper ens785f1np1 400000 400000
+#sudo wondershaper ens785f1np1 400000 400000
 
+
+sudo wondershaper ens785f1np1 400000 400000
 #sudo wondershaper ens785f1np1 $downlink_speed_kbps $uplink_speed_kbps
 
 # Set Wondershaper limits
