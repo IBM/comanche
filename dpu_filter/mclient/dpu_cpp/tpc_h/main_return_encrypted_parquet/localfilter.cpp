@@ -20,8 +20,6 @@
 #include <arrow/dataset/dataset.h>
 #include <arrow/dataset/discovery.h>
 #include <arrow/compute/api.h>
-#include <arrow/compute/exec.h>
-#include <ctime>
 #include <arrow/compute/expression.h>
 #include "/home/ubuntu/json/include/nlohmann/json.hpp"
 #include "SQLParser.h"
@@ -45,18 +43,23 @@
 #include <arrow/array.h>
 #include <arrow/compute/api_vector.h>
 
-
 using namespace Pistache;
 using json = nlohmann::json;
 
 std::mutex decryption_mutex;
 std::mutex response_mutex;
+std::mutex encryption_mutex;
 std::mutex table_mutex;
 
 const size_t chunk_size = 8 * 1024 * 1024; // 8 MB
 const size_t alloc_size = 1024 * 1024 * 1024; // 1 GB for memory allocations
+const size_t max_rowgroup_size = 512 * 1024 * 1024;
+
+std::chrono::duration<double, std::milli> total_encrypt_time(0); 
+
 
 extern "C" {
+
     //Decrypt functions
     uint8_t* decrypt_buffer(char* file_data, size_t file_size, size_t* output_size, uint8_t* dst_buffer);
     void init_crypto_resources();
@@ -64,6 +67,15 @@ extern "C" {
     uint8_t* prep_doca_buffer_dst(const size_t file_size);
     uint8_t* prep_doca_buffer_src(const size_t file_size, char* file_data);
     void stop_mmap();
+
+
+    //Encrypt functions
+    uint8_t* encrypt_buffer(char* file_data, size_t file_size, size_t* output_size, uint8_t* dst_buffer);
+    void enc_init_crypto_resources();
+    void enc_destroy_crypto_resources();
+    uint8_t* enc_prep_doca_buffer_dst(const size_t file_size);
+    uint8_t* enc_prep_doca_buffer_src(const size_t file_size, char* file_data);
+    void enc_stop_mmap();
 }
 
 // Thread pool class
@@ -145,17 +157,6 @@ struct Chunk {
     std::vector<char>* data_buffer;
     size_t received_size; // track the amount of data received
 };
-
-// Function to concatenate tables
-std::shared_ptr<arrow::Table> ConcatenateTables(const std::shared_ptr<arrow::Table>& table1, const std::shared_ptr<arrow::Table>& table2) {
-    std::vector<std::shared_ptr<arrow::Table>> tables = {table1, table2};
-    auto result = arrow::ConcatenateTables(tables);
-    if (!result.ok()) {
-        throw std::runtime_error("Failed to concatenate tables");
-    }
-    return *result;
-}
-
 
 size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
     size_t totalSize = size * nmemb;
@@ -319,8 +320,6 @@ void decryptAndProcessData(char* data, size_t size, std::promise<uint8_t*>&& pro
 
 
 
-
-
 arrow::compute::Expression GetFilterExpression(const std::string& sqlExpression) {
     std::vector<Token> tokens = SQLParser::parse(sqlExpression);
 
@@ -459,7 +458,7 @@ arrow::compute::Expression GetFilterExpression(const std::string& sqlExpression)
         if (!conditions.empty()) {
             arrow::compute::Expression combined_condition = conditions[0];
             for (size_t i = 1; i < conditions.size(); ++i) {
-                std::cout << "Combining condition: " << combined_condition.ToString() << " with " << conditions[i].ToString() << std::endl;
+                //std::cout << "Combining condition: " << combined_condition.ToString() << " with " << conditions[i].ToString() << std::endl;
                 combined_condition = arrow::compute::and_(combined_condition, conditions[i]);
             }
             return combined_condition;
@@ -471,6 +470,9 @@ arrow::compute::Expression GetFilterExpression(const std::string& sqlExpression)
         throw;
     }
 }
+
+
+
 
 std::vector<int> GetMatchingRowGroups(const std::unique_ptr<parquet::arrow::FileReader>& arrowReader, const std::string& columnName, int l_value) {
     std::vector<int> matching_row_groups;
@@ -502,7 +504,6 @@ std::vector<int> GetMatchingRowGroups(const std::unique_ptr<parquet::arrow::File
 
     return matching_row_groups;
 }
-
 
 
 
@@ -600,9 +601,6 @@ void filterDataAsync(const arrow::compute::Expression& filter_expression, std::s
 }
 
 
-
-
-
 void prefetchDataBuffer(std::vector<char>& buffer) {
     for (size_t i = 0; i < buffer.size(); i += 4096) {
         volatile char tmp = buffer[i];
@@ -612,8 +610,10 @@ void prefetchDataBuffer(std::vector<char>& buffer) {
 class FilterHandler : public Http::Handler {
     HTTP_PROTOTYPE(FilterHandler)
 
-    FilterHandler(std::vector<std::vector<char>>& buffers, std::vector<char>& data_buf, uint8_t* dst_buf)
-        : chunk_buffers(buffers), data_buffer(data_buf), dst_buffer(dst_buf) {}
+public:
+    FilterHandler(std::vector<std::vector<char>>& buffers, std::vector<char>& data_buf, uint8_t* dst_buf, uint8_t* final_buf, std::vector<char>& decrypt_buf)
+        : chunk_buffers(buffers), data_buffer(data_buf), dst_buffer(dst_buf), final_buffer(final_buf), decrypt_buffer(decrypt_buf) {}
+
 
     void onRequest(const Http::Request& req, Http::ResponseWriter response) override {
         if (req.resource() == "/data" && req.method() == Http::Method::Post) {
@@ -625,12 +625,9 @@ class FilterHandler : public Http::Handler {
 
             auto start_f = std::chrono::high_resolution_clock::now();
 
-            std::string url = "http://10.10.10.18/parquet_files/"+key; // Change to your actual URL
+             std::string url = "http://10.10.10.18/parquet_files/"+key; // Change to your actual URL
 
             size_t content_size = 0;
-
-            std::shared_ptr<arrow::Table> final_table;
-
 
             try {
                 if (GetContentSize(url, content_size)) {
@@ -669,11 +666,6 @@ class FilterHandler : public Http::Handler {
 
                             auto start_filter = std::chrono::high_resolution_clock::now();
 
-                            // Extract column name and literal value
-                            std::string columnName;
-                            int l_value;
-                            // Create the filter expression
-                          //  
 
 
                             auto arrowBuffer = arrow::Buffer::Wrap(decrypted_data, output_size);
@@ -685,35 +677,37 @@ class FilterHandler : public Http::Handler {
                                 return;
                             }
 
-
-
-                            /*std::shared_ptr<arrow::Schema> schema;
-                            PARQUET_THROW_NOT_OK(arrowReader->GetSchema(&schema));
-
-                            // Print the schema
-                            std::cout << "Schema of the Parquet file:" << std::endl;
-                            std::cout << schema->ToString() << std::endl;*/
-
-
-                            auto filter_expression = GetFilterExpression(sqlExpression);
-
-                            //std::cout << "Got expression" << std::endl;
-
                             int num_row_groups = arrowReader->num_row_groups();
                             if (num_row_groups == 0) {
                                 response.send(Http::Code::Internal_Server_Error, "No row groups found in the Parquet file.");
                                 return;
                             }
 
-                           //auto matching_row_groups = GetMatchingRowGroups(arrowReader, columnName, l_value);
+                            auto filter_expression = GetFilterExpression(sqlExpression);
+
+                            //auto matching_row_groups = GetMatchingRowGroups(arrowReader, columnName, l_value);
 
                             // Create a shared pointer for the response writer
                             auto shared_response = std::make_shared<Http::ResponseWriter>(std::move(response));
 
-                  
+                            //total_encrypt_time = std::chrono::duration<double, std::milli>(0); // Reset total_encrypt_time
 
+                            /*if (!matching_row_groups.empty()) {
+                                for (const auto& row_group_index : matching_row_groups) {
+                                    thread_pool.enqueue([=, shared_response, bufferReader] {
+                                        filterDataAsync(filter_expression, bufferReader, row_group_index, shared_response, final_buffer, decrypt_buffer);
+                                    });
+                                }
+                            } else {
+                                for (int row_group_index = 0; row_group_index < num_row_groups; ++row_group_index) {
+                                    thread_pool.enqueue([=, shared_response, bufferReader] {
+                                        filterDataAsync(filter_expression, bufferReader, row_group_index, shared_response, final_buffer, decrypt_buffer);
+                                    });
+                                }
+                            }*/
 
-                                              // Process each row group in parallel
+                            std::shared_ptr<arrow::Table> final_table;
+
                             std::vector<std::future<void>> futures;
                             for (int row_group_index = 0; row_group_index < num_row_groups; ++row_group_index) {
                                 futures.push_back(thread_pool.enqueue([=, shared_response, bufferReader, &final_table] {
@@ -730,6 +724,8 @@ class FilterHandler : public Http::Handler {
                             std::chrono::duration<double> filter_elapsed = end_filter - start_filter;
                             std::cout << "Filtering time taken: " << filter_elapsed.count() << " seconds." << std::endl;
 
+                            //std::cout << "Table Data:\n" << final_table->ToString() << std::endl;
+
                             // Convert the final table to Parquet and send as response
                             std::shared_ptr<arrow::io::BufferOutputStream> buffer_output;
                             PARQUET_ASSIGN_OR_THROW(buffer_output, arrow::io::BufferOutputStream::Create());
@@ -743,15 +739,32 @@ class FilterHandler : public Http::Handler {
 
                             std::shared_ptr<arrow::Buffer> buffer;
                             PARQUET_ASSIGN_OR_THROW(buffer, buffer_output->Finish());
+                            
+                            decrypt_buffer.resize(buffer->size());
+                            
 
-                            std::lock_guard<std::mutex> lock(response_mutex);
-                            shared_response->send(Http::Code::Ok, buffer->ToString(), MIME(Application, OctetStream));
+                            // Move data to decrypt_buf
+                            std::memcpy(decrypt_buffer.data(), buffer->data(), buffer->size());
 
+                            auto encrypt_start = std::chrono::high_resolution_clock::now();
+
+                            // Encrypt the data in decrypt_buf
+                            output_size = 0;
+                            uint8_t* encrypted_data = encrypt_buffer(decrypt_buffer.data(), buffer->size(), &output_size, final_buffer);
+                        
+                            auto encrypt_end = std::chrono::high_resolution_clock::now();
+                            std::chrono::duration<double> total_encrypt_time = encrypt_end - encrypt_start;
+                         
+                            std::cout << "Total encryption time: " << total_encrypt_time.count() << " ms." << std::endl;
+
+
+                            response.send(Http::Code::Ok, std::string(reinterpret_cast<char*>(encrypted_data), output_size), MIME(Application, OctetStream));
+   
                             auto end_f = std::chrono::high_resolution_clock::now();
                             std::chrono::duration<double> total_elapsed = end_f - start_f;
                             std::cout << "Total time taken: " << total_elapsed.count() << " seconds." << std::endl;
 
-                              
+                            
 
                         } else {
                             std::cout << "Decryption failed." << std::endl;
@@ -779,6 +792,8 @@ private:
     std::vector<std::vector<char>>& chunk_buffers;
     std::vector<char>& data_buffer;
     uint8_t* dst_buffer;
+    uint8_t* final_buffer; // Added final_buffer
+    std::vector<char>& decrypt_buffer; // Added decrypt_buffer
 };
 
 
@@ -786,6 +801,7 @@ int main() {
     curl_global_init(CURL_GLOBAL_DEFAULT);
 
     init_crypto_resources();
+    enc_init_crypto_resources();
 
 
     size_t num_chunks = alloc_size/ chunk_size;
@@ -794,6 +810,11 @@ int main() {
     // Pre-allocate data buffer with a size of 1GB
     std::vector<char> data_buffer(alloc_size); // 1GB
 
+    std::vector<char> decrypt_buffer(max_rowgroup_size); // 1GB
+   
+
+
+
     // Prepare destination buffer with 1GB size synchronously
     uint8_t* dst_buf = prep_doca_buffer_dst(alloc_size);
     if (!dst_buf) {
@@ -801,21 +822,36 @@ int main() {
         return 1;
     }
 
+
     // Prepare source buffer with 1GB size synchronously
     prep_doca_buffer_src(alloc_size, data_buffer.data());
+   
+
+    // Prepare destination buffer with 1GB size synchronously
+    uint8_t* final_buf = enc_prep_doca_buffer_dst(max_rowgroup_size);
+    if (!dst_buf) {
+        std::cerr << "Failed to prepare DOCA destination buffer." << std::endl;
+        return 1;
+    }
+
+     // Prepare source buffer with 1GB size synchronously
+    enc_prep_doca_buffer_src(max_rowgroup_size,  decrypt_buffer.data());
 
     Address addr(Ipv4::any(), Port(8080));
     auto opts = Http::Endpoint::options();
     auto endpoint = std::make_shared<Http::Endpoint>(addr);
-    auto handler = std::make_shared<FilterHandler>(chunk_buffers, data_buffer, dst_buf);
+    auto handler = std::make_shared<FilterHandler>(chunk_buffers, data_buffer, dst_buf, final_buf, decrypt_buffer); // Pass all parameters including decrypt_buffer
 
+    endpoint->init(opts);
     endpoint->init(opts);
     endpoint->setHandler(handler);
     endpoint->serve();
 
     stop_mmap();
+    enc_stop_mmap();
 
     destroy_crypto_resources();
+    enc_destroy_crypto_resources();
 
     curl_global_cleanup();
 
