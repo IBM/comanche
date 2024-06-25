@@ -34,6 +34,10 @@
 #include <arrow/type.h>
 #include <arrow/array.h>
 #include <arrow/compute/api_vector.h>
+#include <aws/core/Aws.h>
+#include <aws/s3/S3Client.h>
+#include <aws/s3/model/GetObjectRequest.h>
+#include <aws/core/auth/AWSCredentialsProviderChain.h>
 
 using namespace Pistache;
 using json = nlohmann::json;
@@ -42,7 +46,6 @@ std::mutex decryption_mutex;
 std::mutex response_mutex;
 std::mutex encryption_mutex;
 std::mutex table_mutex;
-
 
 const size_t alloc_size = 1024 * 1024 * 1024; // 1 GB for memory allocations
 const size_t max_rowgroup_size = 512 * 1024 * 1024;
@@ -82,97 +85,12 @@ size_t WriteMemoryCallback(void* contents, size_t size, size_t nmemb, void* user
     size_t totalSize = size * nmemb;
     size_t& currentOffset = GetCurrentOffset(); // Maintains the current offset where data is to be written
 
-
     // Copy the received data into the vector at the current offset
     std::copy(static_cast<char*>(contents), static_cast<char*>(contents) + totalSize, memory.begin() + currentOffset);
     currentOffset += totalSize; // Update the offset
-  
+
     return totalSize;
 }
-
-
-bool GetContentSize(const std::string& url, size_t& content_size) {
-    CURL* curl = curl_easy_init();
-    if (!curl) {
-        std::cerr << "CURL initialization failed." << std::endl;
-        return false;
-    }
-
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
-    curl_easy_setopt(curl, CURLOPT_HEADER, 1L);
-    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, +[](void* buffer, size_t size, size_t nitems, void* userdata) -> size_t {
-        std::string header((char*)buffer, size * nitems);
-        std::string content_length_key = "Content-Length: ";
-        auto found = header.find(content_length_key);
-        if (found != std::string::npos) {
-            size_t content_length = std::stoull(header.substr(found + content_length_key.size()));
-            *static_cast<size_t*>(userdata) = content_length;
-        }
-        return nitems * size;
-    });
-    curl_easy_setopt(curl, CURLOPT_HEADERDATA, &content_size);
-
-    // Enable HTTP/2
-    curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2_0);
-
-    CURLcode res = curl_easy_perform(curl);
-    curl_easy_cleanup(curl);
-
-    if (res != CURLE_OK) {
-        std::cerr << "curl_easy_perform() failed: " << curl_easy_strerror(res) << std::endl;
-        return false;
-    }
-
-    return true;
-}
-
-bool DownloadFileSequential(const std::string& url, std::vector<char>& data) {
-    CURL* curl = curl_easy_init();
-    if (!curl) {
-        std::cerr << "curl initialization failed" << std::endl;
-        return false;
-    }
-    //data.resize(746619286);
-
-    // Set URL and other options
-    //curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
-    curl_easy_setopt(curl, CURLOPT_TCP_NODELAY, 1L);
-    curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, 1024*1024*2L); 
-    
-   
-
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &data);
-    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L); // Follow redirects
-
-    // Start timing
-    auto start = std::chrono::high_resolution_clock::now();
-
-
-    // Perform the request
-    CURLcode res = curl_easy_perform(curl);
-
-    // End timing
-    auto end = std::chrono::high_resolution_clock::now();
-
-    // Calculate elapsed time
-    std::chrono::duration<double> elapsed = end - start;
-    std::cout << "Time taken to fetch data: " << elapsed.count() << " seconds." << std::endl;
-
-    // Check for errors
-    if (res != CURLE_OK) {
-        std::cerr << "curl_easy_perform() failed: " << curl_easy_strerror(res) << std::endl;
-        curl_easy_cleanup(curl);
-        return false;
-    }
-
-    // Clean up
-    curl_easy_cleanup(curl);
-    return true;
-}
-
 
 void decryptAndProcessData(char* data, size_t size, size_t* output_size, uint8_t* dst_buffer) {
     std::lock_guard<std::mutex> lock(decryption_mutex);
@@ -447,65 +365,82 @@ void filterDataSync(const arrow::compute::Expression& filter_expression, std::sh
     }
 }
 
-
 void prefetchDataBuffer(std::vector<char>& buffer) {
     for (size_t i = 0; i < buffer.size(); i += 4096) {
         volatile char tmp = buffer[i];
     }
 }
 
-
-
-
 class FilterHandler : public Http::Handler {
     HTTP_PROTOTYPE(FilterHandler)
 
 public:
-    FilterHandler( std::vector<char>& data_buf, uint8_t* dst_buf, uint8_t* final_buf, std::vector<char>& decrypt_buf)
-        : data_buffer(data_buf), dst_buffer(dst_buf), final_buffer(final_buf), decrypt_buffer(decrypt_buf) {}
+    FilterHandler(std::vector<char>& data, uint8_t* dst_buf, uint8_t* final_buf, std::vector<char>& decrypt_buf)
+        : data(data), dst_buffer(dst_buf), final_buffer(final_buf), decrypt_buffer(decrypt_buf) {}
 
-   void onRequest(const Http::Request& req, Http::ResponseWriter response) override {
-    if (req.resource() == "/data" && req.method() == Http::Method::Post) {
-        json requestJson = json::parse(req.body());
+    void onRequest(const Http::Request& req, Http::ResponseWriter response) override {
+        if (req.resource() == "/data" && req.method() == Http::Method::Post) {
+            json requestJson = json::parse(req.body());
 
-        std::string bucket = requestJson["bucket"];
-        std::string key = requestJson["key"];
-        std::string sqlExpression = requestJson["sql"];
+            std::string bucket = requestJson["bucket"];
+            std::string key = requestJson["key"];
+            std::string sqlExpression = requestJson["sql"];
 
-        auto start_f = std::chrono::high_resolution_clock::now();
+            Aws::SDKOptions options;
+            Aws::InitAPI(options);
 
-        std::string url = "http://10.10.10.18/parquet_100K_sf1_stat/" + key; // Change to your actual URL
+            Aws::String minioEndpointUrl = "http://10.10.10.18:9000";
+            Aws::String awsAccessKey = "minioadmin";
+            Aws::String awsSecretKey = "minioadmin";
 
-        size_t content_size = 0;
+            Aws::Client::ClientConfiguration clientConfig;
+            clientConfig.endpointOverride = minioEndpointUrl;
+            clientConfig.scheme = Aws::Http::Scheme::HTTP;
+            clientConfig.verifySSL = false;
 
-        try {
-            if (GetContentSize(url, content_size)) {
-                std::cout << "Content size: " << content_size << " bytes." << std::endl;
+            Aws::Auth::AWSCredentials credentials(awsAccessKey, awsSecretKey);
 
-                // Resize data buffer to content size
-                data_buffer.resize(content_size);
+            Aws::S3::S3Client s3Client(credentials, clientConfig, Aws::Client::AWSAuthV4Signer::PayloadSigningPolicy::Never, false);
 
-                auto start_time = std::chrono::high_resolution_clock::now();
+            auto start_f = std::chrono::high_resolution_clock::now();
 
-                ResetWriteMemoryCallbackOffset();
+            try {
+                Aws::S3::Model::GetObjectRequest getObjectRequest;
+                getObjectRequest.SetBucket(bucket.c_str());
+                getObjectRequest.SetKey(key.c_str());
 
+                auto getObjectOutcome = s3Client.GetObject(getObjectRequest);
+                if (getObjectOutcome.IsSuccess()) {
+                    auto& objectStream = getObjectOutcome.GetResult().GetBody();
 
-                if (DownloadFileSequential(url, data_buffer)) {
+                    auto end_s3_fetch = std::chrono::high_resolution_clock::now();
+                    std::chrono::duration<double> s3_fetch_duration = end_s3_fetch - start_f;
+                    std::cout << "Time to fetch object from S3: " << s3_fetch_duration.count() << " seconds" << std::endl;
 
-                    auto end_time = std::chrono::high_resolution_clock::now();
-                    std::chrono::duration<double> elapsed = end_time - start_time;
-                    std::cout << "Data fetched successfully. Total time taken to fetch data: " << data_buffer.size() << " seconds." << std::endl;
+                    auto start_stream = std::chrono::high_resolution_clock::now();
+
+                    objectStream.seekg(0, std::ios::end);
+                    std::streamsize size = objectStream.tellg();
+                    objectStream.seekg(0, std::ios::beg);
+
+                    if (size > 0) {
+                        data.resize(static_cast<size_t>(size));
+                        objectStream.read(data.data(), size);
+                    }
+
+                    auto end_stream = std::chrono::high_resolution_clock::now();
+                    std::chrono::duration<double> stream_duration = end_stream - start_stream;
+                    std::cout << "Time to read stream: " << stream_duration.count() << " seconds" << std::endl;
 
                     auto start_decrypt = std::chrono::high_resolution_clock::now();
 
-                    size_t output_size = 0; // Declare output_size here
+                    size_t output_size = 0;
 
-                    // Decrypt the data synchronously
-                    decryptAndProcessData(data_buffer.data(), data_buffer.size(), &output_size, dst_buffer);
+                    decryptAndProcessData(data.data(), data.size(), &output_size, dst_buffer);
 
                     auto end_decrypt = std::chrono::high_resolution_clock::now();
                     std::chrono::duration<double> decrypt_elapsed = end_decrypt - start_decrypt;
-                    std::cout << "Decryption time taken: " << decrypt_elapsed.count() << " seconds." << std::endl;
+                    std::cout << "Decryption time taken: " << decrypt_elapsed.count() << " seconds" << std::endl;
 
                     auto start_filter = std::chrono::high_resolution_clock::now();
 
@@ -528,7 +463,6 @@ public:
 
                     std::shared_ptr<arrow::Table> final_table;
 
-                    // Convert ResponseWriter to shared_ptr
                     auto response_ptr = std::make_shared<Http::ResponseWriter>(std::move(response));
 
                     for (int row_group_index = 0; row_group_index < num_row_groups; ++row_group_index) {
@@ -537,7 +471,7 @@ public:
 
                     auto end_filter = std::chrono::high_resolution_clock::now();
                     std::chrono::duration<double> filter_elapsed = end_filter - start_filter;
-                    std::cout << "Filtering time taken: " << filter_elapsed.count() << " seconds." << std::endl;
+                    std::cout << "Filtering time taken: " << filter_elapsed.count() << " seconds" << std::endl;
 
                     std::shared_ptr<arrow::io::BufferOutputStream> buffer_output;
                     PARQUET_ASSIGN_OR_THROW(buffer_output, arrow::io::BufferOutputStream::Create());
@@ -554,12 +488,10 @@ public:
 
                     decrypt_buffer.resize(buffer->size());
 
-                    // Move data to decrypt_buf
                     std::memcpy(decrypt_buffer.data(), buffer->data(), buffer->size());
 
                     auto encrypt_start = std::chrono::high_resolution_clock::now();
 
-                    // Encrypt the data in decrypt_buf
                     output_size = 0;
                     uint8_t* encrypted_data = encrypt_buffer(decrypt_buffer.data(), buffer->size(), &output_size, final_buffer);
 
@@ -574,67 +506,60 @@ public:
                     std::chrono::duration<double> total_elapsed = end_f - start_f;
                     std::cout << "Total time taken: " << total_elapsed.count() << " seconds." << std::endl;
                 } else {
-                    std::cerr << "Data fetch failed" << std::endl;
-                    response.send(Http::Code::Internal_Server_Error, "Data fetch failed");
+                    std::cerr << "Failed to get object: " << getObjectOutcome.GetError().GetMessage() << std::endl;
+                    response.send(Http::Code::Internal_Server_Error, "Failed to get object from S3");
                 }
-            } else {
-                std::cerr << "Failed to retrieve content size." << std::endl;
-                response.send(Http::Code::Internal_Server_Error, "Failed to retrieve content size");
+            } catch (const std::exception& e) {
+                std::cerr << "Exception: " << e.what() << std::endl;
+                response.send(Http::Code::Internal_Server_Error, "Exception occurred");
             }
-        } catch (const std::exception& e) {
-            std::cerr << "Exception: " << e.what() << std::endl;
-            response.send(Http::Code::Internal_Server_Error, "Exception occurred");
-        }
-    } else {
-        response.send(Http::Code::Not_Found, "Endpoint not found");
-    }
-}
 
+            Aws::ShutdownAPI(options);
+        } else {
+            response.send(Http::Code::Not_Found, "Endpoint not found");
+        }
+    }
 
 private:
-
-    std::vector<char>& data_buffer;
+    std::vector<char>& data;
     uint8_t* dst_buffer;
     uint8_t* final_buffer;
     std::vector<char>& decrypt_buffer;
 };
 
 int main() {
+
+    if (setenv("AWS_EC2_METADATA_DISABLED", "true", 1) != 0) {}
+       
+
     curl_global_init(CURL_GLOBAL_DEFAULT);
 
     init_crypto_resources();
     enc_init_crypto_resources();
 
+    std::vector<char> data_buffer(alloc_size);
+    std::vector<char> decrypt_buffer(max_rowgroup_size);
 
-    // Pre-allocate data buffer with a size of 1GB
-    std::vector<char> data_buffer(alloc_size); // 1GB
-
-    std::vector<char> decrypt_buffer(max_rowgroup_size); // 1GB
-
-    // Prepare destination buffer with 1GB size synchronously
     uint8_t* dst_buf = prep_doca_buffer_dst(alloc_size);
     if (!dst_buf) {
         std::cerr << "Failed to prepare DOCA destination buffer." << std::endl;
         return 1;
     }
 
-    // Prepare source buffer with 1GB size synchronously
     prep_doca_buffer_src(alloc_size, data_buffer.data());
 
-    // Prepare destination buffer with 1GB size synchronously
     uint8_t* final_buf = enc_prep_doca_buffer_dst(max_rowgroup_size);
     if (!dst_buf) {
         std::cerr << "Failed to prepare DOCA destination buffer." << std::endl;
         return 1;
     }
 
-    // Prepare source buffer with 1GB size synchronously
     enc_prep_doca_buffer_src(max_rowgroup_size, decrypt_buffer.data());
 
     Address addr(Ipv4::any(), Port(8080));
     auto opts = Http::Endpoint::options();
     auto endpoint = std::make_shared<Http::Endpoint>(addr);
-    auto handler = std::make_shared<FilterHandler>(data_buffer, dst_buf, final_buf, decrypt_buffer); // Pass all parameters including decrypt_buffer
+    auto handler = std::make_shared<FilterHandler>(data_buffer, dst_buf, final_buf, decrypt_buffer);
 
     endpoint->init(opts);
     endpoint->setHandler(handler);

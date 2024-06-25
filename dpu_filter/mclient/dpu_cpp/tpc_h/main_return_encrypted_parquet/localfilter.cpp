@@ -625,7 +625,7 @@ public:
 
             auto start_f = std::chrono::high_resolution_clock::now();
 
-             std::string url = "http://10.10.10.18/parquet_files/"+key; // Change to your actual URL
+             std::string url = "http://10.10.10.18/parquet_100K_sf1_stat/"+key; // Change to your actual URL
 
             size_t content_size = 0;
 
