@@ -111,8 +111,8 @@ int main() {
     const std::string url = "http://10.10.10.20:8080/data";
     const std::string payload = R"({
         "bucket": "mycsvbucket",
-        "key": "enc_lineitem.parquet",
-        "sql": "SELECT SUM(l_extendedprice * l_discount) AS revenue FROM lineitem WHERE l_shipdate >= '1994-01-01' AND l_shipdate < '1995-01-01' AND l_discount BETWEEN 0.05 AND 0.07 l_quantity < 24000"
+        "key": "sampledata/enc_lineitem.parquet",
+        "sql": "SELECT SUM(l_extendedprice * l_discount) AS revenue FROM lineitem WHERE l_shipdate >= '1994-01-01' AND l_shipdate < '1995-01-01' AND l_discount BETWEEN 0.05 AND 0.07 AND l_quantity < 24000"
     })";
 
     struct curl_slist* headers = NULL;
@@ -141,8 +141,12 @@ int main() {
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L); // Set a connection timeout
 
     CURLcode res = curl_easy_perform(curl);
-    auto end_time = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed_seconds = end_time - start_time;
+
+
+    auto fetch_time = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> fetch_seconds = fetch_time - start_time;
+
+    std::cout << "Time taken to fetch: " << fetch_seconds.count() << " seconds" << std::endl;
 
     if (res != CURLE_OK) {
         std::cerr << "CURL error: " << curl_easy_strerror(res) << std::endl;
@@ -159,6 +163,11 @@ int main() {
             std::vector<unsigned char> decrypted_data = decryptBuffer(response_data, key, iv);
             std::cout << "Decryption completed." << std::endl;
 
+            auto end_time = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> elapsed_seconds = end_time - start_time;
+
+            std::cout << "Time taken with decrypt: " << elapsed_seconds.count() << " seconds" << std::endl;
+
             // Read and print the Parquet file content
             auto buffer = std::make_shared<arrow::Buffer>(decrypted_data.data(), decrypted_data.size());
             auto input = std::make_shared<arrow::io::BufferReader>(buffer);
@@ -171,6 +180,12 @@ int main() {
             std::cout << "Table contents:" << std::endl;
             std::cout << table->ToString() << std::endl;
             std::cout << "Total number of rows in the filtered table: " << table->num_rows() << std::endl;
+
+            auto print_time = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> print_seconds = print_time - start_time;
+
+            std::cout << "Time taken to print: " << print_seconds.count() << " seconds" << std::endl;
+
         } else {
             std::cerr << "HTTP Error: " << http_code << std::endl;
         }
@@ -179,7 +194,7 @@ int main() {
     curl_easy_cleanup(curl);
     curl_slist_free_all(headers);
 
-    std::cout << "Time taken: " << elapsed_seconds.count() << " seconds" << std::endl;
+    
 
     return 0;
 }

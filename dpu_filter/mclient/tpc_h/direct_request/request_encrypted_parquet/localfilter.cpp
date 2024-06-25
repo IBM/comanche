@@ -40,6 +40,7 @@
 #include <arrow/array.h>
 #include <arrow/compute/api_vector.h>
 
+
 #define MAX_BUFFER_SIZE 1048576 // 1MB buffer size
 #define TAG_SIZE 12 // 12 bytes tag size
 #define KEY_SIZE 32 // 256 bits
