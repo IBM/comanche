@@ -1,0 +1,2 @@
+mkdir /mnt/sda4/tpcds_sf10
+./dsdgen -scale 10 -dir /mnt/sda4/tpcds_sf10
