@@ -1,0 +1,577 @@
+#include <curl/curl.h>
+#include <iostream>
+#include <vector>
+#include <string>
+#include <chrono>
+#include <algorithm>
+#include <cctype>
+#include <locale>
+#include <sys/mman.h>
+#include <utils.h>
+#include <pistache/endpoint.h>
+#include <vector>
+#include <arrow/table.h>
+#include <arrow/api.h>
+#include <arrow/io/api.h>
+#include <parquet/arrow/reader.h>
+#include <parquet/arrow/writer.h>
+#include <parquet/statistics.h>
+#include <arrow/dataset/api.h>
+#include <arrow/dataset/dataset.h>
+#include <arrow/dataset/discovery.h>
+#include <arrow/compute/api.h>
+#include <arrow/compute/expression.h>
+#include "/home/ubuntu/json/include/nlohmann/json.hpp"
+#include "SQLParser.h"
+#include <fstream>
+#include <arrow/io/memory.h>
+#include <iomanip>
+#include <sstream>
+#include <arrow/record_batch.h>
+#include <arrow/table.h>
+#include <arrow/compute/api_aggregate.h>
+#include <arrow/buffer.h>
+#include <arrow/type.h>
+#include <arrow/array.h>
+#include <arrow/compute/api_vector.h>
+#include <aws/core/Aws.h>
+#include <aws/s3/S3Client.h>
+#include <aws/s3/model/GetObjectRequest.h>
+#include <aws/core/auth/AWSCredentialsProviderChain.h>
+
+using namespace Pistache;
+using json = nlohmann::json;
+
+std::mutex decryption_mutex;
+std::mutex response_mutex;
+std::mutex encryption_mutex;
+std::mutex table_mutex;
+
+const size_t alloc_size = 1024 * 1024 * 1024; // 1 GB for memory allocations
+const size_t max_rowgroup_size = 512 * 1024 * 1024;
+
+std::chrono::duration<double, std::milli> total_encrypt_time(0);
+
+extern "C" {
+    // Decrypt functions
+    uint8_t* decrypt_buffer(char* file_data, size_t file_size, size_t* output_size, uint8_t* dst_buffer);
+    void init_crypto_resources();
+    void destroy_crypto_resources();
+    uint8_t* prep_doca_buffer_dst(const size_t file_size);
+    uint8_t* prep_doca_buffer_src(const size_t file_size, char* file_data);
+    void stop_mmap();
+
+    // Encrypt functions
+    uint8_t* encrypt_buffer(char* file_data, size_t file_size, size_t* output_size, uint8_t* dst_buffer);
+    void enc_init_crypto_resources();
+    void enc_destroy_crypto_resources();
+    uint8_t* enc_prep_doca_buffer_dst(const size_t file_size);
+    uint8_t* enc_prep_doca_buffer_src(const size_t file_size, char* file_data);
+    void enc_stop_mmap();
+}
+
+static size_t& GetCurrentOffset() {
+    static size_t currentOffset = 0;
+    return currentOffset;
+}
+void ResetWriteMemoryCallbackOffset() {
+    static size_t& currentOffset = GetCurrentOffset();
+    currentOffset = 0;
+}
+
+// Callback function for writing data received from the server into memory
+size_t WriteMemoryCallback(void* contents, size_t size, size_t nmemb, void* userp) {
+    auto& memory = *static_cast<std::vector<char>*>(userp);
+    size_t totalSize = size * nmemb;
+    size_t& currentOffset = GetCurrentOffset(); // Maintains the current offset where data is to be written
+
+    // Copy the received data into the vector at the current offset
+    std::copy(static_cast<char*>(contents), static_cast<char*>(contents) + totalSize, memory.begin() + currentOffset);
+    currentOffset += totalSize; // Update the offset
+
+    return totalSize;
+}
+
+void decryptAndProcessData(char* data, size_t size, size_t* output_size, uint8_t* dst_buffer) {
+    std::lock_guard<std::mutex> lock(decryption_mutex);
+    uint8_t* decrypted_data = decrypt_buffer(data, size, output_size, dst_buffer);
+    if (!decrypted_data) {
+        std::cerr << "Decryption failed" << std::endl;
+        throw std::runtime_error("Decryption failed");
+    }
+}
+
+arrow::compute::Expression GetFilterExpression(const std::string& sqlExpression) {
+    std::vector<Token> tokens = SQLParser::parse(sqlExpression);
+
+    std::vector<arrow::compute::Expression> conditions;
+    std::string columnName;
+    std::string operatorSymbol;
+    std::string value;
+    std::string value2;
+
+    bool processingWhereClause = false;
+
+    try {
+        for (size_t i = 0; i < tokens.size(); ++i) {
+            if (tokens[i].type == TokenType::WHERE) {
+                processingWhereClause = true;
+                continue;
+            }
+
+            if (processingWhereClause) {
+                if (tokens[i].type == TokenType::COLUMN) {
+                    columnName = tokens[i].value;
+                    if (i + 2 >= tokens.size()) {
+                        std::cerr << "Error: missing operator or value after column " << columnName << std::endl;
+                        throw std::invalid_argument("Invalid SQL expression: missing operator or value");
+                    }
+                    operatorSymbol = tokens[i + 1].value;
+
+                    if (operatorSymbol == "BETWEEN") {
+                        if (i + 4 >= tokens.size()) {
+                            std::cerr << "Error: missing values for BETWEEN operator after column " << columnName << std::endl;
+                            throw std::invalid_argument("Invalid SQL expression: missing values for BETWEEN operator");
+                        }
+                        value = tokens[i + 2].value;
+                        if (tokens[i + 3].type != TokenType::AND) {
+                            std::cerr << "Error: missing AND in BETWEEN clause for column " << columnName << std::endl;
+                            throw std::invalid_argument("Invalid SQL expression: missing AND in BETWEEN clause");
+                        }
+                        value2 = tokens[i + 4].value;
+                        i += 4;
+                    } else {
+                        value = tokens[i + 2].value;
+                        i += 2;
+                    }
+
+                    // Remove quotes from the value if present
+                    if (value.front() == '\'' && value.back() == '\'') {
+                        value = value.substr(1, value.size() - 2);
+                    }
+                    if (!value2.empty() && value2.front() == '\'' && value2.back() == '\'') {
+                        value2 = value2.substr(1, value2.size() - 2);
+                    }
+
+                    auto field_ref = arrow::compute::field_ref(columnName);
+                    arrow::compute::Expression condition;
+
+                    if (columnName == "l_shipdate") {
+                        std::istringstream ss(value);
+                        std::tm tm = {};
+                        ss >> std::get_time(&tm, "%Y-%m-%d");
+                        if (ss.fail()) {
+                            throw std::invalid_argument("Failed to parse date");
+                        }
+                        auto ts = std::chrono::system_clock::from_time_t(std::mktime(&tm));
+                        auto timestamp_scalar = std::make_shared<arrow::TimestampScalar>(ts.time_since_epoch().count(), arrow::timestamp(arrow::TimeUnit::NANO));
+                        auto literal_value = arrow::compute::literal(timestamp_scalar);
+
+                        if (operatorSymbol == "=") {
+                            condition = arrow::compute::equal(field_ref, literal_value);
+                        } else if (operatorSymbol == ">") {
+                            condition = arrow::compute::greater(field_ref, literal_value);
+                        } else if (operatorSymbol == ">=") {
+                            condition = arrow::compute::greater_equal(field_ref, literal_value);
+                        } else if (operatorSymbol == "<") {
+                            condition = arrow::compute::less(field_ref, literal_value);
+                        } else if (operatorSymbol == "<=") {
+                            condition = arrow::compute::less_equal(field_ref, literal_value);
+                        } else if (operatorSymbol == "!=") {
+                            condition = arrow::compute::not_equal(field_ref, literal_value);
+                        }
+                    } else if (columnName == "l_quantity" || columnName == "l_extendedprice" || columnName == "l_discount") {
+                        auto literal_value = arrow::compute::literal(std::stod(value));
+
+                        if (operatorSymbol == "=") {
+                            condition = arrow::compute::equal(field_ref, literal_value);
+                        } else if (operatorSymbol == ">") {
+                            condition = arrow::compute::greater(field_ref, literal_value);
+                        } else if (operatorSymbol == ">=") {
+                            condition = arrow::compute::greater_equal(field_ref, literal_value);
+                        } else if (operatorSymbol == "<") {
+                            condition = arrow::compute::less(field_ref, literal_value);
+                        } else if (operatorSymbol == "<=") {
+                            condition = arrow::compute::less_equal(field_ref, literal_value);
+                        } else if (operatorSymbol == "!=") {
+                            condition = arrow::compute::not_equal(field_ref, literal_value);
+                        } else if (operatorSymbol == "BETWEEN") {
+                            auto literal_value2 = arrow::compute::literal(std::stod(value2));
+                            condition = arrow::compute::and_(arrow::compute::greater_equal(field_ref, literal_value),
+                                                             arrow::compute::less_equal(field_ref, literal_value2));
+                        }
+                    } else {
+                        // Handle int64 and string types
+                        auto literal_value = (columnName == "l_orderkey" || columnName == "l_partkey" || columnName == "l_suppkey" || columnName == "l_linenumber" || columnName == "__index_level_0__")
+                                            ? arrow::compute::literal(static_cast<int64_t>(std::stoll(value)))
+                                            : arrow::compute::literal(value);
+
+                        if (operatorSymbol == "=") {
+                            condition = arrow::compute::equal(field_ref, literal_value);
+                        } else if (operatorSymbol == ">") {
+                            condition = arrow::compute::greater(field_ref, literal_value);
+                        } else if (operatorSymbol == ">=") {
+                            condition = arrow::compute::greater_equal(field_ref, literal_value);
+                        } else if (operatorSymbol == "<") {
+                            condition = arrow::compute::less(field_ref, literal_value);
+                        } else if (operatorSymbol == "<=") {
+                            condition = arrow::compute::less_equal(field_ref, literal_value);
+                        } else if (operatorSymbol == "!=") {
+                            condition = arrow::compute::not_equal(field_ref, literal_value);
+                        }
+                    }
+
+                    conditions.push_back(condition);
+                }
+            }
+        }
+
+        // Combine all conditions using 'and'
+        if (!conditions.empty()) {
+            arrow::compute::Expression combined_condition = conditions[0];
+            for (size_t i = 1; i < conditions.size(); ++i) {
+                combined_condition = arrow::compute::and_(combined_condition, conditions[i]);
+            }
+            return combined_condition;
+        } else {
+            throw std::invalid_argument("No valid conditions found");
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Error in GetFilterExpression: " << e.what() << std::endl;
+        throw;
+    }
+}
+
+std::vector<int> GetMatchingRowGroups(const std::unique_ptr<parquet::arrow::FileReader>& arrowReader, const std::string& columnName, int l_value) {
+    std::vector<int> matching_row_groups;
+    std::shared_ptr<arrow::Schema> schema;
+    arrowReader->GetSchema(&schema);
+
+    int column_index = schema->GetFieldIndex(columnName);
+    if (column_index == -1) {
+        throw std::runtime_error("Column not found in the schema.");
+    }
+
+    for (int row_group_index = 0; row_group_index < arrowReader->num_row_groups(); ++row_group_index) {
+        auto metadata = arrowReader->parquet_reader()->metadata();
+        auto row_group_metadata = metadata->RowGroup(row_group_index);
+        auto column_metadata = row_group_metadata->ColumnChunk(column_index);
+
+        if (column_metadata->is_stats_set()) {
+            auto stats = column_metadata->statistics();
+            if (stats->HasMinMax()) {
+                int64_t min_value = static_cast<const parquet::Int64Statistics*>(stats.get())->min();
+                int64_t max_value = static_cast<const parquet::Int64Statistics*>(stats.get())->max();
+
+                if (min_value <= l_value && max_value >= l_value) {
+                    matching_row_groups.push_back(row_group_index);
+                }
+            }
+        }
+    }
+
+    return matching_row_groups;
+}
+
+void filterDataSync(const arrow::compute::Expression& filter_expression, std::shared_ptr<arrow::io::BufferReader> bufferReader, int row_group_index, std::shared_ptr<Http::ResponseWriter> response, std::shared_ptr<arrow::Table>& final_table) {
+    try {
+        std::unique_ptr<parquet::arrow::FileReader> arrowReader;
+        auto status = parquet::arrow::OpenFile(bufferReader, arrow::default_memory_pool(), &arrowReader);
+
+        if (!status.ok()) {
+            std::lock_guard<std::mutex> lock(response_mutex);
+            response->send(Http::Code::Internal_Server_Error, "Failed to open file");
+            return;
+        }
+
+        std::shared_ptr<parquet::arrow::FileReader> shared_arrowReader = std::shared_ptr<parquet::arrow::FileReader>(std::move(arrowReader));
+
+        std::shared_ptr<arrow::Table> table;
+        status = shared_arrowReader->RowGroup(row_group_index)->ReadTable(&table);
+        if (!status.ok()) {
+            std::lock_guard<std::mutex> lock(response_mutex);
+            response->send(Http::Code::Internal_Server_Error, "Failed to read row group.");
+            return;
+        }
+
+        std::shared_ptr<arrow::dataset::Dataset> dataset = std::make_shared<arrow::dataset::InMemoryDataset>(table);
+
+        auto options = std::make_shared<arrow::dataset::ScanOptions>();
+
+        auto builder = arrow::dataset::ScannerBuilder(dataset);
+        builder.Filter(filter_expression);
+
+        auto scanner_result = builder.Finish();
+        if (!scanner_result.ok()) {
+            std::lock_guard<std::mutex> lock(response_mutex);
+            response->send(Http::Code::Internal_Server_Error, "Failed to build scanner.");
+            return;
+        }
+        auto scanner = scanner_result.ValueOrDie();
+
+        auto result_table_result = scanner->ToTable();
+        if (!result_table_result.ok()) {
+            std::lock_guard<std::mutex> lock(response_mutex);
+            response->send(Http::Code::Internal_Server_Error, "Failed to convert to table.");
+            return;
+        }
+
+        auto result_table = result_table_result.ValueOrDie();
+
+        // Compute the revenue
+        auto extendedprice = result_table->GetColumnByName("l_extendedprice");
+        auto discount = result_table->GetColumnByName("l_discount");
+
+        auto multiply_result = arrow::compute::CallFunction("multiply", {extendedprice->chunk(0), discount->chunk(0)});
+        if (!multiply_result.ok()) {
+            std::lock_guard<std::mutex> lock(response_mutex);
+            response->send(Http::Code::Internal_Server_Error, "Failed to multiply columns.");
+            return;
+        }
+        auto revenue_column = multiply_result.ValueOrDie().make_array();
+
+        auto sum_result = arrow::compute::Sum(revenue_column);
+        if (!sum_result.ok()) {
+            std::lock_guard<std::mutex> lock(response_mutex);
+            response->send(Http::Code::Internal_Server_Error, "Failed to compute sum.");
+            return;
+        }
+        auto revenue = std::static_pointer_cast<arrow::DoubleScalar>(sum_result.ValueOrDie().scalar())->value;
+
+        // Create the result table with the revenue column
+        auto revenue_array = std::make_shared<arrow::DoubleArray>(1, arrow::Buffer::Wrap(std::vector<double>{revenue}));
+        auto schema = arrow::schema({arrow::field("revenue", arrow::float64())});
+        auto result_table_with_revenue = arrow::Table::Make(schema, {revenue_array});
+
+        // Merge individual tables into the final table
+        std::lock_guard<std::mutex> lock(table_mutex);
+        if (final_table == nullptr) {
+            final_table = result_table_with_revenue;
+        } else {
+            std::shared_ptr<arrow::Table> combined_table;
+            std::vector<std::shared_ptr<arrow::Table>> tables_to_concatenate = {final_table, result_table_with_revenue};
+            auto concatenate_result = arrow::ConcatenateTables(tables_to_concatenate, arrow::ConcatenateTablesOptions::Defaults());
+            if (!concatenate_result.ok()) {
+                std::lock_guard<std::mutex> lock(response_mutex);
+                response->send(Http::Code::Internal_Server_Error, "Failed to concatenate tables.");
+                return;
+            }
+            combined_table = concatenate_result.ValueOrDie();
+            final_table = combined_table;
+        }
+    } catch (const std::exception& e) {
+        std::lock_guard<std::mutex> lock(response_mutex);
+        response->send(Http::Code::Internal_Server_Error, e.what());
+    }
+}
+
+void prefetchDataBuffer(std::vector<char>& buffer) {
+    for (size_t i = 0; i < buffer.size(); i += 4096) {
+        volatile char tmp = buffer[i];
+    }
+}
+
+class FilterHandler : public Http::Handler {
+    HTTP_PROTOTYPE(FilterHandler)
+
+public:
+    FilterHandler(std::vector<char>& data, uint8_t* dst_buf, uint8_t* final_buf, std::vector<char>& decrypt_buf)
+        : data(data), dst_buffer(dst_buf), final_buffer(final_buf), decrypt_buffer(decrypt_buf) {}
+
+    void onRequest(const Http::Request& req, Http::ResponseWriter response) override {
+        if (req.resource() == "/data" && req.method() == Http::Method::Post) {
+            json requestJson = json::parse(req.body());
+
+            std::string bucket = requestJson["bucket"];
+            std::string key = requestJson["key"];
+            std::string sqlExpression = requestJson["sql"];
+
+            Aws::SDKOptions options;
+            Aws::InitAPI(options);
+
+            Aws::String minioEndpointUrl = "http://10.10.10.18:9000";
+            Aws::String awsAccessKey = "minioadmin";
+            Aws::String awsSecretKey = "minioadmin";
+
+            Aws::Client::ClientConfiguration clientConfig;
+            clientConfig.endpointOverride = minioEndpointUrl;
+            clientConfig.scheme = Aws::Http::Scheme::HTTP;
+            clientConfig.verifySSL = false;
+
+            Aws::Auth::AWSCredentials credentials(awsAccessKey, awsSecretKey);
+
+            Aws::S3::S3Client s3Client(credentials, clientConfig, Aws::Client::AWSAuthV4Signer::PayloadSigningPolicy::Never, false);
+
+            auto start_f = std::chrono::high_resolution_clock::now();
+
+            try {
+                Aws::S3::Model::GetObjectRequest getObjectRequest;
+                getObjectRequest.SetBucket(bucket.c_str());
+                getObjectRequest.SetKey(key.c_str());
+
+                auto getObjectOutcome = s3Client.GetObject(getObjectRequest);
+                if (getObjectOutcome.IsSuccess()) {
+                    auto& objectStream = getObjectOutcome.GetResult().GetBody();
+
+                    auto end_s3_fetch = std::chrono::high_resolution_clock::now();
+                    std::chrono::duration<double> s3_fetch_duration = end_s3_fetch - start_f;
+                    std::cout << "Time to fetch object from S3: " << s3_fetch_duration.count() << " seconds" << std::endl;
+
+                    auto start_stream = std::chrono::high_resolution_clock::now();
+
+                    objectStream.seekg(0, std::ios::end);
+                    std::streamsize size = objectStream.tellg();
+                    objectStream.seekg(0, std::ios::beg);
+
+                    if (size > 0) {
+                        data.resize(static_cast<size_t>(size));
+                        objectStream.read(data.data(), size);
+                    }
+
+                    auto end_stream = std::chrono::high_resolution_clock::now();
+                    std::chrono::duration<double> stream_duration = end_stream - start_stream;
+                    std::cout << "Time to read stream: " << stream_duration.count() << " seconds" << std::endl;
+
+                    auto start_decrypt = std::chrono::high_resolution_clock::now();
+
+                    size_t output_size = 0;
+
+                    decryptAndProcessData(data.data(), data.size(), &output_size, dst_buffer);
+
+                    auto end_decrypt = std::chrono::high_resolution_clock::now();
+                    std::chrono::duration<double> decrypt_elapsed = end_decrypt - start_decrypt;
+                    std::cout << "Decryption time taken: " << decrypt_elapsed.count() << " seconds" << std::endl;
+
+                    auto start_filter = std::chrono::high_resolution_clock::now();
+
+                    auto arrowBuffer = arrow::Buffer::Wrap(dst_buffer, output_size);
+                    auto bufferReader = std::make_shared<arrow::io::BufferReader>(arrowBuffer);
+                    std::unique_ptr<parquet::arrow::FileReader> arrowReader;
+                    auto status = parquet::arrow::OpenFile(bufferReader, arrow::default_memory_pool(), &arrowReader);
+                    if (!status.ok()) {
+                        response.send(Http::Code::Internal_Server_Error, "Failed to open file");
+                        return;
+                    }
+
+                    int num_row_groups = arrowReader->num_row_groups();
+                    if (num_row_groups == 0) {
+                        response.send(Http::Code::Internal_Server_Error, "No row groups found in the Parquet file.");
+                        return;
+                    }
+
+                    auto filter_expression = GetFilterExpression(sqlExpression);
+
+                    std::shared_ptr<arrow::Table> final_table;
+
+                    auto response_ptr = std::make_shared<Http::ResponseWriter>(std::move(response));
+
+                    for (int row_group_index = 0; row_group_index < num_row_groups; ++row_group_index) {
+                        filterDataSync(filter_expression, bufferReader, row_group_index, response_ptr, final_table);
+                    }
+
+                    auto end_filter = std::chrono::high_resolution_clock::now();
+                    std::chrono::duration<double> filter_elapsed = end_filter - start_filter;
+                    std::cout << "Filtering time taken: " << filter_elapsed.count() << " seconds" << std::endl;
+
+                    std::shared_ptr<arrow::io::BufferOutputStream> buffer_output;
+                    PARQUET_ASSIGN_OR_THROW(buffer_output, arrow::io::BufferOutputStream::Create());
+
+                    PARQUET_THROW_NOT_OK(parquet::arrow::WriteTable(
+                        *final_table,
+                        arrow::default_memory_pool(),
+                        buffer_output,
+                        1024 * 1024 // 1MB row group size
+                    ));
+
+                    std::shared_ptr<arrow::Buffer> buffer;
+                    PARQUET_ASSIGN_OR_THROW(buffer, buffer_output->Finish());
+
+                    decrypt_buffer.resize(buffer->size());
+
+                    std::memcpy(decrypt_buffer.data(), buffer->data(), buffer->size());
+
+                    auto encrypt_start = std::chrono::high_resolution_clock::now();
+
+                    output_size = 0;
+                    uint8_t* encrypted_data = encrypt_buffer(decrypt_buffer.data(), buffer->size(), &output_size, final_buffer);
+
+                    auto encrypt_end = std::chrono::high_resolution_clock::now();
+                    std::chrono::duration<double> total_encrypt_time = encrypt_end - encrypt_start;
+
+                    std::cout << "Total encryption time: " << total_encrypt_time.count() << " ms." << std::endl;
+
+                    response_ptr->send(Http::Code::Ok, std::string(reinterpret_cast<char*>(encrypted_data), output_size), MIME(Application, OctetStream));
+
+                    auto end_f = std::chrono::high_resolution_clock::now();
+                    std::chrono::duration<double> total_elapsed = end_f - start_f;
+                    std::cout << "Total time taken: " << total_elapsed.count() << " seconds." << std::endl;
+                } else {
+                    std::cerr << "Failed to get object: " << getObjectOutcome.GetError().GetMessage() << std::endl;
+                    response.send(Http::Code::Internal_Server_Error, "Failed to get object from S3");
+                }
+            } catch (const std::exception& e) {
+                std::cerr << "Exception: " << e.what() << std::endl;
+                response.send(Http::Code::Internal_Server_Error, "Exception occurred");
+            }
+
+            Aws::ShutdownAPI(options);
+        } else {
+            response.send(Http::Code::Not_Found, "Endpoint not found");
+        }
+    }
+
+private:
+    std::vector<char>& data;
+    uint8_t* dst_buffer;
+    uint8_t* final_buffer;
+    std::vector<char>& decrypt_buffer;
+};
+
+int main() {
+
+    if (setenv("AWS_EC2_METADATA_DISABLED", "true", 1) != 0) {}
+       
+
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+
+    init_crypto_resources();
+    enc_init_crypto_resources();
+
+    std::vector<char> data_buffer(alloc_size);
+    std::vector<char> decrypt_buffer(max_rowgroup_size);
+
+    uint8_t* dst_buf = prep_doca_buffer_dst(alloc_size);
+    if (!dst_buf) {
+        std::cerr << "Failed to prepare DOCA destination buffer." << std::endl;
+        return 1;
+    }
+
+    prep_doca_buffer_src(alloc_size, data_buffer.data());
+
+    uint8_t* final_buf = enc_prep_doca_buffer_dst(max_rowgroup_size);
+    if (!dst_buf) {
+        std::cerr << "Failed to prepare DOCA destination buffer." << std::endl;
+        return 1;
+    }
+
+    enc_prep_doca_buffer_src(max_rowgroup_size, decrypt_buffer.data());
+
+    Address addr(Ipv4::any(), Port(8080));
+    auto opts = Http::Endpoint::options();
+    auto endpoint = std::make_shared<Http::Endpoint>(addr);
+    auto handler = std::make_shared<FilterHandler>(data_buffer, dst_buf, final_buf, decrypt_buffer);
+
+    endpoint->init(opts);
+    endpoint->setHandler(handler);
+    endpoint->serve();
+
+    stop_mmap();
+    enc_stop_mmap();
+
+    destroy_crypto_resources();
+    enc_destroy_crypto_resources();
+
+    curl_global_cleanup();
+
+    return 0;
+}
