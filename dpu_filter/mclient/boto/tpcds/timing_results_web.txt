@@ -1,0 +1,5 @@
+Metric	Query 1
+Execution Time (s)	1.188
+Processing Time (s)	302.084
+Bytes Processed	-1
+Bytes Returned	1163094
