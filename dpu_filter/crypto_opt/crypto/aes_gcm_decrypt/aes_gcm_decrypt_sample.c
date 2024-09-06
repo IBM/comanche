@@ -61,7 +61,6 @@ aes_gcm_decrypt(struct aes_gcm_cfg *cfg, char *file_data, size_t file_size)
 
    
 
-	clock_gettime(CLOCK_MONOTONIC, &start);
 
 	/*out_file = fopen(cfg->output_path, "wb");
 	if (out_file == NULL) {
@@ -88,10 +87,10 @@ aes_gcm_decrypt(struct aes_gcm_cfg *cfg, char *file_data, size_t file_size)
     }
 
 	//try to mlock the output
-	if (mlock(output_data, output_size) != 0) {
+	/*if (mlock(output_data, output_size) != 0) {
     	DOCA_LOG_INFO("can't mlock");
     	goto destroy_dst_buf;
-	}
+	}*/
 
 	/* Allocate resources */
 	resources.mode = AES_GCM_MODE_DECRYPT;
@@ -125,6 +124,9 @@ aes_gcm_decrypt(struct aes_gcm_cfg *cfg, char *file_data, size_t file_size)
 		DOCA_LOG_ERR("Failed to start context: %s", doca_error_get_descr(result));
 		goto destroy_resources;
 	}
+
+	clock_gettime(CLOCK_MONOTONIC, &start);
+
 
 	dst_buffer = calloc(1, max_decrypt_buf_size);
 	if (dst_buffer == NULL) {
@@ -269,11 +271,12 @@ aes_gcm_decrypt(struct aes_gcm_cfg *cfg, char *file_data, size_t file_size)
     elapsed_ms = get_time_diff(&start, &end);
     printf("The loop %.6f ms\n", elapsed_ms);
 
+    free(output_data); // Assume data is processed and no longer needed
    
     clock_gettime(CLOCK_MONOTONIC, &start);
 	//free(output_data); // Assume data is processed and no longer needed
 
-    free(output_data); // Assume data is processed and no longer needed
+  
 	tmp_result = doca_buf_dec_refcount(dst_doca_buf, NULL);
 	if (tmp_result != DOCA_SUCCESS) {
 		DOCA_LOG_ERR("Failed to decrease DOCA destination buffer reference count: %s",
