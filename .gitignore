@@ -21,3 +21,4 @@ doc/html*
 /src/ppl/pcj/pcj-helloworld/dist/
 *.swp
 compile_commands.json
+*.parquet
