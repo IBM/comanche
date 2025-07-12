@@ -1,0 +1,34 @@
+Server
+minio server --address "10.10.10.18:9000" /mnt/data
+sudo systemctl restart minio
+sudo systemctl status minio
+
+
+Client direct request:
+/home/nara/dpu/comanche/dpu_filter/mclient/tpc_request/direct_request_tpcds/request_encrypted_parquet_plus/build
+
+Client filter request:
+/home/nara/dpu/comanche/dpu_filter/mclient/tpc_request/request_filter_cpp/request_parquet_plus/build
+
+
+DPU
+~/comanche/dpu_filter/mclient/dpu_cpp/tpc_ds/multi_encrypted_plus/build
+
+Client
+26: ens785f1np1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
+    link/ether b8:3f:d2:67:f5:ab brd ff:ff:ff:ff:ff:ff
+    altname enp23s0f1np1
+    inet 10.10.10.19/24 brd 10.10.10.255 scope global ens785f1np1
+       valid_lft forever preferred_lft forever
+    inet6 fe80::ba3f:d2ff:fe67:f5ab/64 scope link
+       valid_lft forever preferred_lft forever
+
+
+
+Server
+5: ens785f1np1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
+    link/ether a0:88:c2:45:57:9d brd ff:ff:ff:ff:ff:ff
+    inet 10.10.10.18/24 scope global ens785f1np1
+       valid_lft forever preferred_lft forever
+    inet6 fe80::a288:c2ff:fe45:579d/64 scope link
+       valid_lft forever preferred_lft forever
