@@ -1,0 +1,1 @@
+"SELECT inv_item_sk, inv_quantity_on_hand FROM S3Object WHERE inv_item_sk BETWEEN 13 AND 300 AND inv_date_sk BETWEEN 2451654 AND 2451714"

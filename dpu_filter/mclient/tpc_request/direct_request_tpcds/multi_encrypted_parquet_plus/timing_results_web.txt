@@ -1,0 +1,5 @@
+Query #	1
+Fetch	0.149
+Decrypt	1.629
+Filter	0.417
+Total	2.227

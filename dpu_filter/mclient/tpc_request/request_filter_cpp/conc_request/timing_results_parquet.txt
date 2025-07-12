@@ -1,0 +1,4 @@
+Query #	1
+Total	3.050
+Rows	12960
+Bytes	23750 bytes

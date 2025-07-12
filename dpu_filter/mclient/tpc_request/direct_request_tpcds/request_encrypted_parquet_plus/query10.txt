@@ -1,0 +1,1 @@
+"SELECT ws_item_sk, ws_quantity, ws_sales_price FROM S3Object WHERE ws_sold_date_sk BETWEEN 2451211 AND 2451575"

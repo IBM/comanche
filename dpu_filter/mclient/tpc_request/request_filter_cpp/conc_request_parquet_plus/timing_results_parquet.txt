@@ -1,0 +1,3 @@
+Query #	1
+Total	5.799
+Bytes	10856399
